@@ -48,6 +48,12 @@ Current assumptions:
 - Aggregation does not read ATIF traces, Harbor result files, or method-specific
   `details.json` files. It only unions stable audit item names from
   `coverage.json`.
+- When `subject.evidence_class` is present on an input, `report.py` also emits
+  `coverage_by_evidence_class` with per-runner count summaries. Legacy inputs
+  without that field still contribute to the top-level union and emit a
+  `missing_evidence_class` warning. `measure.py` stamps the field from Harbor
+  `result.json` `config.agent` when measuring a trial directory, or from
+  `--evidence-class`.
 - The aggregate report contains count summaries plus `uncovered_items`. Each
   uncovered item preserves the original audit item and adds generation-oriented
   context: the reason it is uncovered, a one-sentence focus, likely needed

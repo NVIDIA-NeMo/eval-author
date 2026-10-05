@@ -426,6 +426,7 @@ def _write_coverage(
     method: str = "tool_calls",
     task_id: str = "account-recovery",
     run_id: str = "trial-001",
+    evidence_class: str | None = None,
 ) -> dict:
     audit_payload = _audit_payload(audit)
     item_counts = _audit_item_counts(audit_payload)
@@ -449,6 +450,8 @@ def _write_coverage(
         "item_kind_count": item_counts[item_kind],
         "covered": covered,
     }
+    if evidence_class is not None:
+        payload["subject"]["evidence_class"] = evidence_class
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload), encoding="utf-8")
     return payload
@@ -3038,6 +3041,55 @@ def test_audit_generate_replace_mode_overwrites_existing_audit(tmp_path: Path) -
     assert items_by_name["customer.lookup"]["description"].startswith("Looks up customer profile")
 
 
+def test_audit_measure_requires_evidence_class_choice_for_trace(tmp_path: Path) -> None:
+    audit = _write_audit(tmp_path)
+    trace = tmp_path / "trajectory.json"
+    trace.write_text("{}", encoding="utf-8")
+    out_dir = tmp_path / ".eval-author" / "audit-measurements"
+
+    code, report, _ = _run_json_script(
+        _AUDIT_MEASURE,
+        "--audit",
+        str(audit),
+        "--trace",
+        str(trace),
+        "--task-id",
+        "account-recovery",
+        "--out-dir",
+        str(out_dir),
+    )
+
+    assert code == 1
+    assert report["error_type"] == "measurement"
+    assert "--trace requires --evidence-class or --skip-evidence-class" in report["error"]
+
+
+def test_audit_measure_rejects_both_evidence_class_flags(tmp_path: Path) -> None:
+    audit = _write_audit(tmp_path)
+    trace = tmp_path / "trajectory.json"
+    trace.write_text("{}", encoding="utf-8")
+    out_dir = tmp_path / ".eval-author" / "audit-measurements"
+
+    code, report, _ = _run_json_script(
+        _AUDIT_MEASURE,
+        "--audit",
+        str(audit),
+        "--trace",
+        str(trace),
+        "--evidence-class",
+        "agent_under_test",
+        "--skip-evidence-class",
+        "--task-id",
+        "account-recovery",
+        "--out-dir",
+        str(out_dir),
+    )
+
+    assert code == 1
+    assert report["error_type"] == "measurement"
+    assert "pass only one of --evidence-class and --skip-evidence-class" in report["error"]
+
+
 @_needs_harbor
 def test_audit_measure_reports_tool_call_coverage_from_atif_trace(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path)
@@ -3051,6 +3103,8 @@ def test_audit_measure_reports_tool_call_coverage_from_atif_trace(tmp_path: Path
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3093,6 +3147,7 @@ def test_audit_measure_reports_tool_call_coverage_from_atif_trace(tmp_path: Path
             "trace_format": "atif",
             "task_id": "account-recovery",
             "run_id": "root-trajectory",
+            "evidence_class": "agent_under_test",
         },
         "method": {"name": "tool_calls"},
         "item_kind": "tool",
@@ -3129,6 +3184,8 @@ def test_audit_measure_reports_missing_tool_calls_as_not_covered(tmp_path: Path)
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--out-dir",
@@ -3182,6 +3239,8 @@ def test_audit_measure_omits_whitespace_only_optional_trace_identifiers(tmp_path
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--out-dir",
@@ -3216,6 +3275,8 @@ def test_audit_measure_reports_capability_coverage_from_tool_call_evidence(tmp_p
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3293,6 +3354,8 @@ def test_audit_measure_reports_capability_missing_required_tool(tmp_path: Path) 
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3338,6 +3401,8 @@ def test_audit_measure_dedupes_capability_required_tools(tmp_path: Path) -> None
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3369,6 +3434,8 @@ def test_audit_measure_reports_capability_unjudged_evidence_without_covering(tmp
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3417,6 +3484,8 @@ def test_audit_measure_uses_capability_judgments_for_non_tool_evidence(tmp_path:
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3475,6 +3544,8 @@ def test_audit_measure_capability_judgment_does_not_override_missing_tool_eviden
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3517,6 +3588,8 @@ def test_audit_measure_rejects_stale_capability_judgments_without_writing(tmp_pa
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3552,6 +3625,8 @@ def test_audit_measure_rejects_capability_judgments_from_another_trace(tmp_path:
         str(audit),
         "--trace",
         str(measured_trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3583,6 +3658,8 @@ def test_audit_measure_reports_failure_case_unjudged_evidence_without_covering(t
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery-unverified-identity",
         "--measure",
@@ -3630,6 +3707,8 @@ def test_audit_measure_uses_failure_case_judgments_for_non_tool_evidence(tmp_pat
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery-unverified-identity",
         "--measure",
@@ -3694,6 +3773,8 @@ def test_audit_measure_failure_case_judgment_does_not_override_missing_tool_evid
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery-unverified-identity",
         "--measure",
@@ -3738,6 +3819,8 @@ def test_audit_measure_prohibited_tool_overrides_failure_case_judgments(tmp_path
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery-unverified-identity",
         "--measure",
@@ -3781,6 +3864,8 @@ def test_audit_measure_rejects_stale_failure_case_judgments_without_writing(tmp_
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery-unverified-identity",
         "--measure",
@@ -3816,6 +3901,8 @@ def test_audit_measure_rejects_failure_case_judgments_from_another_trace(tmp_pat
         str(audit),
         "--trace",
         str(measured_trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery-unverified-identity",
         "--measure",
@@ -3847,6 +3934,8 @@ def test_audit_measure_batches_all_methods(tmp_path: Path) -> None:
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3906,6 +3995,41 @@ def test_audit_measure_reads_harbor_trial_metadata(tmp_path: Path) -> None:
 
 
 @_needs_harbor
+def test_audit_measure_stamps_oracle_evidence_class_from_harbor_trial(tmp_path: Path) -> None:
+    audit = _write_audit(tmp_path)
+    trial_dir = tmp_path / "job" / "oracle-trial"
+    _write_atif_trace(trial_dir / "agent" / "trajectory.json", tool_calls=["customer.lookup"])
+    (trial_dir / "result.json").write_text(
+        json.dumps(
+            {
+                "task_name": "account-recovery",
+                "trial_name": "oracle-trial",
+                "config": {"agent": {"import_path": "harbor.agents.oracle:OracleAgent"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / ".eval-author" / "audit-measurements"
+
+    code, summary, stderr = _run_json_script(
+        _AUDIT_MEASURE,
+        "--audit",
+        str(audit),
+        "--trial-dir",
+        str(trial_dir),
+        "--out-dir",
+        str(out_dir),
+    )
+
+    assert code == 0, stderr or summary
+    assert summary["evidence_class"] == "reference_solution"
+    coverage = json.loads(
+        (_measurement_dir(out_dir, "account-recovery", "oracle-trial") / "coverage.json").read_text(encoding="utf-8")
+    )
+    assert coverage["subject"]["evidence_class"] == "reference_solution"
+
+
+@_needs_harbor
 def test_audit_measure_encodes_task_and_run_path_components(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path)
     trace = tmp_path / "trajectory.json"
@@ -3918,6 +4042,8 @@ def test_audit_measure_encodes_task_and_run_path_components(tmp_path: Path) -> N
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "smoke/generated",
         "--run-id",
@@ -3952,6 +4078,8 @@ def test_audit_measure_keeps_distinct_runs_separate(tmp_path: Path) -> None:
             str(audit),
             "--trace",
             str(trace),
+            "--evidence-class",
+            "agent_under_test",
             "--task-id",
             "account-recovery",
             "--run-id",
@@ -3986,6 +4114,8 @@ def test_audit_measure_derives_run_id_from_trace_digest_when_trace_has_no_identi
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--out-dir",
@@ -4014,6 +4144,8 @@ def test_audit_measure_rejects_non_atif_trace_without_writing(tmp_path: Path) ->
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--out-dir",
@@ -4039,6 +4171,8 @@ def test_audit_measure_rejects_unknown_measurement_method_before_trace_load(tmp_
         str(audit),
         "--trace",
         str(tmp_path / "missing.json"),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -4066,6 +4200,8 @@ def test_audit_measure_rejects_capability_judgments_without_capability_method(tm
         str(tmp_path / "missing-audit.md"),
         "--trace",
         str(tmp_path / "missing-trace.json"),
+        "--evidence-class",
+        "agent_under_test",
         "--measure",
         "tool_calls",
         "--capability-judgments",
@@ -4093,6 +4229,8 @@ def test_audit_measure_rejects_failure_case_judgments_without_failure_case_metho
         str(tmp_path / "missing-audit.md"),
         "--trace",
         str(tmp_path / "missing-trace.json"),
+        "--evidence-class",
+        "agent_under_test",
         "--measure",
         "tool_calls",
         "--failure-case-judgments",
@@ -4125,6 +4263,8 @@ def test_audit_measure_rejects_tool_call_capability_judgments_before_trace_load(
         str(tmp_path / "missing-audit.md"),
         "--trace",
         str(tmp_path / "missing-trace.json"),
+        "--evidence-class",
+        "agent_under_test",
         "--measure",
         "capabilities",
         "--capability-judgments",
@@ -4152,6 +4292,8 @@ def test_audit_measure_rejects_empty_measure_selection_before_trace_load(tmp_pat
         str(tmp_path / "missing-audit.md"),
         "--trace",
         str(tmp_path / "missing-trace.json"),
+        "--evidence-class",
+        "agent_under_test",
         "--measure",
         measure_value,
         "--out-dir",
@@ -4205,6 +4347,8 @@ def test_audit_measure_reports_write_failures_as_environment_json(
             str(tmp_path / "audit.md"),
             "--trace",
             str(tmp_path / "trajectory.json"),
+            "--evidence-class",
+            "agent_under_test",
             "--task-id",
             "account-recovery",
             "--run-id",
@@ -4252,6 +4396,8 @@ def test_audit_measure_reports_unknown_method_item_kind_as_measurement_json(
             str(tmp_path / "audit.md"),
             "--trace",
             str(tmp_path / "trajectory.json"),
+            "--evidence-class",
+            "agent_under_test",
             "--task-id",
             "account-recovery",
             "--run-id",
@@ -4285,6 +4431,8 @@ def test_audit_measure_marks_missing_harbor_as_environment_error(tmp_path: Path)
         str(audit),
         "--trace",
         str(tmp_path / "missing-trace.json"),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--out-dir",
@@ -4324,14 +4472,23 @@ def test_audit_report_aggregates_coverage_and_formats_generation_gaps(tmp_path: 
     assert code == 0, stderr or summary
     assert summary["written"] is True
     assert summary["coverage_input_count"] == 1
-    assert summary["warning_count"] == 0
-    assert summary["warnings"] == []
+    assert summary["warning_count"] == 1
+    assert summary["warnings"] == [
+        {
+            "kind": "missing_evidence_class",
+            "coverage": str(coverage_path),
+            "message": (
+                "subject.evidence_class is missing; this input is included in legacy union totals only. "
+                "Re-measure with a current measure.py (or pass --evidence-class) to enable per-runner summaries."
+            ),
+        }
+    ]
     assert summary["measured_kinds"] == ["tool"]
     assert summary["covered_count"] == 1
     assert summary["uncovered_count"] == 2
     assert summary["uncovered"] == ["account_recovery", "account_recovery_unverified_identity"]
     assert report["measured_kinds"] == ["tool"]
-    assert report["warnings"] == []
+    assert report["warnings"][0]["kind"] == "missing_evidence_class"
     assert report["audit"]["item_counts"] == {"capability": 1, "failure_case": 1, "tool": 1}
     assert report["coverage"]["overall"] == {"item_count": 3, "covered_count": 1, "uncovered_count": 2}
     assert report["coverage"]["by_kind"] == {
@@ -4366,6 +4523,67 @@ def test_audit_report_aggregates_coverage_and_formats_generation_gaps(tmp_path: 
     assert (
         "identity is not verified" in gaps_by_name["account_recovery_unverified_identity"]["audit_item"]["description"]
     )
+
+
+def test_audit_report_splits_coverage_by_evidence_class_when_labeled(tmp_path: Path) -> None:
+    audit = _write_audit(tmp_path)
+    coverage_dir = tmp_path / ".eval-author" / "audit-measurements"
+    agent_path = _measurement_dir(coverage_dir, "account-recovery", "agent-1") / "coverage.json"
+    reference_path = _measurement_dir(coverage_dir, "account-recovery", "oracle-1") / "coverage.json"
+    _write_coverage(agent_path, audit=audit, covered=[], run_id="agent-1", evidence_class="agent_under_test")
+    _write_coverage(
+        reference_path,
+        audit=audit,
+        covered=["customer.lookup"],
+        run_id="oracle-1",
+        evidence_class="reference_solution",
+    )
+    out = tmp_path / ".eval-author" / "audit-coverage-report.json"
+
+    code, summary, stderr = _run_json_script(
+        _AUDIT_REPORT,
+        "--audit",
+        str(audit),
+        "--coverage",
+        str(agent_path),
+        "--coverage",
+        str(reference_path),
+        "--out",
+        str(out),
+    )
+
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert code == 0, stderr or summary
+    assert report["covered"] == ["customer.lookup"]
+    by_class = report["coverage_by_evidence_class"]
+    assert by_class["reference_solution"]["coverage"]["overall"]["covered_count"] == 1
+    assert by_class["agent_under_test"]["coverage"]["overall"]["covered_count"] == 0
+    assert by_class["agent_under_test"]["input_count"] == 1
+    assert "customer.lookup" in by_class["agent_under_test"]["uncovered"]
+    assert "missing_evidence_class" not in {warning["kind"] for warning in report["warnings"]}
+
+
+def test_audit_report_warns_on_missing_evidence_class_without_runner_summary(tmp_path: Path) -> None:
+    audit = _write_audit(tmp_path)
+    coverage_dir = tmp_path / ".eval-author" / "audit-measurements"
+    coverage_path = _measurement_dir(coverage_dir, "account-recovery", "trial-001") / "coverage.json"
+    _write_coverage(coverage_path, audit=audit, covered=["customer.lookup"])
+    out = tmp_path / ".eval-author" / "audit-coverage-report.json"
+
+    code, summary, stderr = _run_json_script(
+        _AUDIT_REPORT,
+        "--audit",
+        str(audit),
+        "--coverage",
+        str(coverage_path),
+        "--out",
+        str(out),
+    )
+
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert code == 0, stderr or summary
+    assert "coverage_by_evidence_class" not in report
+    assert any(warning["kind"] == "missing_evidence_class" for warning in report["warnings"])
 
 
 def test_audit_report_aggregates_capability_coverage(tmp_path: Path) -> None:
@@ -4603,9 +4821,10 @@ def test_audit_report_warns_on_mismatched_audit_status(tmp_path: Path) -> None:
     assert code == 0
     assert report["valid"] is True
     assert report["written"] is True
-    assert report["warning_count"] == 1
-    assert report["warnings"] == [expected_warning]
-    assert aggregate["warnings"] == [expected_warning]
+    assert report["warning_count"] == 2
+    assert expected_warning in report["warnings"]
+    assert any(warning["kind"] == "missing_evidence_class" for warning in report["warnings"])
+    assert expected_warning in aggregate["warnings"]
 
 
 def test_audit_report_rejects_unknown_covered_item_without_writing(tmp_path: Path) -> None:

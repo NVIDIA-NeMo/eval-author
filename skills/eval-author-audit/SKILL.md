@@ -341,6 +341,11 @@ audit's unavailable-evidence guidance; do not search elsewhere without the
 user selecting another location. Use `--measure` to select one or more
 comma-separated measurement methods; the default is `tool_calls`.
 
+Prefer `--trial-dir` for Harbor trials so `measure.py` stamps `subject.evidence_class`
+from `result.json` `config.agent`. For a standalone ATIF file, use `--trace` and
+pass `--evidence-class` (`agent_under_test` for the evaluated agent;
+`reference_solution` or `nop` for those control runs).
+
 ```bash
 uv run --with-requirements <skill_dir>/requirements.txt \
   <skill_dir>/scripts/audit_spec/measure.py \
@@ -352,8 +357,16 @@ uv run --with-requirements <skill_dir>/requirements.txt \
 
 The current `--trial-dir` reader supports Harbor-style trial directories that
 normally contain `agent/trajectory.json`; agents that do not emit ATIF may not
-have that file. When the trace file is already known, pass it directly and stamp
-the task explicitly:
+have that file. For Harbor trials, `measure.py` stamps `subject.evidence_class`
+from `result.json` `config.agent` (for example `reference_solution` for Oracle
+and `nop` for NOP). Pass `--evidence-class` to override or when measuring a
+standalone `--trace` file. Do not synthesize ATIF from reference solutions to
+represent the agent under test.
+
+When only the ATIF file is available (export, conversion, or non-Harbor layout),
+pass `--trace` with either `--evidence-class` (usual: `agent_under_test` for the
+evaluated agent) or `--skip-evidence-class` to omit the field for legacy
+aggregation only. `--trace` does not infer runner role from ATIF bytes alone.
 
 ```bash
 uv run --with-requirements <skill_dir>/requirements.txt \
@@ -362,6 +375,7 @@ uv run --with-requirements <skill_dir>/requirements.txt \
   --trace <path-to>/trajectory.json \
   --task-id <task-id> \
   --run-id <run-id> \
+  --evidence-class agent_under_test \
   --measure tool_calls \
   --out-dir .eval-author/audit-measurements
 ```
@@ -485,8 +499,12 @@ measurements produced while the audit was `draft` and aggregated after it became
 
 The aggregate report uses `schemas/audit_coverage_report.schema.json`. It
 contains overall and per-kind count summaries, the union of covered item names,
-warnings, the measured item kinds, and `uncovered_items`. Each uncovered item
-includes the original audit item plus generation-oriented context: a stable
+warnings, the measured item kinds, and `uncovered_items`. When any input carried
+`subject.evidence_class`, the report also includes `coverage_by_evidence_class`
+with per-runner summaries and `uncovered_items` for the `agent_under_test`
+bucket. Use that section for task-gap selection and closure; keep the top-level
+union for legacy readers. Each uncovered item includes the original audit item
+plus generation-oriented context: a stable
 `reason`, a one-sentence `focus`, likely `needed_tools`, and the item's
 `evidence_required`.
 Use `reason: not_measured_by_any_method` to distinguish gaps that no included

@@ -87,6 +87,12 @@ demonstrated, and unmeasured items. Copy measured counts from applicable reports
 do not turn an unmeasured kind's zero covered count into a 0% coverage claim.
 For a kind with no declared items, show that fact without a percentage.
 
+When **Coverage measurements (JSON)** includes `coverage_by_evidence_class`, add a
+brief per-runner summary (for example agent under test versus reference solution
+or NOP) using those counts. Keep the legacy top-level union fields unchanged for
+older consumers; treat `agent_under_test` as the headline for whether the
+evaluated agent demonstrated a capability when that section exists.
+
 Use a section named **Intended coverage** as the complete, readable catalog of
 the scope being reviewed. State whether the user has agreed to that scope;
 successful schema validation alone does not make it approved. Map every current

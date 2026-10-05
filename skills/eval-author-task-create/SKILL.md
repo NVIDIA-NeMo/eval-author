@@ -192,7 +192,10 @@ Choose one item from `actionable_tools`. Stop task creation when the list is
 empty, and surface the dataset recommendations from Step 1. An empty selector means no eligible tool
 gaps, not that there are no useful dataset improvements. Capability and
 failure-case items are not task-generation inputs in v1, even when capability
-coverage was measured.
+coverage was measured. When the aggregate JSON includes
+`coverage_by_evidence_class`, `select` and `verify` use the `agent_under_test`
+bucket (and unlabeled legacy inputs in that bucket), not reference or NOP
+measurements that appear only in the top-level union.
 
 Each actionable tool includes a deterministic `task_slug` of the form
 `cover-<tool-name>` and a `paths` object for the proposal, draft, and
@@ -373,7 +376,10 @@ coverage result.
 Run `eval-author-audit`'s `measure.py` and `report.py` separately for each
 recorded attempt. Measure the recorded trace with the recorder's `--run-id` and
 the selected `<task-slug>`; `verify` rejects any other trace. For Harbor, pass the
-recorded trial directory; for Gym, pass the converted ATIF with `--trace`. Keep
+recorded trial directory so `subject.evidence_class` is stamped from
+`result.json`. For Gym or other exports, pass the converted ATIF with `--trace`
+and `--evidence-class agent_under_test` on real agent repeats (`reference_solution`
+or `nop` only when remeasuring those control traces for audit context). Keep
 repeat outputs separate so one successful run cannot hide another:
 
 ```bash
