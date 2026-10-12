@@ -3,6 +3,9 @@
 
 # Development
 
+The [determinism plan](docs/determinism-plan.md) covers shared decisions,
+workflow boundaries, repeat-run evidence, and the checks still needed across flows.
+
 ## Environment and skill layout
 
 Development uses Python 3.12 or 3.13 and uv. Run `uv sync --locked` to prepare
