@@ -89,7 +89,7 @@ See DEVELOPMENT.md for collection scope and exception handling.
 | [`pydantic-core 2.46.5`](https://pypi.org/project/pydantic-core/2.46.5/) | `MIT` | [NOTICES.txt](third_party/NOTICES.txt), [MIT.txt](third_party/license_texts/MIT.txt) |
 | [`pydantic-settings 2.15.0`](https://pypi.org/project/pydantic-settings/2.15.0/) | `MIT` | [NOTICES.txt](third_party/NOTICES.txt), [MIT.txt](third_party/license_texts/MIT.txt) |
 | [`pygments 2.21.0`](https://pypi.org/project/pygments/2.21.0/) | `BSD-2-CLAUSE` | [NOTICES.txt](third_party/NOTICES.txt), [BSD-2-Clause.txt](third_party/license_texts/BSD-2-Clause.txt) |
-| [`pyjwt 2.14.0`](https://pypi.org/project/pyjwt/2.14.0/) | `MIT` | [NOTICES.txt](third_party/NOTICES.txt), [MIT.txt](third_party/license_texts/MIT.txt) |
+| [`pyjwt 2.15.0`](https://pypi.org/project/pyjwt/2.15.0/) | `MIT` | [NOTICES.txt](third_party/NOTICES.txt), [MIT.txt](third_party/license_texts/MIT.txt) |
 | [`python-dateutil 2.9.0.post0`](https://pypi.org/project/python-dateutil/2.9.0.post0/) | `APACHE-2.0 OR BSD-3-CLAUSE` | [NOTICES.txt](third_party/NOTICES.txt), [Apache-2.0.txt](third_party/license_texts/Apache-2.0.txt), [BSD-3-Clause.txt](third_party/license_texts/BSD-3-Clause.txt) |
 | [`python-dotenv 1.2.3`](https://pypi.org/project/python-dotenv/1.2.3/) | `BSD-3-CLAUSE` | [NOTICES.txt](third_party/NOTICES.txt), [BSD-3-Clause.txt](third_party/license_texts/BSD-3-Clause.txt) |
 | [`pyyaml 6.0.3`](https://pypi.org/project/pyyaml/6.0.3/) | `MIT` | [NOTICES.txt](third_party/NOTICES.txt), [MIT.txt](third_party/license_texts/MIT.txt) |
