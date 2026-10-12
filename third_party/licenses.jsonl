@@ -59,7 +59,7 @@
 {"name": "platformdirs", "version": "4.11.8", "license": "MIT", "package_url": "https://pypi.org/project/platformdirs/4.11.8/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/MIT.txt"]}
 {"name": "postgrest", "version": "2.31.0", "license": "MIT", "package_url": "https://pypi.org/project/postgrest/2.31.0/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/MIT.txt"]}
 {"name": "propcache", "version": "0.5.3", "license": "APACHE-2.0", "package_url": "https://pypi.org/project/propcache/0.5.3/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/Apache-2.0.txt"]}
-{"name": "protobuf", "version": "6.33.6", "license": "BSD-3-CLAUSE", "package_url": "https://pypi.org/project/protobuf/6.33.6/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/BSD-3-Clause.txt"]}
+{"name": "protobuf", "version": "7.36.0", "license": "BSD-3-CLAUSE", "package_url": "https://pypi.org/project/protobuf/7.36.0/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/BSD-3-Clause.txt"]}
 {"name": "pyasn1", "version": "0.6.4", "license": "BSD-2-CLAUSE", "package_url": "https://pypi.org/project/pyasn1/0.6.4/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/BSD-2-Clause.txt"]}
 {"name": "pyasn1-modules", "version": "0.4.2", "license": "BSD-2-CLAUSE", "package_url": "https://pypi.org/project/pyasn1-modules/0.4.2/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/BSD-2-Clause.txt"]}
 {"name": "pycparser", "version": "3.0", "license": "BSD-3-CLAUSE", "package_url": "https://pypi.org/project/pycparser/3.0/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/BSD-3-Clause.txt"]}
