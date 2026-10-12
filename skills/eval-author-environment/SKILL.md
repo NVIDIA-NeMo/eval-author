@@ -20,9 +20,9 @@ not-for:
   - eval-author-first-eval (use to plan and build a starter suite)
   - eval-author-discover (use to check whether an existing suite runs)
 compatibility: >-
-  Reads the agent repository locally. Harbor environments need the Harbor CLI
-  (0.20.0 or later) and Docker with Compose for sidecar services; Gym
-  environments need an existing Gym v0.6.0+ runtime in Python 3.13.14+. Vendor
+  Reads the agent repository locally. Both providers need authoring runtimes
+  verified by eval-author-discover’s shared locator and runtime-policy.json.
+  Harbor sidecar services need Docker with Compose. Vendor
   sandboxes use the user's credentials, referenced by variable name only.
   Writes only under `.eval-author/`.
 maturity: alpha

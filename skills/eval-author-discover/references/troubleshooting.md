@@ -47,16 +47,11 @@ you fix an earlier one.
 
 ## Harbor and NeMo Gym environments
 
-Discovery never imports NeMo Gym. It runs the `gym` command next to the
-interpreter or on `PATH`, and counts Gym as installed only when `gym --version`
-reports 0.6.0 or later. Without Harbor, Judge and Solve cover Gym manifests with
-`gym env validate` and `gym env test`, and Harbor findings stay unproven. Judging Gym extension tasks needs Harbor, not
-Gym. Keep the two runtimes in separate environments, and install `nemo-gym`
-0.6.0 (`pip install nemo-gym==0.6.0`), which needs Python 3.13.14 or newer. On
-an older Python, installers silently pick an older version of Gym which lacks the
-critical commands that Judge and Solve need to run. Only Gym's environment needs
-Python 3.13.14; discovery itself runs on Python 3.11 or later with Gym's `bin/` on
-`PATH`.
+Use the [shared runtime locator](runtime-prerequisites.md) and its central policy
+for both providers. Pass the selected Gym CLI with `--gym-cli`; discovery executes
+it in its own Python environment. Missing or incompatible runtimes retain their
+candidate-specific errors. Installation guidance comes from the policy's exact
+install profile and must respect project requirements and setup authorization.
 
 ## What Judge and Solve run
 

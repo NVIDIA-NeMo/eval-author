@@ -513,9 +513,10 @@ uncovered or whether an existing task already exposes an agent failure.
 
 ## Prerequisites
 
-Establish Ethos and review audit items first. Generation/validation need Python
-3.11+, PyYAML, and jsonschema. Measurement needs Python 3.12+ and Harbor's
-trajectory model; use `requirements.txt`. Commands read local files, not services.
+Establish Ethos and review audit items first. Generation/validation need Python 3.11+, PyYAML, and jsonschema; no provider probe.
+Measurement needs Harbor's trajectory model: use `requirements.txt` and the
+[shared locator](../eval-author-discover/references/runtime-prerequisites.md#runtime-prerequisite-checks) with `--flow audit`.
+Commands read local files, not services.
 
 ## Limitations
 

@@ -10,8 +10,10 @@ or measured gap closure is required.
 
 ## 5. Prepare cases and grading
 
-Use the verified Gym v0.6.0+ installation in its separate Python 3.13.14+
-environment. Inspect its CLI help and native scaffolder before use. Create each
+Use the Gym Python/CLI pair selected by the
+[shared runtime locator](../../eval-author-discover/references/runtime-prerequisites.md#runtime-prerequisite-checks)
+with `--provider gym --flow authoring`. Its central policy owns version and
+Python requirements; keep Gym in its separate environment. Inspect its CLI help and native scaffolder before use. Create each
 planned draft in a fresh `.eval-author/task-drafts/<slug>/` directory using
 Gym's `nemo_gym.environment.scaffold.scaffold_environment(kind="environment",
 name=<module_name>, root=<draft_path>)`. Use a valid Python module name for the

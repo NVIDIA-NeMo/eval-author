@@ -58,8 +58,13 @@ VENV_GYM = WORK_DIR / "venv-gym"
 
 # nemo-gym 0.5+ needs Python 3.13.14 or later; on older Pythons uv silently picks 0.4.0, which lacks
 # the `gym env validate/test <name>` commands discovery runs.
-HARBOR_PACKAGE, HARBOR_PYTHON_VERSION = "harbor==0.23.0", "3.12"
-GYM_PACKAGE, GYM_PYTHON_VERSION = "nemo-gym==0.6.0", "3.13"
+_POLICY = json.loads((SCRIPTS_DIR / "runtime-policy.json").read_text())["providers"]
+_HARBOR_PROFILE = _POLICY["harbor"]["test_profiles"]["manual_discovery"]
+_GYM_PROFILE = _POLICY["gym"]["test_profiles"]["manual_discovery"]
+HARBOR_PACKAGE = f"harbor=={_HARBOR_PROFILE['version']}"
+HARBOR_PYTHON_VERSION = _HARBOR_PROFILE["python"]
+GYM_PACKAGE = f"nemo-gym=={_GYM_PROFILE['version']}"
+GYM_PYTHON_VERSION = _GYM_PROFILE["python"]
 IGNORED = shutil.ignore_patterns(".venv", ".venv.setup.lock", "__pycache__")
 EXAMPLE = "example_single_tool_call"
 

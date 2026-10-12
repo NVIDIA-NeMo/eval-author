@@ -301,6 +301,14 @@ step and verify the runtimes that setup uses. For a mixed suite, preserve the
 setup of the affected cases; clarify only when the target is ambiguous. The user
 has the final say and can override the default or request a provider change.
 
+All flows that need a runtime use the shared
+[runtime locator and policy](../eval-author-discover/references/runtime-prerequisites.md#runtime-prerequisite-checks).
+Use `--flow authoring` for first-eval, task-create, environment, and trace-derived
+authoring; `--flow discovery` for readiness; `--flow audit` when audit needs a
+provider runtime. This does not add runtime requirements to file-only inventory,
+planning, or provider-independent audit work. Keep the selected Python/CLI pair
+and recorded version; missing setup or ambiguity never authorizes a provider switch.
+
 Select the output provider independently of the evidence source: a Gym trace
 does not require Gym output. Use the selected provider's native scaffolding,
 validation, and execution path. Missing setup is a reported prerequisite, not

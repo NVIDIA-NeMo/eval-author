@@ -20,10 +20,14 @@ when present rather than introducing a competing installation.
 
 If the repository does not manage Harbor, the stable installation in
 [Harbor's getting-started guide](https://www.harborframework.com/docs/getting-started)
-uses uv, a Python package and tool manager:
+uses uv, a Python package and tool manager. The bundled runtime policy supplies
+the default exact pin; honor existing project requirements first:
 
 ```bash
-uv tool install harbor
+# Resolve the recommended exact pin from the bundled policy.
+python3 <skill_dir>/scripts/runtime_policy.py --install-spec harbor
+# With setup authorization, use the returned requirement:
+uv tool install <returned-requirement>
 ```
 
 Explain that this installs Harbor as a command-line tool. Provide it as a user-run

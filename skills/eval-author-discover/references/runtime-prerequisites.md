@@ -13,64 +13,88 @@ Explore stays in the parent skill and does not run these probes.
 
 ## Runtime prerequisite checks
 
-Identify an interpreter that can import Harbor. Full discovery must later use
-that interpreter for Harbor's validators to judge readiness.
-
-Read the repository's setup instructions and Harbor version requirements first.
-Use its documented environment when present; otherwise locate an existing one.
-A `harbor` command on your `PATH` does not mean Harbor is importable by the Python
-you are about to run. A repository with its own virtual environment usually needs
-that environment's interpreter. Try these in order until one prints a version:
+Use the bundled locator for every runtime prerequisite check, for both providers.
+It uses [runtime-policy.json](../scripts/runtime-policy.json) for supported package
+ranges, Python requirements, and flow-specific import/CLI capabilities. It does
+not install, activate, upgrade, scan evals, or execute jobs. It does execute
+installed runtime probes, so inspect only trusted runtime locations.
 
 ```bash
-harbor_python=""
-for py in .venv/bin/python ./venv/bin/python python3; do
-  if "$py" -c "import harbor, sys; print(sys.executable, harbor.__version__)" 2>/dev/null; then
-    harbor_python="$py"
-    break
-  fi
-done
+python3 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider harbor --flow discovery
+python3 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider gym --flow authoring
 ```
 
-If none prints a version, check an existing uv tool installation before declaring
-Harbor unavailable. `uv tool install harbor` isolates Harbor from project Python:
+Use Python 3.11+ to run the locator. Select `--flow audit` for audit runtime
+requirements, `discovery` for readiness, and `authoring` for first-eval,
+task-create, environment, or trace-derived authoring. Use `--provider both` only
+when both runtimes are needed. File-only inventory never runs this command.
+The shared files ship with eval-author-discover; use this installed sibling
+skill's scripts, not a separately copied policy. If the sibling is missing,
+report the incomplete skill installation instead of inventing a probe sequence.
 
-```bash
-if [ -z "$harbor_python" ] && command -v uv >/dev/null 2>&1; then
-  if harbor_tool_root="$(uv tool dir)" &&
-    "$harbor_tool_root/harbor/bin/python" -c \
-      "import harbor, sys; print(sys.executable, harbor.__version__)"; then
-    harbor_python="$harbor_tool_root/harbor/bin/python"
-  fi
-fi
+The JSON contains every candidate's Python, CLI, installed package/Python
+versions, origins, checks, status, and failure reason. Search is bounded to:
+
+- explicit paths and `[tool.eval-author.runtimes]` declarations;
+- project `.venv` and `venv` environments;
+- the invoking interpreter, all matching executables on `PATH`, and existing
+  environments under `uv tool dir` when uv exists.
+
+The locator checks all these sources before making a selection. It never calls
+`uv tool run` or crawls the home directory. Candidate count and total probe time
+are bounded and reported; an incomplete search is unresolved. Exit 0 means each
+requested provider was selected, not that evals are ready. Exit 1 preserves
+missing, broken, incompatible, ambiguous, or incomplete findings.
+
+Selection precedence is explicit path, project-declared path, project environment,
+then global environment. A broken explicit/project-declared path blocks fallback;
+equal-priority compatible environments require a choice. Repeated sightings of
+the same environment do not create ambiguity. Preserve lexical virtualenv Python
+paths: resolving the executable symlink can select the base interpreter instead.
+
+A project can declare exact locations and an additional version constraint:
+
+```toml
+[tool.eval-author.runtimes.harbor]
+python = ".venv/bin/python"
+requirement = ">=0.20.0,<0.24.0"
+
+[tool.eval-author.runtimes.gym]
+python = "/absolute/gym/.venv/bin/python"
+cli = "/absolute/gym/.venv/bin/gym"
+requirement = "==0.6.0"
 ```
 
-If these probes fail but a `harbor` executable exists, resolve that executable's
-symlink and inspect its launcher to locate the existing environment's Python
-(for example, an installed uv tool environment). Verify that interpreter with
-the same import check before using it. Do not assume that a project interpreter's
-failed import proves Harbor is absent everywhere, and do not run `uv tool run`
-to probe availability because it can install a tool.
+Paths are resolved relative to `--repo`. Direct `project.dependencies` requirements
+for these providers are also enforced. The standard-library parser accepts only
+stable numeric releases and comma-separated `>=`, `>`, `<=`, `<`, `==`, `!=`
+comparisons. Prereleases, markers, extras, URLs, and other constraint syntax are
+unresolved, not silently ignored. Optional groups, lockfiles, shell activation,
+and prose setup instructions are not automatically interpreted: read relevant
+project guidance and supply exact paths with `--harbor-python` / `--harbor-cli`
+or `--gym-python` / `--gym-cli`. Do not edit customer configuration to resolve
+this. For unsupported requirements, report the limitation for explicit review.
 
-If no existing interpreter can import Harbor, read
-[Help the user get Harbor ready](harbor-setup.md). For prerequisite-only
-work, return the missing or broken setup finding to the caller. During full
-discovery, still run inventory with an available Python 3.11+ interpreter and use
-the [empty-scan conversation](../SKILL.md#when-no-harbor-evals-were-found) when appropriate. Missing Harbor blocks readiness
-validation, not that inventory. Include the setup requirement in the full report
-even when the inventory finds no Harbor evals.
+Preserve `selection.<provider>.selected.python` and `.cli` across shell sessions.
+Use that exact Python for Harbor discovery and pass the selected Gym CLI with
+`discover.py --gym-cli /absolute/gym`. Discovery rechecks runtime capabilities;
+its Harbor validators remain in-process, so launching it with an unrelated
+Python cannot borrow another installation's readiness evidence.
 
-Keep the verified `harbor_python` path for [Step 1](../SKILL.md#step-1-run-discovery), including across shell sessions.
-Check `harbor --help` using the corresponding installation. The Harbor setup path
-is complete when that command starts, the selected interpreter imports Harbor
-and reports a version consistent with repository requirements, and the invocation
-is recorded for reuse. Runtime setup does not prove task-specific backend
-readiness, agent access, or successful runs.
+When unresolved, explain the candidates and actual errors first, then ask only
+for the missing location or choice. If no usable installation exists, follow
+[Harbor setup](harbor-setup.md), or the selected project's Gym setup instructions,
+subject to existing setup authorization. Do not reinstall over a broken runtime.
 
-Return the verified command, interpreter, version, and unresolved setup needs to
-the calling stage. Full discovery later records its runtime mode in
-`runtime.harbor_importable` and the top-level `proven` field; prerequisite checks
-alone do not produce a suite-readiness verdict or discovery evidence JSON.
+The policy's `test_profiles` identify pinned test configurations and their test
+owners. A matching installed version does not prove those tests passed locally.
+Supported means it meets the declared compatibility range; verified prerequisites
+also require the listed capabilities. Private provider behavior, task backends,
+credentials, and execution are still checked by later provider-owned validation.
+
+Return selected command, interpreter, installed version, policy version, and
+unresolved setup needs to the calling flow. Keep runtime evidence separate from
+suite readiness. Inventory-only requests retain their existing no-probe boundary.
 
 ## Check for optional Harbor skills
 

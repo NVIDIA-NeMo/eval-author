@@ -48,8 +48,10 @@ not a dependency lock or proof of repeatability.
 
 ## Scaffold the native draft
 
-Require an installed Gym v0.6.0+ runtime in its separate Python 3.13.14+
-environment. Obtain its Python and CLI paths from the existing installation;
+Use the Gym Python/CLI pair selected by the
+[shared runtime locator](../../eval-author-discover/references/runtime-prerequisites.md#runtime-prerequisite-checks)
+with `--provider gym --flow authoring`. Its central policy owns version and
+Python requirements; keep Gym in its separate environment. Obtain its Python and CLI paths from the existing installation;
 use the installed CLI's `--help` before invoking it. If the runtime is missing,
 report the prerequisite and retain the proposal without scaffolding.
 Keep each draft in a fresh `.eval-author/task-drafts/<task-slug>/` directory.

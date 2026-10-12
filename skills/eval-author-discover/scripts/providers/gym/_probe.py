@@ -14,56 +14,27 @@ including the Gym extension tasks that discovery converts.
 
 from __future__ import annotations
 
-import re
-import shutil
-import subprocess
-import sys
-import tempfile
 from pathlib import Path
 
 from _checks import ADVISORY, PASS, WARN, CheckResult, check
+from locate_runtime import locate
+from runtime_policy import install_spec, load, satisfies
 
-# `gym env validate <name>` and `gym env test <name>`, which Judge and Solve run, need this version.
-MIN_VERSION = (0, 6, 0)
-_VERSION_PATTERN = re.compile(r"NeMo Gym v?(\d+)\.(\d+)\.(\d+)")
-_VERSION_TIMEOUT_SEC = 60
-INSTALL_HINT = "Install NeMo Gym 0.6.0 (`pip install nemo-gym==0.6.0`, Python 3.13.14 or newer), then rerun discovery."
+INSTALL_HINT = f"Locate an existing Gym runtime first; when setup is authorized, install {install_spec('gym')} in a separate environment meeting runtime-policy.json."
 
 
-def probe() -> dict:
-    """Report the Gym CLI next to this interpreter, or else on PATH, and the version it reports."""
-    beside = Path(sys.executable).parent / "gym"
-    cli = str(beside) if beside.is_file() else shutil.which("gym")
-    version = _version(cli) if cli else None
+def probe(repo: Path | None = None, cli: str | None = None) -> dict:
+    """Use the shared locator, or reverify an explicitly selected CLI."""
+    evidence = locate(repo or Path.cwd(), explicit={"gym": {"cli": cli}} if cli else None, providers=("gym",))
+    selection = evidence["selection"]["gym"]
+    selected = selection["selected"]
     return {
-        "gym_available": version is not None and _parse(version) >= MIN_VERSION,
-        "gym_version": version,
-        "gym_cli": cli if version else None,
+        "gym_available": selected is not None,
+        "gym_version": selected["version"] if selected else None,
+        "gym_cli": selected["cli"] if selected else None,
+        "gym_probe": evidence,
+        "gym_reason": selection["reason"],
     }
-
-
-def _version(cli: str) -> str | None:
-    """Return the version ``gym --version`` reports, or None when the command is not NeMo Gym or fails."""
-    try:
-        # Gym writes a Hydra outputs/ folder into its working directory, so give it a throwaway one.
-        with tempfile.TemporaryDirectory(prefix="eval-author-gym-") as scratch:
-            completed = subprocess.run(
-                [cli, "--version"],
-                cwd=scratch,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                timeout=_VERSION_TIMEOUT_SEC,
-                check=False,
-            )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    found = _VERSION_PATTERN.search(completed.stdout) if completed.returncode == 0 else None
-    return ".".join(found.groups()) if found else None
-
-
-def _parse(version: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in version.split("."))
 
 
 def is_available(runtime: dict) -> bool:
@@ -74,8 +45,10 @@ def is_available(runtime: dict) -> bool:
 def unavailable_reason(runtime: dict) -> str:
     """Say why Gym cannot judge manifests: missing, or too old."""
     if runtime["gym_version"]:
-        return "NeMo Gym {} is older than {}.".format(runtime["gym_version"], ".".join(map(str, MIN_VERSION)))
-    return "NeMo Gym is not installed."
+        constraint = load()["providers"]["gym"]["supported"]["discovery"]
+        if not satisfies(runtime["gym_version"], constraint):
+            return f"NeMo Gym {runtime['gym_version']} does not meet {constraint}."
+    return runtime.get("gym_reason", "NeMo Gym is not installed.")
 
 
 def probe_checks(runtime: dict, *, report_missing: bool) -> list[CheckResult]:

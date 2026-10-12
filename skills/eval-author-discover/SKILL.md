@@ -24,9 +24,9 @@ not-for:
   - nemo-experimentalist (use to run insight-driven optimization end to end, which drives the Eval Author agent itself)
   - nemo-evaluator (use to run an existing benchmark rather than establish that a Harbor suite is runnable)
 compatibility: >-
-  Python 3.11 or later. Harbor must be importable by the interpreter that runs
-  the script, or NeMo Gym 0.6.0 or later must answer `gym --version` next to it
-  or on PATH, or it exits after Probe. Harbor must be importable for
+  Python 3.11 or later for the locator. Runtimes must meet the bundled
+  runtime-policy.json discovery requirements, verified by the shared locator.
+  If neither provider is compatible, discovery exits after Probe. Harbor must be importable for
   Judge and Solve on Harbor tasks, and Docker must be running for Judge's backend
   check and Solve's oracle runs. That `gym` CLI runs Judge and Solve on Gym
   manifests.
@@ -179,8 +179,8 @@ for configs to a depth of four directories and finds datasets at any depth.
 "${harbor_python:?Select a Harbor interpreter using the probes above}" <skill_dir>/scripts/discover.py --repo .
 ```
 
-Discovery never imports NeMo Gym; it runs the `gym` command found next to the
-interpreter or on `PATH`, so Gym can stay in its own environment. Without Harbor,
+Discovery never imports NeMo Gym in its own process; use the shared locator and
+pass its selected absolute CLI with `--gym-cli`. Gym stays in its own environment. Without Harbor,
 Judge and Solve cover only Gym manifests, and Harbor findings stay unproven. Keep
 the two runtimes in separate environments; see [Harbor and NeMo Gym
 environments](references/troubleshooting.md#harbor-and-nemo-gym-environments)
