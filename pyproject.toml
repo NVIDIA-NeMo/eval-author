@@ -36,6 +36,10 @@ dev = [
 # bundled scripts, and contract tests. The skills stay at the top level
 # so they can be copied into a customer's repository.
 package = false
+# databricks-sdk (via mlflow-skinny) caps protobuf <7, but no 6.x release fixes
+# CVE-2026-0994 / BDSA-2025-123809 for Struct/Value/ListValue; 7.36.0 is the first that does.
+# databricks-sdk only uses the Timestamp/Duration well-known types. Drop once its cap allows 7.x.
+override-dependencies = ["protobuf>=7.36.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

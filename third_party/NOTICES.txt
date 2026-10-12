@@ -7153,12 +7153,12 @@ File: propcache-0.5.3.dist-info/licenses/NOTICE
 
 
 ================================================================================
-protobuf==6.33.6
+protobuf==7.36.0
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/c4/72/02445137af02769918a93807b2b7890047c32bfb9f90371cbc12688819eb/protobuf-6.33.6-py3-none-any.whl
-SHA256: sha256:77179e006c476e69bf8e8ce866640091ec42e1beb80b213c3900006ecfba6901
-File: protobuf-6.33.6.dist-info/LICENSE
+Source: https://files.pythonhosted.org/packages/01/c3/629999e78d46c1115c11886d51c6bd68c17ce4a944f1ea3e153a91316a33/protobuf-7.36.0-py3-none-any.whl
+SHA256: sha256:53374d53fc29a67f7dbbf0ade47d7526a0f0137bf0f9c90e48d8a60790ef748c
+File: protobuf-7.36.0.dist-info/LICENSE
 
 Copyright 2008 Google Inc.  All rights reserved.
 
