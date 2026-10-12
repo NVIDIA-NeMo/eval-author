@@ -4,7 +4,7 @@
 # Audit: example-agent
 
 This file defines a finite coverage denominator for audit measurement. This
-example records `ETHOS.md` as an optional source; generated and hand-edited
+example records `ethos.md` as an optional source; generated and hand-edited
 content is allowed outside the marked block, and scripts validate only the block
 between the markers.
 
@@ -14,7 +14,7 @@ schema: nemo.eval_author.audit.v1
 agent: example-agent
 sources:
   - name: ethos
-    path: ../ETHOS.md
+    path: ../ethos.md
     sha256: "sha256:<replace-with-64-hex-digest>"
 status: draft
 

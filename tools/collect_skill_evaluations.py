@@ -136,15 +136,23 @@ def execute(argv, cwd, env, log, timeout):
             return process.returncode, "timeout"
 
 
+# Skill trees that ship from this repository: Eval Author's and the separately
+# installed ethos skills.
+SKILL_ROOTS = ("skills", "ethos/skills")
+
+
 def collect(repo, output, evaluator, timeout):
     repo, output = repo.resolve(), output.resolve()
-    if output.is_relative_to(repo / "skills"):
-        raise ValueError("output must be outside skills")
-    skills = sorted((repo / "skills").glob("*/SKILL.md"))
+    if any(output.is_relative_to(repo / root) for root in SKILL_ROOTS):
+        raise ValueError("output must be outside the skill trees")
+    skills = [path for root in SKILL_ROOTS for path in sorted((repo / root).glob("*/SKILL.md"))]
     if not skills or not (repo / "skills/eval-author/SKILL.md").is_file():
         raise ValueError("main eval-author skill and sub-skills required")
+    names = [path.parent.name for path in skills]
+    if len(names) != len(set(names)):
+        raise ValueError("skill names must be unique across skill trees")
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
-    dirty = subprocess.check_output(["git", "status", "--porcelain", "--", "skills"], cwd=repo, text=True)
+    dirty = subprocess.check_output(["git", "status", "--porcelain", "--", *SKILL_ROOTS], cwd=repo, text=True)
     if dirty:
         raise ValueError("skill inputs must be clean")
     output.mkdir(parents=True, exist_ok=False)

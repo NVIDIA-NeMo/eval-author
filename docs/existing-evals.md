@@ -54,10 +54,10 @@ The checklist and opening question appear together in the reply that ends the
 turn. Requesting an audit, including asking to load the skill and audit together,
 does not answer that question.
 
-After acceptance, Eval Author explains **Ethos**: the document recording what
+After acceptance, Eval Author explains **ethos.md**: the document recording what
 your agent should do, its boundaries, and what success means, which gives the
-audit its target. It links the [bundled Ethos skill](../skills/ethos/SKILL.md)
-even when a document already exists. An existing Ethos is linked as soon as it is
+audit its target. It links the [ethos-explore skill](../ethos/skills/ethos-explore/SKILL.md)
+even when a document already exists. An existing ethos.md is linked as soon as it is
 found, with a short explanation of its intent and an opportunity to request edits
 before it becomes the audit baseline.
 The first Ethos check-in explains both what the document is and how the audit

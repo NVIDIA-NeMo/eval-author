@@ -12,7 +12,7 @@ what the agent did, not only what its final answer says.
 
 ## Shared setup and review rules
 
-Provide a tiny support agent with a reviewed `ETHOS.md` defining complaint
+Provide a tiny support agent with a reviewed `ethos.md` defining complaint
 detection and policy-grounded answers. Its synthetic complaint definition counts
 current first-person dissatisfaction; a quotation about another person's complaint
 or explicitly resolved historical frustration alone does not qualify. Give source

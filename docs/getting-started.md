@@ -11,10 +11,15 @@ scripts that your agent reads to carry out the work.
 
 Use a coding agent that can read local instructions, read and write project
 files, and run shell commands. Choose either the Skills CLI or a manual copy;
-both install the same eleven active skill directories. Keep the complete set
+both install the same ten active skill directories. Keep the complete set
 together: skills load sibling skills and their bundled scripts, schemas,
 templates, and references. The set includes the **experimental**
 trace-to-environment workflow.
+
+First evaluations and coverage audits also need the ethos skills (`ethos-orchestrate`,
+`ethos-explore`, and `ethos-write`), which install separately:
+`npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/ethos`.
+See the [ethos.md guide](../ethos/README.md).
 
 Neither installation path installs Harbor, Python dependencies, a coding
 assistant, or NeMo services. Those have [workflow-specific requirements](#requirements).
@@ -94,10 +99,9 @@ npx skills list --agent claude-code
 
 For a global installation, use `npx skills list --agent claude-code --global`.
 Use the same assistant identifier you installed for, and confirm the listed
-paths match your chosen project or global destination. Expect these eleven skills:
+paths match your chosen project or global destination. Expect these ten skills:
 
 ```text
-ethos
 eval-author
 eval-author-audit
 eval-author-discover
@@ -166,7 +170,7 @@ Skills CLI. You need Git, access to this GitHub repository, a POSIX shell with
    workflows out. Manual copies are independent of the checkout; updating the
    checkout does not update installed copies.
 
-4. Verify all eleven installed skill directories match the checkout:
+4. Verify all ten installed skill directories match the checkout:
 
    ```bash
    (

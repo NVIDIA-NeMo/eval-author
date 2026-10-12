@@ -22,7 +22,7 @@ Show me the plan first, and explain the cases and how they will be graded.
 
 Eval Author first helps you establish an **Ethos**: a local document describing
 your agent's purpose, boundaries, and success criteria. It can reuse an existing
-`ETHOS.md` or help you create and review one.
+`ethos.md` or help you create and review one.
 
 If you have traces, Eval Author confirms which source and subset to use before
 searching or reading them. That selection and any exclusions carry into case

@@ -11,7 +11,7 @@ description: >-
   none of the user's source, and saves audit artifacts under `.eval-author/`.
 triggers:
   - audit my existing evals
-  - generate audit.md from ETHOS.md
+  - generate audit.md from ethos.md
   - validate audit.md coverage schema
   - measure audit.md coverage against a harbor trace
   - aggregate audit.md coverage reports
@@ -123,7 +123,7 @@ established Ethos to define what the audit should cover. An explicit
 `--ethos <path>` overrides any prior handoff path; otherwise pass the established
 path supplied by first-eval when available.
 
-For a full audit, explain what `ETHOS.md` is and how this audit uses it before
+For a full audit, explain what `ethos.md` is and how this audit uses it before
 checking or creating it. Include that explanation in the first Ethos check-in,
 even when requesting format repairs. Follow [Understand your agent](references/guided-audit.md#1-understand-your-agent)
 to link the document and documentation, summarize its intent, and offer edits.
@@ -153,7 +153,7 @@ valid tool name, including tools the agent must never call and therefore should
 not declare as allowed tools.
 
 Write audit artifacts under `.eval-author/`. Audit operations do not edit the
-customer's source, existing evals, source-of-truth documents, or `ETHOS.md`;
+customer's source, existing evals, source-of-truth documents, or `ethos.md`;
 prerequisite Ethos work belongs to the shared procedure in the pre-flight above.
 
 ## Audit outputs
@@ -187,7 +187,7 @@ ATIF input, Harbor trajectory parsing, v1 `tool_calls`, `capabilities`, and
 
 | Script | Use it to |
 |---|---|
-| `scripts/audit_spec/generate.py` | Create, reconcile, replace, or preview `.eval-author/audit.md` from `ETHOS.md` and reviewed item proposals |
+| `scripts/audit_spec/generate.py` | Create, reconcile, replace, or preview `.eval-author/audit.md` from `ethos.md` and reviewed item proposals |
 | `scripts/audit_spec/measure.py` | Measure one ATIF trace or Harbor trial directory against `audit.md` and write coverage/details files for each selected method |
 | `scripts/audit_spec/report.py` | Aggregate per-trace `coverage.json` files into one coverage report with uncovered audit items |
 | `scripts/audit_spec/validate.py` | Validate the marked audit-spec block in `audit.md` |
@@ -309,7 +309,7 @@ demoted to `status: draft` unless the user passes `--status approved`.
 
 The generator adds an optional `sources` entry for Ethos with `name: ethos`, a
 path relative to `audit.md`, and a real `sha256` digest. It uses the frontmatter
-`name` from `ETHOS.md` when `--agent` is omitted. If that inferred name differs
+`name` from `ethos.md` when `--agent` is omitted. If that inferred name differs
 from the existing audit's `agent`, reconcile preserves the reviewed audit name
 and reports `agent_change` unless the user passes `--agent` explicitly.
 `source_refs` are advisory provenance notes in v1; the validator preserves them

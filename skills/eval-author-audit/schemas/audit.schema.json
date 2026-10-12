@@ -21,7 +21,7 @@
       "$ref": "#/$defs/nonEmptyString"
     },
     "sources": {
-      "description": "Optional provenance records for source-of-truth material used to author this audit spec, such as ETHOS.md, policy docs, product requirements, or generated agent specs.",
+      "description": "Optional provenance records for source-of-truth material used to author this audit spec, such as ethos.md, policy docs, product requirements, or generated agent specs.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/source"

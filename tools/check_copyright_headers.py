@@ -18,6 +18,8 @@ SPDX_LICENSE = "SPDX-License-Identifier: Apache-2.0"
 HASH_SUFFIXES = {".env", ".py", ".sh", ".toml", ".yaml", ".yml"}
 HTML_SUFFIXES = {".md"}
 HASH_FILENAMES = {".env.example", ".gitignore", "Makefile"}
+# Templates copied verbatim into users' repositories carry no header.
+HEADERLESS_TEMPLATES = {"ethos/skills/ethos-write/references/templates/ethos.md"}
 
 
 def _tracked_and_untracked_files() -> list[Path]:
@@ -77,6 +79,8 @@ def check_headers(*, fix_nvidia: bool) -> list[Path]:
     for path in _tracked_and_untracked_files():
         style = _comment_style(path)
         if style is None or not path.is_file():
+            continue
+        if path.relative_to(PROJECT_ROOT).as_posix() in HEADERLESS_TEMPLATES:
             continue
 
         content = path.read_text(encoding="utf-8")

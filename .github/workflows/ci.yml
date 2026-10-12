@@ -52,7 +52,7 @@ jobs:
           cd "$RUNNER_TEMP"
           grep ' gitleaks_8.30.1_linux_x64.tar.gz$' gitleaks-checksums.txt | sha256sum --check -
           tar -xzf gitleaks_8.30.1_linux_x64.tar.gz -C "$UV_TOOL_BIN_DIR" gitleaks
-      - name: Scan main skill and all sub-skills
+      - name: Scan Eval Author and ethos skills
         if: ${{ !cancelled() }}
         run: python tools/collect_skill_evaluations.py --output "$RUNNER_TEMP/skill-evaluations"
       - name: Stage full native reports for private retention

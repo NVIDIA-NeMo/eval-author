@@ -1,58 +1,63 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Local Ethos for Eval Author
+# Local ethos.md for Eval Author
 
 This procedure owns locating, checking, creating, and reviewing the repository's
-`ETHOS.md`. Read and write the document locally. The caller owns when this
+`ethos.md`. Read and write the document locally. The caller owns when this
 prerequisite is required.
 When called from a fresh guided audit, begin only after its opening has ended
 and the user has replied to continue. Loading this procedure alongside the audit
 skill does not authorize starting its reads, validation, or generation early.
 
-## Bundled authoring skill
+## Authoring skills
 
-For new or revised intent, load the sibling [ethos skill](../../ethos/SKILL.md).
-It combines repository exploration, intent questions, authoring, and review in
-one file with an inline schema-v1 outline. Pass the selected agent, existing
-answers, chosen local path, and review state. The procedure below supplies
+For new or revised intent, use the [ethos-explore skill](../../../ethos/skills/ethos-explore/SKILL.md),
+which explores the repository and interviews the user, then hands off to the
+[ethos-write skill](../../../ethos/skills/ethos-write/SKILL.md), which writes, validates,
+and reviews the file. They install separately from Eval Author
+(`npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/ethos`). Pass the selected agent,
+existing answers, chosen local path, and review state. The procedure below supplies
 Eval Author's introduction, write boundaries, and milestone checkpoints; use
 one interview and preserve those caller-specific requirements. Return with the
 saved path, gaps, checks, and review state before continuing Eval Author.
-An already suitable Ethos can go directly through the locate-and-reuse checks.
-The skill ships with Eval Author.
+An already suitable ethos.md can go directly through the locate-and-reuse checks.
 
-## Introduce Ethos
+When those skills are not available, follow this procedure directly with the
+[ethos.md template](../../../ethos/skills/ethos-write/references/templates/ethos.md)
+when it is readable, and tell the user how to install the skills.
+
+## Introduce ethos.md
 
 Before checking or creating the document, explain in ordinary language that
-Ethos records what the agent should do, what it should avoid, and what a good
+ethos.md records what the agent should do, what it should avoid, and what a good
 result looks like. Evals and audits use this as their target. Link the
-[bundled Ethos skill](../../ethos/SKILL.md)
+[ethos-explore skill](../../../ethos/skills/ethos-explore/SKILL.md)
 and make the explanation concrete for the selected agent. This introduction also
 applies when reusing an existing file; do not assume familiarity with the term.
 Reuse an introduction already given in the current flow.
 
 ## Locate and reuse
 
-Use the caller's explicit path when supplied; otherwise use root `ETHOS.md`.
-Read the file and apply the checks below. Resolve ambiguous agent identity with
-the user. A suitable unchanged document can be returned without another
-interview or content approval; still honor the caller's introduction and milestone
-check-in, including a guided audit's linked summary and opportunity to edit it.
-File presence, empty placeholders, README content,
-code, traces, and intent notes do not substitute for a substantive Ethos.
+Use the caller's explicit path when supplied; otherwise use root `ethos.md`, or
+an `ETHOS.md` written by Eval Author 0.1.0. Read the file and apply the checks
+below. Resolve ambiguous agent identity with the user. A suitable unchanged
+document can be returned without another interview or content approval; still
+honor the caller's introduction and milestone check-in, including a guided
+audit's linked summary and opportunity to edit it. File presence, empty
+placeholders, README content, code, traces, and intent notes do not substitute
+for a substantive ethos.md.
 
 When onboarding has not yet identified the agent, use the user's description and
 a bounded look at the root README and directly named agent documentation or entry
 point. Ask which agent is intended if ambiguous. Do not scan eval reports, extract
 conversations, or run Harbor to establish the agent's identity and purpose.
 
-For a new document, default to `<repo-root>/ETHOS.md` or the user's chosen in-repo
-location under the core's narrow Ethos write exception. Preserve existing content,
+For a new document, default to `<repo-root>/ethos.md` or the user's chosen in-repo
+location under the core's narrow ethos.md write exception. Preserve existing content,
 custom sections, and edits. Reuse prior interview answers, including saved
 `.eval-author/intent-notes.md`.
-Do not commit automatically. Recording change permissions does not itself change
-the agent, prompts, model, or runtime.
+Do not commit automatically.
 
 ## Capture intended behavior
 
@@ -75,7 +80,7 @@ old tests. Surface conflicts with existing scoring for the user's resolution.
 A limited first eval set need not wait for unrelated details, but explain any gaps
 instead of presenting a partial Ethos as a complete account of the agent.
 
-Use [the local template](../templates/ETHOS.md). A concrete Role and Purpose &
+Use the [ethos.md template](../../../ethos/skills/ethos-write/references/templates/ethos.md). A concrete Role and Purpose &
 Outcomes are required; other sections contain actual answers or an honest
 `_(none)_`, with uncertainties recorded in Open Questions. Do not invent metrics
 or leave template placeholders. Treat demo policies as fixtures when that is the
@@ -88,6 +93,8 @@ Write the complete document. Use `schema_version: 1`, the actual agent name and
 author, and an ISO 8601 creation timestamp. On edits, retain creation metadata,
 add `updated_timestamp`, preserve unknown frontmatter keys and custom sections,
 and make targeted changes instead of replacing an existing file with the template.
+When editing an Eval Author 0.1.0 `ETHOS.md`, the ethos-write skill renames it to
+`ethos.md`; its contents already match the schema.
 
 Read back the exact file and check:
 
@@ -100,8 +107,8 @@ Read back the exact file and check:
 4. Purpose, boundaries, and change permissions agree with the user's answers;
    implementation references do not establish user approval.
 
-If the caller has execution tools and an existing local interpreter supports YAML,
-use its safe loader for frontmatter; otherwise use structural inspection.
+When the ethos-write skill's `scripts/validate_ethos.py` is available and the caller
+can run Python, use it; otherwise use structural inspection.
 Report whether checks were structural inspection or parser-backed, and fix local
 errors before calling the document complete. These checks do not prove evaluation
 coverage.
@@ -114,12 +121,12 @@ traces** unless that milestone and its check-in are already complete, then defin
 the coverage specification. A scoped audit-generation request proceeds to its
 requested drafting step. For example during onboarding:
 
-> I've generated your `ETHOS.md` for review. It describes the
+> I've generated your `ethos.md` for review. It describes the
 > agent's intended baggage-policy behavior and limits it to the demo policies.
 > Once you confirm it, I'll introduce Harbor, the framework we'll use for the
 > evals, and check its setup.
 >
-> Does ETHOS.md look right, or would you like to change anything before we move on?
+> Does ethos.md look right, or would you like to change anything before we move on?
 
 Wait for review of the saved content before using it for cases or an audit;
 interview answers alone are not document review. Apply requested revisions,
@@ -131,7 +138,7 @@ review state to the caller, which handles its next milestone.
 
 If writing fails, preserve confirmed answers in the conversation or an existing
 writable `.eval-author/intent-notes.md`. Explain the local error, provide the
-complete proposed content and the bundled Ethos skill link above, and ask for the
+complete proposed content and the ethos-explore skill link above, and ask for the
 saved path if the user must save it themselves. A user who prefers to create the
 file can also supply that path. Missing intent calls for a focused question;
 filesystem problems call for local recovery.

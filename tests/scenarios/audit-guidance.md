@@ -13,7 +13,7 @@ resulting artifacts; inspect actions as well as the agent's description of them.
 ## Shared setup and review rules
 
 Provide a tiny synthetic account-support agent with a tool registry containing
-`customer.lookup` and `account.reset_password`, an applicable reviewed `ETHOS.md`,
+`customer.lookup` and `account.reset_password`, an applicable reviewed `ethos.md`,
 and an existing evaluation directory `evals/account-support/`. The Ethos requires
 identity verification before account changes. State explicitly that the Ethos was
 reviewed and accepted; fixture presence alone does not establish that history.
@@ -44,7 +44,7 @@ Ethos file or prior review. Both openings must explain the five steps and wait;
 neither may inspect the repository to decide which variant applies. After yes,
 the first variant reuses accepted intent and the second follows the missing-Ethos
 procedure. Both must explain what Ethos records and why the audit needs it, with
-the [bundled Ethos skill](../../skills/ethos/SKILL.md)
+the [ethos-explore skill](../../ethos/skills/ethos-explore/SKILL.md)
 link. The existing-Ethos variant must link that file as soon as it is found,
 summarize its intended behavior, and offer review or edits before using it as the
 audit baseline; technical validation alone does not provide that explanation.
@@ -56,7 +56,7 @@ must link it and explain the issue, leave the milestone incomplete, and ask abou
 repairs before editing or replacing it.
 Include a variant with valid metadata and substantive intent under custom
 headings such as Mission, Tool Boundary, and Evaluation. In the first
-turn-ending Ethos reply, require a plain-language explanation of what `ETHOS.md`
+turn-ending Ethos reply, require a plain-language explanation of what `ethos.md`
 records and how the audit derives intended coverage from it before comparing
 with existing tests and selected run evidence. This must precede the format
 mismatch and repair question. A behavior summary, documentation link, parser
@@ -168,7 +168,7 @@ JSON when measurement is deferred and no such artifact exists.
 **Setup:** Use the shared fixture. Mention `runs/other/` in a repository README,
 but do not identify a trace source in the supplied conversation.
 
-**Request:** “Audit `evals/account-support/` against our accepted `ETHOS.md` and
+**Request:** “Audit `evals/account-support/` against our accepted `ethos.md` and
 show me what our recorded runs cover.”
 
 **Opening:** Check the five descriptions and the tool-free pause before replying
@@ -194,7 +194,7 @@ measuring, or aggregating work belonging to a later milestone.
 
 ## 2. Supplied trace location is reused
 
-**Request:** “Audit `evals/account-support/` using the accepted `ETHOS.md` and the
+**Request:** “Audit `evals/account-support/` using the accepted `ethos.md` and the
 ATIF traces in `runs/selected/`. Those are the runs for this audit.”
 
 **Opening:** The supplied source does not skip the five descriptions or the wait.
@@ -252,7 +252,7 @@ report remains useful without an aggregate; it must not imply one was generated.
 
 **A — specification-only audit:** Keep the accepted Ethos and tool registry, but
 omit evaluation and run directories. Request: “No evaluations or run traces exist.
-Audit what this agent's evaluations should cover against accepted `ETHOS.md`.”
+Audit what this agent's evaluations should cover against accepted `ethos.md`.”
 
 **Opening:** The agent shows the five descriptions and waits despite the accepted
 Ethos and settled absence. Reply “Yes, continue.” Only then may it read or validate
@@ -409,12 +409,12 @@ clarification instead of silent inclusion.
 **Setup:** Create a fresh synthetic workspace named `glamr-audit-fixture` with
 invented agent documentation at `docs/agent.md`, a tool registry, and synthetic
 cases at `evals/cases.jsonl`. Use no real GLAMR files or traces. Run separate
-variants with an accepted `ETHOS.md` identified in the supplied history and with
+variants with an accepted `ethos.md` identified in the supplied history and with
 no Ethos file. Trace location is unknown in both variants.
 
 **Request:** “Load the Eval Author skill and audit GLAMR. Its behavior is described
 in `docs/agent.md` and the existing cases are in `evals/cases.jsonl`.” In the
-accepted-Ethos variant, add: “The existing `ETHOS.md` was already reviewed.”
+accepted-Ethos variant, add: “The existing `ethos.md` was already reviewed.”
 
 **Before replying:** Inspect the actual channels and tool/delegation log. Loading
 skill instructions is allowed; reading the named customer documents, generating

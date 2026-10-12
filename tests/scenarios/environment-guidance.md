@@ -12,7 +12,7 @@ artifacts. Check what the agent did, not only what its final answer says.
 
 ## Shared setup and review rules
 
-Provide a small support agent repository with a reviewed `ETHOS.md`. The agent
+Provide a small support agent repository with a reviewed `ethos.md`. The agent
 is a Python application whose tools call an in-repository orders service over
 HTTP and read policy Markdown files. Include `docker-compose.yml` with the
 orders service and Postgres, migrations, a test factory that creates three

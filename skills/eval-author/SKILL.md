@@ -271,7 +271,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 
 | Sub-flow | Use it to |
 |---|---|
-| [`ethos`](../ethos/SKILL.md) | Explore intended behavior and write or update ETHOS.md through the [Local Ethos](references/local-ethos.md) handoff |
+| [`ethos-explore`](../../ethos/skills/ethos-explore/SKILL.md) and [`ethos-write`](../../ethos/skills/ethos-write/SKILL.md) | Explore intended behavior and write or update ethos.md through the [Local Ethos](references/local-ethos.md) handoff. Installed separately from Eval Author |
 | `eval-author-first-eval` | Establish required Ethos, plan cases without an installed runtime, and build or expand a starter suite at the agreed breadth while teaching the user how to run it |
 | `eval-author-discover` | Establish whether a repository's evaluations run, name the rung that fails, and get the exact command to run them |
 | `eval-author-audit` | Generate and validate a finite `audit.md` coverage denominator, measure and aggregate trace coverage, and report findings |
@@ -308,7 +308,7 @@ permission to silently switch providers.
 
 ## Establish Ethos before authoring
 
-First-eval requires an applicable `ETHOS.md` before case design,
+First-eval requires an applicable `ethos.md` before case design,
 new scoring decisions, or task authoring. Read [Local Ethos](references/local-ethos.md)
 for the shared locate, reuse, intent, creation, validation, and review procedure.
 Agent documentation can inform Ethos before any evaluation inventory. Existing
@@ -364,7 +364,7 @@ user, not to you.
   it. Do not edit, move, or reformat any of it, including its `.gitignore`. The
   evaluation artifacts you add belong under `.eval-author/`, which is theirs to
   commit or ignore. The sole additional write scope is the requested local
-  `ETHOS.md`: follow [Local Ethos](references/local-ethos.md) to create or make
+  `ethos.md`: follow [Local Ethos](references/local-ethos.md) to create or make
   user-requested edits to it in the repo. Preserve existing Ethos content and
   custom sections; downstream audit measurement does not rewrite it.
   `eval-author-discover` scripts write nothing; `eval-author-audit` writes only
@@ -453,7 +453,7 @@ environments remain experimental. Existing-eval adaptation is disabled.
 ## Examples
 
 ```text
-Request: "Audit the evals in ./evals; the agent Ethos is ./ETHOS.md."
+Request: "Audit the evals in ./evals; the agent Ethos is ./ethos.md."
 Route: eval-author-audit, carrying both paths into its pre-flight.
 Deliverable: coverage findings and their evidence, not a readiness-only report.
 

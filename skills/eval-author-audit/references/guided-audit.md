@@ -89,8 +89,8 @@ Input: the selected agent's intended purpose, boundaries, and success criteria.
 After the user accepts the opening, introduce Ethos before validation or authoring,
 including when an existing document can be reused. Explain what it is and why the
 audit needs it, with a link to the
-[bundled Ethos skill](../../ethos/SKILL.md).
-For example: “`ETHOS.md` describes what your agent should do, what it should
+[ethos-explore skill](../../../ethos/skills/ethos-explore/SKILL.md).
+For example: “`ethos.md` describes what your agent should do, what it should
 avoid, and what a good result looks like. For this audit, we'll turn that intent
 into the behaviors, tools, and failure cases your evaluations should cover,
 then compare them with the existing tests and any selected run records.” Tie

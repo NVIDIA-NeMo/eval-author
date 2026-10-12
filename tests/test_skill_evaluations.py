@@ -27,7 +27,9 @@ def test_ci_evaluation_is_advisory_and_always_attempts_artifact_upload():
     assert upload["if"] == "always()"
     assert upload["with"]["path"].endswith("/skillevaluator-summary.json")
     assert upload["with"]["if-no-files-found"] == "warn"
-    scan = next(step for step in jobs["skill-evaluator"]["steps"] if step.get("name", "").startswith("Scan main"))
+    scan = next(
+        step for step in jobs["skill-evaluator"]["steps"] if "collect_skill_evaluations.py" in step.get("run", "")
+    )
     assert scan["if"] == "${{ !cancelled() }}"
     assert not jobs["test"].get("continue-on-error", False)
 
@@ -99,8 +101,8 @@ def test_malformed_report_does_not_pass(value):
 def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
-    for name in ("eval-author", "new-sub-skill"):
-        skill = repo / "skills" / name
+    for root, name in (("skills", "eval-author"), ("skills", "new-sub-skill"), ("ethos/skills", "ethos-write")):
+        skill = repo / root / name
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text("test skill\n")
     for args in (
@@ -132,8 +134,9 @@ def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch
     monkeypatch.setattr(collector, "execute", execute)
     out = tmp_path / "results"
     result = collector.collect(repo, out, "skillevaluator", 5)
-    assert [row["skill"] for row in result["skills"]] == ["eval-author", "new-sub-skill"]
-    assert result["counts"] == {"incomplete": 1, "passed": 1}
+    assert [row["skill"] for row in result["skills"]] == ["eval-author", "new-sub-skill", "ethos-write"]
+    assert result["skills"][-1]["path"] == "ethos/skills/ethos-write"
+    assert result["counts"] == {"incomplete": 1, "passed": 2}
     assert "PRIVATE-SENTINEL" not in (out / "skillevaluator-summary.json").read_text()
     with pytest.raises(FileExistsError):
         collector.collect(repo, out, "skillevaluator", 5)

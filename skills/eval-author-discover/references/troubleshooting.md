@@ -25,7 +25,7 @@ you fix an earlier one.
 | Probe | `gym` | Advisory. Whether a `gym` command next to the interpreter or on `PATH` reports NeMo Gym 0.6.0 or later. Gym alone lets discovery explore, judge, and solve Gym manifests; Harbor tasks still need Harbor |
 | Explore | `config` | Required only when the repository holds neither a config nor a task. Confirm the location if an existing suite is expected. If the user has no evals and asked to build them, follow `eval-author-first-eval`. Advisory when datasets exist without a config, since each runs by path |
 | Explore | `config-parse` | A config file did not parse. Either PyYAML is missing, which means the wrong interpreter, or the file's YAML is broken. The hint says which |
-| Explore | `ethos` | Advisory. Explore did not find a readable root `ETHOS.md`. This check records file readability, not substantive Ethos validity |
+| Explore | `ethos` | Advisory. Explore did not find a readable root `ethos.md`. This check records file readability, not substantive Ethos validity |
 | Explore | `tasks-on-disk` | Advisory, and always unproven. A count of directories holding a `task.toml` |
 | Explore | `gym-manifests` | Advisory. Gym `manifest.yaml` environments and benchmarks use Gym's resources-server format, which Harbor cannot read. They are listed in `gym_manifests`, judged by Gym, and sampled by Solve. The message counts manifests with no data downloaded |
 | Judge (Harbor) | `schema` | Harbor rejected the config's shape. The message carries the offending field path |

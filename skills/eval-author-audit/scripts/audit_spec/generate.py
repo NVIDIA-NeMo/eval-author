@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Render or update ``audit.md`` from ETHOS.md metadata and reviewed audit items."""
+"""Render or update ``audit.md`` from ethos.md metadata and reviewed audit items."""
 
 from __future__ import annotations
 
@@ -24,15 +24,15 @@ _MARKED_BLOCK_RE = re.compile(
     rf"(?ms)^(?P<begin>[ \t]*{re.escape(BEGIN_MARKER)}[ \t]*\n).*?"
     rf"^(?P<end>[ \t]*{re.escape(END_MARKER)}[ \t]*$)"
 )
-ETHOS_SKILL_PATH = Path(__file__).resolve().parents[3] / "ethos" / "SKILL.md"
+ETHOS_SKILLS_INSTALL = "npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/ethos"
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ethos", type=Path, required=True, help="source ETHOS.md")
+    parser.add_argument("--ethos", type=Path, required=True, help="source ethos.md")
     parser.add_argument("--items", type=Path, required=True, help="YAML file containing audit items")
     parser.add_argument("--out", type=Path, required=True, help="audit.md file to write")
-    parser.add_argument("--agent", help="agent name; defaults to ETHOS.md front matter name or file stem")
+    parser.add_argument("--agent", help="agent name; defaults to ethos.md front matter name or file stem")
     parser.add_argument("--status", choices=("draft", "approved"), help="audit review status; defaults to draft")
     parser.add_argument(
         "--mode",
@@ -143,30 +143,29 @@ def _read_ethos(path: Path) -> bytes:
         return path.read_bytes()
     except FileNotFoundError as exc:
         raise AuditSpecError(
-            "Missing Ethos\n\n"
+            "Missing ethos.md\n\n"
             "Eval Author needs a source of truth for how the agent is supposed to behave before it can "
             "generate an audit coverage report.\n\n"
             f"Missing file: {path}\n\n"
-            "ETHOS.md records intended behavior, mission, constraints, success and failure criteria, "
-            "and what may change.\n\n"
-            f"Ethos skill: {ETHOS_SKILL_PATH}\n\n"
+            "ethos.md records intended behavior, mission, constraints, and success and failure criteria.\n\n"
+            f"Install the ethos-explore and ethos-write skills: {ETHOS_SKILLS_INSTALL}\n\n"
             "Next steps:\n"
             "- Use Eval Author's Local Ethos procedure "
-            "(skills/eval-author/references/local-ethos.md), or follow the bundled Ethos skill listed above.\n"
-            "- Save ETHOS.md in the repository and review its contents before generating audit items.\n"
+            "(skills/eval-author/references/local-ethos.md), or the ethos-explore skill.\n"
+            "- Save ethos.md in the repository and review its contents before generating audit items.\n"
             "- Then rerun this command with --ethos <path>."
         ) from exc
     except OSError as exc:
         raise AuditSpecError(
-            "Unreadable Ethos\n\n"
+            "Unreadable ethos.md\n\n"
             "Eval Author needs a source of truth for how the agent is supposed to behave before it can "
             "generate an audit coverage report.\n\n"
             f"Unreadable file: {path}\n"
             f"Error: {exc}\n\n"
-            f"Ethos skill: {ETHOS_SKILL_PATH}\n\n"
+            f"Install the ethos-explore and ethos-write skills: {ETHOS_SKILLS_INSTALL}\n\n"
             "Next steps:\n"
-            "- Fix read access for the Ethos file, then rerun this command.\n"
-            "- Or pass a readable Ethos path with --ethos <path>."
+            "- Fix read access for the ethos.md file, then rerun this command.\n"
+            "- Or pass a readable ethos.md path with --ethos <path>."
         ) from exc
 
 
@@ -311,7 +310,7 @@ def _agent_name(ethos_text: str, ethos_path: Path, yaml: Any) -> str:
             try:
                 payload = yaml.safe_load(parts[1]) or {}
             except yaml.YAMLError as exc:
-                raise AuditSpecError(f"ETHOS.md frontmatter YAML does not parse: {exc}") from exc
+                raise AuditSpecError(f"ethos.md frontmatter YAML does not parse: {exc}") from exc
             if isinstance(payload, dict):
                 name = payload.get("name")
                 if isinstance(name, str) and name.strip():

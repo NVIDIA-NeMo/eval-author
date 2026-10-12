@@ -314,7 +314,7 @@ def test_documented_harbor_trial_flow_is_accepted(tmp_path, monkeypatch):
     import harbor.models.task.task
 
     monkeypatch.setattr(harbor.models.task.task, "Task", lambda path: SimpleNamespace(checksum="synthetic"))
-    ethos = tmp_path / "ETHOS.md"
+    ethos = tmp_path / "ethos.md"
     ethos.write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n")
     audit = tmp_path / ".eval-author/audit.md"
     audit.parent.mkdir()

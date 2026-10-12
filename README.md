@@ -48,7 +48,9 @@ and [Harbor setup guide](skills/eval-author-discover/references/harbor-setup.md)
 Repository inventory and case planning can start without either runtime.
 
 First-evaluation design and coverage audits require a local **ethos.md file** describing
-your agent's purpose, boundaries, and success criteria. Use the [provided skill](https://github.com/NVIDIA-NeMo/labs-eval-author/blob/main/skills/ethos/SKILL.md) to create one.
+your agent's purpose, boundaries, and success criteria. Install the
+[ethos skills](ethos/README.md) to create one:
+`npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/ethos --agent claude-code`.
 
 The discovery helper requires Python 3.11+. Audit generation, validation, and
 aggregation require Python 3.11+, PyYAML, and jsonschema. Measuring coverage from
@@ -85,7 +87,7 @@ Replace `claude-code` with your assistant's identifier:
 See the [Skills CLI documentation](https://github.com/vercel-labs/skills#supported-agents)
 for other assistants.
 
-Installation adds eleven skill directories with their instructions, scripts,
+Installation adds ten skill directories with their instructions, scripts,
 schemas, templates, and references. Harbor and Python dependencies are separate
 [workflow requirements](docs/getting-started.md#requirements).
 

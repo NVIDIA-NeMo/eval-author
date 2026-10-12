@@ -176,7 +176,7 @@ producing every artifact when prerequisites are missing.
 
 | Workflow | Main outputs |
 | --- | --- |
-| First evaluations | `ETHOS.md`, `.eval-author/first-eval.md`, `.eval-author/README.md`, `.eval-author/task-drafts/`, and run results under `.eval-author/runs/` for Gym or `.eval-author/jobs/` for Harbor. Harbor suites also get `.eval-author/first-eval.yaml` when the agent integration supports it. |
+| First evaluations | `ethos.md`, `.eval-author/first-eval.md`, `.eval-author/README.md`, `.eval-author/task-drafts/`, and run results under `.eval-author/runs/` for Gym or `.eval-author/jobs/` for Harbor. Harbor suites also get `.eval-author/first-eval.yaml` when the agent integration supports it. |
 | Discovery and readiness | `.eval-author/discovery.md` |
 | Coverage audit | The four artifacts listed under [Coverage audits](#coverage-audits), plus supporting evidence in `.eval-author/audit-measurements/` |
 | Intake trace inspection | `.eval-author/traces/` |

@@ -72,7 +72,7 @@ Save the internal stage, evidence, pending question or answered transition, and
 next action in the existing findings or task README. Before those exist, retain early-stage
 state in the conversation or existing intent notes; do not run discovery just to
 obtain a report. Keep selected-runtime probe evidence, local interpreter paths, and milestone
-or approval records in that workflow state, not in `ETHOS.md`. This does not exclude
+or approval records in that workflow state, not in `ethos.md`. This does not exclude
 substantive evaluation requirements from Ethos's Evaluation Setup section.
 For first-eval, use `.eval-author/first-eval.md` once the source decision is
 established; keep the selected corpus, user priorities, agreed per-behavior scope,

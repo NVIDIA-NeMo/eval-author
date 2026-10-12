@@ -3,7 +3,9 @@
 
 # SkillEvaluator CI reports
 
-SkillEvaluator provides advisory checks for the skills in this repository.
+SkillEvaluator provides advisory checks for the skills in this repository:
+the Eval Author skills under `skills/` and the ethos skills under
+`ethos/skills/`. Tier 1 covers both trees; Tier 2 and Tier 3 cover `skills/`.
 Findings and incomplete evaluations remain visible in reports, but do not
 replace the required unit tests, lint, or type checks.
 

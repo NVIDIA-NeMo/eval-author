@@ -7,7 +7,7 @@ Standard library only, and safe to import when Harbor is absent, so an inventory
 survives to orient in a repository that Judge cannot run on.
 
 Everything is read from the local checkout: no client, no workspace, no trace
-probe, and the agent doctrine comes from a local ``ETHOS.md``.
+probe, and the agent doctrine comes from a local ``ethos.md``.
 
 Everything here observes rather than proves. Finding a config file says nothing
 about whether Harbor accepts it, which is why Judge, in ``_judge.py``, runs next
@@ -198,30 +198,32 @@ def scan_repository(
         )
 
     ethos: tuple[str, bytes] | None = None
-    ethos_file = repo_root / "ETHOS.md"
-    if ethos_file.is_file():
+    ethos_file = _ethos_file(repo_root)
+    if ethos_file is not None:
         try:
-            ethos = ("ETHOS.md", ethos_file.read_bytes())
+            ethos = (ethos_file.name, ethos_file.read_bytes())
         except OSError as exc:
             checks.append(
                 _check(
                     "ethos",
                     WARN,
-                    "ETHOS.md exists but cannot be read: {}.".format(exc.strerror or exc),
+                    "{} exists but cannot be read: {}.".format(ethos_file.name, exc.strerror or exc),
                     severity=ADVISORY,
-                    hint="Make ETHOS.md readable to record the agent doctrine.",
+                    hint="Make {} readable to record the agent doctrine.".format(ethos_file.name),
                 )
             )
         else:
-            checks.append(_check("ethos", PASS, "ETHOS.md defines the agent doctrine.", severity=ADVISORY))
+            checks.append(
+                _check("ethos", PASS, "{} defines the agent doctrine.".format(ethos_file.name), severity=ADVISORY)
+            )
     else:
         checks.append(
             _check(
                 "ethos",
                 WARN,
-                "ETHOS.md does not exist at the repository root.",
+                "ethos.md does not exist at the repository root.",
                 severity=ADVISORY,
-                hint="Add ETHOS.md to define the agent doctrine.",
+                hint="Add ethos.md to define the agent doctrine.",
             )
         )
 
@@ -421,7 +423,7 @@ def _fingerprint(
             except OSError:
                 continue
             files.update(path for path in entries if path.is_file() and path.resolve().is_relative_to(repo_root))
-    files.discard(repo_root / "ETHOS.md")
+    files.difference_update(repo_root / name for name in _ETHOS_NAMES)
 
     digest = hashlib.sha256()
     counted = 0
@@ -437,6 +439,19 @@ def _fingerprint(
     if ethos is not None:
         digest.update(ethos[0].encode() + b"\0" + ethos[1] + b"\0")
     return digest.hexdigest(), counted + (ethos is not None)
+
+
+# Eval Author 0.1.0 wrote ``ETHOS.md``; prefer the current name when both exist.
+_ETHOS_NAMES = ("ethos.md", "ETHOS.md")
+
+
+def _ethos_file(repo_root: Path) -> Path | None:
+    """Return the root ethos file by its exact name, even on case-insensitive filesystems."""
+    try:
+        names = {entry.name for entry in repo_root.iterdir() if entry.is_file()}
+    except OSError:
+        return None
+    return next((repo_root / name for name in _ETHOS_NAMES if name in names), None)
 
 
 def _file_digest(path: Path) -> bytes | None:

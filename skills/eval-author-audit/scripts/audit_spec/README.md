@@ -70,7 +70,7 @@ Current assumptions:
 
 | Script | Use it to |
 |---|---|
-| `scripts/audit_spec/generate.py` | Create, reconcile, replace, or preview `.eval-author/audit.md` from `ETHOS.md` and reviewed item proposals |
+| `scripts/audit_spec/generate.py` | Create, reconcile, replace, or preview `.eval-author/audit.md` from `ethos.md` and reviewed item proposals |
 | `scripts/audit_spec/measure.py` | Measure one ATIF trace or Harbor trial directory against `audit.md` and write coverage/details files for each selected method |
 | `scripts/audit_spec/report.py` | Aggregate per-trace `coverage.json` files into one coverage report with uncovered audit items |
 | `scripts/audit_spec/validate.py` | Validate the marked audit-spec block in `audit.md` |

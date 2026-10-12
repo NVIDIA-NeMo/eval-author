@@ -12,7 +12,7 @@ measured, or measured audit. State the scope to which the finding applies.>
 ## Scope and evidence
 
 - **Audit specification:** <link labeled Audit specification to audit.md>
-- **Ethos:** <link to the applicable ETHOS.md>
+- **Ethos:** <link to the applicable ethos.md>
 - **Evaluations inspected:** <suite and case links, or the specific limitation>
 - **Run evidence:** <selected source and runs, or why measurement is unavailable>
 - **Coverage measurements (JSON):** <link to audit-coverage-report.json when it exists, otherwise explain why unavailable>
