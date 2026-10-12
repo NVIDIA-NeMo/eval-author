@@ -25,7 +25,7 @@ the default exact pin; honor existing project requirements first:
 
 ```bash
 # Resolve the recommended exact pin from the bundled policy.
-python3 <skill_dir>/scripts/runtime_policy.py --install-spec harbor
+python3 <skill_dir>/../eval-author/scripts/runtime_policy.py --install-spec harbor
 # With setup authorization, use the returned requirement:
 uv tool install <returned-requirement>
 ```

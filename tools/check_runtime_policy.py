@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def check(root: Path = ROOT) -> None:
-    policy = json.loads((root / "skills/eval-author-discover/scripts/runtime-policy.json").read_text())
+    policy = json.loads((root / "skills/eval-author/scripts/runtime-policy.json").read_text())
     project = tomllib.loads((root / "pyproject.toml").read_text())
     harbor = policy["providers"]["harbor"]
     expected = "harbor==" + harbor["test_profiles"]["ci"]["version"]

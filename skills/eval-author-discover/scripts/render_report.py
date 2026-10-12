@@ -12,7 +12,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from runtime_policy import install_spec, load
+# Shared runtime helpers ship with the sibling eval-author skill.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval-author/scripts"))
+
+from runtime_policy import install_spec, load  # noqa: E402
 
 
 def _required_failures(report: dict[str, Any]) -> list[dict[str, Any]]:

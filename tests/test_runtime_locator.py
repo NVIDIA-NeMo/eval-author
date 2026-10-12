@@ -9,6 +9,7 @@ import copy
 import importlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -16,7 +17,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / "skills/eval-author-discover/scripts"
+SCRIPTS = ROOT / "skills/eval-author/scripts"
 PYTHON = sys.executable
 
 
@@ -245,7 +246,7 @@ def test_wrong_toml_shapes_are_reported(locator, tmp_path, text):
 def test_pin_drift_is_a_failure(tmp_path, monkeypatch):
     monkeypatch.syspath_prepend(str(ROOT / "tools"))
     checker = importlib.import_module("check_runtime_policy")
-    policy_dir = tmp_path / "skills/eval-author-discover/scripts"
+    policy_dir = tmp_path / "skills/eval-author/scripts"
     policy_dir.mkdir(parents=True)
     (policy_dir / "runtime-policy.json").write_bytes((SCRIPTS / "runtime-policy.json").read_bytes())
     project = (ROOT / "pyproject.toml").read_text().replace('"harbor==0.20.0"', '"harbor==99.0.0"')
@@ -255,7 +256,7 @@ def test_pin_drift_is_a_failure(tmp_path, monkeypatch):
 
 
 def test_broken_runtime_report_does_not_recommend_another_install(monkeypatch):
-    monkeypatch.syspath_prepend(str(SCRIPTS))
+    monkeypatch.syspath_prepend(str(ROOT / "skills/eval-author-discover/scripts"))
     renderer = importlib.import_module("render_report")
     report = {
         "runtime": {
@@ -267,3 +268,19 @@ def test_broken_runtime_report_does_not_recommend_another_install(monkeypatch):
     text = renderer._harbor_setup_guidance(report)
     assert "failure reasons" in text
     assert "uv tool install" not in text
+
+
+def test_shared_helpers_in_copied_skill_installation(tmp_path):
+    installed = tmp_path / "installed-skills"
+    for name in ("eval-author", "eval-author-discover"):
+        shutil.copytree(ROOT / "skills" / name, installed / name, ignore=shutil.ignore_patterns("__pycache__"))
+    shared = installed / "eval-author/scripts"
+    discovery = installed / "eval-author-discover/scripts"
+    for script, args in (
+        (shared / "locate_runtime.py", ["--help"]),
+        (shared / "runtime_policy.py", ["--install-spec", "harbor"]),
+        (discovery / "discover.py", ["--help"]),
+        (discovery / "render_report.py", ["--help"]),
+    ):
+        result = subprocess.run([PYTHON, "-I", str(script), *args], cwd=tmp_path, capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr

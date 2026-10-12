@@ -14,22 +14,23 @@ Explore stays in the parent skill and does not run these probes.
 ## Runtime prerequisite checks
 
 Use the bundled locator for every runtime prerequisite check, for both providers.
-It uses [runtime-policy.json](../scripts/runtime-policy.json) for supported package
+It uses [runtime-policy.json](../../eval-author/scripts/runtime-policy.json) for supported package
 ranges, Python requirements, and flow-specific import/CLI capabilities. It does
 not install, activate, upgrade, scan evals, or execute jobs. It does execute
 installed runtime probes, so inspect only trusted runtime locations.
 
 ```bash
-python3 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider harbor --flow discovery
-python3 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider gym --flow authoring
+python3 <skill_dir>/../eval-author/scripts/locate_runtime.py --repo /absolute/project --provider harbor --flow discovery
+python3 <skill_dir>/../eval-author/scripts/locate_runtime.py --repo /absolute/project --provider gym --flow authoring
 ```
 
 Use Python 3.11+ to run the locator. Select `--flow audit` for audit runtime
 requirements, `discovery` for readiness, and `authoring` for first-eval,
 task-create, environment, or trace-derived authoring. Use `--provider both` only
 when both runtimes are needed. File-only inventory never runs this command.
-The shared files ship with eval-author-discover; use this installed sibling
-skill's scripts, not a separately copied policy. If the sibling is missing,
+Here `<skill_dir>` is the eval-author-discover skill directory. The shared files
+ship in the sibling `eval-author/scripts/` directory; every flow uses this one
+locator and policy. If the sibling is missing,
 report the incomplete skill installation instead of inventing a probe sequence.
 
 The JSON contains every candidate's Python, CLI, installed package/Python

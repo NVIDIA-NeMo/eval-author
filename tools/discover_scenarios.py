@@ -58,7 +58,7 @@ VENV_GYM = WORK_DIR / "venv-gym"
 
 # nemo-gym 0.5+ needs Python 3.13.14 or later; on older Pythons uv silently picks 0.4.0, which lacks
 # the `gym env validate/test <name>` commands discovery runs.
-_POLICY = json.loads((SCRIPTS_DIR / "runtime-policy.json").read_text())["providers"]
+_POLICY = json.loads((PROJECT_ROOT / "skills/eval-author/scripts/runtime-policy.json").read_text())["providers"]
 _HARBOR_PROFILE = _POLICY["harbor"]["test_profiles"]["manual_discovery"]
 _GYM_PROFILE = _POLICY["gym"]["test_profiles"]["manual_discovery"]
 HARBOR_PACKAGE = f"harbor=={_HARBOR_PROFILE['version']}"

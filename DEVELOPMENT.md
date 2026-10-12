@@ -15,7 +15,10 @@ This repository is not installed as a Python package. Users
 Keep runtime instructions and resources inside the skill directories, and
 preserve relative paths between sibling skills. A skill installation does not
 include repository-level documentation or tests. The bundled scripts do not
-expose a published Python package API.
+expose a published Python package API. Shared runtime helpers and their policy
+live in `skills/eval-author/scripts/`; provider-specific discovery scripts stay
+under `skills/eval-author-discover/scripts/`. Install the sibling `eval-author`
+skill alongside discovery so its probes and report renderer can load those helpers.
 
 Adding a runtime dependency to a bundled script changes the requirements for
 users who copied the skill. Contract tests inspect script imports and reject

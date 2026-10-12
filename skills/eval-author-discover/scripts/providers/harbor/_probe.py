@@ -17,8 +17,11 @@ import importlib.util
 import sys
 from pathlib import Path
 
-from _checks import ADVISORY, FAIL, PASS, WARN, CheckResult, check
-from locate_runtime import locate
+# Shared runtime helpers ship with the sibling eval-author skill.
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "eval-author/scripts"))
+
+from _checks import ADVISORY, FAIL, PASS, WARN, CheckResult, check  # noqa: E402
+from locate_runtime import locate  # noqa: E402
 
 PROVIDER = "harbor"
 

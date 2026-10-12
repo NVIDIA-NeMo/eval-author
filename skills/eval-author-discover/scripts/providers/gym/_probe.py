@@ -14,11 +14,15 @@ including the Gym extension tasks that discovery converts.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-from _checks import ADVISORY, PASS, WARN, CheckResult, check
-from locate_runtime import locate
-from runtime_policy import install_spec, load, satisfies
+# Shared runtime helpers ship with the sibling eval-author skill.
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "eval-author/scripts"))
+
+from _checks import ADVISORY, PASS, WARN, CheckResult, check  # noqa: E402
+from locate_runtime import locate  # noqa: E402
+from runtime_policy import install_spec, load, satisfies  # noqa: E402
 
 INSTALL_HINT = f"Locate an existing Gym runtime first; when setup is authorized, install {install_spec('gym')} in a separate environment meeting runtime-policy.json."
 

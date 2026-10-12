@@ -24,6 +24,7 @@ not-for:
   - nemo-experimentalist (use to run insight-driven optimization end to end, which drives the Eval Author agent itself)
   - nemo-evaluator (use to run an existing benchmark rather than establish that a Harbor suite is runnable)
 compatibility: >-
+  Install the sibling eval-author skill for its shared runtime helpers.
   Python 3.11 or later for the locator. Runtimes must meet the bundled
   runtime-policy.json discovery requirements, verified by the shared locator.
   If neither provider is compatible, discovery exits after Probe. Harbor must be importable for

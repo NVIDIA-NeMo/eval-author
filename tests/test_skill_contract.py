@@ -4609,7 +4609,12 @@ def test_bundled_scripts_never_import_the_platform() -> None:
     """The copyable boundary permits standalone libraries, not the platform application."""
     offenders: dict[str, set[str]] = {}
     for scripts_dir in _SCRIPT_DIRS:
-        permitted = _local_roots(scripts_dir) | sys.stdlib_module_names | _PERMITTED_THIRD_PARTY
+        permitted = (
+            _local_roots(scripts_dir)
+            | _local_roots(_CORE_SCRIPTS_DIR)
+            | sys.stdlib_module_names
+            | _PERMITTED_THIRD_PARTY
+        )
         for path in _bundled_scripts(scripts_dir):
             found = {root for root in _imported_roots(path) if root not in permitted}
             if found:

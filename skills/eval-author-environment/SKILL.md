@@ -21,7 +21,7 @@ not-for:
   - eval-author-discover (use to check whether an existing suite runs)
 compatibility: >-
   Reads the agent repository locally. Both providers need authoring runtimes
-  verified by eval-author-discover’s shared locator and runtime-policy.json.
+  verified by eval-author’s shared locator and runtime-policy.json.
   Harbor sidecar services need Docker with Compose. Vendor
   sandboxes use the user's credentials, referenced by variable name only.
   Writes only under `.eval-author/`.

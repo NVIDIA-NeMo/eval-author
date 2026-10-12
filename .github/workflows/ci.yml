@@ -150,7 +150,7 @@ jobs:
         run: uv sync --locked
       - name: Install isolated Gym runtime from policy
         run: |
-          policy=skills/eval-author-discover/scripts/runtime_policy.py
+          policy=skills/eval-author/scripts/runtime_policy.py
           GYM_REVISION=$(python "$policy" --get providers.gym.test_profiles.ci.revision)
           GYM_PYTHON=$(python "$policy" --get providers.gym.test_profiles.ci.python)
           git clone --no-checkout https://github.com/NVIDIA-NeMo/Gym.git "$RUNNER_TEMP/gym"
@@ -163,7 +163,7 @@ jobs:
         run: |
           python_bin=.venv/bin/python
           if ! test -x "$python_bin"; then python_bin=python3; fi
-          GYM_REVISION=$("$python_bin" skills/eval-author-discover/scripts/runtime_policy.py --get providers.gym.test_profiles.ci.revision)
+          GYM_REVISION=$("$python_bin" skills/eval-author/scripts/runtime_policy.py --get providers.gym.test_profiles.ci.revision)
           "$python_bin" tools/collect_gym_evidence.py --output "$RUNNER_TEMP/gym-evidence" \
             --gym-python "$RUNNER_TEMP/gym/.venv/bin/python" --gym-root "$RUNNER_TEMP/gym" \
             --gym-revision "$GYM_REVISION" --route "${{ matrix.route }}"
