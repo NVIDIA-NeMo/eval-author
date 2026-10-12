@@ -32,6 +32,9 @@ For example, the results of an audit might report:
 > checks that score an agent's work), and coverage findings before relying on
 > their results.
 
+See [known issues](KNOWN_ISSUES.md) for current limitations and practical guidance
+on task difficulty and authoring prompts.
+
 # Set up
 ## Prerequisites
 
