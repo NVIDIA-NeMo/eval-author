@@ -996,7 +996,8 @@ def test_every_bundled_path_the_skill_names_exists() -> None:
     for relative in (
         "scripts/discover.py",
         "scripts/render_report.py",
-        "references/harbor-setup.md",
+        "../eval-author/references/harbor-setup.md",
+        "../eval-author/references/runtime-prerequisites.md",
         "scripts/_checks.py",
         "scripts/providers/harbor/_probe.py",
         "scripts/providers/harbor/_explore.py",

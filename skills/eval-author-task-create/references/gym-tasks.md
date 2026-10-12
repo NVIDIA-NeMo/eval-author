@@ -49,7 +49,7 @@ not a dependency lock or proof of repeatability.
 ## Scaffold the native draft
 
 Use the Gym Python/CLI pair selected by the
-[shared runtime locator](../../eval-author-discover/references/runtime-prerequisites.md#runtime-prerequisite-checks)
+[shared runtime locator](../../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks)
 with `--provider gym --flow authoring`. Its central policy owns version and
 Python requirements; keep Gym in its separate environment. Obtain its Python and CLI paths from the existing installation;
 use the installed CLI's `--help` before invoking it. If the runtime is missing,

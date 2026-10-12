@@ -4,7 +4,7 @@
 # Runtime prerequisites
 
 Read for readiness validation or the Harbor path of **Get the evaluation runtime ready**. A file-only
-Explore stays in the parent skill and does not run these probes.
+Explore stays in the discovery skill and does not run these probes.
 
 ## Contents
 
@@ -14,23 +14,23 @@ Explore stays in the parent skill and does not run these probes.
 ## Runtime prerequisite checks
 
 Use the bundled locator for every runtime prerequisite check, for both providers.
-It uses [runtime-policy.json](../../eval-author/scripts/runtime-policy.json) for supported package
+It uses [runtime-policy.json](../scripts/runtime-policy.json) for supported package
 ranges, Python requirements, and flow-specific import/CLI capabilities. It does
 not install, activate, upgrade, scan evals, or execute jobs. It does execute
 installed runtime probes, so inspect only trusted runtime locations.
 
 ```bash
-python3 <skill_dir>/../eval-author/scripts/locate_runtime.py --repo /absolute/project --provider harbor --flow discovery
-python3 <skill_dir>/../eval-author/scripts/locate_runtime.py --repo /absolute/project --provider gym --flow authoring
+python3 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider harbor --flow discovery
+python3 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider gym --flow authoring
 ```
 
 Use Python 3.11+ to run the locator. Select `--flow audit` for audit runtime
 requirements, `discovery` for readiness, and `authoring` for first-eval,
 task-create, environment, or trace-derived authoring. Use `--provider both` only
 when both runtimes are needed. File-only inventory never runs this command.
-Here `<skill_dir>` is the eval-author-discover skill directory. The shared files
-ship in the sibling `eval-author/scripts/` directory; every flow uses this one
-locator and policy. If the sibling is missing,
+Here `<skill_dir>` is the eval-author skill directory. The shared files ship in
+its `scripts/` directory; every flow uses this one locator and policy. If this
+shared skill is missing,
 report the incomplete skill installation instead of inventing a probe sequence.
 
 The JSON contains every candidate's Python, CLI, installed package/Python
@@ -137,4 +137,4 @@ continuing, or add a new approval gate.
 Their absence changes no readiness checks, `proven`, `runnable`, or exit code.
 The script cannot determine host skill availability. Return these observations
 with prerequisite-only findings; include them separately from evidence JSON in
-the later full discovery report as described in [Step 6](../SKILL.md#step-6-save-the-report).
+the later full discovery report as described in [Step 6](../../eval-author-discover/SKILL.md#step-6-save-the-report).

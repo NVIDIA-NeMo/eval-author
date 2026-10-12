@@ -279,7 +279,7 @@ To continue, [check an existing suite](existing-evals.md#check-readiness),
 ## Requirements
 
 Requirements depend on the operation. Use the
-[Harbor setup guide](../skills/eval-author-discover/references/harbor-setup.md) when
+[Harbor setup guide](../skills/eval-author/references/harbor-setup.md) when
 you need to create, validate, or run Harbor tasks.
 
 | Operation | Requirements |

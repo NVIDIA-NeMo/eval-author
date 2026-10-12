@@ -112,7 +112,7 @@ environment and grading, and retain results for reruns. Verify the runtimes the
 selected setup uses; apply both checks below when it uses both.
 
 For **Gym** and **Harbor**, use the shared
-[runtime locator](../../eval-author-discover/references/runtime-prerequisites.md#runtime-prerequisite-checks)
+[runtime locator](runtime-prerequisites.md#runtime-prerequisite-checks)
 with `--flow authoring` and the selected provider. It reads the central runtime
 policy, searches project and global locations, and verifies the selected Python,
 CLI, version, and authoring capabilities. Reuse explicit paths and project setup
@@ -120,7 +120,7 @@ instructions; keep Gym and Harbor environments separate. Preserve the exact
 selected invocation. Explain unresolved candidate errors before asking for a
 location or choice. Installation still follows the core authorization boundary.
 For Harbor, include the optional-skill advisory and use its
-[setup guide](../../eval-author-discover/references/harbor-setup.md) when needed.
+[setup guide](harbor-setup.md) when needed.
 
 The checkpoint reply explains the selected framework and observed setup result,
 including when reusing an installation. Setup does not prove task-specific

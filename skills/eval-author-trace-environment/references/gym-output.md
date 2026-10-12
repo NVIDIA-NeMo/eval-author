@@ -45,7 +45,7 @@ boundary. Continue shared privacy review and candidacy before scaffolding.
 ## Native workspace and scaffold
 
 Use the Gym Python/CLI pair selected by the
-[shared runtime locator](../../eval-author-discover/references/runtime-prerequisites.md#runtime-prerequisite-checks)
+[shared runtime locator](../../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks)
 with `--provider gym --flow authoring`. Its central policy owns version and
 Python requirements; keep Gym in its separate environment. Inspect that installation's CLI help and request models as in the
 [Gym authoring guide](../../eval-author-task-create/references/gym-tasks.md).

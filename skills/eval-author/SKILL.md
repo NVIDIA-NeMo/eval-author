@@ -302,7 +302,7 @@ setup of the affected cases; clarify only when the target is ambiguous. The user
 has the final say and can override the default or request a provider change.
 
 All flows that need a runtime use the shared
-[runtime locator and policy](../eval-author-discover/references/runtime-prerequisites.md#runtime-prerequisite-checks).
+[runtime locator and policy](references/runtime-prerequisites.md#runtime-prerequisite-checks).
 Use `--flow authoring` for first-eval, task-create, environment, and trace-derived
 authoring; `--flow discovery` for readiness; `--flow audit` when audit needs a
 provider runtime. This does not add runtime requirements to file-only inventory,

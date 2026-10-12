@@ -47,7 +47,7 @@ you fix an earlier one.
 
 ## Harbor and NeMo Gym environments
 
-Use the [shared runtime locator](runtime-prerequisites.md) and its central policy
+Use the [shared runtime locator](../../eval-author/references/runtime-prerequisites.md) and its central policy
 for both providers. Pass the selected Gym CLI with `--gym-cli`; discovery executes
 it in its own Python environment. Missing or incompatible runtimes retain their
 candidate-specific errors. Installation guidance comes from the policy's exact

@@ -11,7 +11,7 @@ or measured gap closure is required.
 ## 5. Prepare cases and grading
 
 Use the Gym Python/CLI pair selected by the
-[shared runtime locator](../../eval-author-discover/references/runtime-prerequisites.md#runtime-prerequisite-checks)
+[shared runtime locator](../../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks)
 with `--provider gym --flow authoring`. Its central policy owns version and
 Python requirements; keep Gym in its separate environment. Inspect its CLI help and native scaffolder before use. Create each
 planned draft in a fresh `.eval-author/task-drafts/<slug>/` directory using

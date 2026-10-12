@@ -154,7 +154,7 @@ or repair without substituting an audit.
 ## Runtime prerequisite checks
 
 For Harbor readiness or the Harbor path of **Get the evaluation runtime ready**,
-read and follow [Runtime prerequisites](references/runtime-prerequisites.md) before
+read and follow [Runtime prerequisites](../eval-author/references/runtime-prerequisites.md) before
 probing tools. It contains the interpreter selection commands, verification
 criteria, setup recovery, and optional Harbor-skills check. Reuse still-current
 setup evidence and return prerequisite-only findings to the calling stage.
@@ -162,7 +162,7 @@ setup evidence and return prerequisite-only findings to the calling stage.
 Do not load or run these procedures for a file-only Explore. Missing Harbor
 blocks Judge and Solve on Harbor tasks, not Explore. Setup checks are Probe
 evidence only; they do not establish suite readiness. For a missing or broken installation, read
-[Harbor setup](references/harbor-setup.md). Installation requires the user's
+[Harbor setup](../eval-author/references/harbor-setup.md). Installation requires the user's
 setup authorization.
 
 Keep the verified `harbor_python` path for Step 1. Report optional assistant-skill

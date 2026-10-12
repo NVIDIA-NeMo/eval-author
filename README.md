@@ -44,7 +44,7 @@ Gym is compatible with Harbor, and the user has the final say.
 
 Gym authoring needs Gym v0.6.0+ in its separate Python 3.13.14+ environment; Harbor authoring needs its
 CLI and supported Python environment. See the [first-eval guide](docs/first-evals.md)
-and [Harbor setup guide](skills/eval-author-discover/references/harbor-setup.md).
+and [Harbor setup guide](skills/eval-author/references/harbor-setup.md).
 Repository inventory and case planning can start without either runtime.
 
 First-evaluation design and coverage audits require a local **ethos.md file** describing

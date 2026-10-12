@@ -3,14 +3,14 @@
 
 # Help the user get Harbor ready
 
-Use this when the [runtime prerequisite checks](../SKILL.md#runtime-prerequisite-checks) cannot
+Use this when the [runtime prerequisite checks](runtime-prerequisites.md#runtime-prerequisite-checks) cannot
 use Harbor. This reference owns installation remedies; the shared
-[Milestone check-ins](../../eval-author/references/milestone-checkins.md) procedure owns
+[Milestone check-ins](milestone-checkins.md) procedure owns
 explaining the prerequisite and deciding what work follows.
 
 ## Resolve the existing installation first
 
-Follow discovery's probes before concluding Harbor is missing. If a launcher
+Follow the shared runtime prerequisite checks before concluding Harbor is missing. If a launcher
 exists but fails, investigate its actual error before suggesting another
 installation. A failed import in one environment is not a reason to upgrade or
 reinstall. Follow the repository's documented environment and version requirements
@@ -24,8 +24,9 @@ uses uv, a Python package and tool manager. The bundled runtime policy supplies
 the default exact pin; honor existing project requirements first:
 
 ```bash
+# <skill_dir> is the eval-author skill directory.
 # Resolve the recommended exact pin from the bundled policy.
-python3 <skill_dir>/../eval-author/scripts/runtime_policy.py --install-spec harbor
+python3 <skill_dir>/scripts/runtime_policy.py --install-spec harbor
 # With setup authorization, use the returned requirement:
 uv tool install <returned-requirement>
 ```
@@ -44,9 +45,10 @@ a blocked tool installation.
 
 ## Return to verification
 
-After installing or repairing Harbor, return to discovery's **Runtime prerequisite
-checks** using the resulting installation. Discovery owns interpreter and CLI
-verification, the optional assistant-skills check, and saved setup evidence.
+After installing or repairing Harbor, return to the shared [runtime prerequisite
+checks](runtime-prerequisites.md#runtime-prerequisite-checks) using the resulting
+installation. They cover interpreter and CLI verification, the optional
+assistant-skills check, and saved setup evidence.
 During prerequisite-only work, return that setup evidence to the calling stage;
 do not start suite inventory or source selection. If the caller is already in
 full discovery and an earlier report was blocked, rerun its pass with the verified
