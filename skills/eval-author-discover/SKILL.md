@@ -93,7 +93,10 @@ in Step 5.
 
 ## Explore an uncertain starting point
 
-Start with the supplied locations and a bounded inspection of the repository's
+Start with the supplied locations. Use the shared
+[file-only task search](../eval-author/references/task-search.md) for deterministic
+Harbor task and Gym workload candidates; retain its search limits and exclusions.
+Then make a bounded inspection of the repository's
 README, evaluation documentation, CI/workflow commands, and likely test or eval
 directories. Look for Harbor configs and tasks as well as scripts, datasets,
 notebooks, and written cases or grading criteria. Inspect representative
@@ -111,7 +114,7 @@ specific missing information instead of inventing one. For multiple suites,
 describe their differences and give each supported invocation without choosing
 one silently.
 
-This entry is Explore by hand: it establishes what material exists, not whether
+This entry is file-only Explore: it establishes what material exists, not whether
 it runs. Do not require Ethos, install tools, probe Harbor or Docker, execute
 repository code, or invoke `discover.py`: that script also runs Probe, Judge,
 and Solve. Inspect only enough case or grader source to identify what a suite

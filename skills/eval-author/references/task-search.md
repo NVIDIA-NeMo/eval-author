@@ -1,0 +1,115 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+# Find local Harbor tasks and Gym workloads
+
+Use this file-only search when the user wants to find existing evaluations or
+when an authorized workflow needs local source candidates. It needs Python 3.10+
+and no provider packages, credentials, model calls, Docker, or runtime setup.
+The script never loads YAML/TOML, imports repository code, follows dataset
+references, or executes provider commands. A candidate is not a validated task.
+
+`<skill_dir>` below is the installed **eval-author** skill directory:
+
+```bash
+python3 <skill_dir>/scripts/search_tasks.py --repo /absolute/project
+python3 <skill_dir>/scripts/search_tasks.py --repo /absolute/project --provider harbor
+python3 <skill_dir>/scripts/search_tasks.py --repo /absolute/project --provider gym --query math
+```
+
+The JSON records candidate paths, observed marker files, provider/layout hints,
+and search scope. Every candidate has `validation: "not_checked"`. Directory
+paths identify Harbor and Gym extension tasks; file paths identify Gym manifests
+and config candidates. `.` identifies a task at the supplied root. `--query` is a
+case-insensitive substring filter on the reported path, not semantic search.
+Filters apply after the same bounded traversal; they do not reduce its scope.
+
+## Matching rules
+
+| Layout evidence | Candidate | Interpretation |
+| --- | --- | --- |
+| `task.toml` in any scanned directory, including the root | Harbor task | Include incomplete scaffolds; other markers are evidence, not validation requirements. |
+| `tasks.jsonl` and `instruction.template.md` together | Gym parameterized task | Rows and template are not parsed or expanded. |
+| `task.toml` and `tests/verifier.py` together | Gym Python-verifier task | A Gym extension of the Harbor layout. Parameterized evidence takes precedence when both are present. |
+| `manifest.yaml` | Gym manifest candidate | Retain even outside a catalog tree, where it may be an example or unrelated manifest. |
+| `environments/<name>/config.yaml` | Gym legacy config candidate | Structural match only. |
+| `benchmarks/**/*.yaml` | Gym legacy config candidate | Native Gym checks config contents; this search deliberately leaves that unverified. |
+| `resources_servers/<name>/configs/*.yaml` | Gym resource config candidate | Some contain workloads; others only configure a component. Do not call every match a task. |
+
+The nearest scanned `environments/` or `benchmarks/` ancestor supplies catalog
+context, including when that directory is the explicit search root. Nested
+projects remain separate paths; names are not merged. For legacy configs, supply
+the repository or catalog-tree root: searching directly inside
+`environments/<name>` omits the identifying ancestor and will not classify a
+standalone `config.yaml`. Explicit roots do not inspect their parents. A manifest's sibling
+`config.yaml` is grouped into its evidence rather than emitted twice. Other
+benchmark config variants remain separate candidates. Environment tombstones
+named `.nemo_gym_tombstone` are reported when observed; the candidate remains
+visible for explanation rather than being silently dropped.
+
+These rules are grounded in [Harbor 0.20.0 task paths](https://github.com/harbor-framework/harbor/blob/v0.20.0/src/harbor/models/task/paths.py)
+and the pinned Gym source used by this repository:
+[registry](https://github.com/NVIDIA-NeMo/Gym/blob/3045a793346a31291d7ea4ae6af3f94a35036ce5/nemo_gym/registry.py),
+[benchmark discovery](https://github.com/NVIDIA-NeMo/Gym/blob/3045a793346a31291d7ea4ae6af3f94a35036ce5/nemo_gym/benchmarks.py).
+The two extension markers preserve Eval Author's existing
+[Gym classification](../../eval-author-discover/scripts/providers/gym/_explore.py);
+they do not establish support for execution by the pinned Gym runtime.
+The search is a conservative inventory of these layouts, not a replacement for
+native validation or Gym's catalog resolver.
+
+Gym's native catalog applies manifest validation, content checks for legacy
+workloads, tombstones, and precedence across extra roots, working directory,
+and installation. Its `gym list environments --json` and `gym search` commands
+serve that runtime-backed catalog; see the [Gym 0.6.0 CLI reference](https://docs.nvidia.com/nemo/gym/v0.6.0/reference/cli-commands/).
+The local search does not borrow built-in catalog entries from an installation
+or download Harbor registry datasets. It does not establish a usable native
+name or execution command from a filename.
+
+## Scope and completeness
+
+The scanner visits sorted directory paths and emits candidates sorted by path,
+provider, and kind. It reads directory metadata only. It has no timestamps or
+runtime-dependent fields; for an unchanged tree, root, filters, and limits,
+repeated reports are identical. Compare `repo` separately when relocating a
+fixture. Concurrent filesystem edits are outside that guarantee.
+
+Defaults are depth 12 below the supplied root and 50,000 retained directory
+entries. Override with `--max-depth` and `--max-entries` when a known location
+needs a larger scope. If a directory exceeds the remaining entry budget, its
+entire partial listing is discarded and the scan stops with an incomplete
+result. This avoids choosing arbitrary files based on filesystem listing order.
+The scanner may inspect one extra entry to detect that limit. Files already
+found in completed directories remain in the result.
+
+The fixed descendant exclusions are `.git`, `.venv`, `venv`, `node_modules`,
+`__pycache__`, `.pytest_cache`, `.ruff_cache`, `.mypy_cache`, and `.tox`. Symlinks
+are not followed, including marker files. An explicitly supplied root is
+resolved and scanned even if its name is normally excluded. `.eval-author/`
+is included because it can contain authored tasks. Git ignore rules are not
+applied; ignored fixtures or generated results may therefore appear as candidates.
+Templates and examples also remain candidates and need source interpretation.
+
+`search` lists actual exclusions, filesystem errors, reached limits, and the
+number of fully scanned directories and retained entries. `complete: true`
+means traversal completed within the declared exclusions. It does not cover
+symlink targets, remote data, nonstandard layouts, or other evaluation formats.
+Missing markers in an incomplete scan may simply be outside the scanned scope.
+
+Exit codes are 0 for completed inventory, 1 for incomplete inventory, and 2 for
+invalid arguments or an unusable root. An empty completed inventory exits 0;
+that is not a readiness pass or proof that the repository contains no evals.
+
+## Return the findings
+
+Preserve this evidence with the discovery findings. Read representative task
+instructions, suite READMEs, runners, and CI commands to explain purpose and
+source-derived run instructions. Continue bounded inspection for Harbor job
+configs, nonstandard Gym configs, scripts, notebooks, and manual rubrics; those
+are outside this layout search. Do not fabricate missing execution commands or
+infer readiness from marker files.
+
+State the searched root, filters, exclusions, incomplete conditions, and candidate
+paths. Resolve missing locations or scope before claiming absence. Finding
+candidates does not authorize provider probing, installation, validation,
+execution, auditing, or task creation; continue according to the user's request
+and the calling flow's handoff.
