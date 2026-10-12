@@ -5032,17 +5032,17 @@ def test_explore_groups_sibling_tasks_into_one_dataset(tmp_path: Path, monkeypat
 
 
 @pytest.mark.parametrize(
-    ("output", "available", "reason"),
+    ("output", "available"),
     [
-        ("NeMo Gym v0.6.0", True, None),
-        ("NeMo Gym v0.4.0", False, "NeMo Gym 0.4.0 is older than 0.6.0."),
-        ("gym: a workout tracker", False, "NeMo Gym is not installed."),
+        ("NeMo Gym v0.6.0", True),
+        ("NeMo Gym v0.4.0", False),
+        ("gym: a workout tracker", False),
     ],
 )
 def test_gym_probe_trusts_only_a_new_enough_nemo_gym(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, output: str, available: bool, reason: str | None
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, output: str, available: bool
 ) -> None:
-    """The probe asks `gym --version`, so an old Gym or an unrelated `gym` command is not mistaken for Gym."""
+    """The shared locator rejects old Gym and unrelated CLIs through the discovery adapter."""
     _import_discover(monkeypatch)
     gym_probe = importlib.import_module("providers.gym._probe")
     version_match = re.search(r"v(\d+\.\d+\.\d+)", output)
@@ -5056,6 +5056,40 @@ def test_gym_probe_trusts_only_a_new_enough_nemo_gym(
         explicit = next(candidate for candidate in candidates if candidate["priority"] == 0)
         assert explicit["status"] in {"incompatible", "broken"}
         assert explicit["reason"]
+
+
+@pytest.mark.parametrize("status", ["selected", "unresolved", "ambiguous"])
+@pytest.mark.parametrize("cli", [None, "/chosen/bin/gym"])
+def test_gym_probe_preserves_shared_locator_decision(tmp_path, monkeypatch, status, cli):
+    discover = _import_discover(monkeypatch)
+    gym_probe = importlib.import_module("providers.gym._probe")
+    selected = {"version": "99.0.0", "cli": "/selected/bin/gym"} if status == "selected" else None
+    reason = "Locator decision: " + status
+    evidence = {"selection": {"gym": {"status": status, "selected": selected, "reason": reason}}}
+    calls = []
+
+    def locate(repo, **kwargs):
+        calls.append((repo, kwargs))
+        return evidence
+
+    monkeypatch.setattr(gym_probe, "locate", locate)
+    runtime = gym_probe.probe(tmp_path, cli)
+    assert calls == [(tmp_path, {"explicit": {"gym": {"cli": cli}} if cli else None, "providers": ("gym",)})]
+    assert runtime["gym_probe"] is evidence
+    assert runtime["gym_reason"] == reason
+    assert gym_probe.is_available(runtime) is (selected is not None)
+    assert runtime["gym_version"] == (selected["version"] if selected else None)
+    assert runtime["gym_cli"] == (selected["cli"] if selected else None)
+    checks = gym_probe.probe_checks(runtime, report_missing=True)
+    assert checks[0].status == ("pass" if selected else "warn")
+    if selected is None:
+        assert checks[0].message == reason
+        assert gym_probe.probe_checks(runtime, report_missing=False) == []
+        entries = [{}]
+        failures = discover._judge_manifests([object()], entries, runtime, tmp_path)
+        assert entries[0]["judge"] == {"status": "blocked", "reason": reason, "error": None}
+        assert failures[0].status == "fail"
+        assert reason in failures[0].message
 
 
 def test_judge_line_counts_each_format_and_names_a_docker_failure(monkeypatch: pytest.MonkeyPatch) -> None:

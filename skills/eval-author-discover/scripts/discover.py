@@ -218,7 +218,7 @@ def _judge_manifests(
     rediscover what Explore already knows. Without a usable Gym, every manifest is
     blocked instead, and a required check fails so the repo cannot pass unchecked.
     """
-    missing = None if gym_probe.is_available(runtime) else gym_probe.unavailable_reason(runtime)
+    missing = None if gym_probe.is_available(runtime) else runtime["gym_reason"]
     if missing and manifests:
         for entry in entries:
             entry["judge"] = {"status": _BLOCKED, "reason": missing, "error": None}
