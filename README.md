@@ -27,7 +27,7 @@ For example, the results of an audit might report:
 > [!IMPORTANT]
 > **Research preview**
 >
-> NeMo Eval AUthor is an early-stage applied research project. 
+> NeMo Eval Author is an early-stage applied research project.
 > Workflows and interfaces may change. Review generated cases, graders (the
 > checks that score an agent's work), and coverage findings before relying on
 > their results.
