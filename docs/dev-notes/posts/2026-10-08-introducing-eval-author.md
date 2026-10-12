@@ -5,7 +5,7 @@
 
 Helping developers build the evaluations that make agents work.
 
-**October 8, 2026 · Introduction · Draft**
+**October 8, 2026 · Introduction**
 
 <!-- Author byline to be added before publication. -->
 
