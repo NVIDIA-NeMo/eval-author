@@ -99,6 +99,16 @@ strip custom sections to make the file look "strict."
 The ethos.md records durable intent, not a running list of observed failures.
 Track known issues and recurring failure patterns where the team tracks bugs.
 
+An observed tool name or call sequence is implementation evidence, not a
+behavioral requirement. It can suggest intent to confirm, but express the
+requirement as an outcome or boundary: for example, verify identity before
+resetting access. Keep a specific tool identity or call order as a requirement
+only when the user has confirmed that it is required behavior or an external
+contract; record that basis in `Behavior` or `Constraints`. Reuse existing
+confirmation. Otherwise keep useful implementation details in `Tools` or
+`Harness`, and unresolved intent in `Open Questions`. Neither a tool registry
+nor a successful trace establishes what must happen on every valid run.
+
 ## Pre-flight
 
 Check whether an ethos.md already exists for this agent. Look for `ethos.md`,

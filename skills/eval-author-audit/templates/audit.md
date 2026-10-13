@@ -8,6 +8,28 @@ example records `ethos.md` as an optional source; generated and hand-edited
 content is allowed outside the marked block, and scripts validate only the block
 between the markers.
 
+Runtime names define the tool inventory, not intended behavior. For example, if
+Ethos describes `sqlite` but the confirmed traces or registry expose
+`execute_sql` and `submit_sql`, use those names for tool coverage. Make them
+mandatory for behavioral coverage only when accepted intent or an external
+contract requires those identities.
+
+Both `required_tools` and `tool_call` evidence impose exact tool-name gates.
+For behavioral items, populate these gates only when those identities are
+explicit requirements confirmed by the user or an external contract. For
+capabilities without such a requirement, use `required_tools: []`, including
+when the current implementation uses tools, and require evidence of the behavior
+through `outcome`, `output`, `state_change`, `policy_boundary`, or `verifier`
+predicates as appropriate. A tool invocation alone does not prove correct
+arguments, results, or behavior. When a confirmed requirement specifies ordering,
+require `trace_span` or `verifier` evidence of the actual order; multiple
+`tool_call` predicates prove presence only.
+
+This example assumes accepted Ethos explicitly requires `customer.lookup` for
+account recovery. Without that requirement, use `required_tools: []` and behavior
+evidence instead. Its `tool_call` predicates measure invocation only; grounding
+correctness needs separate outcome or verifier evidence.
+
 <!-- BEGIN:nemo-eval-author-audit:v1 -->
 ```yaml
 schema: nemo.eval_author.audit.v1
@@ -57,7 +79,7 @@ items:
         description: User is trying to recover account access.
       - kind: tool_call
         tool: customer.lookup
-        description: Agent grounds the request in customer profile data.
+        description: Trace includes the required customer.lookup call.
 
   - kind: failure_case
     name: account_recovery_unverified_identity

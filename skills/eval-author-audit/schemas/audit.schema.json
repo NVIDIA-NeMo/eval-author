@@ -149,7 +149,7 @@
       }
     },
     "toolCallEvidence": {
-      "description": "Machine-checkable evidence that a specific declared tool was called in the trace.",
+      "description": "Machine-checkable evidence that a specific declared tool was called in the trace. Checks presence only, not arguments, results, or order. For behavioral items, use only when that tool identity is explicitly required by confirmed intent or an external contract.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -273,7 +273,7 @@
           "$ref": "#/$defs/nonEmptyString"
         },
         "required_tools": {
-          "description": "Declared tool item names needed for this capability. Use an empty list when no tools are required.",
+          "description": "Declared tool item names explicitly required by confirmed intent or an external contract. Each name is a mandatory presence gate. Use an empty list when no specific tool identity is required, even if the current implementation uses tools.",
           "$ref": "#/$defs/toolList"
         },
         "expected_behavior": {

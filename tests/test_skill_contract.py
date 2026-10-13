@@ -2095,9 +2095,9 @@ def test_audit_skill_anchors_tool_names_to_runtime_measurement_surface() -> None
     step_one = body.split("## Step 2:", 1)[0]
     normalized_step = re.sub(r"\s+", " ", step_one)
 
-    assert "actual runtime traces or tool registry" in normalized_step
-    assert "eval-specific tools" in normalized_step
-    assert "Do not invent tool names that will not appear in the measurement surface" in normalized_step
+    assert "exact runtime names from user-confirmed traces" in normalized_step
+    assert "an authoritative tool registry, or agent configuration" in normalized_step
+    assert "Do not invent unresolved names" in normalized_step
 
 
 def test_audit_skill_runs_audit_scripts_through_uv() -> None:
@@ -3236,7 +3236,7 @@ def test_audit_measure_reports_capability_coverage_from_tool_call_evidence(tmp_p
         {
             "kind": "tool_call",
             "evidence_index": 0,
-            "description": "Agent grounds the request in customer profile data.",
+            "description": "Trace includes the required customer.lookup call.",
             "tool": "customer.lookup",
             "measurement": "deterministic",
             "status": "satisfied",
@@ -4088,7 +4088,7 @@ def test_audit_measure_rejects_tool_call_capability_judgments_before_trace_load(
         judgments,
         evidence_index=1,
         kind="tool_call",
-        description="Agent grounds the request in customer profile data.",
+        description="Trace includes the required customer.lookup call.",
     )
     out_dir = tmp_path / ".eval-author" / "audit-measurements"
 

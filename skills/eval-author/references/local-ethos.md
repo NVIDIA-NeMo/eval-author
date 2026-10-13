@@ -91,6 +91,14 @@ old tests. Surface conflicts with existing scoring for the user's resolution.
 A limited first eval set need not wait for unrelated details, but explain any gaps
 instead of presenting a partial Ethos as a complete account of the agent.
 
+Treat observed tool names and call sequences as implementation context. Preserve
+an exact identity or sequence as a requirement only when the user has confirmed
+it is required behavior or an external contract, recording that basis in Behavior
+or Constraints. Reuse prior confirmation. Internal tool refactors that preserve
+required behavior should not change outcomes, success criteria, or boundaries.
+If an existing tool-specific requirement has unclear authority, ask before
+weakening it.
+
 Use the [ethos.md template](../../../ethos/skills/ethos-write/references/templates/ethos.md). A concrete Role and Purpose &
 Outcomes are required; other sections contain actual answers or an honest
 `_(none)_`, with uncertainties recorded in Open Questions. Do not invent metrics

@@ -207,18 +207,18 @@ enforcement and repair step after drafting.
 Read `<ethos_path>` and draft audit items at the level between Ethos and runnable
 tasks: canonical tools, high-level capabilities, and material failure cases. Keep
 the list finite. Do not create separate items for prompt paraphrases, fixture
-variants, or ordinary happy-path permutations.
+variants, or ordinary happy-path permutations. Derive behavioral requirements
+from accepted Ethos or an explicit external contract, and record that provenance
+in `source_refs`. Observed calls and registry entries describe implementation;
+they do not establish intended behavior. Keep capability and failure-case names
+and requirements stable across internal tool renames, splits, or substitutions
+unless the intended behavior or contract changes.
 
-For `tool` items, use the names that appear in the actual runtime traces or tool
-registry, including eval-specific tools that may be more precise than product
-tools named in Ethos prose. If Ethos describes a generic tool such as `sqlite`
-but measurement traces expose `execute_sql` and `submit_sql`, declare the
-runtime tool names and connect capabilities or failure cases to those names.
-Do not invent tool names that will not appear in the measurement surface.
-Read traces for this purpose only after user confirmation of their source and
-location. Without usable traces, use an authoritative tool registry or agent
-configuration; keep unresolved names as open questions rather than inventing
-tool items. Explain any resulting limits on the proposed specification.
+For `tool` items, use exact runtime names from user-confirmed traces, an
+authoritative tool registry, or agent configuration; see the
+[template](templates/audit.md) for mapping examples and evidence rules. Do not
+invent unresolved names. Read traces only after user confirmation of their source
+and location, and explain any resulting limits on the proposed specification.
 
 Save the reviewed item proposals as `.eval-author/audit-items.yaml`. The items
 file may be either a mapping with an `items` key or the item list itself. It
@@ -229,10 +229,11 @@ For an initial audit, this file should contain the full proposed denominator. Fo
 an update, it may contain only the proposed additions or edits. Existing reviewed
 `audit.md` items remain the source of truth in reconcile mode.
 
-Capabilities that do not need tools, such as policy refusals or out-of-scope
-handling, should use `required_tools: []`. Failure cases attach to capability
-names through `applies_to`; tool-level failure expectations stay on the tool item
-as `expected_failure_behavior`.
+`required_tools` and `tool_call` evidence are exact-name gates, reserved for
+explicit tool requirements. Otherwise use `required_tools: []`, even for
+tool-backed capabilities, and behavioral evidence as described in the template.
+Failure cases attach to capability names through `applies_to`; tool-level failure
+expectations stay on the tool item as `expected_failure_behavior`.
 
 For failure cases, make the trigger and safe response explicit in
 `evidence_required`. Include prohibited output classes in an `output` evidence

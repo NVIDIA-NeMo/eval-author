@@ -127,6 +127,17 @@ and then helps nobody.
      `Tools` by capability or source when they share credentials, side
      effects, freshness, and failure modes. Keep only details that change how
      downstream agents evaluate behavior.
+   - Observed tool names and call sequences are implementation evidence, not
+     behavioral requirements. Keep specific identities or sequences as
+     requirements only when the user has confirmed they are required behavior
+     or an external contract; record that basis in `Behavior` or `Constraints`.
+     Reuse prior confirmation and preserve those requirements on edits. For an
+     internal tool rename, split, merge, or reorder that preserves required
+     behavior, update implementation context while keeping outcomes, success
+     criteria, and behavioral boundaries semantically stable. Verify identity
+     before resetting access remains a requirement even if the helpers change.
+     If the status of an existing tool-specific requirement is unclear, ask
+     before weakening it; do not silently turn it into optional context.
    - Avoid public shorthand like `AUT` or "agent under test." Use "this agent"
      for the agent being specified. Use "target agent" only when this agent's
      job is explicitly to inspect or modify another agent.

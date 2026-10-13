@@ -25,6 +25,13 @@ owner: <accountable human or team for the agent's behavioral or safety approvals
 > say so. The code already shows what the agent does; this file is the only place
 > that records what it is supposed to do.
 >
+> Observed tool names and call sequences describe implementation. They become
+> requirements only when the user confirms that the identity or sequence itself
+> is required behavior or an external contract. Record that basis in `Behavior`
+> or `Constraints`; keep other useful tool details in `Tools` or `Harness`.
+> Outcomes, success criteria, and behavioral boundaries should remain valid
+> across internal tool refactors that preserve the required behavior.
+>
 > Every canonical body section is required. Parsing fails if a required `##`
 > heading is missing. When you have nothing to say, write `_(none)_` rather
 > than dropping the section. An honest empty answer is better than a
@@ -98,7 +105,7 @@ bad agent behavior or a normal tool/source limitation.>
 
 | Tool or source | Purpose | Credentials/scopes | Side effects | Freshness / expected failures |
 |---|---|---|---|---|
-| current_datetime | clock for time-sensitive answers | none | none | current at call time |
+| Clock source | current time for time-sensitive answers | none | none | current when consulted |
 
 ## Harness
 

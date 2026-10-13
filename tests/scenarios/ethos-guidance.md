@@ -3,6 +3,9 @@
 
 # Ethos creation conversational acceptance scenarios
 
+For tool refactor stability and confirmed tool contracts, use the focused
+[writing scenarios and retained review notes](ethos-tool-refactors.md).
+
 Use this manual protocol to review ASE-1058. It is not an automated harness,
 an execution record, or a claim of passing model evaluation. Use isolated
 synthetic workspaces without customer data, production services, or provider
