@@ -76,7 +76,7 @@ are part of the agent's intended behavior.
 ## What's in the file
 
 YAML front matter (`schema_version`, `name`, `created_timestamp`, `author`, and
-optional `owner` and `updated_timestamp`) followed by fourteen required sections.
+optional `owner` and `updated_timestamp`) followed by thirteen required sections.
 Section bodies stay human-readable; the headings are the outline other agents
 parse. A section with nothing to say contains `_(none)_`.
 
@@ -85,7 +85,6 @@ parse. A section with nothing to say contains `_(none)_`.
 | `Role` | What the agent does, in one concrete sentence. |
 | `Purpose & Outcomes` | Why it exists, and the result it is judged by. |
 | `Scope` | Who it serves, in-scope work, and boundaries. |
-| `Tools` | APIs, tools, and knowledge sources it can use. |
 | `Harness` | How the agent actually runs. |
 | `Behavior` | Rules, tone, refusals, and policies. |
 | `Principles` | How to decide when no rule in `Behavior` covers the case. |
@@ -96,6 +95,12 @@ parse. A section with nothing to say contains `_(none)_`.
 | `Metric Semantics` | What metric names mean, and the claims they do not support. |
 | `Vision` | Where the agent is headed, beyond today's scope. |
 | `Open Questions` | Unknowns to resolve. |
+
+Tool inventories stay with the implementation. Audits and evals discover tools
+from registries, configuration, code, documentation, or selected traces. Intended
+access limits, approved sources, and safe handling expectations stay in `Behavior`
+or `Constraints`. Existing `Tools` sections remain valid under schema version 1
+and are preserved during edits unless you request their removal.
 
 ## Create an ethos.md
 

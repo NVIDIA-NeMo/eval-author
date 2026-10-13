@@ -91,14 +91,6 @@ old tests. Surface conflicts with existing scoring for the user's resolution.
 A limited first eval set need not wait for unrelated details, but explain any gaps
 instead of presenting a partial Ethos as a complete account of the agent.
 
-Treat observed tool names and call sequences as implementation context. Preserve
-an exact identity or sequence as a requirement only when the user has confirmed
-it is required behavior or an external contract, recording that basis in Behavior
-or Constraints. Reuse prior confirmation. Internal tool refactors that preserve
-required behavior should not change outcomes, success criteria, or boundaries.
-If an existing tool-specific requirement has unclear authority, ask before
-weakening it.
-
 Use the [ethos.md template](../../../ethos/skills/ethos-write/references/templates/ethos.md). A concrete Role and Purpose &
 Outcomes are required; other sections contain actual answers or an honest
 `_(none)_`, with uncertainties recorded in Open Questions. Do not invent metrics
@@ -106,12 +98,17 @@ or leave template placeholders. Treat demo policies as fixtures when that is the
 scope. Missing production approval, SLAs, or business metrics need not block a
 demo Ethos; production claims require resolving the relevant policy authority.
 
+New Ethos files omit the tool inventory. Discover tools separately from the
+implementation for audits and evals. Keep intended access limits, approved sources,
+and safe handling of side effects or unavailable/stale data in Behavior or Constraints.
+
 ## Save, check, and review
 
 Write the complete document. Use `schema_version: 1`, the actual agent name and
 author, and an ISO 8601 creation timestamp. On edits, retain creation metadata,
 add `updated_timestamp`, preserve unknown frontmatter keys and custom sections,
 and make targeted changes instead of replacing an existing file with the template.
+This includes legacy Tools sections; preserve them unless the user requests removal.
 When editing an Eval Author 0.1.0 `ETHOS.md`, the ethos-write skill renames it to
 `ethos.md`; its contents already match the schema.
 
@@ -120,7 +117,7 @@ Read back the exact file and check:
 1. It is nonempty and at the selected in-repo path.
 2. Frontmatter is a mapping with version 1, nonempty `name` and `author`, and valid
    ISO 8601 creation and optional update timestamps.
-3. Each of the template's fourteen `##` headings occurs once. Extra headings are
+3. Each of the template's thirteen `##` headings occurs once. Extra headings are
    allowed. Role and Purpose & Outcomes express concrete intent; remaining sections
    have real content or honest `_(none)_` values, with no template placeholders.
 4. Purpose, intended behavior, success criteria, failure conditions, and safety

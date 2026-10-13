@@ -8,27 +8,11 @@ example records `ethos.md` as an optional source; generated and hand-edited
 content is allowed outside the marked block, and scripts validate only the block
 between the markers.
 
-Runtime names define the tool inventory, not intended behavior. For example, if
-Ethos describes `sqlite` but the confirmed traces or registry expose
-`execute_sql` and `submit_sql`, use those names for tool coverage. Make them
-mandatory for behavioral coverage only when accepted intent or an external
-contract requires those identities.
-
-Both `required_tools` and `tool_call` evidence impose exact tool-name gates.
-For behavioral items, populate these gates only when those identities are
-explicit requirements confirmed by the user or an external contract. For
-capabilities without such a requirement, use `required_tools: []`, including
-when the current implementation uses tools, and require evidence of the behavior
-through `outcome`, `output`, `state_change`, `policy_boundary`, or `verifier`
-predicates as appropriate. A tool invocation alone does not prove correct
-arguments, results, or behavior. When a confirmed requirement specifies ordering,
-require `trace_span` or `verifier` evidence of the actual order; multiple
-`tool_call` predicates prove presence only.
-
-This example assumes accepted Ethos explicitly requires `customer.lookup` for
-account recovery. Without that requirement, use `required_tools: []` and behavior
-evidence instead. Its `tool_call` predicates measure invocation only; grounding
-correctness needs separate outcome or verifier evidence.
+Tool names and semantics come from implementation sources; Ethos supplies the
+intended behavior and boundaries without needing a tool inventory. The
+`implementation:` references below are illustrative: replace them with the
+registry, configuration, code, documentation, or selected trace references used
+for the actual agent.
 
 <!-- BEGIN:nemo-eval-author-audit:v1 -->
 ```yaml
@@ -44,7 +28,7 @@ items:
   - kind: tool
     name: customer.lookup
     source_refs:
-      - ethos:Tools
+      - implementation:src/tools/customer.py#lookup
       - ethos:Behavior
     description: >
       Looks up customer profile, plan, account status, and contact details.
@@ -63,7 +47,7 @@ items:
     source_refs:
       - ethos:Purpose
       - ethos:Scope
-      - ethos:Tools
+      - implementation:src/tools/customer.py#lookup
       - ethos:Behavior
       - ethos:Success Criteria
     description: >
@@ -79,7 +63,7 @@ items:
         description: User is trying to recover account access.
       - kind: tool_call
         tool: customer.lookup
-        description: Trace includes the required customer.lookup call.
+        description: Agent grounds the request in customer profile data.
 
   - kind: failure_case
     name: account_recovery_unverified_identity

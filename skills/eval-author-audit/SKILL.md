@@ -204,21 +204,21 @@ worked example and the JSON Schema descriptions as the field definitions. Do not
 use validation as the primary way to discover the format; validation is the
 enforcement and repair step after drafting.
 
-Read `<ethos_path>` and draft audit items at the level between Ethos and runnable
-tasks: canonical tools, high-level capabilities, and material failure cases. Keep
-the list finite. Do not create separate items for prompt paraphrases, fixture
-variants, or ordinary happy-path permutations. Derive behavioral requirements
-from accepted Ethos or an explicit external contract, and record that provenance
-in `source_refs`. Observed calls and registry entries describe implementation;
-they do not establish intended behavior. Keep capability and failure-case names
-and requirements stable across internal tool renames, splits, or substitutions
-unless the intended behavior or contract changes.
+Read `<ethos_path>` for intended behaviors, boundaries, and success criteria;
+use these to draft high-level capabilities and material failure cases. Keep the
+list finite. Do not create separate items for prompt paraphrases, fixture
+variants, or ordinary happy-path permutations. Ethos need not contain a `Tools`
+section; its absence does not imply a prompt-only agent or exclude tool coverage.
 
-For `tool` items, use exact runtime names from user-confirmed traces, an
-authoritative tool registry, or agent configuration; see the
-[template](templates/audit.md) for mapping examples and evidence rules. Do not
-invent unresolved names. Read traces only after user confirmation of their source
-and location, and explain any resulting limits on the proposed specification.
+For `tool` items, obtain runtime names and semantics from an authoritative tool
+registry, agent configuration, code or documentation, or user-selected traces.
+Use names from the measurement surface, including eval-specific tools: a generic
+`sqlite` reference may map to `execute_sql` and `submit_sql`. Connect capabilities
+or failure cases to those runtime names. Record implementation sources for tool
+metadata and Ethos sections for behavioral requirements in `source_refs`.
+Read traces only after user confirmation of their source and location. Keep
+unresolved names or semantics as open questions rather than inventing tool items
+or silently omitting tool coverage. Explain any resulting specification limits.
 
 Save the reviewed item proposals as `.eval-author/audit-items.yaml`. The items
 file may be either a mapping with an `items` key or the item list itself. It
@@ -229,11 +229,10 @@ For an initial audit, this file should contain the full proposed denominator. Fo
 an update, it may contain only the proposed additions or edits. Existing reviewed
 `audit.md` items remain the source of truth in reconcile mode.
 
-`required_tools` and `tool_call` evidence are exact-name gates, reserved for
-explicit tool requirements. Otherwise use `required_tools: []`, even for
-tool-backed capabilities, and behavioral evidence as described in the template.
-Failure cases attach to capability names through `applies_to`; tool-level failure
-expectations stay on the tool item as `expected_failure_behavior`.
+Capabilities that do not need tools, such as policy refusals or out-of-scope
+handling, should use `required_tools: []`. Failure cases attach to capability
+names through `applies_to`; tool-level failure expectations stay on the tool item
+as `expected_failure_behavior`.
 
 For failure cases, make the trigger and safe response explicit in
 `evidence_required`. Include prohibited output classes in an `output` evidence

@@ -25,13 +25,6 @@ owner: <accountable human or team for the agent's behavioral or safety approvals
 > say so. The code already shows what the agent does; this file is the only place
 > that records what it is supposed to do.
 >
-> Observed tool names and call sequences describe implementation. They become
-> requirements only when the user confirms that the identity or sequence itself
-> is required behavior or an external contract. Record that basis in `Behavior`
-> or `Constraints`; keep other useful tool details in `Tools` or `Harness`.
-> Outcomes, success criteria, and behavioral boundaries should remain valid
-> across internal tool refactors that preserve the required behavior.
->
 > Every canonical body section is required. Parsing fails if a required `##`
 > heading is missing. When you have nothing to say, write `_(none)_` rather
 > than dropping the section. An honest empty answer is better than a
@@ -43,7 +36,9 @@ owner: <accountable human or team for the agent's behavioral or safety approvals
 >
 > This file records durable intent, so keep run-specific settings out of it. A
 > spend ceiling or experiment count for one evaluation run belongs in that
-> tool's own config, not here.
+> tool's own config, not here. Tool inventories belong with the implementation.
+> Keep intended access limits, approved sources, and safe handling of side
+> effects or unavailable/stale data in `Behavior` or `Constraints`.
 >
 > Section rules:
 >
@@ -53,10 +48,9 @@ owner: <accountable human or team for the agent's behavioral or safety approvals
 >   `- Label: value` lines only. No prose, no blank-line-separated paragraphs.
 >   For list-valued labels inside `Scope`, separate items with semicolons, or
 >   write `_(none)_`.
-> - **Free-form sections** (`Role`, `Purpose & Outcomes`, `Tools`, `Harness`,
+> - **Free-form sections** (`Role`, `Purpose & Outcomes`, `Harness`,
 >   `Behavior`, `Principles`, `Success Criteria`, `Trade-offs`, `Constraints`,
->   `Evaluation Setup`, `Metric Semantics`, `Vision`): any markdown. `Tools`
->   accepts a markdown table or the literal string `Prompt-only.`
+>   `Evaluation Setup`, `Metric Semantics`, `Vision`): any markdown.
 
 ## Role
 
@@ -94,24 +88,12 @@ rather than inventing one.>
 - In scope: <capabilities, user intents, or situations the agent is expected to handle; semicolon-separated or `_(none)_`>
 - Out of scope: <capabilities, user intents, or situations the agent should not handle; semicolon-separated or `_(none)_`>
 
-## Tools
-
-<tools, APIs, and knowledge sources the agent can use, or the literal string
-`Prompt-only.` if none. Group related helpers by capability or source instead
-of listing every low-level method. Capture only behaviorally important purpose,
-credentials or scopes, side effects, data freshness, expected failures, and
-anything an agent reviewing a trace should know when deciding whether it shows
-bad agent behavior or a normal tool/source limitation.>
-
-| Tool or source | Purpose | Credentials/scopes | Side effects | Freshness / expected failures |
-|---|---|---|---|---|
-| Clock source | current time for time-sensitive answers | none | none | current when consulted |
-
 ## Harness
 
 <how this agent actually runs. Describe the loop, how it calls tools, and where
 it executes. Write what is true of this agent. Do not pick a name from a
-harness catalog, and do not treat a framework import as a requirement.
+harness catalog, and do not treat a framework import as a requirement. Keep
+tool definitions and inventories in implementation documentation.
 
 Useful things to cover when they apply:
 
