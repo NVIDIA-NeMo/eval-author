@@ -71,6 +71,22 @@ _ETHOS_DIR = _ETHOS_SKILLS_DIR / "ethos-write"
 _ETHOS_EXPLORE_DIR = _ETHOS_SKILLS_DIR / "ethos-explore"
 _ETHOS_TEMPLATE = _ETHOS_DIR / "references" / "templates" / "ethos.md"
 _ETHOS_VALIDATE = _ETHOS_DIR / "scripts" / "validate_ethos.py"
+_ETHOS_REQUIRED_SECTIONS = (
+    "Role",
+    "Purpose & Outcomes",
+    "Scope",
+    "Tools",
+    "Harness",
+    "Behavior",
+    "Principles",
+    "Success Criteria",
+    "Trade-offs",
+    "Constraints",
+    "Evaluation Setup",
+    "Metric Semantics",
+    "Vision",
+    "Open Questions",
+)
 _SKILL_DIRS = (
     _CORE_DIR,
     _DISCOVER_DIR,
@@ -2010,23 +2026,52 @@ def _filled_ethos_template() -> str:
 
 
 def test_filled_ethos_template_passes_the_bundled_validator(tmp_path: Path) -> None:
-    """The template the ethos-write skill renders must satisfy the validator it runs."""
+    """New Ethos files require intended behavior, without a change-permission section."""
+    markdown = _filled_ethos_template()
+    assert re.findall(r"^## (.+)$", markdown, flags=re.MULTILINE) == list(_ETHOS_REQUIRED_SECTIONS)
     path = tmp_path / "ethos.md"
-    path.write_text(_filled_ethos_template() + "\n## Local Notes\n\nKeep demo fixtures.\n", encoding="utf-8")
+    path.write_text(markdown, encoding="utf-8")
     result = _run_script(_ETHOS_VALIDATE, str(path))
     assert result.returncode == 0, result.stderr
     assert "warning" not in result.stdout
 
 
 @pytest.mark.parametrize(
+    "extra_section",
+    [
+        "## Local Notes\n\nKeep demo fixtures.\n",
+        "## Change Scope\n\n- System prompt: with-approval\n- Notes: Ask the service owner.\n",
+    ],
+    ids=["custom-section", "legacy-change-scope"],
+)
+def test_ethos_validator_accepts_and_preserves_extra_sections(tmp_path: Path, extra_section: str) -> None:
+    """A legacy permission section remains valid extra content, without migration or deletion."""
+    path = tmp_path / "ethos.md"
+    original = (_filled_ethos_template() + "\n" + extra_section).encode("utf-8")
+    path.write_bytes(original)
+    result = _run_script(_ETHOS_VALIDATE, str(path))
+    assert result.returncode == 0, result.stderr
+    assert "warning" not in result.stdout
+    assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize("section", _ETHOS_REQUIRED_SECTIONS)
+def test_ethos_validator_still_requires_behavior_and_safety_sections(tmp_path: Path, section: str) -> None:
+    """Every current section remains required, including behavior and safety boundaries."""
+    path = tmp_path / "ethos.md"
+    path.write_text(_filled_ethos_template().replace(f"## {section}\n", ""), encoding="utf-8")
+    result = _run_script(_ETHOS_VALIDATE, str(path))
+    assert result.returncode == 1
+    assert f"missing section: ## {section}" in result.stderr
+
+
+@pytest.mark.parametrize(
     ("transform", "error"),
     [
-        (lambda text: text.replace("## Vision\n", "## Later\n"), "missing section: ## Vision"),
         (lambda text: text + "\n## Role\n\nAgain.\n", "duplicate section: ## Role"),
         (lambda text: text.replace("schema_version: 1", "schema_version: 2"), "unsupported schema_version"),
-        (lambda text: text.replace("## Change Scope\n", "## Permissions\n"), "missing section: ## Change Scope"),
     ],
-    ids=["missing-section", "duplicate-section", "unknown-version", "missing-change-scope"],
+    ids=["duplicate-section", "unknown-version"],
 )
 def test_ethos_validator_rejects_malformed_files(tmp_path: Path, transform: Callable[[str], str], error: str) -> None:
     path = tmp_path / "ethos.md"

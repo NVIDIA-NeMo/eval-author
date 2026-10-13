@@ -4,7 +4,7 @@ name: <canonical-agent-name>
 created_timestamp: <ISO 8601 creation timestamp, e.g. 2026-06-02T20:00:00Z>
 updated_timestamp: <ISO 8601 timestamp of the last edit; omit on first write>
 author: <human or agent that created this ethos.md>
-owner: <accountable human or team for the approvals named below; omit if unowned>
+owner: <accountable human or team for the agent's behavioral or safety approvals; omit if unowned>
 ---
 
 # ethos.md: <name>
@@ -13,6 +13,9 @@ owner: <accountable human or team for the approvals named below; omit if unowned
 > capabilities, validation setup, and boundaries for this agent. People and
 > agents read it before they build, evaluate, review, or change this agent.
 > Keep it accurate; stale entries here lead them to the wrong conclusions.
+> Creating or reviewing this file does not authorize application changes or
+> imply that changes will follow. A workflow that changes the application
+> collects any required permissions when that work is undertaken.
 >
 > The layout below is lightly parseable by `ethos-write`: front matter and the
 > required `##` section headers are machine-checked, while section bodies stay
@@ -39,12 +42,10 @@ owner: <accountable human or team for the approvals named below; omit if unowned
 >
 > - **Bullet sections** (`Open Questions`): list items only. If the list
 >   is empty, write `_(none)_` instead of leaving the section blank.
-> - **Labeled-bullet sections** (`Scope`, `Change Scope`):
+> - **Labeled-bullet sections** (`Scope`):
 >   `- Label: value` lines only. No prose, no blank-line-separated paragraphs.
 >   For list-valued labels inside `Scope`, separate items with semicolons, or
->   write `_(none)_`. For `Change Scope`, name levers that exist on this agent
->   and do not copy a generic catalog. Each lever value is `yes`, `no`, or
->   `with-approval`.
+>   write `_(none)_`.
 > - **Free-form sections** (`Role`, `Purpose & Outcomes`, `Tools`, `Harness`,
 >   `Behavior`, `Principles`, `Success Criteria`, `Trade-offs`, `Constraints`,
 >   `Evaluation Setup`, `Metric Semantics`, `Vision`): any markdown. `Tools`
@@ -158,37 +159,38 @@ against quality is a `Trade-offs` entry.>
 
 ## Trade-offs
 
-<how to choose when two candidate improvements pull in different directions.
-Measurements alone never say which candidate is better; this section does.
+<how the agent should prioritize when desired outcomes conflict. State the
+behavioral priorities that guide the agent and its evaluators.
 
 State three things:
 
 1. **Hard gates.** Qualities that are never traded away, at any gain elsewhere.
    Correctness and safety usually live here.
 2. **Priority order.** Rank the remaining goals — task quality, latency, cost,
-   reliability, coverage — so a candidate that improves one and regresses
-   another can be judged.
-3. **Unacceptable regressions.** Anything that must not get worse even when the
-   headline metric improves, and by how much it may move if some slack is fine.
+   reliability, coverage — so competing outcomes can be judged.
+3. **Unacceptable compromises.** Outcomes that must not get worse even when
+   another improves, and how much variation is acceptable if some slack is fine.
 
 Example: "Answer correctness is a hard gate; never trade it. Then, in order:
 p95 latency under 10s, cost per session, then token efficiency. A 5% cost
 increase is acceptable for a 2-point correctness gain. Escalation accuracy must
 never regress; it is how users trust the agent."
 
-Keep this at the level of intent; do not try to write a scoring function here.>
+Keep this at the level of intent; do not write a scoring function or grant
+permission to optimize the application here.>
 
 ## Constraints
 
-<hard external bounds on the solution space that no change may cross,
-regardless of measured benefit. These are usually organizational rather than
-technical, which is exactly why no coding agent can infer them.
+<hard external bounds the agent must respect in operation. These are usually
+organizational rather than technical, which is why source alone cannot
+establish them. Record behavioral and safety boundaries here; permissions to
+modify the application belong to the workflow undertaking those changes.
 
 Cover whichever apply:
 
 - **Approved providers and models:** which vendors, endpoints, regions, and
-  model families are permitted, and which are forbidden even if they benchmark
-  better. Name the deployment mode where it is fixed, such as self-hosted only.
+  model families the agent may use. Name the deployment mode where it is fixed,
+  such as self-hosted only.
   State the permitted set rather than the model in use today, which the agent
   config already carries and which changes without touching this file.
 - **Data handling:** residency, retention, redaction, and what may not leave a
@@ -200,12 +202,17 @@ Cover whichever apply:
   it alongside the ceiling — "p95 is 4.1s today against a 6s SLO" tells a
   reader how much headroom there is, where the ceiling alone does not. Write
   `_(unmeasured)_` rather than guessing.
-- **Required approvals:** changes that need a human sign-off before shipping,
-  and who signs.
+- **Action approvals:** actions the agent must escalate for human sign-off
+  during operation, and who signs.
+
+Retain already-confirmed organizational safety and review policies, such as
+security review before shipping a tool with write access, and their known
+owners. Do not turn these restrictions into a new change-permission interview
+or infer permission to modify the application from them.
 
 Example: "Models must come from the internal inference gateway; no direct
 third-party API calls. Customer data must not leave the EU. Cost must stay under
-$0.08 per session. Any new tool with write access needs security review."
+$0.08 per session. The agent must obtain human approval before issuing a refund."
 
 Write `_(none)_` only if you are genuinely unconstrained.>
 
@@ -233,14 +240,6 @@ re-reporting the same non-issue.>
 
 Use `_(none)_` if every metric name means exactly what it says.
 
-## Change Scope
-
-- <part of the agent>: <yes | no | with-approval>
-- Notes: <vetoes, exceptions, or other scope clarifications; use `_(none)_` if there are none>
-
-Use `with-approval` when a change is permitted but must not ship unattended.
-Name the approver in `Constraints` or `Notes`.
-
 ## Vision
 
 <where this agent is headed, so a change that fits the direction is not judged
@@ -262,4 +261,4 @@ filling this with next quarter's tickets.>
 
 ## Open Questions
 
-- <unresolved fact that affects safe use, evaluation, or modification of the agent; remove once answered>
+- <unresolved fact that affects safe use or evaluation of the agent; remove once answered>

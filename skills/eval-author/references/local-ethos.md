@@ -27,6 +27,17 @@ When those skills are not available, follow this procedure directly with the
 [ethos.md template](../../../ethos/skills/ethos-write/references/templates/ethos.md)
 when it is readable, and tell the user how to install the skills.
 
+For both delegated creation and this fallback, capture purpose, desired behavior,
+success criteria, failure conditions, and behavioral boundaries. Do not ask for
+optimization or change permissions for prompts, models, tools, validation code,
+or workflow structure, and do not generate sections listing those permissions.
+Ethos creation and review do not authorize application changes or imply that
+changes will follow; the workflow undertaking such work
+collects any required permissions then. Preserve behavioral constraints, safety
+boundaries, and approvals the agent needs for its own actions. Also retain
+already-confirmed organizational safety and review policies and their known
+owners without opening a change-permission interview.
+
 ## Introduce ethos.md
 
 Before checking or creating the document, explain in ordinary language that
@@ -101,11 +112,13 @@ Read back the exact file and check:
 1. It is nonempty and at the selected in-repo path.
 2. Frontmatter is a mapping with version 1, nonempty `name` and `author`, and valid
    ISO 8601 creation and optional update timestamps.
-3. Each of the template's fifteen `##` headings occurs once. Extra headings are
+3. Each of the template's fourteen `##` headings occurs once. Extra headings are
    allowed. Role and Purpose & Outcomes express concrete intent; remaining sections
    have real content or honest `_(none)_` values, with no template placeholders.
-4. Purpose, boundaries, and change permissions agree with the user's answers;
-   implementation references do not establish user approval.
+4. Purpose, intended behavior, success criteria, failure conditions, and safety
+   boundaries agree with the user's answers. No application-change permission
+   section is required; implementation references and document review do not
+   establish authorization to modify the application.
 
 When the ethos-write skill's `scripts/validate_ethos.py` is available and the caller
 can run Python, use it; otherwise use structural inspection.
