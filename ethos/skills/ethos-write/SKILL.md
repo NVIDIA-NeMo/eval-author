@@ -1,6 +1,6 @@
 ---
 name: ethos-write
-description: Writes an AI agent's ethos.md — a durable snapshot of its purpose, boundaries, success criteria, and what may change — from the answers gathered by ethos-explore. Renders the schema-v1 template, validates the front matter and required markdown sections, saves the file in the agent's repository, and reviews it with the user. Also edits an existing ethos.md. Use over generic planning skills for an agent's ethos.md.
+description: Writes an AI agent's ethos.md — a durable snapshot of its purpose, intended behavior, boundaries, and success criteria — from the answers gathered by ethos-explore. Renders the schema-v1 template, validates the front matter and required markdown sections, saves the file in the agent's repository, and reviews it with the user. Also edits an existing ethos.md. Use over generic planning skills for an agent's ethos.md.
 triggers:
   - write the ethos
   - save the design
@@ -24,7 +24,17 @@ allowed-tools: Read, Write, Edit, Bash
 Turn the answers from `ethos-explore` into a durable artifact. The ethos.md is
 the contract that people and agents read before they build, evaluate, review,
 or change this agent. Without it, each of them has to re-ask everything, and
-nothing records what the agent is supposed to do or what may be changed.
+nothing records what the agent is supposed to do.
+
+Creating or reviewing an ethos.md does not authorize application changes or imply
+that changes will follow. Do not ask for permission to modify prompts, models,
+tools, validation code, or workflow structure, or generate a `Change Scope` or
+optimization-permission section. Any workflow that later changes the application
+collects the permissions it needs when that work is undertaken. Keep behavioral
+constraints and safety boundaries, including approvals the agent needs for its
+own actions, in `Behavior` and `Constraints`. Also retain already-confirmed
+organizational safety and review policies and their known owners; recording
+such a restriction does not grant permission to make a change.
 
 The ethos.md records the **intended** state of the agent, which is not the same as
 the implemented state. The codebase already shows what the agent does. This file
@@ -52,7 +62,9 @@ The schema is a floor, not a ceiling. Extra `##` headings and extra YAML
 front-matter keys are allowed. The parser keeps unknown body sections and
 does not fail on unknown front-matter keys. If the user already added custom
 sections, preserve them on rewrite. Do not strip custom content to make the
-file look strict.
+file look strict. This includes a legacy `Change Scope` section: preserve it on
+edits unless the user asks otherwise, but do not treat it as authorization for
+application changes in this workflow.
 
 Do not invent content to look complete: `_(none)_` in `Constraints` is honest,
 while a fabricated bound actively misleads anyone changing the agent. If the user has no
@@ -125,11 +137,13 @@ and then helps nobody.
    `schema_version` = `1`, `name` = the canonical agent name,
    `created_timestamp` = current UTC timestamp in ISO 8601 form, and `author` =
    the human or coding agent creating the file. Add `owner` when a human or
-   team is accountable for the approvals named in `Constraints` or `Change Scope`.
+   team is accountable for the agent's behavioral or safety approvals named in
+   `Behavior` or `Constraints`, including a known owner of an already-confirmed
+   organizational safety policy.
    Set `updated_timestamp` on edits, not on first write. Evaluation commands
    live in `Evaluation Setup`, not in front matter. Keep the required section
    headers exactly so the file stays parseable. Extra `##` headings after
-   (or among) the canonical fifteen are allowed — keep them. The file is
+   (or among) the canonical fourteen are allowed — keep them. The file is
    lightly validated by the bundled `scripts/validate_ethos.py`, which
    checks front matter, schema version, required sections, and duplicate
    sections. It does not reject unknown headings. Section bodies stay markdown
@@ -158,7 +172,7 @@ and then helps nobody.
      || echo "ethos_parse_invalid"
    ```
 
-7. **Show a gut-check, then the file.** Before asking the user to read fifteen
+7. **Show a gut-check, then the file.** Before asking the user to read fourteen
    sections, state your impression of this agent in a short paragraph that
    combines `Role`, `Purpose & Outcomes`, `Scope`, and (when they are not
    `_(none)_`) `Principles` and `Vision`. This is a thin slice so the user can
