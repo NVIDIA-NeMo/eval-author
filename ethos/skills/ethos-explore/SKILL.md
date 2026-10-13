@@ -64,11 +64,7 @@ than dropping the heading.
 
 The thirteen headings are a floor, not a ceiling. Extra `##` headings and extra
 YAML front-matter keys are allowed. Keep them if the user adds them. Do not
-strip custom sections to make the file look "strict." Legacy `Tools` sections
-remain valid and are preserved during edits unless the user asks otherwise.
-New files omit the tool inventory. Audits and evals discover tools from the
-implementation; Ethos keeps intended access limits, approved sources, and safe
-handling of side effects or unavailable/stale data in `Behavior` or `Constraints`.
+strip custom sections to make the file look "strict."
 
 **Front matter**
 
@@ -411,10 +407,6 @@ If the Role quality gate is satisfied, announce the handoff in one line
 
 ## Gotchas
 
-- **Keep tool inventories with the implementation.** Read tool definitions to
-  understand the agent, but do not reproduce the inventory in Ethos or move it
-  into `Harness`. A missing `Tools` section says nothing about whether the
-  agent uses tools.
 - **Mission before mechanics.** An ethos.md that only says how the current code is
   wired is not good enough. If goal context cannot be found in the codebase or
   docs, say the mission is inferred from implementation and still ask the user

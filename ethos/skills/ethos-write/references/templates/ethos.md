@@ -36,9 +36,7 @@ owner: <accountable human or team for the agent's behavioral or safety approvals
 >
 > This file records durable intent, so keep run-specific settings out of it. A
 > spend ceiling or experiment count for one evaluation run belongs in that
-> tool's own config, not here. Tool inventories belong with the implementation.
-> Keep intended access limits, approved sources, and safe handling of side
-> effects or unavailable/stale data in `Behavior` or `Constraints`.
+> tool's own config, not here.
 >
 > Section rules:
 >
@@ -92,8 +90,7 @@ rather than inventing one.>
 
 <how this agent actually runs. Describe the loop, how it calls tools, and where
 it executes. Write what is true of this agent. Do not pick a name from a
-harness catalog, and do not treat a framework import as a requirement. Keep
-tool definitions and inventories in implementation documentation.
+harness catalog, and do not treat a framework import as a requirement.
 
 Useful things to cover when they apply:
 

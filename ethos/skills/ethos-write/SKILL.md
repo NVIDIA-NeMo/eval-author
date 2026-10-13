@@ -64,8 +64,7 @@ does not fail on unknown front-matter keys. If the user already added custom
 sections, preserve them on rewrite. Do not strip custom content to make the
 file look strict. Preserve legacy `Tools` and `Change Scope` sections on edits
 unless the user asks otherwise. A `Change Scope` section does not authorize
-application changes in this workflow. New files omit the tool inventory; audits
-and evals discover tools from the implementation.
+application changes in this workflow.
 
 Do not invent content to look complete: `_(none)_` in `Constraints` is honest,
 while a fabricated bound actively misleads anyone changing the agent. If the user has no
@@ -122,11 +121,9 @@ and then helps nobody.
      permitted model and provider set lives; there is no `Model` section,
      because the config already records the model in use and it changes without
      touching this file.
-   - `Harness` describes how this agent actually runs. Do not pick a named
-     harness from a catalog or treat a framework import as a requirement.
-     Do not add a tool inventory here or elsewhere in a new Ethos. Keep intended
-     access limits, approved sources, and safe handling of side effects or
-     unavailable/stale data in `Behavior` or `Constraints`.
+   - `Harness` should concisely describe how this agent actually runs. Do not
+     pick a named harness from a catalog or treat a framework import as a
+     requirement.
    - Avoid public shorthand like `AUT` or "agent under test." Use "this agent"
      for the agent being specified. Use "target agent" only when this agent's
      job is explicitly to inspect or modify another agent.

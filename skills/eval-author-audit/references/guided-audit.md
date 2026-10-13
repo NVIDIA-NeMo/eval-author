@@ -234,7 +234,7 @@ findings about the user's confirmed evaluation scope.
 
 Inputs: checked Ethos for intended behavior, plus runtime tool names and semantics
 from the registry, agent configuration, code or documentation, or confirmed
-traces. Ethos need not list tools. Group the audit skill's **Steps 1–3** here:
+traces. Group the audit skill's **Steps 1–3** here:
 draft items, generate or reconcile `audit.md`, and validate it. These items
 describe intended coverage; they are not runnable tests or proof that the
 existing tests cover it.

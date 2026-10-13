@@ -48,10 +48,6 @@ modify the application. Compare application files before and after each run;
 prompt, model, tool, validation, and workflow files must remain unchanged.
 Run the bundled validator when available and retain its actual result.
 
-New files omit the tool inventory, including in Harness. Preserve the intended
-identity-verification, approved-source, access, and safe state-change constraints
-in Behavior or Constraints. Omitting Tools does not imply a prompt-only agent.
-
 ## 1. Standalone Ethos creation
 
 **Request:** "Create an ethos.md for this account-support agent from its source
@@ -97,10 +93,8 @@ introduce optimization permissions, or alter application files.
 **Audit variant:** Repeat with history showing a guided audit opening was
 accepted and Ethos is its current milestone. Confirm that creation behaves
 the same and returns to the audit's next unfinished milestone. When defining
-coverage, supply the agent's registry separately. The audit retains tool coverage
-using those runtime names and Ethos behavior; it does not infer a prompt-only
-agent from the missing inventory. With no registry or usable implementation
-evidence, it surfaces unresolved names instead of inventing or hiding tools.
+coverage, supply the agent's registry separately and check that tool items use
+its runtime names.
 
 ## 3. Eval Author fallback with Ethos skills unavailable
 

@@ -96,11 +96,8 @@ parse. A section with nothing to say contains `_(none)_`.
 | `Vision` | Where the agent is headed, beyond today's scope. |
 | `Open Questions` | Unknowns to resolve. |
 
-Tool inventories stay with the implementation. Audits and evals discover tools
-from registries, configuration, code, documentation, or selected traces. Intended
-access limits, approved sources, and safe handling expectations stay in `Behavior`
-or `Constraints`. Existing `Tools` sections remain valid under schema version 1
-and are preserved during edits unless you request their removal.
+Existing `Tools` sections remain valid and are preserved during edits unless
+you request their removal.
 
 ## Create an ethos.md
 

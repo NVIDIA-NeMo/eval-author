@@ -98,10 +98,6 @@ or leave template placeholders. Treat demo policies as fixtures when that is the
 scope. Missing production approval, SLAs, or business metrics need not block a
 demo Ethos; production claims require resolving the relevant policy authority.
 
-New Ethos files omit the tool inventory. Discover tools separately from the
-implementation for audits and evals. Keep intended access limits, approved sources,
-and safe handling of side effects or unavailable/stale data in Behavior or Constraints.
-
 ## Save, check, and review
 
 Write the complete document. Use `schema_version: 1`, the actual agent name and

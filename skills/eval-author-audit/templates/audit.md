@@ -8,9 +8,7 @@ example records `ethos.md` as an optional source; generated and hand-edited
 content is allowed outside the marked block, and scripts validate only the block
 between the markers.
 
-Tool names and semantics come from implementation sources; Ethos supplies the
-intended behavior and boundaries without needing a tool inventory. The
-`implementation:` references below are illustrative: replace them with the
+The `implementation:` references below are illustrative: replace them with the
 registry, configuration, code, documentation, or selected trace references used
 for the actual agent.
 

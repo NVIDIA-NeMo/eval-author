@@ -207,8 +207,7 @@ enforcement and repair step after drafting.
 Read `<ethos_path>` for intended behaviors, boundaries, and success criteria;
 use these to draft high-level capabilities and material failure cases. Keep the
 list finite. Do not create separate items for prompt paraphrases, fixture
-variants, or ordinary happy-path permutations. Ethos need not contain a `Tools`
-section; its absence does not imply a prompt-only agent or exclude tool coverage.
+variants, or ordinary happy-path permutations.
 
 For `tool` items, obtain runtime names and semantics from an authoritative tool
 registry, agent configuration, code or documentation, or user-selected traces.
@@ -217,8 +216,8 @@ Use names from the measurement surface, including eval-specific tools: a generic
 or failure cases to those runtime names. Record implementation sources for tool
 metadata and Ethos sections for behavioral requirements in `source_refs`.
 Read traces only after user confirmation of their source and location. Keep
-unresolved names or semantics as open questions rather than inventing tool items
-or silently omitting tool coverage. Explain any resulting specification limits.
+unresolved names or semantics as open questions rather than inventing tool items.
+Explain any resulting specification limits.
 
 Save the reviewed item proposals as `.eval-author/audit-items.yaml`. The items
 file may be either a mapping with an `items` key or the item list itself. It
