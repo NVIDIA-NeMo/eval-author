@@ -2057,7 +2057,7 @@ def test_ethos_validator_accepts_and_preserves_extra_sections(tmp_path: Path, ex
 
 @pytest.mark.parametrize("section", _ETHOS_REQUIRED_SECTIONS)
 def test_ethos_validator_still_requires_behavior_and_safety_sections(tmp_path: Path, section: str) -> None:
-    """Removing Change Scope does not relax any of the remaining document requirements."""
+    """Every current section remains required, including behavior and safety boundaries."""
     path = tmp_path / "ethos.md"
     path.write_text(_filled_ethos_template().replace(f"## {section}\n", ""), encoding="utf-8")
     result = _run_script(_ETHOS_VALIDATE, str(path))

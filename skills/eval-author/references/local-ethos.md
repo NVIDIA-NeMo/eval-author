@@ -30,9 +30,9 @@ when it is readable, and tell the user how to install the skills.
 For both delegated creation and this fallback, capture purpose, desired behavior,
 success criteria, failure conditions, and behavioral boundaries. Do not ask for
 optimization or change permissions for prompts, models, tools, validation code,
-or workflow structure, and do not generate a `Change Scope` or equivalent
-permission section. Ethos creation and review do not authorize application
-changes or imply that changes will follow; the workflow undertaking such work
+or workflow structure, and do not generate sections listing those permissions.
+Ethos creation and review do not authorize application changes or imply that
+changes will follow; the workflow undertaking such work
 collects any required permissions then. Preserve behavioral constraints, safety
 boundaries, and approvals the agent needs for its own actions. Also retain
 already-confirmed organizational safety and review policies and their known
@@ -68,8 +68,6 @@ For a new document, default to `<repo-root>/ethos.md` or the user's chosen in-re
 location under the core's narrow ethos.md write exception. Preserve existing content,
 custom sections, and edits. Reuse prior interview answers, including saved
 `.eval-author/intent-notes.md`.
-An existing `Change Scope` section may remain as legacy custom content; it is
-not required and does not authorize application changes in this workflow.
 Do not commit automatically.
 
 ## Capture intended behavior

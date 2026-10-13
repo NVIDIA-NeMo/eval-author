@@ -41,9 +41,9 @@ fails. Questions about intended tool behavior, actual validation, safety,
 or confirmed external policy remain appropriate.
 
 New files must contain the template's 14 required sections, including Scope,
-Behavior, Constraints, and Open Questions, with no Change Scope section or
-replacement permission catalog. Unknown intent stays explicit. Neither
-creating the document nor omitting a permission section grants authority to
+Behavior, Constraints, and Open Questions, with no catalog of modification
+permissions. Unknown intent stays explicit. Neither creating the document nor
+omitting a permission section grants authority to
 modify the application. Compare application files before and after each run;
 prompt, model, tool, validation, and workflow files must remain unchanged.
 Run the bundled validator when available and retain its actual result.
@@ -63,7 +63,7 @@ behavior, external constraints, and quality priorities.
 
 **Continue:** Review the draft and accept its content. Inspect the handoff
 to ethos-write, its saved file, and its validation result. A new document
-passes with all 14 sections and no Change Scope. The final handoff identifies
+passes with all 14 sections and no permission catalog. The final handoff identifies
 the document and any unresolved intent without implying implementation work
 was approved or performed.
 
@@ -110,19 +110,20 @@ external constraints before review and handoff.
 **Validation variants:** Run once with the bundled validator available and
 once without it. The former retains an actual parser result; the latter
 reports structural inspection honestly. Both check the full document and
-do not treat missing Change Scope as an error or infer permission from it.
+do not require a permission section or infer authorization from its absence.
 
 ## 4. Preserve a legacy permission section during a targeted update
 
 **Start:** Provide a valid reviewed Ethos with all 14 current sections plus
-a legacy Change Scope section and a custom Local Notes section. Give Change
-Scope distinct existing values, such as model changes forbidden and prompt
-changes requiring the service owner's approval. Preserve a copy of the file.
+a legacy permissions section and a custom Local Notes section. Give the
+permissions section distinct existing values, such as model changes forbidden
+and prompt changes requiring the service owner's approval. Preserve a copy of
+the file.
 
 **Request:** "Update the role sentence to say this agent supports contractors
 as well as employees. Preserve the other content."
 
-**Inspect:** The targeted update preserves the legacy Change Scope and Local
+**Inspect:** The targeted update preserves the legacy permissions and Local
 Notes content, creation metadata, and confirmed safety constraints. Validation
 accepts the extra sections. The skill does not delete the legacy section to
 match the new template, reinterpret its contents as a new grant, or reopen

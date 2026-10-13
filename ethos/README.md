@@ -97,9 +97,6 @@ parse. A section with nothing to say contains `_(none)_`.
 | `Vision` | Where the agent is headed, beyond today's scope. |
 | `Open Questions` | Unknowns to resolve. |
 
-`Change Scope` is no longer required. Existing files may keep it as a custom
-section; it does not grant permission for application changes.
-
 ## Create an ethos.md
 
 Install the three skills together:

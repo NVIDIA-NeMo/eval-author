@@ -125,8 +125,6 @@ This file carries the standard and the routing; the sub-flow carries the steps.
   issuing refunds. These describe intended behavior, not permission to edit
   the application. Also preserve already-confirmed organizational safety and
   review policies and their known owners without reopening permission questions.
-  An existing `Change Scope` may remain as a custom section;
-  it is not required and does not authorize application changes.
 - **No run settings.** Spend caps, experiment counts, and per-run limits belong
   to the tool that runs them, not to ethos.md.
 

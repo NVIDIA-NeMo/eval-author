@@ -28,8 +28,8 @@ nothing records what the agent is supposed to do.
 
 Creating or reviewing an ethos.md does not authorize application changes or imply
 that changes will follow. Do not ask for permission to modify prompts, models,
-tools, validation code, or workflow structure, or generate a `Change Scope` or
-optimization-permission section. Any workflow that later changes the application
+tools, validation code, or workflow structure, or generate sections listing those
+permissions. Any workflow that later changes the application
 collects the permissions it needs when that work is undertaken. Keep behavioral
 constraints and safety boundaries, including approvals the agent needs for its
 own actions, in `Behavior` and `Constraints`. Also retain already-confirmed

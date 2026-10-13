@@ -454,9 +454,5 @@ If the Role quality gate is satisfied, announce the handoff in one line
 - **Record intent, not runtime config.** Describe the desired harness behavior
   and artifacts without asking the user to design a raw runtime config. Config
   files stay with the agent's implementation.
-- **Do not collect application-change permissions.** `Change Scope` is not
-  required. Preserve it if it already exists as a custom section, but do not
-  request, default, or treat it as authorization for later work. The workflow
-  making an actual change owns its permission decisions.
 - **Do not invent Known Issues fields.** Known issues and recurring failure
   patterns belong in the team's issue tracker, not in the ethos.md.
