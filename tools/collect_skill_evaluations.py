@@ -236,7 +236,7 @@ def collect(repo, output, evaluator, timeout):
     counts = dict(Counter(row["status"] for row in rows))
     report = {
         "schema": "nemo.eval_author.skill_evaluations.v1",
-        "repository": "NVIDIA-NeMo/labs-eval-author",
+        "repository": "NVIDIA-NeMo/eval-author",
         "source_revision": revision,
         "started_at": started,
         "finished_at": now(),

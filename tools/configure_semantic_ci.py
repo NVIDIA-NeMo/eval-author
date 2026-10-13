@@ -142,7 +142,7 @@ def main():
     parser.add_argument("--suite", type=Path, required=True)
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--repo", default="NVIDIA-NeMo/labs-eval-author")
+    parser.add_argument("--repo", default="NVIDIA-NeMo/eval-author")
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
     try:

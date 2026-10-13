@@ -14,7 +14,7 @@ reader. The bundled [local reader](../skills/eval-author/references/local-review
 now covers selected Gym JSONL and standalone ATIF without a server or model
 calls. Neither native nor bundled rendering establishes evaluation quality.
 The broader suite README guidance is a separate change in
-[PR #43](https://github.com/NVIDIA-NeMo/labs-eval-author/pull/43).
+[PR #43](https://github.com/NVIDIA-NeMo/eval-author/pull/43).
 
 ## Versions and evidence
 

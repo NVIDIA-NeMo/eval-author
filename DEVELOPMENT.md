@@ -53,7 +53,7 @@ required. Keep the Git revision in `pyproject.toml` and `uv.lock` synchronized
 when deliberately updating the dependency.
 
 For a stacked PR whose base is not `main`, run the same test matrix manually
-with `gh workflow run ci.yml --repo NVIDIA-NeMo/labs-eval-author --ref BRANCH`.
+with `gh workflow run ci.yml --repo NVIDIA-NeMo/eval-author --ref BRANCH`.
 
 ## Skill reference
 

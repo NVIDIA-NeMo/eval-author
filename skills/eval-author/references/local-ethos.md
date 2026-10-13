@@ -16,7 +16,7 @@ For new or revised intent, use the [ethos-explore skill](../../../ethos/skills/e
 which explores the repository and interviews the user, then hands off to the
 [ethos-write skill](../../../ethos/skills/ethos-write/SKILL.md), which writes, validates,
 and reviews the file. They install separately from Eval Author
-(`npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/ethos`). Pass the selected agent,
+(`npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/ethos`). Pass the selected agent,
 existing answers, chosen local path, and review state. The procedure below supplies
 Eval Author's introduction, write boundaries, and milestone checkpoints; use
 one interview and preserve those caller-specific requirements. Return with the

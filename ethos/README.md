@@ -102,7 +102,7 @@ parse. A section with nothing to say contains `_(none)_`.
 Install the three skills together:
 
 ```bash
-npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/ethos --agent claude-code
+npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/ethos --agent claude-code
 ```
 
 Replace `claude-code` with your assistant's identifier. Then, in your agent's
@@ -132,5 +132,5 @@ when it writes.
 
 Eval Author's first evaluations and coverage audits use ethos.md as their target
 and hand off to these skills to create or revise it. Installing Eval Author
-(`npx skills add NVIDIA-NeMo/labs-eval-author --skill '*'`) does not install
+(`npx skills add NVIDIA-NeMo/eval-author --skill '*'`) does not install
 them; add them with the command above.
