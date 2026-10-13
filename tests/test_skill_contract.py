@@ -66,7 +66,7 @@ _MLFLOW_TO_ATIF_DIR = _SKILLS_DIR / "mlflow-to-atif"
 _GYM_TO_ATIF_DIR = _SKILLS_DIR / "gym-to-atif"
 _TRACE_ENVIRONMENT_DIR = _SKILLS_DIR / "eval-author-trace-environment"
 _ENVIRONMENT_DIR = _SKILLS_DIR / "eval-author-environment"
-_ETHOS_SKILLS_DIR = _SKILLS_DIR.parent / "ethos" / "skills"
+_ETHOS_SKILLS_DIR = _SKILLS_DIR.parent / "team-skills" / "ethos"
 _ETHOS_DIR = _ETHOS_SKILLS_DIR / "ethos-write"
 _ETHOS_EXPLORE_DIR = _ETHOS_SKILLS_DIR / "ethos-explore"
 _ETHOS_TEMPLATE = _ETHOS_DIR / "references" / "templates" / "ethos.md"
@@ -2686,7 +2686,7 @@ def test_audit_generate_explains_missing_ethos_with_bundled_skill_path(tmp_path:
     )
 
     assert result.returncode == 1
-    assert "npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/ethos" in result.stderr
+    assert "npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/team-skills/ethos" in result.stderr
     assert "rerun this command with --ethos <path>" in result.stderr
     assert "Traceback" not in result.stderr
     assert not out.exists()
@@ -2716,7 +2716,7 @@ def test_audit_generate_explains_unreadable_ethos_with_bundled_skill_path(tmp_pa
 
     assert result.returncode == 1
     assert "Unreadable file:" in result.stderr
-    assert "npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/ethos" in result.stderr
+    assert "npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/team-skills/ethos" in result.stderr
     assert "Traceback" not in result.stderr
     assert not out.exists()
 

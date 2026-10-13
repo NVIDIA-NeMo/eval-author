@@ -18,8 +18,8 @@ trace-to-environment workflow.
 
 First evaluations and coverage audits also need the ethos skills (`ethos-orchestrate`,
 `ethos-explore`, and `ethos-write`), which install separately:
-`npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/ethos`.
-See the [ethos.md guide](../ethos/README.md).
+`npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/team-skills/ethos`.
+See the [ethos.md guide](../team-skills/ethos/README.md).
 
 Neither installation path installs Harbor, Python dependencies, a coding
 assistant, or NeMo services. Those have [workflow-specific requirements](#requirements).
