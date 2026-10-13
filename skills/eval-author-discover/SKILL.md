@@ -176,7 +176,10 @@ This runs all four phases: Probe, Explore, Judge, and Solve. Do not use it merel
 to verify Harbor installation during the prerequisite-only entry point above.
 
 Point the script at the repository root, not at a suite directory. Explore searches
-for configs to a depth of four directories and finds datasets at any depth.
+for configs to a depth of four directories. Task search uses the shared
+[file-only helper](../eval-author/references/task-search.md), with defaults of
+depth 12 and 50,000 entries. Increase `--task-max-depth` and `--task-max-entries`
+when needed; an incomplete task inventory prevents a runnable verdict.
 
 ```bash
 "${harbor_python:?Select a Harbor interpreter using the probes above}" <skill_dir>/scripts/discover.py --repo .
@@ -211,6 +214,7 @@ Read these four fields before any others.
 
 | Field | What it settles |
 |---|---|
+| `task_search` | Shared task inventory, file evidence, exclusions, errors, and limits; incomplete search prevents readiness |
 | `phases` | Which of Probe, Explore, Judge, and Solve passed, failed, or were skipped |
 | `proven` | Whether Harbor judged this report. When `false`, no Harbor finding is evidence |
 | `runnable` | Whether every config and dataset passed every required check, and nothing Solve ran failed |

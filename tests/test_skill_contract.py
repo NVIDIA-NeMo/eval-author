@@ -4588,7 +4588,7 @@ def test_bundled_scripts_never_import_the_platform() -> None:
     """The copyable boundary permits standalone libraries, not the platform application."""
     offenders: dict[str, set[str]] = {}
     for scripts_dir in _SCRIPT_DIRS:
-        permitted = _local_roots(scripts_dir) | sys.stdlib_module_names | _PERMITTED_THIRD_PARTY
+        permitted = _local_roots(scripts_dir) | {"search_tasks"} | sys.stdlib_module_names | _PERMITTED_THIRD_PARTY
         for path in _bundled_scripts(scripts_dir):
             found = {root for root in _imported_roots(path) if root not in permitted}
             if found:
@@ -5103,3 +5103,60 @@ def test_gym_extension_tasks_are_an_advisory_not_a_failure(suite: Path) -> None:
         pytest.skip(f"the extension dataset did not pass Judge here: {[c['name'] for c in extension['checks']]}")
     assert runner["status"] == "warn" and runner["severity"] == "advisory"
     assert extension.get("run_command") is None, "Harbor cannot run extension tasks as written"
+
+
+def test_discover_reuses_shared_task_evidence_and_preserves_scope(tmp_path, monkeypatch):
+    _import_discover(monkeypatch)
+    explore = importlib.import_module("providers.harbor._explore")
+    _write_task(tmp_path)
+    _write_task(tmp_path / "jobs" / "generated")
+    _write_task(tmp_path / "task_template")
+    (tmp_path / "solution").mkdir()
+    (tmp_path / "solution" / "solve.sh").write_text("exit 0\n")
+    scan = explore.scan_repository(tmp_path)
+    assert scan.task_paths == [tmp_path]
+    assert [dataset.path for dataset in scan.datasets] == [tmp_path]
+    root = next(item for item in scan.task_search["candidates"] if item["path"] == ".")
+    assert "solution/solve.sh" in root["evidence"]
+    assert {"path": "jobs", "reason": "excluded-directory"} in scan.task_search["search"]["excluded"]
+
+
+def test_discover_incomplete_search_blocks_otherwise_runnable_tasks(tmp_path, monkeypatch, capsys):
+    import asyncio
+
+    discover = _import_discover(monkeypatch)
+    explore = importlib.import_module("providers.harbor._explore")
+    _write_task(tmp_path / "task")
+    (tmp_path / "too-deep" / "child").mkdir(parents=True)
+    original_search = explore.search_tasks
+    monkeypatch.setattr(explore, "search_tasks", lambda root, **kw: original_search(root, **{**kw, "max_depth": 1}))
+    monkeypatch.setattr(discover._probe, "probe", lambda: {})
+    monkeypatch.setattr(discover.gym_probe, "probe", lambda: {"gym_available": True})
+    monkeypatch.setattr(discover._probe, "is_available", lambda runtime: True)
+    monkeypatch.setattr(discover._probe, "probe_checks", lambda runtime: [])
+    monkeypatch.setattr(discover.gym_probe, "probe_checks", lambda *a, **kw: [])
+
+    async def judge(*args):
+        return []
+
+    def judge_datasets(raw, datasets, root):
+        for dataset in datasets:
+            dataset["_judged"] = True
+            dataset["_checks"] = []
+
+    def solve(raw, datasets, *args):
+        for dataset in datasets:
+            dataset["solve"] = {"status": "passed"}
+        return []
+
+    monkeypatch.setattr(discover, "_judge", judge)
+    monkeypatch.setattr(discover, "_judge_datasets", judge_datasets)
+    monkeypatch.setattr(discover, "_solve", solve)
+    code = asyncio.run(discover._main(["--repo", str(tmp_path)]))
+    report = json.loads(capsys.readouterr().out)
+    assert report["task_count"] == 1
+    assert report["phases"]["judge"] == "valid"
+    assert report["phases"]["explore"] == "invalid"
+    assert report["runnable"] is False and code == 1
+    assert not report["task_search"]["search"]["complete"]
+    assert _named(report, "task-search")["status"] == "fail"

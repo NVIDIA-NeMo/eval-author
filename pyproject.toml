@@ -54,6 +54,7 @@ select = ["E4", "E7", "E9", "F", "W291", "W292", "W293", "I001", "I002"]
 # Tests add these standalone script directories to sys.path at runtime.
 extra-paths = [
   "tools",
+  "skills/eval-author/scripts",
   "skills/eval-author-trace-environment/scripts",
   "skills/gym-to-atif/scripts",
 ]

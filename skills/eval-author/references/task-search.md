@@ -36,6 +36,48 @@ Filters apply after the same bounded traversal; they do not reduce its scope.
 | `benchmarks/**/*.yaml` | Gym legacy config candidate | Native Gym checks config contents; this search deliberately leaves that unverified. |
 | `resources_servers/<name>/configs/*.yaml` | Gym resource config candidate | Some contain workloads; others only configure a component. Do not call every match a task. |
 
+## Harbor environment and step evidence
+
+Harbor candidates still use `task.toml` as the root marker. A multi-step task is
+found even without a root `instruction.md` or `tests/test.sh`. Dockerfiles,
+`steps/` directories, and verifier scripts alone do not establish a task root.
+
+For each task, evidence also includes observed environment and separate-verifier
+build files (`Dockerfile`, `docker-compose.yaml`, `docker-compose.yml`, and
+`Apptainer.def` under `environment/` or `tests/`) and `solution/solve.sh` / `solution/solve.bat`. These are
+supporting paths, not a declaration that every backend accepts every filename.
+No environment file is required: a task may use a prebuilt image configured in
+`task.toml`. See Harbor's [environment documentation](https://docs.harborframework.com/tasks/environment).
+
+The documented verifier entrypoints are `tests/test.sh` and `tests/test.bat`.
+We additionally retain `verifier.sh` at the task root or in `tests/` as supporting
+evidence when present, without treating it as an automatic Harbor entrypoint.
+Separate verifier builds can supply the entrypoint inside their image, so missing
+local scripts do not establish invalidity. See the [verifier documentation](https://docs.harborframework.com/tasks/verifier).
+
+Recognized files beneath `steps/<name>/` contribute to the parent task's evidence:
+`instruction.md`, verifier scripts and build files in `tests/`,
+`solution/solve.sh` / `solution/solve.bat`, and `workdir/setup.sh`. Shared
+`tests/helpers.py` files are also recorded. `observed_steps` lists their directories in sorted path
+order. It does not infer declared steps, execution order, or validity from these
+files; those come from configuration. A step may use the task-level verifier.
+See Harbor's [multi-step format](https://docs.harborframework.com/tasks/multi-step)
+and [task overview](https://docs.harborframework.com/tasks/overview).
+
+All marker paths come from the bounded scan, including step evidence. A nested
+`task.toml` starts a separate candidate whose files belong to that nearest root.
+Excluded symlinks and unscanned descendants cannot supply supporting evidence.
+
+The search host and task OS are independent. macOS and Linux hosts can discover
+Windows `.bat` files, and Windows hosts can discover `.sh` files; the scanner
+never executes them. Harbor selects the executable extension from the task's
+configured environment OS, as described in its [solution documentation](https://docs.harborframework.com/tasks/solution).
+The task-search CI job runs these layout tests on Linux, macOS, and Windows with
+only pytest installed. Windows symlink tests explicitly skip if the runner lacks
+symlink creation privilege; other errors remain failures.
+
+## Gym catalog context
+
 The nearest scanned `environments/` or `benchmarks/` ancestor supplies catalog
 context, including when that directory is the explicit search root. Nested
 projects remain separate paths; names are not merged. For legacy configs, supply
@@ -113,3 +155,22 @@ paths. Resolve missing locations or scope before claiming absence. Finding
 candidates does not authorize provider probing, installation, validation,
 execution, auditing, or task creation; continue according to the user's request
 and the calling flow's handoff.
+
+## Sharing with readiness discovery
+
+Discover imports this same helper to enumerate task roots and records the complete
+inventory in `task_search` in its JSON report, including environment, solution,
+verifier, and step evidence. Its existing generated-directory exclusions are
+passed to the helper and reported in `search.excluded_directory_names`.
+Readiness excludes `task_template` roots and still requires `task.toml`; Gym
+parameterized scaffolds without it remain inventory candidates only.
+An incomplete task scan makes Explore invalid and prevents a runnable verdict.
+Discovery accepts `--task-max-depth` and `--task-max-entries` to raise the default
+12-directory / 50,000-entry bounds, and reports the selected values.
+Configuration parsing, dataset grouping, fingerprinting, and provider validation
+remain discovery responsibilities; their traversal is not bounded by the task
+search limits. File evidence never replaces native validation.
+
+Windows reparse points (including directory junctions) are excluded alongside
+symbolic links by the shared scanner. This policy does not change discovery's
+separate configuration and fingerprint traversal.

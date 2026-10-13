@@ -32,6 +32,15 @@ def populate(root, names):
         path.write_text("invalid configuration; inventory must not parse or execute it\n")
 
 
+def _symlink(path, target, *, directory=False):
+    try:
+        path.symlink_to(target, target_is_directory=directory)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) == 1314:
+            pytest.skip("Windows runner lacks symlink creation privilege")
+        raise
+
+
 def test_native_layouts_and_root_task(search, tmp_path):
     populate(
         tmp_path,
@@ -110,9 +119,9 @@ def test_symlinks_exclusions_and_explicit_roots(search, tmp_path):
     outside = tmp_path / "outside"
     populate(root, ["task/task.toml", ".venv/hidden/task.toml", "environments/item/config.yaml"])
     populate(outside, ["verifier.py", "task.toml"])
-    (root / "linked").symlink_to(outside, target_is_directory=True)
-    (root / "task/tests").symlink_to(outside, target_is_directory=True)
-    (root / "environments/link.yaml").symlink_to(outside / "task.toml")
+    _symlink(root / "linked", outside, directory=True)
+    _symlink(root / "task/tests", outside, directory=True)
+    _symlink(root / "environments/link.yaml", outside / "task.toml")
     report = search.search_tasks(root)
     assert {item["path"] for item in report["candidates"]} == {"task", "environments/item/config.yaml"}
     assert next(item for item in report["candidates"] if item["path"] == "task")["provider"] == "harbor"
@@ -180,3 +189,119 @@ def test_missing_root_and_empty_root_are_distinct(search, tmp_path):
     empty = search.search_tasks(tmp_path)
     assert empty["candidates"] == []
     assert empty["search"]["complete"]
+
+
+@pytest.mark.parametrize("spec", ["Dockerfile", "docker-compose.yaml", "docker-compose.yml", "Apptainer.def"])
+def test_harbor_environment_and_verifier_evidence(search, tmp_path, spec):
+    names = [
+        "single/task.toml",
+        "single/instruction.md",
+        f"single/environment/{spec}",
+        "single/tests/test.sh",
+        "single/tests/verifier.sh",
+        f"single/tests/{spec}",
+        "single/verifier.sh",
+        "single/solution/solve.sh",
+    ]
+    populate(tmp_path, names)
+    report = search.search_tasks(tmp_path)
+    assert len(report["candidates"]) == 1
+    task = report["candidates"][0]
+    assert task["provider"] == "harbor"
+    assert task["evidence"] == sorted(names)
+    assert task["observed_steps"] == []
+
+
+def test_multi_step_task_without_root_instruction_or_verifier(search, tmp_path):
+    names = [
+        "multi/task.toml",
+        "multi/environment/Dockerfile",
+        "multi/steps/z-first/instruction.md",
+        "multi/steps/z-first/tests/test.sh",
+        "multi/steps/z-first/tests/verifier.sh",
+        "multi/steps/z-first/solution/solve.sh",
+        "multi/steps/a-second/instruction.md",
+        "multi/steps/a-second/tests/test.bat",
+        "multi/steps/a-second/tests/Dockerfile",
+        "multi/steps/a-second/workdir/setup.sh",
+    ]
+    populate(tmp_path, names)
+    tasks = search.search_tasks(tmp_path)["candidates"]
+    assert len(tasks) == 1
+    assert tasks[0]["path"] == "multi"
+    assert tasks[0]["provider"] == "harbor"
+    assert tasks[0]["evidence"] == sorted(names)
+    assert tasks[0]["observed_steps"] == ["multi/steps/a-second", "multi/steps/z-first"]
+    assert tasks[0]["validation"] == "not_checked"
+
+
+def test_prebuilt_and_base_verifier_fallback_need_no_dockerfile(search, tmp_path):
+    names = ["task.toml", "tests/test.sh", "steps/one/instruction.md", "steps/two/instruction.md"]
+    populate(tmp_path, names)
+    (tmp_path / "task.toml").write_text('[environment]\ndocker_image = "example:test"\n')
+    tasks = search.search_tasks(tmp_path)["candidates"]
+    assert len(tasks) == 1
+    assert tasks[0]["path"] == "."
+    assert tasks[0]["evidence"] == sorted(names)
+    assert tasks[0]["observed_steps"] == ["steps/one", "steps/two"]
+
+
+def test_support_files_alone_do_not_make_a_task(search, tmp_path):
+    populate(tmp_path, ["Dockerfile", "verifier.sh", "tests/test.sh", "steps/one/instruction.md"])
+    assert search.search_tasks(tmp_path)["candidates"] == []
+
+
+def test_step_evidence_obeys_bounds_and_symlink_exclusions(search, tmp_path):
+    root, outside = tmp_path / "repo", tmp_path / "outside"
+    populate(root, ["task.toml", "steps/deep/instruction.md", "environment/Dockerfile"])
+    populate(outside, ["instruction.md"])
+    _symlink(root / "steps/linked", outside, directory=True)
+    report = search.search_tasks(root, max_depth=1)
+    assert not report["search"]["complete"]
+    assert report["candidates"][0]["observed_steps"] == []
+    assert report["candidates"][0]["evidence"] == ["environment/Dockerfile", "task.toml"]
+    report = search.search_tasks(root)
+    assert report["candidates"][0]["observed_steps"] == ["steps/deep"]
+
+
+def test_nested_task_markers_belong_to_the_nearest_task_root(search, tmp_path):
+    populate(tmp_path, ["task.toml", "steps/child/task.toml", "steps/child/instruction.md"])
+    tasks = search.search_tasks(tmp_path)["candidates"]
+    assert tasks[0]["path"] == "."
+    assert tasks[0]["evidence"] == ["task.toml"]
+    assert tasks[0]["observed_steps"] == []
+    assert tasks[1]["path"] == "steps/child"
+    assert tasks[1]["evidence"] == ["steps/child/instruction.md", "steps/child/task.toml"]
+
+
+@pytest.mark.parametrize("extension", ["sh", "bat"])
+def test_solution_and_verifier_scripts_for_posix_and_windows(search, tmp_path, extension):
+    names = [
+        "task.toml",
+        "instruction.md",
+        "tests/helpers.py",
+        f"tests/test.{extension}",
+        f"solution/solve.{extension}",
+        "steps/first/instruction.md",
+        f"steps/first/tests/test.{extension}",
+        f"steps/first/solution/solve.{extension}",
+        "steps/first/tests/helpers.py",
+    ]
+    populate(tmp_path, names)
+    task = search.search_tasks(tmp_path)["candidates"][0]
+    assert task["provider"] == "harbor"
+    assert task["evidence"] == sorted(names)
+    assert task["observed_steps"] == ["steps/first"]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows junction behavior")
+def test_windows_junction_does_not_search_outside_root(search, tmp_path):
+    outside = tmp_path / "outside"
+    populate(outside, ["task.toml"])
+    root = tmp_path / "repo"
+    root.mkdir()
+    subprocess.run(["cmd", "/c", "mklink", "/J", str(root / "linked"), str(outside)], check=True, capture_output=True)
+    report = search.search_tasks(root)
+    assert report["candidates"] == []
+    assert report["search"]["complete"]
+    assert report["search"]["excluded"] == [{"path": "linked", "reason": "reparse-point"}]

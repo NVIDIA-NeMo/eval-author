@@ -24,7 +24,9 @@ EXCLUDED_DIRECTORIES = frozenset(
 )
 
 
-def _snapshot(root: Path, max_depth: int, max_entries: int) -> tuple[set[Path], dict]:
+def _snapshot(
+    root: Path, max_depth: int, max_entries: int, excluded_directory_names: frozenset[str] = EXCLUDED_DIRECTORIES
+) -> tuple[set[Path], dict]:
     files: set[Path] = set()
     pending = ["."]
     search: dict[str, Any] = {
@@ -33,7 +35,7 @@ def _snapshot(root: Path, max_depth: int, max_entries: int) -> tuple[set[Path], 
         "max_entries": max_entries,
         "entries_retained": 0,
         "directories_scanned": 0,
-        "excluded_directory_names": sorted(EXCLUDED_DIRECTORIES),
+        "excluded_directory_names": sorted(excluded_directory_names),
         "excluded": [],
         "errors": [],
         "limits_reached": [],
@@ -63,14 +65,17 @@ def _snapshot(root: Path, max_depth: int, max_entries: int) -> tuple[set[Path], 
             path = relative / entry.name
             label = path.as_posix()
             try:
-                mode = entry.stat(follow_symlinks=False).st_mode
+                entry_stat = entry.stat(follow_symlinks=False)
+                mode = entry_stat.st_mode
             except OSError as exc:
                 search["errors"].append({"path": label, "errno": exc.errno})
                 continue
             if stat.S_ISLNK(mode):
                 search["excluded"].append({"path": label, "reason": "symlink"})
+            elif getattr(entry_stat, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400):
+                search["excluded"].append({"path": label, "reason": "reparse-point"})
             elif stat.S_ISDIR(mode):
-                if entry.name in EXCLUDED_DIRECTORIES:
+                if entry.name in excluded_directory_names:
                     search["excluded"].append({"path": label, "reason": "excluded-directory"})
                 elif len(path.parts) > max_depth:
                     search["limits_reached"].append({"path": label, "limit": "max_depth"})
@@ -91,6 +96,43 @@ def _catalog_tree(path: Path, root: Path) -> tuple[Path, str] | None:
         if name in {"environments", "benchmarks"}:
             return parent, "environment" if name == "environments" else "benchmark"
     return None
+
+
+# Supporting filenames are inventory evidence, not required files or executable
+# entrypoint declarations. In particular verifier.sh is not Harbor's test.sh.
+_ENVIRONMENT_SPECS = ("Dockerfile", "docker-compose.yaml", "docker-compose.yml", "Apptainer.def")
+_TASK_MARKERS = frozenset(
+    {"task.toml", "instruction.md", "instruction.template.md", "tasks.jsonl", "verifier.sh"}
+    | {f"tests/{name}" for name in ("test.sh", "test.bat", "verifier.sh", "verifier.py", "helpers.py")}
+    | {f"{folder}/{name}" for folder in ("environment", "tests") for name in _ENVIRONMENT_SPECS}
+    | {f"solution/{name}" for name in ("solve.sh", "solve.bat")}
+)
+_STEP_MARKERS = frozenset(
+    {"instruction.md", "workdir/setup.sh", "verifier.sh"}
+    | {f"tests/{name}" for name in ("test.sh", "test.bat", "verifier.sh", "helpers.py")}
+    | {f"tests/{name}" for name in _ENVIRONMENT_SPECS}
+    | {f"solution/{name}" for name in ("solve.sh", "solve.bat")}
+)
+
+
+def _task_evidence(files: set[Path], task_dirs: set[Path]) -> tuple[dict[Path, list[Path]], dict[Path, set[Path]]]:
+    markers: dict[Path, list[Path]] = {directory: [] for directory in task_dirs}
+    steps: dict[Path, set[Path]] = {directory: set() for directory in task_dirs}
+    for path in files:
+        # Attribute a file only to its closest task root; nested independent tasks
+        # do not supply evidence for an enclosing task. No new filesystem reads.
+        for parent in path.parents:
+            if parent not in task_dirs:
+                continue
+            relative = path.relative_to(parent)
+            parts = relative.parts
+            if relative.as_posix() in _TASK_MARKERS:
+                markers[parent].append(path)
+            elif len(parts) >= 3 and parts[0] == "steps" and Path(*parts[2:]).as_posix() in _STEP_MARKERS:
+                markers[parent].append(path)
+                steps[parent].add(parent / "steps" / parts[1])
+            break
+    return markers, steps
 
 
 def _candidates(files: set[Path], root: Path) -> list[dict]:
@@ -114,17 +156,16 @@ def _candidates(files: set[Path], root: Path) -> list[dict]:
         for path in files
         if path.name == "instruction.template.md" and path.with_name("tasks.jsonl") in files
     )
+    evidence, steps = _task_evidence(files, task_dirs)
     for directory in sorted(task_dirs):
-        markers = [
-            directory / name for name in ("task.toml", "instruction.md", "instruction.template.md", "tasks.jsonl")
-        ]
-        markers += [directory / "tests" / name for name in ("test.sh", "test.bat", "verifier.py")]
+        markers = evidence[directory]
+        details = {"observed_steps": sorted(path.as_posix() for path in steps[directory])}
         if directory / "tasks.jsonl" in files and directory / "instruction.template.md" in files:
-            add("gym", "parameterized-task", directory, markers)
+            add("gym", "parameterized-task", directory, markers, **details)
         elif directory / "tests/verifier.py" in files:
-            add("gym", "python-verifier-task", directory, markers)
+            add("gym", "python-verifier-task", directory, markers, **details)
         else:
-            add("harbor", "task", directory, markers)
+            add("harbor", "task", directory, markers, **details)
 
     for path in sorted(files):
         catalog = _catalog_tree(path, root)
@@ -155,7 +196,13 @@ def _candidates(files: set[Path], root: Path) -> list[dict]:
 
 
 def search_tasks(
-    repo: Path, *, provider: str = "both", query: str = "", max_depth: int = 12, max_entries: int = 50000
+    repo: Path,
+    *,
+    provider: str = "both",
+    query: str = "",
+    max_depth: int = 12,
+    max_entries: int = 50000,
+    excluded_directory_names: frozenset[str] = EXCLUDED_DIRECTORIES,
 ) -> dict:
     if provider not in {"harbor", "gym", "both"}:
         raise ValueError("provider must be harbor, gym, or both")
@@ -164,7 +211,7 @@ def search_tasks(
     root = repo.expanduser().resolve(strict=True)
     if not root.is_dir():
         raise ValueError(f"Not a directory: {root}")
-    files, search = _snapshot(root, max_depth, max_entries)
+    files, search = _snapshot(root, max_depth, max_entries, excluded_directory_names)
     candidates = [
         item
         for item in _candidates(files, root)
