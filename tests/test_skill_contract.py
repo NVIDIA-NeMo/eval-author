@@ -183,7 +183,7 @@ _needs_unreadable_files = pytest.mark.skipif(
 # Bundled scripts may name only these third-party roots. Anything else would
 # become a hidden dependency for repositories that copy the skill.
 # referencing is the declared offline registry dependency of trace schema validation.
-# trace_ingest is the pinned standalone library used by the optional provider loaders.
+# trace_ingest is bundled in pinned nemo-compass for the optional provider loaders.
 _PERMITTED_THIRD_PARTY = frozenset({"harbor", "jsonschema", "pydantic", "referencing", "trace_ingest", "yaml"})
 
 
