@@ -99,6 +99,8 @@ jobs:
           enable-cache: false
       - name: Test standalone task search without provider dependencies
         run: uv run --no-project --python ${{ matrix.python }} --with pytest==9.1.1 python -m pytest tests/test_task_search.py -q -rs
+      - name: Test portable workflow capture and matrix accounting
+        run: uv run --no-project --python ${{ matrix.python }} --with pytest==9.1.1 python -m pytest tests/test_workflow_matrix.py -q -rs
   test:
     # Defense in depth only: PRs can edit this workflow. This condition does not
     # enforce repository access; see CONTRIBUTING.md.
