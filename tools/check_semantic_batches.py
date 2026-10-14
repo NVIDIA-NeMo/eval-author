@@ -56,6 +56,8 @@ def check(suite_path: Path, paths: list[Path]) -> dict:
                     raise ValueError("complete semantic verdict lacks baseline, comparison or metrics")
                 gate_raw = contained(path.parent, f"{case}/gate-result.json").read_bytes()
                 gate = loads(gate_raw)
+                if not isinstance(gate, dict) or not {"status", "metrics"}.issubset(gate):
+                    raise ValueError("retained gate result lacks status or metrics")
                 if sha(gate_raw) != row.get("gate_digest") or encoded({key: row.get(key) for key in gate}) != encoded(
                     gate
                 ):

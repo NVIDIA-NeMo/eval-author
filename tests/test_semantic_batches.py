@@ -88,6 +88,12 @@ def test_batches_preserve_regressions_and_reject_changed_baselines(tmp_path):
         paths[-1].write_text(json.dumps(changed))
         with pytest.raises(ValueError):
             batches.check(spec, paths)
+    for incomplete_gate in ({}, {"status": "regression"}, {"metrics": {"retention": 1}}, []):
+        gate.write_text(json.dumps(incomplete_gate))
+        report["observations"][0]["gate_digest"] = sha(gate.read_bytes())
+        paths[-1].write_text(json.dumps(report))
+        with pytest.raises(ValueError, match="lacks status or metrics"):
+            batches.check(spec, paths)
     report["observations"] = []
     paths[-1].write_text(json.dumps(report))
     with pytest.raises(ValueError, match="omitted"):
