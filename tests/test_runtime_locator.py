@@ -284,3 +284,21 @@ def test_shared_helpers_in_copied_skill_installation(tmp_path):
     ):
         result = subprocess.run([PYTHON, "-I", str(script), *args], cwd=tmp_path, capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "script,args",
+    [
+        ("locate_runtime.py", ["--help"]),
+        ("runtime_policy.py", ["--install-spec", "harbor"]),
+    ],
+)
+def test_repository_entrypoint_matches_bundled_helper(script, args, tmp_path):
+    def run(path):
+        return subprocess.run([PYTHON, "-I", str(path), *args], cwd=tmp_path, capture_output=True, text=True)
+
+    bundled = run(SCRIPTS / script)
+    entrypoint = run(ROOT / "tools" / script.replace("_", "-"))
+    assert entrypoint.returncode == bundled.returncode == 0
+    assert entrypoint.stdout == bundled.stdout
+    assert entrypoint.stderr == bundled.stderr
