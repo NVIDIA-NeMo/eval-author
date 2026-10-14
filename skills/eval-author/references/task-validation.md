@@ -112,6 +112,12 @@ For example, a Harbor contract begins:
       "health": [{"pointer": "/exception_info", "equals": null}],
       "checks": [{"pointer": "/verifier_result/rewards/reward", "min": 0, "max": 0}]
     },
+    "empty": {
+      "kind": "empty",
+      "requirement": "Reject an empty answer or no-op interaction.",
+      "health": [{"pointer": "/exception_info", "equals": null}],
+      "checks": [{"pointer": "/verifier_result/rewards/reward", "min": 0, "max": 0}]
+    },
     "agent": {
       "kind": "agent",
       "requirement": "The actual agent returns the correct total.",
@@ -217,3 +223,23 @@ and limits a repair chain to three revisions after the initial attempt. Do not
 reset the chain to evade that budget. Retain unresolved work when exhausted.
 A process killed before it writes a receipt remains missing evidence; preserve
 its partial job and use fresh paths for a later attempt.
+
+
+## Revalidate saved acceptance
+
+Keep the draft's `.eval-author-lineage.json`, source coverage report and proposal.
+The task pipeline binds those inputs to the execution manifest and rechecks the
+before/after aggregate measurements. Legacy unbound reports must be remeasured
+before acceptance. Register every control and agent attempt through the recorder;
+its manifest-specific `.attempts` ledger retains failed and interrupted attempts.
+A repair needs a new manifest and fresh proof, preserving the old ledger.
+
+Before relying on a saved acceptance, run:
+
+```bash
+python <task_create_dir>/scripts/task_pipeline.py check-acceptance \
+  --report .eval-author/task-measurements/<task-slug>/acceptance.json
+```
+
+This rechecks the task, proposal, coverage sources, receipts and all registered
+closure attempts. A stale saved `accepted: true` is not sufficient evidence.
