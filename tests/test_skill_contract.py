@@ -238,6 +238,31 @@ def _imported_roots(path: Path) -> set[str]:
 _FAKE_GYM = '#!/bin/sh\necho "NeMo Gym v0.6.0"\n'
 
 
+def _write_gym_stub(folder: Path, script: str, version: str = "0.6.0") -> Path:
+    """Synthetic interpreter + CLI boundary; not evidence of a real Gym install.
+
+    Locator behavior against real interpreters is covered in test_runtime_locator.
+    These fixtures isolate discovery's Judge/Solve orchestration from Gym setup.
+    """
+    sys.path.append(str(_CORE_DIR / "scripts"))
+    from locate_runtime import PROBE_MARKER as probe_marker
+
+    payload = folder / "gym-payload.sh"
+    payload.write_text(script)
+    python = folder / "python"
+    metadata = {"version": version, "python_version": "3.13.14", "prefix": str(folder), "errors": []}
+    python.write_text(
+        f"#!{sys.executable}\nimport os, sys\n"
+        f"if sys.argv[1] == '-I': print({probe_marker!r} + {json.dumps(metadata)!r})\n"
+        f"else: os.execv('/bin/sh', ['/bin/sh', {str(payload)!r}, *sys.argv[2:]])\n"
+    )
+    python.chmod(0o755)
+    cli = folder / "gym"
+    cli.write_text(f"#!/bin/sh\n'''exec' {python} \"$0\" \"$@\"\n' '''\n")
+    cli.chmod(0o755)
+    return cli
+
+
 def _run_discover(
     repo: Path, *args: str, with_harbor: bool = True, gym_stub: Path | None = None, gym_script: str = _FAKE_GYM
 ) -> tuple[int, dict]:
@@ -253,9 +278,8 @@ def _run_discover(
     command = [sys.executable, *([] if with_harbor else ["-S"]), str(_DISCOVER), "--repo", str(repo), *args]
     env = None
     if gym_stub is not None:
-        gym = gym_stub / "gym"
-        gym.write_text(gym_script, encoding="utf-8")
-        gym.chmod(0o755)
+        gym = _write_gym_stub(gym_stub, gym_script)
+        command.extend(["--gym-cli", str(gym)])
         env = {**os.environ, "PATH": f"{gym_stub}{os.pathsep}{os.environ['PATH']}"}
     result = subprocess.run(command, capture_output=True, text=True, check=False, env=env)
     assert result.stdout, f"discover.py printed nothing; stderr:\n{result.stderr}"
@@ -991,7 +1015,8 @@ def test_every_bundled_path_the_skill_names_exists() -> None:
     for relative in (
         "scripts/discover.py",
         "scripts/render_report.py",
-        "references/harbor-setup.md",
+        "../eval-author/references/harbor-setup.md",
+        "../eval-author/references/runtime-prerequisites.md",
         "scripts/_checks.py",
         "scripts/providers/harbor/_probe.py",
         "scripts/providers/harbor/_explore.py",
@@ -4633,7 +4658,12 @@ def test_bundled_scripts_never_import_the_platform() -> None:
     """The copyable boundary permits standalone libraries, not the platform application."""
     offenders: dict[str, set[str]] = {}
     for scripts_dir in _SCRIPT_DIRS:
-        permitted = _local_roots(scripts_dir) | sys.stdlib_module_names | _PERMITTED_THIRD_PARTY
+        permitted = (
+            _local_roots(scripts_dir)
+            | _local_roots(_CORE_SCRIPTS_DIR)
+            | sys.stdlib_module_names
+            | _PERMITTED_THIRD_PARTY
+        )
         for path in _bundled_scripts(scripts_dir):
             found = {root for root in _imported_roots(path) if root not in permitted}
             if found:
@@ -4794,8 +4824,8 @@ def test_discover_fails_judge_when_gym_manifests_go_unchecked(suite: Path, monke
     unavailable = _named(report, "gym-unavailable")
     assert unavailable["status"] == "fail" and unavailable["severity"] == "required"
     rendered = _import_discover_render_report(monkeypatch).render_report(report)
-    assert "Blocked: NeMo Gym is not installed." in rendered
-    assert "I could not check it: NeMo Gym is not installed." in rendered
+    assert "Blocked: No compatible runtime under selection policy" in rendered
+    assert "I could not check it: No compatible runtime under selection policy" in rendered
     assert "- [ ] **Judge** (invalid)" in rendered
 
 
@@ -5050,31 +5080,30 @@ def test_explore_groups_sibling_tasks_into_one_dataset(tmp_path: Path, monkeypat
 
 
 @pytest.mark.parametrize(
-    ("output", "available", "reason"),
+    ("output", "available"),
     [
-        ("NeMo Gym v0.6.0", True, None),
-        ("NeMo Gym v0.4.0", False, "NeMo Gym 0.4.0 is older than 0.6.0."),
-        ("gym: a workout tracker", False, "NeMo Gym is not installed."),
+        ("NeMo Gym v0.6.0", True),
+        ("NeMo Gym v0.4.0", False),
+        ("gym: a workout tracker", False),
     ],
 )
 def test_gym_probe_trusts_only_a_new_enough_nemo_gym(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, output: str, available: bool, reason: str | None
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, output: str, available: bool
 ) -> None:
-    """The probe asks `gym --version`, so an old Gym or an unrelated `gym` command is not mistaken for Gym."""
+    """The shared locator rejects old Gym and unrelated CLIs through the discovery adapter."""
     _import_discover(monkeypatch)
     gym_probe = importlib.import_module("providers.gym._probe")
-    gym = tmp_path / "bin" / "gym"
-    gym.parent.mkdir()
-    gym.write_text(f'#!/bin/sh\necho "{output}"\n', encoding="utf-8")
-    gym.chmod(0o755)
-    monkeypatch.setattr(sys, "executable", str(tmp_path / "python" / "python3"))
-    monkeypatch.setenv("PATH", f"{gym.parent}{os.pathsep}{os.environ['PATH']}")
-
-    runtime = gym_probe.probe()
-
+    version_match = re.search(r"v(\d+\.\d+\.\d+)", output)
+    gym = _write_gym_stub(
+        tmp_path, f'#!/bin/sh\necho "{output}"\n', version_match.group(1) if version_match else "0.6.0"
+    )
+    runtime = gym_probe.probe(tmp_path, str(gym))
     assert gym_probe.is_available(runtime) is available
-    if reason:
-        assert gym_probe.unavailable_reason(runtime) == reason
+    if not available:
+        candidates = runtime["gym_probe"]["candidates"]
+        explicit = next(candidate for candidate in candidates if candidate["priority"] == 0)
+        assert explicit["status"] in {"incompatible", "broken"}
+        assert explicit["reason"]
 
 
 def test_judge_line_counts_each_format_and_names_a_docker_failure(monkeypatch: pytest.MonkeyPatch) -> None:

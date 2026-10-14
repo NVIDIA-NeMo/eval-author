@@ -15,7 +15,18 @@ This repository is not installed as a Python package. Users
 Keep runtime instructions and resources inside the skill directories, and
 preserve relative paths between sibling skills. A skill installation does not
 include repository-level documentation or tests. The bundled scripts do not
-expose a published Python package API.
+expose a published Python package API. Shared runtime helpers and their policy
+live in `skills/eval-author/scripts/`; provider-specific discovery scripts stay
+under `skills/eval-author-discover/scripts/`. Install the sibling `eval-author`
+skill alongside discovery so its probes and report renderer can load those helpers.
+
+For repository-wide use, run `python tools/locate-runtime.py --help` or
+`python tools/runtime-policy.py --install-spec harbor` from the checkout root.
+These entrypoints delegate to the bundled implementation without copying logic.
+The existing top-level `tools/` directory is the repository script location.
+The implementation, policy JSON, and runtime setup references stay inside the
+umbrella skill so both `npx skills` and manual skill copies remain self-contained;
+moving them solely to a repository-level directory would break those installs.
 
 Adding a runtime dependency to a bundled script changes the requirements for
 users who copied the skill. Contract tests inspect script imports and reject

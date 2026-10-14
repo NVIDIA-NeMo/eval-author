@@ -513,9 +513,10 @@ uncovered or whether an existing task already exposes an agent failure.
 
 ## Prerequisites
 
-Establish Ethos and review audit items first. Generation/validation need Python
-3.11+, PyYAML, and jsonschema. Measurement needs Python 3.12+ and Harbor's
-trajectory model; use `requirements.txt`. Commands read local files, not services.
+Establish Ethos and review audit items first. Generation/validation need Python 3.11+, PyYAML, and jsonschema; no provider probe.
+ATIF measurement from Harbor or NeMo Gym needs Python 3.12+ and Harbor's trajectory model; use `requirements.txt`.
+Use the [shared locator](../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks) with `--provider harbor --flow audit`.
+For Gym traces, follow [Gym audit inputs](references/gym-audit.md); offline conversion and measurement need no Gym runtime. Commands read local files, not services.
 
 ## Limitations
 
