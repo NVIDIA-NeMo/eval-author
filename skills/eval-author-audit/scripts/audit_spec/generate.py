@@ -24,7 +24,7 @@ _MARKED_BLOCK_RE = re.compile(
     rf"(?ms)^(?P<begin>[ \t]*{re.escape(BEGIN_MARKER)}[ \t]*\n).*?"
     rf"^(?P<end>[ \t]*{re.escape(END_MARKER)}[ \t]*$)"
 )
-ETHOS_SKILLS_INSTALL = "npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/team-skills/ethos"
+ETHOS_SKILLS_INSTALL = "npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/team-skills/ethos"
 
 
 def main(argv: list[str] | None = None) -> int:

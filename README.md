@@ -50,7 +50,7 @@ Repository inventory and case planning can start without either runtime.
 First-evaluation design and coverage audits require a local **ethos.md file** describing
 your agent's purpose, boundaries, and success criteria. Install the
 [ethos skills](team-skills/ethos/README.md) to create one:
-`npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/team-skills/ethos --agent claude-code`.
+`npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/team-skills/ethos --agent claude-code`.
 
 The discovery helper requires Python 3.11+. Audit generation, validation, and
 aggregation require Python 3.11+, PyYAML, and jsonschema. Measuring coverage from
@@ -72,7 +72,7 @@ root of the repository containing **your agent**, then install for your assistan
 
 ```bash
 cd /path/to/your-agent-repository
-npx skills add NVIDIA-NeMo/labs-eval-author --skill '*' --agent claude-code --yes
+npx skills add NVIDIA-NeMo/eval-author --skill '*' --agent claude-code --yes
 ```
 
 Replace `claude-code` with your assistant's identifier:
@@ -161,7 +161,7 @@ requests stop at recommendations. See the [trace guide](docs/traces.md#build-an-
 for evidence requirements and validation, and the
 [publication review](docs/traces.md#sharing-generated-tasks) before sharing a task.
 
-[Development](DEVELOPMENT.md) · [Skill reference](DEVELOPMENT.md#skill-reference) · [Support](https://github.com/NVIDIA-NeMo/labs-eval-author/issues)
+[Development](DEVELOPMENT.md) · [Skill reference](DEVELOPMENT.md#skill-reference) · [Support](https://github.com/NVIDIA-NeMo/eval-author/issues)
 
 # Research Topics
 ## Questions we are exploring

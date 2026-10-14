@@ -267,7 +267,7 @@ def collect(
     env["HOME"] = str(runtime_home)
     report: LiveReport = {
         "schema": "nemo.eval_author.live_skill_evaluations.v1",
-        "repository": "NVIDIA-NeMo/labs-eval-author",
+        "repository": "NVIDIA-NeMo/eval-author",
         "source_revision": revision,
         "inputs_clean": not bool(dirty),
         "configured_evaluator_revision": EVALUATOR_REVISION,
