@@ -4588,7 +4588,12 @@ def test_bundled_scripts_never_import_the_platform() -> None:
     """The copyable boundary permits standalone libraries, not the platform application."""
     offenders: dict[str, set[str]] = {}
     for scripts_dir in _SCRIPT_DIRS:
-        permitted = _local_roots(scripts_dir) | {"search_tasks"} | sys.stdlib_module_names | _PERMITTED_THIRD_PARTY
+        permitted = (
+            _local_roots(scripts_dir)
+            | ({"search_tasks"} if scripts_dir == _DISCOVER_SCRIPTS_DIR else set())
+            | sys.stdlib_module_names
+            | _PERMITTED_THIRD_PARTY
+        )
         for path in _bundled_scripts(scripts_dir):
             found = {root for root in _imported_roots(path) if root not in permitted}
             if found:
@@ -5114,22 +5119,20 @@ def test_discover_reuses_shared_task_evidence_and_preserves_scope(tmp_path, monk
     (tmp_path / "solution").mkdir()
     (tmp_path / "solution" / "solve.sh").write_text("exit 0\n")
     scan = explore.scan_repository(tmp_path)
-    assert scan.task_paths == [tmp_path]
-    assert [dataset.path for dataset in scan.datasets] == [tmp_path]
+    assert scan.task_paths == []
+    assert scan.datasets == []
     root = next(item for item in scan.task_search["candidates"] if item["path"] == ".")
     assert "solution/solve.sh" in root["evidence"]
     assert {"path": "jobs", "reason": "excluded-directory"} in scan.task_search["search"]["excluded"]
 
 
-def test_discover_incomplete_search_blocks_otherwise_runnable_tasks(tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize("bounded", [False, True])
+def test_discover_incomplete_search_blocks_otherwise_runnable_tasks(tmp_path, monkeypatch, capsys, bounded):
     import asyncio
 
     discover = _import_discover(monkeypatch)
-    explore = importlib.import_module("providers.harbor._explore")
     _write_task(tmp_path / "task")
     (tmp_path / "too-deep" / "child").mkdir(parents=True)
-    original_search = explore.search_tasks
-    monkeypatch.setattr(explore, "search_tasks", lambda root, **kw: original_search(root, **{**kw, "max_depth": 1}))
     monkeypatch.setattr(discover._probe, "probe", lambda: {})
     monkeypatch.setattr(discover.gym_probe, "probe", lambda: {"gym_available": True})
     monkeypatch.setattr(discover._probe, "is_available", lambda runtime: True)
@@ -5152,11 +5155,54 @@ def test_discover_incomplete_search_blocks_otherwise_runnable_tasks(tmp_path, mo
     monkeypatch.setattr(discover, "_judge", judge)
     monkeypatch.setattr(discover, "_judge_datasets", judge_datasets)
     monkeypatch.setattr(discover, "_solve", solve)
-    code = asyncio.run(discover._main(["--repo", str(tmp_path)]))
+    code = asyncio.run(discover._main(["--repo", str(tmp_path)] + (["--task-max-depth", "1"] if bounded else [])))
     report = json.loads(capsys.readouterr().out)
     assert report["task_count"] == 1
     assert report["phases"]["judge"] == "valid"
-    assert report["phases"]["explore"] == "invalid"
-    assert report["runnable"] is False and code == 1
-    assert not report["task_search"]["search"]["complete"]
-    assert _named(report, "task-search")["status"] == "fail"
+    assert report["phases"]["explore"] == ("invalid" if bounded else "valid")
+    assert report["runnable"] is (not bounded)
+    assert code == (1 if bounded else 0)
+    assert report["task_search"]["search"]["complete"] is (not bounded)
+    if bounded:
+        assert _named(report, "task-search")["status"] == "fail"
+    else:
+        assert report["task_search"]["search"]["max_depth"] is None
+        assert report["task_search"]["search"]["max_entries"] is None
+
+
+@pytest.mark.parametrize(
+    "markers,kind",
+    [
+        (["task.toml"], "task"),
+        (["task.toml", "tests/verifier.py"], "python-verifier-task"),
+        (["task.toml", "tasks.jsonl", "instruction.template.md"], "parameterized-task"),
+        (["task.toml", "tasks.jsonl", "instruction.template.md", "tests/verifier.py"], "parameterized-task"),
+        (["task.toml", "tasks.jsonl"], "task"),
+    ],
+)
+def test_shared_search_matches_gym_extension_classification(tmp_path, monkeypatch, markers, kind):
+    _import_discover(monkeypatch)
+    gym = importlib.import_module("providers.gym._explore")
+    search = importlib.import_module("search_tasks")
+    for marker in markers:
+        path = tmp_path / marker
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+    expected = {None: "task", gym.PARAMETERIZED: "parameterized-task", gym.PYTHON_VERIFIER: "python-verifier-task"}
+    assert search.search_tasks(tmp_path)["candidates"][0]["kind"] == expected[gym.extension_kind(tmp_path)] == kind
+
+
+def test_discover_default_task_scan_exceeds_standalone_entry_budget(tmp_path, monkeypatch):
+    _import_discover(monkeypatch)
+    explore = importlib.import_module("providers.harbor._explore")
+    for index in range(1000):
+        task = tmp_path / "suite" / str(index)
+        task.mkdir(parents=True)
+        (task / "task.toml").touch()
+        for auxiliary in range(50):
+            (task / f"data-{auxiliary}").touch()
+    scan = explore.scan_repository(tmp_path)
+    assert len(scan.task_paths) == 1000
+    assert scan.task_search["search"]["entries_retained"] > 50000
+    assert scan.task_search["search"]["complete"]
+    assert scan.task_search["search"]["max_entries"] is None

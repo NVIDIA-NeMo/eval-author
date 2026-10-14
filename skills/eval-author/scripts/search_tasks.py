@@ -25,7 +25,10 @@ EXCLUDED_DIRECTORIES = frozenset(
 
 
 def _snapshot(
-    root: Path, max_depth: int, max_entries: int, excluded_directory_names: frozenset[str] = EXCLUDED_DIRECTORIES
+    root: Path,
+    max_depth: int | None,
+    max_entries: int | None,
+    excluded_directory_names: frozenset[str] = EXCLUDED_DIRECTORIES,
 ) -> tuple[set[Path], dict]:
     files: set[Path] = set()
     pending = ["."]
@@ -39,28 +42,41 @@ def _snapshot(
         "excluded": [],
         "errors": [],
         "limits_reached": [],
+        "limits_reached_count": 0,
     }
+
+    def record_limit(path: str, limit: str) -> None:
+        search["limits_reached_count"] += 1
+        search["limits_reached"].append({"path": path, "limit": limit})
+        search["limits_reached"].sort(key=lambda item: item["path"])
+        del search["limits_reached"][100:]
+
     while pending:
         relative = Path(heapq.heappop(pending))
         directory = root / relative
         entries = []
-        remaining = max_entries - search["entries_retained"]
+        remaining = None if max_entries is None else max_entries - search["entries_retained"]
         try:
             with os.scandir(directory) as listing:
                 for entry in listing:
                     entries.append(entry)
-                    if len(entries) > remaining:
+                    if remaining is not None and len(entries) > remaining:
                         break
         except OSError as exc:
+            if relative == Path("."):
+                raise
             search["errors"].append({"path": relative.as_posix(), "errno": exc.errno})
             continue
-        if len(entries) > remaining:
+        if remaining is not None and len(entries) > remaining:
             # A filesystem can enumerate entries in any order. Never retain an
             # arbitrary prefix and then sort it: discard the partial directory.
-            search["limits_reached"].append({"path": relative.as_posix(), "limit": "max_entries"})
+            record_limit(relative.as_posix(), "max_entries")
             break
         search["entries_retained"] += len(entries)
         search["directories_scanned"] += 1
+        if relative != Path(".") and any(entry.name == ".git" for entry in entries):
+            search["excluded"].append({"path": relative.as_posix(), "reason": "nested-repository"})
+            continue
         for entry in sorted(entries, key=lambda item: item.name):
             path = relative / entry.name
             label = path.as_posix()
@@ -72,13 +88,15 @@ def _snapshot(
                 continue
             if stat.S_ISLNK(mode):
                 search["excluded"].append({"path": label, "reason": "symlink"})
-            elif getattr(entry_stat, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400):
+            elif stat.S_ISDIR(mode) and getattr(entry_stat, "st_file_attributes", 0) & getattr(
+                stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400
+            ):
                 search["excluded"].append({"path": label, "reason": "reparse-point"})
             elif stat.S_ISDIR(mode):
                 if entry.name in excluded_directory_names:
                     search["excluded"].append({"path": label, "reason": "excluded-directory"})
-                elif len(path.parts) > max_depth:
-                    search["limits_reached"].append({"path": label, "limit": "max_depth"})
+                elif max_depth is not None and len(path.parts) > max_depth:
+                    record_limit(label, "max_depth")
                 else:
                     heapq.heappush(pending, label)
             elif stat.S_ISREG(mode):
@@ -189,7 +207,7 @@ def _candidates(files: set[Path], root: Path) -> list[dict]:
                 add("gym", "legacy-config-candidate", path, [path], **context)
             elif path.parent.name == "configs" and (
                 path.parent.parent.parent.name == "resources_servers"
-                or (path.parent.parent.parent == Path(".") and root.name == "resources_servers")
+                or (len(path.parts) == 3 and root.name == "resources_servers")
             ):
                 add("gym", "resource-config-candidate", path, [path], **context)
     return sorted(result, key=lambda item: (item["path"], item["provider"], item["kind"]))
@@ -200,13 +218,13 @@ def search_tasks(
     *,
     provider: str = "both",
     query: str = "",
-    max_depth: int = 12,
-    max_entries: int = 50000,
+    max_depth: int | None = 12,
+    max_entries: int | None = 50000,
     excluded_directory_names: frozenset[str] = EXCLUDED_DIRECTORIES,
 ) -> dict:
     if provider not in {"harbor", "gym", "both"}:
         raise ValueError("provider must be harbor, gym, or both")
-    if max_depth < 0 or max_entries < 1:
+    if (max_depth is not None and max_depth < 0) or (max_entries is not None and max_entries < 1):
         raise ValueError("max_depth must be nonnegative and max_entries must be positive")
     root = repo.expanduser().resolve(strict=True)
     if not root.is_dir():

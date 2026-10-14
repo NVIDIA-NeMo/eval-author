@@ -162,15 +162,36 @@ Discover imports this same helper to enumerate task roots and records the comple
 inventory in `task_search` in its JSON report, including environment, solution,
 verifier, and step evidence. Its existing generated-directory exclusions are
 passed to the helper and reported in `search.excluded_directory_names`.
-Readiness excludes `task_template` roots and still requires `task.toml`; Gym
-parameterized scaffolds without it remain inventory candidates only.
-An incomplete task scan makes Explore invalid and prevents a runnable verdict.
-Discovery accepts `--task-max-depth` and `--task-max-entries` to raise the default
-12-directory / 50,000-entry bounds, and reports the selected values.
+Readiness preserves its previous scope: it excludes the repository root itself
+and `task_template` roots and still requires `task.toml`. These roots and Gym
+parameterized scaffolds without TOML remain inventory candidates only.
+
+Full discovery has no task depth or entry limit by default (reported as JSON
+`null`), preserving discovery of large and deeply nested suites. The optional
+`--task-max-depth` and `--task-max-entries` flags impose limits explicitly.
+An incomplete task scan still makes Explore invalid and prevents a repository
+runnable verdict, including repositories containing Gym manifests: config
+discovery alone cannot establish that all tasks were found. Fix unreadable paths
+or remove/raise explicit limits before claiming repository-wide readiness.
+
+Standalone search keeps its bounded defaults and narrower exclusions so that
+potential source tasks in build/vendor/cache directories remain visible for
+inspection. Full discovery retains its larger historical generated-directory
+exclusion set; the report lists the exact selected scope.
 Configuration parsing, dataset grouping, fingerprinting, and provider validation
 remain discovery responsibilities; their traversal is not bounded by the task
 search limits. File evidence never replaces native validation.
 
-Windows reparse points (including directory junctions) are excluded alongside
-symbolic links by the shared scanner. This policy does not change discovery's
-separate configuration and fingerprint traversal.
+Both modes deliberately exclude symlink task markers as well as symlink
+directories; unlike the previous readiness walker, a linked `task.toml` no
+longer establishes a task. This keeps task evidence within the selected tree.
+Windows directory reparse points (including junctions) are excluded; regular
+reparse-point files such as cloud placeholders remain filename evidence.
+Non-root directories containing a `.git` file or directory are excluded as
+nested repositories before collecting their markers. Select such a repository
+explicitly as `--repo` to search it. These policies apply to task enumeration,
+not discovery's separate config/fingerprint traversal.
+
+`search.limits_reached_count` records the total number of limit observations.
+`search.limits_reached` contains at most the first 100 paths in sorted order;
+a truncated sample never makes an incomplete search complete.

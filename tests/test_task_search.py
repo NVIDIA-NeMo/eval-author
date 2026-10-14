@@ -305,3 +305,80 @@ def test_windows_junction_does_not_search_outside_root(search, tmp_path):
     assert report["candidates"] == []
     assert report["search"]["complete"]
     assert report["search"]["excluded"] == [{"path": "linked", "reason": "reparse-point"}]
+
+
+@pytest.mark.parametrize("git_directory", [False, True])
+def test_nested_repository_excluded_but_explicit_root_allowed(search, tmp_path, git_directory):
+    populate(tmp_path, ["owned/task.toml", "nested/task.toml"])
+    marker = tmp_path / "nested/.git"
+    marker.mkdir() if git_directory else marker.write_text("gitdir: elsewhere")
+    report = search.search_tasks(tmp_path)
+    assert [item["path"] for item in report["candidates"]] == ["owned"]
+    assert {"path": "nested", "reason": "nested-repository"} in report["search"]["excluded"]
+    assert [item["path"] for item in search.search_tasks(tmp_path / "nested")["candidates"]] == ["."]
+
+
+def test_unreadable_root_is_cli_error(search, tmp_path, monkeypatch, capsys):
+    def denied(path):
+        raise PermissionError(errno.EACCES, "denied", str(path))
+
+    monkeypatch.setattr(search.os, "scandir", denied)
+    monkeypatch.setattr(sys, "argv", ["search_tasks", "--repo", str(tmp_path)])
+    assert search.main() == 2
+    assert json.loads(capsys.readouterr().out)["search"]["complete"] is False
+
+
+def test_limit_sample_is_bounded_and_sorted(search, tmp_path):
+    for index in range(150):
+        (tmp_path / f"d{index:03}").mkdir()
+    report = search.search_tasks(tmp_path, max_depth=0)["search"]
+    assert report["limits_reached_count"] == 150
+    assert len(report["limits_reached"]) == 100
+    assert [item["path"] for item in report["limits_reached"]] == [f"d{i:03}" for i in range(100)]
+
+
+def test_resource_server_root_requires_server_component(search, tmp_path):
+    root = tmp_path / "resources_servers"
+    populate(root, ["configs/stray.yaml", "server/configs/valid.yaml"])
+    assert [item["path"] for item in search.search_tasks(root)["candidates"]] == ["server/configs/valid.yaml"]
+
+
+def test_regular_reparse_file_remains_marker(search, tmp_path, monkeypatch):
+    import stat
+    from types import SimpleNamespace
+
+    populate(tmp_path, ["task.toml"])
+
+    class Entry:
+        name = "task.toml"
+
+        def stat(self, **kwargs):
+            return SimpleNamespace(st_mode=stat.S_IFREG, st_file_attributes=0x400)
+
+    class Listing:
+        def __enter__(self):
+            return iter([Entry()])
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr(search.os, "scandir", lambda path: Listing())
+    assert search.search_tasks(tmp_path)["candidates"][0]["path"] == "."
+
+
+def test_unlimited_search_crosses_default_depth(search, tmp_path):
+    path = "/".join(["deep"] * 15) + "/task.toml"
+    populate(tmp_path, [path])
+    assert not search.search_tasks(tmp_path)["search"]["complete"]
+    report = search.search_tasks(tmp_path, max_depth=None, max_entries=None)
+    assert report["search"]["complete"]
+    assert len(report["candidates"]) == 1
+
+
+def test_nested_repository_listings_consume_entry_budget(search, tmp_path):
+    populate(tmp_path, ["a/.git", "a/task.toml", "b/.git", "b/task.toml"])
+    report = search.search_tasks(tmp_path, max_entries=5)
+    assert not report["search"]["complete"]
+    assert report["search"]["entries_retained"] == 4
+    assert report["search"]["limits_reached"] == [{"path": "b", "limit": "max_entries"}]
+    assert report["candidates"] == []

@@ -177,9 +177,9 @@ to verify Harbor installation during the prerequisite-only entry point above.
 
 Point the script at the repository root, not at a suite directory. Explore searches
 for configs to a depth of four directories. Task search uses the shared
-[file-only helper](../eval-author/references/task-search.md), with defaults of
-depth 12 and 50,000 entries. Increase `--task-max-depth` and `--task-max-entries`
-when needed; an incomplete task inventory prevents a runnable verdict.
+[file-only helper](../eval-author/references/task-search.md), with no depth or
+entry limit by default. Use `--task-max-depth` and `--task-max-entries` to impose
+explicit bounds when needed; an incomplete task inventory prevents a runnable verdict.
 
 ```bash
 "${harbor_python:?Select a Harbor interpreter using the probes above}" <skill_dir>/scripts/discover.py --repo .

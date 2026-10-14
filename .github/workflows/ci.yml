@@ -84,6 +84,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, macos-14, windows-2022]
+        python: ["3.12"]
+        include:
+          - os: ubuntu-24.04
+            python: "3.10"
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -91,10 +95,10 @@ jobs:
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           version: "0.12.3"
-          python-version: "3.12"
+          python-version: ${{ matrix.python }}
           enable-cache: false
       - name: Test standalone task search without provider dependencies
-        run: uv run --no-project --python 3.12 --with pytest==9.1.1 python -m pytest tests/test_task_search.py -q -rs
+        run: uv run --no-project --python ${{ matrix.python }} --with pytest==9.1.1 python -m pytest tests/test_task_search.py -q -rs
   test:
     # Defense in depth only: PRs can edit this workflow. This condition does not
     # enforce repository access; see CONTRIBUTING.md.

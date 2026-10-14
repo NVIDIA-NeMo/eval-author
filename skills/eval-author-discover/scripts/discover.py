@@ -521,10 +521,22 @@ async def _main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--repo", type=Path, default=Path(), help="Repository to inspect.")
     parser.add_argument("--compact", action="store_true", help="Emit single-line JSON.")
-    parser.add_argument("--task-max-depth", type=int, default=12, help="Maximum task inventory directory depth.")
-    parser.add_argument("--task-max-entries", type=int, default=50000, help="Maximum task inventory entries.")
+    parser.add_argument(
+        "--task-max-depth",
+        type=int,
+        default=None,
+        help="Optional maximum task inventory directory depth (default: unlimited).",
+    )
+    parser.add_argument(
+        "--task-max-entries",
+        type=int,
+        default=None,
+        help="Optional maximum task inventory entries (default: unlimited).",
+    )
     args = parser.parse_args(argv)
-    if args.task_max_depth < 0 or args.task_max_entries < 1:
+    if (args.task_max_depth is not None and args.task_max_depth < 0) or (
+        args.task_max_entries is not None and args.task_max_entries < 1
+    ):
         parser.error("task depth must be nonnegative and task entries must be positive")
 
     if sys.version_info < _MIN_PYTHON:

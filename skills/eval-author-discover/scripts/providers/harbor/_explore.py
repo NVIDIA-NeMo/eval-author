@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "eval-author" / "scripts"))
+sys.path.append(str(Path(__file__).resolve().parents[4] / "eval-author" / "scripts"))
 
 from _checks import ADVISORY, FAIL, PASS, WARN, CheckResult, check  # noqa: E402
 from search_tasks import search_tasks  # noqa: E402
@@ -147,8 +147,8 @@ def scan_repository(
     *,
     exclude_config: Callable[[ConfigCandidate], bool] | None = None,
     never_group: Callable[[Path], bool] | None = None,
-    task_max_depth: int = 12,
-    task_max_entries: int = 50000,
+    task_max_depth: int | None = None,
+    task_max_entries: int | None = None,
 ) -> RepositoryScan:
     """Find repo-owned configs, Harbor datasets, and task directories.
 
@@ -175,6 +175,7 @@ def scan_repository(
         for item in task_search["candidates"]
         if item["kind"] in {"task", "parameterized-task", "python-verifier-task"}
         and (Path(item["path"]) / "task.toml").as_posix() in item["evidence"]
+        and item["path"] != "."
         and Path(item["path"]).name != "task_template"
     )
     if not task_search["search"]["complete"]:
@@ -364,9 +365,6 @@ def _datasets(
     # Sibling tasks share a parent, so decide once per parent to keep grouping linear in the task count.
     groups_by_parent: dict[Path, bool] = {}
     for task in tasks:
-        if task == repo_root:
-            grouped.setdefault(task, []).append(task)
-            continue
         parent = task.parent
         if parent not in groups_by_parent:
             groupable = parent != repo_root and not (never_group is not None and never_group(parent))
