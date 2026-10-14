@@ -9,10 +9,26 @@ into validated scripts, retain the evidence behind each decision, and measure th
 variation that remains in model judgments and live execution.
 
 This plan covers the whole workflow: routing, prerequisites, discovery, audit,
-task authoring, execution evidence, and reporting. The runtime work on
-`design/deterministic-discovery` is one part of it. The implementation inventory
-below includes the runtime work proposed in PR #66; the roadmap describes further work,
-not completed acceptance. It does not establish a live CI or provider-run result.
+task authoring, execution evidence, and reporting. The runtime policy and shared task scanner landed in PRs #66 and #67.
+The phase status below separates implemented foundations from remaining work;
+it does not establish full workflow or cross-host acceptance.
+
+## Phase status
+
+Status checked against main at `5c087f5` on 2026-10-14:
+
+| Phase | Implemented evidence | Still required |
+| --- | --- | --- |
+| 1 Prerequisites | [#66](https://github.com/NVIDIA-NeMo/eval-author/pull/66): shared policy, locator, priority-aware selection and diagnostics, copied-install and runtime regressions. | Preserve version-specific CI evidence; do not infer all supported versions or cold-start performance from the policy. |
+| 2 Routing and scope | [Draft #76](https://github.com/NVIDIA-NeMo/eval-author/pull/76): 11 request/turn contracts, offline normalized-evidence checker, filesystem manifests and mutation tests. Combined checker/scanner run: 89 passed, one Windows-only skip. | Reviewed native host adapters, complete live prompt/paraphrase replay, semantic route/handoff review, missing-runtime cases. Normalized-evidence checks alone do not prove host acceptance. |
+| 3 Discovery comparison | [#67](https://github.com/NVIDIA-NeMo/eval-author/pull/67): shared deterministic task inventory, bounded standalone search, unlimited readiness defaults, nested-checkout handling and platform tests. | Canonical full discovery decision projection, general repeat-run comparator, frozen mixed-provider failure matrix and mutation accounting. |
+| 4 Evidence binding | Existing audit digests and task receipts provide part of the machinery. | The cross-artifact evidence contract and full acceptance/invalidation matrix below. |
+| 5 Reporting | Existing structured renderer and semantic regression pilot. | Full factual-field and contradiction checks with independent repeated batches. |
+| 6 Hosts | Scanner tests cover macOS, Linux and Windows. | Workflow acceptance across hosts, loaded installations and reviewed routing cases; scanner portability is not host equivalence. |
+
+Phase 2 has started; phases 2–6 are not complete. Phase 3 is partially implemented,
+not wholly absent. No live inference or customer eval execution was performed for
+#76's initial offline checker.
 
 ## What must remain stable
 
@@ -77,7 +93,7 @@ and the results are retained for the relevant revision.
 
 ### Phase 1 Centralize prerequisites
 
-The branch implements the shared runtime policy, locator, and setup references.
+PR #66 implemented the shared runtime policy, locator, and setup references.
 Keep supported ranges, installation pins, test profiles, and capability checks in
 that policy rather than duplicating them in prompts or setup commands.
 
