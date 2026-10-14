@@ -16,7 +16,7 @@ not-for:
   - mlflow-to-atif (use only to normalize MLflow traces into ATIF)
 compatibility: >-
   Offline ATIF conversion uses Python 3.11+ and the standard library. The optional
-  NeMo Compass loader requires Python 3.12 or 3.13 and the pinned trace-ingest package.
+  NeMo Compass loader requires Python 3.12 or 3.13 and the pinned insight-agent package.
   Optional reference validation happens downstream in the experimental
   eval-author-trace-environment workflow with Harbor. Output keeps the ATIF
   version of an explicitly supplied original.

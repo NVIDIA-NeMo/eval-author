@@ -18,15 +18,25 @@ from pathlib import Path
 
 from gym_to_atif import read_source
 
-REVISION = "692d1bf57b6a9372f628b7c2004852aec7a9a83e"
+REVISION = "ac6170678755f4dd134635e699f0f970b35fe4bb"
+VERSION = "0.1.0rc1"
 
 
 def load(input_path: Path, output: Path, row: int | None = None) -> dict:
     """Preserve the selected raw record, normalized evidence, and loader provenance."""
-    distribution = importlib.metadata.distribution("trace-ingest")
+    distribution = importlib.metadata.distribution("insight-agent")
     provenance = json.loads(distribution.read_text("direct_url.json") or "{}")
-    if provenance.get("vcs_info", {}).get("commit_id") != REVISION:
-        raise ValueError("install the documented trace-ingest revision")
+    revision = provenance.get("vcs_info", {}).get("commit_id")
+    if distribution.version != VERSION or ("vcs_info" in provenance and revision != REVISION):
+        raise ValueError("install the documented insight-agent version or revision")
+    if "dir_info" in provenance:
+        raise ValueError("install the documented insight-agent wheel or Git revision")
+    try:
+        importlib.metadata.distribution("trace-ingest")
+    except importlib.metadata.PackageNotFoundError:
+        pass
+    else:
+        raise ValueError("remove the standalone trace-ingest distribution and reinstall insight-agent")
     from trace_ingest.loaders.gym import GymTraceConfig, GymTraceLoader
 
     raw = read_source(input_path, row)
@@ -43,7 +53,8 @@ def load(input_path: Path, output: Path, row: int | None = None) -> dict:
         receipt = {
             "schema": "eval-author.trace-intel-load.v1",
             "provider": "gym",
-            "loader_revision": REVISION,
+            "loader_distribution": "insight-agent",
+            "loader_revision": revision,
             "loader_version": distribution.version,
             "selected_line": row,
             "source_sha256": hashlib.sha256(raw).hexdigest(),

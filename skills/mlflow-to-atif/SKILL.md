@@ -19,7 +19,7 @@ compatibility: >-
   require an existing Python environment with MLflow. Optional reference
   validation requires Harbor. Output is ATIF v1.7 for current downstream
   compatibility. The optional NeMo Compass loader requires Python 3.12 or 3.13
-  and the pinned trace-ingest MLflow extra.
+  and the pinned insight-agent MLflow extra.
 maturity: alpha
 license: Apache-2.0
 user-invocable: true

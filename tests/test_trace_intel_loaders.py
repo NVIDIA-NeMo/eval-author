@@ -137,6 +137,13 @@ def test_private_outputs_provenance_and_no_overwrite(provider, tmp_path):
     assert stat.S_IMODE(output.stat().st_mode) == 0o700
     assert all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in output.iterdir())
     receipt = json.loads((output / "loading.json").read_text())
+    from importlib.metadata import distribution
+
+    installed = distribution("insight-agent")
+    direct_url = json.loads(installed.read_text("direct_url.json") or "{}")
+    assert receipt["loader_distribution"] == "insight-agent"
+    assert receipt["loader_version"] == installed.version
+    assert receipt["loader_revision"] == direct_url.get("vcs_info", {}).get("commit_id")
     assert receipt["source_sha256"] == hashlib.sha256(raw).hexdigest()
     normalized = next(output.glob("*.normalized.json"))
     assert receipt["normalized_sha256"] == hashlib.sha256(normalized.read_bytes()).hexdigest()
@@ -205,16 +212,54 @@ def test_gym_requires_explicit_jsonl_selection(tmp_path):
 
 
 @pytest.mark.parametrize("provider", ["gym", "mlflow"])
-def test_unpinned_install_is_rejected_before_writing(provider, tmp_path, monkeypatch):
+@pytest.mark.parametrize("invalid_install", ["revision", "version", "editable", "standalone"])
+def test_unpinned_install_is_rejected_before_writing(provider, invalid_install, tmp_path, monkeypatch):
     from types import SimpleNamespace
 
     adapter = module(provider)
-    monkeypatch.setattr(
-        adapter.importlib.metadata,
-        "distribution",
-        lambda _: SimpleNamespace(read_text=lambda _: '{"vcs_info":{"commit_id":"other"}}'),
-    )
+    provenance = {"vcs_info": {"commit_id": adapter.REVISION}}
+    if invalid_install == "revision":
+        provenance["vcs_info"]["commit_id"] = "other"
+    elif invalid_install == "editable":
+        provenance = {"dir_info": {"editable": True}}
+
+    def distribution(name):
+        if name == "trace-ingest":
+            if invalid_install == "standalone":
+                return SimpleNamespace(version="0.1.0")
+            raise adapter.importlib.metadata.PackageNotFoundError(name)
+        assert name == "insight-agent"
+        return SimpleNamespace(
+            version="0.0.0" if invalid_install == "version" else adapter.VERSION,
+            read_text=lambda _: json.dumps(provenance),
+        )
+
+    monkeypatch.setattr(adapter.importlib.metadata, "distribution", distribution)
     output = tmp_path / "loaded"
-    with pytest.raises(ValueError, match="documented trace-ingest revision"):
+    with pytest.raises(ValueError, match="insight-agent"):
         adapter.load(tmp_path / "unused", output, 1)
     assert not output.exists()
+
+
+@pytest.mark.parametrize("provider", ["gym", "mlflow"])
+@pytest.mark.parametrize("provenance", [None, {"archive_info": {"hashes": {"sha256": "fixture"}}}])
+def test_wheel_provenance_does_not_claim_a_git_revision(provider, provenance, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    adapter = module(provider)
+    original_distribution = adapter.importlib.metadata.distribution
+
+    def distribution(name):
+        if name != "insight-agent":
+            return original_distribution(name)
+        return SimpleNamespace(
+            version=adapter.VERSION, read_text=lambda _: json.dumps(provenance) if provenance else None
+        )
+
+    monkeypatch.setattr(adapter.importlib.metadata, "distribution", distribution)
+    source = tmp_path / "input.json"
+    source.write_text(json.dumps(gym_record() if provider == "gym" else mlflow_record()))
+    receipt = adapter.load(source, tmp_path / "loaded", 1 if provider == "mlflow" else None)
+    assert receipt["loader_distribution"] == "insight-agent"
+    assert receipt["loader_version"] == adapter.VERSION
+    assert receipt["loader_revision"] is None

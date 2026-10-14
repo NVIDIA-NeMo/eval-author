@@ -15,7 +15,7 @@ dependencies = ["jsonschema>=4.23", "referencing>=0.28.4"]
 audit = ["harbor>=0.16.1", "pyyaml>=6.0", "pydantic>=2"]
 mlflow = ["mlflow-skinny>=3.6,<4"]
 trace-loaders = [
-  "trace-ingest[mlflow] @ git+https://github.com/NVIDIA-NeMo/labs-nemo-compass.git@692d1bf57b6a9372f628b7c2004852aec7a9a83e#subdirectory=packages/trace-ingest",
+  "insight-agent[mlflow]==0.1.0rc1",
 ]
 
 [dependency-groups]
@@ -28,7 +28,7 @@ dev = [
   "pyyaml>=6.0",
   "ruff>=0.14",
   "ty>=0.0.80",
-  "trace-ingest[mlflow] @ git+https://github.com/NVIDIA-NeMo/labs-nemo-compass.git@692d1bf57b6a9372f628b7c2004852aec7a9a83e#subdirectory=packages/trace-ingest",
+  "insight-agent[mlflow]==0.1.0rc1",
 ]
 
 [tool.uv]
@@ -40,6 +40,10 @@ package = false
 # CVE-2026-0994 / BDSA-2025-123809 for Struct/Value/ListValue; 7.36.0 is the first that does.
 # databricks-sdk only uses the Timestamp/Duration well-known types. Drop once its cap allows 7.x.
 override-dependencies = ["protobuf>=7.36.0"]
+
+[tool.uv.sources]
+# Remove after the combined wheel is published and validated from the registry.
+insight-agent = { git = "https://github.com/NVIDIA-NeMo/nemo-compass.git", rev = "ac6170678755f4dd134635e699f0f970b35fe4bb" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
