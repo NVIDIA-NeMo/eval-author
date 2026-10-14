@@ -19,7 +19,7 @@ HASH_SUFFIXES = {".env", ".py", ".sh", ".toml", ".yaml", ".yml"}
 HTML_SUFFIXES = {".md"}
 HASH_FILENAMES = {".env.example", ".gitignore", "Makefile"}
 # Templates copied verbatim into users' repositories carry no header.
-HEADERLESS_TEMPLATES = {"ethos/skills/ethos-write/references/templates/ethos.md"}
+HEADERLESS_TEMPLATES = {"team-skills/ethos/ethos-write/references/templates/ethos.md"}
 
 
 def _tracked_and_untracked_files() -> list[Path]:

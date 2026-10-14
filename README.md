@@ -49,8 +49,8 @@ Repository inventory and case planning can start without either runtime.
 
 First-evaluation design and coverage audits require a local **ethos.md file** describing
 your agent's purpose, boundaries, and success criteria. Install the
-[ethos skills](ethos/README.md) to create one:
-`npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/ethos --agent claude-code`.
+[ethos skills](team-skills/ethos/README.md) to create one:
+`npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/team-skills/ethos --agent claude-code`.
 
 The discovery helper requires Python 3.11+. Audit generation, validation, and
 aggregation require Python 3.11+, PyYAML, and jsonschema. Measuring coverage from

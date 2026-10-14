@@ -138,7 +138,7 @@ def execute(argv, cwd, env, log, timeout):
 
 # Skill trees that ship from this repository: Eval Author's and the separately
 # installed ethos skills.
-SKILL_ROOTS = ("skills", "ethos/skills")
+SKILL_ROOTS = ("skills", "team-skills/ethos")
 
 
 def collect(repo, output, evaluator, timeout):

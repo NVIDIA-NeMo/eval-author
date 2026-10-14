@@ -271,7 +271,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 
 | Sub-flow | Use it to |
 |---|---|
-| [`ethos-explore`](../../ethos/skills/ethos-explore/SKILL.md) and [`ethos-write`](../../ethos/skills/ethos-write/SKILL.md) | Explore intended behavior and write or update ethos.md through the [Local Ethos](references/local-ethos.md) handoff. Installed separately from Eval Author |
+| [`ethos-explore`](../../team-skills/ethos/ethos-explore/SKILL.md) and [`ethos-write`](../../team-skills/ethos/ethos-write/SKILL.md) | Explore intended behavior and write or update ethos.md through the [Local Ethos](references/local-ethos.md) handoff. Installed separately from Eval Author |
 | `eval-author-first-eval` | Establish required Ethos, plan cases without an installed runtime, and build or expand a starter suite at the agreed breadth while teaching the user how to run it |
 | `eval-author-discover` | Establish whether a repository's evaluations run, name the rung that fails, and get the exact command to run them |
 | `eval-author-audit` | Generate and validate a finite `audit.md` coverage denominator, measure and aggregate trace coverage, and report findings |
