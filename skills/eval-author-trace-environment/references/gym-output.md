@@ -44,8 +44,10 @@ boundary. Continue shared privacy review and candidacy before scaffolding.
 
 ## Native workspace and scaffold
 
-Use the existing Gym v0.6.0+ runtime in its separate Python 3.13.14+
-environment. Inspect that installation's CLI help and request models as in the
+Use the Gym Python/CLI pair selected by the
+[shared runtime locator](../../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks)
+with `--provider gym --flow authoring`. Its central policy owns version and
+Python requirements; keep Gym in its separate environment. Inspect that installation's CLI help and request models as in the
 [Gym authoring guide](../../eval-author-task-create/references/gym-tasks.md).
 If it is unavailable, retain the candidate and report construction as blocked;
 do not substitute Harbor or claim that the task runs.

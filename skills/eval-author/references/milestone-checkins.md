@@ -111,20 +111,16 @@ Harbor are supported. Explain how the selected tools run cases with their
 environment and grading, and retain results for reruns. Verify the runtimes the
 selected setup uses; apply both checks below when it uses both.
 
-For **Gym**, link [NeMo Gym](https://github.com/NVIDIA-NeMo/Gym). Reuse the
-repository's documented installation and verify `gym --version` and `gym --help`
-with its actual CLI. Authoring requires v0.6.0+ in its separate Python 3.13.14+
-environment; verify that interpreter can import `nemo_gym.environment.scaffold`.
-Record the command, interpreter, and version. When using both tools, keep their
-Python environments separate as described in discovery's runtime guidance. If
-setup is missing or broken, report the specific need and follow the core's
-installation authorization boundary. Respect the user's selected setup.
-
-For **Harbor**, link [Harbor's documentation](https://www.harborframework.com/docs)
-and use discovery's [runtime prerequisite checks](../../eval-author-discover/references/runtime-prerequisites.md#runtime-prerequisite-checks),
-including its optional-skill advisory, without a full evaluation scan. Use its
-[setup guide](../../eval-author-discover/references/harbor-setup.md) for a missing
-or broken installation. Preserve the verified command, interpreter, and version.
+For **Gym** and **Harbor**, use the shared
+[runtime locator](runtime-prerequisites.md#runtime-prerequisite-checks)
+with `--flow authoring` and the selected provider. It reads the central runtime
+policy, searches project and global locations, and verifies the selected Python,
+CLI, version, and authoring capabilities. Reuse explicit paths and project setup
+instructions; keep Gym and Harbor environments separate. Preserve the exact
+selected invocation. Explain unresolved candidate errors before asking for a
+location or choice. Installation still follows the core authorization boundary.
+For Harbor, include the optional-skill advisory and use its
+[setup guide](harbor-setup.md) when needed.
 
 The checkpoint reply explains the selected framework and observed setup result,
 including when reusing an installation. Setup does not prove task-specific

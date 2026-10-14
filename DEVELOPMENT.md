@@ -15,7 +15,18 @@ This repository is not installed as a Python package. Users
 Keep runtime instructions and resources inside the skill directories, and
 preserve relative paths between sibling skills. A skill installation does not
 include repository-level documentation or tests. The bundled scripts do not
-expose a published Python package API.
+expose a published Python package API. Shared runtime helpers and their policy
+live in `skills/eval-author/scripts/`; provider-specific discovery scripts stay
+under `skills/eval-author-discover/scripts/`. Install the sibling `eval-author`
+skill alongside discovery so its probes and report renderer can load those helpers.
+
+For repository-wide use, run `python tools/locate-runtime.py --help` or
+`python tools/runtime-policy.py --install-spec harbor` from the checkout root.
+These entrypoints delegate to the bundled implementation without copying logic.
+The existing top-level `tools/` directory is the repository script location.
+The implementation, policy JSON, and runtime setup references stay inside the
+umbrella skill so both `npx skills` and manual skill copies remain self-contained;
+moving them solely to a repository-level directory would break those installs.
 
 Adding a runtime dependency to a bundled script changes the requirements for
 users who copied the skill. Contract tests inspect script imports and reject
@@ -227,3 +238,13 @@ source under test while keeping this checkout's tests, fixtures and dependencies
 fixed. The fixtures repository's `automation/gym-benchmark/run.py` freezes both
 revisions and runs interleaved repeats. This measures compatibility only; it does
 not establish live model performance, generated-task validity or defect sensitivity.
+
+## Workflow scope regression checks
+
+The [workflow scope checker](docs/workflow-scope-checks.md) compares normalized
+tool evidence and file manifests against frozen request/turn contracts.
+Run its mutation and disposable-inventory tests with:
+
+    uv run --locked pytest tests/test_workflow_scope.py -q
+
+These checks do not claim live routing acceptance.

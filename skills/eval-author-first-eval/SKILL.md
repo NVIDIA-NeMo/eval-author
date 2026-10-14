@@ -17,9 +17,9 @@ not-for:
 compatibility: >-
   Ethos is required before evaluation design and is saved and checked locally
   in the user's repository. No NeMo service, account, platform CLI, or upload is needed.
-  Planning needs no evaluation runtime. Native Gym authoring needs Gym v0.6.0+
-  in its separate Python 3.13.14+ environment. Harbor authoring needs its CLI
-  and Python environment. Execution may require Docker,
+  Planning needs no evaluation runtime. Gym and Harbor authoring need the Python/CLI
+  pairs verified by eval-author’s shared locator and runtime-policy.json.
+  Keep their runtime environments separate. Execution may require Docker,
   an agent adapter, and provider credentials.
 maturity: alpha
 license: Apache-2.0

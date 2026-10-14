@@ -9,6 +9,16 @@ the evaluations live, start with the setup guide's inventory request.
 Review the [runtime requirements](getting-started.md#requirements) for the
 operation you choose.
 
+## Find local tasks without running them
+
+The shared [task search](../skills/eval-author/references/task-search.md) finds
+Harbor task directories and Gym workload candidates from provider layouts
+and Eval Author's existing extension markers.
+It uses Python's standard library and reports stable paths, marker files, and
+search limits without importing providers or executing repository code. Matches
+are inventory candidates, including incomplete scaffolds and legacy configs;
+use readiness checks only when you want to validate or execute them.
+
 ## Check readiness
 
 ```text

@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 import tomllib
 from collections import Counter
 from collections.abc import Callable, Iterator
@@ -33,7 +34,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from _checks import ADVISORY, FAIL, PASS, WARN, CheckResult, check
+sys.path.append(str(Path(__file__).resolve().parents[4] / "eval-author" / "scripts"))
+
+from _checks import ADVISORY, FAIL, PASS, WARN, CheckResult, check  # noqa: E402
+
+try:
+    from search_tasks import search_tasks
+except ModuleNotFoundError as exc:
+    if exc.name != "search_tasks":
+        raise
+    raise SystemExit(
+        "Incomplete skill installation: install the sibling eval-author skill alongside eval-author-discover."
+    ) from None
 
 try:
     import yaml
@@ -120,6 +132,7 @@ class RepositoryScan:
     fingerprint: str
     input_file_count: int
     checks: list[CheckResult]
+    task_search: dict
 
 
 def _check(name: str, status: str, message: str, **kwargs: Any) -> CheckResult:
@@ -142,6 +155,8 @@ def scan_repository(
     *,
     exclude_config: Callable[[ConfigCandidate], bool] | None = None,
     never_group: Callable[[Path], bool] | None = None,
+    task_max_depth: int | None = None,
+    task_max_entries: int | None = None,
 ) -> RepositoryScan:
     """Find repo-owned configs, Harbor datasets, and task directories.
 
@@ -155,14 +170,38 @@ def scan_repository(
     excluded = [candidate for candidate in candidates if exclude_config is not None and exclude_config(candidate)]
     configs = [candidate for candidate in candidates if candidate not in excluded]
     checks: list[CheckResult] = []
-    tasks = _task_paths(repo_root)
+    task_search = search_tasks(
+        repo_root,
+        max_depth=task_max_depth,
+        max_entries=task_max_entries,
+        excluded_directory_names=frozenset(_PRUNE_DIR_NAMES),
+    )
+    # Readiness still requires task.toml; file-only Gym scaffolds remain visible
+    # in the inventory, without being sent to Harbor as ready task directories.
+    tasks = sorted(
+        repo_root / item["path"]
+        for item in task_search["candidates"]
+        if item["kind"] in {"task", "parameterized-task", "python-verifier-task"}
+        and (Path(item["path"]) / "task.toml").as_posix() in item["evidence"]
+        and item["path"] != "."
+        and Path(item["path"]).name != "task_template"
+    )
+    if not task_search["search"]["complete"]:
+        checks.append(
+            _check(
+                "task-search",
+                FAIL,
+                "Task inventory is incomplete; repository readiness is unproven.",
+                hint="Inspect task_search.search; fix unreadable paths or raise --task-max-depth / --task-max-entries.",
+            )
+        )
 
     if not configs and not tasks:
         checks.append(
             _check(
                 "config",
                 FAIL,
-                "No repository-owned Harbor config file or task directory exists.",
+                "No repository-owned Harbor config file or task directory was found in the searched scope.",
                 hint="Add a YAML, YML, or JSON config with a nonempty datasets or tasks list, or a task directory.",
             )
         )
@@ -248,7 +287,7 @@ def scan_repository(
             _check(
                 "tasks-on-disk",
                 WARN,
-                "No task directories exist. A Harbor task directory holds a task.toml.",
+                "No task directories were found in the searched scope. A Harbor task directory holds a task.toml.",
                 severity=ADVISORY,
                 proven=False,
             )
@@ -269,6 +308,7 @@ def scan_repository(
         fingerprint=fingerprint,
         input_file_count=count,
         checks=checks,
+        task_search=task_search,
     )
 
 
@@ -319,14 +359,6 @@ def _candidate(path: Path) -> ConfigCandidate | None:
 
 def _has_work(data: dict[str, Any]) -> bool:
     return any(isinstance(data.get(name), list) and data[name] for name in _WORK_KEYS)
-
-
-def _task_paths(repo_root: Path) -> list[Path]:
-    return sorted(
-        directory
-        for directory in walk_dirs(repo_root)
-        if directory != repo_root and directory.name != "task_template" and (directory / "task.toml").is_file()
-    )
 
 
 def _datasets(
