@@ -10,6 +10,10 @@ with the sibling skills available and no customer data or provider credentials.
 Retain replies, channels, tool calls, and delegation logs. Judge the selected
 workflow and actions, not exact phrasing.
 
+The [offline scope checker](../../docs/workflow-scope-checks.md) makes a subset
+of these route and effect expectations executable against normalized captures.
+Its synthetic tests are not a record of passing conversational replay.
+
 ## 1. Fresh onboarding to expand existing evals
 
 **Request:** "help me onboard to expand my evals"

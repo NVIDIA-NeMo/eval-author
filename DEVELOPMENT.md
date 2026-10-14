@@ -238,3 +238,13 @@ source under test while keeping this checkout's tests, fixtures and dependencies
 fixed. The fixtures repository's `automation/gym-benchmark/run.py` freezes both
 revisions and runs interleaved repeats. This measures compatibility only; it does
 not establish live model performance, generated-task validity or defect sensitivity.
+
+## Workflow scope regression checks
+
+The [workflow scope checker](docs/workflow-scope-checks.md) compares normalized
+tool evidence and file manifests against frozen request/turn contracts.
+Run its mutation and disposable-inventory tests with:
+
+    uv run --locked pytest tests/test_workflow_scope.py -q
+
+These checks do not claim live routing acceptance.
