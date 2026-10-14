@@ -522,7 +522,23 @@ async def _main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo", type=Path, default=Path(), help="Repository to inspect.")
     parser.add_argument("--gym-cli", help="Exact Gym CLI selected by locate_runtime.py.")
     parser.add_argument("--compact", action="store_true", help="Emit single-line JSON.")
+    parser.add_argument(
+        "--task-max-depth",
+        type=int,
+        default=None,
+        help="Optional maximum task inventory directory depth (default: unlimited).",
+    )
+    parser.add_argument(
+        "--task-max-entries",
+        type=int,
+        default=None,
+        help="Optional maximum task inventory entries (default: unlimited).",
+    )
     args = parser.parse_args(argv)
+    if (args.task_max_depth is not None and args.task_max_depth < 0) or (
+        args.task_max_entries is not None and args.task_max_entries < 1
+    ):
+        parser.error("task depth must be nonnegative and task entries must be positive")
 
     if sys.version_info < _MIN_PYTHON:
         return _fail(
@@ -581,6 +597,8 @@ async def _main(argv: list[str] | None = None) -> int:
         repo_root,
         exclude_config=gym_explore.is_manifest,
         never_group=gym_explore.is_environments_root,
+        task_max_depth=args.task_max_depth,
+        task_max_entries=args.task_max_entries,
     )
     manifests = [gym_explore.manifest(candidate, repo_root) for candidate in scan.excluded_configs]
     datasets = [_describe_dataset(dataset, repo_root) for dataset in scan.datasets]
@@ -605,7 +623,9 @@ async def _main(argv: list[str] | None = None) -> int:
         for item in manifests
     ]
     repository_checks = [*scan.checks, *_gym_manifest_checks(manifests)]
-    phases["explore"] = _VALID if scan.configs or datasets or manifests else _INVALID
+    phases["explore"] = (
+        _VALID if scan.task_search["search"]["complete"] and (scan.configs or datasets or manifests) else _INVALID
+    )
 
     # Judge: Harbor judges configs and datasets, NeMo Gym judges manifests, and either can run alone.
     harbor_found = bool(scan.configs or datasets)
@@ -669,7 +689,8 @@ async def _main(argv: list[str] | None = None) -> int:
 
     # Harbor configs and datasets need Harbor's verdict; manifests need Gym's.
     runnable = (
-        phases["judge"] == _VALID
+        phases["explore"] == _VALID
+        and phases["judge"] == _VALID
         and phases["solve"] != _INVALID
         and (proven or not harbor_found)
         and all(config["runnable"] for config in configs)
@@ -685,6 +706,7 @@ async def _main(argv: list[str] | None = None) -> int:
             "gym_manifests": manifest_entries,
             "other_eval_candidates": other_evals,
             "other_eval_scan": other_eval_scan,
+            "task_search": scan.task_search,
             "ethos_path": scan.ethos_path,
             "fingerprint": "sha256:{}".format(scan.fingerprint),
             "input_file_count": scan.input_file_count,

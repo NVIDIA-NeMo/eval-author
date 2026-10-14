@@ -94,7 +94,10 @@ in Step 5.
 
 ## Explore an uncertain starting point
 
-Start with the supplied locations and a bounded inspection of the repository's
+Start with the supplied locations. Use the shared
+[file-only task search](../eval-author/references/task-search.md) for deterministic
+Harbor task and Gym workload candidates; retain its search limits and exclusions.
+Then make a bounded inspection of the repository's
 README, evaluation documentation, CI/workflow commands, and likely test or eval
 directories. Look for Harbor configs and tasks as well as scripts, datasets,
 notebooks, and written cases or grading criteria. Inspect representative
@@ -112,7 +115,7 @@ specific missing information instead of inventing one. For multiple suites,
 describe their differences and give each supported invocation without choosing
 one silently.
 
-This entry is Explore by hand: it establishes what material exists, not whether
+This entry is file-only Explore: it establishes what material exists, not whether
 it runs. Do not require Ethos, install tools, probe Harbor or Docker, execute
 repository code, or invoke `discover.py`: that script also runs Probe, Judge,
 and Solve. Inspect only enough case or grader source to identify what a suite
@@ -174,7 +177,10 @@ This runs all four phases: Probe, Explore, Judge, and Solve. Do not use it merel
 to verify Harbor installation during the prerequisite-only entry point above.
 
 Point the script at the repository root, not at a suite directory. Explore searches
-for configs to a depth of four directories and finds datasets at any depth.
+for configs to a depth of four directories. Task search uses the shared
+[file-only helper](../eval-author/references/task-search.md), with no depth or
+entry limit by default. Use `--task-max-depth` and `--task-max-entries` to impose
+explicit bounds when needed; an incomplete task inventory prevents a runnable verdict.
 
 ```bash
 "${harbor_python:?Select a Harbor interpreter using the probes above}" <skill_dir>/scripts/discover.py --repo .
@@ -209,6 +215,7 @@ Read these four fields before any others.
 
 | Field | What it settles |
 |---|---|
+| `task_search` | Shared task inventory, file evidence, exclusions, errors, and limits; incomplete search prevents readiness |
 | `phases` | Which of Probe, Explore, Judge, and Solve passed, failed, or were skipped |
 | `proven` | Whether Harbor judged this report. When `false`, no Harbor finding is evidence |
 | `runnable` | Whether every config and dataset passed every required check, and nothing Solve ran failed |
