@@ -317,14 +317,32 @@ def batch(suite, case, runtime, work, model, phase):
     )
     claims = []
     batch_id = uuid.uuid4().hex
+    accounting = {
+        "batch_id": batch_id,
+        "runs": [{"run_id": f"{batch_id}-r{i + 1}", "status": "not_attempted"} for i in range(suite["runs"])],
+    }
+    dump(work / "batch.json", accounting)
     for i in range(suite["runs"]):
         run_id = f"{batch_id}-r{i + 1}"
-        raw = model(suite["models"]["author"], app_prompt)
-        (work / f"{run_id}.txt").write_text(raw)
-        extracted = extract(suite, runtime, model, run_id, raw)
-        path = work / f"{run_id}.json"
-        dump(path, extracted)
+        accounting["runs"][i]["status"] = "attempted"
+        dump(work / "batch.json", accounting)
+        try:
+            raw = model(suite["models"]["author"], app_prompt)
+            (work / f"{run_id}.txt").write_text(raw)
+            extracted = extract(suite, runtime, model, run_id, raw)
+            path = work / f"{run_id}.json"
+            dump(path, extracted)
+        except (ValueError, KeyError, TypeError, OSError):
+            accounting["runs"][i]["status"] = "failed"
+            dump(work / "batch.json", accounting)
+            raise
         claims.append(path)
+        accounting["runs"][i].update(
+            status="completed",
+            report_sha256=sha((work / f"{run_id}.txt").read_bytes()),
+            claims_sha256=sha(path.read_bytes()),
+        )
+        dump(work / "batch.json", accounting)
         print(f"{case['id']}: extracted run {i + 1}/{suite['runs']}", flush=True)
     flags = ["--config", work / "config.json", "--phase", phase]
     command(runtime, "aggregate_claims.py", [*flags, *claims], work, work / "aggregate.json")
@@ -451,10 +469,13 @@ def check_case(suite, case, runtime, suite_root, work, model, observation=None):
     if proc.returncode:
         raise ValueError("gate adapter failed")
     result = json.loads(proc.stdout)
+    (work / "gate-result.json").write_bytes(proc.stdout)
     return {
         **result,
         "baseline_digest": lock["baseline_digest"],
         "comparison_digest": digest(lock),
+        "batch_digest": sha((work / "batch.json").read_bytes()),
+        "gate_digest": sha(proc.stdout),
         "reason": "measured" if result["status"] != "incomplete" else "gate_incomplete",
     }
 

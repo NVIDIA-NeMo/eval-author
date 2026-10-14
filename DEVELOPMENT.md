@@ -261,3 +261,6 @@ Run its mutation and disposable-inventory tests with:
     uv run --locked pytest tests/test_workflow_scope.py -q
 
 These checks do not claim live routing acceptance.
+
+See [determinism checks](docs/determinism-checks.md) for discovery comparisons,
+bound audit/task evidence, factual ledgers, and advisory host/semantic accounting.

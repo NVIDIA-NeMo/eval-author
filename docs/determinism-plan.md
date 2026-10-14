@@ -15,20 +15,24 @@ it does not establish full workflow or cross-host acceptance.
 
 ## Phase status
 
-Status checked against main at `5c087f5` on 2026-10-14:
+Implementation is consolidated in #75 on top of main `5c087f5`; #76 was
+merged into this branch and closed without merging this PR to main. See
+[executable checks and evidence contracts](determinism-checks.md) for commands
+and [validation results](determinism-results.md) for measured outcomes and gaps.
 
-| Phase | Implemented evidence | Still required |
+| Phase | Implementation in #75 | Acceptance still required |
 | --- | --- | --- |
-| 1 Prerequisites | [#66](https://github.com/NVIDIA-NeMo/eval-author/pull/66): shared policy, locator, priority-aware selection and diagnostics, copied-install and runtime regressions. | Preserve version-specific CI evidence; do not infer all supported versions or cold-start performance from the policy. |
-| 2 Routing and scope | [Draft #76](https://github.com/NVIDIA-NeMo/eval-author/pull/76): 11 request/turn contracts, offline normalized-evidence checker, filesystem manifests and mutation tests. Combined checker/scanner run: 89 passed, one Windows-only skip. | Reviewed native host adapters, complete live prompt/paraphrase replay, semantic route/handoff review, missing-runtime cases. Normalized-evidence checks alone do not prove host acceptance. |
-| 3 Discovery comparison | [#67](https://github.com/NVIDIA-NeMo/eval-author/pull/67): shared deterministic task inventory, bounded standalone search, unlimited readiness defaults, nested-checkout handling and platform tests. | Canonical full discovery decision projection, general repeat-run comparator, frozen mixed-provider failure matrix and mutation accounting. |
-| 4 Evidence binding | Existing audit digests and task receipts provide part of the machinery. | The cross-artifact evidence contract and full acceptance/invalidation matrix below. |
-| 5 Reporting | Existing structured renderer and semantic regression pilot. | Full factual-field and contradiction checks with independent repeated batches. |
-| 6 Hosts | Scanner tests cover macOS, Linux and Windows. | Workflow acceptance across hosts, loaded installations and reviewed routing cases; scanner portability is not host equivalence. |
+| 1 Prerequisites | Preserves #66's shared policy, locator, priority-aware failures, copied-install behavior and regressions. | Version-specific CI evidence; no extrapolation to untested versions. |
+| 2 Routing and scope | Includes #76's 11 request/turn contracts, snapshot checker and mutation tests; native capture accounting added. | Full live replay and reviewed labels. A local Codex opening run exposed a forbidden repository read before its handoff. |
+| 3 Discovery comparison | Full raw-report capture, conservative decision projection, repeat/mutation comparator, actual repeated discovery fixtures and factual-field mutation checks. Preserves #67 scanner contracts. | Native Gym and live Solve matrix coverage is separate from fixture/comparator checks. |
+| 4 Evidence binding | Trace/denominator/judgment/measurement bindings, rebuilt aggregates, proposal-to-task lineage, attempt ledger, copied-trace rejection, required empty and incorrect controls, saved-acceptance revalidation. | Native controls and repeated real-agent closure for each actual authored task; synthetic execution tests are not task acceptance. |
+| 5 Reporting | Complete typed factual ledger, contradiction/omission checks, distinct semantic batch identity and independent-batch accounting against the existing locked-baseline pilot. | Independent live batches against a reviewed baseline; the checked-in pilot still has placeholder models and no baseline. Arbitrary prose needs semantic review. |
+| 6 Hosts | Full planned case/paraphrase/host/install/OS/repeat denominator, bounded capture recorder, Codex/Claude native adapters, reviewed scope checks and retained retry accounting. | Cursor/Pi adapters, the remaining live host/install/OS cells, and review of repeatability/cost before any required live gate. |
 
-Phase 2 has started; phases 2–6 are not complete. Phase 3 is partially implemented,
-not wholly absent. No live inference or customer eval execution was performed for
-#76's initial offline checker.
+The checking infrastructure is implemented; broad live acceptance is **not
+complete**. Missing runs, unknown native event schemas and failures remain
+explicit. No customer evaluations were executed. Preserve this distinction when
+reporting Phase 3–6 progress.
 
 ## What must remain stable
 
@@ -145,8 +149,8 @@ missing backends, and tasks rejected or dropped by native validators.
 
 Define a canonical decision projection of the report: inventory membership,
 provider assignment, check identity/status/severity, selected sample, and reasons
-for skipped or unproven work. Preserve the full raw report beside it. This
-projection and a general repeat-run comparator are proposed work.
+for skipped or unproven work. Preserve the full raw report beside it. The
+[comparison tool](../tools/discovery_determinism.py) implements this contract.
 
 Completion checks:
 
@@ -222,9 +226,9 @@ Completion checks:
 
 ## Repeat-run evidence contract
 
-The proposed comparison record should contain the following fields. Existing
-artifacts carry subsets; this is a target for consistent evidence, not a claim
-that a unified schema already exists.
+The tools retain the following evidence through discovery captures, workflow
+captures, bound audit reports and task receipts. These are distinct schemas;
+no one artifact or fingerprint claims to be a complete environment identity.
 
 | Evidence | Required contents |
 | --- | --- |
