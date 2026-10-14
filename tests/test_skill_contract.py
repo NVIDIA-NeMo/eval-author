@@ -66,11 +66,27 @@ _MLFLOW_TO_ATIF_DIR = _SKILLS_DIR / "mlflow-to-atif"
 _GYM_TO_ATIF_DIR = _SKILLS_DIR / "gym-to-atif"
 _TRACE_ENVIRONMENT_DIR = _SKILLS_DIR / "eval-author-trace-environment"
 _ENVIRONMENT_DIR = _SKILLS_DIR / "eval-author-environment"
-_ETHOS_SKILLS_DIR = _SKILLS_DIR.parent / "ethos" / "skills"
+_ETHOS_SKILLS_DIR = _SKILLS_DIR.parent / "team-skills" / "ethos"
 _ETHOS_DIR = _ETHOS_SKILLS_DIR / "ethos-write"
 _ETHOS_EXPLORE_DIR = _ETHOS_SKILLS_DIR / "ethos-explore"
 _ETHOS_TEMPLATE = _ETHOS_DIR / "references" / "templates" / "ethos.md"
 _ETHOS_VALIDATE = _ETHOS_DIR / "scripts" / "validate_ethos.py"
+_ETHOS_REQUIRED_SECTIONS = (
+    "Role",
+    "Purpose & Outcomes",
+    "Scope",
+    "Tools",
+    "Harness",
+    "Behavior",
+    "Principles",
+    "Success Criteria",
+    "Trade-offs",
+    "Constraints",
+    "Evaluation Setup",
+    "Metric Semantics",
+    "Vision",
+    "Open Questions",
+)
 _SKILL_DIRS = (
     _CORE_DIR,
     _DISCOVER_DIR,
@@ -222,6 +238,31 @@ def _imported_roots(path: Path) -> set[str]:
 _FAKE_GYM = '#!/bin/sh\necho "NeMo Gym v0.6.0"\n'
 
 
+def _write_gym_stub(folder: Path, script: str, version: str = "0.6.0") -> Path:
+    """Synthetic interpreter + CLI boundary; not evidence of a real Gym install.
+
+    Locator behavior against real interpreters is covered in test_runtime_locator.
+    These fixtures isolate discovery's Judge/Solve orchestration from Gym setup.
+    """
+    sys.path.append(str(_CORE_DIR / "scripts"))
+    from locate_runtime import PROBE_MARKER as probe_marker
+
+    payload = folder / "gym-payload.sh"
+    payload.write_text(script)
+    python = folder / "python"
+    metadata = {"version": version, "python_version": "3.13.14", "prefix": str(folder), "errors": []}
+    python.write_text(
+        f"#!{sys.executable}\nimport os, sys\n"
+        f"if sys.argv[1] == '-I': print({probe_marker!r} + {json.dumps(metadata)!r})\n"
+        f"else: os.execv('/bin/sh', ['/bin/sh', {str(payload)!r}, *sys.argv[2:]])\n"
+    )
+    python.chmod(0o755)
+    cli = folder / "gym"
+    cli.write_text(f"#!/bin/sh\n'''exec' {python} \"$0\" \"$@\"\n' '''\n")
+    cli.chmod(0o755)
+    return cli
+
+
 def _run_discover(
     repo: Path, *args: str, with_harbor: bool = True, gym_stub: Path | None = None, gym_script: str = _FAKE_GYM
 ) -> tuple[int, dict]:
@@ -237,9 +278,8 @@ def _run_discover(
     command = [sys.executable, *([] if with_harbor else ["-S"]), str(_DISCOVER), "--repo", str(repo), *args]
     env = None
     if gym_stub is not None:
-        gym = gym_stub / "gym"
-        gym.write_text(gym_script, encoding="utf-8")
-        gym.chmod(0o755)
+        gym = _write_gym_stub(gym_stub, gym_script)
+        command.extend(["--gym-cli", str(gym)])
         env = {**os.environ, "PATH": f"{gym_stub}{os.pathsep}{os.environ['PATH']}"}
     result = subprocess.run(command, capture_output=True, text=True, check=False, env=env)
     assert result.stdout, f"discover.py printed nothing; stderr:\n{result.stderr}"
@@ -975,7 +1015,8 @@ def test_every_bundled_path_the_skill_names_exists() -> None:
     for relative in (
         "scripts/discover.py",
         "scripts/render_report.py",
-        "references/harbor-setup.md",
+        "../eval-author/references/harbor-setup.md",
+        "../eval-author/references/runtime-prerequisites.md",
         "scripts/_checks.py",
         "scripts/providers/harbor/_probe.py",
         "scripts/providers/harbor/_explore.py",
@@ -2010,23 +2051,52 @@ def _filled_ethos_template() -> str:
 
 
 def test_filled_ethos_template_passes_the_bundled_validator(tmp_path: Path) -> None:
-    """The template the ethos-write skill renders must satisfy the validator it runs."""
+    """New Ethos files require intended behavior, without a change-permission section."""
+    markdown = _filled_ethos_template()
+    assert re.findall(r"^## (.+)$", markdown, flags=re.MULTILINE) == list(_ETHOS_REQUIRED_SECTIONS)
     path = tmp_path / "ethos.md"
-    path.write_text(_filled_ethos_template() + "\n## Local Notes\n\nKeep demo fixtures.\n", encoding="utf-8")
+    path.write_text(markdown, encoding="utf-8")
     result = _run_script(_ETHOS_VALIDATE, str(path))
     assert result.returncode == 0, result.stderr
     assert "warning" not in result.stdout
 
 
 @pytest.mark.parametrize(
+    "extra_section",
+    [
+        "## Local Notes\n\nKeep demo fixtures.\n",
+        "## Change Scope\n\n- System prompt: with-approval\n- Notes: Ask the service owner.\n",
+    ],
+    ids=["custom-section", "legacy-change-scope"],
+)
+def test_ethos_validator_accepts_and_preserves_extra_sections(tmp_path: Path, extra_section: str) -> None:
+    """A legacy permission section remains valid extra content, without migration or deletion."""
+    path = tmp_path / "ethos.md"
+    original = (_filled_ethos_template() + "\n" + extra_section).encode("utf-8")
+    path.write_bytes(original)
+    result = _run_script(_ETHOS_VALIDATE, str(path))
+    assert result.returncode == 0, result.stderr
+    assert "warning" not in result.stdout
+    assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize("section", _ETHOS_REQUIRED_SECTIONS)
+def test_ethos_validator_still_requires_behavior_and_safety_sections(tmp_path: Path, section: str) -> None:
+    """Every current section remains required, including behavior and safety boundaries."""
+    path = tmp_path / "ethos.md"
+    path.write_text(_filled_ethos_template().replace(f"## {section}\n", ""), encoding="utf-8")
+    result = _run_script(_ETHOS_VALIDATE, str(path))
+    assert result.returncode == 1
+    assert f"missing section: ## {section}" in result.stderr
+
+
+@pytest.mark.parametrize(
     ("transform", "error"),
     [
-        (lambda text: text.replace("## Vision\n", "## Later\n"), "missing section: ## Vision"),
         (lambda text: text + "\n## Role\n\nAgain.\n", "duplicate section: ## Role"),
         (lambda text: text.replace("schema_version: 1", "schema_version: 2"), "unsupported schema_version"),
-        (lambda text: text.replace("## Change Scope\n", "## Permissions\n"), "missing section: ## Change Scope"),
     ],
-    ids=["missing-section", "duplicate-section", "unknown-version", "missing-change-scope"],
+    ids=["duplicate-section", "unknown-version"],
 )
 def test_ethos_validator_rejects_malformed_files(tmp_path: Path, transform: Callable[[str], str], error: str) -> None:
     path = tmp_path / "ethos.md"
@@ -2641,7 +2711,7 @@ def test_audit_generate_explains_missing_ethos_with_bundled_skill_path(tmp_path:
     )
 
     assert result.returncode == 1
-    assert "npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/ethos" in result.stderr
+    assert "npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/team-skills/ethos" in result.stderr
     assert "rerun this command with --ethos <path>" in result.stderr
     assert "Traceback" not in result.stderr
     assert not out.exists()
@@ -2671,7 +2741,7 @@ def test_audit_generate_explains_unreadable_ethos_with_bundled_skill_path(tmp_pa
 
     assert result.returncode == 1
     assert "Unreadable file:" in result.stderr
-    assert "npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/ethos" in result.stderr
+    assert "npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/team-skills/ethos" in result.stderr
     assert "Traceback" not in result.stderr
     assert not out.exists()
 
@@ -4590,6 +4660,7 @@ def test_bundled_scripts_never_import_the_platform() -> None:
     for scripts_dir in _SCRIPT_DIRS:
         permitted = (
             _local_roots(scripts_dir)
+            | (_local_roots(_CORE_SCRIPTS_DIR) - {"search_tasks"})
             | ({"search_tasks"} if scripts_dir == _DISCOVER_SCRIPTS_DIR else set())
             | sys.stdlib_module_names
             | _PERMITTED_THIRD_PARTY
@@ -4754,8 +4825,8 @@ def test_discover_fails_judge_when_gym_manifests_go_unchecked(suite: Path, monke
     unavailable = _named(report, "gym-unavailable")
     assert unavailable["status"] == "fail" and unavailable["severity"] == "required"
     rendered = _import_discover_render_report(monkeypatch).render_report(report)
-    assert "Blocked: NeMo Gym is not installed." in rendered
-    assert "I could not check it: NeMo Gym is not installed." in rendered
+    assert "Blocked: No compatible runtime under selection policy" in rendered
+    assert "I could not check it: No compatible runtime under selection policy" in rendered
     assert "- [ ] **Judge** (invalid)" in rendered
 
 
@@ -5010,31 +5081,30 @@ def test_explore_groups_sibling_tasks_into_one_dataset(tmp_path: Path, monkeypat
 
 
 @pytest.mark.parametrize(
-    ("output", "available", "reason"),
+    ("output", "available"),
     [
-        ("NeMo Gym v0.6.0", True, None),
-        ("NeMo Gym v0.4.0", False, "NeMo Gym 0.4.0 is older than 0.6.0."),
-        ("gym: a workout tracker", False, "NeMo Gym is not installed."),
+        ("NeMo Gym v0.6.0", True),
+        ("NeMo Gym v0.4.0", False),
+        ("gym: a workout tracker", False),
     ],
 )
 def test_gym_probe_trusts_only_a_new_enough_nemo_gym(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, output: str, available: bool, reason: str | None
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, output: str, available: bool
 ) -> None:
-    """The probe asks `gym --version`, so an old Gym or an unrelated `gym` command is not mistaken for Gym."""
+    """The shared locator rejects old Gym and unrelated CLIs through the discovery adapter."""
     _import_discover(monkeypatch)
     gym_probe = importlib.import_module("providers.gym._probe")
-    gym = tmp_path / "bin" / "gym"
-    gym.parent.mkdir()
-    gym.write_text(f'#!/bin/sh\necho "{output}"\n', encoding="utf-8")
-    gym.chmod(0o755)
-    monkeypatch.setattr(sys, "executable", str(tmp_path / "python" / "python3"))
-    monkeypatch.setenv("PATH", f"{gym.parent}{os.pathsep}{os.environ['PATH']}")
-
-    runtime = gym_probe.probe()
-
+    version_match = re.search(r"v(\d+\.\d+\.\d+)", output)
+    gym = _write_gym_stub(
+        tmp_path, f'#!/bin/sh\necho "{output}"\n', version_match.group(1) if version_match else "0.6.0"
+    )
+    runtime = gym_probe.probe(tmp_path, str(gym))
     assert gym_probe.is_available(runtime) is available
-    if reason:
-        assert gym_probe.unavailable_reason(runtime) == reason
+    if not available:
+        candidates = runtime["gym_probe"]["candidates"]
+        explicit = next(candidate for candidate in candidates if candidate["priority"] == 0)
+        assert explicit["status"] in {"incompatible", "broken"}
+        assert explicit["reason"]
 
 
 def test_judge_line_counts_each_format_and_names_a_docker_failure(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -5133,8 +5203,8 @@ def test_discover_incomplete_search_blocks_otherwise_runnable_tasks(tmp_path, mo
     discover = _import_discover(monkeypatch)
     _write_task(tmp_path / "task")
     (tmp_path / "too-deep" / "child").mkdir(parents=True)
-    monkeypatch.setattr(discover._probe, "probe", lambda: {})
-    monkeypatch.setattr(discover.gym_probe, "probe", lambda: {"gym_available": True})
+    monkeypatch.setattr(discover._probe, "probe", lambda repo: {})
+    monkeypatch.setattr(discover.gym_probe, "probe", lambda repo, cli: {"gym_available": True})
     monkeypatch.setattr(discover._probe, "is_available", lambda runtime: True)
     monkeypatch.setattr(discover._probe, "probe_checks", lambda runtime: [])
     monkeypatch.setattr(discover.gym_probe, "probe_checks", lambda *a, **kw: [])

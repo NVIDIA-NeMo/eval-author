@@ -138,7 +138,7 @@ def execute(argv, cwd, env, log, timeout):
 
 # Skill trees that ship from this repository: Eval Author's and the separately
 # installed ethos skills.
-SKILL_ROOTS = ("skills", "ethos/skills")
+SKILL_ROOTS = ("skills", "team-skills/ethos")
 
 
 def collect(repo, output, evaluator, timeout):
@@ -236,7 +236,7 @@ def collect(repo, output, evaluator, timeout):
     counts = dict(Counter(row["status"] for row in rows))
     report = {
         "schema": "nemo.eval_author.skill_evaluations.v1",
-        "repository": "NVIDIA-NeMo/labs-eval-author",
+        "repository": "NVIDIA-NeMo/eval-author",
         "source_revision": revision,
         "started_at": started,
         "finished_at": now(),

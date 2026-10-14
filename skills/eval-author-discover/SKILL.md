@@ -24,9 +24,10 @@ not-for:
   - nemo-experimentalist (use to run insight-driven optimization end to end, which drives the Eval Author agent itself)
   - nemo-evaluator (use to run an existing benchmark rather than establish that a Harbor suite is runnable)
 compatibility: >-
-  Python 3.11 or later. Harbor must be importable by the interpreter that runs
-  the script, or NeMo Gym 0.6.0 or later must answer `gym --version` next to it
-  or on PATH, or it exits after Probe. Harbor must be importable for
+  Install the sibling eval-author skill for its shared runtime helpers.
+  Python 3.11 or later for the locator. Runtimes must meet the bundled
+  runtime-policy.json discovery requirements, verified by the shared locator.
+  If neither provider is compatible, discovery exits after Probe. Harbor must be importable for
   Judge and Solve on Harbor tasks, and Docker must be running for Judge's backend
   check and Solve's oracle runs. That `gym` CLI runs Judge and Solve on Gym
   manifests.
@@ -156,7 +157,7 @@ or repair without substituting an audit.
 ## Runtime prerequisite checks
 
 For Harbor readiness or the Harbor path of **Get the evaluation runtime ready**,
-read and follow [Runtime prerequisites](references/runtime-prerequisites.md) before
+read and follow [Runtime prerequisites](../eval-author/references/runtime-prerequisites.md) before
 probing tools. It contains the interpreter selection commands, verification
 criteria, setup recovery, and optional Harbor-skills check. Reuse still-current
 setup evidence and return prerequisite-only findings to the calling stage.
@@ -164,7 +165,7 @@ setup evidence and return prerequisite-only findings to the calling stage.
 Do not load or run these procedures for a file-only Explore. Missing Harbor
 blocks Judge and Solve on Harbor tasks, not Explore. Setup checks are Probe
 evidence only; they do not establish suite readiness. For a missing or broken installation, read
-[Harbor setup](references/harbor-setup.md). Installation requires the user's
+[Harbor setup](../eval-author/references/harbor-setup.md). Installation requires the user's
 setup authorization.
 
 Keep the verified `harbor_python` path for Step 1. Report optional assistant-skill
@@ -185,8 +186,8 @@ explicit bounds when needed; an incomplete task inventory prevents a runnable ve
 "${harbor_python:?Select a Harbor interpreter using the probes above}" <skill_dir>/scripts/discover.py --repo .
 ```
 
-Discovery never imports NeMo Gym; it runs the `gym` command found next to the
-interpreter or on `PATH`, so Gym can stay in its own environment. Without Harbor,
+Discovery never imports NeMo Gym in its own process; use the shared locator and
+pass its selected absolute CLI with `--gym-cli`. Gym stays in its own environment. Without Harbor,
 Judge and Solve cover only Gym manifests, and Harbor findings stay unproven. Keep
 the two runtimes in separate environments; see [Harbor and NeMo Gym
 environments](references/troubleshooting.md#harbor-and-nemo-gym-environments)

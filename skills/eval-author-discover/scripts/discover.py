@@ -9,8 +9,8 @@ helps a later model run the repository's evals without re-deriving how. This com
 finds the repository's Harbor and Gym artifacts and then validates them through four phases:
 
 1. **Probe**, using only the standard library:
-    - Is Harbor importable, and is its CLI on PATH?
-    - Is NeMo Gym importable, and is its CLI on PATH?
+    - Does the selected Harbor Python/CLI pair meet policy and discovery capabilities?
+    - Can the shared locator select a compatible separate NeMo Gym Python/CLI pair?
 2. **Explore**: take stock of the inventory of Harbor and Gym tasks
     - Which config files and datasets exist in the repository?
     - How many tasks are there in each dataset? How many datasets?
@@ -218,7 +218,7 @@ def _judge_manifests(
     rediscover what Explore already knows. Without a usable Gym, every manifest is
     blocked instead, and a required check fails so the repo cannot pass unchecked.
     """
-    missing = None if gym_probe.is_available(runtime) else gym_probe.unavailable_reason(runtime)
+    missing = None if gym_probe.is_available(runtime) else runtime["gym_reason"]
     if missing and manifests:
         for entry in entries:
             entry["judge"] = {"status": _BLOCKED, "reason": missing, "error": None}
@@ -520,6 +520,7 @@ async def _main(argv: list[str] | None = None) -> int:
         description="Record whether a repository's Harbor and NeMo Gym evaluations are ready to run."
     )
     parser.add_argument("--repo", type=Path, default=Path(), help="Repository to inspect.")
+    parser.add_argument("--gym-cli", help="Exact Gym CLI selected by locate_runtime.py.")
     parser.add_argument("--compact", action="store_true", help="Emit single-line JSON.")
     parser.add_argument(
         "--task-max-depth",
@@ -556,7 +557,10 @@ async def _main(argv: list[str] | None = None) -> int:
     repo_root = repo_root.resolve()
 
     # Probe: Harbor or Gym must be installed to go further.
-    runtime = {**_probe.probe(), **gym_probe.probe()}
+    try:
+        runtime = {**_probe.probe(repo_root), **gym_probe.probe(repo_root, args.gym_cli)}
+    except (OSError, ValueError) as exc:
+        return _fail(str(exc), "Resolve runtime declarations with locate_runtime.py before discovery.")
     proven = _probe.is_available(runtime)
     probe_valid = proven or gym_probe.is_available(runtime)
     phases = {

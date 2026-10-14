@@ -4,7 +4,7 @@
 
 """Validate an ethos.md file against schema version 1.
 
-Checks front matter, schema version, required fields, and the fifteen required
+Checks front matter, schema version, required fields, and the fourteen required
 ``##`` sections, and rejects duplicate sections. Extra sections and extra
 front-matter keys are allowed. Standard library only.
 
@@ -33,7 +33,6 @@ REQUIRED_SECTIONS = (
     "Constraints",
     "Evaluation Setup",
     "Metric Semantics",
-    "Change Scope",
     "Vision",
     "Open Questions",
 )

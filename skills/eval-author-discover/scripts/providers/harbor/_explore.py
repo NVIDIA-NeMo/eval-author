@@ -37,7 +37,15 @@ from typing import Any
 sys.path.append(str(Path(__file__).resolve().parents[4] / "eval-author" / "scripts"))
 
 from _checks import ADVISORY, FAIL, PASS, WARN, CheckResult, check  # noqa: E402
-from search_tasks import search_tasks  # noqa: E402
+
+try:
+    from search_tasks import search_tasks
+except ModuleNotFoundError as exc:
+    if exc.name != "search_tasks":
+        raise
+    raise SystemExit(
+        "Incomplete skill installation: install the sibling eval-author skill alongside eval-author-discover."
+    ) from None
 
 try:
     import yaml

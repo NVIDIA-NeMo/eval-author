@@ -10,16 +10,18 @@ read it to detect and resolve divergence between developer intent and agent
 execution.
 
 Code shows implementation. ethos.md records mission, constraints, and what
-success and failure mean.
+success and failure mean. Creating it grants no permission to optimize or
+change the agent's application, and implies no follow-up work. Permission for
+an actual change belongs to the workflow performing that change when requested.
 
 This directory holds three coding-assistant skills that create and maintain an
 `ethos.md`:
 
 | Skill | What it does |
 | --- | --- |
-| [`ethos-orchestrate`](skills/ethos-orchestrate/SKILL.md) | Entry point. Finds any existing ethos.md and routes the request to explore or write. |
-| [`ethos-explore`](skills/ethos-explore/SKILL.md) | Reads the agent's code and docs, fills in what they establish, then asks one intent question at a time for what they cannot. Hands its answers to `ethos-write`. |
-| [`ethos-write`](skills/ethos-write/SKILL.md) | Writes `ethos.md` from those answers using the [schema-v1 template](skills/ethos-write/references/templates/ethos.md), validates the front matter and required sections, and reviews the result with you. |
+| [`ethos-orchestrate`](ethos-orchestrate/SKILL.md) | Entry point. Finds any existing ethos.md and routes the request to explore or write. |
+| [`ethos-explore`](ethos-explore/SKILL.md) | Reads the agent's code and docs, fills in what they establish, then asks one intent question at a time for what they cannot. Hands its answers to `ethos-write`. |
+| [`ethos-write`](ethos-write/SKILL.md) | Writes `ethos.md` from those answers using the [schema-v1 template](ethos-write/references/templates/ethos.md), validates the front matter and required sections, and reviews the result with you. |
 
 ## Why it exists
 
@@ -43,7 +45,8 @@ Intent arrives in pieces:
 - **Business goals:** objectives, value, and the result the agent is accountable for.
 - **Developer intent:** tone, priorities, and judgment calls that never made it
   into a ticket.
-- **Constraints:** limits, policies, and guardrails no change may cross.
+- **Constraints:** operating limits, policies, guardrails, and required
+  approvals for actions the agent takes at runtime.
 
 `ethos.md` is the portable snapshot of that contract. Write the intended state,
 not only the implemented one; where they differ, say so.
@@ -55,11 +58,12 @@ not only the implemented one; where they differ, say so.
 | **Portable context** | Every developer, reviewer, and agent working on this agent starts from the same file instead of reconstructing intent from the repo. |
 | **Shared contract** | Humans and agents agree on purpose, bounds, and what counts as divergence. |
 | **Spec-driven creation** | Purpose, goals, and expected behavior are explicit before code exists. |
-| **Safe changes** | Anyone changing the agent knows what they may change, what needs approval, and what they must not touch. |
+| **Informed changes** | Anyone changing the agent can assess the proposed behavior against its purpose, priorities, and operating limits. The workflow performing the change handles authorization. |
 | **Recursive updates** | Intent clarified while reviewing a change, eval, or finding goes back into the file. A stale ethos.md steers the next change the wrong way. |
 
-`Change Scope` is the machine-readable part of safe changes: each lever is
-`yes`, `no`, or `with-approval`.
+Ethos creation does not collect optimization or application-change permissions.
+Runtime action approvals still belong in `Behavior` or `Constraints` when they
+are part of the agent's intended behavior.
 
 ## ethos.md is not `AGENTS.md`
 
@@ -72,7 +76,7 @@ not only the implemented one; where they differ, say so.
 ## What's in the file
 
 YAML front matter (`schema_version`, `name`, `created_timestamp`, `author`, and
-optional `owner` and `updated_timestamp`) followed by fifteen required sections.
+optional `owner` and `updated_timestamp`) followed by fourteen required sections.
 Section bodies stay human-readable; the headings are the outline other agents
 parse. A section with nothing to say contains `_(none)_`.
 
@@ -86,11 +90,10 @@ parse. A section with nothing to say contains `_(none)_`.
 | `Behavior` | Rules, tone, refusals, and policies. |
 | `Principles` | How to decide when no rule in `Behavior` covers the case. |
 | `Success Criteria` | What good production behavior looks like. |
-| `Trade-offs` | Hard gates, priority order, and unacceptable regressions. |
-| `Constraints` | Limits no change may cross. |
+| `Trade-offs` | Behavioral hard gates, priority order, and unacceptable compromises. |
+| `Constraints` | Operating limits and runtime action approval requirements. |
 | `Evaluation Setup` | How it is tested and measured. |
 | `Metric Semantics` | What metric names mean, and the claims they do not support. |
-| `Change Scope` | What may be changed, what needs approval, and what must not be touched. |
 | `Vision` | Where the agent is headed, beyond today's scope. |
 | `Open Questions` | Unknowns to resolve. |
 
@@ -99,7 +102,7 @@ parse. A section with nothing to say contains `_(none)_`.
 Install the three skills together:
 
 ```bash
-npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/ethos --agent claude-code
+npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/team-skills/ethos --agent claude-code
 ```
 
 Replace `claude-code` with your assistant's identifier. Then, in your agent's
@@ -113,11 +116,11 @@ Use ethos-orchestrate to write an ethos.md for my agent.
 questions, covering purpose and outcomes, principles, and vision. `ethos-write`
 writes `ethos.md` at the repository root, or at a path you name, validates it,
 and asks you to review it. Commit it with the agent's code. You can also write
-the file by hand from the [template](skills/ethos-write/references/templates/ethos.md)
+the file by hand from the [template](ethos-write/references/templates/ethos.md)
 and check it with the bundled validator:
 
 ```bash
-python3 ethos/skills/ethos-write/scripts/validate_ethos.py path/to/ethos.md
+python3 team-skills/ethos/ethos-write/scripts/validate_ethos.py path/to/ethos.md
 ```
 
 To revise an existing ethos.md, ask for the edit directly; `ethos-write` updates the
@@ -129,5 +132,5 @@ when it writes.
 
 Eval Author's first evaluations and coverage audits use ethos.md as their target
 and hand off to these skills to create or revise it. Installing Eval Author
-(`npx skills add NVIDIA-NeMo/labs-eval-author --skill '*'`) does not install
+(`npx skills add NVIDIA-NeMo/eval-author --skill '*'`) does not install
 them; add them with the command above.

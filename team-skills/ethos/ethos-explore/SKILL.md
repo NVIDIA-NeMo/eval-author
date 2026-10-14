@@ -41,18 +41,28 @@ three questions and received a reply to each.
 The division of labor is: **infer implementation, ask for intent.** Almost
 everything about what the agent *is* can be read from source. Nothing about what
 the developer *wants* can be. Constraints, trade-offs, principles, mission, and
-change permissions live in the user's head, so they are the questions worth
-spending attention on.
+vision live in the user's head, so they are the questions worth spending
+attention on.
+
+Creating an ethos.md captures intent and authorizes no changes to the agent's
+application. Do not ask for optimization or change permissions, whether as a
+separate topic or inside another section. Permission to change code, prompts,
+models, tools, or evals belongs to the workflow performing that work if the user
+requests it. Creating an ethos.md implies no such follow-up. Preserve already
+confirmed organizational safety policies and their known owners, including
+required security review before shipping a tool with write access. Recording
+an existing restriction does not grant permission or require a new permission
+interview.
 
 ## The schema you are filling
 
 The ethos.md has five base front-matter fields, plus optional `updated_timestamp`,
-and fifteen body sections. Every body section is required. One field is a
+and fourteen body sections. Every body section is required. One field is a
 quality gate for handoff: `ethos-write` is blocked until `Role` is concrete.
 For any other canonical section with nothing to say, write `_(none)_` rather
 than dropping the heading.
 
-The fifteen headings are a floor, not a ceiling. Extra `##` headings and extra
+The fourteen headings are a floor, not a ceiling. Extra `##` headings and extra
 YAML front-matter keys are allowed. Keep them if the user adds them. Do not
 strip custom sections to make the file look "strict."
 
@@ -64,7 +74,7 @@ strip custom sections to make the file look "strict."
 | `name` | yes | Canonical agent name. Use the directory or workflow name if obvious; ask if not. |
 | `created_timestamp` | yes | ISO 8601 timestamp for when the ethos.md is created. `ethos-write` fills this at write time. |
 | `author` | yes | Human or agent that created the ethos.md. `ethos-write` fills this from the current author context when known; ask only if ambiguous. |
-| `owner` | optional | Accountable human or team for the approvals named in `Constraints` or `Change Scope`. Ask only if those sections name an approval. |
+| `owner` | optional | Accountable human or team for runtime action approvals named in `Behavior` or `Constraints`; ask only when such an approval needs an owner. Also retain a known owner of an already-confirmed organizational safety policy, without opening a change-permission interview. |
 | `updated_timestamp` | conditional | Set on edits. Omit on first write. `ethos-write` fills this. |
 
 **Body sections** (in canonical order)
@@ -79,13 +89,12 @@ strip custom sections to make the file look "strict."
 | 6 | Behavior | Behavioral rules and boundaries: refusal/escalation policy, tone, safety/compliance requirements, accepted limitations, and known non-goals. Hard external limits belong in `Constraints`. |
 | 7 | Principles | How the agent should decide when no rule in `Behavior` covers the case: which way to err on an ambiguous request, what it protects even at some cost to the answer, and whose interest wins when the user and the business disagree. Two or three concrete judgment calls. "Helpful, harmless, and honest" is not an answer — it is true of every agent. Write `_(none)_` if there is no judgment call beyond `Behavior`. |
 | 8 | Success Criteria | What good production behavior looks like, independent of current evals: mission-level outcomes, quality standards, escalation quality, accuracy expectations, and examples of success. Rank them when some matter more. |
-| 9 | Trade-offs | How to choose when two improvements conflict. Needs three things: hard gates never traded away, a priority order over the rest (quality, latency, cost, reliability), and regressions that are unacceptable even alongside a headline win. "Balance quality and cost" is not an answer. Write `_(none)_` if the user cannot rank them. |
-| 10 | Constraints | Hard external bounds no change may cross: approved providers/models/regions, data residency and handling, compliance obligations, production cost ceilings and latency SLOs, and changes that need human sign-off. Give the current measured figure next to a ceiling when you know it. Usually organizational, which is why the code cannot supply them. Write `_(none)_` if unconstrained. |
+| 9 | Trade-offs | How to choose when desired outcomes conflict. Needs three things: hard gates never traded away, a priority order over the rest (quality, latency, cost, reliability), and unacceptable compromises. "Balance quality and cost" is not an answer. Write `_(none)_` if the user cannot rank them. These are behavioral priorities, not permission to optimize the application. |
+| 10 | Constraints | Hard external bounds on the agent's operation: approved providers/models/regions, data residency and handling, compliance obligations, production cost ceilings and latency SLOs, and runtime actions that need human sign-off. Retain already-confirmed organizational safety and review policies. Give the current measured figure next to a ceiling when you know it. Usually organizational, which is why the code cannot supply them. Write `_(none)_` if unconstrained. Do not collect application-change permissions here. |
 | 11 | Evaluation Setup | Current validation setup: how to run it, what datasets/checks it uses, what scorers/metrics measure, pass/fail thresholds, and known coverage gaps relative to the success criteria. If no eval suite exists, say so explicitly. |
 | 12 | Metric Semantics | What ambiguous or load-bearing metric and telemetry field names actually mean, and which claims they do not support. Write `_(none)_` when every name means exactly what it says. |
-| 13 | Change Scope | A permissions list — what may be modified. Each lever takes `yes`, `no`, or `with-approval`. Name levers that exist on this agent. Do not copy a generic catalog. Automated changes never edit the ethos.md itself. |
-| 14 | Vision | Where the agent is headed: an intention beyond today's job, plus one or two concrete use cases it should grow into but does not serve yet. That last part marks what `Scope` excludes *for now* rather than on principle. Write `_(none)_` rather than pasting a dated backlog. |
-| 15 | Open Questions | Open facts that affect safe use, evaluation, or modification of the agent. Write `_(none)_` when there are none. Remove items once answered. |
+| 13 | Vision | Where the agent is headed: an intention beyond today's job, plus one or two concrete use cases it should grow into but does not serve yet. That last part marks what `Scope` excludes *for now* rather than on principle. Write `_(none)_` rather than pasting a dated backlog. |
+| 14 | Open Questions | Open facts that affect safe use or evaluation of the agent. Write `_(none)_` when there are none. Remove items once answered. Missing application-change permissions are not an Ethos gap. |
 
 The ethos.md records durable intent, not a running list of observed failures.
 Track known issues and recurring failure patterns where the team tracks bugs.
@@ -179,7 +188,6 @@ interview and ask for Role first.
      configs, and telemetry field names. Fill only the entries whose meaning is
      genuinely ambiguous from the name. Write `_(none)_` when every name is
      obvious.
-   - **Change Scope** — not in the code; ask the user.
    - **Principles** — not in the code; ask in the intent interview even if a
      prompt hints at one. A prompt is the implementation, not the intent
      behind it.
@@ -187,7 +195,7 @@ interview and ask for Role first.
      future-work section are speculative until the user confirms them. Ask.
      Write `_(none)_` rather than guessing.
    - **Open Questions** — TODOs / FIXMEs in agent-adjacent code that
-     affect safe use, evaluation, or modification.
+     affect safe use or evaluation.
 
 ## Step 2 — Ask intent questions
 
@@ -207,7 +215,7 @@ After the scan, split fields into two piles:
   `Tools`, `Harness`, `Evaluation Setup`, `Behavior` copied from prompts,
   `Metric Semantics` from scorer names.
 - **Intent** — fields source cannot own: `Purpose & Outcomes`, `Principles`,
-  and `Vision` always; then `Constraints`, `Trade-offs`, `Change Scope`, and
+  and `Vision` always; then `Constraints`, `Trade-offs`, and
   a ranked `Success Criteria` when the repo only has eval wiring.
 
 Walk the intent pile. Skip a topic only when **this conversation** already
@@ -242,10 +250,15 @@ is grounded. It does not replace one of the three always-ask topics.
 Ask about remaining topics in this order, skipping any this conversation
 already answered:
 
-1. `Constraints` — hard bounds no change may cross.
-2. `Trade-offs` — hard gates, then a ranking.
-3. `Change Scope` — which levers on this agent may move.
-4. Ranked `Success Criteria` when the repo only has eval wiring.
+1. `Constraints` — hard bounds on the agent's operation, including runtime
+   action approvals where needed.
+2. `Trade-offs` — behavioral hard gates, then a ranking of desired outcomes.
+3. Ranked `Success Criteria` when the repo only has eval wiring.
+
+Do not ask which parts may be optimized or changed, including in a follow-up,
+checkpoint, or draft review. Keep runtime action safety requirements: for
+example, an agent may need approval before issuing a refund. That describes
+its intended behavior; it does not grant permission to change its code.
 
 Do not collect run limits. A spend cap or experiment count for one evaluation
 run belongs to the tool that runs it. If the user volunteers
@@ -286,8 +299,8 @@ A later Constraints example:
 >
 > Which hard bounds should `Constraints` record?
 >
-> A. Keep the gateway pin; no other bounds
-> B. Gateway pin plus a production cost or latency ceiling (tell me the number)
+> A. The agent must use that gateway; no other bounds
+> B. That gateway is required, plus a production cost or latency ceiling (tell me the number)
 > C. No hard bounds — write `_(none)_`
 > D. Something else
 
@@ -340,14 +353,11 @@ default in parentheses so the user knows they can override:
 - `Tools: Prompt-only.` *(default — say so if the agent needs tools)*
 - `Purpose & Outcomes` / `Success Criteria` inferred from implementation
   *(say so if there is outside context to incorporate)*
-- `Change Scope:` name the parts of this agent a change may touch
-  *(default — call out anything you want to lock down, or mark it
-  `with-approval`)*
 
 When the user could not answer a section, write `_(none)_` and add the
-gap to `Open Questions`. Say "`Constraints`: _(none)_ — anyone changing this
-agent might treat every provider and cost as fair game" so the consequence is
-visible while it is still cheap to fix.
+gap to `Open Questions`. Say "`Constraints`: _(none)_ — operational limits
+remain unspecified" so the consequence is visible while it is still cheap to
+fix. An unspecified limit grants no application-change permission.
 
 Do not walk the schema field by field in this review. Do not restart the
 intent interview here unless the reply surfaces a contradiction.
@@ -377,8 +387,8 @@ user provides it. Do not hand off with `Role` blank — the artifact is useless
 downstream even though the parser accepts it.
 
 Every body section heading must be present before handoff. Write `_(none)_`
-for honest gaps, and note them in `Open Questions` when they affect safe
-changes. Do not drop a heading.
+for honest gaps, and note them in `Open Questions` when they affect safe use
+or evaluation. Do not drop a heading.
 
 If the Role quality gate is satisfied, announce the handoff in one line
 ("Handing off to `ethos-write` to write `ethos.md`") and trigger it.
@@ -420,12 +430,11 @@ If the Role quality gate is satisfied, announce the handoff in one line
   to confirm `Purpose & Outcomes`. A guessed business objective is worse than
   `_(none)_`.
 - **Never infer a constraint you cannot verify.** A guessed provider allowlist
-  or cost ceiling silently deletes good candidates and looks authoritative doing
-  it. Ask, or write `_(none)_` and record the gap in `Open Questions`.
-- **Trade-offs are the highest-leverage question you will ask.** Without a
-  priority order, every candidate that improves one metric and regresses another
-  is undecidable, and anyone changing the agent either stalls or picks
-  arbitrarily.
+  or cost ceiling misstates the agent's operating limits. Ask, or write
+  `_(none)_` and record the gap in `Open Questions`.
+- **Trade-offs make competing outcomes decidable.** A priority order tells
+  the agent and its evaluators which outcome matters when quality, latency,
+  cost, or reliability conflict. It grants no optimization permission.
 - **"No behavior constraints" usually means "I haven't thought about it."** Probe
   once: "Anything that should never appear — names, phone numbers, competitor
   mentions?" One probe, then move on.
@@ -445,9 +454,5 @@ If the Role quality gate is satisfied, announce the handoff in one line
 - **Record intent, not runtime config.** Describe the desired harness behavior
   and artifacts without asking the user to design a raw runtime config. Config
   files stay with the agent's implementation.
-- **Change Scope is a permissions list, not a wishlist.** It controls what
-  later changes may edit. Walk the levers that exist on this agent so
-  the user knows what they're consenting to. Offer `with-approval` for levers
-  the user wants available but not automatic. Do not copy a generic catalog.
 - **Do not invent Known Issues fields.** Known issues and recurring failure
   patterns belong in the team's issue tracker, not in the ethos.md.
