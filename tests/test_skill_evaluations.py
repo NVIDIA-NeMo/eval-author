@@ -101,7 +101,7 @@ def test_malformed_report_does_not_pass(value):
 def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
-    for root, name in (("skills", "eval-author"), ("skills", "new-sub-skill"), ("ethos/skills", "ethos-write")):
+    for root, name in (("skills", "eval-author"), ("skills", "new-sub-skill"), ("team-skills/ethos", "ethos-write")):
         skill = repo / root / name
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text("test skill\n")
@@ -135,7 +135,7 @@ def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch
     out = tmp_path / "results"
     result = collector.collect(repo, out, "skillevaluator", 5)
     assert [row["skill"] for row in result["skills"]] == ["eval-author", "new-sub-skill", "ethos-write"]
-    assert result["skills"][-1]["path"] == "ethos/skills/ethos-write"
+    assert result["skills"][-1]["path"] == "team-skills/ethos/ethos-write"
     assert result["counts"] == {"incomplete": 1, "passed": 2}
     assert "PRIVATE-SENTINEL" not in (out / "skillevaluator-summary.json").read_text()
     with pytest.raises(FileExistsError):

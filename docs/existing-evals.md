@@ -56,7 +56,7 @@ does not answer that question.
 
 After acceptance, Eval Author explains **ethos.md**: the document recording what
 your agent should do, its boundaries, and what success means, which gives the
-audit its target. It links the [ethos-explore skill](../ethos/skills/ethos-explore/SKILL.md)
+audit its target. It links the [ethos-explore skill](../team-skills/ethos/ethos-explore/SKILL.md)
 even when a document already exists. An existing ethos.md is linked as soon as it is
 found, with a short explanation of its intent and an opportunity to request edits
 before it becomes the audit baseline.
