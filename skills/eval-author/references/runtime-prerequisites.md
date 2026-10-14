@@ -20,8 +20,8 @@ not install, activate, upgrade, scan evals, or execute jobs. It does execute
 installed runtime probes, so inspect only trusted runtime locations.
 
 ```bash
-python3 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider harbor --flow discovery
-python3 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider gym --flow authoring
+python3.11 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider harbor --flow discovery
+python3.11 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider gym --flow authoring
 ```
 
 Use Python 3.11+ to run the locator. Select `--flow audit` for audit runtime
@@ -38,14 +38,25 @@ versions, origins, checks, status, and failure reason. Search is bounded to:
 
 - explicit paths and `[tool.eval-author.runtimes]` declarations;
 - project `.venv` and `venv` environments;
-- the invoking interpreter, all matching executables on `PATH`, and existing
+- all matching executables on `PATH`, and existing
   environments under `uv tool dir` when uv exists.
 
 The locator checks all these sources before making a selection. It never calls
 `uv tool run` or crawls the home directory. Candidate count and total probe time
-are bounded and reported; an incomplete search is unresolved. Exit 0 means each
+are bounded and reported. Incompleteness blocks selection only when it could
+hide an equal- or higher-priority candidate for that provider. A failed global
+uv search cannot override a compatible explicit interpreter. The search still
+reports its incomplete state and affected priorities. Exit 0 means each
 requested provider was selected, not that evals are ready. Exit 1 preserves
 missing, broken, incompatible, ambiguous, or incomplete findings.
+
+The standalone locator does not add its invoking interpreter as a candidate;
+discovery explicitly supplies its own interpreter because Harbor validates in-process.
+Each Harbor probe has a 10-second timeout and each Gym probe 60 seconds.
+Each provider has a separate 390-second cumulative probe budget; uv enumeration
+has a 10-second budget. This retains bounded execution without one provider
+consuming another's probe allowance. These limits are not cold-start performance
+measurements.
 
 Selection precedence is explicit path, project-declared path, project environment,
 then global environment. A broken explicit/project-declared path blocks fallback;
@@ -138,3 +149,14 @@ Their absence changes no readiness checks, `proven`, `runnable`, or exit code.
 The script cannot determine host skill availability. Return these observations
 with prerequisite-only findings; include them separately from evidence JSON in
 the later full discovery report as described in [Step 6](../../eval-author-discover/SKILL.md#step-6-save-the-report).
+
+Unsupported dependency forms (including extras, markers, compatible-release
+operators, and direct references) are retained as provider-specific requirement
+errors. Names are normalized across hyphens, underscores, and dots. The affected
+provider remains unresolved; candidate evidence and the other provider's
+selection are preserved.
+
+Python probes use isolated mode, excluding user site-packages and PYTHONPATH.
+Use a self-contained virtualenv. A package visible only in the invoking process
+may therefore fail the isolated import check; that discrepancy is reported when
+it can be detected.

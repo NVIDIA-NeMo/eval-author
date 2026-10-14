@@ -13,9 +13,16 @@ from pathlib import Path
 from typing import Any
 
 # Shared runtime helpers ship with the sibling eval-author skill.
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval-author/scripts"))
+sys.path.append(str(Path(__file__).resolve().parents[2] / "eval-author/scripts"))
 
-from runtime_policy import install_spec, load  # noqa: E402
+try:
+    from runtime_policy import install_spec, load
+except ModuleNotFoundError as exc:
+    if exc.name != "runtime_policy":
+        raise
+    raise SystemExit(
+        "Incomplete skill installation: install the sibling eval-author skill alongside eval-author-discover."
+    ) from None
 
 
 def _required_failures(report: dict[str, Any]) -> list[dict[str, Any]]:
@@ -68,9 +75,22 @@ def _harbor_setup_guidance(report: dict[str, Any]) -> str:
         "Creating native task files, validating them, and running evals need a working Harbor installation."
     )
     probe = runtime.get("harbor_probe")
+    alternatives = [
+        item["python"]
+        for item in (probe or {}).get("candidates", [])
+        if item.get("provider", "harbor") == "harbor" and item.get("status") == "compatible" and item.get("python")
+    ]
+    if alternatives:
+        paths = ", ".join(f"`{path}`" for path in dict.fromkeys(alternatives))
+        return (
+            "Compatible Harbor runtimes were found at " + paths + ". Review runtime.harbor_probe for "
+            "selection or project-requirement errors, then rerun discovery with the chosen compatible candidate Python. "
+            "Do not install another copy to fix an interpreter mismatch. " + preparation
+        )
     if probe and (
         not probe.get("search", {}).get("complete", True)
         or any(item.get("status") not in {"missing", "compatible"} for item in probe.get("candidates", []))
+        or probe.get("requirement_errors", {}).get("harbor")
         or probe.get("selection", {}).get("harbor", {}).get("status") == "ambiguous"
     ):
         return (

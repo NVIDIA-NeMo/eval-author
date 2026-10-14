@@ -13,6 +13,7 @@ occur in this process. Virtualenv Python paths deliberately remain unresolved.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -22,16 +23,30 @@ import subprocess
 import sys
 import tempfile
 import time
-import tomllib
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.append(str(Path(__file__).resolve().parent))
+
+if sys.version_info < (3, 11):
+    print(
+        json.dumps(
+            {
+                "error": "Runtime locator requires Python 3.11 or later; rerun with python3.11+",
+                "selection": {},
+                "search": {"complete": False},
+            }
+        )
+    )
+    raise SystemExit(1)
+
+import tomllib  # noqa: E402
 
 from runtime_policy import load, satisfies  # noqa: E402
 
 MAX_CANDIDATES = 24
-TOTAL_SECONDS = 90
+PROVIDER_SECONDS = 390
 PROBE_SECONDS = 10
+PROBE_MARKER = "EVAL_AUTHOR_RUNTIME="
 PROBE = """
 import importlib, importlib.metadata, json, sys
 package, symbols = json.loads(sys.argv[1])
@@ -46,14 +61,37 @@ try:
             obj = getattr(obj, attr)
 except Exception as exc:
     result['errors'].append(type(exc).__name__ + ': ' + str(exc))
-print('EVAL_AUTHOR_RUNTIME=' + json.dumps(result))
-"""
+print(MARKER + json.dumps(result))
+""".replace("MARKER", repr(PROBE_MARKER))
 
 
 def absolute(path: str | Path, root: Path) -> str:
     """Normalize dot segments, not symlinks: resolving venv Python loses identity."""
     value = Path(path).expanduser()
     return os.path.abspath(value if value.is_absolute() else root / value)
+
+
+def same_launcher(first: str | None, second: str | None) -> bool:
+    if first == second:
+        return True
+    if not first or not second:
+        return False
+    try:
+        return Path(first).samefile(second)
+    except OSError:
+        return False
+
+
+def same_python(first: str | None, second: str | None) -> bool:
+    """Aliases within one environment are equal; different venvs stay distinct."""
+    if first == second:
+        return True
+    if not first or not second:
+        return False
+    try:
+        return Path(first).parent.resolve() == Path(second).parent.resolve() and Path(first).samefile(second)
+    except OSError:
+        return False
 
 
 def path_matches(name: str) -> list[str]:
@@ -98,10 +136,10 @@ def launcher_python(cli: str) -> str | None:
     return None
 
 
-def invoke(argv: list[str], deadline: float) -> dict:
+def invoke(argv: list[str], deadline: float, timeout: float = PROBE_SECONDS) -> dict:
     remaining = deadline - time.monotonic()
     if remaining <= 0:
-        return {"ok": False, "error": "total probe budget exhausted", "budget_exhausted": True}
+        return {"ok": False, "error": "total probe budget exhausted", "budget_exhausted": True, "incomplete": True}
     try:
         with tempfile.TemporaryDirectory(prefix="eval-author-runtime-") as scratch:
             result = subprocess.run(
@@ -110,7 +148,7 @@ def invoke(argv: list[str], deadline: float) -> dict:
                 stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
-                timeout=min(PROBE_SECONDS, remaining),
+                timeout=min(timeout, remaining),
                 check=False,
             )
         return {
@@ -120,14 +158,16 @@ def invoke(argv: list[str], deadline: float) -> dict:
             "stderr": result.stderr,
             "error": None if result.returncode == 0 else f"command exited {result.returncode}: {result.stderr[-2000:]}",
         }
+    except subprocess.TimeoutExpired as exc:
+        return {"ok": False, "error": f"TimeoutExpired: {exc}", "incomplete": True}
     except (OSError, subprocess.SubprocessError, UnicodeError) as exc:
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 
 
-def inspect(candidate: dict, flow: str, deadline: float) -> dict:
+def inspect(candidate: dict, flow: str, deadline: float, policy: dict) -> dict:
     """Verify an exact Python/CLI pair and preserve failed checks."""
     result = {**candidate, "status": "unresolved", "version": None, "python_version": None, "checks": []}
-    provider = load()["providers"][candidate["provider"]]
+    provider = policy["providers"][candidate["provider"]]
     result.update(supported_range=provider["supported"][flow], required_python=provider["python"])
     python, cli = candidate.get("python"), candidate.get("cli")
     if not python:
@@ -157,23 +197,39 @@ def inspect(candidate: dict, flow: str, deadline: float) -> dict:
         return result
     capabilities = provider["capabilities"][flow]
     command = [python, "-I", "-c", PROBE, json.dumps([provider["package"], capabilities["imports"]])]
-    outcome = invoke(command, deadline)
+    outcome = invoke(command, deadline, provider["probe_seconds"])
     result["checks"].append({"name": "python-imports", "ok": outcome["ok"], "error": outcome.get("error")})
     if not outcome["ok"]:
-        result.update(status="broken", reason=outcome["error"])
+        result.update(
+            status="unresolved" if outcome.get("incomplete") else "broken",
+            reason=outcome["error"],
+            incomplete=outcome.get("incomplete", False),
+        )
         return result
     try:
         rows = [
-            line.removeprefix("EVAL_AUTHOR_RUNTIME=")
-            for line in outcome["stdout"].splitlines()
-            if line.startswith("EVAL_AUTHOR_RUNTIME=")
+            line.removeprefix(PROBE_MARKER) for line in outcome["stdout"].splitlines() if line.startswith(PROBE_MARKER)
         ]
         info = json.loads(rows[-1])
         result.update({key: info[key] for key in ("version", "python_version", "prefix")})
         if info["errors"]:
             result["checks"][-1]["ok"] = False
             result["checks"][-1]["error"] = "; ".join(info["errors"])
-            result.update(status="broken", reason="; ".join(info["errors"]))
+            reason = "; ".join(info["errors"])
+            try:
+                parent_visible = (
+                    same_python(python, sys.executable)
+                    and importlib.util.find_spec("nemo_gym" if candidate["provider"] == "gym" else "harbor") is not None
+                )
+            except (ImportError, ValueError):
+                parent_visible = False
+            if parent_visible:
+                reason += (
+                    "; package is visible in the invoking process but the isolated probe failed. "
+                    "Isolated probes exclude user site-packages and PYTHONPATH; use a self-contained "
+                    "virtualenv and inspect the import error above."
+                )
+            result.update(status="broken", reason=reason)
             return result
         constraints = [(info["version"], provider["supported"][flow]), (info["python_version"], provider["python"])]
         constraints.extend((info["version"], requirement) for requirement in candidate.get("requirements", []))
@@ -186,7 +242,7 @@ def inspect(candidate: dict, flow: str, deadline: float) -> dict:
         result.update(status="unresolved", reason=str(exc))
         return result
     for args in [["--version"], *[list(parts) + ["--help"] for parts in capabilities["help"]]]:
-        outcome = invoke([cli, *args], deadline)
+        outcome = invoke([cli, *args], deadline, provider["probe_seconds"])
         ok = outcome["ok"]
         if ok and args == ["--version"]:
             pattern = (
@@ -201,7 +257,9 @@ def inspect(candidate: dict, flow: str, deadline: float) -> dict:
         )
         if not ok:
             result.update(
-                status="broken", reason=outcome.get("error") or "CLI identity/version disagrees with package metadata"
+                status="unresolved" if outcome.get("incomplete") else "broken",
+                reason=outcome.get("error") or "CLI identity/version disagrees with package metadata",
+                incomplete=outcome.get("incomplete", False),
             )
             return result
     result.update(status="compatible", reason="Required version, Python, imports and CLI checks passed")
@@ -211,10 +269,10 @@ def inspect(candidate: dict, flow: str, deadline: float) -> dict:
     return result
 
 
-def declarations(repo: Path) -> tuple[dict, dict]:
+def declarations(repo: Path, policy: dict) -> tuple[dict, dict, dict]:
     path = repo / "pyproject.toml"
     if not path.exists():
-        return {}, {}
+        return {}, {}, {}
     data = tomllib.loads(path.read_text())
     tool = data.get("tool", {})
     project = data.get("project", {})
@@ -237,22 +295,34 @@ def declarations(repo: Path) -> tuple[dict, dict]:
         if "cli" in entry and "python" not in entry:
             raise ValueError(f"Declared {name} CLI requires its Python path")
     requirements: dict[str, list[str]] = {"harbor": [], "gym": []}
+    errors: dict[str, list[str]] = {name: [] for name in policy["providers"]}
+
+    def requirement(name: str, suffix: str, original: str) -> None:
+        if not suffix:
+            return
+        try:
+            satisfies("0.0.0", suffix)
+        except ValueError as exc:
+            errors[name].append(f"{original!r}: {exc}")
+        else:
+            requirements[name].append(suffix)
+
     for dependency in dependencies:
-        for name, entry in load()["providers"].items():
-            match = re.match(r"^" + re.escape(entry["package"]) + r"(?=$|[\s<>=!~;\[@])", dependency, re.I)
-            if match:
-                suffix = dependency[match.end() :].strip()
-                if suffix:
-                    satisfies("0.0.0", suffix)  # Validate grammar even when no runtime exists.
-                    requirements[name].append(suffix)
+        match = re.match(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)(.*)$", dependency)
+        if match is None:
+            continue
+        package, suffix = match.groups()
+        normalized = re.sub(r"[-_.]+", "-", package).lower()
+        for name, entry in policy["providers"].items():
+            if normalized == re.sub(r"[-_.]+", "-", entry["package"]).lower():
+                requirement(name, suffix.strip(), dependency)
     for name, entry in declared.items():
         if "requirement" in entry:
-            satisfies("0.0.0", entry["requirement"])
-            requirements[name].append(entry["requirement"])
-    return declared, requirements
+            requirement(name, entry["requirement"], entry["requirement"])
+    return declared, requirements, errors
 
 
-def select(candidates: list[dict], provider: str, complete: bool) -> dict:
+def select(candidates: list[dict], provider: str, incomplete_priorities: list[int]) -> dict:
     items = [item for item in candidates if item["provider"] == provider]
     chosen_tier = min((item["priority"] for item in items), default=99)
     # Explicit and project-declared paths are authoritative even when broken.
@@ -261,11 +331,15 @@ def select(candidates: list[dict], provider: str, complete: bool) -> dict:
         for item in items
         if item["status"] == "compatible" and (chosen_tier > 1 or item["priority"] == chosen_tier)
     ]
-    if not complete:
-        return {"status": "unresolved", "reason": "Search incomplete; inspect limits/errors", "selected": None}
     if not eligible:
         return {"status": "unresolved", "reason": "No compatible runtime under selection policy", "selected": None}
     priority = min(item["priority"] for item in eligible)
+    if any(unprobed <= priority for unprobed in incomplete_priorities):
+        return {
+            "status": "unresolved",
+            "reason": "Search incomplete at an equal or higher priority; inspect limits/errors",
+            "selected": None,
+        }
     best = [item for item in eligible if item["priority"] == priority]
     # Two different venvs sharing a base binary must remain distinct.
     identities = {(item["prefix"], item["version"]) for item in best}
@@ -283,7 +357,7 @@ def locate(
 ) -> dict:
     repo = repo.resolve()
     policy = load()
-    report = {
+    report: dict = {
         "schema_version": 1,
         "policy_version": policy["policy_version"],
         "repo": str(repo),
@@ -295,14 +369,19 @@ def locate(
             "locations": [],
             "errors": [],
             "max_candidates": MAX_CANDIDATES,
-            "total_seconds": TOTAL_SECONDS,
+            "total_seconds": PROBE_SECONDS + PROVIDER_SECONDS * len(providers),
+            "per_provider_seconds": PROVIDER_SECONDS,
             "omitted_candidates": 0,
+            "incomplete_priorities": {},
         },
     }
     if not repo.is_dir():
         raise ValueError(f"Not a directory: {repo}")
-    declared, requirements = declarations(repo)
-    deadline = time.monotonic() + TOTAL_SECONDS
+    declared, requirements, requirement_errors = declarations(repo, policy)
+    report["requirement_errors"] = requirement_errors
+    incomplete: dict[str, list[int]] = {name: [] for name in providers}
+    deadline = time.monotonic() + PROBE_SECONDS
+    budgets = {name: float(PROVIDER_SECONDS) for name in providers}
     candidates: dict[tuple, dict] = {}
 
     def add(name: str, python: str | None, cli: str | None, source: str, priority: int) -> None:
@@ -313,19 +392,23 @@ def locate(
             if cli
             else (str(Path(python).parent / policy["providers"][name]["cli"]) if python else None)
         )
-        key = (name, python, cli)
-        if key in candidates:
-            candidates[key]["sources"].append(source)
-            candidates[key]["priority"] = min(priority, candidates[key]["priority"])
-        else:
-            candidates[key] = {
-                "provider": name,
-                "python": python,
-                "cli": cli,
-                "sources": [source],
-                "priority": priority,
-                "requirements": requirements.get(name, []),
-            }
+        for key, existing in candidates.items():
+            if (
+                existing["provider"] == name
+                and same_launcher(existing["cli"], cli)
+                and same_python(existing["python"], python)
+            ):
+                existing["sources"].append(source)
+                existing["priority"] = min(priority, existing["priority"])
+                return
+        candidates[(name, python, cli)] = {
+            "provider": name,
+            "python": python,
+            "cli": cli,
+            "sources": [source],
+            "priority": priority,
+            "requirements": requirements.get(name, []),
+        }
 
     # Enumerate all known sources first, regardless of which candidate succeeds.
     for name in providers:
@@ -339,7 +422,6 @@ def locate(
             python = repo / env / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
             report["search"]["locations"].append(str(python))
             add(name, str(python), None, "project", 2)
-        add(name, sys.executable, None, "invoking-python", 3)
         for cli in path_matches(policy["providers"][name]["cli"]):
             add(name, None, cli, "PATH", 3)
     report["search"]["locations"].extend(os.get_exec_path())
@@ -355,6 +437,8 @@ def locate(
         else:
             report["search"]["errors"].append("uv tool dir failed: " + str(outcome.get("error") or "invalid path"))
             report["search"]["complete"] = False
+            for name in providers:
+                incomplete[name].append(3)
     ordered = sorted(
         candidates.values(),
         key=lambda item: (item["priority"], item["provider"], item["python"] or "", item["cli"] or ""),
@@ -362,16 +446,37 @@ def locate(
     report["search"]["omitted_candidates"] = max(0, len(ordered) - MAX_CANDIDATES)
     if len(ordered) > MAX_CANDIDATES:
         report["search"]["complete"] = False
+    for candidate in ordered[MAX_CANDIDATES:]:
+        incomplete[candidate["provider"]].append(candidate["priority"])
     for candidate in ordered[:MAX_CANDIDATES]:
-        if time.monotonic() >= deadline:
-            report["search"]["complete"] = False
-            report["candidates"].append({**candidate, "status": "unresolved", "reason": "total probe budget exhausted"})
+        name = candidate["provider"]
+        started = time.monotonic()
+        if budgets[name] <= 0:
+            report["candidates"].append(
+                {
+                    **candidate,
+                    "status": "unresolved",
+                    "reason": "provider probe budget exhausted",
+                    "incomplete": True,
+                }
+            )
         else:
-            report["candidates"].append(inspect(candidate, flow, deadline))
-    if time.monotonic() >= deadline:
-        report["search"]["complete"] = False
+            report["candidates"].append(inspect(candidate, flow, started + budgets[name], policy))
+            budgets[name] -= time.monotonic() - started
+    for candidate in report["candidates"]:
+        if candidate.get("incomplete"):
+            incomplete[candidate["provider"]].append(candidate["priority"])
+            report["search"]["complete"] = False
+    report["search"]["locations"] = list(dict.fromkeys(report["search"]["locations"]))
+    report["search"]["incomplete_priorities"] = {name: sorted(set(values)) for name, values in incomplete.items()}
     for name in providers:
-        report["selection"][name] = select(report["candidates"], name, report["search"]["complete"])
+        report["selection"][name] = select(report["candidates"], name, incomplete[name])
+        if requirement_errors.get(name):
+            report["selection"][name] = {
+                "status": "unresolved",
+                "selected": None,
+                "reason": "Unsupported project requirements: " + "; ".join(requirement_errors[name]),
+            }
     return report
 
 

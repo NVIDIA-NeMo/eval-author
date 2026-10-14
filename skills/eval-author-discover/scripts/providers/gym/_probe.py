@@ -14,10 +14,18 @@ import sys
 from pathlib import Path
 
 # Shared runtime helpers ship with the sibling eval-author skill.
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "eval-author/scripts"))
+sys.path.append(str(Path(__file__).resolve().parents[4] / "eval-author/scripts"))
 
 from _checks import ADVISORY, PASS, WARN, CheckResult, check  # noqa: E402
-from locate_runtime import locate  # noqa: E402
+
+try:
+    from locate_runtime import locate
+except ModuleNotFoundError as exc:
+    if exc.name not in {"locate_runtime", "runtime_policy"}:
+        raise
+    raise SystemExit(
+        "Incomplete skill installation: install the sibling eval-author skill alongside eval-author-discover."
+    ) from None
 from runtime_policy import install_spec  # noqa: E402
 
 INSTALL_HINT = f"Locate an existing Gym runtime first; when setup is authorized, install {install_spec('gym')} in a separate environment meeting runtime-policy.json."

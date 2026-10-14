@@ -18,10 +18,18 @@ import sys
 from pathlib import Path
 
 # Shared runtime helpers ship with the sibling eval-author skill.
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "eval-author/scripts"))
+sys.path.append(str(Path(__file__).resolve().parents[4] / "eval-author/scripts"))
 
-from _checks import ADVISORY, FAIL, PASS, WARN, CheckResult, check  # noqa: E402
-from locate_runtime import locate  # noqa: E402
+from _checks import FAIL, PASS, CheckResult, check  # noqa: E402
+
+try:
+    from locate_runtime import locate
+except ModuleNotFoundError as exc:
+    if exc.name not in {"locate_runtime", "runtime_policy"}:
+        raise
+    raise SystemExit(
+        "Incomplete skill installation: install the sibling eval-author skill alongside eval-author-discover."
+    ) from None
 
 PROVIDER = "harbor"
 
@@ -72,17 +80,6 @@ def probe_checks(runtime: dict) -> list[CheckResult]:
                 FAIL,
                 "Harbor cannot run discovery: " + runtime.get("harbor_reason", "not importable"),
                 hint="Run locate_runtime.py --provider harbor --flow discovery and use its selected Python.",
-            )
-        )
-    if runtime["harbor_cli"] is None:
-        checks.append(
-            check(
-                "harbor-cli",
-                "runtime",
-                WARN,
-                "No compatible Harbor CLI was selected, so the CLI round trip cannot run.",
-                severity=ADVISORY,
-                proven=False,
             )
         )
     return checks

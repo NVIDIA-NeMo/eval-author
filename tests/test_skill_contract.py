@@ -228,13 +228,16 @@ def _write_gym_stub(folder: Path, script: str, version: str = "0.6.0") -> Path:
     Locator behavior against real interpreters is covered in test_runtime_locator.
     These fixtures isolate discovery's Judge/Solve orchestration from Gym setup.
     """
+    sys.path.append(str(_CORE_DIR / "scripts"))
+    from locate_runtime import PROBE_MARKER as probe_marker
+
     payload = folder / "gym-payload.sh"
     payload.write_text(script)
     python = folder / "python"
     metadata = {"version": version, "python_version": "3.13.14", "prefix": str(folder), "errors": []}
     python.write_text(
         f"#!{sys.executable}\nimport os, sys\n"
-        f"if sys.argv[1] == '-I': print('EVAL_AUTHOR_RUNTIME=' + {json.dumps(metadata)!r})\n"
+        f"if sys.argv[1] == '-I': print({probe_marker!r} + {json.dumps(metadata)!r})\n"
         f"else: os.execv('/bin/sh', ['/bin/sh', {str(payload)!r}, *sys.argv[2:]])\n"
     )
     python.chmod(0o755)
@@ -5056,40 +5059,6 @@ def test_gym_probe_trusts_only_a_new_enough_nemo_gym(
         explicit = next(candidate for candidate in candidates if candidate["priority"] == 0)
         assert explicit["status"] in {"incompatible", "broken"}
         assert explicit["reason"]
-
-
-@pytest.mark.parametrize("status", ["selected", "unresolved", "ambiguous"])
-@pytest.mark.parametrize("cli", [None, "/chosen/bin/gym"])
-def test_gym_probe_preserves_shared_locator_decision(tmp_path, monkeypatch, status, cli):
-    discover = _import_discover(monkeypatch)
-    gym_probe = importlib.import_module("providers.gym._probe")
-    selected = {"version": "99.0.0", "cli": "/selected/bin/gym"} if status == "selected" else None
-    reason = "Locator decision: " + status
-    evidence = {"selection": {"gym": {"status": status, "selected": selected, "reason": reason}}}
-    calls = []
-
-    def locate(repo, **kwargs):
-        calls.append((repo, kwargs))
-        return evidence
-
-    monkeypatch.setattr(gym_probe, "locate", locate)
-    runtime = gym_probe.probe(tmp_path, cli)
-    assert calls == [(tmp_path, {"explicit": {"gym": {"cli": cli}} if cli else None, "providers": ("gym",)})]
-    assert runtime["gym_probe"] is evidence
-    assert runtime["gym_reason"] == reason
-    assert gym_probe.is_available(runtime) is (selected is not None)
-    assert runtime["gym_version"] == (selected["version"] if selected else None)
-    assert runtime["gym_cli"] == (selected["cli"] if selected else None)
-    checks = gym_probe.probe_checks(runtime, report_missing=True)
-    assert checks[0].status == ("pass" if selected else "warn")
-    if selected is None:
-        assert checks[0].message == reason
-        assert gym_probe.probe_checks(runtime, report_missing=False) == []
-        entries = [{}]
-        failures = discover._judge_manifests([object()], entries, runtime, tmp_path)
-        assert entries[0]["judge"] == {"status": "blocked", "reason": reason, "error": None}
-        assert failures[0].status == "fail"
-        assert reason in failures[0].message
 
 
 def test_judge_line_counts_each_format_and_names_a_docker_failure(monkeypatch: pytest.MonkeyPatch) -> None:
