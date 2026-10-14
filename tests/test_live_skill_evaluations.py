@@ -372,14 +372,17 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
 
 
 def test_seed_datasets_are_bounded_and_have_negative_cases(live):
-    for name in (
-        "eval-author",
-        "eval-author-first-eval",
-        "mlflow-to-atif",
-        "eval-author-task-create",
-        "eval-author-environment",
+    for path in (
+        "skills/eval-author",
+        "skills/eval-author-first-eval",
+        "skills/mlflow-to-atif",
+        "skills/eval-author-task-create",
+        "skills/eval-author-environment",
+        "team-skills/ethos/ethos-orchestrate",
+        "team-skills/ethos/ethos-explore",
+        "team-skills/ethos/ethos-write",
     ):
-        skill = ROOT / "skills" / name
+        skill = ROOT / path
         assert live.dataset_cases(skill) == 4
         cases = json.loads((skill / "evals/evals.json").read_text())["evals"]
         assert sum(c["expected_skill"] is None for c in cases) == 1
