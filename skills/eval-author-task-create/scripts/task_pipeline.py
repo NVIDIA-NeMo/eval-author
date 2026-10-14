@@ -11,6 +11,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -154,6 +155,36 @@ def _require_task_slug_paths(*, task_slug: str, output: Path, task_name: str, in
     _require_proposal_destination(instruction_file)
 
 
+def _write_lineage(task: Path, report: Path, proposal: Path, target: str) -> None:
+    from task_evidence import digest, write_new
+
+    write_new(
+        task / ".eval-author-lineage.json",
+        {
+            "target_tool": target,
+            "report": {"path": str(report.resolve()), "sha256": digest(report)},
+            "proposal": {"path": str(proposal.resolve()), "sha256": digest(proposal)},
+        },
+    )
+
+
+def _verify_lineage(agents: dict, before: Path, target: str) -> None:
+    from task_evidence import EvidenceError, digest, manifest_at, read
+
+    for agent in agents.values():
+        manifest = manifest_at(Path(agent["manifest"]))
+        task = Path(manifest["task_dir"])
+        path = task / ".eval-author-lineage.json"
+        if not path.is_file():
+            raise EvidenceError("task lacks proposal and source coverage lineage; recreate a bound draft")
+        lineage = read(path)
+        if lineage["target_tool"] != target or lineage["report"]["sha256"] != digest(before):
+            raise EvidenceError("task lineage differs from the selected gap report")
+        for key in ("report", "proposal"):
+            if digest(Path(lineage[key]["path"])) != lineage[key]["sha256"]:
+                raise EvidenceError(f"{key} content changed since draft creation")
+
+
 def _scaffold(
     *,
     report_path: Path,
@@ -208,6 +239,7 @@ def _scaffold(
             raise PipelineError("Gym scaffolder unavailable or returned no report") from exc
         if result.returncode or not isinstance(payload, dict) or not payload.get("written"):
             raise PipelineError("Gym scaffolding failed; inspect the selected runtime and destination")
+        _write_lineage(output, report_path, instruction_file, target)
         return {**payload, "target_tool": target, "task_slug": task_slug, "paths": _artifact_paths(task_slug)}
     harbor = shutil.which("harbor")
     if harbor is None:
@@ -236,6 +268,7 @@ def _scaffold(
     if not output.is_dir():
         raise PipelineError(f"harbor did not create the expected draft: {output}")
     (output / "instruction.md").write_text(instruction, encoding="utf-8")
+    _write_lineage(output, report_path, instruction_file, target)
     return {
         "schema": "nemo.eval_author.harbor_task_draft.v1",
         "target_tool": target,
@@ -270,6 +303,19 @@ def _run_ids_from_report(report: dict[str, Any], *, report_path: Path, task_id: 
             )
         run_ids.append(run_id)
     return run_ids
+
+
+def _verify_coverage_binding(path: Path) -> dict:
+    """Rebuild coverage in the sibling audit skill, with its own import boundary."""
+    script = Path(__file__).resolve().parents[2] / "eval-author-audit/scripts/audit_spec/report.py"
+    if not script.is_file():
+        raise PipelineError("install the sibling eval-author-audit skill to verify coverage evidence")
+    run = subprocess.run(
+        [sys.executable, str(script), "--verify-existing", str(path)], capture_output=True, text=True, timeout=60
+    )
+    if run.returncode:
+        raise PipelineError(f"coverage binding verification failed: {run.stdout.strip()} {run.stderr.strip()}")
+    return json.loads(run.stdout)["binding"]
 
 
 def _verify(
@@ -333,8 +379,24 @@ def _verify(
     except (ValueError, OSError, KeyError, TypeError) as exc:
         raise PipelineError(f"task execution evidence: {exc}") from exc
 
+    try:
+        _verify_lineage(agents, before_path, target)
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        raise PipelineError(f"task lineage: {exc}") from exc
+    bindings = [_verify_coverage_binding(path) for path in [before_path, *after_paths]]
+    if len({binding["audit_sha256"] for binding in bindings}) != 1:
+        raise PipelineError("before and after coverage must use the same denominator")
+    from task_evidence import digest
+
     payload = {
         "schema": "nemo.eval_author.task_gap_verification.v2",
+        "binding": {
+            "inputs": [
+                {"path": str(path.resolve()), "sha256": digest(path)}
+                for path in [before_path, *after_paths, *(evidence_paths or [])]
+            ],
+            "audit_sha256": bindings[0]["audit_sha256"],
+        },
         "task_id": task_id,
         "task_validation": "passed",
         "agent_execution": "passed",
@@ -348,6 +410,22 @@ def _verify(
         "valid": True,
     }
     return (0 if all_covered else 1), payload
+
+
+def _check_acceptance(path: Path) -> tuple[int, dict]:
+    saved = _read_json(path)
+    try:
+        code, current = _verify(
+            Path(saved["before"]),
+            [Path(run["report"]) for run in saved["runs"]],
+            saved["target_tool"],
+            [Path(value) for value in saved["evidence"]],
+        )
+    except (KeyError, TypeError) as exc:
+        raise PipelineError(f"invalid saved acceptance: {exc}") from exc
+    if saved != current:
+        raise PipelineError("saved acceptance changed or is stale")
+    return code, current
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -377,6 +455,8 @@ def _parser() -> argparse.ArgumentParser:
     verify.add_argument(
         "--evidence", type=Path, action="append", help="execution receipt; repeat for all controls and agents"
     )
+    recheck = subparsers.add_parser("check-acceptance", help="Revalidate every input of a saved acceptance")
+    recheck.add_argument("--report", type=Path, required=True)
     return parser
 
 
@@ -400,9 +480,11 @@ def main(argv: list[str] | None = None) -> int:
                 gym_python=args.gym_python,
             )
             exit_code = 0
+        elif args.command == "check-acceptance":
+            exit_code, payload = _check_acceptance(args.report)
         else:
             exit_code, payload = _verify(args.before, args.after, args.target, args.evidence)
-    except PipelineError as exc:
+    except (PipelineError, OSError, subprocess.TimeoutExpired) as exc:
         payload = {"valid": False, "error": str(exc)}
         exit_code = 1
     print(json.dumps(payload, indent=2, sort_keys=True))

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from dataclasses import dataclass
@@ -43,11 +44,13 @@ class CoverageInput:
 
     path: Path
     payload: JsonObject
+    raw_sha256: str = ""
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--audit", type=Path, required=True, help="audit.md file used as the denominator")
+    parser.add_argument("--verify-existing", type=Path, help="Rebuild and verify a bound aggregate without writing")
+    parser.add_argument("--audit", type=Path, help="audit.md file used as the denominator")
     parser.add_argument("--coverage", type=Path, action="append", help="coverage.json file; repeatable")
     parser.add_argument(
         "--coverage-dir",
@@ -55,11 +58,17 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         help="directory to scan recursively for coverage.json files; repeatable",
     )
-    parser.add_argument("--out", type=Path, required=True, help="coverage report JSON file to write")
+    parser.add_argument("--out", type=Path, help="coverage report JSON file to write")
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
     args = parser.parse_args(argv)
 
     try:
+        if args.verify_existing:
+            binding = verify_existing(args.verify_existing)
+            _print({"valid": True, "binding": binding}, compact=args.compact)
+            return 0
+        if args.audit is None or args.out is None:
+            raise AuditCoverageInputError("--audit and --out are required for aggregation")
         audit = load_audit_spec(args.audit)
         coverage_paths = _coverage_paths(files=args.coverage, dirs=args.coverage_dir)
         coverage_inputs = [_load_coverage(path) for path in coverage_paths]
@@ -129,7 +138,8 @@ def _coverage_paths(*, files: list[Path] | None, dirs: list[Path] | None) -> lis
 def _load_coverage(path: Path) -> CoverageInput:
     """Load and validate one per-trace coverage.json file."""
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        raw = path.read_bytes()
+        payload = json.loads(raw)
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise AuditCoverageInputError(f"could not read coverage file at {path}: {exc}") from exc
     if not isinstance(payload, dict):
@@ -141,7 +151,7 @@ def _load_coverage(path: Path) -> CoverageInput:
         label=f"coverage input {path}",
         error_type=AuditCoverageInputError,
     )
-    return CoverageInput(path=path, payload=payload)
+    return CoverageInput(path=path, payload=payload, raw_sha256=hashlib.sha256(raw).hexdigest())
 
 
 def _aggregate(*, audit: JsonObject, audit_path: Path, coverage_inputs: list[CoverageInput]) -> JsonObject:
@@ -155,8 +165,16 @@ def _aggregate(*, audit: JsonObject, audit_path: Path, coverage_inputs: list[Cov
     measured_kinds: set[str] = set()
     warnings: list[JsonObject] = []
 
+    seen_runs, seen_traces = set(), set()
     for coverage_input in coverage_inputs:
         payload = coverage_input.payload
+        if "binding" in payload:
+            run = (payload["method"]["name"], payload["subject"]["run_id"])
+            trace = (payload["method"]["name"], payload["binding"]["trace_sha256"])
+            if run in seen_runs or trace in seen_traces:
+                raise AuditCoverageInputError("duplicate run or copied measurement cannot count as new evidence")
+            seen_runs.add(run)
+            seen_traces.add(trace)
         warnings.extend(
             _validate_coverage_matches_audit(
                 coverage=payload,
@@ -174,7 +192,7 @@ def _aggregate(*, audit: JsonObject, audit_path: Path, coverage_inputs: list[Cov
     covered = [item["name"] for item in audit_items if item["name"] in covered_names]
     uncovered = [item["name"] for item in audit_items if item["name"] not in covered_names]
     measured_kinds_list = [kind for kind in ITEM_KINDS if kind in measured_kinds]
-    return {
+    result = {
         "schema": REPORT_SCHEMA,
         "audit": _audit_info(audit, audit_path, audit_counts),
         "measured_kinds": measured_kinds_list,
@@ -190,6 +208,46 @@ def _aggregate(*, audit: JsonObject, audit_path: Path, coverage_inputs: list[Cov
         ],
     }
 
+    # Legacy inputs remain readable for inventory/review, but cannot prove acceptance.
+    if all("binding" in entry.payload for entry in coverage_inputs):
+        result["binding"] = {
+            "audit_sha256": hashlib.sha256(json.dumps(audit, sort_keys=True).encode()).hexdigest(),
+            "inputs": [{"path": str(entry.path.resolve()), "sha256": entry.raw_sha256} for entry in coverage_inputs],
+        }
+    return result
+
+
+def _digest(path: Path) -> str:
+    if path.is_symlink() or not path.is_file():
+        raise AuditCoverageInputError(f"evidence must be a regular file: {path}")
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def verify_existing(path: Path) -> dict:
+    """Reject legacy, edited, stale or incomplete aggregates; never rewrite evidence."""
+    try:
+        report = json.loads(path.read_text())
+        binding = report.get("binding")
+        if not binding:
+            raise AuditCoverageInputError("unbound legacy coverage: remeasure and aggregate before acceptance")
+        audit_path = Path(report["audit"]["path"])
+        audit = load_audit_spec(audit_path)
+        inputs = []
+        for entry in binding["inputs"]:
+            source = Path(entry["path"])
+            if _digest(source) != entry["sha256"]:
+                raise AuditCoverageInputError("coverage measurement digest changed")
+            inputs.append(_load_coverage(source))
+        if not inputs or len({entry.path.resolve() for entry in inputs}) != len(inputs):
+            raise AuditCoverageInputError("distinct coverage inputs are required")
+        rebuilt = _aggregate(audit=audit, audit_path=audit_path, coverage_inputs=inputs)
+        if rebuilt != report:
+            raise AuditCoverageInputError("coverage aggregate or denominator changed; regenerate evidence")
+        _validate_report(rebuilt)
+        return binding
+    except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise AuditCoverageInputError(f"invalid bound coverage report: {exc}") from exc
+
 
 def _validate_coverage_matches_audit(
     *,
@@ -201,6 +259,17 @@ def _validate_coverage_matches_audit(
 ) -> list[JsonObject]:
     """Reject stale or incompatible coverage files before aggregating them."""
     warnings: list[JsonObject] = []
+    binding = coverage.get("binding")
+    if binding is not None:
+        for judgment in binding.get("judgments", []):
+            contents = json.loads(Path(judgment["path"]).read_bytes())
+            if hashlib.sha256(json.dumps(contents, sort_keys=True).encode()).hexdigest() != judgment["sha256"]:
+                raise AuditCoverageInputError("semantic judgment content changed")
+        expected = hashlib.sha256(json.dumps(audit, sort_keys=True).encode()).hexdigest()
+        if binding["audit_sha256"] != expected:
+            raise AuditCoverageInputError("measurement denominator digest changed")
+        if _digest(Path(coverage["subject"]["trace"])) != binding["trace_sha256"]:
+            raise AuditCoverageInputError("measured trace digest changed")
     coverage_audit = coverage["audit"]
     for field in ("schema", "agent", "item_count"):
         expected = len(audit["items"]) if field == "item_count" else audit[field]
@@ -240,7 +309,7 @@ def _input_report(coverage_input: CoverageInput) -> JsonObject:
     """Keep one compact traceability record per aggregated coverage file."""
     payload = coverage_input.payload
     return {
-        "path": str(coverage_input.path),
+        "path": str(coverage_input.path.resolve()),
         "method": payload["method"]["name"],
         "item_kind": payload["item_kind"],
         "item_kind_count": payload["item_kind_count"],
@@ -336,7 +405,7 @@ def _tools_from_capabilities(item: JsonObject, audit_items_by_name: dict[str, Js
 def _audit_info(audit: JsonObject, audit_path: Path, counts: dict[str, int]) -> JsonObject:
     """Record denominator identity and counts for aggregate report consumers."""
     return {
-        "path": str(audit_path),
+        "path": str(audit_path.resolve()),
         "schema": audit["schema"],
         "agent": audit["agent"],
         "status": audit["status"],

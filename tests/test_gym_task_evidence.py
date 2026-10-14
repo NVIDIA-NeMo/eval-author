@@ -57,6 +57,7 @@ def inputs(tmp_path):
             "agent": case,
             "reference": {**case, "kind": "reference"},
             "incorrect": {**case, "kind": "incorrect"},
+            "empty": {**case, "kind": "empty"},
         },
         "alternative_not_applicable": "Single numeric answer.",
         "side_effect_not_applicable": "Read only.",

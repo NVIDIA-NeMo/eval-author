@@ -3080,6 +3080,10 @@ def test_audit_measure_reports_tool_call_coverage_from_atif_trace(tmp_path: Path
         }
     ]
     assert coverage == {
+        "binding": {
+            "audit_sha256": hashlib.sha256(json.dumps(_audit_payload(audit), sort_keys=True).encode()).hexdigest(),
+            "trace_sha256": hashlib.sha256(trace.read_bytes()).hexdigest(),
+        },
         "schema": "nemo.eval_author.audit_coverage.v1",
         "audit": {
             "path": str(audit),
