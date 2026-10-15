@@ -3,7 +3,7 @@
 
 # Ethos creation conversational acceptance scenarios
 
-Use this manual protocol to review ASE-1058 and ASE-1059. It is not an automated
+Use this manual protocol to review Ethos workflows. It is not an automated
 harness, an execution record, or a claim of passing model evaluation. Use isolated
 synthetic workspaces without customer data, production services, or provider
 credentials. Retain reply channels, user answers, tool and delegation logs,
