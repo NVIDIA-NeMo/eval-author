@@ -456,4 +456,3 @@ If the Role quality gate is satisfied, announce the handoff in one line
   files stay with the agent's implementation.
 - **Do not invent Known Issues fields.** Known issues and recurring failure
   patterns belong in the team's issue tracker, not in the ethos.md.
-
