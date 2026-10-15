@@ -1,7 +1,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Template: https://github.com/NVIDIA/skills/blob/main/.github/workflows/request-nvskills-ci.yml
+# Based on https://github.com/NVIDIA/skills/blob/main/.github/workflows/request-nvskills-ci.yml.
+# The `request` job is the template's, minus its pull_request path: the template runs
+# NVIDIA/skills' require-nvskills-status for every PR touching skills/ or team-skills/,
+# but only the ethos skills are published to the NVIDIA/skills catalog. Here that check
+# runs only for PRs that change a skill under team-skills/ethos/, and the
+# `NVSkills signature` job is the stable required check on main. When the template
+# changes, re-sync the `request` job and keep the pull_request path scoped.
 name: Request NVSkills CI
 
 on:
@@ -14,7 +20,6 @@ on:
 jobs:
   request:
     if: >
-      github.event_name == 'pull_request' ||
       (github.event_name == 'issue_comment' &&
         github.event.issue.pull_request &&
         startsWith(github.event.comment.body, '/nvskills-ci')) ||
@@ -28,3 +33,69 @@ jobs:
     uses: NVIDIA/skills/.github/workflows/team-request.yml@main
     secrets:
       NVSKILLS_CI_DISPATCH_TOKEN: ${{ secrets.NVSKILLS_CI_DISPATCH_TOKEN }}
+
+  ethos-changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.files.outputs.changed }}
+    steps:
+      - name: Detect ethos skill changes
+        id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          paths="$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files" --jq '.[] | .filename, (.previous_filename // empty)')"
+          # Skill directories only; team-skills/ethos/README.md is not a signed skill.
+          if grep -q '^team-skills/ethos/[^/]*/' <<<"${paths}"; then
+            echo "changed=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+  ethos-require-nvskills-ci:
+    needs: ethos-changes
+    if: needs.ethos-changes.outputs.changed == 'true'
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: read
+    uses: NVIDIA/skills/.github/workflows/require-nvskills-status.yml@main
+
+  # Required on main. A skipped reusable-workflow job does not report the check name
+  # branch rules expect, so this job always runs on pull requests and reports the result.
+  nvskills-signature:
+    name: NVSkills signature
+    needs: [ethos-changes, ethos-require-nvskills-ci]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Report NVSkills signature status
+        env:
+          CHANGES_RESULT: ${{ needs.ethos-changes.result }}
+          CHANGED: ${{ needs.ethos-changes.outputs.changed }}
+          REQUIRE_RESULT: ${{ needs.ethos-require-nvskills-ci.result }}
+        run: |
+          set -euo pipefail
+          if [ "${CHANGES_RESULT}" != "success" ]; then
+            echo "Could not determine whether this PR changes an ethos skill."
+            exit 1
+          fi
+          if [ "${CHANGED}" != "true" ]; then
+            echo "No changes under team-skills/ethos/<skill>/; no NVSkills signature required."
+            exit 0
+          fi
+          if [ "${REQUIRE_RESULT}" = "success" ]; then
+            echo "NVSkills CI passed for the latest ethos skill changes."
+            exit 0
+          fi
+          echo "This PR changes an ethos skill. A maintainer or admin must comment /nvskills-ci after the last"
+          echo "skill change and keep the 'Attach NVSkills validation signatures' commit it pushes."
+          exit 1

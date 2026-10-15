@@ -54,6 +54,14 @@ the Eval Author skills, which link to them from
 [Local Ethos](skills/eval-author/references/local-ethos.md). The ethos-write
 skill bundles a standard-library validator, `scripts/validate_ethos.py`.
 
+The ethos skills are published to the [NVIDIA/skills](https://github.com/NVIDIA/skills)
+catalog, which accepts only skill content signed by NVSkills CI. A pull request
+that changes `team-skills/ethos/<skill>/` cannot merge until a maintainer or admin
+comments `/nvskills-ci` after the last skill change and the run passes; keep the
+`Attach NVSkills validation signatures` commit it pushes. The `NVSkills signature`
+check in [`request-nvskills-ci.yml`](.github/workflows/request-nvskills-ci.yml)
+enforces this. Other pull requests do not need the run.
+
 ## Public NeMo Compass dependency
 
 The development dependencies include `trace-ingest[mlflow]` pinned to an exact
