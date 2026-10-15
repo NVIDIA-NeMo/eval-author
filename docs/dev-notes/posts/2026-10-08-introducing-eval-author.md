@@ -187,36 +187,6 @@ a coding agent and expect magic. Treat it as a guide to accelerate your work
 to get to a better outcome. And if you have suggestions, thoughts, or
 potential improvements, please share!
 
-## Questions for Study
-
-**Where should coverage goals come from?** Specifications, production traces,
-bug reports, observed failures, and human expertise each tell us something
-different about what an agent should be able to do. We want to understand
-which sources are most useful, how to combine them, and what they leave out.
-
-Our current implementation uses a simple structured natural language
-specification. We plan to integrate production traces as an additional source
-of goals.
-
-**How should we generate evaluations that test what matters?** We're exploring
-how to break eval authoring into manageable parts and combine techniques for
-creating tasks, environments, and checks. One problem we continually see with
-coding agents is optimizing for “greenness”: making the evals pass by making
-the task easier or weakening what it checks. This is typically undesirable, as
-optimizing for greenness runs contrary to the goals of an evaluation.
-
-We want to understand how to keep generation focused on the missing behavior,
-even when that behavior doesn't exist, without losing that dogged effort that
-makes coding agents so useful.
-
-**How should we evaluate eval-generation techniques?** We need case examples,
-benchmarks, and measures that let us compare approaches and understand their
-limitations. Benchmarks for evaluating agents across various domains are
-widely available. Benchmarks for *creating evals*—aka benchmarks for creating
-benchmarks—are extremely sparse. The creation of an Eval Author benchmark is
-high on our to-do list and would create an open method of comparing proposed
-approaches.
-
 ## Parting notes
 
 We're just getting started. These dev notes are where we'll share our
