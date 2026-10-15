@@ -12,11 +12,11 @@ skill does not authorize starting its reads, validation, or generation early.
 
 ## Authoring skills
 
-For new or revised intent, use the [ethos-explore skill](../../../ethos/skills/ethos-explore/SKILL.md),
+For new or revised intent, use the [ethos-explore skill](../../../team-skills/ethos/ethos-explore/SKILL.md),
 which explores the repository and interviews the user, then hands off to the
-[ethos-write skill](../../../ethos/skills/ethos-write/SKILL.md), which writes, validates,
+[ethos-write skill](../../../team-skills/ethos/ethos-write/SKILL.md), which writes, validates,
 and reviews the file. They install separately from Eval Author
-(`npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/ethos`). Pass the selected agent,
+(`npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/team-skills/ethos`). Pass the selected agent,
 existing answers, chosen local path, and review state. The procedure below supplies
 Eval Author's introduction, write boundaries, and milestone checkpoints; use
 one interview and preserve those caller-specific requirements. Return with the
@@ -24,7 +24,7 @@ saved path, gaps, checks, and review state before continuing Eval Author.
 An already suitable ethos.md can go directly through the locate-and-reuse checks.
 
 When those skills are not available, follow this procedure directly with the
-[ethos.md template](../../../ethos/skills/ethos-write/references/templates/ethos.md)
+[ethos.md template](../../../team-skills/ethos/ethos-write/references/templates/ethos.md)
 when it is readable, and tell the user how to install the skills.
 
 For both delegated creation and this fallback, capture purpose, desired behavior,
@@ -43,7 +43,7 @@ owners without opening a change-permission interview.
 Before checking or creating the document, explain in ordinary language that
 ethos.md records what the agent should do, what it should avoid, and what a good
 result looks like. Evals and audits use this as their target. Link the
-[ethos-explore skill](../../../ethos/skills/ethos-explore/SKILL.md)
+[ethos-explore skill](../../../team-skills/ethos/ethos-explore/SKILL.md)
 and make the explanation concrete for the selected agent. This introduction also
 applies when reusing an existing file; do not assume familiarity with the term.
 Reuse an introduction already given in the current flow.
@@ -91,7 +91,7 @@ old tests. Surface conflicts with existing scoring for the user's resolution.
 A limited first eval set need not wait for unrelated details, but explain any gaps
 instead of presenting a partial Ethos as a complete account of the agent.
 
-Use the [ethos.md template](../../../ethos/skills/ethos-write/references/templates/ethos.md). A concrete Role and Purpose &
+Use the [ethos.md template](../../../team-skills/ethos/ethos-write/references/templates/ethos.md). A concrete Role and Purpose &
 Outcomes are required; other sections contain actual answers or an honest
 `_(none)_`, with uncertainties recorded in Open Questions. Do not invent metrics
 or leave template placeholders. Treat demo policies as fixtures when that is the

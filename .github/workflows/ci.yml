@@ -74,6 +74,31 @@ jobs:
           path: ${{ runner.temp }}/skill-evaluations/skillevaluator-summary.json
           if-no-files-found: warn
           retention-days: 30
+  task-search-platforms:
+    if: >-
+      github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14, windows-2022]
+        python: ["3.12"]
+        include:
+          - os: ubuntu-24.04
+            python: "3.10"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          version: "0.12.3"
+          python-version: ${{ matrix.python }}
+          enable-cache: false
+      - name: Test standalone task search without provider dependencies
+        run: uv run --no-project --python ${{ matrix.python }} --with pytest==9.1.1 python -m pytest tests/test_task_search.py -q -rs
   test:
     # Defense in depth only: PRs can edit this workflow. This condition does not
     # enforce repository access; see CONTRIBUTING.md.
@@ -107,6 +132,9 @@ jobs:
           chmod +x "$RUNNER_TEMP/osv-scanner"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
+      - name: Check runtime policy
+        run: uv run --locked python tools/check_runtime_policy.py
+
       - name: Check copyright headers
         run: uv run --locked python tools/check_copyright_headers.py
 
@@ -134,8 +162,6 @@ jobs:
             artifact: gym-trace
           - route: ng-trajectory
             artifact: gym-ng-trajectory
-    env:
-      GYM_REVISION: 3045a793346a31291d7ea4ae6af3f94a35036ce5
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -147,16 +173,22 @@ jobs:
           enable-cache: false
       - name: Install Eval Author test environment
         run: uv sync --locked
-      - name: Install isolated Gym v0.6.0 runtime
+      - name: Install isolated Gym runtime from policy
         run: |
+          policy=skills/eval-author/scripts/runtime_policy.py
+          GYM_REVISION=$(python "$policy" --get providers.gym.test_profiles.ci.revision)
+          GYM_PYTHON=$(python "$policy" --get providers.gym.test_profiles.ci.python)
           git clone --no-checkout https://github.com/NVIDIA-NeMo/Gym.git "$RUNNER_TEMP/gym"
           git -C "$RUNNER_TEMP/gym" checkout --detach "$GYM_REVISION"
-          uv sync --directory "$RUNNER_TEMP/gym" --locked --no-dev
+          uv sync --directory "$RUNNER_TEMP/gym" --locked --no-dev --python "$GYM_PYTHON"
+          GYM_VERSION=$(python "$policy" --get providers.gym.test_profiles.ci.version)
+          test "$("$RUNNER_TEMP/gym/.venv/bin/python" -c 'import importlib.metadata; print(importlib.metadata.version("nemo-gym"))')" = "$GYM_VERSION"
       - name: Exercise native Gym task scaffolding and execution controls
         if: ${{ !cancelled() }}
         run: |
           python_bin=.venv/bin/python
           if ! test -x "$python_bin"; then python_bin=python3; fi
+          GYM_REVISION=$("$python_bin" skills/eval-author/scripts/runtime_policy.py --get providers.gym.test_profiles.ci.revision)
           "$python_bin" tools/collect_gym_evidence.py --output "$RUNNER_TEMP/gym-evidence" \
             --gym-python "$RUNNER_TEMP/gym/.venv/bin/python" --gym-root "$RUNNER_TEMP/gym" \
             --gym-revision "$GYM_REVISION" --route "${{ matrix.route }}"

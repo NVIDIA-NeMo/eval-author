@@ -19,7 +19,18 @@ HASH_SUFFIXES = {".env", ".py", ".sh", ".toml", ".yaml", ".yml"}
 HTML_SUFFIXES = {".md"}
 HASH_FILENAMES = {".env.example", ".gitignore", "Makefile"}
 # Templates copied verbatim into users' repositories carry no header.
-HEADERLESS_TEMPLATES = {"ethos/skills/ethos-write/references/templates/ethos.md"}
+HEADERLESS_TEMPLATES = {"team-skills/ethos/ethos-write/references/templates/ethos.md"}
+# NVSkills CI generates and signs these reports. Adding local headers would
+# invalidate the signatures, so preserve their bytes in check and fix modes.
+# Keep this list explicit: other files in these skills still require headers.
+SIGNED_NVSKILLS_REPORTS = {
+    "team-skills/ethos/ethos-explore/BENCHMARK.md",
+    "team-skills/ethos/ethos-explore/skill-card.md",
+    "team-skills/ethos/ethos-orchestrate/BENCHMARK.md",
+    "team-skills/ethos/ethos-orchestrate/skill-card.md",
+    "team-skills/ethos/ethos-write/BENCHMARK.md",
+    "team-skills/ethos/ethos-write/skill-card.md",
+}
 
 
 def _tracked_and_untracked_files() -> list[Path]:
@@ -80,7 +91,8 @@ def check_headers(*, fix_nvidia: bool) -> list[Path]:
         style = _comment_style(path)
         if style is None or not path.is_file():
             continue
-        if path.relative_to(PROJECT_ROOT).as_posix() in HEADERLESS_TEMPLATES:
+        relative_path = path.relative_to(PROJECT_ROOT).as_posix()
+        if relative_path in HEADERLESS_TEMPLATES or relative_path in SIGNED_NVSKILLS_REPORTS:
             continue
 
         content = path.read_text(encoding="utf-8")

@@ -9,6 +9,16 @@ the evaluations live, start with the setup guide's inventory request.
 Review the [runtime requirements](getting-started.md#requirements) for the
 operation you choose.
 
+## Find local tasks without running them
+
+The shared [task search](../skills/eval-author/references/task-search.md) finds
+Harbor task directories and Gym workload candidates from provider layouts
+and Eval Author's existing extension markers.
+It uses Python's standard library and reports stable paths, marker files, and
+search limits without importing providers or executing repository code. Matches
+are inventory candidates, including incomplete scaffolds and legacy configs;
+use readiness checks only when you want to validate or execute them.
+
 ## Check readiness
 
 ```text
@@ -56,7 +66,7 @@ does not answer that question.
 
 After acceptance, Eval Author explains **ethos.md**: the document recording what
 your agent should do, its boundaries, and what success means, which gives the
-audit its target. It links the [ethos-explore skill](../ethos/skills/ethos-explore/SKILL.md)
+audit its target. It links the [ethos-explore skill](../team-skills/ethos/ethos-explore/SKILL.md)
 even when a document already exists. An existing ethos.md is linked as soon as it is
 found, with a short explanation of its intent and an opportunity to request edits
 before it becomes the audit baseline.

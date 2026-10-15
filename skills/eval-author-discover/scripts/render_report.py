@@ -12,6 +12,18 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Shared runtime helpers ship with the sibling eval-author skill.
+sys.path.append(str(Path(__file__).resolve().parents[2] / "eval-author/scripts"))
+
+try:
+    from runtime_policy import install_spec, load
+except ModuleNotFoundError as exc:
+    if exc.name != "runtime_policy":
+        raise
+    raise SystemExit(
+        "Incomplete skill installation: install the sibling eval-author skill alongside eval-author-discover."
+    ) from None
+
 
 def _required_failures(report: dict[str, Any]) -> list[dict[str, Any]]:
     return [c for c in report.get("checks", []) if c.get("status") == "fail" and c.get("severity") == "required"]
@@ -62,6 +74,30 @@ def _harbor_setup_guidance(report: dict[str, Any]) -> str:
         "We can still inspect your eval material and clarify requirements and grading rules. "
         "Creating native task files, validating them, and running evals need a working Harbor installation."
     )
+    probe = runtime.get("harbor_probe")
+    alternatives = [
+        item["python"]
+        for item in (probe or {}).get("candidates", [])
+        if item.get("provider", "harbor") == "harbor" and item.get("status") == "compatible" and item.get("python")
+    ]
+    if alternatives:
+        paths = ", ".join(f"`{path}`" for path in dict.fromkeys(alternatives))
+        return (
+            "Compatible Harbor runtimes were found at " + paths + ". Review runtime.harbor_probe for "
+            "selection or project-requirement errors, then rerun discovery with the chosen compatible candidate Python. "
+            "Do not install another copy to fix an interpreter mismatch. " + preparation
+        )
+    if probe and (
+        not probe.get("search", {}).get("complete", True)
+        or any(item.get("status") not in {"missing", "compatible"} for item in probe.get("candidates", []))
+        or probe.get("requirement_errors", {}).get("harbor")
+        or probe.get("selection", {}).get("harbor", {}).get("status") == "ambiguous"
+    ):
+        return (
+            "Harbor runtime selection is unresolved. Review the candidate paths and failure reasons "
+            "in runtime.harbor_probe, resolve the installation or selection problem, and rerun the locator. "
+            + preparation
+        )
     if runtime.get("harbor_cli"):
         return (
             "A Harbor command was found, but Harbor is unavailable in the environment checked. "
@@ -73,13 +109,16 @@ def _harbor_setup_guidance(report: dict[str, Any]) -> str:
         + preparation
         + " If you already have Harbor installed elsewhere, use that environment. Otherwise, follow "
         "[Harbor's setup guide](https://www.harborframework.com/docs/getting-started): "
-        "with uv available, run `uv tool install harbor`, then `harbor --help`. "
+        f"with uv available and setup authorized, run `uv tool install {install_spec('harbor')}`, then `harbor --help`. "
         "If uv is missing, use the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/). "
         "After setup, we'll verify Harbor and resume from the saved findings."
     )
 
 
-_GYM_SETUP = "To work from NeMo Gym environments, install `nemo-gym>=0.6.0` (Python 3.13.14 or newer)."
+_GYM_SETUP = (
+    f"After locating existing runtimes and authorizing setup, install `{install_spec('gym')}` "
+    f"in a separate Python environment meeting `{load()['providers']['gym']['python']}`."
+)
 _MAX_SOLVED = 4
 _RUNTIMES = (("Harbor", "harbor_importable"), ("NeMo Gym", "gym_available"))
 

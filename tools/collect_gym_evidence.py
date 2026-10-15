@@ -111,7 +111,7 @@ def run(output, gym_python, gym_root, gym_revision, timeout, source_root=ROOT, r
         "schema": SCHEMA,
         "protocol": PROTOCOL if route == "audit" else f"gym-{route}-ledger-controls-v1",
         "source_route": route,
-        "repository": "NVIDIA-NeMo/labs-eval-author",
+        "repository": "NVIDIA-NeMo/eval-author",
         "source_revision": git("rev-parse", "HEAD", root=source_root),
         "inputs_clean": not bool(git("status", "--porcelain", root=source_root)),
         "started_at": datetime.now(UTC).isoformat(),

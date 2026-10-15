@@ -24,9 +24,10 @@ not-for:
   - nemo-experimentalist (use to run insight-driven optimization end to end, which drives the Eval Author agent itself)
   - nemo-evaluator (use to run an existing benchmark rather than establish that a Harbor suite is runnable)
 compatibility: >-
-  Python 3.11 or later. Harbor must be importable by the interpreter that runs
-  the script, or NeMo Gym 0.6.0 or later must answer `gym --version` next to it
-  or on PATH, or it exits after Probe. Harbor must be importable for
+  Install the sibling eval-author skill for its shared runtime helpers.
+  Python 3.11 or later for the locator. Runtimes must meet the bundled
+  runtime-policy.json discovery requirements, verified by the shared locator.
+  If neither provider is compatible, discovery exits after Probe. Harbor must be importable for
   Judge and Solve on Harbor tasks, and Docker must be running for Judge's backend
   check and Solve's oracle runs. That `gym` CLI runs Judge and Solve on Gym
   manifests.
@@ -93,7 +94,10 @@ in Step 5.
 
 ## Explore an uncertain starting point
 
-Start with the supplied locations and a bounded inspection of the repository's
+Start with the supplied locations. Use the shared
+[file-only task search](../eval-author/references/task-search.md) for deterministic
+Harbor task and Gym workload candidates; retain its search limits and exclusions.
+Then make a bounded inspection of the repository's
 README, evaluation documentation, CI/workflow commands, and likely test or eval
 directories. Look for Harbor configs and tasks as well as scripts, datasets,
 notebooks, and written cases or grading criteria. Inspect representative
@@ -111,7 +115,7 @@ specific missing information instead of inventing one. For multiple suites,
 describe their differences and give each supported invocation without choosing
 one silently.
 
-This entry is Explore by hand: it establishes what material exists, not whether
+This entry is file-only Explore: it establishes what material exists, not whether
 it runs. Do not require Ethos, install tools, probe Harbor or Docker, execute
 repository code, or invoke `discover.py`: that script also runs Probe, Judge,
 and Solve. Inspect only enough case or grader source to identify what a suite
@@ -153,7 +157,7 @@ or repair without substituting an audit.
 ## Runtime prerequisite checks
 
 For Harbor readiness or the Harbor path of **Get the evaluation runtime ready**,
-read and follow [Runtime prerequisites](references/runtime-prerequisites.md) before
+read and follow [Runtime prerequisites](../eval-author/references/runtime-prerequisites.md) before
 probing tools. It contains the interpreter selection commands, verification
 criteria, setup recovery, and optional Harbor-skills check. Reuse still-current
 setup evidence and return prerequisite-only findings to the calling stage.
@@ -161,7 +165,7 @@ setup evidence and return prerequisite-only findings to the calling stage.
 Do not load or run these procedures for a file-only Explore. Missing Harbor
 blocks Judge and Solve on Harbor tasks, not Explore. Setup checks are Probe
 evidence only; they do not establish suite readiness. For a missing or broken installation, read
-[Harbor setup](references/harbor-setup.md). Installation requires the user's
+[Harbor setup](../eval-author/references/harbor-setup.md). Installation requires the user's
 setup authorization.
 
 Keep the verified `harbor_python` path for Step 1. Report optional assistant-skill
@@ -173,14 +177,17 @@ This runs all four phases: Probe, Explore, Judge, and Solve. Do not use it merel
 to verify Harbor installation during the prerequisite-only entry point above.
 
 Point the script at the repository root, not at a suite directory. Explore searches
-for configs to a depth of four directories and finds datasets at any depth.
+for configs to a depth of four directories. Task search uses the shared
+[file-only helper](../eval-author/references/task-search.md), with no depth or
+entry limit by default. Use `--task-max-depth` and `--task-max-entries` to impose
+explicit bounds when needed; an incomplete task inventory prevents a runnable verdict.
 
 ```bash
 "${harbor_python:?Select a Harbor interpreter using the probes above}" <skill_dir>/scripts/discover.py --repo .
 ```
 
-Discovery never imports NeMo Gym; it runs the `gym` command found next to the
-interpreter or on `PATH`, so Gym can stay in its own environment. Without Harbor,
+Discovery never imports NeMo Gym in its own process; use the shared locator and
+pass its selected absolute CLI with `--gym-cli`. Gym stays in its own environment. Without Harbor,
 Judge and Solve cover only Gym manifests, and Harbor findings stay unproven. Keep
 the two runtimes in separate environments; see [Harbor and NeMo Gym
 environments](references/troubleshooting.md#harbor-and-nemo-gym-environments)
@@ -208,6 +215,7 @@ Read these four fields before any others.
 
 | Field | What it settles |
 |---|---|
+| `task_search` | Shared task inventory, file evidence, exclusions, errors, and limits; incomplete search prevents readiness |
 | `phases` | Which of Probe, Explore, Judge, and Solve passed, failed, or were skipped |
 | `proven` | Whether Harbor judged this report. When `false`, no Harbor finding is evidence |
 | `runnable` | Whether every config and dataset passed every required check, and nothing Solve ran failed |

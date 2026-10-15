@@ -18,8 +18,8 @@ trace-to-environment workflow.
 
 First evaluations and coverage audits also need the ethos skills (`ethos-orchestrate`,
 `ethos-explore`, and `ethos-write`), which install separately:
-`npx skills add https://github.com/NVIDIA-NeMo/labs-eval-author/tree/main/ethos`.
-See the [ethos.md guide](../ethos/README.md).
+`npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/team-skills/ethos`.
+See the [ethos.md guide](../team-skills/ethos/README.md).
 
 Neither installation path installs Harbor, Python dependencies, a coding
 assistant, or NeMo services. Those have [workflow-specific requirements](#requirements).
@@ -57,14 +57,14 @@ For a **project installation**, replace the path and `claude-code` as needed:
 
 ```bash
 cd /path/to/your-agent-repository
-npx skills add NVIDIA-NeMo/labs-eval-author --skill '*' --agent claude-code --yes
+npx skills add NVIDIA-NeMo/eval-author --skill '*' --agent claude-code --yes
 ```
 
 This makes the skills available in this repository. For a **global installation**
 available across your projects, use this command instead:
 
 ```bash
-npx skills add NVIDIA-NeMo/labs-eval-author --skill '*' --agent claude-code --global --yes
+npx skills add NVIDIA-NeMo/eval-author --skill '*' --agent claude-code --global --yes
 ```
 
 `--agent` selects your coding assistant (`claude-code`, not `claude`). `--yes`
@@ -82,7 +82,7 @@ installation also creates `skills-lock.json` to record the installed sources.
 If you prefer the interactive installer, run:
 
 ```bash
-npx skills add NVIDIA-NeMo/labs-eval-author --skill '*'
+npx skills add NVIDIA-NeMo/eval-author --skill '*'
 ```
 
 Use the arrow keys to move, **Space** to select or deselect assistants, then
@@ -127,8 +127,8 @@ Skills CLI. You need Git, access to this GitHub repository, a POSIX shell with
 
    ```bash
    cd /path/to/your/checkouts
-   git clone https://github.com/NVIDIA-NeMo/labs-eval-author.git
-   cd labs-eval-author
+   git clone https://github.com/NVIDIA-NeMo/eval-author.git
+   cd eval-author
    pwd
    ```
 
@@ -138,7 +138,7 @@ Skills CLI. You need Git, access to this GitHub repository, a POSIX shell with
 
    ```bash
    cd /path/to/your-agent-repository
-   eval_author_source="/absolute/path/to/labs-eval-author"
+   eval_author_source="/absolute/path/to/eval-author"
    skills_dir=.claude/skills
    ```
 
@@ -197,8 +197,8 @@ discovery in the assistant.
 1. Clone this repository and print the absolute path to the entry skill:
 
    ```bash
-   git clone https://github.com/NVIDIA-NeMo/labs-eval-author.git
-   cd labs-eval-author
+   git clone https://github.com/NVIDIA-NeMo/eval-author.git
+   cd eval-author
    printf '%s/skills/eval-author/SKILL.md\n' "$PWD"
    ```
 
@@ -279,7 +279,7 @@ To continue, [check an existing suite](existing-evals.md#check-readiness),
 ## Requirements
 
 Requirements depend on the operation. Use the
-[Harbor setup guide](../skills/eval-author-discover/references/harbor-setup.md) when
+[Harbor setup guide](../skills/eval-author/references/harbor-setup.md) when
 you need to create, validate, or run Harbor tasks.
 
 | Operation | Requirements |
@@ -306,6 +306,6 @@ baseline) and `oracle` agent (the task's reference solution), or Gym's native
 positive and negative controls. These checks do not require a model provider.
 Running your actual agent uses its configured provider and dependencies.
 
-If you need help, [open an issue](https://github.com/NVIDIA-NeMo/labs-eval-author/issues)
+If you need help, [open an issue](https://github.com/NVIDIA-NeMo/eval-author/issues)
 with the workflow, relevant versions, and a minimal reproduction using synthetic
 data. Keep credentials and private traces out of public reports.
