@@ -7,5 +7,5 @@ Engineering notes on what we're building, testing, and learning in Eval Author.
 
 ## Posts
 
-- **October 8, 2026:** [Introducing Eval Author](posts/2026-10-08-introducing-eval-author.md)
+- **October 15, 2026:** [Introducing Eval Author](posts/2026-10-08-introducing-eval-author.md)
   — Helping developers build the evaluations that make agents work.

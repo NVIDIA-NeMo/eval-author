@@ -1,0 +1,59 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 420" role="img" aria-labelledby="title desc">
+  <title id="title">From information and eval properties to goals</title>
+  <desc id="desc">Two inputs feed goal generation: agent-specific information, including specifications, production traces, bug reports, and domain expertise; and general eval properties, including task distribution, task difficulty, verifier accuracy, and environment realism. Example output goals address core user journeys, failure modes, specific tool usage, appropriate task challenge, agreement with expert grading, and realistic working conditions.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#587400"/>
+    </marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #20292e; }
+      .heading { font-size: 20px; font-weight: 700; }
+      .body { font-size: 18px; fill: #46545d; }
+      .flow { fill: none; stroke: #587400; stroke-width: 2; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1080" height="420" rx="12" fill="#fff"/>
+
+  <!-- Independent input groups make both domain knowledge and shared quality criteria explicit. -->
+  <g id="agent-information">
+    <rect x="20" y="20" width="340" height="172" rx="10" fill="#f1f7f9" stroke="#cfdee4"/>
+    <text x="40" y="53" class="heading">Information about the agent</text>
+    <text x="40" y="86" class="body">Specifications</text>
+    <text x="40" y="115" class="body">Production traces</text>
+    <text x="40" y="144" class="body">Bug reports and observed failures</text>
+    <text x="40" y="173" class="body">Domain expertise</text>
+  </g>
+  <g id="general-properties">
+    <rect x="20" y="218" width="340" height="182" rx="10" fill="#f5f8ed" stroke="#dbe4c7"/>
+    <text x="40" y="252" class="heading">General eval properties</text>
+    <text x="40" y="285" class="body">Task distribution</text>
+    <text x="40" y="314" class="body">Task difficulty</text>
+    <text x="40" y="343" class="body">Verifier accuracy</text>
+    <text x="40" y="372" class="body">Environment realism</text>
+  </g>
+  <path d="M360 106 H395 V188 H427" class="flow"/>
+  <path d="M360 309 H395 V232 H427" class="flow"/>
+
+  <g id="goal-generation">
+    <rect x="430" y="156" width="200" height="108" rx="10" fill="#e6efcc" stroke="#a8bd76"/>
+    <text x="530" y="201" text-anchor="middle" class="heading">Goal generation</text>
+    <text x="530" y="233" text-anchor="middle" class="body">What should we test?</text>
+  </g>
+  <path d="M630 210 H697" class="flow"/>
+
+  <g id="example-goals">
+    <rect x="700" y="52" width="360" height="316" rx="10" fill="#fff" stroke="#ccd5d9"/>
+    <text x="722" y="88" class="heading">Example goals</text>
+    <path d="M722 103 H1038" stroke="#e0e5e7"/>
+    <g class="body">
+      <text x="722" y="139">Cover core user journeys</text>
+      <text x="722" y="179">Exercise known failure modes</text>
+      <text x="722" y="219">Test specific tool usage</text>
+      <text x="722" y="259">Include challenging tasks</text>
+      <text x="722" y="299">Match expert grading</text>
+      <text x="722" y="339">Reflect real working conditions</text>
+    </g>
+  </g>
+</svg>
