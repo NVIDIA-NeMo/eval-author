@@ -55,7 +55,7 @@ uses work counts and marks monetary cost unknown.
 
 You can plan cases before either runtime is installed. Native Gym authoring
 requires Gym v0.6.0+ in its separate Python 3.13.14+ environment.
-For Harbor authoring, see the [Harbor setup guide](../skills/eval-author-discover/references/harbor-setup.md).
+For Harbor authoring, see the [Harbor setup guide](../skills/eval-author/references/harbor-setup.md).
 Execution also needs the selected environment backend, any required application
 access, and a supported connection to your agent. See the full
 [runtime requirements](getting-started.md#requirements).

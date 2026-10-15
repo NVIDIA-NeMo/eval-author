@@ -26,8 +26,8 @@ not-for:
   - nemo-evaluator (use to run an existing benchmark without authoring tasks)
 compatibility: >-
   Proposals read local audit artifacts and task evidence without running Gym or Harbor.
-  Gym task creation needs a separate Gym v0.6.0+ runtime (Python 3.13.14+);
-  Harbor task creation needs Python 3.11+ and a CLI compatible with `harbor task init`.
+  Task creation needs the selected provider’s authoring runtime verified by
+  eval-author’s shared locator and runtime-policy.json. Keep Gym separate.
   Docker is required for Oracle and Docker-backed real-agent runs. Real-agent
   runs may require provider credentials and explicit user approval.
 maturity: alpha

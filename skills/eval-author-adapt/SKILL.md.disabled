@@ -59,7 +59,7 @@ findings below.
 Apply the shared Harbor introduction before obtaining readiness evidence from
 [`eval-author-discover`](../eval-author-discover/SKILL.md)'s runtime checks.
 For missing or broken setup, use
-[Harbor setup guidance](../eval-author-discover/references/harbor-setup.md).
+[Harbor setup guidance](../eval-author/references/harbor-setup.md).
 Carry the verified Harbor invocation into the adaptation findings for scaffolding
 and validation below.
 

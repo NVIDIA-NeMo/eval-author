@@ -19,7 +19,8 @@ not-for:
 compatibility: >-
   Python 3.11+, jsonschema 4.23+, referencing 0.28.4+; mlflow-to-atif for MLflow; gym-to-atif for Gym; nemo CLI for Intake; Harbor and
   Docker for Harbor proof. Gym output uses the sibling eval-author-task-create
-  scaffolder and an existing Gym v0.6.0+ runtime in Python 3.13.14+.
+  scaffolder. Verify authoring runtimes using eval-author’s shared locator
+  and runtime-policy.json.
   Native-agent checks use the agent's configured provider.
 metadata:
   author: Andrew Suter-Morris <asutermorris@nvidia.com>
