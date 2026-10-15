@@ -55,12 +55,17 @@ the Eval Author skills, which link to them from
 skill bundles a standard-library validator, `scripts/validate_ethos.py`.
 
 The ethos skills are published to the [NVIDIA/skills](https://github.com/NVIDIA/skills)
-catalog, which accepts only skill content signed by NVSkills CI. A pull request
-that changes `team-skills/ethos/<skill>/` cannot merge until a maintainer or admin
-comments `/nvskills-ci` after the last skill change and the run passes; keep the
-`Attach NVSkills validation signatures` commit it pushes. The `NVSkills signature`
-check in [`request-nvskills-ci.yml`](.github/workflows/request-nvskills-ci.yml)
-enforces this. Other pull requests do not need the run.
+catalog, which accepts only skill content signed by NVSkills CI. Before merging a
+pull request that changes `team-skills/ethos/<skill>/`, a maintainer or admin
+comments `/nvskills-ci` in the pull request conversation (not in a review) after
+the last skill change, confirms the `NVSkills CI` status passed, and keeps the
+`Attach NVSkills validation signatures` commit it pushes. Unsigned changes do not
+reach the catalog, which keeps the last signed version. Keep ethos skill changes
+out of pull requests that change `skills/`: one run covers every changed skill,
+so a core-skill failure would block the ethos signature. The
+`request / require-nvskills-ci / require-nvskills-ci` check fails on any pull
+request that changes `skills/` or `team-skills/` without a passing run; it is not
+required, so core-skill pull requests can merge without one.
 
 ## Public NeMo Compass dependency
 
