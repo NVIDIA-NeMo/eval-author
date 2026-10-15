@@ -100,7 +100,7 @@ unfinished step instead of repeating the opening.
 
 ## Sub-flows
 
-Read the selected sub-flow's own `SKILL.md` when its step begins and follow it.
+Load the selected sub-flow skill when its step begins and follow it.
 This file carries the standard and the routing; the sub-flow carries the steps.
 
 | Sub-flow | Use it to |
