@@ -79,20 +79,20 @@ unfinished step instead of repeating the opening.
 **ethos.md records intent the user confirmed, not intent you inferred.**
 
 - Code, prompts, configs, and docs establish what the agent does today. They
-  draft `Tools`, `Harness`, `Evaluation Setup`, and similar sections.
+  draft `Harness`, `Evaluation Setup`, and similar sections.
 - Only the user establishes purpose, principles, vision, trade-offs,
   and constraints. An inferred answer is a draft to confirm,
   never a filled section.
 - An honest `_(none)_`, recorded in `Open Questions`, beats a plausible guess.
 - The bundled validator establishes structure: front matter, schema version,
-  and the fourteen required sections. A file that validates can still be wrong;
+  and the thirteen required sections. A file that validates can still be wrong;
   the user's review establishes that it is right.
 
 ## Vocabulary
 
 | Term | Meaning |
 |---|---|
-| ethos.md | The agent's intent snapshot: front matter plus fourteen required `##` sections, schema version 1 |
+| ethos.md | The agent's intent snapshot: front matter plus thirteen required `##` sections, schema version 1 |
 | Section | One required `##` heading from the [template](../ethos-write/references/templates/ethos.md). Extra headings are allowed and preserved |
 | Inferred | Drafted from source; shown to the user as an option, never final |
 | Confirmed | Answered or accepted by the user in this conversation |

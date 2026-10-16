@@ -46,10 +46,9 @@ owner: <accountable human or team for the agent's behavioral or safety approvals
 >   `- Label: value` lines only. No prose, no blank-line-separated paragraphs.
 >   For list-valued labels inside `Scope`, separate items with semicolons, or
 >   write `_(none)_`.
-> - **Free-form sections** (`Role`, `Purpose & Outcomes`, `Tools`, `Harness`,
+> - **Free-form sections** (`Role`, `Purpose & Outcomes`, `Harness`,
 >   `Behavior`, `Principles`, `Success Criteria`, `Trade-offs`, `Constraints`,
->   `Evaluation Setup`, `Metric Semantics`, `Vision`): any markdown. `Tools`
->   accepts a markdown table or the literal string `Prompt-only.`
+>   `Evaluation Setup`, `Metric Semantics`, `Vision`): any markdown.
 
 ## Role
 
@@ -86,19 +85,6 @@ rather than inventing one.>
 - Categories: <3-6 task buckets, separated by semicolons; e.g. VPN; password reset; software access>
 - In scope: <capabilities, user intents, or situations the agent is expected to handle; semicolon-separated or `_(none)_`>
 - Out of scope: <capabilities, user intents, or situations the agent should not handle; semicolon-separated or `_(none)_`>
-
-## Tools
-
-<tools, APIs, and knowledge sources the agent can use, or the literal string
-`Prompt-only.` if none. Group related helpers by capability or source instead
-of listing every low-level method. Capture only behaviorally important purpose,
-credentials or scopes, side effects, data freshness, expected failures, and
-anything an agent reviewing a trace should know when deciding whether it shows
-bad agent behavior or a normal tool/source limitation.>
-
-| Tool or source | Purpose | Credentials/scopes | Side effects | Freshness / expected failures |
-|---|---|---|---|---|
-| current_datetime | clock for time-sensitive answers | none | none | current at call time |
 
 ## Harness
 

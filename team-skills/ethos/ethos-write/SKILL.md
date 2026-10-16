@@ -62,8 +62,8 @@ The schema is a floor, not a ceiling. Extra `##` headings and extra YAML
 front-matter keys are allowed. The parser keeps unknown body sections and
 does not fail on unknown front-matter keys. If the user already added custom
 sections, preserve them on rewrite. Do not strip custom content to make the
-file look strict. This includes a legacy `Change Scope` section: preserve it on
-edits unless the user asks otherwise, but do not treat it as authorization for
+file look strict. Preserve legacy `Tools` and `Change Scope` sections on edits
+unless the user asks otherwise. A `Change Scope` section does not authorize
 application changes in this workflow.
 
 Do not invent content to look complete: `_(none)_` in `Constraints` is honest,
@@ -121,12 +121,9 @@ and then helps nobody.
      permitted model and provider set lives; there is no `Model` section,
      because the config already records the model in use and it changes without
      touching this file.
-   - `Tools` and `Harness` should be concise. For `Harness`, describe how this
-     agent actually runs. Do not pick a named harness from a catalog, and do not
-     treat a framework import as a requirement. Group related helpers in
-     `Tools` by capability or source when they share credentials, side
-     effects, freshness, and failure modes. Keep only details that change how
-     downstream agents evaluate behavior.
+   - `Harness` should concisely describe how this agent actually runs. Do not
+     pick a named harness from a catalog or treat a framework import as a
+     requirement.
    - Avoid public shorthand like `AUT` or "agent under test." Use "this agent"
      for the agent being specified. Use "target agent" only when this agent's
      job is explicitly to inspect or modify another agent.
@@ -143,7 +140,7 @@ and then helps nobody.
    Set `updated_timestamp` on edits, not on first write. Evaluation commands
    live in `Evaluation Setup`, not in front matter. Keep the required section
    headers exactly so the file stays parseable. Extra `##` headings after
-   (or among) the canonical fourteen are allowed — keep them. The file is
+   (or among) the canonical thirteen are allowed — keep them. The file is
    lightly validated by the bundled `scripts/validate_ethos.py`, which
    checks front matter, schema version, required sections, and duplicate
    sections. It does not reject unknown headings. Section bodies stay markdown
@@ -172,7 +169,7 @@ and then helps nobody.
      || echo "ethos_parse_invalid"
    ```
 
-7. **Show a gut-check, then the file.** Before asking the user to read fourteen
+7. **Show a gut-check, then the file.** Before asking the user to read thirteen
    sections, state your impression of this agent in a short paragraph that
    combines `Role`, `Purpose & Outcomes`, `Scope`, and (when they are not
    `_(none)_`) `Principles` and `Vision`. This is a thin slice so the user can

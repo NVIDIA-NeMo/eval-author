@@ -3,8 +3,8 @@
 
 # Ethos creation conversational acceptance scenarios
 
-Use this manual protocol to review ASE-1058. It is not an automated harness,
-an execution record, or a claim of passing model evaluation. Use isolated
+Use this manual protocol to review Ethos workflows. It is not an automated
+harness, an execution record, or a claim of passing model evaluation. Use isolated
 synthetic workspaces without customer data, production services, or provider
 credentials. Retain reply channels, user answers, tool and delegation logs,
 and resulting artifacts. Judge the meaning of questions and actions, not
@@ -40,7 +40,7 @@ to optimization scope, editable parts, or another permission list still
 fails. Questions about intended tool behavior, actual validation, safety,
 or confirmed external policy remain appropriate.
 
-New files must contain the template's 14 required sections, including Scope,
+New files must contain the template's 13 required sections, including Scope,
 Behavior, Constraints, and Open Questions, with no catalog of modification
 permissions. Unknown intent stays explicit. Neither creating the document nor
 omitting a permission section grants authority to
@@ -63,7 +63,7 @@ behavior, external constraints, and quality priorities.
 
 **Continue:** Review the draft and accept its content. Inspect the handoff
 to ethos-write, its saved file, and its validation result. A new document
-passes with all 14 sections and no permission catalog. The final handoff identifies
+passes with all 13 sections and no permission catalog. The final handoff identifies
 the document and any unresolved intent without implying implementation work
 was approved or performed.
 
@@ -92,7 +92,9 @@ introduce optimization permissions, or alter application files.
 
 **Audit variant:** Repeat with history showing a guided audit opening was
 accepted and Ethos is its current milestone. Confirm that creation behaves
-the same and returns to the audit's next unfinished milestone.
+the same and returns to the audit's next unfinished milestone. When defining
+coverage, supply the agent's registry separately and check that tool items use
+its runtime names.
 
 ## 3. Eval Author fallback with Ethos skills unavailable
 
@@ -104,7 +106,7 @@ and the template readable. Resume the Ethos milestone.
 continues local capture through the documented procedure. It reuses supplied
 answers and asks only for missing intent. Neither a missing skill nor its
 fallback causes an optimization-permission interview. The saved file meets
-the same 14-section contract and preserves all confirmed safety, scope, and
+the same 13-section contract and preserves all confirmed safety, scope, and
 external constraints before review and handoff.
 
 **Validation variants:** Run once with the bundled validator available and
@@ -112,19 +114,20 @@ once without it. The former retains an actual parser result; the latter
 reports structural inspection honestly. Both check the full document and
 do not require a permission section or infer authorization from its absence.
 
-## 4. Preserve a legacy permission section during a targeted update
+## 4. Preserve legacy sections during a targeted update
 
-**Start:** Provide a valid reviewed Ethos with all 14 current sections plus
-a legacy permissions section and a custom Local Notes section. Give the
-permissions section distinct existing values, such as model changes forbidden
-and prompt changes requiring the service owner's approval. Preserve a copy of
-the file.
+**Start:** Provide a valid reviewed Ethos with all 13 current sections plus
+legacy Tools and permissions sections and a custom Local Notes section. Give
+Tools an existing inventory with lookup and reset capabilities, access limits,
+and side effects. Give the permissions section distinct existing values, such
+as model changes forbidden and prompt changes requiring the service owner's
+approval. Preserve a copy of the file.
 
 **Request:** "Update the role sentence to say this agent supports contractors
 as well as employees. Preserve the other content."
 
-**Inspect:** The targeted update preserves the legacy permissions and Local
-Notes content, creation metadata, and confirmed safety constraints. Validation
+**Inspect:** The targeted update preserves the legacy Tools, permissions, and
+Local Notes content, creation metadata, and confirmed safety constraints. Validation
 accepts the extra sections. The skill does not delete the legacy section to
 match the new template, reinterpret its contents as a new grant, or reopen
 permission questions for unrelated fields. The revised Role and update

@@ -22,10 +22,10 @@
     {
       "id": "write-implicit-from-agreed-answers",
       "prompt": "We finished the intent interview for our invoice-triage agent, and the agreed answers are in /workspace/input/invoice-triage/explore-notes.md. Capture what we agreed as the agent's ethos.md in that directory.",
-      "expected_output": "Writes /workspace/input/invoice-triage/ethos.md from the schema-v1 template: front matter with schema_version 1, name invoice-triage, an ISO 8601 created_timestamp, an author, an owner for the EUR 10,000 sign-off, and no updated_timestamp; all fourteen required sections filled from the notes, with _(none)_ for Metric Semantics and Vision and the unanswered Vision recorded in Open Questions. The per-run USD 20 evaluation budget is left out. validate_ethos.py reports the file valid; a short gut-check paragraph is shown, then the file, with a request to confirm it matches what was agreed.",
+      "expected_output": "Writes /workspace/input/invoice-triage/ethos.md from the schema-v1 template: front matter with schema_version 1, name invoice-triage, an ISO 8601 created_timestamp, an author, an owner for the EUR 10,000 sign-off, and no updated_timestamp; all thirteen required sections filled from the notes, with _(none)_ for Metric Semantics and Vision and the unanswered Vision recorded in Open Questions. The per-run USD 20 evaluation budget is left out. validate_ethos.py reports the file valid; a short gut-check paragraph is shown, then the file, with a request to confirm it matches what was agreed.",
       "assertions": [
         "Creates /workspace/input/invoice-triage/ethos.md with schema_version 1, name invoice-triage, an ISO 8601 created_timestamp, and an author, and without updated_timestamp.",
-        "Includes all fourteen required sections, with the Role, Constraints, and Trade-offs taken from the notes.",
+        "Includes all thirteen required sections, with the Role, Constraints, and Trade-offs taken from the notes.",
         "Writes _(none)_ for Vision and records the open Vision question under Open Questions instead of inventing one.",
         "Adds an owner naming the accounts-payable team lead or team for the EUR 10,000 sign-off.",
         "Does not record the USD 20 per-evaluation-run budget in ethos.md.",
