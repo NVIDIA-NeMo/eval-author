@@ -3,95 +3,37 @@
 
 # Semantic regression pilot
 
-The advisory semantic check measures whether narrative reports retain recurring
-findings and remain consistent across repeated runs over the same synthetic
-evidence. The pilot covers audit evidence gaps and limits of reconstructed-task
-proof. Each case asks for a short, focused finding using the relevant skill as
-context.
+This advisory check measures whether narrative reports retain recurring findings
+and remain consistent across repeated runs over fixed synthetic evidence. It
+measures report stability; factual correctness and full skill execution require
+separate evaluations.
 
-This measures report stability. It does not establish factual correctness, full
-skill execution, task quality, coverage arithmetic, or environment fidelity.
-Deterministic tests and execution-based evaluations provide separate evidence.
+## Baseline
 
-## Baseline and comparison
+Results are compared against a fixed, reviewed baseline. Merges and passing runs
+do not replace it automatically. Skill edits are evaluated against that reference;
+reporting and repository metadata changes do not invalidate it.
 
-A calibration run creates the first proposed baseline; it needs no earlier
-baseline. The proposal must detect deliberately damaged results and its claim
-mapping must be reviewed before it becomes the reference for later checks.
-Recurring checks compare against that fixed reference. They do not automatically
-replace it after a regression.
+Changes to the evidence or measurement method require a version update and
+baseline review. Replacement baselines must be checked with independent runs and
+deliberately damaged results before acceptance.
 
-Before configuring a replacement baseline for recurring checks, review the claim
-mapping and run independent comparison batches against the same candidate. Keep
-all results, including failures; a calibration self-test proves sensitivity to
-synthetic damage, not that fresh unchanged reports pass. Also check paraphrased
-findings and deliberately omitted or reversed findings through extraction and
-matching. Do not weaken thresholds or select a better retention run to obtain a
-pass.
+## Results
 
-The audit pilot asks directly whether the traces establish each capability.
-Merely noting that a tool was not called does not answer whether its capability
-is evidenced. Clustering and retention matching use the same frozen case context
-to resolve references, while preserving that distinction and the difference
-between missing evidence and disproven capability.
-
-A deliberate change to the evidence or measurement method requires recalibration.
-Results from different baselines or measurement methods are separate comparisons.
-Provider changes can also affect results and should be investigated before
-attributing a change to a skill edit.
-
-## Reading results
-
-- **Passed:** the measured findings and consistency meet the calibrated thresholds.
+- **Passed:** retention and consistency meet the calibrated thresholds.
 - **Regression:** a measured result falls below a threshold.
-- **Incomplete:** the check lacks enough valid evidence to reach a verdict.
+- **Incomplete:** there is insufficient valid evidence to reach a verdict.
 
-A plan confirms which cases would run; it contains no measured scores. Missing
-baselines, failed model calls, invalid claim mappings, and interrupted runs cannot
-produce an unqualified pass. Empty reports remain in the sample count.
-
-Public summaries contain aggregate measurements and source identifiers. Raw
-reports, claim mappings, baseline review packets, and operational configuration
+Reports include the candidate and recorded baseline revisions. Failed or
+interrupted measurements remain visible without being counted as passes. Public
+summaries contain aggregate results; raw reports and baseline review materials
 remain private.
 
-## Fixed baseline compatibility
+## CI
 
-The baseline is a fixed, reviewed reference. Merges, passing checks and daily
-runs never replace it automatically. The evaluated skill text can change without
-invalidating the baseline; those changes are the subject of the comparison.
+PRs run a plan without inference. Live comparisons run on `main` pushes, daily,
+and on manual dispatch. The check is advisory, so a green workflow alone does
+not establish a passing measurement; use the report's verdict and diagnostics.
 
-Bindings use an explicit `measurement_version` instead of hashing the Python
-source files. Repository names, comments and report formatting do not change
-measurement compatibility. Changes to extraction, clustering, retention matching,
-measurement prompts or scoring must bump `MEASUREMENT_VERSION` and receive a
-reviewed baseline update. This version is a maintenance contract, not automatic
-proof that an implementation change preserves measurement behavior.
-
-The October 6 reviewed pipeline hash is recognized as `narrative-measurement-v1`
-when reading existing locks. Only that exact historical hash is accepted; unknown
-hashes and mixed legacy/version bindings fail closed. This compatibility mapping
-never changes lock bytes, baseline measurements, thresholds or review evidence,
-and does not allow the old baseline to match a future measurement version.
-The repository name remains `NVIDIA-NeMo/eval-author`.
-
-CI reports show the candidate commit SHA and each case's recorded baseline source
-SHA, including on incomplete runs. Missing or malformed baseline provenance is
-shown as unavailable and does not change the verdict. These identify the source
-revisions; compatibility and artifact integrity are checked separately.
-
-Query/evidence, run count, extractor, judge, endpoint and external Ratchet runtime
-remain pinned. Baseline and bundle hashes remain necessary integrity checks.
-Changing the frozen evidence or the external measurement runtime still requires
-compatibility review; the runtime pin includes its Python and Markdown assets.
-
-CI uses `tools/run_semantic_ci.py` to publish safe diagnostics. A binding mismatch
-produces an incomplete report with `baseline_binding_mismatch` and mismatched
-field names, such as `measurement_version`. Malformed or unrecognized legacy
-bindings produce `baseline_input_error`. Private values and exception bodies are
-never published. If any baseline fails preflight, other cases are `not_run`.
-
-PRs currently run the plan only. Live checks run on main pushes, daily and manual
-dispatches. They remain advisory (`continue-on-error: true`), so inspect the live
-job and aggregate report even when the workflow is green. Live PR evaluation
-against this fixed baseline and a main control is a separate workflow extension;
-this compatibility repair does not enable PR access to inference credentials.
+See [the workflow](../.github/workflows/semantic-regression.yml) for execution
+settings and [SkillEvaluator CI reports](skill-evaluation-ci.md) for artifacts.
