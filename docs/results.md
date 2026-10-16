@@ -7,6 +7,26 @@ Eval Author saves reports and evaluation artifacts in the repository you are
 working on. Start with the report for your requested workflow, and read its
 limitations before deciding what to change.
 
+## Case and run catalog
+
+Ask: “Use Eval Author to refresh the HTML report for evaluations in
+this repository.” The report is saved at `.eval-author/report.html`, with Tasks,
+Runs, and viewer Settings. It can be generated before any task has run.
+The same command automatically generates `.eval-author/README.md` from the report:
+Each tab of the HTML report becomes H2 sections with the same tables, scores, statuses, and
+warnings; Settings is omitted. The Markdown file is a generated mirror, not a
+separately authored report. Task READMEs retain setup and rerun instructions.
+Change source artifacts or report metadata, then refresh both outputs; root README
+edits are overwritten. Its relative links open task documentation, and Harbor
+links use the default viewer addresses. Use the HTML report for saved viewer
+settings and connection checks.
+Test cases are organized by their discovered parent directory.
+
+See the [Report generation](../skills/eval-author/references/suite-readme.md#report-generation)
+for selected roots, metadata, and CLI usage. The report reads existing artifacts;
+it does not run evaluations. Missing task descriptions show `Not documented`.
+Native scores without a documented pass rule are not labeled passed or failed.
+
 ## Discovery and readiness
 
 Open `.eval-author/discovery.md`. An inventory describes the evaluations found,
@@ -21,12 +41,24 @@ See [Check readiness](existing-evals.md#check-readiness) for the next step.
 
 ## Review generated cases
 
-Start at the generated suite's root `README.md` as soon as cases are authored.
-For first evaluations this is `.eval-author/README.md`; standalone drafts use
-`.eval-author/task-drafts/<task-slug>/README.md`. Trace candidates use
+Start at `.eval-author/report.html` as soon as cases are authored;
+the final handoff links this report. For first evaluations this is `.eval-author/README.md`;
+In the report, users may open a task's README from its Actions column.
+
+Standalone drafts use `.eval-author/task-drafts/<task-slug>/README.md`. Trace candidates use
 `<task-dir>/README.md`, and generated batches also have a collection-root guide.
 The guide is refreshed after runs and linked in the handoff, including when
 execution is blocked.
+
+Task README files allow users to inspect its Input, Behavior under test,
+Expected result, and Grading sections. Input links the instruction and fixtures;
+Grading links the actual verifier code and criteria or judge files.
+
+Agents can start at the generated suite's root `README.md`.
+
+At the accepted-task handoff, create a flat `.eval-author/tasks/` catalog for new
+environments; follow the existing final task-directory convention for existing
+environments. Future suite commands point to the accepted tasks in that catalog.
 
 Its case inventory explains what each case tests, its input, expected outcome,
 and grading criteria, with links to task and verifier details. Readable summaries
@@ -56,7 +88,7 @@ outcomes. See [Build your first evaluations](first-evals.md).
 
 ## Open readable cases and traces
 
-Start with the generated suite's README for artifact paths and commands. Harbor
+Start with the html report or the README.md for artifact paths and commands. Harbor
 tasks and recorded jobs use its native local viewer. For Gym JSONL and standalone
 ATIF, Eval Author includes an offline reader that creates a private `report.html`
 you can open directly in a browser; see [Local review](../skills/eval-author/references/local-review.md)

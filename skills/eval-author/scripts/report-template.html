@@ -1,0 +1,155 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NeMo Eval Author Report</title>
+<style>
+:root{font:15px/1.55 system-ui,sans-serif;color:#203029;background:#f2f3f0;color-scheme:light}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(225deg,rgb(239,247,223),#f2f3f0 65%) no-repeat;background-size:100% 340px}
+header,main{max-width:1360px;margin:auto;padding:28px}header{display:flex;align-items:center;justify-content:space-between;gap:24px;padding-bottom:8px}
+h1{font-size:30px;margin:0}h2{font-size:23px;margin:28px 0 14px}p{margin:8px 0}.muted{color:#65736b}header p{margin-bottom:0}
+nav{display:flex;gap:18px;flex-shrink:0}button,input,select{font:inherit}button,a{touch-action:manipulation}button{cursor:pointer}
+[role=tab]{border:0;border-bottom:2px solid transparent;background:transparent;padding:10px 5px;white-space:nowrap;color:#65736b}
+[role=tab][aria-selected=true]{color:#355300;border-color:#76b900;background:rgb(239,247,223)}:focus-visible{outline:2px solid #76b900;outline-offset:3px}
+[hidden]{display:none!important}.section-header{display:flex;align-items:center;justify-content:space-between;gap:20px}.section-header h2{margin:0}#case-tables h2{overflow-wrap:anywhere}.task-path{font-family:ui-monospace,monospace}
+input,select{padding:10px;border:1px solid #cdd5cb;border-radius:5px;background:white;max-width:100%}#search{width:320px}
+.card{background:white;border:1px solid #dce1d8;border-radius:8px;padding:20px}.table-card{padding:0;overflow-x:auto;margin-top:14px}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #e4e7df;padding:16px 12px;overflow-wrap:anywhere}
+th{font-size:12px;color:#65736b;background:#fafbf8}tr:last-child td{border-bottom:0}.case-table{min-width:960px;table-layout:fixed;font-size:13px}
+.case-table th:nth-child(1){width:28%}.case-table th:nth-child(2){width:26%}.case-table th:nth-child(3){width:34%}.case-table th:nth-child(4){width:12%}
+.small{font-size:12px}.case-name{font-weight:650}.text-link{font:inherit;color:#4b7400;text-decoration:underline;text-underline-offset:3px;border:0;background:none;padding:0;text-align:left;overflow-wrap:anywhere}
+.run-table{min-width:760px}.run-table th:first-child{width:22%}.run-table th:nth-child(2){width:40%}.run-date{white-space:pre-line;font-size:13px}.run-table td:nth-child(n+3),.run-table th:nth-child(n+3){text-align:center;vertical-align:middle}.run-table td{padding:24px 12px}
+.score{position:relative;height:6px;width:180px;max-width:100%;margin:auto}.score-track{height:6px;border-radius:3px;outline:1px solid #d2d7cf;background:transparent;overflow:hidden}.score-fill{display:block;height:100%;background:#76b900}
+.score-label{position:absolute;top:14px;left:0;right:0;font-size:13px}.score-unavailable{font-size:13px;color:#65736b}.status{display:block;margin-top:6px;font-size:12px;color:#65736b}.notice{padding:12px 16px;border-left:3px solid #ffb020;margin-bottom:16px;background:#fff3d6}
+.settings-row{display:flex;gap:16px;align-items:end;flex-wrap:wrap}.settings-row label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}.settings-row>div{flex:1;min-width:220px}.settings-row input,.settings-row select{width:100%}.settings-row select{margin-top:8px}.action{padding:10px 16px;border:1px solid #bccbbf;border-radius:5px;background:rgb(239,247,223)}#settings-status:empty{display:none}
+dialog{width:min(680px,94vw);max-height:85vh;border:1px solid #bccbbf;border-radius:10px;padding:24px;color:#203029}dialog::backdrop{background:#17241d88}dialog h2{margin-top:0}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f6f1;padding:14px;font:13px/1.65 ui-monospace,monospace}.close{float:right}.empty{margin-top:20px}
+
+.task-actions .text-link{display:block;margin-bottom:10px}
+#readme-preview{width:min(960px,94vw)}#readme-path{overflow-wrap:anywhere}#readme-frame{display:block;width:100%;height:65vh;border:0;background:white}
+@media(max-width:1100px){header{flex-wrap:wrap}nav{width:100%;flex-wrap:wrap;gap:12px}}@media(max-width:650px){header,main{padding:18px}h1{font-size:26px}.section-header{align-items:stretch;flex-direction:column}#search{width:100%}}
+@media print{nav,#search,#settings,dialog{display:none!important}[role=tabpanel]{display:block!important}body{background:white}}
+</style>
+</head>
+<body>
+<header><div><h1>NeMo Eval Author Report</h1><p class="muted">Eval suite documentation, run results and test case directory.</p></div>
+<nav role="tablist" aria-label="Evaluation report"><button role="tab" id="tab-cases" aria-controls="cases" aria-selected="true" tabindex="0">Tasks</button><button role="tab" id="tab-runs" aria-controls="runs" aria-selected="false" tabindex="-1">Runs</button><button role="tab" id="tab-settings" aria-controls="settings" aria-selected="false" tabindex="-1">Settings</button></nav></header>
+<main><div id="warnings" role="status"></div>
+<section id="cases" role="tabpanel" aria-labelledby="tab-cases"><div class="section-header"><h2>Tasks</h2><input id="search" type="search" aria-label="Search tasks" placeholder="Search tasks…"></div><div id="case-tables"></div><p id="no-cases" class="empty muted" hidden>No tasks match.</p></section>
+<section id="runs" role="tabpanel" aria-labelledby="tab-runs" hidden><h2>Runs</h2><div class="card table-card"><table class="run-table"><thead><tr><th>Date / time</th><th>Run</th><th>Score</th><th>Actions</th></tr></thead><tbody id="run-rows"></tbody></table></div><p id="no-runs" class="empty muted" hidden>No recorded evaluation runs.</p></section>
+<section id="settings" role="tabpanel" aria-labelledby="tab-settings" hidden><h2>Harbor viewer settings</h2><form id="settings-form" class="card"><div class="settings-row"><div><label for="jobs-url">Jobs viewer URL</label><input id="jobs-url" type="url" required></div><div><label for="tasks-url">Task viewer URL</label><input id="tasks-url" type="url" required></div><button type="submit" class="action">Save settings</button></div><p id="settings-status" class="muted" role="status"></p></form></section>
+</main>
+<dialog id="viewer-help" aria-labelledby="viewer-help-title"><button class="action close" id="close-help">Close</button><h2 id="viewer-help-title">Open Harbor viewer</h2><p id="viewer-help-text"></p><pre id="viewer-command"></pre><button class="action" id="retry-viewer">Try again</button> <button class="action" id="configure-viewer">Configure viewer</button> <a class="text-link" id="open-viewer-directly" hidden>Open directly</a></dialog>
+<dialog id="readme-preview" aria-labelledby="readme-title"><button type="button" class="action close" id="close-readme">Close</button><h2 id="readme-title">Task README</h2><p id="readme-path" class="small muted"></p><p id="readme-message" class="muted" hidden></p><iframe id="readme-frame" title="Task README Markdown preview" sandbox=""></iframe></dialog>
+<noscript>This report uses JavaScript to display its embedded data. No network connection is required.</noscript>
+<script id="report-data" type="application/json">"__EVAL_AUTHOR_REPORT_DATA__"</script>
+<script>
+'use strict';
+const data=JSON.parse(document.getElementById('report-data').textContent);
+const byId=id=>document.getElementById(id);
+function element(tag,text,className){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;}
+const tabs=[...document.querySelectorAll('[role=tab]')];let lastContentTab=tabs[0];
+function activate(tab,focus=false,updateURL=true){if(tab.id!=='tab-settings')lastContentTab=tab;for(const item of tabs){const active=item===tab;item.setAttribute('aria-selected',String(active));item.tabIndex=active?0:-1;byId(item.getAttribute('aria-controls')).hidden=!active;}const hash='#'+tab.getAttribute('aria-controls');if(updateURL&&location.hash!==hash)history.pushState(null,'',hash);if(focus)tab.focus();}
+function fromURL(){activate(tabs.find(t=>'#'+t.getAttribute('aria-controls')===location.hash)||tabs[0],false,false);}
+addEventListener('hashchange',fromURL);fromURL();
+tabs.forEach((tab,index)=>{tab.addEventListener('click',()=>activate(tab));tab.addEventListener('keydown',event=>{const choices={ArrowRight:(index+1)%tabs.length,ArrowLeft:(index+tabs.length-1)%tabs.length,Home:0,End:tabs.length-1};if(event.key in choices){event.preventDefault();activate(tabs[choices[event.key]],true);}});});
+for(const warning of data.warnings)byId('warnings').append(element('p',warning,'notice'));
+const parent=path=>path.includes('/')?path.slice(0,path.lastIndexOf('/')):'.';
+const displayTaskPath=path=>path.replace(/^\.eval-author\//,'');
+const settingsKey='eval-author.report.viewers:'+location.pathname;
+// Harbor chooses the first free port in 8080–8089 for either mode.
+// Use the first two for concurrent viewers; saved launch addresses take precedence.
+const defaults={jobsURL:'http://127.0.0.1:8080',tasksURL:'http://127.0.0.1:8081'};
+function normalizedURL(value){const url=new URL(value);if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.search||url.hash)throw Error('Use an HTTP or HTTPS base URL without credentials, a query, or a fragment.');return url.href.replace(/\/+$/,'');}
+let settings={...defaults};
+try{const saved=JSON.parse(localStorage.getItem(settingsKey)||'null');if(saved){settings={jobsURL:normalizedURL(saved.jobsURL),tasksURL:normalizedURL(saved.tasksURL)};}}catch(_){byId('settings-status').textContent='Saved settings could not be loaded.';}
+function fillSettings(){byId('jobs-url').value=settings.jobsURL;byId('tasks-url').value=settings.tasksURL;}
+fillSettings();
+byId('settings-form').addEventListener('submit',event=>{event.preventDefault();try{const next={jobsURL:normalizedURL(byId('jobs-url').value),tasksURL:normalizedURL(byId('tasks-url').value)};if(next.jobsURL===next.tasksURL)throw Error('Jobs and tasks need separate viewer URLs.');localStorage.setItem(settingsKey,JSON.stringify(next));settings=next;byId('settings-status').textContent='';drawCases();drawRuns();activate(lastContentTab,true);}catch(error){byId('settings-status').textContent=error.message;}});
+const dialog=byId('viewer-help');byId('close-help').addEventListener('click',()=>dialog.close());byId('configure-viewer').addEventListener('click',()=>{dialog.close();activate(byId('tab-settings'),true);});
+function shellQuote(value){return "'"+value.replace(/'/g,"'\\''")+"'";}
+// Probe only the configured endpoint, on click. Never scan local ports.
+function viewerFailure(kind,message){return Object.assign(new Error(message),{kind});}
+async function viewerJSON(base,path,signal){
+  const response=await fetch(base+path,{signal,mode:'cors',credentials:'omit',cache:'no-store'});
+  if(response.status===404)throw viewerFailure('missing','The viewer is running, but this item is not in its catalog.');
+  if(!response.ok)throw viewerFailure('response','The viewer returned HTTP '+response.status+'.');
+  let value;try{value=await response.json();}catch(_){throw viewerFailure('response','The address did not return a Harbor API response.');}
+  if(!value||typeof value!=='object'||Array.isArray(value))throw viewerFailure('response','The address did not return a Harbor API response.');
+  return value;
+}
+function viewerItemAPI(mode,route){
+  if(mode==='tasks')return '/api/'+route;
+  const parts=route.split('/');
+  const trial=parts.indexOf('trials');
+  return '/api/jobs/'+parts[1]+(trial>=0?'/trials/'+parts[trial+1]:'');
+}
+async function checkViewer(base,mode,route,record){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),3000);
+  try{
+    const config=await viewerJSON(base,'/api/config',controller.signal);
+    if(!['jobs','tasks'].includes(config.mode)||typeof config.folder!=='string')throw viewerFailure('response','The address did not return a Harbor viewer configuration.');
+    if(config.mode!==mode)throw viewerFailure('mode','The viewer is running in '+config.mode+' mode. This link needs '+mode+' mode.');
+    const item=await viewerJSON(base,viewerItemAPI(mode,route),controller.signal);
+    if(mode==='tasks'){
+      const path=typeof item.task_dir==='string'?item.task_dir.replace(/\\/g,'/').replace(/\/+$/,''):'';
+      if(item.name!==record.path.split('/').pop()||!(path===record.path||path.endsWith('/'+record.path)))throw viewerFailure('different','The viewer has a task with this name, but its source directory does not match this report.');
+    }else{
+      if(typeof item.id!=='string')throw viewerFailure('response','The viewer did not return a recognizable run.');
+      if(record.id!==record.path&&item.id!==record.id)throw viewerFailure('different','The viewer has a run with this name, but its ID does not match this report.');
+    }
+  }catch(error){
+    if(error.kind)throw error;
+    throw viewerFailure('unreachable','Could not reach '+base+'. The viewer may be stopped, or the browser may be blocking the connection.');
+  }finally{clearTimeout(timer);}
+}
+let retryViewer=null;
+byId('retry-viewer').addEventListener('click',()=>{dialog.close();if(retryViewer)retryViewer();});
+function showViewerHelp(error,mode,root,base,route,retry){
+  const titles={missing:'Item not found in viewer',mode:'Different viewer mode',different:'Different evaluation source',response:'Viewer check failed',unreachable:'Could not reach Harbor viewer',unverified:'Review saved artifacts'};
+  byId('viewer-help-title').textContent=titles[error.kind]||'Open Harbor viewer';
+  byId('viewer-help-text').textContent=error.message+(error.kind==='missing'?' Configure the viewer that serves this item, or start one for the directory below.':error.kind==='unreachable'?' Check the address in Settings, or start the viewer with the command below.':'');
+  const url=new URL(base);const port=url.port||(url.protocol==='https:'?'443':'80');
+  byId('viewer-command').textContent=error.kind==='unverified'?root:'From the project root:\nharbor view '+shellQuote(root)+' --'+mode+' --port '+port;
+  retryViewer=retry;byId('retry-viewer').hidden=!retry;
+  const direct=byId('open-viewer-directly');direct.hidden=error.kind!=='unreachable';direct.href=base+'/'+(route||'');
+  if(!dialog.open)dialog.showModal();
+}
+function viewerAction(label,mode,root,route,available=true,record={}){
+  const button=element('button',label,'text-link');button.type='button';
+  async function openViewer(){
+    if(button.disabled)return;
+    const base=mode==='tasks'?settings.tasksURL:settings.jobsURL;
+    if(!route||!available){showViewerHelp(viewerFailure('unverified','This record is unverified or lacks a native viewer route. Review its saved artifacts before opening Harbor.'),mode,root,base,route,null);return;}
+    button.disabled=true;button.textContent='Checking…';button.setAttribute('aria-busy','true');
+    try{await checkViewer(base,mode,route,record);location.assign(base+'/'+route);}
+    catch(error){showViewerHelp(error,mode,root,base,route,openViewer);}
+    finally{button.disabled=false;button.textContent=label;button.removeAttribute('aria-busy');}
+  }
+  button.addEventListener('click',openViewer);return button;
+}
+
+const readmeDialog=byId('readme-preview');
+byId('close-readme').addEventListener('click',()=>readmeDialog.close());
+readmeDialog.addEventListener('close',()=>byId('readme-frame').removeAttribute('srcdoc'));
+function readmeAction(task){
+  const button=element('button','Task README','text-link');button.type='button';
+  button.addEventListener('click',()=>{
+    byId('readme-path').textContent=displayTaskPath(task.path)+'/README.md';
+    const frame=byId('readme-frame');const message=byId('readme-message');
+    frame.hidden=task.readme_html==null;message.hidden=task.readme_html!=null&&task.status!=='unverified';
+    message.textContent=task.readme_html==null?'No readable README was available when this report was generated.':task.status==='unverified'?'Saved README snapshot; the task could not be verified during the latest refresh.':'';
+    const base=new URL('../'+task.path+'/',location.href).href.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    frame.srcdoc='<!doctype html><html lang="en"><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; base-uri *; form-action \'none\'"><base href="'+base+'"><style>body{font:15px/1.6 system-ui,sans-serif;color:#203029;margin:12px;overflow-wrap:anywhere}h1{font-size:26px}h2{font-size:21px}h3{font-size:18px}a{color:#4b7400}pre{overflow:auto;padding:16px;background:#f4f6f1}code{font-family:ui-monospace,monospace;font-size:.9em}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #dce1d8;padding:8px;text-align:left}blockquote{margin-left:0;border-left:3px solid #76b900;padding-left:16px;color:#65736b}img{max-width:100%}</style><body>'+(task.readme_html||'')+'</body></html>';
+    readmeDialog.showModal();
+  });return button;
+}
+function drawCases(){const container=byId('case-tables');container.replaceChildren();const query=byId('search').value.toLowerCase();const tasks=data.tasks.filter(t=>[t.display_id,t.name,t.path,t.behavior,t.expected_outcome,t.grading_rule].filter(Boolean).join(' ').toLowerCase().includes(query));byId('no-cases').hidden=tasks.length>0;for(const directory of [...new Set(tasks.map(t=>parent(t.path)))]){const section=element('section');section.append(element('h2',displayTaskPath(directory)));const card=element('div',undefined,'card table-card');const table=element('table',undefined,'case-table');const head=element('thead');const tr=element('tr');for(const title of ['Test case / grading','Behavior','Expected outcome','Actions'])tr.append(element('th',title));head.append(tr);table.append(head);const body=element('tbody');for(const task of tasks.filter(t=>parent(t.path)===directory)){const row=element('tr');row.dataset.task=task.id;const name=element('td');name.append(element('div',task.name,'case-name'),element('p',(task.grading_kind==='unknown'?'Verifier not documented':task.grading_kind)+' · '+(task.grading_rule||'Grading not documented'),'small muted'));if(task.status==='unverified')name.append(element('span','Inventory unverified','status'));name.append(element('p',displayTaskPath(task.path),'small muted task-path'));name.title=task.issues.join('\n');row.append(name,element('td',task.behavior||'Not documented'),element('td',task.expected_outcome||'Not documented'));const action=element('td',undefined,'task-actions');action.append(viewerAction('View task','tasks',parent(task.path),'task-definitions/'+encodeURIComponent(task.path.split('/').pop()),task.status==='found',task),readmeAction(task));row.append(action);body.append(row);}table.append(body);card.append(table);section.append(card);container.append(section);}}
+function drawRuns(){const body=byId('run-rows');body.replaceChildren();byId('no-runs').hidden=data.runs.length>0;for(const run of data.runs){const row=element('tr');const date=element('td',undefined,'run-date');if(run.date){const time=element('time',run.date.replace('T','\n'));time.dateTime=run.date;date.append(time);}else date.textContent='Date not recorded';const name=element('td');name.append(viewerAction(run.name,'jobs',run.viewer_root,run.route,run.status!=='unverified',run));const labels=[run.role==='unknown'?'Role not documented':run.role,run.status];if(run.errors)labels.push(run.errors+' execution errors');if(run.invalid)labels.push(run.invalid+' invalid');if(run.unknown)labels.push(run.unknown+' pending or unclassified');name.append(element('span',labels.join(' · '),'status'));name.title=run.issues.join('\n');const score=element('td');if(run.passed!==null&&run.total>0&&run.status!=='unverified'){const chart=element('div',undefined,'score');const track=element('div',undefined,'score-track');track.setAttribute('role','meter');track.setAttribute('aria-label','Score');track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax',String(run.total));track.setAttribute('aria-valuenow',String(run.passed));track.setAttribute('aria-valuetext',run.score_label);const fill=element('span',undefined,'score-fill');fill.style.width=(100*run.passed/run.total)+'%';track.append(fill);chart.append(track,element('span',run.score_label,'score-label'));score.append(chart);}else score.append(element('span',run.status==='unverified'?'Inventory unverified':run.score_label,'score-unavailable'));const action=element('td');action.append(viewerAction('Harbor viewer','jobs',run.viewer_root,run.route,run.status!=='unverified',run));row.append(date,name,score,action);body.append(row);}}
+byId('search').addEventListener('input',drawCases);drawCases();drawRuns();
+</script>
+</body>
+</html>

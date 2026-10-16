@@ -842,6 +842,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "jsonschema" },
+    { name = "markdown-it-py" },
     { name = "referencing" },
 ]
 
@@ -875,6 +876,7 @@ dev = [
 requires-dist = [
     { name = "harbor", marker = "extra == 'audit'", specifier = ">=0.16.1" },
     { name = "jsonschema", specifier = ">=4.23" },
+    { name = "markdown-it-py", specifier = ">=4,<5" },
     { name = "mlflow-skinny", marker = "extra == 'mlflow'", specifier = ">=3.6,<4" },
     { name = "pydantic", marker = "extra == 'audit'", specifier = ">=2" },
     { name = "pyyaml", marker = "extra == 'audit'", specifier = ">=6.0" },

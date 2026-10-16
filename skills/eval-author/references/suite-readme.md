@@ -3,6 +3,238 @@
 
 # Review and rerun a generated suite
 
+## Report generation
+
+Use this section for the HTML report and generated Markdown mirror.
+
+`.eval-author/report.html` defines the case/run review content.
+Its Tasks tab lists discovered cases by directory, with task name, grading,
+behavior, expected outcome, and actions. Its Runs tab lists native runs with
+date/time, identity, role, status, score, and actions. Both show available warnings
+and missing-data states. Settings configures browser viewer addresses only.
+
+The same generator automatically writes `.eval-author/README.md` beside the HTML
+as a Markdown representation of that content. Do not choose, summarize, or author
+README content separately: each report content tab becomes an H2 section in tab
+order (`## Tasks`, then `## Runs`); omit Settings. Directory groups become H3s,
+tables keep the same columns and ordering, and native score labels replace visual
+bars. Preserve statuses, warnings, record diagnostics, and missing-data labels.
+Task README actions become relative links to the source documentation (or the
+HTML's saved snapshot when the source is unverified). Harbor actions use the
+HTML's default viewer URLs; Markdown cannot read browser settings or probe a
+viewer. Use the linked HTML report for configured addresses and connection help.
+
+Refresh both outputs with `report.py`; never hand-edit the generated root README
+or add independent summaries, plans, or sections to it. Edit task documentation,
+native artifacts, or supported reporting metadata, then regenerate. Preserve
+functional setup/rerun documentation in task READMEs and existing workflow
+records before adopting the generated root README. The remaining README guidance
+below applies to Gym and functional task documentation, not to authoring another
+Harbor catalog.
+
+Reporting observes the existing workflow; it does not select evaluations, start jobs,
+or change controls. The HTML report is an additional task/run review entry point; it does
+not replace or suppress the plan and run summary.
+
+### Generate or refresh
+
+Resolve the installed core `eval-author` skill beside the calling skill. Run its
+bundled script using Python 3.11+ with `jsonschema` and `markdown-it-py` 4.x available:
+
+```bash
+python <eval-author-skill-dir>/scripts/report.py refresh --repo .
+```
+
+This consumes the shared file-only `search_tasks.py` from PR #67 unchanged. It
+does not run `discover.py`, import the agent, invoke Harbor, or require Docker,
+credentials, or inference. By default it searches this project for tasks and
+reads retained results below `.eval-author/jobs`. For selected existing roots:
+
+```bash
+python <eval-author-skill-dir>/scripts/report.py refresh --repo . \
+  --task-root evals/tasks --jobs-root evals/jobs
+```
+
+Roots are project-relative and repeatable. Selected roots are retained in the
+HTML. Ordinary nested checkouts are excluded by the report unless explicitly
+selected; source scanner behavior is unchanged.
+
+Refresh after cases are authored, after additions or edits, and after validation
+or actual-agent runs, including failed runs. Refresh again at the final handoff
+and link the report. Present evaluation findings and report links to the user;
+describe generation internals only when asked. Reuse the settled scope and
+authorization: a missing report is not a request to redesign or execute evaluations. If report generation fails,
+report that failure separately; do not alter the task, run command, execution
+exit status, readiness result, or proof requirements to make the report succeed.
+A returning refresh reconciles artifacts even if an earlier handoff was interrupted.
+
+Outputs are `.eval-author/report.html`, containing the fixed template and validated
+embedded JSON, and its generated `.eval-author/README.md` mirror. Both use the
+same validated records; the README is never an input or separate state store.
+No companion state/data file, report-specific plan, or per-run narrative is
+generated. Never hand-edit either output or rebuild the UI per task. The HTML's
+embedded metadata is read on refresh; task READMEs and native evidence take
+precedence. Each refresh also repairs a missing or edited root README when the
+HTML is unchanged. Both outputs are prepared before publication; each file is
+replaced atomically. An interruption between replacements is repaired by the
+next refresh. Exit 0 means complete file inventory, 1 means a published incomplete
+inventory with warnings, and 2 means the refresh failed. None establishes evaluation
+validity or success.
+
+Each task row includes a Task README action below View task. It opens the saved
+README as Markdown in a modal, including headings, tables, and code blocks.
+The preview is embedded for offline use, sandboxed, and blocks scripts and
+remote resources. Refresh the report after editing a README. Missing, unreadable,
+or oversized READMEs (over 256 KiB) show an explicit unavailable message.
+
+### Report metadata
+
+Task/run fields are validated by the schema constants in `scripts/report.py`.
+Use `--metadata <temporary-json-path>` for a bounded reporting-only patch; keep
+this input in a temporary directory, not as another persistent project report.
+For example, using actual discovered paths and a documented binary reward rule:
+
+```json
+{
+  "tasks": {
+    ".eval-author/task-drafts/refund-policy": {
+      "display_id": "refund-01",
+      "grading_kind": "deterministic",
+      "grading_rule": "All refund-state assertions pass."
+    }
+  },
+  "runs": {
+    ".eval-author/jobs/refund-baseline": {
+      "role": "agent",
+      "reward_key": "reward",
+      "pass_value": 1
+    }
+  }
+}
+```
+
+At each run handoff, record its actual role and documented pass rule in this
+metadata patch before refreshing; use the same declared rule for repeats of the
+same grading contract. If the rule is unavailable, leave it unspecified.
+
+This records a report interpretation, never a verifier setting. `pass_value`
+means exact equality for that named metric; do not use it for a threshold rule.
+Only set it from the documented verifier/run contract. Without a rule, the report
+shows a native reward mean when available rather than manufacturing pass/fail.
+Missing data and errors are never zero rewards. Trials in jobs are counted only
+within their parent job. Retries are retained; conflicting totals disable the
+complete-run bar. Do not substitute a later single-case result into an earlier job.
+
+Optional imported `behavior` and `expected_outcome` fields require project-relative
+`source_refs`. Unique README sections take precedence. Test-case sections use each
+discovered task's immediate parent directory. Headings and row paths omit the
+leading `.eval-author/` for display; section identities, stored paths, and viewer
+commands retain the full project-relative paths. Do not invent product-area
+labels, derive categories from task-name prefixes, or rename directories for the
+report. Directories with the same basename under different suites remain separate.
+Tasks sharing a parent appear together, even if they belong to different run
+configurations; these are filesystem sections, not inferred suite memberships.
+Older embedded `product_area` labels are discarded on refresh.
+Verifier type is `deterministic`, `model`, `hybrid`, or `unknown`. Native Oracle/NOP
+runs are labeled controls; explicitly label custom controls and actual-agent
+runs rather than inferring their purpose from a directory name. A run patch may
+record `invalid_attempts` as native attempt ID to evidence-backed reason; native
+rewards remain unchanged and the invalid attempt is excluded from passes.
+
+### Viewer and review handoff
+
+Test cases and Runs use Harbor's native viewers. Settings stores one jobs URL
+and one task URL in browser local storage. Harbor selects the first free port
+in 8080–8089 for either mode; it has no separate task-viewer port default. The
+report starts with jobs on 8080 and tasks on 8081, preserving saved overrides.
+Use the actual address printed by each viewer's launch command when it differs.
+Clicking an action checks that URL's
+`/api/config` and the requested item's detail endpoint before navigating in the
+same tab. Verify task source paths and native run IDs so a same-named item in
+another catalog does not silently substitute for the requested item. A running
+viewer can serve existing aliases if its API resolves the correct source path.
+Do not create catalog symlinks or scan arbitrary local ports.
+
+Task mode serves immediate child task directories. If the item is missing or
+the mode is wrong, show the specific problem with Settings and a launch command.
+A three-second timeout or browser-blocked request must say the viewer could not
+be reached, not that it is definitely stopped. Offer retry and direct navigation
+when a browser cannot perform the check. The report itself works offline; only
+viewer clicks make these read-only requests. Verify options and routes against
+the installed version; the initial routes match Harbor 0.20.0.
+
+Keep the existing walkthrough below: explain the relevant task, run, and saved
+evidence and give the exact verified viewer launch command. Link the HTML as the
+catalog. Source traces and task controls are not actual-agent results. Report
+refresh does not start a viewer or claim that an environment or task is valid.
+
+## Task documentation
+
+Add these exact sections to every newly authored Harbor task's `README.md`:
+
+```markdown
+## Input
+
+The request or message the agent receives, with links to its instruction file
+and any input fixtures. Describe the relevant starting state.
+
+## Behavior under test
+
+A concise description of the capability or boundary this case exercises.
+
+## Expected result
+
+The observable result that constitutes success for this case.
+
+## Grading
+
+How the verifier measures that result: checks or judge criteria, reward metrics,
+pass rules, and known limitations. Link the test entry point, verifier code, and
+the criteria, expected-data, or judge/rubric files actually used by this task.
+```
+
+Put `Input` first after the title and optional case/source identification, then
+`Behavior under test`, `Expected result`, and `Grading`. Keep these as separate,
+nonempty H2 sections. Quote a short request verbatim; for long or structured
+inputs, describe the input shape and link the complete source. Link `instruction.md`
+and the actual fixtures with relative Markdown links, not bare code paths. Keep
+expected answers in Expected result and verifier-only data, outside Input.
+
+Keep the `Grading` heading plain; put clickable relative links in its body.
+For example, link `tests/test.sh`, `tests/verify.py`, and `tests/expected.json`
+only when those files exist and are used. For model or hybrid grading, also link
+the judge implementation and rubric/configuration actually used. A deterministic
+verifier still needs code and criteria links; it does not need an invented judge.
+Check that all README links resolve before the authoring handoff.
+
+Do not combine expected results
+and grading under `Expected outcome and grading`, or replace an existing
+`Grading` heading with that combined heading. Expected result describes success;
+Grading explains how it is measured. During task authoring, split a combined
+section into these headings while preserving its substantive content.
+
+Write the real behavior, result, and grading details, not the example prose.
+Preserve the README's other required sections. Behavior under test and Expected
+result are the canonical sources for the report's Behavior and Expected outcome
+columns.  Missing, empty, duplicate, or oversized sections show `Not documented`;
+rendering never asks a model to invent them. For existing tasks, reuse explicit
+documentation or inspect the instruction, fixtures, verifier, and rubric once to
+supply source-grounded metadata. Routine refresh must not rewrite existing task
+documentation.
+
+## Review and rerun guidance
+
+Use this guidance for setup, run commands, and evidence review with either
+provider. For Gym, keep the suite inventory and operational instructions in the
+suite README. For Harbor, use the generated report and its Markdown mirror for
+the inventory; keep setup and rerun instructions in task READMEs and existing
+workflow records, linked from the report. Do not add hand-authored sections to
+the generated Harbor root README.
+
+The suite README authoring instructions below apply to Gym suite guides and
+functional task or export documentation. Harbor's root report and README follow
+[Report generation](#report-generation).
+
 Create the review and rerun guide as soon as the first cases are authored, using
 `README.md` at the top level of each generated evaluation suite and preserving
 task README filenames as described below. Link it when presenting the created
@@ -38,10 +270,12 @@ For each case, give a short readable description and links to the details:
   fixtures. For Gym, identify the dataset and one-based physical JSONL line;
   describe the row's input in Markdown so the user need not format JSONL just
   to understand the case.
-- **Expected outcome and grading:** what a correct response or action achieves,
-  what the verifier actually checks, and any known limitation. Link the task's
-  grading explanation and verifier; keep expected answers distinct from the
-  agent's input. Reuse existing task documentation for detailed explanations.
+- **Expected outcome:** what a correct response or action achieves. Link the
+  task's separate `Expected result` section; keep expected answers distinct
+  from the agent's input.
+- **Grading:** what the verifier actually checks, the reward metrics and pass
+  rules, and any known limitation. Link the separate `Grading` section and
+  verifier. Reuse existing task documentation for detailed explanations.
 - **Source evidence:** when a case was derived from a trace, link the reviewed
   source evidence and derivation notes as provenance. State when no source trace
   was used. A source trace is not evidence that the generated case has run.

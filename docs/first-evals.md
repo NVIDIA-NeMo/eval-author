@@ -96,19 +96,26 @@ or prove that the grader handles every possible response.
 
 ## Read the output and run again
 
-The plan and run summary are saved in `.eval-author/first-eval.md`. Generated
-tasks live under `.eval-author/task-drafts/`, and run artifacts under
-`.eval-author/runs/` for Gym or `.eval-author/jobs/` for Harbor. Gym keeps the
-selected composition, dataset rows, agent/model settings, and native commands
+Run artifacts are under `.eval-author/runs/` for Gym or `.eval-author/jobs/` for Harbor.
+Gym keeps the selected composition, dataset rows, agent/model settings, and native commands
 in the plan and suite README. For Harbor, when the agent integration supports it,
 Eval Author creates `.eval-author/first-eval.yaml` with the selected cases and run settings.
 
-Start with `.eval-author/README.md` when you return to run evaluations. It saves
-the required setup, a full-suite command, and a mapping from coverage items to
-cases with commands for running them individually. It also explains where to
-find rewards, errors, and logs. These commands preserve the saved agent settings
-and use fresh output paths. Task sanity checks and actual agent evaluations are
-labeled separately.
+
+Start with `.eval-author/report.html` to review your cases and results.
+Use **Tasks** to see what each case tests and its expected
+outcome. Open a task's README from **Actions** to inspect its input, grading
+criteria, verifier links, and setup and rerun instructions. Use **Runs** to
+compare scores, distinguish control runs from actual-agent evaluations, and
+open run evidence in the Harbor viewer. If your Harbor viewer uses a different address,
+update it in **Settings**.
+
+For a Markdown version of the task and run tables, open `.eval-author/README.md`.
+To update the report after changing cases or running evaluations, ask:
+
+```text
+Refresh the evaluation report in .eval-author.
+```
 
 The summary compares agreed and delivered examples for each behavior, separating
 what was generated, validated, and actually run. It links the examples to their
@@ -123,7 +130,7 @@ To extend the suite, ask:
 
 ```text
 Show me how to rerun this suite, inspect one result, and plan broader coverage.
-Update its rerun README when adding the agreed cases.
+Update the rerun instructions and evaluation report when adding the agreed cases.
 ```
 
 For expansion, review the added examples, difficulty, expected outcomes, and
