@@ -54,22 +54,39 @@ Public summaries contain aggregate measurements and source identifiers. Raw
 reports, claim mappings, baseline review packets, and operational configuration
 remain private.
 
-## Pipeline binding and CI diagnostics
+## Fixed baseline compatibility
 
-The reviewed baseline binds the exact bytes of `tools/semantic_regression.py`
-and `tools/semantic_ratchet.py`. Even a metadata-only edit changes this binding.
-These files retain the October 6 reviewed pipeline; the historical repository
-name inside it is intentional. CI uses `tools/run_semantic_ci.py` to publish the
-current repository name and diagnostics without changing the measurement code.
+The baseline is a fixed, reviewed reference. Merges, passing checks and daily
+runs never replace it automatically. The evaluated skill text can change without
+invalidating the baseline; those changes are the subject of the comparison.
 
-The runner checks baseline inputs before inference. A binding mismatch produces
-an incomplete report with `baseline_binding_mismatch` and the mismatched field
-names, such as `pipeline_digest`. Private values and exception bodies are never
-published. If any baseline fails preflight, other cases are marked `not_run`.
-Baseline digests, review metadata and run counts are also checked. CI never
-rewrites locks or recalibrates to clear these errors.
+Bindings use an explicit `measurement_version` instead of hashing the Python
+source files. Repository names, comments and report formatting do not change
+measurement compatibility. Changes to extraction, clustering, retention matching,
+measurement prompts or scoring must bump `MEASUREMENT_VERSION` and receive a
+reviewed baseline update. This version is a maintenance contract, not automatic
+proof that an implementation change preserves measurement behavior.
 
-A deliberate measurement change requires a reviewed baseline update and an
-update to the pinned pipeline digest test. Reporting changes belong in the CI
-runner. The live job remains advisory (`continue-on-error: true`), so inspect
-its job result and aggregate report even when the workflow is green.
+The October 6 reviewed pipeline hash is recognized as `narrative-measurement-v1`
+when reading existing locks. Only that exact historical hash is accepted; unknown
+hashes and mixed legacy/version bindings fail closed. This compatibility mapping
+never changes lock bytes, baseline measurements, thresholds or review evidence,
+and does not allow the old baseline to match a future measurement version.
+The repository name remains `NVIDIA-NeMo/eval-author`.
+
+Query/evidence, run count, extractor, judge, endpoint and external Ratchet runtime
+remain pinned. Baseline and bundle hashes remain necessary integrity checks.
+Changing the frozen evidence or the external measurement runtime still requires
+compatibility review; the runtime pin includes its Python and Markdown assets.
+
+CI uses `tools/run_semantic_ci.py` to publish safe diagnostics. A binding mismatch
+produces an incomplete report with `baseline_binding_mismatch` and mismatched
+field names, such as `measurement_version`. Malformed or unrecognized legacy
+bindings produce `baseline_input_error`. Private values and exception bodies are
+never published. If any baseline fails preflight, other cases are `not_run`.
+
+PRs currently run the plan only. Live checks run on main pushes, daily and manual
+dispatches. They remain advisory (`continue-on-error: true`), so inspect the live
+job and aggregate report even when the workflow is green. Live PR evaluation
+against this fixed baseline and a main control is a separate workflow extension;
+this compatibility repair does not enable PR access to inference credentials.

@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""CI reporting outside the byte-bound, reviewed semantic measurement pipeline."""
+"""CI reporting and safe diagnostics for fixed semantic baselines."""
 
 import argparse
 import re
@@ -17,10 +17,11 @@ def preflight(suite, runtime, suite_root):
         try:
             lock_path = semantic.contained(suite_root, case["baseline"])
             lock = semantic.load(lock_path)
+            actual = semantic.normalize_binding(lock["binding"])
             expected = semantic.binding(suite, case, runtime)
-            if lock["schema"] != "nemo.semantic_lock.v1" or lock["binding"] != expected:
+            if lock["schema"] != "nemo.semantic_lock.v1" or actual != expected:
                 # Only field names from our own binding are public; never values from the bundle.
-                fields = [key for key in expected if lock["binding"].get(key) != expected[key]]
+                fields = [key for key in expected if actual.get(key) != expected[key]]
                 failures[case["id"]] = ("baseline_binding_mismatch", fields)
                 continue
             baseline = semantic.contained(lock_path.parent, "baseline.json")

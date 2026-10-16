@@ -24,6 +24,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "nemo.eval_author.semantic_regression.v1"
 SCOPE = "frozen-evidence-narrative-v1"
+# Bump when extraction, matching, prompts or scoring semantics change, not reporting.
+MEASUREMENT_VERSION = "narrative-measurement-v1"
+# Reviewed October 6 pipeline, before the repository-name-only change in PR #71.
+# Map to a literal version: a future version bump must not upgrade legacy locks.
+LEGACY_PIPELINE_VERSIONS = {
+    "d1947b2ce85b0ffab580067f8475109c7e2ec6c3634755c3e46e7aa2755be7f0": "narrative-measurement-v1",
+}
 DOMAIN = (
     "Preserve distinctions between uncovered, unmeasured, unsupported, rejected, and proven. "
     "Preserve negation, uncertainty, scope, and recommended actions. Do not normalize these away. "
@@ -100,13 +107,24 @@ def binding(suite, case, runtime):
             os.environ.get("SEMANTIC_API_URL", "https://inference-api.nvidia.com/v1/chat/completions").encode()
         ),
         "runtime_digest": tree_digest(runtime),
-        "pipeline_digest": digest(
-            {
-                name: sha((ROOT / "tools" / name).read_bytes())
-                for name in ("semantic_regression.py", "semantic_ratchet.py")
-            }
-        ),
+        "measurement_version": MEASUREMENT_VERSION,
     }
+
+
+def normalize_binding(value):
+    """Read the one reviewed legacy binding without rewriting its evidence packet."""
+    if not isinstance(value, dict):
+        raise ValueError("invalid baseline binding")
+    result = dict(value)
+    if "pipeline_digest" in result:
+        if "measurement_version" in result:
+            raise ValueError("ambiguous baseline binding")
+        version = LEGACY_PIPELINE_VERSIONS.get(result["pipeline_digest"])
+        if version is None:
+            raise ValueError("unreviewed legacy pipeline")
+        del result["pipeline_digest"]
+        result["measurement_version"] = version
+    return result
 
 
 class Model:
@@ -372,7 +390,7 @@ def match_core(suite, case, runtime, model, source, baseline):
 def check_case(suite, case, runtime, suite_root, work, model, observation=None):
     lock_path = contained(suite_root, case["baseline"])
     lock = load(lock_path)
-    if lock["schema"] != "nemo.semantic_lock.v1" or lock["binding"] != binding(suite, case, runtime):
+    if lock["schema"] != "nemo.semantic_lock.v1" or normalize_binding(lock["binding"]) != binding(suite, case, runtime):
         raise ValueError("baseline binding mismatch")
     baseline_path = contained(lock_path.parent, "baseline.json")
     if sha(baseline_path.read_bytes()) != lock["baseline_digest"]:
@@ -493,7 +511,7 @@ def run(suite_path, runtime, output, mode, model=None):
     clean = not subprocess.check_output(["git", "status", "--porcelain", "--", "skills", "tools"], cwd=ROOT)
     report = {
         "schema": SCHEMA,
-        "repository": "NVIDIA-NeMo/labs-eval-author",
+        "repository": "NVIDIA-NeMo/eval-author",
         "scope": SCOPE,
         "source_revision": revision,
         "inputs_clean": clean,

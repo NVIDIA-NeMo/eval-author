@@ -9,6 +9,7 @@ import pytest
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+import configure_semantic_ci as setup
 import run_semantic_ci as ci
 import semantic_regression as semantic
 
@@ -17,7 +18,8 @@ import semantic_regression as semantic
 def packet(tmp_path):
     runtime = tmp_path / "runtime"
     runtime.mkdir()
-    (runtime / "test.py").write_text("# runtime\n")
+    (runtime / "scripts").mkdir()
+    (runtime / "scripts/cli.py").write_text("# runtime\n")
     suite = {
         "schema": "nemo.semantic_suite.v1",
         "runs": 5,
@@ -38,16 +40,19 @@ def packet(tmp_path):
     return suite, runtime, lock
 
 
-def test_reviewed_pipeline_bytes_are_preserved(packet):
-    # October 6 reviewed pipeline. Changes require deliberate baseline review;
-    # report-only changes belong in the CI runner, not these bound files.
+def test_binding_ignores_source_and_skill_text(packet, tmp_path, monkeypatch):
     suite, runtime, _ = packet
-    assert semantic.binding(suite, suite["cases"][0], runtime)["pipeline_digest"] == (
-        "d1947b2ce85b0ffab580067f8475109c7e2ec6c3634755c3e46e7aa2755be7f0"
-    )
+    before = semantic.binding(suite, suite["cases"][0], runtime)
+    # Binding no longer reads pipeline source bytes or the evaluated skill text.
+    monkeypatch.setattr(semantic, "ROOT", tmp_path)
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools/semantic_regression.py").write_text("changed reporting text")
+    (tmp_path / "skills").mkdir()
+    (tmp_path / "skills/a.md").write_text("changed skill under evaluation")
+    assert semantic.binding(suite, suite["cases"][0], runtime) == before
 
 
-@pytest.mark.parametrize("field", ["pipeline_digest", "runtime_digest", "query_digest", "judge"])
+@pytest.mark.parametrize("field", ["measurement_version", "runtime_digest", "query_digest", "judge"])
 def test_mismatch_is_incomplete_without_inference(packet, tmp_path, monkeypatch, capsys, field):
     suite, runtime, lock = packet
     assert ci.preflight(suite, runtime, tmp_path) == {}
@@ -126,3 +131,56 @@ def test_preflight_failure_leaves_other_cases_unmeasured(packet, tmp_path, monke
     rows = semantic.load(tmp_path / "out/semantic-regression-summary.json")["observations"]
     assert [row["reason"] for row in rows] == ["not_run", "baseline_input_error"]
     assert all(row["status"] == "incomplete" and row["metrics"] is None for row in rows)
+
+
+LEGACY_DIGEST = "d1947b2ce85b0ffab580067f8475109c7e2ec6c3634755c3e46e7aa2755be7f0"
+
+
+def legacy_lock(lock):
+    result = {**lock, "binding": dict(lock["binding"])}
+    del result["binding"]["measurement_version"]
+    result["binding"]["pipeline_digest"] = LEGACY_DIGEST
+    return result
+
+
+def test_legacy_lock_works_in_preflight_check_and_packaging(packet, tmp_path, monkeypatch):
+    suite, runtime, lock = packet
+    old = legacy_lock(lock)
+    semantic.dump(tmp_path / "lock.json", old)
+    original = (tmp_path / "lock.json").read_bytes()
+    assert ci.preflight(suite, runtime, tmp_path) == {}
+    monkeypatch.setattr(semantic, "command", lambda *args: None)
+    assert setup.bundle(tmp_path / "suite.json", runtime)
+
+    class ReachedMeasurement(Exception):
+        pass
+
+    def batch(*args):
+        raise ReachedMeasurement
+
+    monkeypatch.setattr(semantic, "batch", batch)
+    with pytest.raises(ReachedMeasurement):
+        semantic.check_case(suite, suite["cases"][0], runtime, tmp_path, tmp_path / "work", object())
+    assert (tmp_path / "lock.json").read_bytes() == original
+    assert semantic.normalize_binding(old["binding"]) == lock["binding"]
+    assert "pipeline_digest" in old["binding"]
+
+
+@pytest.mark.parametrize("kind", ["unknown", "mixed", "extra", "new_version"])
+def test_legacy_compatibility_cannot_accept_unreviewed_measurements(packet, tmp_path, monkeypatch, kind):
+    suite, runtime, lock = packet
+    old = legacy_lock(lock)
+    if kind == "unknown":
+        old["binding"]["pipeline_digest"] = "0" * 64
+    elif kind == "mixed":
+        old["binding"]["measurement_version"] = semantic.MEASUREMENT_VERSION
+    elif kind == "extra":
+        old["binding"]["unexpected"] = "private"
+    else:
+        monkeypatch.setattr(semantic, "MEASUREMENT_VERSION", "narrative-measurement-v2")
+    semantic.dump(tmp_path / "lock.json", old)
+    assert ci.preflight(suite, runtime, tmp_path)
+    with pytest.raises(ValueError):
+        setup.bundle(tmp_path / "suite.json", runtime)
+    with pytest.raises(ValueError):
+        semantic.check_case(suite, suite["cases"][0], runtime, tmp_path, tmp_path / "work", object())
