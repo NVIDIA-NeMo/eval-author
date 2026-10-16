@@ -822,7 +822,9 @@ def test_inspect_flow_is_reached_only_through_eval_author() -> None:
 def test_inspect_flow_is_only_a_cli_driven_skill() -> None:
     _, body = _frontmatter_and_body(_INSPECT_DIR)
 
-    assert {path.name for path in _INSPECT_DIR.iterdir()} == {"SKILL.md"}
+    # Evaluation inputs are separate from the CLI-only runtime implementation.
+    assert {path.name for path in _INSPECT_DIR.iterdir()} == {"SKILL.md", "evals"}
+    assert (_INSPECT_DIR / "evals").is_dir()
     for command in (
         "nemo intake traces",
         "nemo intake spans",
