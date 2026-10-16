@@ -53,3 +53,23 @@ produce an unqualified pass. Empty reports remain in the sample count.
 Public summaries contain aggregate measurements and source identifiers. Raw
 reports, claim mappings, baseline review packets, and operational configuration
 remain private.
+
+## Pipeline binding and CI diagnostics
+
+The reviewed baseline binds the exact bytes of `tools/semantic_regression.py`
+and `tools/semantic_ratchet.py`. Even a metadata-only edit changes this binding.
+These files retain the October 6 reviewed pipeline; the historical repository
+name inside it is intentional. CI uses `tools/run_semantic_ci.py` to publish the
+current repository name and diagnostics without changing the measurement code.
+
+The runner checks baseline inputs before inference. A binding mismatch produces
+an incomplete report with `baseline_binding_mismatch` and the mismatched field
+names, such as `pipeline_digest`. Private values and exception bodies are never
+published. If any baseline fails preflight, other cases are marked `not_run`.
+Baseline digests, review metadata and run counts are also checked. CI never
+rewrites locks or recalibrates to clear these errors.
+
+A deliberate measurement change requires a reviewed baseline update and an
+update to the pinned pipeline digest test. Reporting changes belong in the CI
+runner. The live job remains advisory (`continue-on-error: true`), so inspect
+its job result and aggregate report even when the workflow is green.

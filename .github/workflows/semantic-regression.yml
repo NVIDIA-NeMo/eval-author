@@ -35,7 +35,7 @@ jobs:
           persist-credentials: false
       - name: Plan the synthetic narrative pilot without inference
         run: |
-          python tools/semantic_regression.py --output "$RUNNER_TEMP/semantic-plan"
+          python tools/run_semantic_ci.py --output "$RUNNER_TEMP/semantic-plan"
           cat "$RUNNER_TEMP/semantic-plan/semantic-regression-summary.md" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
@@ -59,7 +59,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Prepare fallback report if provisioning fails
-        run: python tools/semantic_regression.py --output "$RUNNER_TEMP/semantic-fallback"
+        run: python tools/run_semantic_ci.py --output "$RUNNER_TEMP/semantic-fallback"
       - name: Provision reviewed runtime and baseline bundle
         env:
           SEMANTIC_BUNDLE_URL: ${{ secrets.SEMANTIC_BUNDLE_URL }}
@@ -74,7 +74,7 @@ jobs:
           INFERENCE_HUB_API_KEY: ${{ secrets.INFERENCE_HUB_API_KEY }}
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
-          python tools/semantic_regression.py --mode check \
+          python tools/run_semantic_ci.py --mode check \
             --suite "$RUNNER_TEMP/semantic-bundle/suite.json" \
             --runtime "$RUNNER_TEMP/semantic-bundle/ratchet" --output "$RUNNER_TEMP/semantic-live"
       - name: Stage aggregate report even after failure

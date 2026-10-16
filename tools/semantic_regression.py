@@ -493,7 +493,7 @@ def run(suite_path, runtime, output, mode, model=None):
     clean = not subprocess.check_output(["git", "status", "--porcelain", "--", "skills", "tools"], cwd=ROOT)
     report = {
         "schema": SCHEMA,
-        "repository": "NVIDIA-NeMo/eval-author",
+        "repository": "NVIDIA-NeMo/labs-eval-author",
         "scope": SCOPE,
         "source_revision": revision,
         "inputs_clean": clean,
