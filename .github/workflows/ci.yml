@@ -32,6 +32,8 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
+      - name: Prepare aggregate fallback before installing tools
+        run: python tools/collect_skill_evaluations.py --plan --output "$RUNNER_TEMP/skill-fallback"
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           version: "0.12.3"
@@ -66,13 +68,22 @@ jobs:
           path: ${{ runner.temp }}/skill-evaluations-reports/
           retention-days: 30
           if-no-files-found: warn
+      - name: Stage aggregate even after failure
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/skill-publish"
+          if test -f "$RUNNER_TEMP/skill-evaluations/skillevaluator-summary.json"; then
+            cp "$RUNNER_TEMP/skill-evaluations/skillevaluator-summary.json" "$RUNNER_TEMP/skill-publish/"
+          else
+            cp "$RUNNER_TEMP/skill-fallback/skillevaluator-summary.json" "$RUNNER_TEMP/skill-publish/"
+          fi
       - name: Upload metrics for future fixtures ingestion
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: skill-evaluations-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/skill-evaluations/skillevaluator-summary.json
-          if-no-files-found: warn
+          path: ${{ runner.temp }}/skill-publish/skillevaluator-summary.json
+          if-no-files-found: error
           retention-days: 30
   task-search-platforms:
     if: >-

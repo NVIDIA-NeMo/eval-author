@@ -95,4 +95,4 @@ jobs:
           name: semantic-regression-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/semantic-publish/semantic-regression-summary.*
           retention-days: 30
-          if-no-files-found: warn
+          if-no-files-found: error

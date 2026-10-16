@@ -141,7 +141,20 @@ def execute(argv, cwd, env, log, timeout):
 SKILL_ROOTS = ("skills", "team-skills/ethos")
 
 
-def collect(repo, output, evaluator, timeout):
+def publish(output, report):
+    """Keep a complete, atomic checkpoint even when a scan is interrupted."""
+    counts = dict(Counter(row["status"] for row in report["skills"]))
+    report.update(
+        counts=counts,
+        status="incomplete" if counts.get("incomplete") else "failed" if counts.get("failed") else "passed",
+        finished_at=now(),
+    )
+    temporary = output / "skillevaluator-summary.json.tmp"
+    temporary.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
+    temporary.replace(output / "skillevaluator-summary.json")
+
+
+def collect(repo, output, evaluator, timeout, plan=False):
     repo, output = repo.resolve(), output.resolve()
     if any(output.is_relative_to(repo / root) for root in SKILL_ROOTS):
         raise ValueError("output must be outside the skill trees")
@@ -157,7 +170,39 @@ def collect(repo, output, evaluator, timeout):
         raise ValueError("skill inputs must be clean")
     output.mkdir(parents=True, exist_ok=False)
     started = now()
-    tool_versions = {}
+    tool_versions = {Path(tool).name: None for tool in (evaluator, "skillspector", "semgrep", "gitleaks")}
+    rows = [
+        {
+            "skill": entry.parent.name,
+            "path": entry.parent.relative_to(repo).as_posix(),
+            "tree_digest": tree_digest(entry.parent),
+            "started_at": started,
+            "finished_at": started,
+            "exit_code": None,
+            "collection_error": "not_run",
+            "report_digest": None,
+            "status": "incomplete",
+            "reason": "not_run",
+            "quality": None,
+        }
+        for entry in skills
+    ]
+    report = {
+        "schema": "nemo.eval_author.skill_evaluations.v1",
+        "mode": "plan" if plan else "run",
+        "repository": "NVIDIA-NeMo/eval-author",
+        "source_revision": revision,
+        "started_at": started,
+        "finished_at": now(),
+        "ci": {k: os.environ.get(k) for k in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "GITHUB_EVENT_NAME")},
+        "configured_evaluator_revision": EVALUATOR_REVISION,
+        "tool_versions": tool_versions,
+        "policy": {"profile": "external", "checks": CHECKS, "min_score": 70, "llm": False, "dedup": False},
+        "skills": rows,
+    }
+    publish(output, report)
+    if plan:
+        return report
     for tool in (evaluator, "skillspector", "semgrep", "gitleaks"):
         try:
             version = subprocess.run([tool, "--version"], capture_output=True, text=True, timeout=30)
@@ -165,8 +210,8 @@ def collect(repo, output, evaluator, timeout):
             tool_versions[Path(tool).name] = match[1] if version.returncode == 0 and match else None
         except (OSError, subprocess.TimeoutExpired):
             tool_versions[Path(tool).name] = None
-    rows = []
-    for entry in skills:
+    publish(output, report)
+    for index, entry in enumerate(skills):
         skill = entry.parent
         target = output / skill.name
         target.mkdir()
@@ -220,35 +265,19 @@ def collect(repo, output, evaluator, timeout):
             error = "skill_changed_during_scan"
         if error:
             summary.update(status="incomplete", reason=error)
-        rows.append(
-            {
-                "skill": skill.name,
-                "path": entry.parent.relative_to(repo).as_posix(),
-                "tree_digest": before,
-                "started_at": begin,
-                "finished_at": now(),
-                "exit_code": code,
-                "collection_error": error,
-                "report_digest": sha(raw) if raw else None,
-                **summary,
-            }
-        )
-    counts = dict(Counter(row["status"] for row in rows))
-    report = {
-        "schema": "nemo.eval_author.skill_evaluations.v1",
-        "repository": "NVIDIA-NeMo/eval-author",
-        "source_revision": revision,
-        "started_at": started,
-        "finished_at": now(),
-        "ci": {k: os.environ.get(k) for k in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "GITHUB_EVENT_NAME")},
-        "configured_evaluator_revision": EVALUATOR_REVISION,
-        "tool_versions": tool_versions,
-        "policy": {"profile": "external", "checks": CHECKS, "min_score": 70, "llm": False, "dedup": False},
-        "skills": rows,
-        "counts": counts,
-        "status": "incomplete" if counts.get("incomplete") else "failed" if counts.get("failed") else "passed",
-    }
-    (output / "skillevaluator-summary.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
+        rows[index] = {
+            "skill": skill.name,
+            "path": entry.parent.relative_to(repo).as_posix(),
+            "tree_digest": before,
+            "started_at": begin,
+            "finished_at": now(),
+            "exit_code": code,
+            "collection_error": error,
+            "report_digest": sha(raw) if raw else None,
+            **summary,
+        }
+        publish(output, report)
+    publish(output, report)
     return report
 
 
@@ -258,14 +287,17 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--evaluator", default="skillevaluator")
     parser.add_argument("--timeout", type=int, default=90)
+    parser.add_argument("--plan", action="store_true", help="Publish pending cases without invoking scanners")
     parser.add_argument(
         "--enforce", action="store_true", help="Fail on failed/incomplete scans as well as collection errors"
     )
     args = parser.parse_args()
     if args.timeout < 1:
         parser.error("timeout must be positive")
-    report = collect(args.repo, args.output, args.evaluator, args.timeout)
+    report = collect(args.repo, args.output, args.evaluator, args.timeout, plan=args.plan)
     print(json.dumps({"status": report["status"], "counts": report["counts"]}))
+    if args.plan:
+        return 0
     return int(any(r["collection_error"] for r in report["skills"]) or (args.enforce and report["status"] != "passed"))
 
 

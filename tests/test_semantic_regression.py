@@ -290,6 +290,10 @@ def test_workflow_main_only_credentials_and_no_calibration():
     assert "secrets." not in json.dumps(workflow["jobs"]["plan"])
     upload = live["steps"][-1]
     assert upload["if"] == "always()" and "semantic-publish" in upload["with"]["path"]
+    assert upload["with"]["if-no-files-found"] == "error"
+    stage = next(step for step in live["steps"] if step.get("name") == "Stage aggregate report even after failure")
+    assert stage["if"] == "always()"
+    assert "semantic-fallback" in stage["run"] and "semantic-live" in stage["run"]
 
 
 def test_private_bundle_parts_round_trip_and_reject_gaps(monkeypatch):
