@@ -521,31 +521,30 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
         assert workflow[True][event] == ci[True][event]
     assert workflow[True]["workflow_dispatch"]["inputs"]["run_live"]["default"] is False
     assert workflow[True]["workflow_dispatch"]["inputs"]["tier"]["default"] == "both"
-    assert workflow["concurrency"]["cancel-in-progress"] is True
+    assert workflow["concurrency"]["cancel-in-progress"] is False
     assert workflow["concurrency"]["group"] == (
         "${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"
     )
-    for job in workflow["jobs"].values():
-        assert job["continue-on-error"] is True
     plan = workflow["jobs"]["plan"]
     assert "github.event.pull_request.head.repo.full_name == github.repository" in plan["if"]
     assert "environment" not in plan and "secrets." not in json.dumps(plan)
-    job = workflow["jobs"]["live"]
+    authorization = workflow["jobs"]["authorize"]
+    job = workflow["jobs"]["evaluate"]
     assert all(
-        guard in job["if"]
+        guard in authorization["if"]
         for guard in ("refs/heads/main", "SKILL_EVALUATION_LIVE_ENABLED", "inputs.run_live", "workflow_dispatch")
     )
     assert job["environment"] == "skill-evaluator" and job["continue-on-error"]
-    assert "pull_request" not in job["if"]
-    assert "github.ref == 'refs/heads/main' &&" in job["if"]
+    assert "pull_request" not in authorization["if"]
+    assert "github.ref == 'refs/heads/main' &&" in authorization["if"]
     assert not ci["jobs"]["test"].get("needs")
-    upload = job["steps"][-1]
+    upload = workflow["jobs"]["aggregate"]["steps"][-1]
     assert upload["if"] == "always()" and upload["with"]["path"].endswith("live-skillevaluator-summary.*")
     assert workflow["permissions"] == {"contents": "read"}
     assert "provider" not in workflow[True]["workflow_dispatch"]["inputs"]
-    evaluation = next(step for step in job["steps"] if step.get("name") == "Run advisory evaluations")
+    evaluation = next(step for step in job["steps"] if step.get("name") == "Run exactly one assigned check")
     # Installation/checksum failures must prevent secret-bearing execution.
-    assert "if" not in evaluation  # GitHub's default success() gate.
+    assert evaluation["if"] == "matrix.id != 'none'"  # Implicit success() gate remains.
     assert evaluation["env"]["INFERENCE_HUB_API_KEY"] == "${{ secrets.INFERENCE_HUB_API_KEY }}"
     assert workflow["env"]["EVALUATION_TIER"] == (
         "${{ github.event_name == 'pull_request' && '2' || inputs.tier || 'both' }}"
@@ -557,8 +556,8 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
         for step in configured_job["steps"]:
             assert "EVALUATION_TIER" not in step.get("env", {})
     compose = next(step for step in job["steps"] if step.get("name") == "Install verified Docker Compose runtime")
-    assert compose["if"] == "env.EVALUATION_TIER != '2'"
-    assert evaluation["env"]["EVALUATION_SKILL"] == "${{ inputs.skill || 'all' }}"
+    assert compose["if"] == "matrix.check == 'live' && matrix.id != 'none'"
+    assert workflow["env"]["EVALUATION_SKILL"] == "${{ inputs.skill || 'all' }}"
     assert not {"OPENAI_API_KEY", "NVIDIA_API_KEY", "HUB_METADATA_API_KEY"}.intersection(evaluation["env"])
 
 
