@@ -47,7 +47,7 @@ For standalone Gym trace conversion, see
 
 ## ethos.md authoring
 
-The [`ethos-orchestrate`, `ethos-explore`, and `ethos-write` skills](team-skills/ethos/README.md) create
+The [`ethos-orchestrate`, `ethos-explore`, and `ethos-write` skills](team-skills/ethos/ethos-orchestrate/README.md) create
 and maintain an agent's `ethos.md` (schema version 1). `ethos-orchestrate` routes requests
 to the other two. They live under `team-skills/ethos/` and install separately from
 the Eval Author skills, which link to them from
