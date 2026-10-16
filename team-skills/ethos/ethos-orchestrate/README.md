@@ -96,7 +96,7 @@ parse. A section with nothing to say contains `_(none)_`.
 | `Vision` | Where the agent is headed, beyond today's scope. |
 | `Open Questions` | Unknowns to resolve. |
 
-## Install the skills
+## How to use
 
 Install all three skills from the [NVIDIA skills catalog](https://github.com/NVIDIA/skills).
 `ethos-orchestrate` routes requests to `ethos-explore` and `ethos-write`, so keep
@@ -162,5 +162,5 @@ when it writes.
 Eval Author's first evaluations and coverage audits use ethos.md as their target
 and hand off to these skills to create or revise it. Installing Eval Author
 (`npx skills add NVIDIA-NeMo/eval-author --skill '*'`) does not install
-them; follow [Install the skills](#install-the-skills) to add all three from
+them; follow [How to use](#how-to-use) to add all three from
 `nvidia/skills`.
