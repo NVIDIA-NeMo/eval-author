@@ -1,0 +1,12 @@
+job_name: inventory-lookup
+jobs_dir: .eval-author/runs
+n_attempts: 1
+orchestrator:
+  type: local
+  n_concurrent_trials: 1
+environment:
+  type: docker
+agents:
+  - name: oracle
+tasks:
+  - path: tasks/lookup-stock

@@ -1,0 +1,57 @@
+{
+  "skill_name": "eval-author-audit",
+  "evals": [
+    {
+      "id": "audit-opening",
+      "prompt": "Audit coverage of my existing evaluations against /workspace/input/ETHOS.md. I have not yet accepted an audit opening or selected traces.",
+      "expected_output": "Ends with the guided audit opening, five unchecked milestone checkboxes, Understand your agent marked as the current milestone, and Ready to get started? Does not inspect repository inputs, probe runtimes, write artifacts, measure coverage, or delegate before the user answers.",
+      "assertions": [
+        "Ends with the guided audit opening, five unchecked milestone checkboxes, Understand your agent marked as the current milestone, and Ready to get started?",
+        "Does not inspect repository inputs, probe runtimes, write artifacts, measure coverage, or delegate before the user answers."
+      ],
+      "expected_skill": "eval-author-audit",
+      "files": [
+        "files/ETHOS.md"
+      ]
+    },
+    {
+      "id": "audit-existing-spec",
+      "prompt": "Validate only the existing audit specification at /workspace/input/.eval-author/audit.md; its referenced Ethos is /workspace/input/ETHOS.md. Use available local tools offline. Report the actual validation result or dependency blocker. Do not measure traces or start a guided audit.",
+      "expected_output": "Attempts existing-spec validation using the bundled validator when available, reporting its real result or precise blocker without installing dependencies. Identifies two tool items, lookup_item and list_items, without treating schema validity as measured coverage. Preserves the supplied specification and Ethos; does not start an interview, measure traces, or generate tasks.",
+      "assertions": [
+        "Attempts existing-spec validation using the bundled validator when available, reporting its real result or precise blocker without installing dependencies.",
+        "Identifies two tool items, lookup_item and list_items, without treating schema validity as measured coverage.",
+        "Preserves the supplied specification and Ethos; does not start an interview, measure traces, or generate tasks."
+      ],
+      "expected_skill": "eval-author-audit",
+      "files": [
+        "files/ETHOS.md",
+        "files/.eval-author/audit.md"
+      ]
+    },
+    {
+      "id": "audit-report-interpretation",
+      "prompt": "Interpret the supplied historical synthetic coverage result /workspace/input/.eval-author/coverage.json. Save a short report at /workspace/output/.eval-author/audit-coverage-report.md. This is a report-only request; do not remeasure or create tasks. The underlying trace was hand-constructed, with no native task or model execution.",
+      "expected_output": "Writes the requested report identifying lookup_item as covered and list_items as uncovered: one of two tool items. Explains that tool_calls evidence proves recorded invocation only, not answer correctness, live agent behavior, or production defects. Distinguishes zero capability/failure-case denominator items from proof those behaviors are covered; does not generate tasks or claim a new measurement.",
+      "assertions": [
+        "Writes the requested report identifying lookup_item as covered and list_items as uncovered: one of two tool items.",
+        "Explains that tool_calls evidence proves recorded invocation only, not answer correctness, live agent behavior, or production defects.",
+        "Distinguishes zero capability/failure-case denominator items from proof those behaviors are covered; does not generate tasks or claim a new measurement."
+      ],
+      "expected_skill": "eval-author-audit",
+      "files": [
+        "files/.eval-author/coverage.json"
+      ]
+    },
+    {
+      "id": "eval-author-audit-negative",
+      "prompt": "What is 17 + 25? Reply with the number only.",
+      "expected_output": "42",
+      "assertions": [
+        "Answers 42 without tool calls or creating artifacts."
+      ],
+      "expected_skill": null,
+      "files": []
+    }
+  ]
+}
