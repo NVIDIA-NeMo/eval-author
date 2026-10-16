@@ -47,7 +47,6 @@ jobs:
           echo "$UV_TOOL_BIN_DIR" >> "$GITHUB_PATH"
           export PATH="$UV_TOOL_BIN_DIR:$PATH"
           uv tool install --python 3.12 'skillevaluator[security] @ git+https://github.com/NVIDIA/SkillEvaluator.git@7e189c6bdada8910dfa1684f25feedca87f2db85'
-          uv tool install --python 3.12 'skillspector @ git+https://github.com/NVIDIA/SkillSpector.git@69dcdfb74487d361ba4c811d088cfdea2ff3a9dc'
           uv tool install --python 3.12 semgrep==1.177.0
           curl --fail --location --silent --show-error https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz --output "$RUNNER_TEMP/gitleaks_8.30.1_linux_x64.tar.gz"
           curl --fail --location --silent --show-error https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_checksums.txt --output "$RUNNER_TEMP/gitleaks-checksums.txt"

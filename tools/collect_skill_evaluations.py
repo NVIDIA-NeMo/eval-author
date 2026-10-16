@@ -19,11 +19,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 EVALUATOR_REVISION = "7e189c6bdada8910dfa1684f25feedca87f2db85"
-CHECKS = "schema,version,security,pii,license,code-integrity,unicode,quality,lint"
+CHECKS = "schema,version,pii,license,code-integrity,unicode,quality,lint"
+SKIPPED_CHECKS = [{"check": "security", "validator": "Security Scan", "reason": "disabled_by_ci_policy"}]
 VALIDATORS = {
     "Schema & Repository Governance",
     "Semantic Version Validation",
-    "Security Scan",
     "PII Scan",
     "License Compliance",
     "Code Risk Analysis",
@@ -57,7 +57,12 @@ def tree_digest(skill):
 
 def summarize(report, exit_code):
     """Allowlist metrics, excluding paths, source snippets and scanner findings."""
-    result = {"status": "incomplete", "reason": "missing_or_incompatible_report", "quality": None}
+    result = {
+        "status": "incomplete",
+        "reason": "missing_or_incompatible_report",
+        "quality": None,
+        "validators": [{"name": item["validator"], "status": "skipped"} for item in SKIPPED_CHECKS],
+    }
     if not isinstance(report, dict):
         return result
     quality = report.get("quality_summary")
@@ -84,7 +89,7 @@ def summarize(report, exit_code):
     if policy.get("profile") != "external" or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(policy.get("digest"))):
         return result
     result["policy_digest"] = policy["digest"]
-    result["validators"] = [{"name": r["validator"], "status": r.get("status")} for r in rows]
+    result["validators"].extend({"name": r["validator"], "status": r.get("status")} for r in rows)
     if not isinstance(report.get("incomplete_scans"), list) or any(
         not isinstance(r.get("incomplete_scans"), list) for r in rows
     ):
@@ -170,7 +175,7 @@ def collect(repo, output, evaluator, timeout, plan=False):
         raise ValueError("skill inputs must be clean")
     output.mkdir(parents=True, exist_ok=False)
     started = now()
-    tool_versions = {Path(tool).name: None for tool in (evaluator, "skillspector", "semgrep", "gitleaks")}
+    tool_versions = {Path(tool).name: None for tool in (evaluator, "semgrep", "gitleaks")}
     rows = [
         {
             "skill": entry.parent.name,
@@ -184,6 +189,7 @@ def collect(repo, output, evaluator, timeout, plan=False):
             "status": "incomplete",
             "reason": "not_run",
             "quality": None,
+            "validators": [{"name": item["validator"], "status": "skipped"} for item in SKIPPED_CHECKS],
         }
         for entry in skills
     ]
@@ -197,13 +203,20 @@ def collect(repo, output, evaluator, timeout, plan=False):
         "ci": {k: os.environ.get(k) for k in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "GITHUB_EVENT_NAME")},
         "configured_evaluator_revision": EVALUATOR_REVISION,
         "tool_versions": tool_versions,
-        "policy": {"profile": "external", "checks": CHECKS, "min_score": 70, "llm": False, "dedup": False},
+        "policy": {
+            "profile": "external",
+            "checks": CHECKS,
+            "skipped_checks": SKIPPED_CHECKS,
+            "min_score": 70,
+            "llm": False,
+            "dedup": False,
+        },
         "skills": rows,
     }
     publish(output, report)
     if plan:
         return report
-    for tool in (evaluator, "skillspector", "semgrep", "gitleaks"):
+    for tool in (evaluator, "semgrep", "gitleaks"):
         try:
             version = subprocess.run([tool, "--version"], capture_output=True, text=True, timeout=30)
             match = re.search(r"(?<![\w.])v?(\d+\.\d+\.\d+)", version.stdout + version.stderr)

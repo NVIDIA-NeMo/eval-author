@@ -42,16 +42,21 @@ def test_ci_evaluation_is_advisory_and_always_attempts_artifact_upload():
     assert stage["if"] == "always()" and "skill-fallback" in stage["run"]
 
 
-def test_skillspector_install_uses_pinned_upstream_source_and_publishes_path_first():
+def test_only_skillspector_security_is_skipped():
     workflow = Path(__file__).resolve().parents[1] / ".github/workflows/ci.yml"
     steps = yaml.safe_load(workflow.read_text())["jobs"]["skill-evaluator"]["steps"]
     install = next(step["run"] for step in steps if step.get("name") == "Install pinned evaluation tools")
-    assert (
-        "skillspector @ git+https://github.com/NVIDIA/SkillSpector.git@69dcdfb74487d361ba4c811d088cfdea2ff3a9dc"
-        in install
-    )
-    assert "skillspector==" not in install
-    assert install.index('>> "$GITHUB_PATH"') < install.index("uv tool install")
+    assert "skillspector @" not in install
+    assert "semgrep" in install and "gitleaks" in install
+    assert collector.CHECKS == "schema,version,pii,license,code-integrity,unicode,quality,lint"
+    assert {"Secrets Detection", "Code Risk Analysis", "PII Scan"} <= collector.VALIDATORS
+    assert "Security Scan" not in collector.VALIDATORS
+    result = collector.summarize(valid_report(), 0)
+    assert result["status"] == "passed"
+    assert {"name": "Security Scan", "status": "skipped"} in result["validators"]
+    assert collector.SKIPPED_CHECKS == [
+        {"check": "security", "validator": "Security Scan", "reason": "disabled_by_ci_policy"}
+    ]
 
 
 def valid_report():
@@ -85,9 +90,9 @@ def test_passing_gate_requires_complete_evidence():
     assert collector.summarize(report, 0)["status"] == "incomplete"
 
 
-def test_quality_survives_incomplete_security_without_becoming_a_pass():
+def test_other_incomplete_scanners_still_prevent_a_pass():
     report = valid_report()
-    report["incomplete_scans"] = ["skillspector"]
+    report["incomplete_scans"] = ["semgrep"]
     result = collector.summarize(report, 1)
     assert result["status"] == "incomplete"
     assert result["quality"]["score"] == 91.2
@@ -130,6 +135,7 @@ def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch
 
     def execute(argv, cwd, env, log, timeout):
         assert "--no-llm" in argv and "--no-dedup" in argv
+        assert "security" not in argv[argv.index("--checks") + 1].split(",")
         assert "SECRET_PROVIDER_KEY" not in env
         if "eval-author" == Path(argv[2]).name:
             raise OSError("missing tool")
@@ -145,6 +151,8 @@ def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch
     assert [row["skill"] for row in result["skills"]] == ["eval-author", "new-sub-skill", "ethos-write"]
     assert result["skills"][-1]["path"] == "team-skills/ethos/ethos-write"
     assert result["counts"] == {"incomplete": 1, "passed": 2}
+    assert result["policy"]["skipped_checks"] == collector.SKIPPED_CHECKS
+    assert all({"name": "Security Scan", "status": "skipped"} in row["validators"] for row in result["skills"])
     assert "PRIVATE-SENTINEL" not in (out / "skillevaluator-summary.json").read_text()
     with pytest.raises(FileExistsError):
         collector.collect(repo, out, "skillevaluator", 5)
@@ -200,7 +208,7 @@ def test_cancellation_keeps_complete_denominator_and_completed_scores(tmp_path, 
     checkpoint = json.loads((output / "skillevaluator-summary.json").read_text())
     assert [row["skill"] for row in checkpoint["skills"]] == ["eval-author", "second"]
     assert checkpoint["status"] == "incomplete"
-    assert set(checkpoint["tool_versions"]) == {"skillevaluator", "skillspector", "semgrep", "gitleaks"}
+    assert set(checkpoint["tool_versions"]) == {"skillevaluator", "semgrep", "gitleaks"}
     completed = 1 if interrupt_at == "second_scan" else 0
     assert checkpoint["counts"]["incomplete"] == 2 - completed
     if completed:

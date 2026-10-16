@@ -13,7 +13,7 @@ replace the required unit tests, lint, or type checks.
 
 | Check | Purpose | When it runs |
 | --- | --- | --- |
-| Tier 1 | Static checks of skill structure, code, security, and documentation quality | Same-repository PRs targeting `main`, pushes to `main`, manual CI dispatch, and daily at 07:05 UTC |
+| Tier 1 | Static checks of skill structure, code, secrets, PII, and documentation quality | Same-repository PRs targeting `main`, pushes to `main`, manual CI dispatch, and daily at 07:05 UTC |
 | Tier 2 | Model-assisted context and similarity analysis | Approved live runs on `main` |
 | Tier 3 | Bounded agent evaluations using reviewed synthetic datasets | Approved live runs on `main` |
 
@@ -32,6 +32,15 @@ artifact configuration:
 
 - [Static checks](../.github/workflows/ci.yml)
 - [Coverage planning and live evaluation](../.github/workflows/skill-evaluation-live.yml)
+
+The standalone SkillSpector **Security Scan is skipped by CI policy**. It is
+excluded from `--checks`, recorded in `policy.skipped_checks`, and represented
+as `skipped` in each skill's validator summary. A passing aggregate means the
+selected checks passed; it does not claim a completed SkillSpector security scan.
+Secrets detection, code-risk analysis, code hygiene, PII, license, Unicode,
+schema/version, quality and lint checks remain enabled. Incomplete evidence from
+any enabled scanner still prevents a pass. Historical reports retain their
+original policy and verdicts; scores across different policies are not equivalent.
 
 ## Live evaluation approval
 
