@@ -285,7 +285,7 @@ cases) in the plan's proof table; without them the outcome is `unproven`.
   evidence paths.
 - Add setup, service startup, credential variable names, and reset steps to the
   suite's review and rerun guide using
-  [Suite review and rerun instructions](../eval-author/references/suite-readme.md),
+  [Review and rerun guidance](../eval-author/references/suite-readme.md#review-and-rerun-guidance),
   and list the fidelity-card gaps that affect each case among its known
   limitations in the case inventory.
 - Tell the calling flow how its tasks use the kit: a Harbor task copies the

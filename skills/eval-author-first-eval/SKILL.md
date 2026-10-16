@@ -182,9 +182,11 @@ case and grading work for the other selected cases.
 
 Before running, document each case's reward format, metric names and ranges,
 and expected control results. Derive these criteria from the intended outcome.
-Add a task README with the Ethos requirement, fixtures, verifier, and run commands.
-Also create the suite entry point `.eval-author/README.md` following
-[Suite review and rerun instructions](../eval-author/references/suite-readme.md).
+Add a task README with the Ethos requirement, fixtures, verifier, and run commands,
+following the shared [Task documentation](../eval-author/references/suite-readme.md#task-documentation)
+requirements for Harbor tasks.
+Also create the suite's review entry point following
+[Review and rerun guidance](../eval-author/references/suite-readme.md#review-and-rerun-guidance).
 Present its case inventory and link the guide at this milestone, with input,
 expected outcome, grading, and available source evidence; mark new cases as not
 run until executed. Keep it current as the environment, agent connection, and run
@@ -280,11 +282,32 @@ Recording this baseline with the evidence recorder is optional.
 
 ## 10. Review results and explain reruns
 
+For tasks that meet this workflow's working-suite criteria, follow
+[Promote accepted tasks at handoff](../eval-author/SKILL.md#promote-accepted-tasks-at-handoff).
+Use the final catalog for future suite runs and report refreshes.
+Complete that handoff's on-disk checks before marking **Run and review** complete.
+For a new Harbor environment, `.eval-author/tasks/` must contain the accepted
+cases, the future suite config must resolve them there, and the report must
+list those final paths once. Include the verified catalog path and count in the
+final reply; do not finish with only a draft inventory and baseline results.
+
 Update `.eval-author/first-eval.md` with exact commands, artifact paths, control
 results, per-task agent rewards and exceptions, and remaining blockers. Show how
 to rerun the suite, inspect one result, and add or modify a task. Finish and link
-`.eval-author/README.md` with the full-suite command and concrete commands for
-individual coverage items, following the shared suite review and rerun instructions.
+the task README run instructions and refresh `.eval-author/report.html` and
+`.eval-author/README.md` following the shared report contract.
+Preserve the full-suite command and concrete commands for individual coverage items,
+following [Review and rerun guidance](../eval-author/references/suite-readme.md#review-and-rerun-guidance).
+
+HTML refresh must not change the evaluation result or workflow state; report rendering
+failures separately. After a run, introduce the generated documentation with
+"Review your tasks and this run via the generated documentation:" and link
+`.eval-author/README.md` and `.eval-author/report.html`. Do not mention or link
+`.eval-author/first-eval.md` or supply additional information after mentioning this
+documentation unless the user explicitly asks for it.
+
+Continue saving and updating `.eval-author/first-eval.md`
+through the existing workflow, including when HTML generation fails.
 Refresh the case inventory with links to control and actual-agent results and
 available execution traces, keeping source evidence and missing traces distinct.
 Save any needed subset configs and verify their selected cases and retained

@@ -31,6 +31,11 @@ independent reference query over that data. Set executable permissions,
 realistic timeouts, and deterministic rewards; leave no scaffold placeholders.
 Introduce the Oracle as the prepared reference solution.
 
+Write the task README following the shared
+[Task documentation](../../eval-author/references/suite-readme.md#task-documentation)
+requirements. Generate and refresh the suite report following the
+[Report generation](../../eval-author/references/suite-readme.md#report-generation).
+
 Before testing, document each case's expected NOP and Oracle acceptance criteria
 in its README. For a binary completion metric, NOP should score 0 and Oracle 1.
 For named or graded metrics, specify the expected values or thresholds for each

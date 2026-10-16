@@ -101,7 +101,7 @@ applies. Stateful tasks need controls against the same stateful tools and reset
 behavior, not just fabricated final responses fed to a stateless verifier.
 
 Maintain the draft root's task-level `README.md` using
-[Suite review and rerun instructions](../../eval-author/references/suite-readme.md).
+[Review and rerun guidance](../../eval-author/references/suite-readme.md#review-and-rerun-guidance).
 Preserve its existing filename and content when adding review and rerun sections.
 Present and link its case inventory when the cases are authored, before execution.
 Link `reproducibility.md` for pinned inputs and setup; include concrete full-data
