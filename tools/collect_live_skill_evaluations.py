@@ -13,6 +13,7 @@ import math
 import os
 import re
 import subprocess
+import sys
 import threading
 import time
 from collections import Counter
@@ -22,6 +23,7 @@ from typing import NotRequired, TypedDict
 from collect_skill_evaluations import EVALUATOR_REVISION, execute, now, sha, tree_digest
 from license_duplication_policy import POLICY, expected_license_duplicate
 from live_evaluation_diagnostics import diagnostics
+from run_pinned_evaluator import CONTEXT_POLICY, CONTEXT_SCALAR_LIMIT
 
 HUB_BASE_URL = "https://inference-api.nvidia.com/v1"
 HUB_KEY = "INFERENCE_HUB_API_KEY"
@@ -71,6 +73,7 @@ class LiveReport(TypedDict):
     started_at: str
     mode: str
     ci: dict[str, str | None]
+    ci_shard: NotRequired[str]
     policy: dict[str, object]
     observations: list[Observation]
     updated_at: NotRequired[str]
@@ -263,8 +266,69 @@ def unchanged(skills, digests):
         return False
 
 
+def persist_report(report, output):
+    report["updated_at"] = now()
+    report["counts"] = dict(Counter(row["status"] for row in report["observations"]))
+    target = output / "live-skillevaluator-summary.json"
+    temporary = output / "summary.tmp"
+    temporary.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
+    temporary.replace(target)
+    lines = [
+        "# SkillEvaluator Tier 2/3",
+        "",
+        f"Mode: `{report['mode']}`; revision: `{report['source_revision']}`.",
+        "",
+        "| Tier | Scope | Check | Status | Reason |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for row in report["observations"]:
+        lines.append(f"| {row['tier']} | {row['skill']} | {row['check']} | {row['status']} | {row['reason'] or ''} |")
+    for row in report["observations"]:
+        if row.get("diagnostics"):
+            lines.extend(
+                [
+                    "",
+                    f"## Tier {row['tier']} {row['skill']} diagnostics",
+                    "",
+                    "<pre>" + html.escape(row["diagnostics"]) + "</pre>",
+                ]
+            )
+        if row["status"] == "completed":
+            lines.extend(
+                [
+                    "",
+                    f"## {row['skill']} A/B metrics",
+                    "",
+                    "| Metric | With skill | Without skill | Lift |",
+                    "| --- | --- | --- | --- |",
+                ]
+            )
+            arms = row["arms"]
+            lines.append(
+                f"| Pass rate | {arms['with_skill']['pass_rate']:.3f} | "
+                f"{arms['without_skill']['pass_rate']:.3f} | {row['pass_rate_lift']:+.3f} |"
+            )
+            for key in DIMENSIONS:
+                lines.append(
+                    f"| {key} | {arms['with_skill']['dimensions'][key]:.3f} | "
+                    f"{arms['without_skill']['dimensions'][key]:.3f} | {row['dimension_lift'][key]:+.3f} |"
+                )
+    lines.extend(["", "Completed Tier 3 means both arms were scored; it does not mean the skill improved results."])
+    (output / "live-skillevaluator-summary.md").write_text("\n".join(lines) + "\n")
+
+
 def collect(
-    repo, output, *, tier="both", skill_name="all", provider="inference_hub", run=False, evaluator="skillevaluator"
+    repo,
+    output,
+    *,
+    tier="both",
+    skill_name="all",
+    provider="inference_hub",
+    run=False,
+    evaluator="skillevaluator",
+    check_name="all",
+    ci_context_budget=False,
+    evaluator_python=None,
 ):
     repo, output = repo.resolve(), output.resolve()
     if output.is_relative_to(repo):
@@ -315,61 +379,15 @@ def collect(
             "tier3_timeout_seconds": 1800,
             "monetary_budget_enforced": False,
             "context_duplication_exception": POLICY,
+            "requested_check": check_name,
+            "context_comparison_policy": CONTEXT_POLICY if ci_context_budget else "upstream",
+            "context_scalar_limit": CONTEXT_SCALAR_LIMIT if ci_context_budget else 25_000_000,
         },
         "observations": [],
     }
 
     def persist():
-        report["updated_at"] = now()
-        report["counts"] = dict(Counter(row["status"] for row in report["observations"]))
-        target = output / "live-skillevaluator-summary.json"
-        temporary = output / "summary.tmp"
-        temporary.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
-        temporary.replace(target)
-        lines = [
-            "# SkillEvaluator Tier 2/3",
-            "",
-            f"Mode: `{report['mode']}`; revision: `{revision}`.",
-            "",
-            "| Tier | Scope | Check | Status | Reason |",
-            "| --- | --- | --- | --- | --- |",
-        ]
-        for row in report["observations"]:
-            lines.append(
-                f"| {row['tier']} | {row['skill']} | {row['check']} | {row['status']} | {row['reason'] or ''} |"
-            )
-        for row in report["observations"]:
-            if row.get("diagnostics"):
-                lines.extend(
-                    [
-                        "",
-                        f"## Tier {row['tier']} {row['skill']} diagnostics",
-                        "",
-                        "<pre>" + html.escape(row["diagnostics"]) + "</pre>",
-                    ]
-                )
-            if row["status"] == "completed":
-                lines.extend(
-                    [
-                        "",
-                        f"## {row['skill']} A/B metrics",
-                        "",
-                        "| Metric | With skill | Without skill | Lift |",
-                        "| --- | --- | --- | --- |",
-                    ]
-                )
-                arms = row["arms"]
-                lines.append(
-                    f"| Pass rate | {arms['with_skill']['pass_rate']:.3f} | "
-                    f"{arms['without_skill']['pass_rate']:.3f} | {row['pass_rate_lift']:+.3f} |"
-                )
-                for key in DIMENSIONS:
-                    lines.append(
-                        f"| {key} | {arms['with_skill']['dimensions'][key]:.3f} | "
-                        f"{arms['without_skill']['dimensions'][key]:.3f} | {row['dimension_lift'][key]:+.3f} |"
-                    )
-        lines.extend(["", "Completed Tier 3 means both arms were scored; it does not mean the skill improved results."])
-        (output / "live-skillevaluator-summary.md").write_text("\n".join(lines) + "\n")
+        persist_report(report, output)
 
     for skill in skills:
         selected = skill_name in ("all", skill.name)
@@ -383,7 +401,7 @@ def collect(
                 "reason": "explicit_run_required",
                 "cases": None,
             }
-            if not selected or tier not in ("both", level):
+            if not selected or tier not in ("both", level) or check_name not in ("all", check):
                 row.update(status="skipped", reason="not_selected")
             elif level == "3":
                 try:
@@ -400,8 +418,8 @@ def collect(
                 "skill": "collection",
                 "check": "similarity",
                 "tree_digest": sha(json.dumps(digests, sort_keys=True).encode()),
-                "status": "not_run",
-                "reason": "explicit_run_required",
+                "status": "not_run" if check_name in ("all", "similarity") else "skipped",
+                "reason": "explicit_run_required" if check_name in ("all", "similarity") else "not_selected",
                 "cases": None,
             }
         )
@@ -431,6 +449,12 @@ def collect(
                 command = "context-optimization-check" if row["check"] == "context" else "similarity-check"
                 scope = skill if row["check"] == "context" else repo / "skills"
                 argv = [evaluator, command, str(scope), "-r", "json", "-o", str(target / "reports")]
+                if row["check"] == "context" and ci_context_budget:
+                    argv = [
+                        evaluator_python or sys.executable,
+                        str(Path(__file__).with_name("run_pinned_evaluator.py")),
+                        *argv[1:],
+                    ]
                 code, error = execute_with_progress(argv, repo, env, target / "console.log", 300)
                 paths = list((target / "reports").glob("*.json"))
             else:
@@ -496,7 +520,8 @@ def collect(
                 if row["tier"] == 2
                 else summarize_tier3(data, code, row["cases"])
             )
-            row.update(result)
+            row = {**row, **result}
+            report["observations"][index] = row
         except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
             row.update(status="incomplete", reason="tool_or_report_error")
             data = {"execution_errors": [f"Collector {type(exc).__name__}: {exc}"], "results": [data]}
@@ -546,6 +571,9 @@ def main():
     parser.add_argument("--skill", default="all")
     parser.add_argument("--provider", choices=("inference_hub",), default="inference_hub")
     parser.add_argument("--evaluator", default="skillevaluator")
+    parser.add_argument("--check", choices=("all", "context", "similarity", "live"), default="all")
+    parser.add_argument("--ci-context-budget", action="store_true")
+    parser.add_argument("--evaluator-python")
     parser.add_argument("--run", action="store_true", help="Authorize provider calls and Docker agent execution")
     args = parser.parse_args()
     report = collect(
@@ -556,6 +584,9 @@ def main():
         provider=args.provider,
         run=args.run,
         evaluator=args.evaluator,
+        check_name=args.check,
+        ci_context_budget=args.ci_context_budget,
+        evaluator_python=args.evaluator_python,
     )
     print(json.dumps({"mode": report["mode"], "counts": report["counts"]}))
     return int(args.run and any(r["status"] in ("incomplete", "not_run") for r in report["observations"]))

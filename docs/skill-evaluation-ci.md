@@ -27,6 +27,17 @@ schedule starts after merge to `main` and does not enable live model evaluations
 Tier 3 requires a skill-owned `evals/evals.json`; missing datasets are reported
 as skipped rather than treated as successful evaluations.
 
+Live runs use independent jobs for each skill's Tier 2 context check and eligible
+Tier 3 dataset, plus one collection-wide similarity job. At most two jobs run
+at once. Each writes a fallback before setup and checkpoints completed work;
+the final aggregate records missing or invalid job reports as incomplete.
+Runner loss or cancellation can still prevent the aggregate job from publishing.
+
+CI permits up to 100 million scalar comparisons per context check using the
+pinned evaluator's unchanged pairwise algorithm, with a five-minute timeout.
+The allowance is recorded in report policy and applies only after verifying the
+installed evaluator commit. Exceeding either bound remains incomplete.
+
 The workflow files are the source of truth for tool versions, limits, and
 artifact configuration:
 
@@ -45,8 +56,7 @@ original policy and verdicts; scores across different policies are not equivalen
 ## Live evaluation approval
 
 Live evaluation uses a protected GitHub environment. It is restricted to
-`main`, requires approval from the designated maintainer team, prevents
-self-approval, and disables administrator bypass. These protections are
+`main` and requires approval from the designated maintainer team. These protections are
 configured in GitHub settings; declaring an environment in YAML does not
 create them. Repository administrators can still change those settings.
 
@@ -62,7 +72,13 @@ Download reports from the workflow run's **Artifacts** section:
 
 - `skill-evaluations-<run-id>-<attempt>` contains the static-check summary.
 - `skill-evaluations-live-<run-id>-<attempt>` contains the live-evaluation JSON
-  and Markdown summaries, including plans when no live work was requested.
+  and Markdown aggregate summaries.
+- `skill-evaluation-plan-<run-id>-<attempt>` contains the coverage plan.
+- `skill-shard-<run-id>-<attempt>-<check>-<skill>` contains an individual job report.
+
+Aggregation accepts only matching revisions, policies, and the current run
+attempt. Use **Re-run all jobs** for a complete retry; rerunning only failed jobs
+leaves earlier-attempt results unavailable in the new aggregate.
 
 Summaries identify the evaluated revision, skills, checks, and available
 results. A high quality score does not imply that all checks passed. Missing
