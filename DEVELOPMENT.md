@@ -69,12 +69,22 @@ required, so core-skill pull requests can merge without one.
 
 ## Public NeMo Compass dependency
 
-The development dependencies include `trace-ingest[mlflow]` pinned to an exact
-commit in the public [NVIDIA-NeMo/labs-nemo-compass](https://github.com/NVIDIA-NeMo/labs-nemo-compass)
-repository. Local development and GitHub Actions fetch it over HTTPS with
-`uv sync --locked`; no GitHub login, token, deploy key, or separate checkout is
-required. Keep the Git revision in `pyproject.toml` and `uv.lock` synchronized
-when deliberately updating the dependency.
+The optional loaders and development environment use `insight-agent[mlflow]==0.1.0rc1`.
+Compass bundles the `trace_ingest` models and loaders in that distribution.
+Until the combined wheel is published, `tool.uv.sources` pins the public
+[NVIDIA-NeMo/nemo-compass](https://github.com/NVIDIA-NeMo/nemo-compass) source;
+`uv sync --locked` needs no GitHub credentials or separate checkout.
+Remove the source override and regenerate `uv.lock` only after validating the
+published wheel. Keep the loader version/revision checks and installation guides
+synchronized with deliberate dependency updates.
+
+To test the release artifact, sync first, then replace the source install with
+`uv pip install --reinstall --no-deps /path/to/insight_agent-0.1.0rc1-py3-none-any.whl`
+and run `uv run --no-sync pytest tests/test_trace_intel_loaders.py`.
+Wheel receipts record the distribution and version with a null Git revision;
+Git installs must match the documented commit. Use a fresh environment when
+migrating from standalone `trace-ingest`, since both distributions own the same
+Python import path.
 
 For a stacked PR whose base is not `main`, run the same test matrix manually
 with `gh workflow run ci.yml --repo NVIDIA-NeMo/eval-author --ref BRANCH`.

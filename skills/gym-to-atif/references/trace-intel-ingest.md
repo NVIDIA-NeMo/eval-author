@@ -5,8 +5,8 @@
 
 Read this when normalized provider evidence is useful alongside ATIF, or when
 ATIF cannot represent the available capture. This path uses the shared
-[`trace-ingest` package](https://github.com/NVIDIA-NeMo/labs-nemo-compass/tree/692d1bf57b6a9372f628b7c2004852aec7a9a83e/packages/trace-ingest)
-at revision `692d1bf57b6a9372f628b7c2004852aec7a9a83e`. It emits NeMo Compass models,
+`trace_ingest` loaders bundled in [NeMo Compass](https://github.com/NVIDIA-NeMo/nemo-compass)'s
+`insight-agent==0.1.0rc1` distribution. It emits NeMo Compass models,
 **not ATIF**. Do not pass its JSON files to Harbor, audit measurement, or the
 experimental trace-environment `prepare` command as trajectories.
 
@@ -17,8 +17,13 @@ install the pinned package (the scripts never install dependencies themselves):
 
 ```bash
 uv pip install \
-  'trace-ingest @ git+https://github.com/NVIDIA-NeMo/labs-nemo-compass.git@692d1bf57b6a9372f628b7c2004852aec7a9a83e#subdirectory=packages/trace-ingest'
+  'insight-agent @ git+https://github.com/NVIDIA-NeMo/nemo-compass.git@ac6170678755f4dd134635e699f0f970b35fe4bb'
 ```
+
+Until the combined release is published, use the pinned source above. To validate
+an approved release wheel, install it in a fresh environment with
+`uv pip install '/path/to/insight_agent-0.1.0rc1-py3-none-any.whl'`.
+The separate `trace-ingest` distribution must not be installed alongside Compass.
 
 Run from this skill directory using that environment's Python:
 
@@ -43,8 +48,8 @@ an ATIF trajectory. An original Harbor ATIF still takes precedence for ATIF
 consumers. Neither missing ATIF nor a reward supplies missing interactions.
 
 Outputs are `source.gym.json` (exact selected bytes), `trace.normalized.json`
-(one `trace_ingest.Trace`), and `loading.json` (revision, selected line, and
-digests). Source gaps remain in the normalized source metadata, and loader join
+(one `trace_ingest.Trace`), and `loading.json` (distribution, version, optional
+Git revision, selected line, and digests). Source gaps remain in the normalized source metadata, and loader join
 gaps remain in `attributes.gym_loader_gaps`. Retain and inspect both; zero
 reported gaps does not establish complete producer coverage.
 
@@ -56,7 +61,7 @@ source paths are not opened. Output contains restricted trace data; do not
 publish it or treat it as a sanitized report. CLI success and errors are
 content-free; provider exceptions are not echoed.
 
-On failure, check the installed pinned revision, supported source shape, and
+On failure, check the installed pinned version or revision, source shape, and
 input completeness privately. Failed loads remove only the newly created output
 directory. Existing directories remain untouched. These loaders do not provide
 an ATIF exporter: replacing the converters requires a separate fixture-tested
