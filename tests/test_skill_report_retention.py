@@ -42,14 +42,26 @@ def test_missing_outputs_after_install_failure_are_not_fabricated(tmp_path):
     assert not (tmp_path / "archive").exists()
 
 
-@pytest.mark.parametrize("workflow,job", [("ci.yml", "skill-evaluator"), ("skill-evaluation-live.yml", "live")])
-def test_full_reports_are_separate_private_only_and_attempted_after_failures(workflow, job):
+@pytest.mark.parametrize(
+    "workflow,job,condition",
+    [
+        ("ci.yml", "skill-evaluator", "always() && github.event.repository.private == true"),
+        (
+            "skill-evaluation-live.yml",
+            "evaluate",
+            "always() && matrix.id != 'none' && github.event.repository.private == true",
+        ),
+    ],
+)
+def test_full_reports_are_separate_private_only_and_attempted_after_failures(workflow, job, condition):
     steps = yaml.safe_load((ROOT / ".github/workflows" / workflow).read_text())["jobs"][job]["steps"]
     stage = next(step for step in steps if step.get("name", "").startswith("Stage full"))
     upload = next(step for step in steps if step.get("name", "").startswith("Retain full"))
     for step in (stage, upload):
-        assert step["if"] == "${{ always() && github.event.repository.private == true }}"
+        assert step["if"].removeprefix("${{").removesuffix("}}").strip() == condition
     assert upload["with"]["retention-days"] == 30
     assert upload["with"]["path"].endswith("-reports/")
     assert "github.run_attempt" in upload["with"]["name"]
+    if job == "evaluate":
+        assert "matrix.id" in upload["with"]["name"]
     assert steps.index(stage) < steps.index(upload)
