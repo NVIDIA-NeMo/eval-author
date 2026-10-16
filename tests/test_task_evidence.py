@@ -29,7 +29,7 @@ options = dict(zip(args[2::2], args[3::2]))
 trial = Path(options["--trials-dir"]) / options["--trial-name"]
 agent = options["-a"]
 trial.mkdir(parents=True, exist_ok=True)
-if agent not in ("nop", "oracle"):
+if agent not in ("nop", "oracle", "wrong-answer"):
     call = {"tool_call_id": "call-1", "function_name": "customer.lookup", "arguments": {}}
     steps = [
         {"step_id": 1, "source": "user", "message": "Look up the customer."},
@@ -41,7 +41,7 @@ if agent not in ("nop", "oracle"):
     (trial / "agent" / "trajectory.json").write_text(json.dumps(atif))
 result = {"id": str(uuid.uuid4()), "task_name": Path(options["-p"]).name, "trial_name": trial.name,
           "task_checksum": "synthetic", "exception_info": None,
-          "verifier_result": {"rewards": {"reward": 0 if agent == "nop" else 1}}}
+          "verifier_result": {"rewards": {"reward": 0 if agent in ("nop", "wrong-answer") else 1}}}
 (trial / "result.json").write_text(json.dumps(result))
 """
 
@@ -69,7 +69,7 @@ def prepared(tmp_path, monkeypatch):
         "side_effect_not_applicable": "This task only returns a value.",
         "cases": {},
     }
-    for kind, reward in [("reference", 1), ("incorrect", 0), ("agent", 1)]:
+    for kind, reward in [("reference", 1), ("incorrect", 0), ("empty", 0), ("agent", 1)]:
         contract["cases"][kind] = {
             "kind": kind,
             "requirement": "Return the correct total.",
@@ -100,6 +100,7 @@ def complete(tmp_path, manifest):
     return [
         execute(tmp_path, manifest, "reference", "reference"),
         execute(tmp_path, manifest, "incorrect", "incorrect", reward=0),
+        execute(tmp_path, manifest, "empty", "empty", reward=0),
         execute(tmp_path, manifest, "agent", "repeat-1"),
         execute(tmp_path, manifest, "agent", "repeat-2"),
     ]
@@ -135,7 +136,10 @@ def reports(tmp_path):
     return before, after
 
 
-def test_acceptance_requires_controls_and_exact_agent_evidence(tmp_path, prepared):
+def test_acceptance_requires_controls_and_exact_agent_evidence(tmp_path, prepared, monkeypatch):
+    # Isolate receipt invariants here; the documented flow below uses real bound measurements.
+    monkeypatch.setattr(pipeline, "_verify_coverage_binding", lambda path: {"audit_sha256": "fixture"})
+    monkeypatch.setattr(pipeline, "_verify_lineage", lambda *args: None)
     _, _, manifest = prepared
     receipts = complete(tmp_path, manifest)
     before, after = reports(tmp_path)
@@ -346,9 +350,30 @@ def test_documented_harbor_trial_flow_is_accepted(tmp_path, monkeypatch):
                 "health": [{"pointer": "/exception_info", "equals": None}],
                 "checks": [{"pointer": "/verifier_result/rewards/reward", "min": reward, "max": reward}],
             }
-            for kind, reward in (("reference", 1), ("incorrect", 0), ("agent", 1))
+            for kind, reward in (("reference", 1), ("incorrect", 0), ("empty", 0), ("agent", 1))
         },
     }
+    baseline_trace = tmp_path / "baseline.json"
+    write(
+        baseline_trace,
+        {
+            "schema_version": "ATIF-v1.7",
+            "session_id": "baseline",
+            "agent": {"name": "example-agent", "version": "1.0.0"},
+            "steps": [{"step_id": 1, "source": "user", "message": "Read the customer."}],
+        },
+    )
+    for script, args in [
+        ("measure.py", ["--trace", baseline_trace, "--task-id", task_id, "--out-dir", tmp_path / "baseline"]),
+        ("report.py", ["--coverage-dir", tmp_path / "baseline", "--out", before]),
+    ]:
+        command = [sys.executable, AUDIT_SKILL / "scripts/audit_spec" / script, "--audit", audit, *args]
+        completed = subprocess.run([str(part) for part in command], capture_output=True, text=True)
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+
+    proposal = tmp_path / "proposal.md"
+    proposal.write_text("Look up the customer.")
+    pipeline._write_lineage(task, before, proposal, "customer.lookup")
     manifest = measurements / "revision-1.json"
     evidence.prepare(task, write(tmp_path / "contract.json", contract), manifest)
     fake_harbor = tmp_path / "fake_harbor.py"
@@ -357,7 +382,8 @@ def test_documented_harbor_trial_flow_is_accepted(tmp_path, monkeypatch):
     receipts = []
     for case, run_id, agent in [
         ("reference", "reference-1", "oracle"),
-        ("incorrect", "incorrect-1", "nop"),
+        ("incorrect", "incorrect-1", "wrong-answer"),
+        ("empty", "empty-1", "nop"),
         ("agent", "repeat-1", "example-agent"),
         ("agent", "repeat-2", "example-agent"),
     ]:
@@ -391,3 +417,36 @@ def test_documented_harbor_trial_flow_is_accepted(tmp_path, monkeypatch):
     completed = subprocess.run(command, capture_output=True, text=True)
     verdict = json.loads(completed.stdout)
     assert completed.returncode == 0 and verdict["accepted"] and verdict["coverage_closed"], completed.stdout
+    saved = write(tmp_path / "acceptance.json", verdict)
+    code, rechecked = pipeline._check_acceptance(saved)
+    assert code == 0 and rechecked == verdict
+    proposal.write_text("Changed requirement.")
+    with pytest.raises(pipeline.PipelineError, match="proposal content changed"):
+        pipeline._check_acceptance(saved)
+
+
+def test_copied_trace_content_is_not_a_fresh_trial(tmp_path, prepared):
+    _, _, manifest = prepared
+    receipts = complete(tmp_path, manifest)
+    first, second = [evidence.read(path) for path in receipts[-2:]]
+    Path(second["trace"]).write_bytes(Path(first["trace"]).read_bytes())
+    second["trace_sha256"] = evidence.digest(Path(second["trace"]))
+    write(receipts[-1], second)
+    with pytest.raises(evidence.EvidenceError, match="trace is changed or reused"):
+        evidence.verify_receipts(receipts, "cover-read")
+
+
+def test_failed_attempt_cannot_be_omitted_from_acceptance(tmp_path, prepared):
+    _, _, manifest = prepared
+    failed = execute(tmp_path, manifest, "agent", "failed", reward=0)
+    receipts = complete(tmp_path, manifest)
+    with pytest.raises(evidence.EvidenceError, match="all registered closure attempts"):
+        evidence.verify_receipts(receipts, "cover-read")
+    with pytest.raises(evidence.EvidenceError, match="not passed"):
+        evidence.verify_receipts([failed, *receipts], "cover-read")
+
+
+def test_unbound_legacy_report_is_not_acceptance_evidence(tmp_path):
+    report = write(tmp_path / "legacy.json", {"covered": ["read"]})
+    with pytest.raises(pipeline.PipelineError, match="unbound legacy coverage"):
+        pipeline._verify_coverage_binding(report)
