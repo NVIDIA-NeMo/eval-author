@@ -11,6 +11,18 @@ from pathlib import Path
 import semantic_regression as semantic
 
 
+def recorded_revision(suite_root, case):
+    """Optional provenance, independent of measurement compatibility or validity."""
+    try:
+        lock = semantic.load(semantic.contained(suite_root, case["baseline"]))
+        revision = lock.get("source_revision")
+        if isinstance(revision, str) and re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", revision):
+            return revision
+    except (ValueError, KeyError, TypeError, AttributeError, OSError):
+        pass
+    return None
+
+
 def preflight(suite, runtime, suite_root):
     failures = {}
     for case in suite["cases"]:
@@ -43,6 +55,8 @@ def run(suite_path, runtime, output, mode):
     report = semantic.run(suite_path, runtime, output, "plan" if failures else mode)
     report["repository"] = "NVIDIA-NeMo/eval-author"
     report["mode"] = mode
+    for case, row in zip(suite["cases"], report["observations"], strict=True):
+        row["baseline_source_revision"] = recorded_revision(suite_path.parent, case)
     if failures:
         for row in report["observations"]:
             reason, fields = failures.get(row["case_id"], ("not_run", []))
@@ -53,6 +67,12 @@ def run(suite_path, runtime, output, mode):
             print(f"::error::{reason}" + (": " + ", ".join(fields) if fields else ""))
     semantic.publish(output, report)
     with (output / "semantic-regression-summary.md").open("a") as summary:
+        summary.write(f"\nCandidate source revision: `{report['source_revision']}`\n")
+        summary.write("\n| Case | Recorded baseline source revision |\n| --- | --- |\n")
+        for row in report["observations"]:
+            revision = row["baseline_source_revision"]
+            value = f"`{revision}`" if revision else "unavailable"
+            summary.write(f"| {row['case_id']} | {value} |\n")
         for row in report["observations"]:
             # Reasons are fixed codes from this runner or the measurement pipeline.
             summary.write(f"\n- {row['case_id']}: {row['reason']}")

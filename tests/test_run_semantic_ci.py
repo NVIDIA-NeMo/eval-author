@@ -184,3 +184,31 @@ def test_legacy_compatibility_cannot_accept_unreviewed_measurements(packet, tmp_
         setup.bundle(tmp_path / "suite.json", runtime)
     with pytest.raises(ValueError):
         semantic.check_case(suite, suite["cases"][0], runtime, tmp_path, tmp_path / "work", object())
+
+
+@pytest.mark.parametrize("revision", ["a" * 40, "b" * 64, None, 123, "private body\n::error::bad"])
+def test_revision_reporting_preserves_incomplete_verdict(packet, tmp_path, revision):
+    _, runtime, lock = packet
+    lock["source_revision"] = revision
+    lock["binding"]["measurement_version"] = "incompatible"
+    semantic.dump(tmp_path / "lock.json", lock)
+    output = tmp_path / "out"
+    assert ci.run(tmp_path / "suite.json", runtime, output, "check") == 2
+    report = semantic.load(output / "semantic-regression-summary.json")
+    row = report["observations"][0]
+    expected = revision if revision in ("a" * 40, "b" * 64) else None
+    assert row["baseline_source_revision"] == expected
+    assert row["reason"] == "baseline_binding_mismatch"
+    markdown = (output / "semantic-regression-summary.md").read_text()
+    assert report["source_revision"] in markdown
+    assert (expected or "unavailable") in markdown
+    assert "private body" not in markdown + json.dumps(report)
+
+
+def test_missing_or_malformed_provenance_is_unavailable(packet, tmp_path):
+    suite, _, _ = packet
+    case = suite["cases"][0]
+    assert ci.recorded_revision(tmp_path, case) is None
+    (tmp_path / "lock.json").write_text("invalid JSON")
+    assert ci.recorded_revision(tmp_path, case) is None
+    assert ci.recorded_revision(tmp_path, {**case, "baseline": "missing.json"}) is None

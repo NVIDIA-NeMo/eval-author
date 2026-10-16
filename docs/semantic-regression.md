@@ -74,6 +74,11 @@ never changes lock bytes, baseline measurements, thresholds or review evidence,
 and does not allow the old baseline to match a future measurement version.
 The repository name remains `NVIDIA-NeMo/eval-author`.
 
+CI reports show the candidate commit SHA and each case's recorded baseline source
+SHA, including on incomplete runs. Missing or malformed baseline provenance is
+shown as unavailable and does not change the verdict. These identify the source
+revisions; compatibility and artifact integrity are checked separately.
+
 Query/evidence, run count, extractor, judge, endpoint and external Ratchet runtime
 remain pinned. Baseline and bundle hashes remain necessary integrity checks.
 Changing the frozen evidence or the external measurement runtime still requires
