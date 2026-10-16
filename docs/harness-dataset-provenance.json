@@ -16,8 +16,8 @@
       "path": "skills/eval-author-audit/evals/files/.eval-author/audit.md",
       "source_path": "fixture_inputs/harness-consistency/audited-suite/.eval-author/audit.md",
       "source_sha256": "844ac164e39da4db44494f549806b133c0914ac2a8de4f9609dae089037ad553",
-      "sha256": "844ac164e39da4db44494f549806b133c0914ac2a8de4f9609dae089037ad553",
-      "transformation": "none; byte-for-byte copy"
+      "sha256": "f4f2726b0e49ee60449bd1babde5fd8353f6c2e243a0636f8e5f7f19fa45dfd6",
+      "transformation": "Add NVIDIA SPDX copyright/license comments for repository policy; preserve source content and shell shebang."
     },
     {
       "path": "skills/eval-author-audit/evals/files/.eval-author/coverage.json",
@@ -30,8 +30,8 @@
       "path": "skills/eval-author-discover/evals/files/repo/suite.yaml",
       "source_path": "fixture_inputs/harness-consistency/existing-suite/suite.yaml",
       "source_sha256": "63e3eab6e912282cbe4cebcd7b3b79502d6d8edb0670f68f54432040502af798",
-      "sha256": "63e3eab6e912282cbe4cebcd7b3b79502d6d8edb0670f68f54432040502af798",
-      "transformation": "none; byte-for-byte copy"
+      "sha256": "2b7b13154c6c31f03b11c86d3532eb7e8bb5630b3772a5a36584b1d63d647339",
+      "transformation": "Add NVIDIA SPDX copyright/license comments for repository policy; preserve source content and shell shebang."
     },
     {
       "path": "skills/eval-author-discover/evals/files/repo/README.md",
@@ -51,22 +51,22 @@
       "path": "skills/eval-author-discover/evals/files/repo/tasks/lookup-stock/task.toml",
       "source_path": "fixture_inputs/harness-consistency/existing-suite/tasks/lookup-stock/task.toml",
       "source_sha256": "a5b5060fd97feb297e54d83013f2fdd3cc355f9f84c68c7d0325e65bfde8d266",
-      "sha256": "a5b5060fd97feb297e54d83013f2fdd3cc355f9f84c68c7d0325e65bfde8d266",
-      "transformation": "none; byte-for-byte copy"
+      "sha256": "1775323a3d37f1eb0a8ce655077c69c255b21c245b19f8a78dcacbd29e451e19",
+      "transformation": "Add NVIDIA SPDX copyright/license comments for repository policy; preserve source content and shell shebang."
     },
     {
       "path": "skills/eval-author-discover/evals/files/repo/tasks/lookup-stock/tests/test.sh",
       "source_path": "fixture_inputs/harness-consistency/existing-suite/tasks/lookup-stock/tests/test.sh",
       "source_sha256": "0ffd612ee49ab471cf9308a1fdbd76b5dff074d5eb0a25e4198402152a906a28",
-      "sha256": "0ffd612ee49ab471cf9308a1fdbd76b5dff074d5eb0a25e4198402152a906a28",
-      "transformation": "none; byte-for-byte copy"
+      "sha256": "7a99453fff9045f12e7295ccdc9b60e5514da5cf8e0ff3d2f57abb5de413820d",
+      "transformation": "Add NVIDIA SPDX copyright/license comments for repository policy; preserve source content and shell shebang."
     },
     {
       "path": "skills/eval-author-discover/evals/files/repo/tasks/lookup-stock/solution/solve.sh",
       "source_path": "fixture_inputs/harness-consistency/existing-suite/tasks/lookup-stock/solution/solve.sh",
       "source_sha256": "cdeb04dec375cab65efe6c27289a6a070a85f4fddc9b414be5bc82e94272b86c",
-      "sha256": "cdeb04dec375cab65efe6c27289a6a070a85f4fddc9b414be5bc82e94272b86c",
-      "transformation": "none; byte-for-byte copy"
+      "sha256": "fe456ba9f9b2fc0d1a69cb7147c1a2d6b1d2800fec894371a80dbdf0e2d1cdbb",
+      "transformation": "Add NVIDIA SPDX copyright/license comments for repository policy; preserve source content and shell shebang."
     },
     {
       "path": "skills/eval-author-discover/evals/files/repo/tasks/lookup-stock/environment/Dockerfile",
