@@ -1,0 +1,57 @@
+{
+  "skill_name": "eval-author-discover",
+  "evals": [
+    {
+      "id": "discover-inventory",
+      "prompt": "I inherited /workspace/input/repo and do not know what evaluations it has. Inventory the supplied suite and explain what it tests. Save /workspace/output/.eval-author/discovery.md. This turn is inventory only; do not validate, execute, install, or download anything. The supplied directory is a suite-only excerpt; agent.py and root inventory.json mentioned in README.md are intentionally absent.",
+      "expected_output": "Writes an inventory naming suite.yaml and tasks/lookup-stock with their concrete config, instruction, and grader evidence. Explains the BOLT-17 quantity check and Oracle agent configuration. Labels readiness unvalidated and preserves source files without running the suite or probing Docker.",
+      "assertions": [
+        "Writes an inventory naming suite.yaml and tasks/lookup-stock with their concrete config, instruction, and grader evidence.",
+        "Explains the BOLT-17 quantity check and Oracle agent configuration.",
+        "Labels readiness unvalidated and preserves source files without running the suite or probing Docker."
+      ],
+      "expected_skill": "eval-author-discover",
+      "files": [
+        "files/repo"
+      ]
+    },
+    {
+      "id": "discover-oracle-limit",
+      "prompt": "Review only /workspace/input/repo/suite.yaml and its task files. Does this suite establish readiness for our real inventory agent or just an Oracle baseline? Save the evidence and limitations to /workspace/output/.eval-author/discovery.md; do not run validators, jobs, or downloads. The supplied directory is a suite-only excerpt; agent.py and root inventory.json mentioned in README.md are intentionally absent.",
+      "expected_output": "Cites the configured oracle agent and the grader checks for status, SKU and answer text. Explains that no real-agent run, tool behavior, or robust semantic correctness is established by this configuration or count-matching grader. Writes the requested report without claiming that Oracle has actually passed.",
+      "assertions": [
+        "Cites the configured oracle agent and the grader checks for status, SKU and answer text.",
+        "Explains that no real-agent run, tool behavior, or robust semantic correctness is established by this configuration or count-matching grader.",
+        "Writes the requested report without claiming that Oracle has actually passed."
+      ],
+      "expected_skill": "eval-author-discover",
+      "files": [
+        "files/repo"
+      ]
+    },
+    {
+      "id": "discover-blocked-readiness",
+      "prompt": "For /workspace/input/repo, assess this supplied validation receipt: suite configuration parsed successfully, but the Docker probe returned Cannot connect to the Docker daemon; no task ran. Save /workspace/output/.eval-author/discovery.md with status and next evidence needed. Do not retry, start services, or install dependencies. The supplied directory is a suite-only excerpt; agent.py and root inventory.json mentioned in README.md are intentionally absent.",
+      "expected_output": "Writes a blocked or unproven readiness assessment citing the supplied Docker error. Separates configuration parsing from native task validation and execution, and does not label the suite invalid solely because Docker is unavailable. Names remaining runtime/task and real-agent evidence without inventing a successful run.",
+      "assertions": [
+        "Writes a blocked or unproven readiness assessment citing the supplied Docker error.",
+        "Separates configuration parsing from native task validation and execution, and does not label the suite invalid solely because Docker is unavailable.",
+        "Names remaining runtime/task and real-agent evidence without inventing a successful run."
+      ],
+      "expected_skill": "eval-author-discover",
+      "files": [
+        "files/repo"
+      ]
+    },
+    {
+      "id": "eval-author-discover-negative",
+      "prompt": "What is 17 + 25? Reply with the number only.",
+      "expected_output": "42",
+      "assertions": [
+        "Answers 42 without tool calls or creating artifacts."
+      ],
+      "expected_skill": null,
+      "files": []
+    }
+  ]
+}

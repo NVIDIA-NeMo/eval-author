@@ -1,0 +1,50 @@
+{
+  "skill_name": "eval-author-inspect-trace",
+  "evals": [
+    {
+      "id": "intake-missing-selection",
+      "prompt": "Eval Author routed me to inspect-trace. Read /workspace/input/README.md for the source selection. No workspace or trace has been supplied. Explain what is missing; do not contact a service, install a CLI, or choose another tenant.",
+      "expected_output": "Identifies that no Intake workspace or trace selection exists and asks for explicit source selection. Does not fabricate trace findings, select another tenant, or report a completed inspection.",
+      "assertions": [
+        "Identifies that no Intake workspace or trace selection exists and asks for explicit source selection.",
+        "Does not fabricate trace findings, select another tenant, or report a completed inspection."
+      ],
+      "expected_skill": "eval-author-inspect-trace",
+      "files": [
+        "files/README.md"
+      ]
+    },
+    {
+      "id": "intake-reject-file-uri",
+      "prompt": "Eval Author routed me to inspect-trace in workspace synthetic-fixture. The selected source is file:///workspace/input/trace.json. Check whether this is a supported Intake trace selection; do not access files or services or install anything.",
+      "expected_output": "Rejects the file URI as an Intake trace identifier, explaining that a bare Intake trace ID or intake://traces/TRACE_ID is required. Does not read the path, fabricate a trace, or claim inspection success.",
+      "assertions": [
+        "Rejects the file URI as an Intake trace identifier, explaining that a bare Intake trace ID or intake://traces/TRACE_ID is required.",
+        "Does not read the path, fabricate a trace, or claim inspection success."
+      ],
+      "expected_skill": "eval-author-inspect-trace",
+      "files": []
+    },
+    {
+      "id": "intake-launcher-blocked",
+      "prompt": "Eval Author routed to inspect-trace with workspace synthetic-fixture and intake://traces/synthetic-001. Supplied launcher probe results: nemo --version: command not found; .venv/bin/nemo: file does not exist; uv run --no-sync nemo --version: executable not found. Treat these as the completed probes for this checkpoint. Explain the blocker and stop; do not retry, install, authenticate, or contact services.",
+      "expected_output": "Reports the supplied launcher failures and that no working CLI invocation is available. Stops without inventing span findings or a completed inspection report and without installing, authenticating, changing contexts, or making service calls.",
+      "assertions": [
+        "Reports the supplied launcher failures and that no working CLI invocation is available.",
+        "Stops without inventing span findings or a completed inspection report and without installing, authenticating, changing contexts, or making service calls."
+      ],
+      "expected_skill": "eval-author-inspect-trace",
+      "files": []
+    },
+    {
+      "id": "eval-author-inspect-trace-negative",
+      "prompt": "What is 17 + 25? Reply with the number only.",
+      "expected_output": "42",
+      "assertions": [
+        "Answers 42 without tool calls or creating artifacts."
+      ],
+      "expected_skill": null,
+      "files": []
+    }
+  ]
+}
