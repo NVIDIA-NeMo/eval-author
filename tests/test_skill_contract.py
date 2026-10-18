@@ -4554,7 +4554,10 @@ def test_audit_report_splits_coverage_by_evidence_class_when_labeled(tmp_path: P
 
     report = json.loads(out.read_text(encoding="utf-8"))
     assert code == 0, stderr or summary
-    assert report["covered"] == ["customer.lookup"]
+    assert report["covered"] == []
+    assert len(report["input_reports"]) == 1
+    assert report["input_reports"][0]["path"].endswith("agent-1/tool_calls/coverage.json")
+    assert report["input_reports"][0]["subject"]["evidence_class"] == "agent_under_test"
     by_class = report["coverage_by_evidence_class"]
     assert by_class["reference_solution"]["coverage"]["overall"]["covered_count"] == 1
     assert by_class["agent_under_test"]["coverage"]["overall"]["covered_count"] == 0

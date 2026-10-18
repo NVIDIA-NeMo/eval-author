@@ -145,17 +145,14 @@ def _load_coverage(path: Path) -> CoverageInput:
 
 
 def _aggregate(*, audit: JsonObject, audit_path: Path, coverage_inputs: list[CoverageInput]) -> JsonObject:
-    """Union covered audit item names and format uncovered items for task generation."""
+    """Aggregate coverage; headline fields use the agent-under-test bucket when labeled."""
     audit_items = audit["items"]
     audit_items_by_name = {item["name"]: item for item in audit_items}
     audit_item_kinds = {item["name"]: item["kind"] for item in audit_items}
     audit_counts = item_counts(audit)
-    covered_names: set[str] = set()
-    input_reports: list[JsonObject] = []
-    measured_kinds: set[str] = set()
     warnings: list[JsonObject] = []
-
     labeled_input = False
+
     for coverage_input in coverage_inputs:
         payload = coverage_input.payload
         warnings.extend(
@@ -183,13 +180,38 @@ def _aggregate(*, audit: JsonObject, audit_path: Path, coverage_inputs: list[Cov
             )
         else:
             labeled_input = True
-        input_report = _input_report(coverage_input)
-        input_reports.append(input_report)
-        measured_kinds.add(payload["item_kind"])
-        covered_names.update(payload["covered"])
 
-    covered = [item["name"] for item in audit_items if item["name"] in covered_names]
-    uncovered = [item["name"] for item in audit_items if item["name"] not in covered_names]
+    by_class: JsonObject = {}
+    if labeled_input:
+        by_class = _coverage_by_evidence_class(audit_items, coverage_inputs, audit_items_by_name=audit_items_by_name)
+
+    if by_class and "agent_under_test" in by_class:
+        agent_bucket = by_class["agent_under_test"]
+        covered = list(agent_bucket["covered"])
+        uncovered = list(agent_bucket["uncovered"])
+        uncovered_items = list(agent_bucket["uncovered_items"])
+        coverage = agent_bucket["coverage"]
+        headline_inputs = _inputs_for_evidence_class(coverage_inputs, "agent_under_test")
+        input_reports = [_input_report(coverage_input) for coverage_input in headline_inputs]
+        measured_kinds = {coverage_input.payload["item_kind"] for coverage_input in headline_inputs}
+    else:
+        covered_names: set[str] = set()
+        input_reports = []
+        measured_kinds: set[str] = set()
+        for coverage_input in coverage_inputs:
+            payload = coverage_input.payload
+            input_reports.append(_input_report(coverage_input))
+            measured_kinds.add(payload["item_kind"])
+            covered_names.update(payload["covered"])
+        covered = [item["name"] for item in audit_items if item["name"] in covered_names]
+        uncovered = [item["name"] for item in audit_items if item["name"] not in covered_names]
+        uncovered_items = [
+            _uncovered_item(item, audit_items_by_name, measured_kinds=measured_kinds)
+            for item in audit_items
+            if item["name"] not in covered_names
+        ]
+        coverage = _coverage_summary(audit_items, covered)
+
     measured_kinds_list = [kind for kind in ITEM_KINDS if kind in measured_kinds]
     report: JsonObject = {
         "schema": REPORT_SCHEMA,
@@ -197,21 +219,13 @@ def _aggregate(*, audit: JsonObject, audit_path: Path, coverage_inputs: list[Cov
         "measured_kinds": measured_kinds_list,
         "warnings": warnings,
         "input_reports": input_reports,
-        "coverage": _coverage_summary(audit_items, covered),
+        "coverage": coverage,
         "covered": covered,
         "uncovered": uncovered,
-        "uncovered_items": [
-            _uncovered_item(item, audit_items_by_name, measured_kinds=measured_kinds)
-            for item in audit_items
-            if item["name"] not in covered_names
-        ],
+        "uncovered_items": uncovered_items,
     }
-    if labeled_input:
-        by_class = _coverage_by_evidence_class(
-            audit_items, coverage_inputs, audit_items_by_name=audit_items_by_name
-        )
-        if by_class:
-            report["coverage_by_evidence_class"] = by_class
+    if by_class:
+        report["coverage_by_evidence_class"] = by_class
     return report
 
 

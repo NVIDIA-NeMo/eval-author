@@ -46,11 +46,14 @@ Current assumptions:
   reporting after it becomes `approved`, are emitted in `warnings` without
   rejecting the input coverage file.
 - Aggregation does not read ATIF traces, Harbor result files, or method-specific
-  `details.json` files. It only unions stable audit item names from
-  `coverage.json`.
+  `details.json` files. It combines stable audit item names from each input
+  `coverage.json` according to the rules below.
 - When `subject.evidence_class` is present on an input, `report.py` also emits
-  `coverage_by_evidence_class` with per-runner count summaries. Legacy inputs
-  without that field still contribute to the top-level union and emit a
+  `coverage_by_evidence_class` with per-runner count summaries. If at least one
+  labeled input exists and the `agent_under_test` bucket has inputs, top-level
+  `coverage`, `covered`, `uncovered`, `uncovered_items`, and `input_reports`
+  mirror that bucket only. Legacy inputs without `evidence_class` still
+  contribute to a top-level union across all inputs and emit a
   `missing_evidence_class` warning. `measure.py` stamps the field from Harbor
   `result.json` `config.agent` when measuring a trial directory, or from
   `--evidence-class`.

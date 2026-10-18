@@ -364,9 +364,7 @@ def _load_harbor_trajectory(path: Path) -> LoadedTrace:
     return LoadedTrace(trajectory=trajectory, content_sha256=hashlib.sha256(raw).hexdigest())
 
 
-def _finalize_subject(
-    subject: PendingSubject, loaded_trace: LoadedTrace, *, evidence_class: str | None
-) -> Subject:
+def _finalize_subject(subject: PendingSubject, loaded_trace: LoadedTrace, *, evidence_class: str | None) -> Subject:
     """Fill any missing run identity from the parsed trace or trace content."""
     return Subject(
         trace_path=subject.trace_path,
