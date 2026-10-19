@@ -53,18 +53,27 @@ schema/version, quality and lint checks remain enabled. Incomplete evidence from
 any enabled scanner still prevents a pass. Historical reports retain their
 original policy and verdicts; scores across different policies are not equivalent.
 
-## Live evaluation approval
+## Live evaluation on main
 
-Live evaluation uses a protected GitHub environment. It is restricted to
-`main` and requires approval from the designated maintainer team. These protections are
-configured in GitHub settings; declaring an environment in YAML does not
-create them. Repository administrators can still change those settings.
+Live evaluation uses the `skill-evaluator` GitHub environment, restricted to
+branch `main`. It does not require a separate environment approval. The branch
+restriction is configured in GitHub settings; declaring an environment in YAML
+does not create it. Repository administrators can still change those settings.
 
-When live evaluation is enabled, pushes to `main` request an approved run.
+With `SKILL_EVALUATION_LIVE_ENABLED=true`, pushes to `main`, including merges,
+automatically run Tier 2 and Tier 3 for all skills. PRs only generate a plan
+without model calls. Main currently requires one PR approval; the branch rule
+does not specifically require ASE or code-owner approval.
+
 Manual dispatch from `main` defaults to planning only; selecting `run_live`
-requests live execution for the selected tier and skill, subject to the same
-approval requirements. Maintainers manage credentials and provider configuration
-outside the repository. Public contributors do not need access to them.
+executes the selected tier and skill without an additional approval.
+Maintainers manage credentials and provider configuration outside the repository.
+Public contributors do not need access to them.
+
+NVSkills CI is separately opt-in through a `/nvskills-ci` PR comment by a
+maintainer or administrator. The request workflow also handles trusted signature
+pushes, but does not run an automatic required-status check on PR opening or
+updates.
 
 ## Reading reports
 
