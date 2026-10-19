@@ -1,0 +1,110 @@
+{
+  "audit": {
+    "agent": "inventory-fixture",
+    "item_count": 2,
+    "item_counts": {
+      "capability": 0,
+      "failure_case": 0,
+      "tool": 2
+    },
+    "path": ".eval-author/audit.md",
+    "schema": "nemo.eval_author.audit.v1",
+    "status": "draft"
+  },
+  "coverage": {
+    "by_kind": {
+      "capability": {
+        "covered_count": 0,
+        "item_count": 0,
+        "uncovered_count": 0
+      },
+      "failure_case": {
+        "covered_count": 0,
+        "item_count": 0,
+        "uncovered_count": 0
+      },
+      "tool": {
+        "covered_count": 1,
+        "item_count": 2,
+        "uncovered_count": 1
+      }
+    },
+    "overall": {
+      "covered_count": 1,
+      "item_count": 2,
+      "uncovered_count": 1
+    }
+  },
+  "covered": [
+    "lookup_item"
+  ],
+  "input_reports": [
+    {
+      "covered": [
+        "lookup_item"
+      ],
+      "covered_count": 1,
+      "item_kind": "tool",
+      "item_kind_count": 2,
+      "method": "tool_calls",
+      "path": ".eval-author/measurements/task=lookup-baseline/run=baseline-01/tool_calls/coverage.json",
+      "subject": {
+        "run_id": "baseline-01",
+        "task_id": "lookup-baseline",
+        "trace": "traces/lookup.atif.json",
+        "trace_format": "atif"
+      }
+    }
+  ],
+  "measured_kinds": [
+    "tool"
+  ],
+  "schema": "nemo.eval_author.audit_coverage_report.v1",
+  "uncovered": [
+    "list_items"
+  ],
+  "uncovered_items": [
+    {
+      "audit_item": {
+        "description": "List every item in the selected warehouse before calculating a total.",
+        "evidence_required": [
+          {
+            "description": "The trace records this tool invocation.",
+            "kind": "tool_call",
+            "tool": "list_items"
+          }
+        ],
+        "expected_failure_behavior": "Report missing data explicitly; do not invent records.",
+        "expected_use": "List every item in the selected warehouse before calculating a total.",
+        "kind": "tool",
+        "name": "list_items",
+        "source_refs": [
+          "ethos:Tools",
+          "ethos:Behavior"
+        ]
+      },
+      "description": "List every item in the selected warehouse before calculating a total.",
+      "generation": {
+        "evidence_required": [
+          {
+            "description": "The trace records this tool invocation.",
+            "kind": "tool_call",
+            "tool": "list_items"
+          }
+        ],
+        "focus": "Exercise a scenario where the agent should call list_items: List every item in the selected warehouse before calculating a total.",
+        "needed_tools": [
+          "list_items"
+        ]
+      },
+      "kind": "tool",
+      "name": "list_items",
+      "reason": "not_covered_by_any_input_report",
+      "source_refs": [
+        "ethos:Tools",
+        "ethos:Behavior"
+      ]
+    }
+  ],
+  "warnings": []
+}

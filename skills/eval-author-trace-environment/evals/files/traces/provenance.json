@@ -1,0 +1,7 @@
+{
+  "kind": "hand-constructed-synthetic-format-fixture",
+  "trajectory_sha256": "c056f3a80d293cdb16d80dbf834c1f1aa72594b2b60b4b1358eea54f4342f966",
+  "agent_sha256": "68217d1538759a095507052e20f820ee3f580d0481c4d2081ad0e2d5fefa43d8",
+  "native_task_execution": false,
+  "actual_model_execution": false
+}

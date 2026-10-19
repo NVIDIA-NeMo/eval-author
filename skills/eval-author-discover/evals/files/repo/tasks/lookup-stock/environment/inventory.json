@@ -1,0 +1,6 @@
+[
+  {"sku": "BOLT-17", "warehouse": "north", "quantity": 14},
+  {"sku": "NUT-08", "warehouse": "north", "quantity": 9},
+  {"sku": "WASHER-3", "warehouse": "south", "quantity": 6},
+  {"sku": "LABEL-0", "warehouse": "north", "quantity": 0}
+]
