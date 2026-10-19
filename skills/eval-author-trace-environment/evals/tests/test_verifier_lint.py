@@ -150,6 +150,7 @@ def test_validate_task_exposes_advisory_without_blocking_or_changing_proof(tmp_p
     spec = importlib.util.spec_from_file_location(
         "trace_contract_test_helpers", SKILL.parents[1] / "tests/test_trace_environment.py"
     )
+    assert spec is not None and spec.loader is not None
     helpers = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(helpers)
     task_dir, _ = helpers._workspace(tmp_path)

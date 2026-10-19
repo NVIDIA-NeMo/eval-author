@@ -21,6 +21,7 @@ import qualification_runtime as runtime  # noqa: E402
 spec = importlib.util.spec_from_file_location(
     "construction_test_helpers", SKILL.parents[1] / "tests/test_trace_environment.py"
 )
+assert spec is not None and spec.loader is not None
 helpers = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(helpers)
 driver = helpers._TRACE_ENVIRONMENT

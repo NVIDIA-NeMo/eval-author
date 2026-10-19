@@ -31,7 +31,8 @@ def require(condition: bool, message: str) -> None:
 
 
 def fields(value: object, keys: str, label: str) -> dict:
-    require(isinstance(value, dict) and set(value) == set(keys.split()), f"{label}: invalid fields")
+    if not isinstance(value, dict) or set(value) != set(keys.split()):
+        raise ConstructionError(f"{label}: invalid fields")
     return value
 
 
@@ -84,7 +85,8 @@ def file_digest(root: Path, relative: str) -> str:
 
 
 def ids(value: object, known: set, label: str, *, empty: bool = False) -> list:
-    require(isinstance(value, list) and len(value) <= 256, f"{label}: expected bounded ID list")
+    if not isinstance(value, list) or len(value) > 256:
+        raise ConstructionError(f"{label}: expected bounded ID list")
     require(all(isinstance(item, str) for item in value), f"{label}: IDs must be strings")
     require(
         (empty or bool(value)) and len(value) == len(set(value)) and set(value) <= known,
@@ -94,21 +96,22 @@ def ids(value: object, known: set, label: str, *, empty: bool = False) -> list:
 
 
 def review(value: object) -> None:
-    fields(value, "reviewer_kind note", "review")
+    value = fields(value, "reviewer_kind note", "review")
     require(
         value["reviewer_kind"] in ("agent", "human") and text(value["note"]), "review needs reviewer and concrete note"
     )
 
 
 def source_value(trace: dict, reference: object, order: dict) -> tuple[str, int]:
-    fields(reference, "step_id pointer", "source reference")
+    reference = fields(reference, "step_id pointer", "source reference")
     require(type(reference["step_id"]) is int and reference["step_id"] in order, "source step is not in trace")
     index = order[reference["step_id"]]
     try:
         value = pointer(trace["steps"][index], reference["pointer"])
     except (KeyError, IndexError, ValueError, TypeError) as error:
         raise ConstructionError("source pointer does not resolve") from error
-    require(isinstance(value, str), "source reference must resolve to exact text")
+    if not isinstance(value, str):
+        raise ConstructionError("source reference must resolve to exact text")
     return value, index
 
 
@@ -219,7 +222,7 @@ def provenance(root: Path, record: dict, trace: dict, candidate: dict) -> dict:
 
 def validate(root: Path) -> dict:
     manifest = load(root, PATH)
-    fields(
+    manifest = fields(
         manifest,
         "schema candidate_sha256 trace_sha256 requirements probes controls dependencies starting_state review",
         "construction",
@@ -231,6 +234,8 @@ def validate(root: Path) -> dict:
     require(manifest["trace_sha256"] == file_digest(root, "safe/trace.atif.json"), "construction trace digest changed")
     candidate = load(root, "candidate.json")
     trace = load(root, "safe/trace.atif.json")
+    if not isinstance(candidate, dict) or not isinstance(trace, dict):
+        raise ConstructionError("candidate and trace must be JSON objects")
     review(manifest["review"])
     requirements = manifest["requirements"]
     require(isinstance(requirements, list) and 1 <= len(requirements) <= 256, "construction needs requirements")
@@ -373,7 +378,7 @@ def validate(root: Path) -> dict:
 def execution(root: Path, result_path: Path, context: dict, control_id: str | None) -> dict:
     relative = (result_path.parent / "verifier" / "qualification.json").relative_to(root).as_posix()
     evidence = load(root, relative)
-    fields(evidence, "schema probes", "execution receipt")
+    evidence = fields(evidence, "schema probes", "execution receipt")
     require(evidence["schema"] == EXECUTION_SCHEMA, "unknown execution receipt schema")
     rows = evidence["probes"]
     probes = context["manifest"]["probes"]

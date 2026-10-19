@@ -62,6 +62,7 @@ def run_probe(probe: dict) -> dict:
     except OSError:
         failure = "start_failed"
     else:
+        assert process.stdout is not None  # Popen was configured with stdout=PIPE.
         with selectors.DefaultSelector() as selector:
             selector.register(process.stdout, selectors.EVENT_READ)
             while selector.get_map():
