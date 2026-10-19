@@ -70,7 +70,9 @@ def job(root, path=".eval-author/jobs/baseline", total=2):
 
 
 def rule(path):
-    return {"runs": {path: {"role": "agent", "reward_key": "reward", "pass_value": 1}}}
+    return {
+        "runs": {path: {"role": "agent", "reward_key": "reward", "pass_value": 1, "reward_min": 0, "reward_max": 1}}
+    }
 
 
 def test_bootstrap_and_documentation_are_deterministic(tmp_path):
@@ -181,13 +183,16 @@ def test_runs_group_attempts_without_double_counting(tmp_path):
     metadata = rule(path)
     metadata["runs"].update(rule(standalone)["runs"])
     result = report.refresh(tmp_path, patch=metadata)
-    assert len(result["runs"]) == 2
+    assert len(result["runs"]) == 1
     runs = {r["path"]: r for r in result["runs"]}
-    assert runs[path]["score_label"] == "1/2 passed"
+    assert runs[path]["score_label"] == "1 / 2 reward (50.0%) · 2/2 scored"
     assert len(runs[path]["attempts"]) == 2
     assert runs[path]["route"] == "jobs/baseline"
-    assert runs[standalone]["score_label"] == "0/1 passed"
-    assert runs[standalone]["route"].endswith("/org%2Frefund/trials/single")
+    legacy = result["standalone_trials"][0]
+    assert legacy["path"] == standalone
+    assert legacy["score_label"] == "0 / 1 reward (0.0%) · 1/1 scored"
+    assert legacy["route"].endswith("/org%2Frefund/trials/single")
+    assert all(run["kind"] == "job" for run in result["runs"])
 
 
 def test_missing_nonbinary_errors_and_invalid_are_not_passes(tmp_path):
@@ -207,7 +212,7 @@ def test_missing_nonbinary_errors_and_invalid_are_not_passes(tmp_path):
 def test_unknown_pass_rule_preserves_native_reward(tmp_path):
     path = ".eval-author/jobs/checks/graded"
     trial(tmp_path, path, reward=0.65)
-    run = report.refresh(tmp_path)["runs"][0]
+    run = report.refresh(tmp_path)["standalone_trials"][0]
     assert run["passed"] is None
     assert "0.65" in run["score_label"]
     assert run["attempts"][0]["rewards"]["reward"] == 0.65
@@ -218,14 +223,14 @@ def test_control_role_and_config_only_run(tmp_path):
     write(tmp_path, ".eval-author/jobs/pending/config.json", {"job_name": "pending", "agents": []})
     result = report.refresh(tmp_path)
     runs = {r["name"]: r for r in result["runs"]}
-    assert runs["nop"]["role"] == "control"
+    assert result["standalone_trials"][0]["role"] == "control"
     assert runs["pending"]["status"] == "unknown"
     assert runs["pending"]["total"] is None
 
 
 def test_malformed_native_result_visible_without_fabricated_score(tmp_path):
     write(tmp_path, ".eval-author/jobs/bad/trial/result.json", "{broken")
-    run = report.refresh(tmp_path)["runs"][0]
+    run = report.refresh(tmp_path)["standalone_trials"][0]
     assert run["status"] == "unknown"
     assert run["passed"] is None
     assert run["issues"]
@@ -237,8 +242,242 @@ def test_duplicate_trial_identity_disables_score(tmp_path):
     trial(tmp_path, path + "/two", trial_id="duplicate")
     run = report.refresh(tmp_path, patch=rule(path))["runs"][0]
     assert run["passed"] is None
-    assert run["score_label"] == "Score unavailable (duplicate attempt IDs)"
+    assert run["score_label"].startswith("Score unavailable (duplicate attempt IDs)")
+    assert run["reward_sum"] is None
     assert any("Duplicate" in issue for issue in run["issues"])
+
+
+def test_job_rollup_preserves_fractional_credit_and_counts_trials(tmp_path):
+    path = job(tmp_path, total=3)
+    for name, reward in [("one", 1), ("two", 0.65), ("three", 0)]:
+        trial(tmp_path, path + "/" + name, reward=reward)
+    run = report.refresh(tmp_path, patch=rule(path))["runs"][0]
+    assert run["reward_sum"] == pytest.approx(1.65)
+    assert (run["score_min"], run["score_max"], run["scored"], run["completed"]) == (0, 3, 3, 3)
+    assert (run["passed"], run["failed"]) == (1, 2)
+    assert run["score_label"] == "1.65 / 3 reward (55.0%) · 3/3 scored"
+
+
+def test_named_reward_without_pass_rule_and_explicit_scale(tmp_path):
+    path = job(tmp_path)
+    for name, quality in [("one", 3), ("two", 5)]:
+        data = trial(tmp_path, path + "/" + name)
+        data["verifier_result"]["rewards"] = {"quality": quality, "reward": 0}
+        write(tmp_path, path + "/" + name + "/result.json", data)
+    patch = {"runs": {path: {"reward_key": "quality", "reward_min": 0, "reward_max": 5}}}
+    run = report.refresh(tmp_path, patch=patch)["runs"][0]
+    assert run["reward_sum"] == 8
+    assert run["passed"] is None
+    assert run["score_label"] == "8 / 10 quality (80.0%) · 2/2 scored"
+
+
+@pytest.mark.parametrize("bounds", [None, (0, 1), (-1, 1)])
+def test_graph_needs_a_documented_range_and_preserves_out_of_range_reward(tmp_path, bounds):
+    path = job(tmp_path, total=1)
+    trial(tmp_path, path + "/one", reward=2)
+    fields = {"reward_key": "reward"}
+    if bounds:
+        fields.update(reward_min=bounds[0], reward_max=bounds[1])
+    run = report.refresh(tmp_path, patch={"runs": {path: fields}})["runs"][0]
+    assert run["reward_sum"] == 2
+    assert run["score_min"] is None and run["score_max"] is None
+    assert "2 total" in run["score_label"]
+
+
+def test_nonzero_reward_minimum_sets_the_meter_range(tmp_path):
+    path = job(tmp_path)
+    trial(tmp_path, path + "/one", reward=-1)
+    trial(tmp_path, path + "/two", reward=0)
+    patch = {"runs": {path: {"reward_min": -1, "reward_max": 1}}}
+    run = report.refresh(tmp_path, patch=patch)["runs"][0]
+    assert (run["reward_sum"], run["score_min"], run["score_max"]) == (-1, -2, 2)
+    assert "25.0%" in run["score_label"]
+
+
+def test_partial_job_separates_reward_from_completion_and_missing_data(tmp_path):
+    path = job(tmp_path, total=6)
+    trial(tmp_path, path + "/scored", reward=0.65)
+    trial(tmp_path, path + "/missing", reward=None)
+    trial(tmp_path, path + "/pending", finished=False)
+    trial(tmp_path, path + "/error", error={"exception_type": "Timeout"})
+    trial(tmp_path, path + "/invalid", trial_id="invalid")
+    patch = rule(path)
+    patch["runs"][path]["invalid_attempts"] = {"invalid": "Known verifier defect."}
+    run = report.refresh(tmp_path, patch=patch)["runs"][0]
+    assert run["status"] == "incomplete"
+    assert (run["reward_sum"], run["score_max"], run["scored"]) == (0.65, 1, 1)
+    assert (run["errors"], run["invalid"], run["unknown"]) == (1, 1, 3)
+    assert "1/6 scored; partial" in run["score_label"]
+    assert "65.0%" in run["score_label"]
+
+
+def test_no_scored_trials_is_unavailable_even_with_a_pass_rule(tmp_path):
+    path = job(tmp_path, total=1)
+    trial(tmp_path, path + "/pending", finished=False)
+    run = report.refresh(tmp_path, patch=rule(path))["runs"][0]
+    assert run["reward_sum"] is None and run["passed"] is None
+    assert run["score_max"] is None
+    assert run["score_label"] == "Score unavailable · 0/1 scored; partial"
+
+
+def test_unfinished_job_is_partial_even_when_all_trial_scores_exist(tmp_path):
+    path = job(tmp_path, total=1)
+    native = tmp_path / path / "result.json"
+    result = json.loads(native.read_text())
+    result["finished_at"] = None
+    write(tmp_path, path + "/result.json", result)
+    trial(tmp_path, path + "/one")
+    run = report.refresh(tmp_path, patch=rule(path))["runs"][0]
+    assert run["status"] == "incomplete"
+    assert run["reward_sum"] == 1
+    assert "1/1 scored; partial" in run["score_label"]
+
+
+def test_retry_or_conflicting_total_cannot_inflate_reward(tmp_path):
+    path = job(tmp_path, total=1)
+    trial(tmp_path, path + "/first")
+    trial(tmp_path, path + "/retry")
+    run = report.refresh(tmp_path, patch=rule(path))["runs"][0]
+    assert len(run["attempts"]) == 2
+    assert run["reward_sum"] is None and run["score_max"] is None
+    assert run["passed"] is None
+    assert "conflicting trial total or retries" in run["score_label"]
+
+
+def test_job_identity_uses_disk_name_and_full_path_with_overlapping_roots(tmp_path):
+    paths = [job(tmp_path, f".eval-author/jobs/{suite}/same", total=1) for suite in ["a", "b"]]
+    for path in paths:
+        trial(tmp_path, path + "/one")
+        write(tmp_path, path + "/config.json", {"job_name": "different-config-name"})
+    data = report.refresh(tmp_path, jobs_roots=[".eval-author/jobs", ".eval-author/jobs/a"])
+    assert {run["path"] for run in data["runs"]} == set(paths)
+    assert all(run["name"] == "same" and run["reward_sum"] == 1 for run in data["runs"])
+    assert all("on-disk" in " ".join(run["issues"]) for run in data["runs"])
+    assert data["standalone_trials"] == []
+
+
+def save_v1_report(root, data):
+    data["schema_version"] = 1
+    data["runs"].extend(data.pop("standalone_trials"))
+    for run in data["runs"]:
+        for key in report.SCORE_FIELDS:
+            del run[key]
+    write(
+        root,
+        ".eval-author/report.html",
+        '<script id="report-data" type="application/json">' + json.dumps(data) + "</script>",
+    )
+
+
+def test_v1_migration_keeps_missing_trials_in_legacy_and_preserves_metadata(tmp_path):
+    path = job(tmp_path, total=1)
+    trial(tmp_path, path + "/one")
+    standalone = ".eval-author/jobs/checks/single"
+    trial(tmp_path, standalone)
+    patch = rule(path)
+    patch["runs"].update(rule(standalone)["runs"])
+    data = report.refresh(tmp_path, patch=patch)
+    save_v1_report(tmp_path, data)
+    shutil.rmtree(tmp_path / standalone)
+    updated = report.refresh(tmp_path)
+    assert updated["schema_version"] == 2
+    assert [run["path"] for run in updated["runs"]] == [path]
+    assert updated["standalone_trials"][0]["status"] == "unverified"
+    assert updated["metadata"] == patch | {"tasks": {}, "task_roots": ["."], "jobs_roots": [".eval-author/jobs"]}
+    assert report.refresh(tmp_path) == updated
+
+
+def test_new_job_owns_previously_standalone_trial_without_ghost_rows(tmp_path):
+    parent = ".eval-author/jobs/becomes-job"
+    trial(tmp_path, parent + "/one")
+    save_v1_report(tmp_path, report.refresh(tmp_path))
+    job(tmp_path, parent, total=1)
+    updated = report.refresh(tmp_path)
+    assert len(updated["runs"]) == 1
+    assert len(updated["runs"][0]["attempts"]) == 1
+    assert updated["standalone_trials"] == []
+
+
+def test_job_replacing_standalone_at_same_path_has_no_legacy_duplicate(tmp_path):
+    path = ".eval-author/jobs/reclassified"
+    trial(tmp_path, path)
+    report.refresh(tmp_path)
+    job(tmp_path, path, total=1)
+    trial(tmp_path, path + "/one")
+    updated = report.refresh(tmp_path)
+    assert [run["path"] for run in updated["runs"]] == [path]
+    assert updated["standalone_trials"] == []
+
+
+def test_browser_renders_job_reward_meter_and_separate_legacy_trials(tmp_path):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node is needed to exercise report rendering")
+    path = job(tmp_path, total=3)
+    for name, reward in [("one", 1), ("two", 0.65), ("three", 0)]:
+        trial(tmp_path, path + "/" + name, reward=reward)
+    trial(tmp_path, ".eval-author/jobs/checks/pending", finished=False)
+    data = report.refresh(tmp_path, patch=rule(path))
+    source = (SCRIPTS / "report-template.html").read_text()
+    helper = source[source.index("function runRow(") : source.index("byId('search').addEventListener")]
+    program = r"""
+const assert=require('node:assert/strict');
+const vm=require('node:vm');
+const input=JSON.parse(require('node:fs').readFileSync(0,'utf8'));
+class Element{
+  constructor(tag,text,className){this.tag=tag;this.textContent=text||'';this.className=className;this.children=[];this.style={};this.dataset={};this.attrs={};}
+  append(...items){this.children.push(...items);}
+  replaceChildren(){this.children=[];}
+  setAttribute(key,value){this.attrs[key]=value;}
+}
+const ids={};
+const byId=id=>ids[id]||(ids[id]=new Element('div'));
+const context={data:input.data,byId,element:(...args)=>new Element(...args),viewerAction:label=>new Element('button',label)};
+vm.createContext(context);vm.runInContext(input.helper+'\ndrawRuns();',context);
+const descendants=node=>[node,...node.children.flatMap(descendants)];
+assert.equal(ids['run-rows'].children.length,1);
+assert.equal(ids['legacy-rows'].children.length,1);
+assert.equal(ids['legacy-trials'].hidden,false);
+assert.equal(ids['legacy-summary'].textContent,'Legacy trials (1)');
+const job=ids['run-rows'].children[0];
+assert.equal(job.dataset.kind,'job');
+const nodes=descendants(job);
+assert(nodes.some(n=>n.className==='run-path'&&n.textContent===input.data.runs[0].path));
+const meter=nodes.find(n=>n.attrs.role==='meter');
+assert.equal(meter.attrs['aria-valuenow'],'1.65');
+assert.equal(meter.attrs['aria-valuemax'],'3');
+assert.equal(nodes.find(n=>n.className==='score-fill').style.width,'55%');
+assert(!descendants(ids['legacy-rows']).some(n=>n.attrs.role==='meter'));
+input.data.runs[0].status='unverified';
+vm.runInContext('drawRuns();',context);
+assert(!descendants(ids['run-rows']).some(n=>n.attrs.role==='meter'));
+assert(descendants(ids['run-rows']).some(n=>n.textContent==='Inventory unverified'));
+input.data.runs=[];input.data.standalone_trials=[];
+vm.runInContext('drawRuns();',context);
+assert.equal(ids['no-runs'].hidden,false);
+assert.equal(ids['legacy-trials'].hidden,true);
+"""
+    result = subprocess.run(
+        [node, "-e", program],
+        input=json.dumps({"helper": helper, "data": data}),
+        text=True,
+        capture_output=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_markdown_legacy_trials_mirrors_the_separate_html_section(tmp_path):
+    path = job(tmp_path, total=1)
+    trial(tmp_path, path + "/one")
+    legacy = ".eval-author/jobs/checks/single"
+    trial(tmp_path, legacy)
+    report.refresh(tmp_path, patch=rule(path))
+    raw = (tmp_path / ".eval-author/README.md").read_text()
+    jobs, standalone = raw.split("### Legacy trials")
+    assert "| Job | Reward |" in jobs and "| Trial | Reward |" in standalone
+    assert legacy not in jobs and path not in standalone
+    assert legacy in standalone and path in jobs
 
 
 def test_incomplete_search_preserves_old_rows(tmp_path):
@@ -294,6 +533,9 @@ def test_no_symlink_following(tmp_path):
         {"summary": "Unrequested narrative"},
         {"tasks": {"../escape": {}}},
         {"runs": {".eval-author/jobs/a": {"pass_value": 1}}},
+        {"runs": {".eval-author/jobs/a": {"reward_min": 0}}},
+        {"runs": {".eval-author/jobs/a": {"reward_min": 1, "reward_max": 1}}},
+        {"runs": {".eval-author/jobs/a": {"reward_min": 5, "reward_max": 0}}},
         {"tasks": {".eval-author/tasks/a": {"behavior": "Unsourced"}}},
     ],
 )
@@ -441,13 +683,15 @@ def test_removed_evidence_is_retained_but_explicit_scope_change_is_respected(tmp
     shutil.rmtree(tmp_path / run_path)
     shutil.rmtree(tmp_path / task_path)
     data = report.refresh(tmp_path)
-    assert data["runs"][0]["status"] == "unverified"
+    assert data["runs"] == []
+    assert data["standalone_trials"][0]["status"] == "unverified"
     assert data["tasks"][0]["status"] == "unverified"
     other = tmp_path / "other"
     other.mkdir()
     data = report.refresh(tmp_path, task_roots=["other"], jobs_roots=["other"])
     assert data["tasks"] == []
     assert data["runs"] == []
+    assert data["standalone_trials"] == []
 
 
 @pytest.mark.parametrize(
@@ -618,7 +862,7 @@ def test_markdown_preserves_warnings_missing_data_and_stale_status(tmp_path):
     report.refresh(tmp_path)
     raw = (tmp_path / ".eval-author/README.md").read_text()
     assert "Not documented" in raw
-    assert "pass rule missing from report metadata" in raw
+    assert "reward: 0.65 total" in raw
     shutil.rmtree(tmp_path / path)
     shutil.rmtree(tmp_path / run_path)
     data = report.refresh(tmp_path, max_entries=1)
@@ -633,7 +877,7 @@ def test_markdown_preserves_warnings_missing_data_and_stale_status(tmp_path):
     report.refresh(tmp_path, task_roots=["empty"], jobs_roots=["empty"])
     raw = (tmp_path / ".eval-author/README.md").read_text()
     assert "No tasks match." in raw
-    assert "No recorded evaluation runs." in raw
+    assert "No recorded evaluation jobs." in raw
 
 
 def test_markdown_runs_include_error_invalid_pending_and_dates(tmp_path):
@@ -645,8 +889,9 @@ def test_markdown_runs_include_error_invalid_pending_and_dates(tmp_path):
     metadata["runs"][run_path]["invalid_attempts"] = {"invalid": "Invalid evidence"}
     report.refresh(tmp_path, patch=metadata)
     raw = (tmp_path / ".eval-author/README.md").read_text()
-    for label in ("1 execution errors", "1 invalid", "2 pending or unclassified", "incomplete", "0/4 passed"):
+    for label in ("1 execution errors", "1 invalid", "2 pending or unscored", "incomplete", "Score unavailable"):
         assert label in raw
+    assert "0/4 passed" not in raw
 
 
 def test_markdown_render_failure_preserves_both_outputs(tmp_path, monkeypatch):

@@ -9,8 +9,12 @@ Use this section for the HTML report and generated Markdown mirror.
 
 `.eval-author/report.html` defines the case/run review content.
 Its Tasks tab lists discovered cases by directory, with task name, grading,
-behavior, expected outcome, and actions. Its Runs tab lists native runs with
-date/time, identity, role, status, score, and actions. Both show available warnings
+behavior, expected outcome, and actions. Its Runs tab lists one row per native
+Harbor job with date/time, the exact on-disk directory name and project-relative
+path, role, status, aggregate reward, and actions. Its Harbor viewer action opens
+the job and its individual trials. Standalone results appear separately under
+the collapsed Legacy trials section; a folder of trials does not establish a
+single job or evaluation invocation. Both show available warnings
 and missing-data states. Settings configures browser viewer addresses only.
 
 The same generator automatically writes `.eval-author/README.md` beside the HTML
@@ -18,7 +22,8 @@ as a Markdown representation of that content. Do not choose, summarize, or autho
 README content separately: each report content tab becomes an H2 section in tab
 order (`## Tasks`, then `## Runs`); omit Settings. Directory groups become H3s,
 tables keep the same columns and ordering, and native score labels replace visual
-bars. Preserve statuses, warnings, record diagnostics, and missing-data labels.
+bars. Legacy trials becomes an H3 under Runs. Preserve statuses, warnings,
+record diagnostics, and missing-data labels.
 Task README actions become relative links to the source documentation (or the
 HTML's saved snapshot when the source is unverified). Harbor actions use the
 HTML's default viewer URLs; Markdown cannot read browser settings or probe a
@@ -92,7 +97,7 @@ or oversized READMEs (over 256 KiB) show an explicit unavailable message.
 Task/run fields are validated by the schema constants in `scripts/report.py`.
 Use `--metadata <temporary-json-path>` for a bounded reporting-only patch; keep
 this input in a temporary directory, not as another persistent project report.
-For example, using actual discovered paths and a documented binary reward rule:
+For example, using actual discovered paths and a documented reward range and binary pass rule:
 
 ```json
 {
@@ -107,23 +112,53 @@ For example, using actual discovered paths and a documented binary reward rule:
     ".eval-author/jobs/refund-baseline": {
       "role": "agent",
       "reward_key": "reward",
+      "reward_min": 0,
+      "reward_max": 1,
       "pass_value": 1
     }
   }
 }
 ```
 
-At each run handoff, record its actual role and documented pass rule in this
-metadata patch before refreshing; use the same declared rule for repeats of the
-same grading contract. If the rule is unavailable, leave it unspecified.
+At each run handoff, record its actual role, reward key, and documented reward
+range in this metadata patch before refreshing. Record a pass rule only when
+documented; it is optional and independent of reward aggregation. Use the same
+declared scoring contract for repeats. Leave unknown ranges or rules unspecified.
 
 This records a report interpretation, never a verifier setting. `pass_value`
 means exact equality for that named metric; do not use it for a threshold rule.
-Only set it from the documented verifier/run contract. Without a rule, the report
-shows a native reward mean when available rather than manufacturing pass/fail.
-Missing data and errors are never zero rewards. Trials in jobs are counted only
-within their parent job. Retries are retained; conflicting totals disable the
-complete-run bar. Do not substitute a later single-case result into an earlier job.
+Only set it from the documented verifier/run contract. `reward_key` defaults to
+`reward` and may be supplied without `pass_value`. The generator sums that metric
+across completed, valid trials, preserving fractional rewards. Other metrics are
+not added to it. Pass/fail counts are secondary and require `pass_value`.
+
+`reward_min` and `reward_max` must be supplied together, with min smaller than
+max. Set them from the verifier/run contract, never from observed extrema or
+`pass_value`. Without a documented range, the report displays the reward sum
+without a graph. Out-of-range rewards remain visible with the graph unavailable.
+For a 0–1 scale, rewards 1, 0.65, and 0 produce 1.65 / 3 reward (55%). For other
+scales the graph uses the declared aggregate minimum and maximum.
+
+The denominator counts scored trials, including intentional repeated attempts,
+not distinct task names. Completion is separate: incomplete jobs label their
+score partial and show scored/expected counts, execution errors, and pending or
+unscored trials. Missing data, errors, and invalid evidence are never zero
+rewards; no scored trials means score unavailable. Trial identities must be
+unique. Duplicate IDs or more retained trials than the native job total disable
+the aggregate to avoid double-counting retries. Native job summaries are not
+added to child trial rewards. Do not substitute a later single-case result into
+an earlier job.
+
+Older embedded reports migrate to the job/legacy split on refresh, preserving
+metadata and unverified evidence. A trial subsequently owned by a native job
+does not remain as a duplicate legacy row.
+
+For future Harbor suite evaluations, use one native job per invocation, with an
+explicit task set, agent/model configuration, and agreed attempts. Give every
+rerun a fresh job directory. This also applies to a one-task evaluation intended
+for the Runs table. Controls and per-trial proof workflows may keep standalone
+trials when fixed evidence paths are required; they appear under Legacy trials.
+Report refresh reads evidence and never launches, rewrites, or combines runs.
 
 Optional imported `behavior` and `expected_outcome` fields require project-relative
 `source_refs`. Unique README sections take precedence. Test-case sections use each

@@ -25,7 +25,15 @@ Test cases are organized by their discovered parent directory.
 See the [Report generation](../skills/eval-author/references/suite-readme.md#report-generation)
 for selected roots, metadata, and CLI usage. The report reads existing artifacts;
 it does not run evaluations. Missing task descriptions show `Not documented`.
-Native scores without a documented pass rule are not labeled passed or failed.
+The Runs table has one row per native Harbor job, using its exact directory name
+and path. The reward graph combines scored trial rewards, including partial
+credit, using the documented reward range. Execution completion and scored trial
+counts appear separately; an incomplete job's score is labeled partial. Missing
+rewards do not become zeroes. Without a documented reward range, the numeric
+total appears without a graph. Native scores without a documented pass rule
+are not labeled passed or failed. Standalone controls and other individual trials
+remain accessible in the separate Legacy trials section and are not combined
+into inferred jobs.
 
 ## Discovery and readiness
 

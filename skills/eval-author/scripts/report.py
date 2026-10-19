@@ -74,6 +74,8 @@ RUN_METADATA = obj(
         "role": {"enum": ["agent", "control", "diagnostic", "unknown"]},
         "reward_key": TEXT,
         "pass_value": {"type": "number"},
+        "reward_min": {"type": "number"},
+        "reward_max": {"type": "number"},
         "invalid_attempts": {"type": "object", "additionalProperties": TEXT},
     },
     [],
@@ -118,7 +120,7 @@ ATTEMPT_SCHEMA = obj(
         "route": NULL_TEXT,
     }
 )
-RUN_SCHEMA = obj(
+V1_RUN_SCHEMA = obj(
     {
         "id": TEXT,
         "path": PATH,
@@ -140,14 +142,33 @@ RUN_SCHEMA = obj(
         "issues": array(TEXT),
     }
 )
-REPORT_SCHEMA = obj(
+V1_REPORT_SCHEMA = obj(
     {
         "schema_version": {"const": 1},
         "metadata": METADATA_SCHEMA,
         "tasks": array(TASK_SCHEMA),
-        "runs": array(RUN_SCHEMA),
+        "runs": array(V1_RUN_SCHEMA),
         "warnings": array(TEXT),
         "inventory": obj({"complete": {"type": "boolean"}, "excluded": array(PATH)}),
+    }
+)
+SCORE_FIELDS = {
+    "reward_key": TEXT,
+    "reward_sum": NUMBER,
+    "score_min": NUMBER,
+    "score_max": NUMBER,
+    "scored": {"type": "integer", "minimum": 0},
+    "completed": {"type": "integer", "minimum": 0},
+}
+RUN_SCHEMA = obj({**V1_RUN_SCHEMA["properties"], **SCORE_FIELDS})
+JOB_SCHEMA = obj({**RUN_SCHEMA["properties"], "kind": {"const": "job"}})
+STANDALONE_SCHEMA = obj({**RUN_SCHEMA["properties"], "kind": {"enum": ["standalone_trial", "unknown"]}})
+REPORT_SCHEMA = obj(
+    {
+        **V1_REPORT_SCHEMA["properties"],
+        "schema_version": {"const": 2},
+        "runs": array(JOB_SCHEMA),
+        "standalone_trials": array(STANDALONE_SCHEMA),
     }
 )
 
@@ -242,7 +263,7 @@ def previous_report(path: Path) -> tuple[dict | None, bytes | None]:
     payload = decode_json(parser.blocks[0])
     # Early report prototypes stored authored product labels. Discard only that
     # retired field; sections now derive from discovered task paths.
-    if isinstance(payload, dict) and payload.get("schema_version") == 1:
+    if isinstance(payload, dict) and payload.get("schema_version") in (1, 2):
         for task in payload.get("tasks", []) if isinstance(payload.get("tasks"), list) else []:
             if isinstance(task, dict):
                 task.pop("product_area", None)
@@ -253,6 +274,28 @@ def previous_report(path: Path) -> tuple[dict | None, bytes | None]:
             for fields in tasks.values():
                 if isinstance(fields, dict):
                     fields.pop("product_area", None)
+    if isinstance(payload, dict) and payload.get("schema_version") == 1:
+        validate(payload, V1_REPORT_SCHEMA)
+        old_runs = payload["runs"]
+        for run in old_runs:
+            # Old bars counted passes. Recompute only from retained trial rewards;
+            # fresh disk evidence replaces these snapshots during refresh.
+            ids = [attempt["id"] for attempt in run["attempts"]]
+            blocked = "duplicate attempt IDs" if len(ids) != len(set(ids)) else None
+            if run["total"] is not None and run["total"] < len(ids):
+                blocked = "conflicting trial total or retries"
+            run.update(
+                score_run(
+                    run["attempts"],
+                    run["total"],
+                    payload["metadata"]["runs"].get(run["path"], {}),
+                    blocked,
+                    partial=run["status"] != "completed",
+                )
+            )
+        payload["runs"] = [run for run in old_runs if run["kind"] == "job"]
+        payload["standalone_trials"] = [run for run in old_runs if run["kind"] != "job"]
+        payload["schema_version"] = 2
     validate(payload, REPORT_SCHEMA)
     return payload, content
 
@@ -495,37 +538,61 @@ def trial_record(path: str, data: dict, config: dict) -> dict:
     }
 
 
-def score_run(attempts: list[dict], total: int | None, metadata: dict) -> dict:
+def score_run(
+    attempts: list[dict], total: int | None, metadata: dict, blocked: str | None = None, *, partial: bool = False
+) -> dict:
+    """Sum one named reward; execution coverage is independent of pass rules."""
     errors = sum(a["execution"] == "error" for a in attempts)
     invalid = sum(a["invalid_reason"] is not None and a["execution"] != "error" for a in attempts)
-    passed = failed = known = 0
-    key, target = metadata.get("reward_key"), metadata.get("pass_value")
-    for attempt in attempts:
-        reward = attempt["rewards"].get(key)
-        if attempt["execution"] != "completed" or attempt["invalid_reason"] or reward is None:
-            continue
-        if key is not None and target is not None:
-            known += 1
-            passed += reward == target
-            failed += reward != target
+    completed = sum(a["execution"] == "completed" for a in attempts)
+    key, target = metadata.get("reward_key", "reward"), metadata.get("pass_value")
+    values = [
+        a["rewards"][key]
+        for a in attempts
+        if a["execution"] == "completed" and a["invalid_reason"] is None and key in a["rewards"]
+    ]
+    scored = len(values)
     denominator = total if total is not None else len(attempts)
-    unknown = max(0, denominator - known - errors - invalid)
-    if key is not None and target is not None:
-        label = f"{passed}/{denominator} passed"
-        if total is None:
-            label += " (recorded attempts; total unknown)"
-    else:
-        values = [
-            a["rewards"].get("reward") for a in attempts if a["execution"] == "completed" and not a["invalid_reason"]
-        ]
-        values = [v for v in values if v is not None]
-        label = (
-            f"reward: {sum(values) / len(values):.3g} mean (pass rule missing from report metadata)"
-            if values
-            else "Score unavailable"
-        )
+    unknown = max(0, denominator - scored - errors - invalid)
+    passed = sum(value == target for value in values) if target is not None and scored and not blocked else None
+    failed = scored - passed if passed is not None else 0
+    reward_sum = score_min = score_max = None
+    if values and not blocked:
+        try:
+            reward_sum = math.fsum(values)
+        except OverflowError:
+            blocked = "reward total exceeds numeric limits"
+        if reward_sum is not None and not math.isfinite(reward_sum):
+            reward_sum = None
+            blocked = "reward total exceeds numeric limits"
+    label = f"Score unavailable ({blocked})" if blocked else "Score unavailable"
+    if reward_sum is not None:
+        label = f"{key}: {reward_sum:.6g} total"
+        low, high = metadata.get("reward_min"), metadata.get("reward_max")
+        if low is not None and high is not None and all(low <= value <= high for value in values):
+            lower, upper = scored * low, scored * high
+            if all(math.isfinite(value) for value in (lower, upper, upper - lower)) and lower < upper:
+                score_min, score_max = lower, upper
+                percent = 100 * (reward_sum - score_min) / (score_max - score_min)
+                label = f"{reward_sum:.6g} / {score_max:.6g} {key} ({percent:.1f}%)"
+                if low != 0:
+                    label += f"; range {score_min:.6g} to {score_max:.6g}"
+        elif low is not None and high is not None:
+            label += " (outside declared range; graph unavailable)"
+        else:
+            label += " (reward range not documented)"
+    coverage = f"{scored}/{total} scored" if total is not None else f"{scored} scored; total unknown"
+    if partial or total is None or scored != total:
+        coverage += "; partial"
+    label += f" · {coverage}"
     return {
-        "passed": passed if key is not None and target is not None else None,
+        "reward_key": key,
+        "reward_sum": reward_sum,
+        "score_min": score_min,
+        "score_max": score_max,
+        "scored": scored,
+        "completed": completed,
+        "passed": passed,
         "failed": failed,
         "errors": errors,
         "invalid": invalid,
@@ -581,16 +648,21 @@ def collect_runs(repo: Path, metadata: dict, max_depth: int, max_entries: int) -
         if not isinstance(total, int) or isinstance(total, bool) or total < 0:
             total = None
         issues = list(record["issues"])
+        blocked = None
         if total is not None and total < len(attempts):
             issues.append(
                 "Native total is smaller than retained attempts; retries or conflicting evidence require review."
             )
+            blocked = "conflicting trial total or retries"
             total = None
         ids = [a["id"] for a in attempts]
         duplicate_ids = len(ids) != len(set(ids))
         if duplicate_ids:
             issues.append("Duplicate native attempt IDs; score unavailable.")
-            override = {k: v for k, v in override.items() if k not in {"reward_key", "pass_value"}}
+            blocked = "duplicate attempt IDs"
+        configured_name = text(record["config"].get("job_name"))
+        if is_job and configured_name and configured_name != PurePosixPath(path).name:
+            issues.append("Configured job_name differs from the on-disk directory name; displaying the directory name.")
         agents = {a["agent"] for a in attempts}
         role = override.get("role", "control" if agents and agents <= {"oracle", "nop"} else "unknown")
         date = timestamp(data.get("finished_at")) or timestamp(data.get("started_at"))
@@ -598,7 +670,8 @@ def collect_runs(repo: Path, metadata: dict, max_depth: int, max_entries: int) -
             dates = [a["finished_at"] or a["started_at"] for a in attempts]
             date = max((d for d in dates if d), default=None)
         finished = bool(timestamp(data.get("finished_at")))
-        status = "completed" if finished and total == len(attempts) else "incomplete"
+        terminal = all(a["execution"] in {"completed", "error"} for a in attempts)
+        status = "completed" if finished and total == len(attempts) and terminal else "incomplete"
         if not data:
             status = "unknown"
         parent = PurePosixPath(path).parent.as_posix()
@@ -608,9 +681,7 @@ def collect_runs(repo: Path, metadata: dict, max_depth: int, max_entries: int) -
             # Native viewer also treats a directory of standalone trials as a job.
             viewer_root = PurePosixPath(parent).parent.as_posix()
             route = "jobs/" + quote(PurePosixPath(parent).name, safe="") + "/" + attempts[0]["route"]
-        score = score_run(attempts, total, override)
-        if duplicate_ids:
-            score["score_label"] = "Score unavailable (duplicate attempt IDs)"
+        score = score_run(attempts, total, override, blocked, partial=status != "completed")
         runs.append(
             {
                 "id": text(data.get("id")) or path,
@@ -661,8 +732,15 @@ def metadata_for(
         for path in metadata[key]:
             relative(path)
     for fields in metadata["runs"].values():
-        if ("reward_key" in fields) != ("pass_value" in fields):
-            raise ReportError("A run pass rule requires both reward_key and pass_value.")
+        if "pass_value" in fields and "reward_key" not in fields:
+            raise ReportError("A run pass rule requires reward_key.")
+        if ("reward_min" in fields) != ("reward_max" in fields):
+            raise ReportError("A reward scale requires both reward_min and reward_max.")
+        for key in ("pass_value", "reward_min", "reward_max"):
+            if key in fields and not math.isfinite(fields[key]):
+                raise ReportError("Reward metadata requires finite numbers.")
+        if "reward_min" in fields and fields["reward_min"] >= fields["reward_max"]:
+            raise ReportError("reward_min must be smaller than reward_max.")
     for fields in metadata["tasks"].values():
         if (fields.get("behavior") or fields.get("expected_outcome")) and not fields.get("source_refs"):
             raise ReportError("Imported task descriptions require source_refs.")
@@ -742,30 +820,39 @@ def render_markdown(data: dict) -> str:
     if not data["tasks"]:
         lines.extend(["No tasks match.", ""])
     lines.extend(["## Runs", ""])
-    if data["runs"]:
-        lines.extend(["| Date / time | Run | Score | Actions |", "| --- | --- | --- | --- |"])
-    for run in data["runs"]:
+    lines.extend(markdown_runs(data["runs"], "Job"))
+    if not data["runs"]:
+        lines.append("No recorded evaluation jobs.")
+    if data["standalone_trials"]:
+        lines.extend(["", "### Legacy trials", "", "Standalone trials are not evaluation jobs.", ""])
+        lines.extend(markdown_runs(data["standalone_trials"], "Trial"))
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def markdown_runs(runs: list[dict], identity: str) -> list[str]:
+    if not runs:
+        return []
+    lines = [f"| Date / time | {identity} | Reward | Actions |", "| --- | --- | --- | --- |"]
+    for run in runs:
         labels = ["Role not documented" if run["role"] == "unknown" else run["role"], run["status"]]
-        for key, label in (
-            ("errors", "execution errors"),
-            ("invalid", "invalid"),
-            ("unknown", "pending or unclassified"),
-        ):
+        labels.append(f"{run['completed']} completed")
+        for key, label in (("errors", "execution errors"), ("invalid", "invalid"), ("unknown", "pending or unscored")):
             if run[key]:
                 labels.append(f"{run[key]} {label}")
+        if run["passed"] is not None:
+            labels.append(f"{run['passed']}/{run['scored']} passed")
+            labels.append(f"{run['failed']} failed")
         action = artifact_link("Review saved artifacts", run["path"])
         if run["route"] and run["status"] != "unverified":
             action = f"[Harbor viewer](http://127.0.0.1:8080/{run['route']})"
         cells = [
             markdown_text(run["date"].replace("T", "\n") if run["date"] else "Date not recorded"),
-            "<br>".join(markdown_text(part) for part in [run["name"], " · ".join(labels), *run["issues"]]),
+            "<br>".join(markdown_text(part) for part in [run["name"], run["path"], " · ".join(labels), *run["issues"]]),
             markdown_text("Inventory unverified" if run["status"] == "unverified" else run["score_label"]),
             action,
         ]
         lines.append("| " + " | ".join(cells) + " |")
-    if not data["runs"]:
-        lines.append("No recorded evaluation runs.")
-    return "\n".join(lines).rstrip() + "\n"
+    return lines
 
 
 def refresh(
@@ -795,25 +882,38 @@ def refresh(
         old_markdown = read_bytes(markdown_output, MAX_REPORT_BYTES) if markdown_output.exists() else None
         metadata = metadata_for(previous, patch or {}, task_roots, jobs_roots)
         tasks, tasks_complete, excluded = collect_tasks(repo, metadata, max_depth, max_entries)
-        runs, runs_complete = collect_runs(repo, metadata, max_depth, max_entries)
+        collected, runs_complete = collect_runs(repo, metadata, max_depth, max_entries)
+        runs = [run for run in collected if run["kind"] == "job"]
+        standalone_trials = [run for run in collected if run["kind"] != "job"]
+        job_paths = {run["path"] for run in runs}
+        owned_trials = job_paths | {attempt["path"] for run in runs for attempt in run["attempts"]}
         warnings = []
-        for records, key, complete in [(tasks, "tasks", tasks_complete), (runs, "runs", runs_complete)]:
+        for records, key, complete in [
+            (tasks, "tasks", tasks_complete),
+            (runs, "runs", runs_complete),
+            (standalone_trials, "standalone_trials", runs_complete),
+        ]:
             if not complete:
-                warnings.append(f"{key.capitalize()} inventory is incomplete; retained entries may be unverified.")
+                label = "Legacy trials" if key == "standalone_trials" else key.capitalize()
+                warnings.append(f"{label} inventory is incomplete; retained entries may be unverified.")
             current = {r["path"] for r in records}
             roots = metadata["task_roots" if key == "tasks" else "jobs_roots"]
             for old in (previous or {}).get(key, []):
+                if key == "standalone_trials" and old["path"] in owned_trials:
+                    continue
                 in_scope = any(PurePosixPath(old["path"]).is_relative_to(PurePosixPath(root)) for root in roots)
                 if old["path"] not in current and in_scope:
                     issues = sorted(set(old["issues"] + ["Source artifacts were not found in this scan."]))
                     records.append({**old, "status": "unverified", "issues": issues})
         tasks.sort(key=task_sort)
         runs.sort(key=run_sort)
+        standalone_trials.sort(key=run_sort)
         data = {
-            "schema_version": 1,
+            "schema_version": 2,
             "metadata": metadata,
             "tasks": tasks,
             "runs": runs,
+            "standalone_trials": standalone_trials,
             "warnings": warnings,
             "inventory": {"complete": tasks_complete and runs_complete, "excluded": excluded},
         }
@@ -882,6 +982,7 @@ def main() -> int:
                     "readme": ".eval-author/README.md",
                     "tasks": len(data["tasks"]),
                     "runs": len(data["runs"]),
+                    "standalone_trials": len(data["standalone_trials"]),
                     "complete": data["inventory"]["complete"],
                 }
             )

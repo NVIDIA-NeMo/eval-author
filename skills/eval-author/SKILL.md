@@ -61,15 +61,6 @@ allowed-tools: Read Write Grep Glob
 
 # Eval Author
 
-## Refresh the case/run report
-
-For an explicit request to create or refresh the local case/run catalog, use the
-[Report generation](references/suite-readme.md#report-generation) to refresh
-`.eval-author/report.html` and `.eval-author/README.md` for the selected project.
-Relevant authoring handoffs also refresh these reports after creating or changing
-cases and after retained runs. Preserve discovery and all authoring/validation
-workflows; refreshing a report does not execute evaluations.
-
 ## Purpose
 
 Work on repository-owned evaluation suites and understand agent traces. Route
