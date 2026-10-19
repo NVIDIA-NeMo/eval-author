@@ -75,6 +75,7 @@ def _workspace(tmp_path: Path, *, image_only: bool = False) -> tuple[Path, Path]
     code, result = _run("init", "--root", str(root), "--task-id", "repair-fixture")
     assert code == 0, result
     task_dir = Path(result["task_dir"])
+    _historical_workspace(task_dir)
     source = tmp_path / "source.atif.json"
     _write_json(source, _atif(image_only=image_only))
     code, result = _run(
@@ -88,6 +89,14 @@ def _workspace(tmp_path: Path, *, image_only: bool = False) -> tuple[Path, Path]
     )
     assert code == 0, result
     return task_dir, source
+
+
+def _historical_workspace(task_dir: Path) -> None:
+    """Retain v2/v6 compatibility coverage; new contracts have skill-local tests."""
+    summary = json.loads((task_dir / "summary.json").read_text())
+    summary["schema"] = _SUMMARY_SCHEMA
+    summary["environment"].pop("qualification", None)
+    _write_json(task_dir / "summary.json", summary)
 
 
 def _fixture_atif() -> dict[str, Any]:
@@ -765,6 +774,7 @@ def _ready_environment(
     check_rows: bool = True,
     allow_aggregate: bool = False,
 ) -> None:
+    _historical_workspace(task_dir)
     task = task_dir / "task"
     (task / "environment").mkdir(parents=True, exist_ok=True)
     (task / "tests").mkdir(exist_ok=True)
@@ -910,7 +920,8 @@ def test_init_creates_private_gitignored_workspace(tmp_path: Path) -> None:
     assert result == {"gitignored": True, "status": "pending", "task_dir": str(task_dir)}
     assert (root / ".gitignore").read_text(encoding="utf-8") == "*\n!.gitignore\n"
     summary = json.loads((task_dir / "summary.json").read_text(encoding="utf-8"))
-    assert summary["schema"] == _SUMMARY_SCHEMA
+    assert summary["schema"] == _TRACE_ENVIRONMENT.QUALIFIED_SUMMARY_SCHEMA
+    assert summary["environment"]["qualification"] == "not_run"
     assert summary["status"] == "pending"
     if os.name == "posix":
         assert root.stat().st_mode & 0o777 == 0o700
@@ -2279,13 +2290,13 @@ def test_batch_status_reports_malformed_workspace_without_aborting(tmp_path: Pat
     assert status["counts"] == {"invalid": 1, "missing": 1, "pending_prepared": 1}
     assert status["valid"] is False
     assert status["members"] == [
-        {"task_id": "task-one", "status": "pending_prepared"},
+        {"task_id": "task-one", "status": "pending_prepared", "qualification": "not_run"},
         {
             "task_id": "task-two",
             "status": "invalid",
             "error": "summary fields do not match the versioned contract",
         },
-        {"task_id": "task-three", "status": "missing"},
+        {"task_id": "task-three", "status": "missing", "qualification": "unmeasured"},
     ]
 
 

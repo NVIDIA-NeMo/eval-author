@@ -28,6 +28,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+import construction  # noqa: E402
 from evidence_audit import audit_evidence  # noqa: E402
 from fixture_compiler import (  # noqa: E402
     DECISIONS_SCHEMA,
@@ -38,11 +39,15 @@ from fixture_compiler import (  # noqa: E402
     resolve_tool_access,
 )
 from mock_registration import probe_registration  # noqa: E402
+from verifier_lint import verifier_advisories  # noqa: E402
 
 SCHEMA = "nemo.eval_author.trace_environment_summary.v2"
+QUALIFIED_SUMMARY_SCHEMA = "nemo.eval_author.trace_environment_summary.v3"
 CANDIDATE_SCHEMA = "nemo.eval_author.trace_environment_candidate.v2"
 VALIDATION_SCHEMA = "nemo.eval_author.trace_environment_validation.v6"
 RUN_INPUT_SCHEMA = "nemo.eval_author.trace_environment_run_input.v1"
+QUALIFIED_RUN_INPUT_SCHEMA = "nemo.eval_author.trace_environment_run_input.v2"
+QUALIFIED_VALIDATION_SCHEMA = "nemo.eval_author.trace_environment_validation.v7"
 PROBE_SCHEMA = "nemo.eval_author.trace_environment_probes.v1"
 REPAIR_SCHEMA = "nemo.eval_author.trace_environment_repair.v1"
 PRIVACY_AUDIT_SCHEMA = "nemo.eval_author.trace_environment_privacy_audit.v1"
@@ -296,7 +301,7 @@ def _load_summary(task_dir: Path) -> dict[str, Any]:
     summary = _load_object(_summary_path(task_dir), label="summary")
     if set(summary) != _SUMMARY_KEYS:
         raise ContractError("summary fields do not match the versioned contract")
-    if summary.get("schema") != SCHEMA:
+    if summary.get("schema") not in (SCHEMA, QUALIFIED_SUMMARY_SCHEMA):
         raise ContractError(f"summary.schema must be {SCHEMA!r}")
     if summary.get("task_id") != task_dir.name:
         raise ContractError("summary task_id does not match its directory")
@@ -343,7 +348,12 @@ def _load_summary(task_dir: Path) -> dict[str, Any]:
     environment = summary.get("environment")
     if (
         not isinstance(environment, dict)
-        or set(environment) != _ENVIRONMENT_KEYS
+        or set(environment)
+        != (
+            _ENVIRONMENT_KEYS | {"qualification"}
+            if summary["schema"] == QUALIFIED_SUMMARY_SCHEMA
+            else _ENVIRONMENT_KEYS
+        )
         or environment.get("path") != "task"
         or environment.get("status") not in ("ready", "failed", "unproven", "not_attempted")
         or environment.get("technical_status") not in ("passed", "failed", "not_run")
@@ -353,6 +363,13 @@ def _load_summary(task_dir: Path) -> dict[str, Any]:
         or environment.get("isolation_status") not in ("isolated", "not_run")
     ):
         raise ContractError("summary environment does not match the versioned task workspace contract")
+    if summary["schema"] == QUALIFIED_SUMMARY_SCHEMA and environment["qualification"] not in (
+        "not_run",
+        "not_applicable",
+        "passed",
+        "failed",
+    ):
+        raise ContractError("invalid construction qualification status")
     if privacy is not None and source is None:
         raise ContractError("summary privacy data requires prepared source evidence")
     return summary
@@ -393,7 +410,7 @@ def _init(args: argparse.Namespace) -> dict[str, Any]:
     _mkdir_private(task_dir / "safe")
 
     summary: dict[str, Any] = {
-        "schema": SCHEMA,
+        "schema": QUALIFIED_SUMMARY_SCHEMA,
         "task_id": args.task_id,
         "status": "pending",
         "source": None,
@@ -407,6 +424,7 @@ def _init(args: argparse.Namespace) -> dict[str, Any]:
             "validation": None,
             "verifier_environment_mode": None,
             "isolation_status": "not_run",
+            "qualification": "not_run",
         },
         "worked_well": [],
         "did_not_work": [],
@@ -2104,7 +2122,11 @@ def _validate_task_issues(task_dir: Path) -> tuple[list[dict[str, str]], list[di
         )
         issues.append({"code": code, "path": "task", "hint": f"{message} — {hint}"})
     grammar_issues, advisories = _check_grammar_issues(task_dir)
-    return issues + grammar_issues, advisories
+    try:
+        _construction_context(task_dir)
+    except ContractError as error:
+        issues.append({"code": "construction_contract", "path": construction.PATH, "hint": str(error)})
+    return issues + grammar_issues, advisories + verifier_advisories(task_dir)
 
 
 def _validate_task_cmd(args: argparse.Namespace) -> dict[str, Any]:
@@ -2558,6 +2580,25 @@ def _run_input_path(task_dir: Path, job_dir: Path) -> Path:
     return task_dir / "private" / "run-inputs" / f"{hashlib.sha256(relative.encode()).hexdigest()}.json"
 
 
+def _construction_context(task_dir: Path) -> dict[str, Any] | None:
+    summary = _load_summary(task_dir)
+    path = task_dir / construction.PATH
+    if summary["schema"] == SCHEMA:
+        if path.exists() or path.is_symlink():
+            raise ContractError(
+                "historical workspace cannot adopt construction evidence in place; initialize a new workspace"
+            )
+        return None
+    try:
+        return construction.validate(task_dir)
+    except (ValueError, OSError, KeyError, TypeError, RecursionError) as error:
+        raise ContractError(
+            f"construction contract invalid: {error}"
+            if isinstance(error, construction.ConstructionError)
+            else "construction contract malformed or unreadable"
+        ) from error
+
+
 def _agent_identity(config: Any) -> str:
     if not isinstance(config, dict):
         raise ContractError("Harbor result must record config.agent")
@@ -2612,8 +2653,15 @@ def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
     if output.exists():
         raise ContractError("run inputs already recorded; use a fresh job name")
     reproducibility = _validate_reproducibility(task_dir)
+    context = _construction_context(task_dir)
+    control_id = getattr(args, "control_id", None)
+    if context is not None and args.arm in construction.CUSTOM_ARMS:
+        if control_id not in context["controls"] or context["controls"][control_id]["arm"] != args.arm:
+            raise ContractError("custom proof arm requires a matching declared --control-id")
+    elif control_id is not None or args.arm in ("alternative", "bypass"):
+        raise ContractError("control IDs, alternative and bypass arms require a construction contract")
     control = None
-    if args.arm in ("negative", "copy"):
+    if args.arm in construction.CUSTOM_ARMS:
         if not args.negative_agent or args.negative_source is None or not args.negative_rationale:
             raise ContractError(
                 f"{args.arm} run inputs require --control-agent, --control-source and --control-rationale"
@@ -2622,7 +2670,7 @@ def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
             task_dir, args.negative_agent, args.negative_source, args.negative_rationale, arm=args.arm
         )
     elif args.negative_agent or args.negative_source or args.negative_rationale:
-        raise ContractError("control options apply only to the negative or copy arm")
+        raise ContractError("control options apply only to custom proof arms")
     receipt = {
         "schema": RUN_INPUT_SCHEMA,
         "arm": args.arm,
@@ -2632,6 +2680,8 @@ def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
         # Keep the v1 receipt field name for both control arms.
         "negative_control": control,
     }
+    if context is not None:
+        receipt.update(schema=QUALIFIED_RUN_INPUT_SCHEMA, construction_sha256=context["sha256"], control_id=control_id)
     _mkdir_private(output.parent)
     _write_bytes_once(output, (json.dumps(receipt, indent=2, sort_keys=True) + "\n").encode())
     return {
@@ -2647,11 +2697,27 @@ def _validate_run_inputs(
 ) -> dict[str, Any]:
     path = _run_input_path(task_dir, job_dir)
     receipt = _load_object(path, label="pre-run inputs (record-run-inputs is required before every Harbor job)")
-    if (
-        set(receipt) != {"schema", "arm", "job_dir", "task_tree_sha256", "task_checksum", "negative_control"}
-        or receipt.get("schema") != RUN_INPUT_SCHEMA
+    context = _construction_context(task_dir)
+    keys = {"schema", "arm", "job_dir", "task_tree_sha256", "task_checksum", "negative_control"}
+    if context is not None:
+        keys |= {"construction_sha256", "control_id"}
+    if set(receipt) != keys or receipt.get("schema") != (
+        QUALIFIED_RUN_INPUT_SCHEMA if context is not None else RUN_INPUT_SCHEMA
     ):
         raise ContractError("run inputs do not match the versioned contract")
+    if context is not None:
+        if receipt["construction_sha256"] != context["sha256"]:
+            raise ContractError("pre-run construction contract changed; fresh jobs required")
+        control_id = receipt["control_id"]
+        if arm in construction.CUSTOM_ARMS:
+            if (
+                not isinstance(control_id, str)
+                or control_id not in context["controls"]
+                or context["controls"][control_id]["arm"] != arm
+            ):
+                raise ContractError("pre-run control differs from construction contract")
+        elif control_id is not None:
+            raise ContractError("built-in arms must not identify custom controls")
     if receipt["arm"] != arm or receipt["job_dir"] != job_dir.relative_to(task_dir).as_posix():
         raise ContractError("run inputs identify a different Harbor job or proof arm")
     if receipt["task_tree_sha256"] != task_digest or receipt["task_checksum"] != checksum:
@@ -2661,7 +2727,7 @@ def _validate_run_inputs(
     config = result.get("config")
     identity = _agent_identity(config.get("agent") if isinstance(config, dict) else None)
     control = receipt["negative_control"]
-    if arm in ("negative", "copy"):
+    if arm in construction.CUSTOM_ARMS:
         if not isinstance(control, dict) or set(control) != {"agent", "source_path", "source_sha256", "rationale"}:
             raise ContractError(f"{arm} run inputs require retained control source and rationale")
         if not isinstance(control["agent"], str) or not isinstance(control["source_path"], str):
@@ -2709,19 +2775,30 @@ def _validation_from_jobs(
     *,
     allow_aggregate_only: bool = False,
     copy_job_dirs: list[str | Path] | None = None,
+    alternative_job_dirs: list[str | Path] | None = None,
+    bypass_job_dirs: list[str | Path] | None = None,
 ) -> dict[str, Any]:
     if not isinstance(harbor_version, str) or not harbor_version.strip():
         raise ContractError("Harbor version must be nonempty text")
     task_contract = _validate_task(task_dir)
     reproducibility = _validate_reproducibility(task_dir)
     checksum = _harbor_task_checksum(task_dir)
+    context = _construction_context(task_dir)
     inputs = {
         "nop": nop_job_dirs,
         "oracle": oracle_job_dirs,
         "negative": negative_job_dirs,
         "copy": copy_job_dirs or [],
     }
-    for arm, minimum in _MIN_VALIDATION_RUNS.items():
+    minimum_runs = dict(_MIN_VALIDATION_RUNS)
+    if context is not None:
+        inputs.update(alternative=alternative_job_dirs or [], bypass=bypass_job_dirs or [])
+        minimum_runs.update(alternative=1, bypass=0)
+        if allow_aggregate_only:
+            raise ContractError("construction qualification requires per-check evidence")
+    elif alternative_job_dirs or bypass_job_dirs:
+        raise ContractError("additional proof arms require a construction contract")
+    for arm, minimum in minimum_runs.items():
         if len(inputs[arm]) < minimum:
             raise ContractError(f"validation requires at least {minimum} independent {arm} Harbor jobs")
     runs: dict[str, list[dict[str, Any]]] = {arm: [] for arm in inputs}
@@ -2740,6 +2817,14 @@ def _validation_from_jobs(
             run = {**_arm_from_result(task_dir, job_dir, result_path, result), **run_inputs}
             if checks is not None:
                 run["checks"] = checks
+            if context is not None:
+                receipt = _load_object(_run_input_path(task_dir, job_dir), label="run inputs")
+                try:
+                    run["construction_execution"] = construction.execution(
+                        task_dir, result_path, context, receipt["control_id"]
+                    )
+                except (ValueError, OSError, KeyError, TypeError, RecursionError) as error:
+                    raise ContractError("missing, malformed or stale construction execution evidence") from error
             runs[arm].append(run)
     if copy_job_dirs and any(rows is None for rows in check_rows):
         raise ContractError(
@@ -2767,8 +2852,8 @@ def _validation_from_jobs(
             failed_checks = [row["check_id"] for row in run["checks"] if row["status"] != "PASS"]
             if failed_checks and run["reward"] == 1:
                 raise ContractError(f"oracle reward 1 conflicts with failing checks: {', '.join(failed_checks)}")
-        for arm in ("negative", "copy"):
-            for run in runs[arm]:
+        for arm in ("negative", "copy", "alternative", "bypass"):
+            for run in runs.get(arm, []):
                 if run["reward"] in (0, 1) and (run["reward"] == 1) != all(
                     row["status"] == "PASS" for row in run["checks"]
                 ):
@@ -2793,25 +2878,35 @@ def _validation_from_jobs(
     mode = next(iter(modes))
     if mode != task_contract["verifier_environment_mode"]:
         raise ContractError("Harbor verifier environment mode differs from task/task.toml")
-    expected_rewards = {"nop": 0, "oracle": 1, "negative": 0, "copy": 0}
+    expected_rewards = {"nop": 0, "oracle": 1, "negative": 0, "copy": 0, "alternative": 1, "bypass": 0}
     passed = all(
         run["reward"] == expected_rewards[arm] and not run["exception_present"]
         for arm, arm_runs in runs.items()
         for run in arm_runs
     )
-    return {
-        "schema": VALIDATION_SCHEMA,
+    qualification = None
+    if context is not None:
+        try:
+            qualification = construction.qualify(context, runs)
+        except (construction.ConstructionError, KeyError, TypeError) as error:
+            raise ContractError(f"construction qualification failed: {error}") from error
+        passed = passed and qualification["status"] == "passed"
+    report = {
+        "schema": QUALIFIED_VALIDATION_SCHEMA if context is not None else VALIDATION_SCHEMA,
         "harbor_version": harbor_version,
         "task_checksum": retained_checksum,
         "task_tree_sha256": reproducibility["task_tree_sha256"],
         "verifier_environment_mode": mode,
         "distinct_jobs": True,
         "container_freshness": "unverified",
-        "minimum_runs": _MIN_VALIDATION_RUNS,
+        "minimum_runs": minimum_runs,
         "check_evidence": check_evidence,
         "passed": passed,
         "runs": runs,
     }
+    if qualification is not None:
+        report["qualification"] = qualification
+    return report
 
 
 def _copy_probe_summary(validation: dict[str, Any]) -> dict[str, Any]:
@@ -2842,11 +2937,14 @@ def _record_validation(args: argparse.Namespace) -> dict[str, Any]:
         args.harbor_version,
         allow_aggregate_only=args.allow_aggregate_only,
         copy_job_dirs=args.copy_job_dir,
+        alternative_job_dirs=args.alternative_job_dir,
+        bypass_job_dirs=args.bypass_job_dir,
     )
     _write_json(validation_path, validation)
     return {
         "task_dir": str(task_dir),
         "passed": validation["passed"],
+        "qualification": validation.get("qualification", {"status": "unmeasured"}),
         "nop_rewards": [run["reward"] for run in validation["runs"]["nop"]],
         "oracle_rewards": [run["reward"] for run in validation["runs"]["oracle"]],
         "negative_rewards": [run["reward"] for run in validation["runs"]["negative"]],
@@ -2870,21 +2968,26 @@ def _validate_validation(task_dir: Path) -> dict[str, Any]:
         "passed",
         "runs",
     }
-    if set(recorded) != expected_keys or recorded.get("schema") != VALIDATION_SCHEMA:
+    qualified = recorded.get("schema") == QUALIFIED_VALIDATION_SCHEMA
+    minimum_runs = dict(_MIN_VALIDATION_RUNS)
+    if qualified:
+        expected_keys.add("qualification")
+        minimum_runs.update(alternative=1, bypass=0)
+    if set(recorded) != expected_keys or recorded.get("schema") not in (VALIDATION_SCHEMA, QUALIFIED_VALIDATION_SCHEMA):
         raise ContractError("validation fields do not match the versioned contract")
     if not isinstance(recorded.get("harbor_version"), str) or not recorded["harbor_version"].strip():
         raise ContractError("validation.harbor_version must be nonempty text")
     if (
-        recorded.get("minimum_runs") != _MIN_VALIDATION_RUNS
+        recorded.get("minimum_runs") != minimum_runs
         or recorded.get("distinct_jobs") is not True
         or recorded.get("container_freshness") != "unverified"
         or recorded.get("check_evidence") not in ("per_check", "aggregate_only")
     ):
         raise ContractError("validation repeat and job-evidence policy does not match the versioned contract")
     runs = recorded.get("runs")
-    if not isinstance(runs, dict) or set(runs) != set(_MIN_VALIDATION_RUNS):
+    if not isinstance(runs, dict) or set(runs) != set(minimum_runs):
         raise ContractError("validation.runs fields do not match the versioned contract")
-    for arm, minimum in _MIN_VALIDATION_RUNS.items():
+    for arm, minimum in minimum_runs.items():
         values = runs.get(arm)
         if not isinstance(values, list) or len(values) < minimum:
             raise ContractError(f"validation.runs.{arm} does not meet the minimum run count")
@@ -2899,6 +3002,8 @@ def _validate_validation(task_dir: Path) -> dict[str, Any]:
             "run_inputs_path",
             "run_inputs_sha256",
         }
+        if qualified:
+            required_run_keys.add("construction_execution")
         for value in values:
             if not isinstance(value, dict) or not required_run_keys.issubset(set(value)):
                 raise ContractError(f"validation.runs.{arm} fields do not match the versioned contract")
@@ -2912,6 +3017,8 @@ def _validate_validation(task_dir: Path) -> dict[str, Any]:
         recorded["harbor_version"],
         allow_aggregate_only=recorded["check_evidence"] == "aggregate_only",
         copy_job_dirs=[run["job_dir"] for run in runs["copy"]],
+        alternative_job_dirs=[run["job_dir"] for run in runs.get("alternative", [])],
+        bypass_job_dirs=[run["job_dir"] for run in runs.get("bypass", [])],
     )
     if recorded != derived:
         raise ContractError("validation.json differs from the retained Harbor result evidence")
@@ -2925,6 +3032,11 @@ def _summary_markdown(summary: dict[str, Any]) -> str:
     candidate = summary["candidate"] or {}
     ground_truth = candidate.get("ground_truth") or {"availability": "unrecorded", "artifacts": []}
     software = candidate.get("software_requirements") or []
+    qualification_line = (
+        f"- Construction qualification: `{summary['environment']['qualification']}`\n"
+        if summary["schema"] == QUALIFIED_SUMMARY_SCHEMA
+        else ""
+    )
     software_lines = [
         (
             f"- {item['name']} ({item['category']}): required={str(item['required']).lower()}, "
@@ -2943,6 +3055,7 @@ def _summary_markdown(summary: dict[str, Any]) -> str:
         f"- Evidence steps: {candidate.get('evidence_steps', [])}\n"
         f"- Environment: `{summary['environment']['status']}`\n"
         f"- Technical proof: `{summary['environment']['technical_status']}`\n"
+        f"{qualification_line}"
         f"- Review: `{summary['environment']['review_status']}`\n"
         f"- Verifier isolation: `{summary['environment']['isolation_status']}`\n\n"
         f"## Ground truth\n\n"
@@ -3007,6 +3120,7 @@ def _finalize(args: argparse.Namespace) -> dict[str, Any]:
             raise ContractError("no_candidate workspaces must not include validation.json")
     else:
         task_contract = _validate_task(task_dir)
+        _construction_context(task_dir)
         _validate_reproducibility(task_dir)
         verifier_mode = task_contract["verifier_environment_mode"]
         isolation_status = task_contract["isolation_status"]
@@ -3039,12 +3153,21 @@ def _finalize(args: argparse.Namespace) -> dict[str, Any]:
             "reasons": reasons,
         }
     )
+    if summary["schema"] == QUALIFIED_SUMMARY_SCHEMA:
+        summary["environment"]["qualification"] = (
+            "not_applicable"
+            if args.status == "no_candidate"
+            else validation["qualification"]["status"]
+            if validation is not None
+            else "not_run"
+        )
     _write_json(_summary_path(task_dir), summary)
     _write_text(task_dir / "summary.md", _summary_markdown(summary))
     return {
         "task_dir": str(task_dir),
         "status": args.status,
         "environment_status": environment_status,
+        "qualification": summary["environment"].get("qualification", "unmeasured"),
         "summary": str(task_dir / "summary.md"),
     }
 
@@ -3119,6 +3242,7 @@ def _check(args: argparse.Namespace) -> dict[str, Any]:
                         "finalized candidate lacks a completed contextual privacy review with no blocking findings"
                     )
                 task_contract = _validate_task(task_dir)
+                _construction_context(task_dir)
                 _validate_reproducibility(task_dir)
                 if environment.get("verifier_environment_mode") != task_contract["verifier_environment_mode"]:
                     errors.append("summary verifier mode does not match task/task.toml")
@@ -3127,6 +3251,11 @@ def _check(args: argparse.Namespace) -> dict[str, Any]:
                 validation_path = task_dir / "validation.json"
                 if validation_path.exists():
                     validation = _validate_validation(task_dir)
+                    if (
+                        summary["schema"] == QUALIFIED_SUMMARY_SCHEMA
+                        and environment["qualification"] != validation["qualification"]["status"]
+                    ):
+                        errors.append("summary qualification differs from retained evidence")
                     expected_technical = "passed" if validation["passed"] else "failed"
                     if environment.get("technical_status") != expected_technical:
                         errors.append("summary technical status does not match Harbor evidence")
@@ -3143,6 +3272,12 @@ def _check(args: argparse.Namespace) -> dict[str, Any]:
                     errors.append("summary claims technical proof without validation.json")
                 elif environment.get("status") != "unproven" or environment.get("validation") is not None:
                     errors.append("unrun candidate must remain unproven without validation")
+                if (
+                    not validation_path.exists()
+                    and summary["schema"] == QUALIFIED_SUMMARY_SCHEMA
+                    and environment["qualification"] != "not_run"
+                ):
+                    errors.append("summary claims construction qualification without execution evidence")
             elif environment != {
                 "path": "task",
                 "status": "not_attempted",
@@ -3151,6 +3286,7 @@ def _check(args: argparse.Namespace) -> dict[str, Any]:
                 "validation": None,
                 "verifier_environment_mode": None,
                 "isolation_status": "not_run",
+                **({"qualification": "not_applicable"} if summary["schema"] == QUALIFIED_SUMMARY_SCHEMA else {}),
             }:
                 errors.append("no_candidate environment status must remain not_attempted")
             markdown_path = task_dir / "summary.md"
@@ -3162,7 +3298,13 @@ def _check(args: argparse.Namespace) -> dict[str, Any]:
         _validate_tool_call_pipeline(task_dir, require_decisions=summary["status"] == "candidate")
     except ContractError as error:
         errors.append(str(error))
-    return {"task_dir": str(task_dir), "valid": not errors, "errors": errors, "repairs": len(repairs)}
+    return {
+        "task_dir": str(task_dir),
+        "valid": not errors,
+        "errors": errors,
+        "repairs": len(repairs),
+        "qualification": summary["environment"].get("qualification", "unmeasured"),
+    }
 
 
 def _load_batch_manifest(path: Path) -> list[dict[str, Any]]:
@@ -3241,11 +3383,17 @@ def _batch_status(args: argparse.Namespace) -> dict[str, Any]:
     counts: dict[str, int] = {}
     for member in members:
         task_dir = root / member["task_id"]
+        qualification = "unmeasured"
         if not task_dir.is_dir():
             status = "missing"
         else:
             try:
                 summary = _load_summary(task_dir)
+                qualification = summary["environment"].get("qualification", "unmeasured")
+                if summary["schema"] == QUALIFIED_SUMMARY_SCHEMA and summary["status"] != "pending":
+                    checked = _check(argparse.Namespace(task_dir=task_dir))
+                    if not checked["valid"]:
+                        raise ContractError("finalized construction evidence no longer validates")
                 if summary["status"] == "pending":
                     status = "pending_prepared" if summary["source"] is not None else "pending_unprepared"
                 elif summary["status"] == "candidate":
@@ -3259,6 +3407,7 @@ def _batch_status(args: argparse.Namespace) -> dict[str, Any]:
                 continue
         counts[status] = counts.get(status, 0) + 1
         row: dict[str, Any] = {"task_id": member["task_id"], "status": status}
+        row["qualification"] = qualification
         try:
             repair_count = len(_repairs(task_dir))
         except ContractError:
@@ -3353,13 +3502,14 @@ def _write_publication(task_dir: Path, output_dir: Path) -> None:
             "minimum_runs": validation["minimum_runs"],
             "check_evidence": validation["check_evidence"],
             "passed": validation["passed"],
+            "qualification": validation.get("qualification", {"status": "unmeasured"}),
             "copy_probes": _copy_probe_summary(validation),
             "runs": {
                 arm: [
                     {"reward": run["reward"], "exception_present": run["exception_present"]}
                     for run in validation["runs"][arm]
                 ]
-                for arm in _MIN_VALIDATION_RUNS
+                for arm in validation["runs"]
             },
         }
     product = {
@@ -3391,6 +3541,7 @@ def _write_publication(task_dir: Path, output_dir: Path) -> None:
                 "isolation_status",
             )
         },
+        "construction_qualification": summary["environment"].get("qualification", "unmeasured"),
         "reproducibility": reproducibility_summary,
         "technical_validation": validation_summary,
     }
@@ -3584,7 +3735,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     run_inputs.add_argument("--task-dir", required=True, type=Path)
     run_inputs.add_argument("--job-dir", required=True, type=Path)
-    run_inputs.add_argument("--arm", required=True, choices=("nop", "oracle", "negative", "copy"))
+    run_inputs.add_argument(
+        "--arm", required=True, choices=("nop", "oracle", "negative", "copy", "alternative", "bypass")
+    )
+    run_inputs.add_argument("--control-id")
     run_inputs.add_argument("--negative-agent", "--control-agent", dest="negative_agent")
     run_inputs.add_argument("--negative-source", "--control-source", dest="negative_source", type=Path)
     run_inputs.add_argument("--negative-rationale", "--control-rationale", dest="negative_rationale")
@@ -3596,6 +3750,8 @@ def _parser() -> argparse.ArgumentParser:
     record.add_argument("--oracle-job-dir", required=True, action="append", type=Path)
     record.add_argument("--negative-job-dir", required=True, action="append", type=Path)
     record.add_argument("--copy-job-dir", action="append", type=Path, default=[])
+    record.add_argument("--alternative-job-dir", action="append", type=Path, default=[])
+    record.add_argument("--bypass-job-dir", action="append", type=Path, default=[])
     record.add_argument("--harbor-version", required=True)
     record.add_argument(
         "--allow-aggregate-only",

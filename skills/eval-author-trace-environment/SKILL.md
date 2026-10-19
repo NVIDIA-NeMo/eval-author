@@ -1,6 +1,6 @@
 ---
 name: eval-author-trace-environment
-version: 1.4.1
+version: 1.5.0
 description: >-
   Experimental workflow. Use Gym, MLflow, Intake, OpenTelemetry, or ATIF trace
   evidence to derive a private, reproducible Harbor or native NeMo Gym task candidate.
@@ -73,6 +73,7 @@ bundled skill files; `extra.*` names elsewhere are ATIF fields, not file paths.
     private/publications/<digest>/
     private/publication-review.json
     private/ground-truth/
+    private/construction.json
     safe/trace.atif.json
     safe/privacy.json
     candidate.json
@@ -272,6 +273,14 @@ requirements. Never copy private trace payloads into the task; include only the
 minimal files needed to reproduce the starting state. Human-supplied or
 reviewed `Relevant experience` is necessary for readiness; never invent it.
 
+Before recording proof inputs, author the private construction contract in
+[references/construction-qualification.md](references/construction-qualification.md).
+New Harbor workspaces require requirement-to-check mappings, starting-artifact
+provenance, executed setup/reach probes, a reviewed valid alternative, and a
+bypass control for each declared dependency. `validate-task` checks declarations;
+only retained execution can establish qualification. Keep measured difficulty
+separate from these checks.
+
 Create `<task-dir>/README.md` using
 [Suite review and rerun instructions](../eval-author/references/suite-readme.md), separate
 from the reviewer-facing `task/README.md`. Map the generalized outcomes to the
@@ -305,7 +314,8 @@ harbor run -p <task-dir>/task -a nop \
 
 Repeat with `nop-2`, `oracle-1`, and `oracle-2`, selecting the matching arm
 and agent. Follow the integrity reference to declare and run the negative
-control. Retain every exact Harbor job and use the reference's
+control. Also run the declared alternative and dependency bypass controls using
+the construction reference. Retain every exact Harbor job and use the reference's
 `record-validation` command; proof requires the per-check rows from
 `references/check-grammar.md` in every job. Never hand-write rewards, job IDs,
 exceptions, or checksums.
@@ -382,7 +392,8 @@ Report the task ID, `candidate` or `no_candidate`, state basis, ground-truth
 availability and artifact count, required software and licensing constraints,
 environment status, technical status, check evidence mode, repair count,
 review status, verifier isolation, privacy review status, NOP and Oracle
-rewards when run, and paths to `summary.md` and the generated task. A
+rewards when run, construction qualification (historical proof is `unmeasured`),
+and paths to `summary.md` and the generated task. A
 `valid: true` check proves the recorded files are internally consistent;
 Harbor is the authority for whether the task actually runs.
 
