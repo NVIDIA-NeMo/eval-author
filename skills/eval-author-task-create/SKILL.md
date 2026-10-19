@@ -192,10 +192,7 @@ Choose one item from `actionable_tools`. Stop task creation when the list is
 empty, and surface the dataset recommendations from Step 1. An empty selector means no eligible tool
 gaps, not that there are no useful dataset improvements. Capability and
 failure-case items are not task-generation inputs in v1, even when capability
-coverage was measured. When the aggregate JSON includes
-`coverage_by_evidence_class`, `select` and `verify` use the `agent_under_test`
-bucket (and unlabeled legacy inputs in that bucket), not reference or NOP
-measurements that appear only in the top-level union.
+coverage was measured.
 
 Each actionable tool includes a deterministic `task_slug` of the form
 `cover-<tool-name>` and a `paths` object for the proposal, draft, and

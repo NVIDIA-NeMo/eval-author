@@ -86,14 +86,8 @@ the declared total and distinguish measured coverage, measured items not
 demonstrated, and unmeasured items. Copy measured counts from applicable reports;
 do not turn an unmeasured kind's zero covered count into a 0% coverage claim.
 For a kind with no declared items, show that fact without a percentage.
-
-When **Coverage measurements (JSON)** includes `coverage_by_evidence_class`, the
-aggregate top-level `coverage`, `covered`, `uncovered`, `uncovered_items`, and
-`input_reports` already reflect **agent under test** only. Do **not** measure
-Harbor Oracle or NOP trials for audit coverage, synthesize control ATIF, or
-describe reference/NOP runs in this report—those controls validate tasks outside
-the audit denominator. Omit `reference_solution`, `nop`, and `control` buckets
-from the human report even if they appear in JSON for tooling.
+Do not describe Harbor Oracle, NOP, or other control runs as audit evidence in
+this Markdown report.
 
 Use a section named **Intended coverage** as the complete, readable catalog of
 the scope being reviewed. State whether the user has agreed to that scope;
