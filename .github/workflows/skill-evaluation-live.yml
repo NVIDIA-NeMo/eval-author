@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       run_live:
-        description: Request live evaluation on main (requires ASE environment approval)
+        description: Run live evaluation on main
         type: boolean
         default: false
       tier:
@@ -28,7 +28,7 @@ permissions:
   contents: read
 
 env:
-  # PRs only plan; live evaluation still requires main and ASE approval.
+  # PRs only plan; main pushes automatically run both tiers.
   EVALUATION_TIER: ${{ github.event_name == 'pull_request' && '2' || inputs.tier || 'both' }}
   EVALUATION_SKILL: ${{ inputs.skill || 'all' }}
 
@@ -81,7 +81,7 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
-      - name: Resolve model configuration once in the approved environment
+      - name: Resolve model configuration once in the main-only environment
         id: config
         env:
           SKILL_EVAL_LLM_MODEL: ${{ vars.SKILL_EVAL_LLM_MODEL }}
