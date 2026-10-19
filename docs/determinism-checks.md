@@ -143,9 +143,11 @@ against `gate_digest` and the reported verdict/metrics, so editing a summary
 cannot turn a regression into a pass. Keep those private directories intact.
 New semantic captures include `batch.json` and `batch_digest` so a copied result
 cannot pass as an independent batch. Failed, empty and incomplete results remain evidence. Old summaries
-without batch identity must be rerun. These capture changes alter the pipeline
-digest: existing semantic locks need explicit review/recalibration under the
-new pipeline; do not bypass the lock mismatch or silently reuse old baselines.
+without batch identity and gate input bindings must be rerun. Gate receipts bind
+the batch, configuration, clustering inputs, baseline and measurement identity.
+The checker validates baseline run counts and measurement compatibility. Existing
+reviewed locks remain valid through the explicit legacy measurement-version
+mapping; capture metadata changes alone do not require recalibration.
 The checker consumes the semantic pilot's
 verdicts; it does not independently recalculate model judgments. Neither report
 stability nor typed-fact retention establishes task quality.
@@ -204,3 +206,8 @@ model-output variation remain separate, explicitly unmeasured dimensions.
 
 Live and semantic gates remain advisory. Do not infer cross-host equivalence
 from one run, one operating system, or a passing script portability matrix.
+
+Captures record the actual recorder platform independently of the planned cell.
+Every planned turn requires native output, a capture record and review. Multi-turn
+cells require the same native session identifier on every turn; missing session
+identity is incomplete evidence. These are local integrity checks, not attestation.

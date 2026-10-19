@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 from discovery_determinism import encoded, loads, sha
-from semantic_regression import contained, digest, validate_suite
+from semantic_regression import MEASUREMENT_VERSION, SCOPE, contained, digest, normalize_binding, validate_suite
 
 
 def check(suite_path: Path, paths: list[Path]) -> dict:
@@ -73,6 +73,39 @@ def check(suite_path: Path, paths: list[Path]) -> dict:
                     or lock.get("baseline_digest") != baseline
                 ):
                     raise ValueError("retained reviewed baseline differs from comparison")
+                measurement = normalize_binding(lock.get("binding"))
+                expected = {
+                    "scope": SCOPE,
+                    "query_digest": sha(case_spec["query"].encode()),
+                    "runs": suite["runs"],
+                    "skill_files": case_spec["skill_files"],
+                    "extractor": suite["models"]["extractor"],
+                    "judge": suite["models"]["judge"],
+                    "measurement_version": MEASUREMENT_VERSION,
+                }
+                if (
+                    any(measurement.get(key) != value for key, value in expected.items())
+                    or any(
+                        not re.fullmatch(r"[0-9a-f]{64}", measurement.get(key, ""))
+                        for key in ("runtime_digest", "endpoint_digest")
+                    )
+                    or loads(contained(lock_path.parent, "baseline.json").read_bytes()).get("N") != suite["runs"]
+                ):
+                    raise ValueError("baseline binding or run denominator mismatch")
+                inputs = gate.get("input_binding", {})
+                if not isinstance(inputs, dict) or not isinstance(inputs.get("files"), dict):
+                    raise ValueError("invalid gate input binding")
+                files = inputs["files"]
+                names = {"batch.json", "config.json", "retention.json", "clusters.json", "ret-input.json", "match.json"}
+                if (
+                    inputs.get("baseline_digest") != baseline
+                    or inputs.get("comparison_digest") != comparison
+                    or inputs.get("measurement") != measurement
+                    or set(files) != names
+                    or any(sha(contained(path.parent, f"{case}/{name}").read_bytes()) != files[name] for name in names)
+                    or files["batch.json"] != batch
+                ):
+                    raise ValueError("gate input binding differs from retained batch inputs")
                 batch_path = contained(path.parent, f"{case}/batch.json")
                 batch_raw = batch_path.read_bytes()
                 accounting = loads(batch_raw)

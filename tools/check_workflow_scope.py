@@ -67,7 +67,9 @@ def snapshot(root: Path) -> dict:
             path = Path(child.path)
             label = path.relative_to(root).as_posix()
             try:
-                info = child.stat(follow_symlinks=False)
+                # DirEntry.stat reports zero inode/device on Windows; lstat
+                # supplies identities comparable to the opened file descriptor.
+                info = path.lstat()
                 record = {"mode": stat.S_IMODE(info.st_mode)}
                 if stat.S_ISLNK(info.st_mode):
                     record.update(kind="symlink", target=os.readlink(path))
@@ -79,7 +81,13 @@ def snapshot(root: Path) -> dict:
                     pending.append(path)
                 elif stat.S_ISREG(info.st_mode):
                     # O_NOFOLLOW prevents a leaf symlink swap between stat and read.
-                    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+                    fd = os.open(
+                        path,
+                        os.O_RDONLY
+                        | getattr(os, "O_NOFOLLOW", 0)
+                        | getattr(os, "O_NONBLOCK", 0)
+                        | getattr(os, "O_BINARY", 0),
+                    )
                     with os.fdopen(fd, "rb") as source:
                         opened = os.fstat(source.fileno())
                         if not stat.S_ISREG(opened.st_mode):

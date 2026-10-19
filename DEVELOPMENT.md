@@ -62,10 +62,9 @@ the last skill change, confirms the `NVSkills CI` status passed, and keeps the
 `Attach NVSkills validation signatures` commit it pushes. Unsigned changes do not
 reach the catalog, which keeps the last signed version. Keep ethos skill changes
 out of pull requests that change `skills/`: one run covers every changed skill,
-so a core-skill failure would block the ethos signature. The
-`request / require-nvskills-ci / require-nvskills-ci` check fails on any pull
-request that changes `skills/` or `team-skills/` without a passing run; it is not
-required, so core-skill pull requests can merge without one.
+so a core-skill failure would block the ethos signature. NVSkills validation is
+opt-in through `/nvskills-ci`; opening or updating a pull request does not create
+an automatic validation gate. Core-skill pull requests can merge without it.
 
 ## Public NeMo Compass dependency
 

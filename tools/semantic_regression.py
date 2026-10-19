@@ -469,13 +469,22 @@ def check_case(suite, case, runtime, suite_root, work, model, observation=None):
     if proc.returncode:
         raise ValueError("gate adapter failed")
     result = json.loads(proc.stdout)
-    (work / "gate-result.json").write_bytes(proc.stdout)
+    result["input_binding"] = {
+        "baseline_digest": lock["baseline_digest"],
+        "comparison_digest": digest(lock),
+        "measurement": binding(suite, case, runtime),
+        "files": {
+            name: sha((work / name).read_bytes())
+            for name in ("batch.json", "config.json", "retention.json", "clusters.json", "ret-input.json", "match.json")
+        },
+    }
+    dump(work / "gate-result.json", result)
     return {
         **result,
         "baseline_digest": lock["baseline_digest"],
         "comparison_digest": digest(lock),
         "batch_digest": sha((work / "batch.json").read_bytes()),
-        "gate_digest": sha(proc.stdout),
+        "gate_digest": sha((work / "gate-result.json").read_bytes()),
         "reason": "measured" if result["status"] != "incomplete" else "gate_incomplete",
     }
 

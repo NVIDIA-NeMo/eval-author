@@ -33,6 +33,24 @@ matrix checker beside task search on macOS, Linux and Windows, including Python
 3.10 for standalone scripts. Declared CI jobs are not evidence that they passed;
 consult the checks on the actual PR revision.
 
+## Rebase and review on 2026-10-19
+
+Rebased onto main `c1af6ca`. Fixed Windows snapshot file identity and binary
+reads, required capture/review/native output for every planned turn, recorded the
+actual platform, and required native session continuity for multi-turn cells.
+Semantic gate receipts now bind retained batch and gate input files to the
+reviewed baseline and measurement identity; incompatible locks and copied gate
+receipts are rejected without changing baselines or tolerances.
+
+The locked macOS Python 3.13 suite ran with 1,092 passed and 15 skipped; 16 other
+tests failed or errored under sandbox restrictions on Git/subprocess operations.
+Rerunning both affected test modules outside those restrictions passed all 86
+tests, including all 16 failures/errors. Focused final workflow and semantic batch
+checks passed all 16 tests. Ruff lint/format, Linux-target type checks for Python
+3.12 and 3.13, runtime policy, copyright, and license checks passed. This is local
+checker validation, not live cross-host acceptance; Windows runtime validation
+belongs to the PR CI run for the pushed revision.
+
 ## Live host observations
 
 The complete plan has **912 cells**, covering documented hosts, operating
@@ -54,8 +72,9 @@ remain private. Model/provider variation and cross-host equivalence are unmeasur
 ## Remaining acceptance work
 
 - Run independent semantic batches using a reviewed baseline and concrete models.
-  The checked-in pilot has placeholders and no reviewed baseline. The new capture
-  pipeline changes its digest, so old locks require explicit review/recalibration.
+  The checked-in pilot has placeholders and no reviewed baseline. New batch checks require retained gate input bindings. Existing reviewed locks
+  use the explicit measurement-version compatibility mapping; no baseline or
+  tolerance was changed during this review.
 - Implement and validate native Cursor/Pi event adapters. Unknown schemas remain
   incomplete; normalized synthetic evidence cannot substitute for native capture.
 - Replay and review the remaining host/install/OS cells on actual hosts, including

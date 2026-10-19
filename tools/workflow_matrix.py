@@ -102,6 +102,27 @@ def native_calls(host: str, raw: bytes, turn: int) -> tuple[list, list]:
     return calls, errors
 
 
+def native_session(host: str, raw: bytes) -> str:
+    """Require one native session identity for continuation evidence."""
+    identities = set()
+    for line in raw.splitlines():
+        if not line.strip():
+            continue
+        event = json.loads(line)
+        identity = (
+            event.get("thread_id")
+            if host == "codex" and event.get("type") == "thread.started"
+            else event.get("session_id")
+            if host == "claude-code"
+            else None
+        )
+        if isinstance(identity, str) and identity:
+            identities.add(identity)
+    if len(identities) != 1:
+        raise ValueError("missing or ambiguous native session identity")
+    return identities.pop()
+
+
 def evaluate(contracts: dict, attempt: dict) -> dict:
     """Re-read every retained artifact; a review is bound to its actual capture."""
     errors = []
@@ -112,12 +133,14 @@ def evaluate(contracts: dict, attempt: dict) -> dict:
     if not installed["complete"] or sha(encoded(installed)) != attempt["skills_sha256"]:
         errors.append("loaded skill installation changed or incomplete")
     review = read(Path(attempt["review"]))
-    native, raw_digests = [], []
+    native, raw_digests, sessions = [], [], []
     for turn, entry in enumerate(attempt["raw_turns"]):
         raw = Path(entry["path"]).read_bytes()
         raw_digests.append(sha(raw))
         if sha(raw) != entry["sha256"]:
             errors.append("native capture changed")
+        if len(attempt["prompts"]) > 1:
+            sessions.append(native_session(attempt["host"], raw))
         calls, unknown = native_calls(attempt["host"], raw, turn)
         native.extend(calls)
         errors.extend(unknown)
@@ -129,9 +152,19 @@ def evaluate(contracts: dict, attempt: dict) -> dict:
     ):
         errors.append("missing or stale native action and handoff review")
     captures = attempt.get("captures", [])
-    if len(captures) != len(attempt["raw_turns"]) or not captures:
-        errors.append("every native turn requires its retained capture record")
-    for turn, (entry, _) in enumerate(zip(captures, attempt["raw_turns"])):
+    if (
+        any(
+            len(items) != len(attempt["prompts"])
+            for items in (captures, attempt["raw_turns"], review["evidence"]["turns"])
+        )
+        or not captures
+    ):
+        errors.append("every planned turn requires native output, a capture record, and review")
+    if len(set(sessions)) > 1:
+        errors.append("follow-up turns must continue the same native session")
+    for turn, (entry, _, reviewed_turn, prompt) in enumerate(
+        zip(captures, attempt["raw_turns"], review["evidence"]["turns"], attempt["prompts"])
+    ):
         capture_raw = Path(entry["path"]).read_bytes()
         captured = json.loads(capture_raw)
         if sha(capture_raw) != entry["sha256"]:
@@ -142,7 +175,7 @@ def evaluate(contracts: dict, attempt: dict) -> dict:
             errors.append("capture incomplete or skills changed during execution")
         if (
             captured.get("turn") != turn
-            or captured.get("prompt") != attempt["prompts"][turn]
+            or captured.get("prompt") != prompt
             or captured.get("raw") != attempt["raw_turns"][turn]
             or any(attempt.get(key) != value for key, value in captured["cell"].items())
         ):
@@ -152,7 +185,8 @@ def evaluate(contracts: dict, attempt: dict) -> dict:
                 errors.append("capture provenance differs: " + field)
         if turn == 0 and sha(encoded(captured["before"])) != attempt["fixture_sha256"]:
             errors.append("fixture identity differs from captured starting state")
-        reviewed_turn = review["evidence"]["turns"][turn]
+        if captured.get("platform") != attempt["platform"]:
+            errors.append("capture platform differs from planned platform")
         if any(captured.get(field) != reviewed_turn.get(field) for field in ("before", "after")):
             errors.append("reviewed snapshots differ from capture")
     evidence = review["evidence"]

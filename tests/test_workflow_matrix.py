@@ -82,6 +82,7 @@ def attempt(tmp_path):
     )
     captured = {
         "cell": cell,
+        "platform": cell["platform"],
         "turn": 0,
         "prompt": cell["prompts"][0],
         "returncode": 0,
@@ -177,6 +178,7 @@ def test_recorder_retains_failed_host_and_filesystem_effects(tmp_path):
     )
     assert result["returncode"] == 1 and result["reason"] == "host_failed"
     assert result["status"] == "incomplete"
+    assert result["platform"] == sys.platform
     assert "unexpected" not in result["before"]["entries"] and "unexpected" in result["after"]["entries"]
     with pytest.raises(FileExistsError):
         record(
@@ -215,3 +217,72 @@ def test_review_cannot_replace_captured_snapshots(tmp_path):
     result = matrix.evaluate(CONTRACTS, recorded)
     assert result["status"] == "incomplete"
     assert "reviewed snapshots differ from capture" in result["incomplete"]
+
+
+def test_capture_platform_must_match_plan(tmp_path):
+    recorded = attempt(tmp_path)
+    entry = recorded["captures"][0]
+    path = Path(entry["path"])
+    captured = json.loads(path.read_text())
+    captured["platform"] = "wrong-platform"
+    path.write_text(json.dumps(captured))
+    entry["sha256"] = sha(path.read_bytes())
+    assert matrix.evaluate(CONTRACTS, recorded)["status"] == "incomplete"
+
+
+def test_missing_planned_followup_is_incomplete(tmp_path):
+    recorded = attempt(tmp_path)
+    cell = next(c for c in matrix.plan(CONTRACTS)["cells"] if c["case"] == "broaden-after-inventory")
+    recorded.update(cell)
+    evidence, _ = capture(cell["case"])
+    evidence["evidence_kind"] = "captured"
+    events = [{"type": "thread.started", "thread_id": "session"}]
+    for index, event in enumerate(evidence["turns"][0]["events"]):
+        event.update(call_id=f"0:{index}", tool="command_execution")
+        events.append(
+            {"type": "item.completed", "item": {"id": str(index), "type": "command_execution", "command": "inventory"}}
+        )
+    events.append({"type": "turn.completed"})
+    native = Path(recorded["raw_turns"][0]["path"])
+    native.write_bytes(b"\n".join(encoded(event) for event in events))
+    recorded["raw_turns"][0]["sha256"] = sha(native.read_bytes())
+    calls, errors = matrix.native_calls(cell["host"], native.read_bytes(), 0)
+    assert not errors
+    evidence["raw_trace_sha256"] = sha(encoded({"tool_calls": calls}))
+    review_path = Path(recorded["review"])
+    review = json.loads(review_path.read_text())
+    review.update(evidence=evidence, raw_sha256=[sha(native.read_bytes())])
+    review_path.write_text(json.dumps(review))
+    entry = recorded["captures"][0]
+    path = Path(entry["path"])
+    captured = json.loads(path.read_text())
+    captured.update(
+        cell=cell,
+        prompt=cell["prompts"][0],
+        raw=recorded["raw_turns"][0],
+        before=evidence["turns"][0]["before"],
+        after=evidence["turns"][0]["after"],
+    )
+    path.write_text(json.dumps(captured))
+    entry["sha256"] = sha(path.read_bytes())
+    recorded["fixture_sha256"] = sha(encoded(captured["before"]))
+    result = matrix.evaluate(CONTRACTS, recorded)
+    assert result["workflow"]["status"] == "pass"
+    assert result["status"] == "incomplete"
+    assert result["incomplete"] == ["every planned turn requires native output, a capture record, and review"]
+
+
+@pytest.mark.parametrize(
+    "host,events",
+    [
+        ("codex", [{"type": "thread.started", "thread_id": "same"}]),
+        ("claude-code", [{"type": "system", "session_id": "same"}, {"type": "result", "session_id": "same"}]),
+    ],
+)
+def test_native_continuation_requires_unambiguous_session(host, events):
+    assert matrix.native_session(host, b"\n".join(encoded(e) for e in events)) == "same"
+    with pytest.raises(ValueError, match="session"):
+        matrix.native_session(host, b'{"type":"turn.completed"}')
+    other = {key: "different" if value == "same" else value for key, value in events[0].items()}
+    with pytest.raises(ValueError, match="session"):
+        matrix.native_session(host, b"\n".join(encoded(e) for e in [*events, other]))

@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 from check_workflow_scope import snapshot
@@ -44,6 +45,7 @@ def capture(
     before, installed = snapshot(repo), snapshot(skills)
     record = {
         "cell": cell,
+        "platform": sys.platform,
         "turn": turn,
         "prompt": cell["prompts"][turn],
         "command": command,
