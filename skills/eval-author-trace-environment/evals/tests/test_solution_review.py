@@ -295,6 +295,83 @@ def test_missing_output_remains_ordinary_negative_control(tmp_path):
     assert driver._job_check_rows(root) == [{"check_id": "answer-correct", "status": "FAIL"}]
 
 
+def absent_trial(root, assessments, *, all_missing=False, reward=True, decision="met"):
+    directory = trial(root, assessments, reward=reward, decision=decision)
+    shutil.rmtree(directory / "verifier")
+    sources = {"answer": root / "private/submission-0", "support": root / "missing-support"}
+    if all_missing:
+        sources["answer"] = root / "missing-answer"
+    runtime.grade_submission(sources, lambda _: {"answer-correct": reward}, directory / "verifier")
+    locator = f"{directory.relative_to(root).as_posix()}/verifier/review-submission.json#/submissions/support"
+    assessments["judgments"][0]["requirements"][0]["citations"] = ["task/instruction.md", locator]
+    return directory
+
+
+@pytest.mark.parametrize("all_missing", [False, True])
+@pytest.mark.parametrize(
+    "reward,decision,outcome",
+    [
+        (True, "met", "legitimate_pass"),
+        (False, "unmet", "legitimate_fail"),
+        (True, "unmet", "false_accept"),
+        (False, "met", "false_reject"),
+        (True, "uncertain", "uncertain_assessment"),
+    ],
+)
+def test_captured_absence_uses_review_judgment(tmp_path, all_missing, reward, decision, outcome):
+    root, binding, receipt, assessments = setup(tmp_path)
+    directory = absent_trial(root, assessments, all_missing=all_missing, reward=reward, decision=decision)
+    result = run(root, binding, receipt, assessments)
+    assert result["counts"] == {outcome: 1}
+    evidence = json.loads((root / result["report"]).read_text())["evidence"]
+    relative = (directory / "verifier/review-submission.json").relative_to(root).as_posix()
+    assert evidence[relative] == runtime.sha((root / relative).read_bytes())
+    assert not any("#" in path for path in evidence)
+
+
+@pytest.mark.parametrize(
+    "change", ["contradiction", "dangling", "extra", "directory", "missing", "root", "root-link", "digest"]
+)
+def test_absence_requires_consistent_snapshot_inventory(tmp_path, change):
+    root, binding, receipt, assessments = setup(tmp_path)
+    directory = absent_trial(root, assessments)
+    snapshots = directory / "verifier/review-submission"
+    if change == "contradiction":
+        (snapshots / "support").write_text("unexpected")
+    elif change == "dangling":
+        (snapshots / "support").symlink_to(root / "absent")
+    elif change == "extra":
+        (snapshots / "undeclared").write_text("unexpected")
+    elif change == "directory":
+        (snapshots / "answer").unlink()
+        (snapshots / "answer").mkdir()
+    elif change == "missing":
+        (snapshots / "answer").unlink()
+    elif change in ("root", "root-link"):
+        moved = directory / "verifier/moved"
+        snapshots.rename(moved)
+        if change == "root-link":
+            snapshots.symlink_to(moved, target_is_directory=True)
+    else:
+        path = directory / "verifier/review-submission.json"
+        value = json.loads(path.read_text())
+        value["submissions"]["support"] = False
+        save(path, value)
+    assert run(root, binding, receipt, assessments)["counts"] == {"submission_binding_unverified": 1}
+
+
+@pytest.mark.parametrize(
+    "suffix", ["", "#/reward", "#/submissions/answer", "#/submissions/unknown", "#/submissions/support/extra"]
+)
+def test_absence_citations_only_allow_exact_null_entry(tmp_path, suffix):
+    root, binding, receipt, assessments = setup(tmp_path)
+    directory = absent_trial(root, assessments)
+    citation = f"{directory.relative_to(root).as_posix()}/verifier/review-submission.json{suffix}"
+    assessments["judgments"][0]["requirements"][0]["citations"][1] = citation
+    with pytest.raises(ValueError, match="citation must bind"):
+        run(root, binding, receipt, assessments)
+
+
 @pytest.mark.parametrize("agent", ["oracle", "harbor.agents.oracle:OracleAgent"])
 def test_oracle_is_not_independent(tmp_path, agent):
     root, binding, _, _ = setup(tmp_path)

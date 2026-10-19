@@ -36,8 +36,11 @@ captures at most 32 regular files and 2 MiB total, passes immutable bytes to the
 callback, and writes ordinary tab-separated `results`, binary `reward.txt`,
 submission snapshots and a completion receipt under `/logs/verifier`. Use a
 fresh verifier log directory. A missing source is passed as `None`; handle it
-explicitly so ordinary NOP controls still receive a failing score. Missing
-submissions remain unresolved in this diagnostic. Callback failures, symbolic
+explicitly so ordinary NOP controls still receive a failing score. The receipt
+records captured absence as `null`; this is submission evidence, not an automatic
+pass or failure. The snapshot directory must exist and contain exactly the
+non-null entries. Missing expected snapshots or contradictory files remain
+unresolved. Callback failures, symbolic
 links and invalid checks do not produce a completed receipt.
 
 Review the callback and artifact handoff. It must grade those captured bytes,
@@ -132,6 +135,18 @@ submission or transcript. Reviewer exposure is `submission_and_contract`,
 `verdict_visible` or `unknown`. Never claim blindness from this declaration.
 Omit an unavailable judgment; its attempt remains unresolved. Rationales and
 citations are review attestations, not automatically verified semantics.
+
+For a captured absence, cite the exact null entry, for example
+`private/review-jobs/solution-one/<trial>/verifier/review-submission.json#/submissions/support`.
+Only this locator shape for an actual null entry is supported, not arbitrary
+JSON pointers. The diagnostic binds the complete receipt hash and rejects any
+snapshot contradicting the absence. Give reviewers only an allowlisted projection
+of submission IDs, presence/absence and these locators, alongside present
+snapshots. Do not expose the raw receipt: it also contains checks and reward.
+An all-absent submission can be reviewed using these locators; never fabricate
+an empty file to stand in for absence. Missing required output may be judged
+`unmet`, while missing optional output may be acceptable or remain `uncertain`
+under the public contract. Absence alone does not decide correctness.
 
 ```bash
 python scripts/trace_environment.py review-solutions \

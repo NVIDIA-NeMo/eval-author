@@ -1,6 +1,6 @@
 ---
 name: eval-author-trace-environment
-version: 1.6.0
+version: 1.6.1
 description: >-
   Experimental workflow. Use Gym, MLflow, Intake, OpenTelemetry, or ATIF trace
   evidence to derive a private, reproducible Harbor or native NeMo Gym task candidate.

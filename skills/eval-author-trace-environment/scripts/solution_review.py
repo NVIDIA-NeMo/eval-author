@@ -235,7 +235,8 @@ def review_attempt(root: Path, attempt: dict, rows: list | None, cohort: dict, e
         require(
             isinstance(submissions, dict)
             and 1 <= len(submissions) <= 32
-            and all(contract.identity(k) for k in submissions),
+            and all(contract.identity(k) for k in submissions)
+            and all(v is None or isinstance(v, str) and contract.SHA.fullmatch(v) for v in submissions.values()),
             "invalid submission inventory",
         )
         require(
@@ -253,8 +254,25 @@ def review_attempt(root: Path, attempt: dict, rows: list | None, cohort: dict, e
         require(
             read(root, f"{prefix}/reward.txt", evidence).strip() == str(int(reward)).encode(), "conflicting reward file"
         )
+        snapshots = private_path(root, f"{prefix}/review-submission")
+        require(snapshots.is_dir(), "snapshot directory missing")
+        present = {key for key, checksum in submissions.items() if checksum is not None}
+        found = set()
+        with os.scandir(snapshots) as entries:
+            for index, entry in enumerate(entries):
+                require(index < 32 and entry.name in present, "unexpected snapshot")
+                require(entry.is_file(follow_symlinks=False), "snapshot must be a regular file")
+                found.add(entry.name)
+        require(found == present, "snapshot inventory differs from receipt")
+        absence_citations = {
+            f"{prefix}/review-submission.json#/submissions/{key}"
+            for key, checksum in submissions.items()
+            if checksum is None
+        }
         total = 0
         for key, checksum in submissions.items():
+            if checksum is None:
+                continue
             data = read(root, f"{prefix}/review-submission/{key}", evidence)
             total += len(data)
             require(sha(data) == checksum and total <= contract.MAX_BYTES, "snapshot changed or oversized")
@@ -268,7 +286,11 @@ def review_attempt(root: Path, attempt: dict, rows: list | None, cohort: dict, e
         return "missing_assessment"
     for row in rows:
         citations = row["citations"]
-        allowed = {f"{prefix}/review-submission/{key}" for key in submissions} | {f"{trial}/{attempt['transcript']}"}
+        allowed = (
+            {f"{prefix}/review-submission/{key}" for key in present}
+            | absence_citations
+            | {f"{trial}/{attempt['transcript']}"}
+        )
         require(
             "task/instruction.md" in citations
             and bool(set(citations) & allowed)
@@ -276,7 +298,10 @@ def review_attempt(root: Path, attempt: dict, rows: list | None, cohort: dict, e
             "citation must bind this trial and public contract",
         )
         for citation in citations:
-            read(root, citation, evidence)
+            # Only these exact null-entry locators are supported. The complete
+            # receipt was already read and hashed above; do not resolve pointers.
+            if citation not in absence_citations:
+                read(root, citation, evidence)
     decisions = {row["decision"] for row in rows}
     if "unmet" in decisions:
         return "false_accept" if reward == 1 else "legitimate_fail"
