@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import NotRequired, TypedDict
 
 from collect_skill_evaluations import EVALUATOR_REVISION, execute, now, sha, tree_digest
+from license_duplication_policy import POLICY, expected_license_duplicate
 from live_evaluation_diagnostics import diagnostics
 
 HUB_BASE_URL = "https://inference-api.nvidia.com/v1"
@@ -41,6 +42,8 @@ class EvaluationSummary(TypedDict):
     status: str
     reason: str | None
     severity_counts: NotRequired[dict[str, int]]
+    raw_severity_counts: NotRequired[dict[str, int]]
+    excluded_license_findings: NotRequired[int]
     arms: NotRequired[dict[str, ArmMetrics]]
     dimension_lift: NotRequired[dict[str, float]]
     pass_rate_lift: NotRequired[float]
@@ -108,7 +111,7 @@ def count(value) -> int:
     return value
 
 
-def summarize_tier2(report, code, validator) -> EvaluationSummary:
+def summarize_tier2(report, code, validator, skill: Path | None = None) -> EvaluationSummary:
     """Findings are distinct from provider/analysis errors, even when both exit 1."""
     rows = report["results"]
     if len(rows) != 1 or rows[0]["validator"] != validator or code not in (0, 1):
@@ -128,6 +131,27 @@ def summarize_tier2(report, code, validator) -> EvaluationSummary:
         raise ValueError("inconsistent Tier 2 result")
     if (code == 0) != row["passed"]:
         raise ValueError("inconsistent Tier 2 exit")
+    if validator == "Context Deduplication" and skill is not None:
+        # Only reinterpret complete, internally consistent findings. Raw JSON is
+        # retained unchanged; effective counts drive the dashboard's CI verdict.
+        observed = Counter(f.get("severity") for f in row["findings"])
+        consistent = (
+            all(key in counts for key in observed)
+            and all(observed[key] == value for key, value in counts.items())
+            and row["summary"]["errors"] == counts["critical"] + counts["high"]
+            and row["passed"] == (counts["critical"] + counts["high"] == 0)
+        )
+        if consistent:
+            excluded = sum(expected_license_duplicate(f, skill) for f in row["findings"])
+            if excluded:
+                effective = {**counts, "high": counts["high"] - excluded}
+                return {
+                    "status": "failed" if effective["critical"] + effective["high"] else "passed",
+                    "reason": f"{excluded} expected license-header finding(s) excluded",
+                    "severity_counts": effective,
+                    "raw_severity_counts": counts,
+                    "excluded_license_findings": excluded,
+                }
     return {"status": row["status"], "reason": None, "severity_counts": counts}
 
 
@@ -290,6 +314,7 @@ def collect(
             "tier2_timeout_seconds": 300,
             "tier3_timeout_seconds": 1800,
             "monetary_budget_enforced": False,
+            "context_duplication_exception": POLICY,
         },
         "observations": [],
     }
@@ -463,7 +488,10 @@ def collect(
             data = json.loads(raw)
             result = (
                 summarize_tier2(
-                    data, code, "Context Deduplication" if row["check"] == "context" else "Similarity Check"
+                    data,
+                    code,
+                    "Context Deduplication" if row["check"] == "context" else "Similarity Check",
+                    skill=skill if row["check"] == "context" else None,
                 )
                 if row["tier"] == 2
                 else summarize_tier3(data, code, row["cases"])
@@ -473,11 +501,23 @@ def collect(
             row.update(status="incomplete", reason="tool_or_report_error")
             data = {"execution_errors": [f"Collector {type(exc).__name__}: {exc}"], "results": [data]}
         finally:
-            if row["status"] in ("failed", "incomplete") or any(row.get("severity_counts", {}).values()):
+            if (
+                row["status"] in ("failed", "incomplete")
+                or any(row.get("severity_counts", {}).values())
+                or row.get("excluded_license_findings")
+            ):
                 row["diagnostics"] = diagnostics(data, target if row["status"] == "incomplete" else None)
             if not unchanged(skills, digests):
                 row.update(status="incomplete", reason="skill_changed_during_run")
-                for key in ("arms", "dimension_lift", "pass_rate_lift", "severity_counts", "diagnostics"):
+                for key in (
+                    "arms",
+                    "dimension_lift",
+                    "pass_rate_lift",
+                    "severity_counts",
+                    "diagnostics",
+                    "raw_severity_counts",
+                    "excluded_license_findings",
+                ):
                     row.pop(key, None)
             row["finished_at"] = now()
             persist()

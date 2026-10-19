@@ -36,7 +36,7 @@ def bundle(suite_path, runtime):
         baseline_path = semantic.contained(lock_path.parent, "baseline.json")
         if (
             lock["schema"] != "nemo.semantic_lock.v1"
-            or lock["binding"] != semantic.binding(suite, case, runtime)
+            or semantic.normalize_binding(lock["binding"]) != semantic.binding(suite, case, runtime)
             or lock["baseline_digest"] != semantic.sha(baseline_path.read_bytes())
             or not re.fullmatch(r"[0-9a-f]{64}", lock["reviewed_mapping_digest"])
             or semantic.load(baseline_path)["N"] != suite["runs"]
