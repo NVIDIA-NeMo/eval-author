@@ -29,6 +29,7 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 import construction  # noqa: E402
+import solution_review  # noqa: E402
 from evidence_audit import audit_evidence  # noqa: E402
 from fixture_compiler import (  # noqa: E402
     DECISIONS_SCHEMA,
@@ -3656,6 +3657,26 @@ def _export(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _solution_review(args: argparse.Namespace) -> dict[str, Any]:
+    task_dir = _ensure_task_dir(args.task_dir)
+    try:
+        context = _construction_context(task_dir)
+        if context is None:
+            raise ContractError("solution review requires a workspace with a valid construction contract")
+        binding = {
+            "task_tree_sha256": _task_tree_info(task_dir / "task")["task_tree_sha256"],
+            "task_checksum": _harbor_task_checksum(task_dir),
+            "construction_sha256": context["sha256"],
+            "requirements": sorted(row["id"] for row in context["manifest"]["requirements"]),
+            "checks": sorted(context["checks"]),
+        }
+        if args.command == "record-review-inputs":
+            return solution_review.record(task_dir, args.plan, binding)
+        return solution_review.review(task_dir, args.cohort, args.assessments, binding)
+    except (ValueError, OSError, KeyError, TypeError, RecursionError) as error:
+        raise ContractError("solution review contract invalid; inspect private inputs and retained evidence") from error
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -3759,6 +3780,21 @@ def _parser() -> argparse.ArgumentParser:
         help="accept retained proof without per-check rows (historical tasks; labeled in the report)",
     )
     record.set_defaults(run=_record_validation)
+
+    review_inputs = subparsers.add_parser(
+        "record-review-inputs", help="freeze a private solution-review cohort before execution"
+    )
+    review_inputs.add_argument("--task-dir", required=True, type=Path)
+    review_inputs.add_argument("--plan", required=True, help="workspace-relative private plan JSON")
+    review_inputs.set_defaults(run=_solution_review)
+
+    solutions = subparsers.add_parser(
+        "review-solutions", help="diagnose reviewed score mismatches without changing readiness"
+    )
+    solutions.add_argument("--task-dir", required=True, type=Path)
+    solutions.add_argument("--cohort", required=True, help="workspace-relative recorded cohort")
+    solutions.add_argument("--assessments", required=True, help="workspace-relative private judgments JSON")
+    solutions.set_defaults(run=_solution_review)
 
     validate_task = subparsers.add_parser(
         "validate-task", help="lint the authored task tree during authoring; exits 1 until every issue resolves"
