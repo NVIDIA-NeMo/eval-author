@@ -109,6 +109,92 @@ def test_valid_binding_preserves_measurement_result(packet, tmp_path, monkeypatc
     assert ci.run(tmp_path / "suite.json", runtime, tmp_path / "out", "check") == exit_code
 
 
+@pytest.mark.parametrize(
+    "statuses,expected",
+    [(["passed"], 0), (["regression"], 0), (["incomplete"], 2), (["regression", "incomplete"], 2)],
+)
+def test_warning_mode_preserves_verdicts_and_incomplete_failures(
+    packet, tmp_path, monkeypatch, capsys, statuses, expected
+):
+    suite, runtime, _ = packet
+    if len(statuses) > 1:
+        suite["cases"].append({**suite["cases"][0], "id": "second"})
+        semantic.dump(tmp_path / "suite.json", suite)
+    metrics = {
+        "retention": 1.0,
+        "retention_threshold": 1.0,
+        "consistency": 0.8,
+        "baseline_consistency": 1.0,
+        "allowed_drop": 0.0,
+        "presence_passed": True,
+    }
+    measurements = iter(
+        {
+            "status": status,
+            "reason": "execution_or_input_error" if status == "incomplete" else "measured",
+            "exit_code": {"passed": 0, "regression": 1, "incomplete": 2}[status],
+            "metrics": None if status == "incomplete" else metrics,
+        }
+        for status in statuses
+    )
+    monkeypatch.setattr(semantic, "Model", lambda: object())
+    monkeypatch.setattr(semantic, "check_case", lambda *args: next(measurements))
+    output = tmp_path / "out"
+    assert ci.run(tmp_path / "suite.json", runtime, output, "check", warn_on_regression=True) == expected
+    rows = semantic.load(output / "semantic-regression-summary.json")["observations"]
+    assert [row["status"] for row in rows] == statuses
+    assert [row["exit_code"] for row in rows] == [{"passed": 0, "regression": 1, "incomplete": 2}[s] for s in statuses]
+    log = capsys.readouterr().out
+    assert ("::warning::" in log) == ("regression" in statuses)
+    assert ("::error::" in log) == ("incomplete" in statuses)
+    summary = (output / "semantic-regression-summary.md").read_text()
+    assert "warnings, not passing measurements" in summary
+    if "regression" in statuses:
+        assert "consistency 80.0% (baseline 100.0%, allowed drop 0.0 percentage points)" in summary
+    assert "Private evidence" not in summary + log
+
+
+def test_warning_cli_plan_does_not_call_models(packet, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_semantic_ci.py",
+            "--warn-on-regression",
+            "--suite",
+            str(tmp_path / "suite.json"),
+            "--output",
+            str(tmp_path / "out"),
+        ],
+    )
+    monkeypatch.setattr(semantic, "Model", lambda: pytest.fail("plan must not call models"))
+    assert ci.main() == 0
+    assert "::warning::" not in capsys.readouterr().out
+
+
+def test_warning_cli_check_passes_flag(packet, tmp_path, monkeypatch):
+    _, runtime, _ = packet
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_semantic_ci.py",
+            "--mode",
+            "check",
+            "--warn-on-regression",
+            "--suite",
+            str(tmp_path / "suite.json"),
+            "--runtime",
+            str(runtime),
+            "--output",
+            str(tmp_path / "out"),
+        ],
+    )
+    monkeypatch.setattr(semantic, "Model", lambda: object())
+    monkeypatch.setattr(semantic, "check_case", lambda *args: {"status": "regression", "reason": "measured"})
+    assert ci.main() == 0
+
+
 def test_plan_metadata_and_workflow_entrypoints(packet, tmp_path):
     assert ci.run(tmp_path / "suite.json", None, tmp_path / "out", "plan") == 0
     assert semantic.load(tmp_path / "out/semantic-regression-summary.json")["repository"] == "NVIDIA-NeMo/eval-author"
@@ -116,6 +202,8 @@ def test_plan_metadata_and_workflow_entrypoints(packet, tmp_path):
     commands = [step["run"] for job in workflow["jobs"].values() for step in job["steps"] if "run" in step]
     assert sum("python tools/run_semantic_ci.py" in command for command in commands) == 3
     assert all("python tools/semantic_regression.py" not in command for command in commands)
+    assert sum("--warn-on-regression" in command for command in commands) == 1
+    assert any("--mode check --warn-on-regression" in command for command in commands)
 
 
 def test_preflight_failure_leaves_other_cases_unmeasured(packet, tmp_path, monkeypatch):

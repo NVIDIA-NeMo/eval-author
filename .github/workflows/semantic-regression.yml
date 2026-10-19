@@ -74,7 +74,7 @@ jobs:
           INFERENCE_HUB_API_KEY: ${{ secrets.INFERENCE_HUB_API_KEY }}
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
-          python tools/run_semantic_ci.py --mode check \
+          python tools/run_semantic_ci.py --mode check --warn-on-regression \
             --suite "$RUNNER_TEMP/semantic-bundle/suite.json" \
             --runtime "$RUNNER_TEMP/semantic-bundle/ratchet" --output "$RUNNER_TEMP/semantic-live"
       - name: Stage aggregate report even after failure

@@ -35,5 +35,17 @@ PRs run a plan without inference. Live comparisons run on `main` pushes, daily,
 and on manual dispatch. The check is advisory, so a green workflow alone does
 not establish a passing measurement; use the report's verdict and diagnostics.
 
+Measured regressions emit GitHub warnings and leave the comparison step successful.
+The JSON artifact retains `status: regression` and the measurement's exit code;
+the summary shows measured values, baseline thresholds, and the allowed drop.
+Execution errors and missing evidence remain incomplete and fail the comparison
+step, even when another case has a measured regression. The job remains advisory
+to the overall workflow. Local checks stay strict unless `--warn-on-regression`
+is explicitly passed to `tools/run_semantic_ci.py`.
+
+Review detailed comparisons before changing a baseline or tolerance. CI retains
+sanitized summaries, not the underlying claim comparisons; a summary alone cannot
+establish whether reduced consistency represents a meaningful behavioral change.
+
 See [the workflow](../.github/workflows/semantic-regression.yml) for execution
 settings and [SkillEvaluator CI reports](skill-evaluation-ci.md) for artifacts.

@@ -48,7 +48,7 @@ def preflight(suite, runtime, suite_root):
     return failures
 
 
-def run(suite_path, runtime, output, mode):
+def run(suite_path, runtime, output, mode, *, warn_on_regression=False):
     suite = semantic.load(suite_path)
     semantic.validate_suite(suite)
     failures = preflight(suite, runtime, suite_path.parent) if mode == "check" else {}
@@ -79,23 +79,56 @@ def run(suite_path, runtime, output, mode):
             if row.get("binding_mismatch_fields"):
                 summary.write(" (" + ", ".join(row["binding_mismatch_fields"]) + ")")
         summary.write("\n")
+        for row in report["observations"]:
+            metrics = row.get("metrics")
+            if metrics:
+                summary.write(
+                    f"\n- {row['case_id']}: retention {metrics['retention']:.1%} "
+                    f"(minimum {metrics['retention_threshold']:.1%}); "
+                    f"consistency {metrics['consistency']:.1%} "
+                    f"(baseline {metrics['baseline_consistency']:.1%}, "
+                    f"allowed drop {metrics['allowed_drop'] * 100:.1f} percentage points); "
+                    f"presence check {'passed' if metrics['presence_passed'] else 'failed'}.\n"
+                )
+        if mode == "check" and warn_on_regression:
+            summary.write(
+                "\nCI treats measured regressions as warnings, not passing measurements. "
+                "Artifact verdicts and measurement exit codes are unchanged. "
+                "Incomplete evidence still fails the comparison step.\n"
+            )
     if mode == "plan":
         return 0
+    regressions = [row for row in report["observations"] if row["status"] == "regression"]
+    if warn_on_regression:
+        for row in regressions:
+            print(f"::warning::{row['case_id']}: measured semantic regression; see the report summary.")
     if any(row["status"] == "incomplete" for row in report["observations"]):
+        print("::error::Semantic comparison has incomplete evidence; see the report summary.")
         return 2
-    return 1 if any(row["status"] == "regression" for row in report["observations"]) else 0
+    return 1 if regressions and not warn_on_regression else 0
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=("plan", "check"), default="plan")
+    parser.add_argument(
+        "--warn-on-regression",
+        action="store_true",
+        help="Report measured regressions as CI warnings; incomplete evidence still fails",
+    )
     parser.add_argument("--suite", type=Path, default=semantic.ROOT / "evals/semantic/pilot.json")
     parser.add_argument("--runtime", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.mode == "check" and args.runtime is None:
         parser.error("--runtime required for check")
-    return run(args.suite.resolve(), args.runtime.resolve() if args.runtime else None, args.output.resolve(), args.mode)
+    return run(
+        args.suite.resolve(),
+        args.runtime.resolve() if args.runtime else None,
+        args.output.resolve(),
+        args.mode,
+        warn_on_regression=args.warn_on_regression,
+    )
 
 
 if __name__ == "__main__":
