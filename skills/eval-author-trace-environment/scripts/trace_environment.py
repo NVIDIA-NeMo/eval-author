@@ -28,6 +28,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from evidence_audit import audit_evidence  # noqa: E402
 from fixture_compiler import (  # noqa: E402
     DECISIONS_SCHEMA,
     build_call_fixtures,
@@ -982,6 +983,34 @@ def _tool_call_source(task_dir: Path) -> tuple[dict[str, Any], dict[str, Any], s
 def _current_tool_call_inventory(task_dir: Path) -> dict[str, Any]:
     _, safe, safe_sha256 = _tool_call_source(task_dir)
     return derive_tool_call_inventory(safe, safe_atif_sha256=safe_sha256)
+
+
+def _audit_evidence(args: argparse.Namespace) -> dict[str, Any]:
+    task_dir = _ensure_task_dir(args.task_dir)
+    _, safe, digest = _tool_call_source(task_dir)
+    report = audit_evidence(safe, safe_atif_sha256=digest)
+    report_bytes = (json.dumps(report, indent=2, sort_keys=True) + "\n").encode()
+    if len(report_bytes) > MAX_CANONICAL_BYTES:
+        raise ContractError("evidence audit exceeds the bounded artifact size; no partial report was retained")
+    private = task_dir / "private"
+    if private.is_symlink() or not private.is_dir():
+        raise ContractError("evidence audit requires a regular private directory")
+    output = private / "evidence-audit.json"
+    if output.is_symlink():
+        raise ContractError("evidence audit must be a regular file")
+    if output.exists():
+        if not output.is_file() or _load_object(output, label="evidence audit") != report:
+            raise ContractError("retained evidence audit differs; preserve it and use a fresh workspace")
+    else:
+        _write_bytes_once(output, report_bytes)
+    return {
+        "task_dir": str(task_dir),
+        "report": str(output),
+        "scope": report["scope"],
+        "execution_verified": False,
+        "counts": report["counts"],
+        "finding_counts": report["finding_counts"],
+    }
 
 
 def _inventory_tool_calls(args: argparse.Namespace) -> dict[str, Any]:
@@ -3497,6 +3526,10 @@ def _parser() -> argparse.ArgumentParser:
     prepare.add_argument("--atif", required=True, type=Path)
     prepare.add_argument("--source-kind", choices=("atif", "intake", "mlflow", "otel", "gym"), required=True)
     prepare.set_defaults(run=_prepare)
+
+    audit = subparsers.add_parser("audit-evidence", help="report observation coverage without inferring correctness")
+    audit.add_argument("--task-dir", required=True, type=Path)
+    audit.set_defaults(run=_audit_evidence)
 
     review = subparsers.add_parser("review-privacy", help="record contextual review of every safe ATIF string")
     review.add_argument("--task-dir", required=True, type=Path)

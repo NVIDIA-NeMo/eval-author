@@ -1,6 +1,6 @@
 ---
 name: eval-author-trace-environment
-version: 1.4.0
+version: 1.4.1
 description: >-
   Experimental workflow. Use Gym, MLflow, Intake, OpenTelemetry, or ATIF trace
   evidence to derive a private, reproducible Harbor or native NeMo Gym task candidate.
@@ -137,6 +137,12 @@ finish, retain that limitation without issuing a complete review attestation.
 Never copy a redacted value into a verifier. An image-only user instruction
 blocks candidacy. The scanner cannot establish that proprietary code is safe;
 the contextual reviewer owns that judgment.
+
+Run `audit-evidence --task-dir <task-dir>` before deciding candidacy for either
+provider. Read [references/evidence-audit.md](references/evidence-audit.md) and
+inspect the private report's source locations for missing, ambiguous, or
+conflicting observations. Carry material gaps into candidate uncertainties;
+the report measures recorded evidence coverage, not task correctness or readiness.
 
 ### Resolve tool-call access
 
@@ -400,6 +406,7 @@ the sibling `gym-to-atif` skill; put its owner-private output under
 |---|---|---|
 | `init` | Create the private, gitignored task workspace | `--task-id` |
 | `prepare` | Validate, bound, and scrub one canonical ATIF | `--task-dir --atif --source-kind` |
+| `audit-evidence` | Inspect recorded observation coverage without inferring success | `--task-dir` |
 | `review-privacy` | Record the contextual safe-ATIF review | `--reviewer-kind --note` |
 | `inventory-tool-calls` / `plan-tool-call-access` / `resolve-tool-call-access` / `generate-mock-tool-calls` | Trace-derived tool-call fixtures | `--task-dir [--decisions --reviewer-kind]` |
 | `check-candidate` | Read-only candidate metadata check before construction | `--task-dir` |

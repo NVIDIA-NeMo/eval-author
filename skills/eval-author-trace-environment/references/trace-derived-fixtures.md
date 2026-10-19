@@ -103,6 +103,11 @@ is supported when it has a usable definition, object inputs, exactly one textual
 output for each call, no redacted values, and no conflicting outputs for the same
 canonical input.
 
+Explicit result error flags are preserved through replay. Malformed or
+contradictory flags block replay; conflict detection includes status as well as
+text. Run the [recorded evidence audit](evidence-audit.md) to inspect source
+coverage and the distinction between unrecorded status and explicit not-error.
+
 The schema must declare an object root, use a supported JSON Schema dialect, and
 validate every recorded argument object. Local references are supported;
 unavailable references fail closed without network retrieval. Malformed schemas,
