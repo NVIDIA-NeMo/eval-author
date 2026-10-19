@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _markdown import AuditMarkdownError  # noqa: E402
 from _schema import AuditEnvironmentError, AuditSpecError, item_counts, load_audit_spec  # noqa: E402
-from _values import optional_string  # noqa: E402
+from _values import EVIDENCE_CLASS_ORDER, harbor_evidence_class_from_result, optional_string  # noqa: E402
 from measurements import capabilities, failure_cases, tool_calls  # noqa: E402
 
 JsonObject: TypeAlias = dict[str, Any]
@@ -120,14 +120,18 @@ class Subject:
     trace_path: Path
     task_id: str
     run_id: str
+    evidence_class: str | None = None
 
     def to_json(self) -> JsonObject:
-        return {
+        payload: JsonObject = {
             "trace": str(self.trace_path),
             "trace_format": "atif",
             "task_id": self.task_id,
             "run_id": self.run_id,
         }
+        if self.evidence_class is not None:
+            payload["evidence_class"] = self.evidence_class
+        return payload
 
 
 @dataclass(frozen=True)
@@ -177,6 +181,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--task-id", help="task id to stamp on the measurement report")
     parser.add_argument("--run-id", help="run id to stamp on the measurement report")
     parser.add_argument(
+        "--evidence-class",
+        choices=EVIDENCE_CLASS_ORDER,
+        help="runner/evidence role for this trace; required with --trace unless --skip-evidence-class",
+    )
+    parser.add_argument(
+        "--skip-evidence-class",
+        action="store_true",
+        help="with --trace only, write coverage without subject.evidence_class (legacy aggregation)",
+    )
+    parser.add_argument(
         "--out-dir",
         type=Path,
         required=True,
@@ -201,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        _validate_evidence_class_args(args)
         method_names = _measurement_methods(args.measure)
         inputs = _measurement_inputs(args, method_names)
         audit = load_audit_spec(args.audit)
@@ -208,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
         loaded_trace = _load_harbor_trajectory(pending_subject.trace_path)
         _validate_judgment_trace(inputs.capability_judgments, loaded_trace, label="capability judgments")
         _validate_judgment_trace(inputs.failure_case_judgments, loaded_trace, label="failure-case judgments")
-        subject_info = _finalize_subject(pending_subject, loaded_trace)
+        subject_info = _finalize_subject(pending_subject, loaded_trace, evidence_class=_resolve_evidence_class(args))
         reports = _measure_all(
             audit=audit,
             audit_path=args.audit,
@@ -242,8 +257,31 @@ def main(argv: list[str] | None = None) -> int:
         "measurements": [report.to_summary() for report in written_reports],
         "run_id": subject_info.run_id,
     }
+    if subject_info.evidence_class is not None:
+        summary["evidence_class"] = subject_info.evidence_class
     _print(summary, compact=args.compact)
     return 0
+
+
+def _validate_evidence_class_args(args: argparse.Namespace) -> None:
+    """Require an explicit evidence-class choice for standalone ATIF measurement."""
+    if args.evidence_class is not None and args.skip_evidence_class:
+        raise AuditMeasurementError("pass only one of --evidence-class and --skip-evidence-class")
+    if args.skip_evidence_class and args.trial_dir is not None:
+        raise AuditMeasurementError("--skip-evidence-class applies only with --trace")
+    if args.trace is not None and args.evidence_class is None and not args.skip_evidence_class:
+        raise AuditMeasurementError("--trace requires --evidence-class or --skip-evidence-class")
+
+
+def _resolve_evidence_class(args: argparse.Namespace) -> str | None:
+    """Prefer an explicit stamp, then Harbor trial metadata, otherwise leave unlabeled."""
+    if args.skip_evidence_class:
+        return None
+    if args.evidence_class is not None:
+        return args.evidence_class
+    if args.trial_dir is not None:
+        return harbor_evidence_class_from_result(_load_harbor_result(args.trial_dir / "result.json"))
+    return None
 
 
 def _subject(args: argparse.Namespace) -> PendingSubject:
@@ -326,12 +364,13 @@ def _load_harbor_trajectory(path: Path) -> LoadedTrace:
     return LoadedTrace(trajectory=trajectory, content_sha256=hashlib.sha256(raw).hexdigest())
 
 
-def _finalize_subject(subject: PendingSubject, loaded_trace: LoadedTrace) -> Subject:
+def _finalize_subject(subject: PendingSubject, loaded_trace: LoadedTrace, *, evidence_class: str | None) -> Subject:
     """Fill any missing run identity from the parsed trace or trace content."""
     return Subject(
         trace_path=subject.trace_path,
         task_id=subject.task_id,
         run_id=subject.run_id or _trace_run_id(loaded_trace),
+        evidence_class=evidence_class,
     )
 
 

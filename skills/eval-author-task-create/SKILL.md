@@ -373,7 +373,10 @@ coverage result.
 Run `eval-author-audit`'s `measure.py` and `report.py` separately for each
 recorded attempt. Measure the recorded trace with the recorder's `--run-id` and
 the selected `<task-slug>`; `verify` rejects any other trace. For Harbor, pass the
-recorded trial directory; for Gym, pass the converted ATIF with `--trace`. Keep
+recorded trial directory so `subject.evidence_class` is stamped from
+`result.json`. For Gym or other exports, pass the converted ATIF with `--trace`
+and `--evidence-class agent_under_test` on real agent repeats (`reference_solution`
+or `nop` only when remeasuring those control traces for audit context). Keep
 repeat outputs separate so one successful run cannot hide another:
 
 ```bash

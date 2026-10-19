@@ -104,6 +104,62 @@ def test_task_slug_for_tool_is_deterministic() -> None:
     assert task_slug_for_tool("customer.lookup") == "cover-customer-lookup"
 
 
+def test_select_uses_agent_under_test_bucket_when_present(tmp_path: Path) -> None:
+    """Reference-only union coverage must not hide an agent-under-test tool gap."""
+    report = tmp_path / "report.json"
+    tool_gap = {
+        "name": "read",
+        "kind": "tool",
+        "reason": "not_covered_by_any_input_report",
+        "description": "Use read.",
+        "generation": {
+            "focus": "Exercise read.",
+            "needed_tools": ["read"],
+            "evidence_required": [{"kind": "tool_call", "tool": "read"}],
+        },
+    }
+    report.write_text(
+        json.dumps(
+            {
+                "covered": ["read"],
+                "uncovered": [],
+                "uncovered_items": [],
+                "coverage_by_evidence_class": {
+                    "agent_under_test": {
+                        "input_count": 1,
+                        "coverage": {
+                            "overall": {"item_count": 1, "covered_count": 0, "uncovered_count": 1},
+                            "by_kind": {
+                                "tool": {"item_count": 1, "covered_count": 0, "uncovered_count": 1},
+                            },
+                        },
+                        "covered": [],
+                        "uncovered": ["read"],
+                        "uncovered_items": [tool_gap],
+                    },
+                    "reference_solution": {
+                        "input_count": 1,
+                        "coverage": {
+                            "overall": {"item_count": 1, "covered_count": 1, "uncovered_count": 0},
+                            "by_kind": {
+                                "tool": {"item_count": 1, "covered_count": 1, "uncovered_count": 0},
+                            },
+                        },
+                        "covered": ["read"],
+                        "uncovered": [],
+                        "uncovered_items": [],
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    payload = json.loads(_run("select", "--report", str(report)).stdout)
+    assert payload["valid"] is True
+    assert payload["actionable_count"] == 1
+    assert payload["actionable_tools"][0]["name"] == "read"
+
+
 def test_select_returns_task_slug_and_paths(tmp_path: Path) -> None:
     """Select attaches canonical artifact paths for one actionable tool gap."""
     report = tmp_path / "report.json"

@@ -181,8 +181,20 @@
         "run_id": {
           "description": "Identifier for the specific run, trial, attempt, or repetition measured.",
           "$ref": "#/$defs/nonEmptyString"
+        },
+        "evidence_class": {
+          "$ref": "#/$defs/evidenceClass"
         }
       }
+    },
+    "evidenceClass": {
+      "type": "string",
+      "enum": [
+        "agent_under_test",
+        "reference_solution",
+        "nop",
+        "control"
+      ]
     },
     "judgmentInput": {
       "type": "object",

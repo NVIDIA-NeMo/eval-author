@@ -62,6 +62,10 @@
       "items": {
         "$ref": "#/$defs/uncoveredItem"
       }
+    },
+    "coverage_by_evidence_class": {
+      "description": "Per-runner coverage summaries when at least one input carried subject.evidence_class.",
+      "$ref": "#/$defs/coverageByEvidenceClass"
     }
   },
   "$defs": {
@@ -175,30 +179,108 @@
     },
     "warning": {
       "description": "One non-fatal condition observed while building the aggregate report.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "coverage",
+            "input_status",
+            "current_status"
+          ],
+          "properties": {
+            "kind": {
+              "const": "audit_status_mismatch"
+            },
+            "coverage": {
+              "$ref": "#/$defs/pathString"
+            },
+            "input_status": {
+              "$ref": "#/$defs/auditStatus"
+            },
+            "current_status": {
+              "$ref": "#/$defs/auditStatus"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "coverage"
+          ],
+          "properties": {
+            "kind": {
+              "const": "missing_evidence_class"
+            },
+            "coverage": {
+              "$ref": "#/$defs/pathString"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "evidenceClass": {
+      "type": "string",
+      "enum": [
+        "agent_under_test",
+        "reference_solution",
+        "nop",
+        "control"
+      ]
+    },
+    "coverageByEvidenceClassEntry": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "kind",
+        "input_count",
         "coverage",
-        "input_status",
-        "current_status"
+        "covered",
+        "uncovered",
+        "uncovered_items"
       ],
       "properties": {
-        "kind": {
-          "description": "Warning discriminator.",
-          "const": "audit_status_mismatch"
+        "input_count": {
+          "type": "integer",
+          "minimum": 1
         },
         "coverage": {
-          "description": "Input coverage file that carried the mismatched status.",
-          "$ref": "#/$defs/pathString"
+          "$ref": "#/$defs/coverageSummary"
         },
-        "input_status": {
-          "description": "Audit status recorded in the input coverage file.",
-          "$ref": "#/$defs/auditStatus"
+        "covered": {
+          "$ref": "#/$defs/nameList"
         },
-        "current_status": {
-          "description": "Audit status in the current denominator.",
-          "$ref": "#/$defs/auditStatus"
+        "uncovered": {
+          "$ref": "#/$defs/nameList"
+        },
+        "uncovered_items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/uncoveredItem"
+          }
+        }
+      }
+    },
+    "coverageByEvidenceClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agent_under_test": {
+          "$ref": "#/$defs/coverageByEvidenceClassEntry"
+        },
+        "reference_solution": {
+          "$ref": "#/$defs/coverageByEvidenceClassEntry"
+        },
+        "nop": {
+          "$ref": "#/$defs/coverageByEvidenceClassEntry"
+        },
+        "control": {
+          "$ref": "#/$defs/coverageByEvidenceClassEntry"
         }
       }
     },
@@ -228,6 +310,9 @@
         "run_id": {
           "description": "Identifier for the specific run, trial, attempt, or repetition measured.",
           "$ref": "#/$defs/nonEmptyString"
+        },
+        "evidence_class": {
+          "$ref": "#/$defs/evidenceClass"
         }
       }
     },
