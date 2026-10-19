@@ -49,9 +49,10 @@ See [Check readiness](existing-evals.md#check-readiness) for the next step.
 
 ## Review generated cases
 
-Start at `.eval-author/report.html` as soon as cases are authored;
-the final handoff links this report. For first evaluations this is `.eval-author/README.md`;
-In the report, users may open a task's README from its Actions column.
+Review tasks at `.eval-author/report.html` as soon as cases are authored;
+the final handoff links this report. In the report, users may open a task's
+README or use the harbor viewer to review in full. Agents can start at the 
+generated suite's root `README.md`.
 
 Standalone drafts use `.eval-author/task-drafts/<task-slug>/README.md`. Trace candidates use
 `<task-dir>/README.md`, and generated batches also have a collection-root guide.
@@ -61,8 +62,6 @@ execution is blocked.
 Task README files allow users to inspect its Input, Behavior under test,
 Expected result, and Grading sections. Input links the instruction and fixtures;
 Grading links the actual verifier code and criteria or judge files.
-
-Agents can start at the generated suite's root `README.md`.
 
 At the accepted-task handoff, create a flat `.eval-author/tasks/` catalog for new
 environments; follow the existing final task-directory convention for existing
