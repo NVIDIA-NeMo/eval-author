@@ -253,7 +253,7 @@ not establish live model performance, generated-task validity or defect sensitiv
 
 ## Workflow scope regression checks
 
-The [workflow scope checker](docs/workflow-scope-checks.md) compares normalized
+The [workflow scope checker](docs/determinism-checks.md#workflow-scope) compares normalized
 tool evidence and file manifests against frozen request/turn contracts.
 Run its mutation and disposable-inventory tests with:
 
