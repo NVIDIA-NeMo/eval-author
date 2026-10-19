@@ -113,19 +113,28 @@ def test_valid_binding_preserves_measurement_result(packet, tmp_path, monkeypatc
     "statuses,expected",
     [(["passed"], 0), (["regression"], 0), (["incomplete"], 2), (["regression", "incomplete"], 2)],
 )
-def test_warning_mode_preserves_verdicts_and_incomplete_failures(packet, tmp_path, monkeypatch, capsys, statuses, expected):
+def test_warning_mode_preserves_verdicts_and_incomplete_failures(
+    packet, tmp_path, monkeypatch, capsys, statuses, expected
+):
     suite, runtime, _ = packet
     if len(statuses) > 1:
         suite["cases"].append({**suite["cases"][0], "id": "second"})
         semantic.dump(tmp_path / "suite.json", suite)
     metrics = {
-        "retention": 1.0, "retention_threshold": 1.0, "consistency": 0.8,
-        "baseline_consistency": 1.0, "allowed_drop": 0.0, "presence_passed": True,
+        "retention": 1.0,
+        "retention_threshold": 1.0,
+        "consistency": 0.8,
+        "baseline_consistency": 1.0,
+        "allowed_drop": 0.0,
+        "presence_passed": True,
     }
     measurements = iter(
-        {"status": status, "reason": "execution_or_input_error" if status == "incomplete" else "measured",
-         "exit_code": {"passed": 0, "regression": 1, "incomplete": 2}[status],
-         "metrics": None if status == "incomplete" else metrics}
+        {
+            "status": status,
+            "reason": "execution_or_input_error" if status == "incomplete" else "measured",
+            "exit_code": {"passed": 0, "regression": 1, "incomplete": 2}[status],
+            "metrics": None if status == "incomplete" else metrics,
+        }
         for status in statuses
     )
     monkeypatch.setattr(semantic, "Model", lambda: object())
@@ -146,10 +155,18 @@ def test_warning_mode_preserves_verdicts_and_incomplete_failures(packet, tmp_pat
 
 
 def test_warning_cli_plan_does_not_call_models(packet, tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(sys, "argv", [
-        "run_semantic_ci.py", "--warn-on-regression", "--suite", str(tmp_path / "suite.json"),
-        "--output", str(tmp_path / "out"),
-    ])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_semantic_ci.py",
+            "--warn-on-regression",
+            "--suite",
+            str(tmp_path / "suite.json"),
+            "--output",
+            str(tmp_path / "out"),
+        ],
+    )
     monkeypatch.setattr(semantic, "Model", lambda: pytest.fail("plan must not call models"))
     assert ci.main() == 0
     assert "::warning::" not in capsys.readouterr().out
@@ -157,10 +174,22 @@ def test_warning_cli_plan_does_not_call_models(packet, tmp_path, monkeypatch, ca
 
 def test_warning_cli_check_passes_flag(packet, tmp_path, monkeypatch):
     _, runtime, _ = packet
-    monkeypatch.setattr(sys, "argv", [
-        "run_semantic_ci.py", "--mode", "check", "--warn-on-regression",
-        "--suite", str(tmp_path / "suite.json"), "--runtime", str(runtime), "--output", str(tmp_path / "out"),
-    ])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_semantic_ci.py",
+            "--mode",
+            "check",
+            "--warn-on-regression",
+            "--suite",
+            str(tmp_path / "suite.json"),
+            "--runtime",
+            str(runtime),
+            "--output",
+            str(tmp_path / "out"),
+        ],
+    )
     monkeypatch.setattr(semantic, "Model", lambda: object())
     monkeypatch.setattr(semantic, "check_case", lambda *args: {"status": "regression", "reason": "measured"})
     assert ci.main() == 0

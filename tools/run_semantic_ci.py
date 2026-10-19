@@ -112,7 +112,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=("plan", "check"), default="plan")
     parser.add_argument(
-        "--warn-on-regression", action="store_true",
+        "--warn-on-regression",
+        action="store_true",
         help="Report measured regressions as CI warnings; incomplete evidence still fails",
     )
     parser.add_argument("--suite", type=Path, default=semantic.ROOT / "evals/semantic/pilot.json")
@@ -122,7 +123,10 @@ def main():
     if args.mode == "check" and args.runtime is None:
         parser.error("--runtime required for check")
     return run(
-        args.suite.resolve(), args.runtime.resolve() if args.runtime else None, args.output.resolve(), args.mode,
+        args.suite.resolve(),
+        args.runtime.resolve() if args.runtime else None,
+        args.output.resolve(),
+        args.mode,
         warn_on_regression=args.warn_on_regression,
     )
 
