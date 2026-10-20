@@ -233,8 +233,8 @@ entire existing publication preview as usual; task verifier files are included.
 
 ## Maintainer verification
 
-From the source checkout, run the skill-local regressions explicitly; the
-repository's default pytest collection only includes top-level tests:
+The repository's default pytest collection includes these skill-local regressions.
+For a focused maintainer check, run:
 
 ```bash
 uv run --locked pytest -q skills/eval-author-trace-environment/evals/tests
