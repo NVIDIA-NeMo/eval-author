@@ -32,6 +32,16 @@ grade_submission({"answer": Path("/workspace/output.txt")}, assess)
 ```
 
 Declare the normal Harbor artifact handoff for each solver output. The wrapper
+requires these outputs to cross into the separate verifier. Put `artifacts`
+at the **root** of `task.toml`, before any table header, not under `[verifier]`
+or `[environment]`. `validate-task` catches misplaced declarations and missing
+handoff for direct bundled `grade_submission` calls (including import aliases).
+This static check does not establish complete output coverage or dynamic wiring;
+compare every declared submission path to the handoff and exercise it as the
+actual container user. A host upload adapter may create files owned by a different
+user; successful upload alone does not prove the solver can read or change them.
+
+The wrapper
 captures at most 32 regular files and 2 MiB total, passes immutable bytes to the
 callback, and writes ordinary tab-separated `results`, binary `reward.txt`,
 submission snapshots and a completion receipt under `/logs/verifier`. Use a
@@ -83,6 +93,30 @@ when authorized. `purpose` is `solution` or `adversarial`; solver `exposure` is
 `public_only`, `verifier_visible` or `unknown`. Built-in Oracle is rejected.
 Custom-agent behavior, prompt delivery and exposure still require review.
 
+When correctness depends on public inputs or runtime context, add an optional
+`public_context` array to the plan **before** recording the cohort:
+
+```json
+{
+  "path": "task/environment/input/data.csv",
+  "sha256": "<bare SHA-256 of the exact file>",
+  "solver_path": "/app/data.csv",
+  "purpose": "input",
+  "review": {
+    "reviewer_kind": "agent",
+    "note": "Verified this file is supplied to the solver at the declared path; it contains no private grading reference."
+  }
+}
+```
+
+Use one entry per file, at most 32 and 2 MiB total. `purpose` is `input` or
+`runtime_context`. Only canonical regular files under `task/environment/`
+(excluding `Dockerfile`) are supported; symbolic links, private references,
+tests and solutions are excluded. Directory placement alone does not establish
+solver visibility: inspect image wiring and attest the actual location. Never
+move hidden answers into this directory to make them eligible for review.
+The cohort binds these exact bytes; later changes invalidate it.
+
 ```bash
 python scripts/trace_environment.py record-review-inputs \
   --task-dir <workspace> --plan private/review-plan.json
@@ -101,7 +135,16 @@ An additional experiment requires a new plan, fresh jobs and a new cohort.
 Use a reviewer with a separate context, initially showing the public contract,
 submission snapshots and solver transcript without the verifier score when
 possible. Record actual exposure; different identifiers alone do not establish
-independence. Retain `private/solution-assessments.json`:
+independence.
+
+Provide the declared public context files and their solver-path mapping alongside
+the submission packet. They are additional evidence, not reference answers or
+verifier verdicts. Reviewers may cite their exact task-relative paths, but every
+judgment must still cite the instruction and evidence from its own trial.
+Missing context, file metadata, native tools or independent timing measurements
+must remain explicit uncertainty; source inspection cannot establish a speedup.
+
+Retain `private/solution-assessments.json`:
 
 ```json
 {

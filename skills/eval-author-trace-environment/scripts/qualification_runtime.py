@@ -12,14 +12,16 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import selectors
 import signal
 import subprocess
 import time
 from pathlib import Path
 
-SCHEMA = "nemo.eval_author.construction_execution.v1"
+SCHEMA = "nemo.eval_author.construction_execution.v2"
 MAX_OUTPUT_BYTES = 256 * 1024
+MAX_RECEIPT_BYTES = 2 * 1024 * 1024
 
 
 def digest(value: object) -> str:
@@ -74,8 +76,9 @@ def run_probe(probe: dict) -> dict:
                     if not data:
                         selector.unregister(key.fileobj)
                         continue
-                    output.extend(data)
-                    if len(output) > MAX_OUTPUT_BYTES:
+                    remaining = MAX_OUTPUT_BYTES - len(output)
+                    output.extend(data[:remaining])
+                    if len(data) > remaining:
                         failure = "output_limit"
                         break
                 if failure:
@@ -96,6 +99,8 @@ def run_probe(probe: dict) -> dict:
                 code = process.wait()
             process.stdout.close()
     observation = None
+    if failure is None and code != 0:
+        failure = "nonzero_exit"
     if failure is None and code == 0:
         try:
             observation = pointer(json.loads(output), probe["json_pointer"])
@@ -108,6 +113,8 @@ def run_probe(probe: dict) -> dict:
         "failure": failure,
         "output_sha256": hashlib.sha256(output).hexdigest(),
         "observation": observation,
+        "output_bytes": bytes(output),
+        "output_truncated": failure == "output_limit",
     }
 
 
@@ -118,7 +125,29 @@ def run_probes(probes: list[dict], output: Path) -> None:
     for probe in probes:
         if not 0 < probe["timeout_seconds"] <= 30:
             raise ValueError("probe timeout must be in (0, 30]")
+    ids = [p["id"] for p in probes]
+    if len(set(ids)) != len(ids) or any(
+        not isinstance(key, str) or len(key) > 80 or re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", key) is None
+        for key in ids
+    ):
+        raise ValueError("probe IDs must be unique safe names")
+    if any(p.is_symlink() for p in (output, *output.parents)):
+        raise ValueError("probe evidence cannot use symlinks")
     # Opening exclusively before execution prevents stale success from surviving.
     with output.open("x", encoding="utf-8") as stream:
-        json.dump({"schema": SCHEMA, "probes": [run_probe(probe) for probe in probes]}, stream)
-        stream.write("\n")
+        output.chmod(0o600)
+        directory = output.parent / "qualification-output"
+        directory.mkdir(mode=0o700)
+        rows = []
+        for probe in probes:
+            row = run_probe(probe)
+            path = directory / f"{probe['id']}.bin"
+            with path.open("xb") as captured:
+                path.chmod(0o600)
+                captured.write(row.pop("output_bytes"))
+            row["output_file"] = f"qualification-output/{probe['id']}.bin"
+            rows.append(row)
+        data = json.dumps({"schema": SCHEMA, "probes": rows}) + "\n"
+        if len(data.encode()) > MAX_RECEIPT_BYTES:
+            raise ValueError("probe receipt exceeds evidence limit")
+        stream.write(data)

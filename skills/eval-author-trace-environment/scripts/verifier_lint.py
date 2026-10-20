@@ -16,6 +16,57 @@ MAX_TOTAL_BYTES = 2 * 1024 * 1024
 MAX_FINDINGS = 64
 
 
+def uses_submission_capture(task_dir: Path) -> bool:
+    """Recognize direct bundled capture calls; not a proof of dynamic wiring."""
+    root = task_dir / "task/tests"
+    helper = root / "review_runtime.py"
+    try:
+        if (
+            helper.is_symlink()
+            or not helper.is_file()
+            or any(p.is_symlink() for p in helper.parents)
+            or helper.stat().st_size > MAX_FILE_BYTES
+            or helper.read_bytes() != Path(__file__).with_name("review_runtime.py").read_bytes()
+        ):
+            return False
+    except OSError:
+        return False
+    total = 0
+    for index, path in enumerate(root.rglob("*")):
+        if index >= MAX_ENTRIES:
+            break
+        if path.suffix != ".py" or path.is_symlink() or any(p.is_symlink() for p in path.parents):
+            continue
+        try:
+            if not path.is_file() or path.stat().st_size > MAX_FILE_BYTES:
+                continue
+            source = path.read_bytes()
+            total += len(source)
+            if total > MAX_TOTAL_BYTES:
+                break
+            tree = ast.parse(source)
+        except (OSError, SyntaxError, ValueError):
+            continue
+        functions, modules = set(), set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == "review_runtime":
+                functions.update(i.asname or i.name for i in node.names if i.name == "grade_submission")
+            elif isinstance(node, ast.Import):
+                modules.update(i.asname or i.name for i in node.names if i.name == "review_runtime")
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            f = node.func
+            if (isinstance(f, ast.Name) and f.id in functions) or (
+                isinstance(f, ast.Attribute)
+                and f.attr == "grade_submission"
+                and isinstance(f.value, ast.Name)
+                and f.value.id in modules
+            ):
+                return True
+    return False
+
+
 def _module_file(node: ast.AST) -> bool:
     if isinstance(node, ast.Attribute) and node.attr == "__file__":
         return True

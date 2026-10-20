@@ -191,6 +191,7 @@ def proof(root, manifest, *, fail_setup=False, wrong_bypass=False, alternative_f
         if arm == "negative" and fail_setup:
             receipt = json.loads((trial / "verifier/qualification.json").read_text())
             receipt["probes"][0]["exit_code"] = 1
+            receipt["probes"][0]["failure"] = "nonzero_exit"
             receipt["probes"][0]["observation"] = None
             save(trial / "verifier/qualification.json", receipt)
         jobs[arm].append(job)
@@ -336,7 +337,7 @@ def test_observation_and_exact_reversal_use_trace_order_not_step_numbers(tmp_pat
 @pytest.mark.parametrize(
     "script,failure",
     [
-        ("raise ImportError('missing')", None),
+        ("raise ImportError('missing')", "nonzero_exit"),
         ("print('not-json')", "invalid_observation"),
         ("import time; time.sleep(2)", "timeout"),
         ("print('x' * 300000)", "output_limit"),
@@ -348,8 +349,9 @@ def test_runtime_observes_real_execution_failures(tmp_path, script, failure):
     row = runtime.run_probe(definition)
     assert row["failure"] == failure
     assert row["observation"] is None
-    if failure is None:
+    if failure == "nonzero_exit":
         assert row["exit_code"] != 0
+        assert b"ImportError: missing" in row["output_bytes"]
 
 
 def test_runtime_records_observed_value_and_refuses_stale_output(tmp_path):

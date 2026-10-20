@@ -61,8 +61,43 @@ def load(root: Path, relative: str, evidence: dict) -> object:
     return value
 
 
+def public_context(root: Path, plan: dict) -> set[str]:
+    """Validate explicitly reviewed solver-visible files, never infer visibility."""
+    entries = plan.get("public_context", [])
+    require(isinstance(entries, list) and len(entries) <= 32, "expected at most 32 public context files")
+    paths: set[str] = set()
+    total = 0
+    for entry in entries:
+        fields(entry, "path sha256 solver_path purpose review", "public context")
+        relative = entry["path"]
+        path = contract.secure_path(root, relative)
+        require(
+            relative == path.relative_to(root).as_posix()
+            and relative.startswith("task/environment/")
+            and path.name != "Dockerfile"
+            and relative not in paths,
+            "public context must name distinct canonical environment input files",
+        )
+        require(
+            isinstance(entry["solver_path"], str)
+            and entry["solver_path"].startswith("/")
+            and entry["solver_path"] == Path(entry["solver_path"]).as_posix()
+            and ".." not in Path(entry["solver_path"]).parts
+            and entry["purpose"] in ("input", "runtime_context"),
+            "declare solver-visible location and context purpose",
+        )
+        contract.review(entry["review"])
+        data = read_regular(path)
+        total += len(data)
+        require(total <= contract.MAX_BYTES and sha(data) == entry["sha256"], "public context changed or oversized")
+        paths.add(relative)
+    return paths
+
+
 def validate_plan(root: Path, value: object) -> dict:
-    plan = fields(value, "author_id author_context_id attempts", "review plan")
+    extra = " public_context" if isinstance(value, dict) and "public_context" in value else ""
+    plan = fields(value, "author_id author_context_id attempts" + extra, "review plan")
+    public_context(root, plan)
     require(all(contract.text(plan[key]) for key in ("author_id", "author_context_id")), "author identity required")
     attempts = plan["attempts"]
     require(isinstance(attempts, list) and 1 <= len(attempts) <= 32, "expected 1..32 planned attempts")
@@ -103,6 +138,8 @@ def record(root: Path, plan_path: str, binding: dict) -> dict:
     private_path(root, plan_path)
     evidence: dict[str, str] = {}
     plan = validate_plan(root, load(root, plan_path, evidence))
+    for path in sorted(public_context(root, plan)):
+        read(root, path, evidence)
     for attempt in plan["attempts"]:
         require(not private_path(root, attempt["job_dir"]).exists(), "record the entire cohort before any job exists")
         read(root, attempt["prompt"], evidence)
@@ -294,7 +331,7 @@ def review_attempt(root: Path, attempt: dict, rows: list | None, cohort: dict, e
         require(
             "task/instruction.md" in citations
             and bool(set(citations) & allowed)
-            and set(citations) <= allowed | {"task/instruction.md"},
+            and set(citations) <= allowed | {"task/instruction.md"} | public_context(root, cohort["plan"]),
             "citation must bind this trial and public contract",
         )
         for citation in citations:
@@ -320,15 +357,18 @@ def review(root: Path, cohort_path: str, assessment_path: str, binding: dict) ->
     require(cohort["schema"] == COHORT_SCHEMA and cohort["binding"] == binding, "stale or invalid review cohort")
     require(cohort_path == f"private/solution-review/cohorts/{digest(cohort)}.json", "cohort receipt was edited")
     validate_plan(root, cohort["plan"])
+    context_paths = public_context(root, cohort["plan"])
     private_path(root, cohort["plan_path"])
     require(load(root, cohort["plan_path"], evidence) == cohort["plan"], "retained plan differs from cohort")
     require(
-        set(cohort["inputs"]) == {cohort["plan_path"], *(a["prompt"] for a in cohort["plan"]["attempts"])},
+        set(cohort["inputs"])
+        == {cohort["plan_path"], *(a["prompt"] for a in cohort["plan"]["attempts"])} | context_paths,
         "cohort inputs incomplete",
     )
     require(isinstance(cohort["inputs"], dict), "invalid cohort inputs")
     for path, checksum in cohort["inputs"].items():
-        private_path(root, path)
+        if path not in context_paths:
+            private_path(root, path)
         require(sha(read(root, path, evidence)) == checksum, "pre-run inputs changed")
     require(
         cohort["producer_sha256"]

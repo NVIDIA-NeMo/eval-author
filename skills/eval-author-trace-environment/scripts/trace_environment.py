@@ -40,7 +40,7 @@ from fixture_compiler import (  # noqa: E402
     resolve_tool_access,
 )
 from mock_registration import probe_registration  # noqa: E402
-from verifier_lint import verifier_advisories  # noqa: E402
+from verifier_lint import uses_submission_capture, verifier_advisories  # noqa: E402
 
 SCHEMA = "nemo.eval_author.trace_environment_summary.v2"
 QUALIFIED_SUMMARY_SCHEMA = "nemo.eval_author.trace_environment_summary.v3"
@@ -1942,6 +1942,12 @@ def _validate_task(task_dir: Path) -> dict[str, Any]:
     agent_environment = config.get("environment")
     if not isinstance(agent_environment, dict) or agent_environment.get("network_mode") != "no-network":
         raise ContractError("[environment].network_mode must be no-network")
+    if any("artifacts" in table for table in (verifier, verifier_environment, agent_environment)):
+        raise ContractError(
+            "artifact handoff must be top-level in task.toml, before table headers; nested artifacts are ignored"
+        )
+    if uses_submission_capture(task_dir) and (not isinstance(config.get("artifacts"), list) or not config["artifacts"]):
+        raise ContractError("submission capture requires a nonempty top-level artifacts handoff in task.toml")
     steps = config.get("steps", [])
     if not isinstance(steps, list):
         raise ContractError("task/task.toml steps must be an array of tables")
