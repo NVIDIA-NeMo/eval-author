@@ -284,7 +284,8 @@ Recording this baseline with the evidence recorder is optional.
 
 For tasks that meet this workflow's working-suite criteria, follow
 [Promote accepted tasks at handoff](../eval-author/SKILL.md#promote-accepted-tasks-at-handoff).
-Use the final catalog for future suite runs and report refreshes.
+Use the final catalog for future suite runs. Keep the report scoped to the
+project so both draft and finalized tasks remain visible.
 Complete that handoff's on-disk checks before marking **Run and review** complete.
 For a new Harbor environment, `.eval-author/tasks/` must contain the accepted
 cases, the future suite config must resolve them there, and the report must
@@ -294,17 +295,17 @@ final reply; do not finish with only a draft inventory and baseline results.
 Update `.eval-author/first-eval.md` with exact commands, artifact paths, control
 results, per-task agent rewards and exceptions, and remaining blockers. Show how
 to rerun the suite, inspect one result, and add or modify a task. Finish and link
-the task README run instructions and refresh `.eval-author/report.html` and
-`.eval-author/README.md` following the shared report contract.
+the suite and task README run instructions for either provider and refresh
+`.eval-author/report.html` and `.eval-author/README.md` following the shared report contract.
 Preserve the full-suite command and concrete commands for individual coverage items,
 following [Review and rerun guidance](../eval-author/references/suite-readme.md#review-and-rerun-guidance).
 
-HTML refresh must not change the evaluation result or workflow state; report rendering
-failures separately. After a run, introduce the generated documentation with
-"Review your tasks and this run via the generated documentation:" and link
-`.eval-author/README.md` and `.eval-author/report.html`. Do not mention or link
-`.eval-author/first-eval.md` or supply additional information after mentioning this
-documentation unless the user explicitly asks for it.
+Report refresh must not change the evaluation result or workflow state. Explain
+results, failed controls, generated/validated/executed counts, remaining blockers,
+rerun and viewer instructions, and any rendering failure before the final links.
+Always link `.eval-author/README.md` and `.eval-author/report.html` as the last
+lines of the response, after all other communication. Do not link
+`.eval-author/first-eval.md` in the run handoff unless asked.
 
 Continue saving and updating `.eval-author/first-eval.md`
 through the existing workflow, including when HTML generation fails.
@@ -314,10 +315,12 @@ Save any needed subset configs and verify their selected cases and retained
 agent settings. Label rerun commands as task sanity checks or actual agent evaluation.
 
 When an actual-agent attempt exists, explain in the results reply how to open
-Harbor's run viewer and find it, using the shared
+and inspect its saved evidence, using the shared
 [review walkthrough](../eval-author/references/suite-readme.md#show-the-user-how-to-review).
-Give its launch command and browser URL or a verified live link, and identify
-the saved job and case. State what can be reviewed when the adapter emits no
+For Harbor, give the run viewer's launch command and browser URL or a verified
+live link, and identify the saved job and case. For Gym, link the readable
+evidence for the selected dataset rows and identify the saved attempt.
+State what can be reviewed when the adapter emits no
 ATIF; captured actions and replies do not imply a native trajectory exists.
 If only controls ran or execution was blocked before any actual-agent run,
 say the actual agent has not run and offer case review plus any clearly labeled

@@ -279,19 +279,21 @@ Then complete Harbor's generated files:
 - `README.md`: purpose, behavior under test, expected result, environment, verifier, layout, and persistent suite and
   individual-item run instructions.
 
-Refresh `.eval-author/report.html` and `.eval-author/README.md`
-after authoring and after controls or actual-agent runs using the
-[Report generation](../eval-author/references/suite-readme.md#report-generation).
-Keep setup/rerun documentation in task READMEs. Reporting failure does not change
+For either provider, refresh `.eval-author/report.html` and the marked report
+section of `.eval-author/README.md` after authoring and after controls or
+actual-agent runs using [Report generation](../eval-author/references/suite-readme.md#report-generation).
+Preserve and maintain setup/rerun documentation in suite and task READMEs
+outside generated markers. Reporting failure does not change
 acceptance or execution evidence.
 
-For Gym, create the generated suite's top-level review and rerun guide using
+For either provider, maintain the generated suite's top-level review and rerun guide using
 [Review and rerun guidance](../eval-author/references/suite-readme.md#review-and-rerun-guidance).
 For a standalone draft, extend its task-level `README.md` without renaming it;
-when adding it to a generated collection, refresh the Harbor report or the Gym
-collection guide and preserve the existing coverage mapping. Present and link the case inventory when the cases are
-authored, with execution pending, then refresh it after native controls and
-actual-agent runs with their available results and execution traces.
+when adding it to a generated collection, refresh the shared report and maintain the
+collection guide, preserving the existing coverage mapping. Present and link the
+case inventory when the cases are authored, with execution pending, then refresh
+it after native controls and actual-agent runs with their available results and
+execution traces.
 
 Do not leave generated placeholders, `pass`, unconditional reward 1, or empty
 keywords.

@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Refresh an offline Harbor HTML report and its Markdown mirror without executing evaluations.
+"""Refresh an offline evaluation report and its README section without executing evaluations.
 
 Python 3.11+, jsonschema, and markdown-it-py are required. Discovery is the shared file-only
 search, not the readiness workflow. Only selected local files are read. The
@@ -13,6 +13,7 @@ README sections remain authoritative. No separate state file is written.
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import heapq
 import json
@@ -24,6 +25,7 @@ import stat
 import sys
 import tempfile
 import tomllib
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from html import escape
 from html.parser import HTMLParser
@@ -39,6 +41,8 @@ MAX_FILE_BYTES = 8 * 1024 * 1024
 MAX_REPORT_BYTES = 32 * 1024 * 1024
 MAX_README_BYTES = 256 * 1024
 MARKER = '"__EVAL_AUTHOR_REPORT_DATA__"'
+README_BEGIN = b"<!-- BEGIN EVAL AUTHOR REPORT -->"
+README_END = b"<!-- END EVAL AUTHOR REPORT -->"
 TEXT = {"type": "string", "maxLength": 2000}
 PATH = {"type": "string", "minLength": 1, "maxLength": 2000}
 NULL_TEXT = {"anyOf": [TEXT, {"type": "null"}]}
@@ -91,6 +95,7 @@ METADATA_SCHEMA = obj(
 TASK_SCHEMA = obj(
     {
         "id": TEXT,
+        "provider": {"enum": ["harbor", "gym"]},
         "path": PATH,
         "display_id": TEXT,
         "name": TEXT,
@@ -99,6 +104,7 @@ TASK_SCHEMA = obj(
         "grading_kind": TEXT,
         "grading_rule": NULL_TEXT,
         "readme_revision": NULL_TEXT,
+        "readme_path": PATH,
         "readme_html": {"type": ["string", "null"], "maxLength": 2 * 1024 * 1024},
         "status": {"enum": ["found", "unverified"]},
         "issues": array(TEXT),
@@ -120,7 +126,7 @@ ATTEMPT_SCHEMA = obj(
         "route": NULL_TEXT,
     }
 )
-V1_RUN_SCHEMA = obj(
+RUN_SCHEMA = obj(
     {
         "id": TEXT,
         "path": PATH,
@@ -136,39 +142,29 @@ V1_RUN_SCHEMA = obj(
         "invalid": {"type": "integer", "minimum": 0},
         "unknown": {"type": "integer", "minimum": 0},
         "score_label": TEXT,
+        "reward_key": TEXT,
+        "reward_sum": NUMBER,
+        "score_min": NUMBER,
+        "score_max": NUMBER,
+        "scored": {"type": "integer", "minimum": 0},
+        "completed": {"type": "integer", "minimum": 0},
         "viewer_root": PATH,
         "route": NULL_TEXT,
         "attempts": array(ATTEMPT_SCHEMA),
         "issues": array(TEXT),
     }
 )
-V1_REPORT_SCHEMA = obj(
-    {
-        "schema_version": {"const": 1},
-        "metadata": METADATA_SCHEMA,
-        "tasks": array(TASK_SCHEMA),
-        "runs": array(V1_RUN_SCHEMA),
-        "warnings": array(TEXT),
-        "inventory": obj({"complete": {"type": "boolean"}, "excluded": array(PATH)}),
-    }
-)
-SCORE_FIELDS = {
-    "reward_key": TEXT,
-    "reward_sum": NUMBER,
-    "score_min": NUMBER,
-    "score_max": NUMBER,
-    "scored": {"type": "integer", "minimum": 0},
-    "completed": {"type": "integer", "minimum": 0},
-}
-RUN_SCHEMA = obj({**V1_RUN_SCHEMA["properties"], **SCORE_FIELDS})
 JOB_SCHEMA = obj({**RUN_SCHEMA["properties"], "kind": {"const": "job"}})
 STANDALONE_SCHEMA = obj({**RUN_SCHEMA["properties"], "kind": {"enum": ["standalone_trial", "unknown"]}})
 REPORT_SCHEMA = obj(
     {
-        **V1_REPORT_SCHEMA["properties"],
-        "schema_version": {"const": 2},
+        "schema_version": {"const": 1},
+        "metadata": METADATA_SCHEMA,
+        "tasks": array(TASK_SCHEMA),
         "runs": array(JOB_SCHEMA),
         "standalone_trials": array(STANDALONE_SCHEMA),
+        "warnings": array(TEXT),
+        "inventory": obj({"complete": {"type": "boolean"}, "excluded": array(PATH)}),
     }
 )
 
@@ -261,41 +257,6 @@ def previous_report(path: Path) -> tuple[dict | None, bytes | None]:
     if len(parser.blocks) != 1:
         raise ReportError("Existing report must contain exactly one report-data block.")
     payload = decode_json(parser.blocks[0])
-    # Early report prototypes stored authored product labels. Discard only that
-    # retired field; sections now derive from discovered task paths.
-    if isinstance(payload, dict) and payload.get("schema_version") in (1, 2):
-        for task in payload.get("tasks", []) if isinstance(payload.get("tasks"), list) else []:
-            if isinstance(task, dict):
-                task.pop("product_area", None)
-                task.setdefault("readme_html", None)
-        metadata = payload.get("metadata")
-        tasks = metadata.get("tasks") if isinstance(metadata, dict) else None
-        if isinstance(tasks, dict):
-            for fields in tasks.values():
-                if isinstance(fields, dict):
-                    fields.pop("product_area", None)
-    if isinstance(payload, dict) and payload.get("schema_version") == 1:
-        validate(payload, V1_REPORT_SCHEMA)
-        old_runs = payload["runs"]
-        for run in old_runs:
-            # Old bars counted passes. Recompute only from retained trial rewards;
-            # fresh disk evidence replaces these snapshots during refresh.
-            ids = [attempt["id"] for attempt in run["attempts"]]
-            blocked = "duplicate attempt IDs" if len(ids) != len(set(ids)) else None
-            if run["total"] is not None and run["total"] < len(ids):
-                blocked = "conflicting trial total or retries"
-            run.update(
-                score_run(
-                    run["attempts"],
-                    run["total"],
-                    payload["metadata"]["runs"].get(run["path"], {}),
-                    blocked,
-                    partial=run["status"] != "completed",
-                )
-            )
-        payload["runs"] = [run for run in old_runs if run["kind"] == "job"]
-        payload["standalone_trials"] = [run for run in old_runs if run["kind"] != "job"]
-        payload["schema_version"] = 2
     validate(payload, REPORT_SCHEMA)
     return payload, content
 
@@ -329,7 +290,7 @@ def readme_sections(text: str) -> dict[str, str | None]:
     for name, values in sections.items():
         if not values:
             continue
-        text = " ".join(" ".join(values[0]).split()) if len(values) == 1 else ""
+        text = "\n".join(line.rstrip() for line in values[0]).strip() if len(values) == 1 else ""
         result[name] = text if text and len(text) <= 2000 else None
     return result
 
@@ -353,7 +314,10 @@ def render_readme(source: str) -> str:
         from markdown_it import MarkdownIt
     except ImportError as exc:
         raise ReportError("README previews require markdown-it-py; use the Eval Author Python environment.") from exc
-    return MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"]).render(source)
+    renderer = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
+    # Keep link text visible without allowing navigation out of the offline preview.
+    renderer.add_render_rule("link_open", lambda *_: '<a aria-disabled="true">')
+    return renderer.render(source)
 
 
 def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) -> tuple[list[dict], bool, list[str]]:
@@ -365,14 +329,15 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
         if not root.is_dir():
             complete = False
             continue
-        search = search_tasks(root, provider="harbor", max_depth=max_depth, max_entries=max_entries)
+        search = search_tasks(root, provider="both", max_depth=max_depth, max_entries=max_entries)
         complete &= search["search"]["complete"]
         for exclusion in search["search"]["excluded"]:
             if exclusion["reason"] == "nested-repository":
                 excluded.add((root / exclusion["path"]).relative_to(repo).as_posix())
         for item in search["candidates"]:
-            directory = root / item["path"]
-            path = directory.relative_to(repo).as_posix()
+            source = root / item["path"]
+            path = source.relative_to(repo).as_posix()
+            directory = source if source.is_dir() else source.parent
             # Also guard candidates returned by older installed scanners.
             if nested_checkout(root, directory):
                 excluded.add(path)
@@ -383,9 +348,20 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
             revision = None
             readme_html = None
             readme = directory / "README.md"
+            if item["provider"] == "gym":
+                # Native Gym scaffolds keep the task README above environments/<name>.
+                for parent in [directory, *directory.parents]:
+                    if parent in {repo, repo / ".eval-author"}:
+                        break
+                    candidate = parent / "README.md"
+                    if candidate.exists():
+                        readme = candidate
+                        break
+                issues.append("Gym workload candidate; native validation has not been run.")
+            readme_path = readme.relative_to(repo).as_posix()
             if readme.exists():
                 try:
-                    content = read_bytes(local(repo, f"{path}/README.md"), MAX_README_BYTES)
+                    content = read_bytes(local(repo, readme_path), MAX_README_BYTES)
                     sections = readme_sections(content.decode("utf-8"))
                     revision = hashlib.sha256(content).hexdigest()
                 except (ReportError, OSError, UnicodeError):
@@ -393,13 +369,16 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
                 else:
                     readme_html = render_readme(content.decode("utf-8"))
             native_name = directory.name
-            try:
-                config = tomllib.loads(read_bytes(local(repo, f"{path}/task.toml")).decode("utf-8"))
-                name = mapping(config.get("task")).get("name") or config.get("name")
-                if isinstance(name, str) and name.strip():
-                    native_name = name
-            except (ReportError, OSError, UnicodeError, ValueError):
-                issues.append("Task configuration could not be parsed; native validation has not been run.")
+            if item["provider"] == "harbor":
+                try:
+                    config = tomllib.loads(read_bytes(local(repo, f"{path}/task.toml")).decode("utf-8"))
+                    name = mapping(config.get("task")).get("name") or config.get("name")
+                    if isinstance(name, str) and name.strip():
+                        native_name = name
+                except (ReportError, OSError, UnicodeError, ValueError):
+                    issues.append("Task configuration could not be parsed; native validation has not been run.")
+            elif source.is_file() and source.name not in {"manifest.yaml", "config.yaml"}:
+                native_name = source.stem
             behavior = sections.get("Behavior under test")
             outcome = sections.get("Expected result")
             # Imported metadata is only a fallback; explicit README headings win.
@@ -410,7 +389,8 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
             if behavior is None or outcome is None:
                 issues.append("Behavior under test or Expected result is not documented in unique nonempty sections.")
             found[path] = {
-                "id": "harbor:" + path,
+                "id": item["provider"] + ":" + path,
+                "provider": item["provider"],
                 "path": path,
                 "display_id": overrides.get("display_id", directory.name),
                 "name": native_name,
@@ -419,6 +399,7 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
                 "grading_kind": overrides.get("grading_kind", "unknown"),
                 "grading_rule": overrides.get("grading_rule"),
                 "readme_revision": revision,
+                "readme_path": readme_path,
                 "readme_html": readme_html,
                 "status": "found",
                 "issues": issues,
@@ -455,7 +436,11 @@ def run_files(repo: Path, roots: list[str], max_depth: int, max_entries: int) ->
                     break
                 count += len(entries)
                 for entry in sorted(entries, key=lambda e: e.name):
-                    info = entry.stat(follow_symlinks=False)
+                    try:
+                        info = entry.stat(follow_symlinks=False)
+                    except OSError:
+                        complete = False
+                        continue
                     if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
                         continue
                     path = Path(entry.path)
@@ -766,6 +751,7 @@ def artifact_link(label: str, path: str) -> str:
 def render_markdown(data: dict) -> str:
     """Mirror the HTML content tabs from their validated data, without authoring prose."""
     lines = [
+        README_BEGIN.decode(),
         "<!-- Generated by Eval Author report.py; edit task documentation or report metadata, then refresh. -->",
         "# NeMo Eval Author Report",
         "",
@@ -793,13 +779,15 @@ def render_markdown(data: dict) -> str:
                 ]
             )
         grading = "Verifier not documented" if task["grading_kind"] == "unknown" else task["grading_kind"]
-        name = [task["name"], grading + " · " + (task["grading_rule"] or "Grading not documented")]
+        name = [task["name"], task["provider"], grading + " · " + (task["grading_rule"] or "Grading not documented")]
         if task["status"] == "unverified":
             name.append("Inventory unverified")
         name.extend([task["path"].removeprefix(".eval-author/"), *task["issues"]])
-        if task["status"] == "found":
+        if task["status"] == "found" and task["provider"] == "harbor":
             route = "task-definitions/" + quote(PurePosixPath(task["path"]).name, safe="")
             actions = [f"[View task](http://127.0.0.1:8081/{route})"]
+        elif task["status"] == "found":
+            actions = [artifact_link("Gym source", task["path"])]
         else:
             actions = [artifact_link("Review saved artifacts", task["path"])]
         if task["readme_html"] is None:
@@ -807,7 +795,7 @@ def render_markdown(data: dict) -> str:
         elif task["status"] == "unverified":
             actions.append("[Saved Task README snapshot](report.html#cases)")
         else:
-            actions.append(artifact_link("Task README", task["path"] + "/README.md"))
+            actions.append(artifact_link("Task README", task["readme_path"]))
         cells = [
             "<br>".join(markdown_text(part) for part in name),
             markdown_text(task["behavior"] or "Not documented"),
@@ -826,7 +814,63 @@ def render_markdown(data: dict) -> str:
     if data["standalone_trials"]:
         lines.extend(["", "### Legacy trials", "", "Standalone trials are not evaluation jobs.", ""])
         lines.extend(markdown_runs(data["standalone_trials"], "Trial"))
+    lines.extend(["", README_END.decode()])
     return "\n".join(lines).rstrip() + "\n"
+
+
+def update_markdown(existing: bytes | None, rendered: str) -> bytes:
+    """Replace only the marked report section; preserve all surrounding bytes."""
+    generated = rendered.encode("utf-8")
+    if existing is None:
+        return generated
+    begins = list(re.finditer(rb"(?m)^" + re.escape(README_BEGIN) + rb"\r?$", existing))
+    ends = list(re.finditer(rb"(?m)^" + re.escape(README_END) + rb"\r?$", existing))
+    if not begins and not ends and README_BEGIN not in existing and README_END not in existing:
+        separator = (
+            b"" if not existing or existing.endswith(b"\n\n") else b"\n" if existing.endswith(b"\n") else b"\n\n"
+        )
+        return existing + separator + generated
+    if (
+        len(begins) != 1
+        or len(ends) != 1
+        or existing.count(README_BEGIN) != 1
+        or existing.count(README_END) != 1
+        or begins[0].end() >= ends[0].start()
+    ):
+        raise ReportError(
+            "README report markers are incomplete or ambiguous; preserve the content and repair the markers."
+        )
+    # Leave the end marker's newline with the user-authored suffix, including CRLF.
+    end = ends[0].end()
+    if existing[end - 1 : end] == b"\r":
+        end -= 1
+    return existing[: begins[0].start()] + generated.rstrip(b"\n") + existing[end:]
+
+
+@contextmanager
+def report_lock(path: Path):
+    """An OS lock releases on process exit; keep the file to avoid inode races."""
+    descriptor = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                if os.fstat(descriptor).st_size == 0:
+                    os.write(descriptor, b"\0")
+                os.lseek(descriptor, 0, os.SEEK_SET)
+                msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            if exc.errno in {errno.EACCES, errno.EAGAIN, errno.EDEADLK}:
+                raise ReportError("Report refresh already running; retry after it finishes.") from exc
+            raise
+        yield
+    finally:
+        os.close(descriptor)
 
 
 def markdown_runs(runs: list[dict], identity: str) -> list[str]:
@@ -869,88 +913,81 @@ def refresh(
     markdown_output = local(repo, ".eval-author/README.md")
     output.parent.mkdir(exist_ok=True)
     lock = local(repo, ".eval-author/.report.lock")
-    try:
-        descriptor = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    except FileExistsError as exc:
-        raise ReportError(
-            "Report refresh already running; inspect .eval-author/.report.lock if it was interrupted."
-        ) from exc
-    os.close(descriptor)
-    temporary_files = []
-    try:
-        previous, old_bytes = previous_report(output)
-        old_markdown = read_bytes(markdown_output, MAX_REPORT_BYTES) if markdown_output.exists() else None
-        metadata = metadata_for(previous, patch or {}, task_roots, jobs_roots)
-        tasks, tasks_complete, excluded = collect_tasks(repo, metadata, max_depth, max_entries)
-        collected, runs_complete = collect_runs(repo, metadata, max_depth, max_entries)
-        runs = [run for run in collected if run["kind"] == "job"]
-        standalone_trials = [run for run in collected if run["kind"] != "job"]
-        job_paths = {run["path"] for run in runs}
-        owned_trials = job_paths | {attempt["path"] for run in runs for attempt in run["attempts"]}
-        warnings = []
-        for records, key, complete in [
-            (tasks, "tasks", tasks_complete),
-            (runs, "runs", runs_complete),
-            (standalone_trials, "standalone_trials", runs_complete),
-        ]:
-            if not complete:
-                label = "Legacy trials" if key == "standalone_trials" else key.capitalize()
-                warnings.append(f"{label} inventory is incomplete; retained entries may be unverified.")
-            current = {r["path"] for r in records}
-            roots = metadata["task_roots" if key == "tasks" else "jobs_roots"]
-            for old in (previous or {}).get(key, []):
-                if key == "standalone_trials" and old["path"] in owned_trials:
+    with report_lock(lock):
+        temporary_files = []
+        try:
+            previous, old_bytes = previous_report(output)
+            old_markdown = read_bytes(markdown_output, MAX_REPORT_BYTES) if markdown_output.exists() else None
+            metadata = metadata_for(previous, patch or {}, task_roots, jobs_roots)
+            tasks, tasks_complete, excluded = collect_tasks(repo, metadata, max_depth, max_entries)
+            collected, runs_complete = collect_runs(repo, metadata, max_depth, max_entries)
+            runs = [run for run in collected if run["kind"] == "job"]
+            standalone_trials = [run for run in collected if run["kind"] != "job"]
+            job_paths = {run["path"] for run in runs}
+            owned_trials = job_paths | {attempt["path"] for run in runs for attempt in run["attempts"]}
+            warnings = []
+            for records, key, complete in [
+                (tasks, "tasks", tasks_complete),
+                (runs, "runs", runs_complete),
+                (standalone_trials, "standalone_trials", runs_complete),
+            ]:
+                if not complete:
+                    label = "Legacy trials" if key == "standalone_trials" else key.capitalize()
+                    warnings.append(f"{label} inventory is incomplete; retained entries may be unverified.")
+                current = {r["path"] for r in records}
+                roots = metadata["task_roots" if key == "tasks" else "jobs_roots"]
+                for old in (previous or {}).get(key, []):
+                    if key == "standalone_trials" and old["path"] in owned_trials:
+                        continue
+                    in_scope = any(PurePosixPath(old["path"]).is_relative_to(PurePosixPath(root)) for root in roots)
+                    if old["path"] not in current and in_scope and not complete:
+                        issues = sorted(set(old["issues"] + ["Source artifacts were not found in this scan."]))
+                        records.append({**old, "status": "unverified", "issues": issues})
+            tasks.sort(key=task_sort)
+            runs.sort(key=run_sort)
+            standalone_trials.sort(key=run_sort)
+            data = {
+                "schema_version": 1,
+                "metadata": metadata,
+                "tasks": tasks,
+                "runs": runs,
+                "standalone_trials": standalone_trials,
+                "warnings": warnings,
+                "inventory": {"complete": tasks_complete and runs_complete, "excluded": excluded},
+            }
+            validate(data, REPORT_SCHEMA)
+            payload = json.dumps(data, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False)
+            payload = payload.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+            template = Path(__file__).with_name("report-template.html").read_text(encoding="utf-8")
+            if template.count(MARKER) != 1:
+                raise ReportError("The report template must have one data insertion marker.")
+            content = template.replace(MARKER, payload).encode("utf-8")
+            markdown_content = update_markdown(old_markdown, render_markdown(data))
+            if max(len(content), len(markdown_content)) > MAX_REPORT_BYTES:
+                raise ReportError("Report exceeds the bounded output size; select smaller artifact roots.")
+            outputs = [(markdown_output, markdown_content, old_markdown), (output, content, old_bytes)]
+            # Prepare both projections before publishing either; a later refresh repairs
+            # an interrupted pair even when the HTML itself has not changed.
+            for destination, rendered, old in outputs:
+                if rendered == old:
                     continue
-                in_scope = any(PurePosixPath(old["path"]).is_relative_to(PurePosixPath(root)) for root in roots)
-                if old["path"] not in current and in_scope:
-                    issues = sorted(set(old["issues"] + ["Source artifacts were not found in this scan."]))
-                    records.append({**old, "status": "unverified", "issues": issues})
-        tasks.sort(key=task_sort)
-        runs.sort(key=run_sort)
-        standalone_trials.sort(key=run_sort)
-        data = {
-            "schema_version": 2,
-            "metadata": metadata,
-            "tasks": tasks,
-            "runs": runs,
-            "standalone_trials": standalone_trials,
-            "warnings": warnings,
-            "inventory": {"complete": tasks_complete and runs_complete, "excluded": excluded},
-        }
-        validate(data, REPORT_SCHEMA)
-        payload = json.dumps(data, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False)
-        payload = payload.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
-        template = Path(__file__).with_name("report-template.html").read_text(encoding="utf-8")
-        if template.count(MARKER) != 1:
-            raise ReportError("The report template must have one data insertion marker.")
-        content = template.replace(MARKER, payload).encode("utf-8")
-        markdown_content = render_markdown(data).encode("utf-8")
-        if max(len(content), len(markdown_content)) > MAX_REPORT_BYTES:
-            raise ReportError("Report exceeds the bounded output size; select smaller artifact roots.")
-        outputs = [(markdown_output, markdown_content, old_markdown), (output, content, old_bytes)]
-        # Prepare both projections before publishing either; a later refresh repairs
-        # an interrupted pair even when the HTML itself has not changed.
-        for destination, rendered, old in outputs:
-            if rendered == old:
-                continue
-            with tempfile.NamedTemporaryFile(
-                dir=output.parent, prefix=".report-", suffix=".tmp", delete=False
-            ) as stream:
-                temporary = Path(stream.name)
-                temporary_files.append((temporary, destination))
-                stream.write(rendered)
-                stream.flush()
-                os.fsync(stream.fileno())
-        for destination, _, old in outputs:
-            if (read_bytes(destination, MAX_REPORT_BYTES) if destination.exists() else None) != old:
-                raise ReportError("Report changed during refresh; retry without overwriting concurrent edits.")
-        for temporary, destination in temporary_files:
-            os.replace(temporary, destination)
-        return data
-    finally:
-        for temporary, _ in temporary_files:
-            temporary.unlink(missing_ok=True)
-        lock.unlink(missing_ok=True)
+                with tempfile.NamedTemporaryFile(
+                    dir=output.parent, prefix=".report-", suffix=".tmp", delete=False
+                ) as stream:
+                    temporary = Path(stream.name)
+                    temporary_files.append((temporary, destination))
+                    stream.write(rendered)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            for destination, _, old in outputs:
+                if (read_bytes(destination, MAX_REPORT_BYTES) if destination.exists() else None) != old:
+                    raise ReportError("Report changed during refresh; retry without overwriting concurrent edits.")
+            for temporary, destination in temporary_files:
+                os.replace(temporary, destination)
+            return data
+        finally:
+            for temporary, _ in temporary_files:
+                temporary.unlink(missing_ok=True)
 
 
 def main() -> int:

@@ -12,15 +12,17 @@ limitations before deciding what to change.
 Ask: “Use Eval Author to refresh the HTML report for evaluations in
 this repository.” The report is saved at `.eval-author/report.html`, with Tasks,
 Runs, and viewer Settings. It can be generated before any task has run.
-The same command automatically generates `.eval-author/README.md` from the report:
-Each tab of the HTML report becomes H2 sections with the same tables, scores, statuses, and
-warnings; Settings is omitted. The Markdown file is a generated mirror, not a
-separately authored report. Task READMEs retain setup and rerun instructions.
-Change source artifacts or report metadata, then refresh both outputs; root README
-edits are overwritten. Its relative links open task documentation, and Harbor
-links use the default viewer addresses. Use the HTML report for saved viewer
-settings and connection checks.
-Test cases are organized by their discovered parent directory.
+The same command maintains the task and run tables inside a marked section of
+`.eval-author/README.md`, preserving existing suite documentation and rerun
+commands outside that section. Tasks and Runs keep the same tables, scores,
+statuses, and warnings as the HTML; Settings is omitted. Change source artifacts
+or report metadata, then refresh both views. Its relative links open task
+documentation, and Harbor links use the default viewer addresses. Use the HTML
+report for saved viewer settings and connection checks.
+Test cases and Gym workload definitions are organized by discovered directory.
+Draft and finalized directories remain visible together. Gym definitions open
+their source and task documentation; they do not use Harbor's viewer. Gym run
+evidence stays linked from the suite README.
 
 See the [Report generation](../skills/eval-author/references/suite-readme.md#report-generation)
 for selected roots, metadata, and CLI usage. The report reads existing artifacts;

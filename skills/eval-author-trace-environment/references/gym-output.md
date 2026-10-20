@@ -18,6 +18,11 @@ requirements, recorded or explicitly reconstructed state, and objective binary
 execution verification. A source rollout's reward or final answer is not an
 independent oracle. Do not change these rules to fit a Gym template.
 
+Refresh the shared HTML report and marked `.eval-author/README.md` section after
+authoring and native controls or agent runs using
+[Report generation](../../eval-author/references/suite-readme.md#report-generation).
+Preserve authored suite and task documentation outside generated markers.
+
 ## Start from a rollout with ng_trajectory
 
 Select one physical JSONL line from a private Gym rollout file. A record with

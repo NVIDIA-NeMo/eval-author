@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -91,7 +92,7 @@ def test_bootstrap_and_documentation_are_deterministic(tmp_path):
     assert report.refresh(tmp_path) == first
     assert output.read_bytes() == before
     assert output.stat().st_mtime_ns == modified
-    assert sorted(p.name for p in output.parent.iterdir()) == ["README.md", "report.html", "tasks"]
+    assert sorted(p.name for p in output.parent.iterdir()) == [".report.lock", "README.md", "report.html", "tasks"]
     write(
         tmp_path,
         path + "/README.md",
@@ -100,7 +101,6 @@ def test_bootstrap_and_documentation_are_deterministic(tmp_path):
     updated = report.refresh(tmp_path)
     assert updated["tasks"][0]["behavior"] == "Updated behavior."
     assert updated["tasks"][0]["display_id"] == "R1"
-    assert "product_area" not in updated["tasks"][0]
     assert updated["tasks"][0]["readme_revision"] != first["tasks"][0]["readme_revision"]
 
 
@@ -149,29 +149,6 @@ def test_task_paths_keep_same_named_parent_directories_distinct(tmp_path):
     # Search scope and overlapping roots do not define sections or duplicate rows.
     second = report.refresh(tmp_path, task_roots=[".", ".eval-author/suites/chat/tasks"])
     assert second["tasks"] == first["tasks"]
-    assert all("product_area" not in t for t in second["tasks"])
-
-
-@pytest.mark.parametrize("remove_task", [False, True])
-def test_old_product_labels_are_removed_without_losing_metadata(tmp_path, remove_task):
-    path = task(tmp_path)
-    old = report.refresh(tmp_path, patch={"tasks": {path: {"display_id": "R1"}}})
-    old["tasks"][0]["product_area"] = "Invented area"
-    old["metadata"]["tasks"][path]["product_area"] = "Invented area"
-    template = (SCRIPTS / "report-template.html").read_text()
-    output = tmp_path / ".eval-author/report.html"
-    output.write_text(template.replace(report.MARKER, json.dumps(old)))
-    if remove_task:
-        shutil.rmtree(tmp_path / path)
-    updated = report.refresh(tmp_path)
-    assert updated["metadata"]["tasks"][path] == {"display_id": "R1"}
-    assert updated["tasks"][0]["path"] == path
-    assert updated["tasks"][0]["display_id"] == "R1"
-    assert "product_area" not in updated["tasks"][0]
-    assert updated["tasks"][0]["status"] == ("unverified" if remove_task else "found")
-    assert "Invented area" not in output.read_text()
-    with pytest.raises(report.ReportError):
-        report.refresh(tmp_path, patch={"tasks": {path: {"product_area": "New area"}}})
 
 
 def test_runs_group_attempts_without_double_counting(tmp_path):
@@ -356,41 +333,10 @@ def test_job_identity_uses_disk_name_and_full_path_with_overlapping_roots(tmp_pa
     assert data["standalone_trials"] == []
 
 
-def save_v1_report(root, data):
-    data["schema_version"] = 1
-    data["runs"].extend(data.pop("standalone_trials"))
-    for run in data["runs"]:
-        for key in report.SCORE_FIELDS:
-            del run[key]
-    write(
-        root,
-        ".eval-author/report.html",
-        '<script id="report-data" type="application/json">' + json.dumps(data) + "</script>",
-    )
-
-
-def test_v1_migration_keeps_missing_trials_in_legacy_and_preserves_metadata(tmp_path):
-    path = job(tmp_path, total=1)
-    trial(tmp_path, path + "/one")
-    standalone = ".eval-author/jobs/checks/single"
-    trial(tmp_path, standalone)
-    patch = rule(path)
-    patch["runs"].update(rule(standalone)["runs"])
-    data = report.refresh(tmp_path, patch=patch)
-    save_v1_report(tmp_path, data)
-    shutil.rmtree(tmp_path / standalone)
-    updated = report.refresh(tmp_path)
-    assert updated["schema_version"] == 2
-    assert [run["path"] for run in updated["runs"]] == [path]
-    assert updated["standalone_trials"][0]["status"] == "unverified"
-    assert updated["metadata"] == patch | {"tasks": {}, "task_roots": ["."], "jobs_roots": [".eval-author/jobs"]}
-    assert report.refresh(tmp_path) == updated
-
-
 def test_new_job_owns_previously_standalone_trial_without_ghost_rows(tmp_path):
     parent = ".eval-author/jobs/becomes-job"
     trial(tmp_path, parent + "/one")
-    save_v1_report(tmp_path, report.refresh(tmp_path))
+    report.refresh(tmp_path)
     job(tmp_path, parent, total=1)
     updated = report.refresh(tmp_path)
     assert len(updated["runs"]) == 1
@@ -489,19 +435,160 @@ def test_incomplete_search_preserves_old_rows(tmp_path):
     assert data["warnings"]
 
 
-def test_scanner_is_used_without_modification(tmp_path, monkeypatch):
-    path = task(tmp_path)
-    calls = []
-    scanner = report.search_tasks
+def test_drafts_finalized_tasks_and_later_drafts_remain_visible(tmp_path):
+    final = task(tmp_path)
+    draft = ".eval-author/task-drafts/refund"
+    shutil.copytree(tmp_path / final, tmp_path / draft)
+    first = report.refresh(tmp_path)
+    assert {item["path"] for item in first["tasks"]} == {draft, final}
+    later = ".eval-author/task-drafts/cancel"
+    shutil.copytree(tmp_path / final, tmp_path / later)
+    updated = report.refresh(tmp_path)
+    assert {item["path"] for item in updated["tasks"]} == {draft, final, later}
+    assert updated["metadata"]["task_roots"] == ["."]
+    assert updated["inventory"]["complete"]
 
-    def observe(*args, **kwargs):
-        calls.append((args, kwargs))
-        return scanner(*args, **kwargs)
 
-    monkeypatch.setattr(report, "search_tasks", observe)
-    data = report.refresh(tmp_path, task_roots=[path])
-    assert calls and calls[0][1]["provider"] == "harbor"
-    assert data["tasks"][0]["path"] == path
+def test_harbor_and_gym_workloads_share_reports_without_harbor_links_for_gym(tmp_path):
+    harbor = task(tmp_path)
+    draft = ".eval-author/task-drafts/gym-refund"
+    readme = draft + "/README.md"
+    write(tmp_path, readme, "## Behavior under test\nGym refunds.\n## Expected result\nRefund saved.")
+    manifest = draft + "/environments/refund/manifest.yaml"
+    write(tmp_path, manifest, "name: refund\n")
+    write(tmp_path, draft + "/environments/refund/config.yaml", "components: {}\n")
+    parameterized = ".eval-author/tasks/row-task"
+    write(tmp_path, parameterized + "/tasks.jsonl", "{}\n")
+    write(tmp_path, parameterized + "/instruction.template.md", "Refund {amount}")
+    write(tmp_path, parameterized + "/README.md", "## Behavior under test\nRows.\n## Expected result\nRow graded.")
+    data = report.refresh(tmp_path)
+    found = {item["path"]: item for item in data["tasks"]}
+    assert set(found) == {harbor, manifest, parameterized}
+    assert found[harbor]["provider"] == "harbor"
+    assert found[manifest]["provider"] == found[parameterized]["provider"] == "gym"
+    assert found[manifest]["behavior"] == "Gym refunds."
+    assert found[manifest]["readme_path"] == readme
+    assert "Refund saved." in found[manifest]["readme_html"]
+    raw = (tmp_path / ".eval-author/README.md").read_text()
+    assert "[Gym source](task-drafts/gym-refund/environments/refund/manifest.yaml)" in raw
+    assert "[Task README](task-drafts/gym-refund/README.md)" in raw
+    assert "task-definitions/refund" in raw
+    assert "task-definitions/row-task" not in raw
+    assert report.refresh(tmp_path) == data
+
+
+def test_browser_gym_actions_open_native_source_and_readme_without_harbor(tmp_path):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node is needed to exercise task rendering")
+    task(tmp_path)
+    source_path = "environments/gym case/manifest.yaml"
+    write(tmp_path, source_path, "name: example\n")
+    write(tmp_path, "environments/gym case/README.md", "## Behavior under test\nGym.\n## Expected result\nSaved.")
+    data = report.refresh(tmp_path)
+    source = (SCRIPTS / "report-template.html").read_text()
+    helper = source[source.index("function drawCases()") : source.index("function runRow(")]
+    program = r"""
+const assert=require('node:assert/strict'),vm=require('node:vm');
+const input=JSON.parse(require('node:fs').readFileSync(0,'utf8'));
+class Element {
+  constructor(tag,text){this.tag=tag;this.textContent=text;this.children=[];this.dataset={};}
+  append(...children){this.children.push(...children);}
+  replaceChildren(...children){this.children=children;}
+}
+const ids={'case-tables':new Element('div'),search:{value:''},'no-cases':{}};
+const viewers=[],readmes=[];
+const context={data:input.data,byId:id=>ids[id],
+  element:(tag,text)=>new Element(tag,text),
+  parent:path=>path.includes('/')?path.slice(0,path.lastIndexOf('/')):'.',
+  displayTaskPath:path=>path.replace(/^\.eval-author\//,''),
+  viewerAction:(...args)=>{viewers.push(args);return new Element('button');},
+  readmeAction:task=>{readmes.push(task.readme_path);return new Element('button');}
+};
+vm.createContext(context);vm.runInContext(input.helper+'drawCases();',context);
+function descendants(node){return [node,...node.children.flatMap(descendants)];}
+const links=descendants(ids['case-tables']).filter(node=>node.tag==='a');
+assert.equal(viewers.length,1);
+assert.equal(viewers[0][0],'View task');
+assert.equal(links.length,1);
+assert.equal(links[0].textContent,'Gym source');
+assert.equal(links[0].href,'../environments/gym%20case/manifest.yaml');
+assert(readmes.includes('environments/gym case/README.md'));
+ids.search.value='gym case';viewers.length=0;
+vm.runInContext('drawCases();',context);
+assert.equal(viewers.length,0);
+assert.equal(ids['no-cases'].hidden,true);
+"""
+    result = subprocess.run(
+        [node, "-e", program],
+        input=json.dumps({"helper": helper, "data": data}),
+        text=True,
+        capture_output=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_unreadable_run_entry_does_not_hide_readable_siblings(tmp_path, monkeypatch):
+    write(tmp_path, "results/bad/config.json", {})
+    write(tmp_path, "results/config.json", {"job_name": "readable"})
+    scandir = report.os.scandir
+
+    class Entry:
+        def __init__(self, entry):
+            self.name, self.path, self.entry = entry.name, entry.path, entry
+
+        def stat(self, **kwargs):
+            if self.name == "bad":
+                raise PermissionError("Synthetic inaccessible entry")
+            return self.entry.stat(**kwargs)
+
+    class Listing:
+        def __enter__(self):
+            with scandir(tmp_path / "results") as listing:
+                return iter([Entry(entry) for entry in listing])
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr(report.os, "scandir", lambda _: Listing())
+    files, complete = report.run_files(tmp_path, ["results"], 12, 50000)
+    assert not complete
+    assert files == [tmp_path / "results/config.json"]
+
+
+def test_report_lock_blocks_concurrent_writer_and_releases_after_process_death(tmp_path):
+    directory = tmp_path / ".eval-author"
+    directory.mkdir()
+    ready = tmp_path / "ready"
+    program = """
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import report
+with report.report_lock(Path(sys.argv[2])):
+    Path(sys.argv[3]).touch()
+    sys.stdin.read(1)
+"""
+    process = subprocess.Popen(
+        [sys.executable, "-c", program, str(SCRIPTS), str(directory / ".report.lock"), str(ready)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        deadline = time.monotonic() + 10
+        while not ready.exists() and process.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert ready.exists(), "Child process did not acquire the report lock"
+        with pytest.raises(report.ReportError, match="already running"):
+            report.refresh(tmp_path)
+        assert not (directory / "report.html").exists()
+    finally:
+        process.kill()
+        process.communicate(timeout=10)
+    assert report.refresh(tmp_path)["inventory"]["complete"]
+    assert report.refresh(tmp_path)["inventory"]["complete"]
 
 
 def test_nested_checkout_exclusion_and_explicit_selection(tmp_path):
@@ -582,7 +669,8 @@ def test_readme_preview_preserves_markdown_and_refreshes(tmp_path):
     preview = first["tasks"][0]["readme_html"]
     for fragment in ("<h1>Task</h1>", "<blockquote>", "<strong>Expected</strong>", "<table>", 'class="language-json"'):
         assert fragment in preview
-    assert 'href="tests/verify.py"' in preview
+    assert "Verifier</a>" in preview
+    assert "href=" not in preview
     assert 'href="javascript:' not in preview
     readme = tmp_path / path / "README.md"
     readme.write_text("# Updated\n", encoding="utf-8")
@@ -609,28 +697,11 @@ def test_legacy_readme_is_previewed_without_authoring_missing_descriptions(tmp_p
     assert (tmp_path / path / "README.md").read_text() == source
 
 
-def test_report_before_readme_previews_can_be_refreshed(tmp_path):
-    task(tmp_path, readme="# Existing task\n")
-    old = report.refresh(tmp_path)
-    for item in old["tasks"]:
-        item.pop("readme_html")
-    write(
-        tmp_path,
-        ".eval-author/report.html",
-        '<script id="report-data" type="application/json">' + json.dumps(old) + "</script>",
-    )
-    updated = report.refresh(tmp_path)
-    assert updated["tasks"][0]["readme_html"] == "<h1>Existing task</h1>\n"
-
-
-def test_corrupt_existing_report_and_lock_preserve_output(tmp_path):
+def test_corrupt_existing_report_preserves_output(tmp_path):
     output = write(tmp_path, ".eval-author/report.html", "<html>not a generated report</html>")
     with pytest.raises(report.ReportError):
         report.refresh(tmp_path)
     assert output.read_text() == "<html>not a generated report</html>"
-    write(tmp_path, ".eval-author/.report.lock", "")
-    with pytest.raises(report.ReportError, match="already running"):
-        report.refresh(tmp_path)
 
 
 def test_copied_script_and_template_installation(tmp_path):
@@ -675,17 +746,28 @@ def test_native_harbor_viewer_routes_match_pinned_manifest():
     assert "tasks/:source/:agent/:modelProvider/:modelName/:taskName/trials/:trialName" in source
 
 
-def test_removed_evidence_is_retained_but_explicit_scope_change_is_respected(tmp_path):
+@pytest.mark.parametrize("complete", [True, False])
+def test_removed_evidence_requires_incomplete_inventory_to_be_retained(tmp_path, complete):
     task_path = task(tmp_path)
     run_path = ".eval-author/jobs/checks/one"
     trial(tmp_path, run_path)
+    job_path = job(tmp_path, total=1)
+    trial(tmp_path, job_path + "/one")
     report.refresh(tmp_path, patch=rule(run_path))
     shutil.rmtree(tmp_path / run_path)
+    shutil.rmtree(tmp_path / job_path)
     shutil.rmtree(tmp_path / task_path)
-    data = report.refresh(tmp_path)
-    assert data["runs"] == []
-    assert data["standalone_trials"][0]["status"] == "unverified"
-    assert data["tasks"][0]["status"] == "unverified"
+    write(tmp_path, ".eval-author/jobs/note-a.txt", "Inventory only")
+    write(tmp_path, ".eval-author/jobs/note-b.txt", "Inventory only")
+    data = report.refresh(tmp_path, max_entries=50000 if complete else 1)
+    if complete:
+        assert data["runs"] == []
+        assert data["standalone_trials"] == []
+        assert data["tasks"] == []
+    else:
+        assert data["runs"][0]["status"] == "unverified"
+        assert data["standalone_trials"][0]["status"] == "unverified"
+        assert data["tasks"][0]["status"] == "unverified"
     other = tmp_path / "other"
     other.mkdir()
     data = report.refresh(tmp_path, task_roots=["other"], jobs_roots=["other"])
@@ -805,9 +887,7 @@ def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path):
     template = (SCRIPTS / "report-template.html").read_text()
     html_tabs = re.findall(r'<button role="tab"[^>]*>([^<]+)</button>', template)
     assert [text for tag, text in headings if tag == "h2"] == [name for name in html_tabs if name != "Settings"]
-    assert "<h1>NeMo Eval Author Report</h1>" in template
     assert headings[0] == ("h1", "NeMo Eval Author Report")
-    assert "jobsURL:'http://127.0.0.1:8080',tasksURL:'http://127.0.0.1:8081'" in template
 
 
 def test_markdown_refresh_repairs_missing_or_edited_mirror_without_touching_html(tmp_path):
@@ -827,13 +907,67 @@ def test_markdown_refresh_repairs_missing_or_edited_mirror_without_touching_html
         else:
             md_path.write_text(edit)
         report.refresh(tmp_path)
-        assert md_path.read_bytes() == expected
+        if edit is None:
+            assert md_path.read_bytes() == expected
+        else:
+            assert md_path.read_bytes() == edit.encode() + b"\n\n" + expected
         assert html_path.stat().st_mtime_ns == html_stamp
     write(tmp_path, path + "/README.md", "## Behavior under test\nUpdated.\n## Expected result\nSaved.")
     report.refresh(tmp_path)
     assert "Updated" in md_path.read_text()
     assert "Original" not in md_path.read_text()
     assert plan.read_text() == "Existing planning and run summary."
+
+
+def test_refresh_preserves_authored_readme_bytes_before_and_after_report(tmp_path):
+    path = task(tmp_path, readme="## Behavior under test\nBefore.\n## Expected result\nSaved.")
+    prefix = b"# My Gym suite\r\n\r\nRun: ng_run --input rows.jsonl\r\n\r\n"
+    markdown = tmp_path / ".eval-author/README.md"
+    markdown.write_bytes(prefix)
+    report.refresh(tmp_path)
+    assert markdown.read_bytes().startswith(prefix)
+    suffix = b"\r\n## Local setup\r\nKeep these instructions.\r\n"
+    markdown.write_bytes(markdown.read_bytes() + suffix)
+    write(tmp_path, path + "/README.md", "## Behavior under test\nAfter.\n## Expected result\nSaved.")
+    data = report.refresh(tmp_path)
+    raw = markdown.read_bytes()
+    assert raw.startswith(prefix) and raw.endswith(suffix)
+    assert raw.count(report.README_BEGIN) == raw.count(report.README_END) == 1
+    assert b"Before." not in raw and b"After." in raw
+    stamp = markdown.stat().st_mtime_ns
+    assert report.refresh(tmp_path) == data
+    assert markdown.read_bytes() == raw
+    assert markdown.stat().st_mtime_ns == stamp
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        report.README_BEGIN + b"\nUnclosed section",
+        report.README_END + b"\nUnexpected end",
+        report.README_END + b"\n" + report.README_BEGIN,
+        (report.README_BEGIN + b"\n" + report.README_END + b"\n") * 2,
+    ],
+)
+def test_ambiguous_readme_markers_preserve_both_outputs(tmp_path, content):
+    report.refresh(tmp_path)
+    html = tmp_path / ".eval-author/report.html"
+    markdown = tmp_path / ".eval-author/README.md"
+    before = html.read_bytes()
+    markdown.write_bytes(content)
+    with pytest.raises(report.ReportError, match="markers"):
+        report.refresh(tmp_path)
+    assert markdown.read_bytes() == content
+    assert html.read_bytes() == before
+
+
+def test_readme_sections_preserve_paragraphs_and_lists_in_both_reports(tmp_path):
+    behavior = "First paragraph.\n\n- Check one.\n- Check two."
+    task(tmp_path, readme=f"## Behavior under test\n{behavior}\n\n## Expected result\nSaved.")
+    data = report.refresh(tmp_path)
+    assert data["tasks"][0]["behavior"] == behavior
+    raw = (tmp_path / ".eval-author/README.md").read_text()
+    assert "First paragraph.<br><br>- Check one.<br>- Check two." in raw
 
 
 def test_markdown_text_cannot_inject_tables_headings_links_or_html(tmp_path):
@@ -908,7 +1042,8 @@ def test_markdown_render_failure_preserves_both_outputs(tmp_path, monkeypatch):
     with pytest.raises(report.ReportError, match="Synthetic"):
         report.refresh(tmp_path)
     assert [p.read_bytes() for p in paths] == before
-    assert not (tmp_path / ".eval-author/.report.lock").exists()
+    with report.report_lock(tmp_path / ".eval-author/.report.lock"):
+        pass
 
 
 def test_readme_output_symlink_is_not_followed(tmp_path):

@@ -5,10 +5,11 @@
 
 ## Report generation
 
-Use this section for the HTML report and generated Markdown mirror.
+Use this shared reporting contract for Harbor and Gym.
 
 `.eval-author/report.html` defines the case/run review content.
-Its Tasks tab lists discovered cases by directory, with task name, grading,
+Its Tasks tab lists discovered Harbor tasks and Gym workload definitions by directory,
+including both drafts and finalized tasks, with provider, task name, grading,
 behavior, expected outcome, and actions. Its Runs tab lists one row per native
 Harbor job with date/time, the exact on-disk directory name and project-relative
 path, role, status, aggregate reward, and actions. Its Harbor viewer action opens
@@ -17,25 +18,34 @@ the collapsed Legacy trials section; a folder of trials does not establish a
 single job or evaluation invocation. Both show available warnings
 and missing-data states. Settings configures browser viewer addresses only.
 
-The same generator automatically writes `.eval-author/README.md` beside the HTML
-as a Markdown representation of that content. Do not choose, summarize, or author
-README content separately: each report content tab becomes an H2 section in tab
-order (`## Tasks`, then `## Runs`); omit Settings. Directory groups become H3s,
+The same generator maintains a report section in `.eval-author/README.md` beside
+the HTML. It appends the section when absent and updates only the content between
+`<!-- BEGIN EVAL AUTHOR REPORT -->` and `<!-- END EVAL AUTHOR REPORT -->`.
+Existing setup, suite commands, case descriptions, and other authored content
+outside those markers remain byte-for-byte intact. Never replace a suite README
+with the report. Malformed or duplicate markers stop the refresh without
+publishing either output; repair the markers while preserving the content.
+
+Within that section, each report content tab becomes an H2 section in tab order
+(`## Tasks`, then `## Runs`); omit Settings. Directory groups become H3s,
 tables keep the same columns and ordering, and native score labels replace visual
 bars. Legacy trials becomes an H3 under Runs. Preserve statuses, warnings,
-record diagnostics, and missing-data labels.
-Task README actions become relative links to the source documentation (or the
-HTML's saved snapshot when the source is unverified). Harbor actions use the
-HTML's default viewer URLs; Markdown cannot read browser settings or probe a
-viewer. Use the linked HTML report for configured addresses and connection help.
+record diagnostics, and missing-data labels. Edit task documentation, native
+artifacts, or supported reporting metadata to update generated content, then
+refresh. Maintain operational and rerun guidance outside the marked section for
+both providers.
 
-Refresh both outputs with `report.py`; never hand-edit the generated root README
-or add independent summaries, plans, or sections to it. Edit task documentation,
-native artifacts, or supported reporting metadata, then regenerate. Preserve
-functional setup/rerun documentation in task READMEs and existing workflow
-records before adopting the generated root README. The remaining README guidance
-below applies to Gym and functional task documentation, not to authoring another
-Harbor catalog.
+Task README actions become relative links to the source documentation (or the
+HTML's saved snapshot when the source is unverified). Gym source actions link
+the native workload definition; Gym workloads do not open in Harbor's viewer.
+For native Gym scaffolds, the report finds the nearest task README above the
+environment definition. Document dataset paths, selected rows, and each case's
+input, expected result, and grading there; a workload row does not imply a
+single dataset example or native validation. Gym run evidence remains linked
+from the maintained README; the Runs table reads native Harbor jobs only.
+Harbor actions use the HTML's default viewer URLs; Markdown cannot read browser
+settings or probe a viewer. Use the linked HTML report for configured addresses
+and connection help.
 
 Reporting observes the existing workflow; it does not select evaluations, start jobs,
 or change controls. The HTML report is an additional task/run review entry point; it does
@@ -50,7 +60,7 @@ bundled script using Python 3.11+ with `jsonschema` and `markdown-it-py` 4.x ava
 python <eval-author-skill-dir>/scripts/report.py refresh --repo .
 ```
 
-This consumes the shared file-only `search_tasks.py` from PR #67 unchanged. It
+This uses the shared file-only `search_tasks.py` scanner. It
 does not run `discover.py`, import the agent, invoke Harbor, or require Docker,
 credentials, or inference. By default it searches this project for tasks and
 reads retained results below `.eval-author/jobs`. For selected existing roots:
@@ -61,12 +71,21 @@ python <eval-author-skill-dir>/scripts/report.py refresh --repo . \
 ```
 
 Roots are project-relative and repeatable. Selected roots are retained in the
-HTML. Ordinary nested checkouts are excluded by the report unless explicitly
-selected; source scanner behavior is unchanged.
+HTML. For authoring and handoff, keep the project root selected (`--task-root .`)
+unless the user selected a narrower scope. Do not narrow the roots to the final
+catalog during promotion: drafts and finalized paths must remain visible, and
+later drafts must appear on refresh. Separate directories remain separate rows,
+even when their contents match. Ordinary nested checkouts are excluded unless
+explicitly selected; source scanner behavior is unchanged.
 
 Refresh after cases are authored, after additions or edits, and after validation
 or actual-agent runs, including failed runs. Refresh again at the final handoff
-and link the report. Present evaluation findings and report links to the user;
+and link the report. At every handoff, present results, counts, failed controls,
+remaining blockers, rerun/viewer instructions, and any reporting failure first.
+Always link `.eval-author/README.md` and `.eval-author/report.html` as the last
+lines of the response, after all other communication. Do not link
+`.eval-author/first-eval.md` in the handoff unless asked.
+Present evaluation findings and report links to the user;
 describe generation internals only when asked. Reuse the settled scope and
 authorization: a missing report is not a request to redesign or execute evaluations. If report generation fails,
 report that failure separately; do not alter the task, run command, execution
@@ -74,22 +93,28 @@ exit status, readiness result, or proof requirements to make the report succeed.
 A returning refresh reconciles artifacts even if an earlier handoff was interrupted.
 
 Outputs are `.eval-author/report.html`, containing the fixed template and validated
-embedded JSON, and its generated `.eval-author/README.md` mirror. Both use the
-same validated records; the README is never an input or separate state store.
-No companion state/data file, report-specific plan, or per-run narrative is
-generated. Never hand-edit either output or rebuild the UI per task. The HTML's
-embedded metadata is read on refresh; task READMEs and native evidence take
-precedence. Each refresh also repairs a missing or edited root README when the
-HTML is unchanged. Both outputs are prepared before publication; each file is
-replaced atomically. An interruption between replacements is repaired by the
-next refresh. Exit 0 means complete file inventory, 1 means a published incomplete
-inventory with warnings, and 2 means the refresh failed. None establishes evaluation
+embedded JSON, and the marked report section in `.eval-author/README.md`. Both
+use the same validated records; authored README content is preserved and is not
+reporting state. No companion state/data file, report-specific plan, or per-run
+narrative is generated. Never hand-edit the HTML or rebuild the UI per task.
+The HTML's embedded metadata is read on refresh; task READMEs and native evidence
+take precedence. Refresh repairs a missing or edited generated section while
+preserving surrounding documentation. Deleted records disappear after a complete
+scan; incomplete inventories retain prior in-scope records as unverified.
+Both outputs are prepared before publication; each file is updated atomically.
+An interruption between updates is repaired by the next refresh. An OS advisory
+lock prevents concurrent refreshes and releases automatically when the process
+exits; the `.report.lock` coordination file remains on disk.
+Exit 0 means complete file inventory, 1 means a published incomplete inventory
+with warnings, and 2 means the refresh failed. None establishes evaluation
 validity or success.
 
-Each task row includes a Task README action below View task. It opens the saved
+Each task row includes a Task README action below its viewer or source action. It opens the saved
 README as Markdown in a modal, including headings, tables, and code blocks.
-The preview is embedded for offline use, sandboxed, and blocks scripts and
-remote resources. Refresh the report after editing a README. Missing, unreadable,
+The preview is embedded for offline use, sandboxed, and blocks scripts,
+images, and link navigation inside the preview. Open the source README via its
+Markdown link to follow documentation links. Refresh after editing a README.
+Missing, unreadable,
 or oversized READMEs (over 256 KiB) show an explicit unavailable message.
 
 ### Report metadata
@@ -149,9 +174,8 @@ the aggregate to avoid double-counting retries. Native job summaries are not
 added to child trial rewards. Do not substitute a later single-case result into
 an earlier job.
 
-Older embedded reports migrate to the job/legacy split on refresh, preserving
-metadata and unverified evidence. A trial subsequently owned by a native job
-does not remain as a duplicate legacy row.
+A trial subsequently owned by a native job does not remain as a duplicate
+legacy row.
 
 For future Harbor suite evaluations, use one native job per invocation, with an
 explicit task set, agent/model configuration, and agreed attempts. Give every
@@ -169,7 +193,6 @@ labels, derive categories from task-name prefixes, or rename directories for the
 report. Directories with the same basename under different suites remain separate.
 Tasks sharing a parent appear together, even if they belong to different run
 configurations; these are filesystem sections, not inferred suite memberships.
-Older embedded `product_area` labels are discarded on refresh.
 Verifier type is `deterministic`, `model`, `hybrid`, or `unknown`. Native Oracle/NOP
 runs are labeled controls; explicitly label custom controls and actual-agent
 runs rather than inferring their purpose from a directory name. A run patch may
@@ -205,7 +228,9 @@ refresh does not start a viewer or claim that an environment or task is valid.
 
 ## Task documentation
 
-Add these exact sections to every newly authored Harbor task's `README.md`:
+Add these exact sections to every newly authored task's `README.md` for either
+provider. For native Gym scaffolds, use the draft root's README and link its
+dataset rows and component files:
 
 ```markdown
 ## Input
@@ -260,15 +285,11 @@ documentation.
 ## Review and rerun guidance
 
 Use this guidance for setup, run commands, and evidence review with either
-provider. For Gym, keep the suite inventory and operational instructions in the
-suite README. For Harbor, use the generated report and its Markdown mirror for
-the inventory; keep setup and rerun instructions in task READMEs and existing
-workflow records, linked from the report. Do not add hand-authored sections to
-the generated Harbor root README.
-
-The suite README authoring instructions below apply to Gym suite guides and
-functional task or export documentation. Harbor's root report and README follow
-[Report generation](#report-generation).
+provider. Maintain the suite inventory and operational instructions in the
+existing suite README, and refresh the shared HTML report and marked Markdown
+section for both Harbor and Gym. Keep authored setup, rerun commands, pending
+case descriptions, and evidence links outside the generated markers. Neither
+provider's reporting workflow replaces those sections.
 
 Create the review and rerun guide as soon as the first cases are authored, using
 `README.md` at the top level of each generated evaluation suite and preserving

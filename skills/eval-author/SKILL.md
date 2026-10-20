@@ -334,9 +334,10 @@ they resolve the intended tasks using the provider's existing checks. Historical
 results and receipts keep their original paths. Prepare new execution manifests
 for future runs at the final paths under the existing evidence contract.
 
-Refresh the report with the final catalog as its task root. Carry existing task
-reporting metadata to the final task paths through the report's metadata patch,
-retaining source references.
+Refresh the report with the project root selected, preserving both draft and
+finalized task paths; respect a narrower scope only when selected by the user.
+Carry existing task reporting metadata to the final task paths through the
+report's metadata patch, retaining source references.
 Before promotion, report the drafts normally; keep
 unfinished cases visible in the existing handoff record. Reporting itself never
 promotes tasks. Private trace workspaces retain their existing export workflow.
@@ -348,8 +349,8 @@ Before marking the final handoff complete, verify these conditions on disk:
 - The future suite configuration resolves exactly the accepted task set at the
   final paths through the provider's native configuration/task loader; loading
   must not execute a job. Future task-viewer and rerun commands use those paths.
-- The refreshed report selects the final catalog and lists each accepted task
-  once.
+- The refreshed report includes every accepted final task path once, alongside
+  existing drafts. Do not deduplicate different directories or hide later drafts.
 
 Record the verified final catalog path and task count in the existing handoff
 record and final reply. A report file or a successful agent run alone does not
