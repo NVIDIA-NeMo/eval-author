@@ -364,7 +364,19 @@ def test_documented_harbor_trial_flow_is_accepted(tmp_path, monkeypatch):
         },
     )
     for script, args in [
-        ("measure.py", ["--trace", baseline_trace, "--task-id", task_id, "--out-dir", tmp_path / "baseline"]),
+        (
+            "measure.py",
+            [
+                "--trace",
+                baseline_trace,
+                "--evidence-class",
+                "agent_under_test",
+                "--task-id",
+                task_id,
+                "--out-dir",
+                tmp_path / "baseline",
+            ],
+        ),
         ("report.py", ["--coverage-dir", tmp_path / "baseline", "--out", before]),
     ]:
         command = [sys.executable, AUDIT_SKILL / "scripts/audit_spec" / script, "--audit", audit, *args]

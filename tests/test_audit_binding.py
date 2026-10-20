@@ -15,7 +15,7 @@ from test_skill_contract import (
 )
 
 
-def measured(tmp_path):
+def measured(tmp_path, evidence_class="agent_under_test"):
     audit = _write_audit(tmp_path)
     trace = tmp_path / "trace.json"
     _write_atif_trace(trace, tool_calls=["customer.lookup"])
@@ -36,6 +36,10 @@ def measured(tmp_path):
         "--capability-judgments",
         str(judgments),
     ]
+    if evidence_class is None:
+        command.append("--skip-evidence-class")
+    else:
+        command.extend(["--evidence-class", evidence_class])
     for _ in range(2):
         code, result, stderr = _run_json_script(_AUDIT_MEASURE, *command)
         assert code == 0, stderr or result
@@ -57,8 +61,9 @@ def measured(tmp_path):
 
 
 @pytest.mark.parametrize("mutation", ["trace", "audit", "source", "measurement", "aggregate", "judgment"])
-def test_bound_aggregate_rejects_every_upstream_mutation(tmp_path, mutation):
-    audit, trace, judgments, report = measured(tmp_path)
+@pytest.mark.parametrize("evidence_class", ["agent_under_test", "reference_solution", None])
+def test_bound_aggregate_rejects_every_upstream_mutation(tmp_path, mutation, evidence_class):
+    audit, trace, judgments, report = measured(tmp_path, evidence_class)
     if mutation == "trace":
         trace.write_text(trace.read_text() + "\n")
     elif mutation == "audit":
@@ -97,3 +102,46 @@ def test_copied_measurement_with_new_path_cannot_inflate_trials(tmp_path):
         str(tmp_path / "duplicate.json"),
     )
     assert code == 1 and "duplicate run" in result["error"]
+
+
+def test_bound_aggregate_keeps_reference_coverage_separate(tmp_path):
+    audit, trace, _, report = measured(tmp_path, "reference_solution")
+    agent_trace = tmp_path / "agent.json"
+    _write_atif_trace(agent_trace, tool_calls=[])
+    code, result, stderr = _run_json_script(
+        _AUDIT_MEASURE,
+        "--audit",
+        str(audit),
+        "--trace",
+        str(agent_trace),
+        "--task-id",
+        "fixture",
+        "--run-id",
+        "agent-run",
+        "--evidence-class",
+        "agent_under_test",
+        "--out-dir",
+        str(tmp_path / "measurements"),
+    )
+    assert code == 0, stderr or result
+    code, result, stderr = _run_json_script(
+        _AUDIT_REPORT,
+        "--audit",
+        str(audit),
+        "--coverage-dir",
+        str(tmp_path / "measurements"),
+        "--out",
+        str(report),
+    )
+    assert code == 0, stderr or result
+    payload = json.loads(report.read_text())
+    by_class = payload["coverage_by_evidence_class"]
+    assert "customer.lookup" not in payload["covered"]
+    assert "customer.lookup" in by_class["reference_solution"]["covered"]
+    assert payload["covered"] == by_class["agent_under_test"]["covered"]
+    assert len(payload["binding"]["inputs"]) == 3
+    code, result, _ = _run_json_script(_AUDIT_REPORT, "--verify-existing", str(report))
+    assert code == 0, result
+    trace.write_text(trace.read_text() + "\n")
+    code, result, _ = _run_json_script(_AUDIT_REPORT, "--verify-existing", str(report))
+    assert code == 1 and not result["written"], result

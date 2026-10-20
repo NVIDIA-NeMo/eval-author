@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _markdown import AuditMarkdownError  # noqa: E402
 from _schema import ITEM_KINDS as AUDIT_ITEM_KINDS  # noqa: E402
 from _schema import AuditEnvironmentError, AuditSpecError, item_counts, load_audit_spec  # noqa: E402
-from _values import dedupe_names  # noqa: E402
+from _values import EVIDENCE_CLASS_ORDER, dedupe_names, subject_evidence_class  # noqa: E402
 
 JsonObject: TypeAlias = dict[str, Any]
 
@@ -155,15 +155,13 @@ def _load_coverage(path: Path) -> CoverageInput:
 
 
 def _aggregate(*, audit: JsonObject, audit_path: Path, coverage_inputs: list[CoverageInput]) -> JsonObject:
-    """Union covered audit item names and format uncovered items for task generation."""
+    """Aggregate coverage; headline fields use the agent-under-test bucket when labeled."""
     audit_items = audit["items"]
     audit_items_by_name = {item["name"]: item for item in audit_items}
     audit_item_kinds = {item["name"]: item["kind"] for item in audit_items}
     audit_counts = item_counts(audit)
-    covered_names: set[str] = set()
-    input_reports: list[JsonObject] = []
-    measured_kinds: set[str] = set()
     warnings: list[JsonObject] = []
+    labeled_input = False
 
     seen_runs, seen_traces = set(), set()
     for coverage_input in coverage_inputs:
@@ -184,37 +182,76 @@ def _aggregate(*, audit: JsonObject, audit_path: Path, coverage_inputs: list[Cov
                 audit_item_kinds=audit_item_kinds,
             )
         )
-        input_report = _input_report(coverage_input)
-        input_reports.append(input_report)
-        measured_kinds.add(payload["item_kind"])
-        covered_names.update(payload["covered"])
+        subject = payload.get("subject")
+        if not isinstance(subject, dict):
+            raise AuditCoverageInputError(f"{coverage_input.path}: subject must be an object")
+        if subject_evidence_class(subject) is None:
+            warnings.append(
+                {
+                    "kind": "missing_evidence_class",
+                    "coverage": str(coverage_input.path),
+                    "message": (
+                        "subject.evidence_class is missing; this input is included in legacy union totals only. "
+                        "Re-measure with a current measure.py (or pass --evidence-class) to enable per-runner summaries."
+                    ),
+                }
+            )
+        else:
+            labeled_input = True
 
-    covered = [item["name"] for item in audit_items if item["name"] in covered_names]
-    uncovered = [item["name"] for item in audit_items if item["name"] not in covered_names]
+    by_class: JsonObject = {}
+    if labeled_input:
+        by_class = _coverage_by_evidence_class(audit_items, coverage_inputs, audit_items_by_name=audit_items_by_name)
+
+    if by_class and "agent_under_test" in by_class:
+        agent_bucket = by_class["agent_under_test"]
+        covered = list(agent_bucket["covered"])
+        uncovered = list(agent_bucket["uncovered"])
+        uncovered_items = list(agent_bucket["uncovered_items"])
+        coverage = agent_bucket["coverage"]
+        headline_inputs = _inputs_for_evidence_class(coverage_inputs, "agent_under_test")
+        input_reports = [_input_report(coverage_input) for coverage_input in headline_inputs]
+        measured_kinds = {coverage_input.payload["item_kind"] for coverage_input in headline_inputs}
+    else:
+        covered_names: set[str] = set()
+        input_reports = []
+        measured_kinds: set[str] = set()
+        for coverage_input in coverage_inputs:
+            payload = coverage_input.payload
+            input_reports.append(_input_report(coverage_input))
+            measured_kinds.add(payload["item_kind"])
+            covered_names.update(payload["covered"])
+        covered = [item["name"] for item in audit_items if item["name"] in covered_names]
+        uncovered = [item["name"] for item in audit_items if item["name"] not in covered_names]
+        uncovered_items = [
+            _uncovered_item(item, audit_items_by_name, measured_kinds=measured_kinds)
+            for item in audit_items
+            if item["name"] not in covered_names
+        ]
+        coverage = _coverage_summary(audit_items, covered)
+
     measured_kinds_list = [kind for kind in ITEM_KINDS if kind in measured_kinds]
-    result = {
+    report: JsonObject = {
         "schema": REPORT_SCHEMA,
         "audit": _audit_info(audit, audit_path, audit_counts),
         "measured_kinds": measured_kinds_list,
         "warnings": warnings,
         "input_reports": input_reports,
-        "coverage": _coverage_summary(audit_items, covered),
+        "coverage": coverage,
         "covered": covered,
         "uncovered": uncovered,
-        "uncovered_items": [
-            _uncovered_item(item, audit_items_by_name, measured_kinds=measured_kinds)
-            for item in audit_items
-            if item["name"] not in covered_names
-        ],
+        "uncovered_items": uncovered_items,
     }
+    if by_class:
+        report["coverage_by_evidence_class"] = by_class
 
     # Legacy inputs remain readable for inventory/review, but cannot prove acceptance.
     if all("binding" in entry.payload for entry in coverage_inputs):
-        result["binding"] = {
+        report["binding"] = {
             "audit_sha256": hashlib.sha256(json.dumps(audit, sort_keys=True).encode()).hexdigest(),
             "inputs": [{"path": str(entry.path.resolve()), "sha256": entry.raw_sha256} for entry in coverage_inputs],
         }
-    return result
+    return report
 
 
 def _digest(path: Path) -> str:
@@ -317,6 +354,53 @@ def _input_report(coverage_input: CoverageInput) -> JsonObject:
         "covered": payload["covered"],
         "covered_count": len(payload["covered"]),
     }
+
+
+def _inputs_for_evidence_class(coverage_inputs: list[CoverageInput], evidence_class: str) -> list[CoverageInput]:
+    """Return coverage inputs that belong to one evidence-class bucket."""
+    selected: list[CoverageInput] = []
+    for coverage_input in coverage_inputs:
+        subject = coverage_input.payload["subject"]
+        labeled = subject_evidence_class(subject)
+        if evidence_class == "agent_under_test":
+            if labeled is None or labeled == "agent_under_test":
+                selected.append(coverage_input)
+        elif labeled == evidence_class:
+            selected.append(coverage_input)
+    return selected
+
+
+def _coverage_by_evidence_class(
+    audit_items: list[JsonObject],
+    coverage_inputs: list[CoverageInput],
+    *,
+    audit_items_by_name: dict[str, JsonObject],
+) -> JsonObject:
+    """Summarize covered item names per evidence class when any input was labeled."""
+    by_class: JsonObject = {}
+    for evidence_class in EVIDENCE_CLASS_ORDER:
+        bucket_inputs = _inputs_for_evidence_class(coverage_inputs, evidence_class)
+        if not bucket_inputs:
+            continue
+        covered_names: set[str] = set()
+        measured_kinds: set[str] = set()
+        for coverage_input in bucket_inputs:
+            measured_kinds.add(coverage_input.payload["item_kind"])
+            covered_names.update(coverage_input.payload["covered"])
+        covered = [item["name"] for item in audit_items if item["name"] in covered_names]
+        uncovered = [item["name"] for item in audit_items if item["name"] not in covered_names]
+        by_class[evidence_class] = {
+            "input_count": len(bucket_inputs),
+            "coverage": _coverage_summary(audit_items, covered),
+            "covered": covered,
+            "uncovered": uncovered,
+            "uncovered_items": [
+                _uncovered_item(item, audit_items_by_name, measured_kinds=measured_kinds)
+                for item in audit_items
+                if item["name"] not in covered_names
+            ],
+        }
+    return by_class
 
 
 def _coverage_summary(audit_items: list[JsonObject], covered: list[str]) -> JsonObject:

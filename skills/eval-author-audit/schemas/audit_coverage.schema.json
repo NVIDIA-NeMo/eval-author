@@ -172,8 +172,22 @@
         "run_id": {
           "description": "Identifier for the specific run, trial, attempt, or repetition measured.",
           "$ref": "#/$defs/nonEmptyString"
+        },
+        "evidence_class": {
+          "description": "Runner or evidence role for this measurement. Omitted in older coverage files.",
+          "$ref": "#/$defs/evidenceClass"
         }
       }
+    },
+    "evidenceClass": {
+      "description": "How this trace should be grouped in aggregate coverage summaries.",
+      "type": "string",
+      "enum": [
+        "agent_under_test",
+        "reference_solution",
+        "nop",
+        "control"
+      ]
     },
     "method": {
       "type": "object",
