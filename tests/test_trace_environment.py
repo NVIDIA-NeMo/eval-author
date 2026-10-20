@@ -75,6 +75,7 @@ def _workspace(tmp_path: Path, *, image_only: bool = False) -> tuple[Path, Path]
     code, result = _run("init", "--root", str(root), "--task-id", "repair-fixture")
     assert code == 0, result
     task_dir = Path(result["task_dir"])
+    _historical_workspace(task_dir)
     source = tmp_path / "source.atif.json"
     _write_json(source, _atif(image_only=image_only))
     code, result = _run(
@@ -88,6 +89,15 @@ def _workspace(tmp_path: Path, *, image_only: bool = False) -> tuple[Path, Path]
     )
     assert code == 0, result
     return task_dir, source
+
+
+def _historical_workspace(task_dir: Path) -> None:
+    """Retain v2/v6 compatibility coverage; new contracts have skill-local tests."""
+    (task_dir / "private/workspace.json").unlink(missing_ok=True)
+    summary = json.loads((task_dir / "summary.json").read_text())
+    summary["schema"] = _SUMMARY_SCHEMA
+    summary["environment"].pop("qualification", None)
+    _write_json(task_dir / "summary.json", summary)
 
 
 def _fixture_atif() -> dict[str, Any]:
@@ -764,7 +774,9 @@ def _ready_environment(
     run_suffix: str = "",
     check_rows: bool = True,
     allow_aggregate: bool = False,
+    setup_only: bool = False,
 ) -> None:
+    _historical_workspace(task_dir)
     task = task_dir / "task"
     (task / "environment").mkdir(parents=True, exist_ok=True)
     (task / "tests").mkdir(exist_ok=True)
@@ -822,6 +834,8 @@ The human reviewer confirmed that this fixture accurately represents the recorde
             encoding="utf-8",
         )
     (task / "solution" / "solve.sh").write_text("#!/usr/bin/env bash\ntouch repaired\n", encoding="utf-8")
+    if setup_only:
+        return
     checksum = Task(task).checksum
     if mode == "separate":
         _record_reproducibility(task_dir)
@@ -910,7 +924,8 @@ def test_init_creates_private_gitignored_workspace(tmp_path: Path) -> None:
     assert result == {"gitignored": True, "status": "pending", "task_dir": str(task_dir)}
     assert (root / ".gitignore").read_text(encoding="utf-8") == "*\n!.gitignore\n"
     summary = json.loads((task_dir / "summary.json").read_text(encoding="utf-8"))
-    assert summary["schema"] == _SUMMARY_SCHEMA
+    assert summary["schema"] == _TRACE_ENVIRONMENT.QUALIFIED_SUMMARY_SCHEMA
+    assert summary["environment"]["qualification"] == "not_run"
     assert summary["status"] == "pending"
     if os.name == "posix":
         assert root.stat().st_mode & 0o777 == 0o700
@@ -1664,6 +1679,7 @@ def test_prepare_omits_repeated_image_metadata_without_losing_prose(
         assert "synthetic diagram" in text
         if location != "extra":
             assert "before [metadata]" in text and " after" in text
+    (task_dir / "private/workspace.json").unlink(missing_ok=True)
     summary = json.loads((task_dir / "summary.json").read_text())
     operation = summary["source"]["normalizations"][0]
     assert operation["metadata_field_count"] == 1
@@ -2279,7 +2295,7 @@ def test_batch_status_reports_malformed_workspace_without_aborting(tmp_path: Pat
     assert status["counts"] == {"invalid": 1, "missing": 1, "pending_prepared": 1}
     assert status["valid"] is False
     assert status["members"] == [
-        {"task_id": "task-one", "status": "pending_prepared"},
+        {"task_id": "task-one", "status": "pending_prepared", "qualification": "not_run", "qualified": False},
         {
             "task_id": "task-two",
             "status": "invalid",
@@ -3004,6 +3020,7 @@ def test_reconstruction_without_historical_truth_or_proof_stays_unproven(tmp_pat
 
     assert code == 0, result
     assert result["environment_status"] == "unproven"
+    (task_dir / "private/workspace.json").unlink(missing_ok=True)
     summary = json.loads((task_dir / "summary.json").read_text())
     assert summary["candidate"]["ground_truth"]["availability"] == "absent"
     assert summary["environment"]["technical_status"] == "not_run"
@@ -3158,3 +3175,16 @@ def test_copy_exception_is_failed_evidence_and_no_copy_is_not_run(tmp_path):
     assert report["passed"] is False
     assert report["copy_probes"]["runs"][0]["exception_present"] is True
     assert _TRACE_ENVIRONMENT._copy_probe_summary({"runs": {"copy": []}}) == {"status": "not_run", "runs": []}
+
+
+def test_current_init_full_qualification_lifecycle(tmp_path, monkeypatch):
+    spec = spec_from_file_location("current_lifecycle_helpers", _SCRIPT.parents[1] / "evals/tests/test_construction.py")
+    assert spec is not None and spec.loader is not None
+    qualified = module_from_spec(spec)
+    spec.loader.exec_module(qualified)
+
+    monkeypatch.setattr(qualified.helpers, "_historical_workspace", lambda root: None)
+    monkeypatch.setattr(qualified, "legacy", lambda root: None)
+    ready = qualified.helpers._ready_environment
+    monkeypatch.setattr(qualified.helpers, "_ready_environment", lambda root, **kw: ready(root, **kw, setup_only=True))
+    qualified.test_complete_lifecycle_and_evidence_tampering(tmp_path)

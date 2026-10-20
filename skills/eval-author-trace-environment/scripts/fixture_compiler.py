@@ -78,6 +78,25 @@ def canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
 
+def result_error_status(result: dict[str, Any]) -> str:
+    """Read explicit transport flags only; text and agent claims are not status."""
+    flags = []
+    for container in (result, result.get("extra")):
+        if isinstance(container, dict):
+            flags.extend(container[key] for key in ("isError", "is_error") if key in container)
+    if not flags:
+        return "unrecorded"
+    if any(type(flag) is not bool for flag in flags):
+        return "invalid"
+    if len(set(flags)) != 1:
+        return "conflicting"
+    return "error" if flags[0] else "not_error"
+
+
+def result_signature(result: dict[str, Any]) -> str:
+    return canonical_json([result.get("content"), result_error_status(result)])
+
+
 def json_sha256(value: Any) -> str:
     payload = (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
@@ -312,6 +331,11 @@ def _plan_tool(tool: dict[str, Any]) -> dict[str, Any]:
         reason_codes.append("non_text_result_unsupported")
     if _unusable_replay_values(tool):
         reason_codes.append("redacted_value_required")
+    statuses = {result_error_status(result) for call in calls for result in call["matching_observations"]}
+    if "invalid" in statuses:
+        reason_codes.append("result_error_status_invalid")
+    if "conflicting" in statuses:
+        reason_codes.append("result_error_status_conflicting")
 
     responses_by_arguments: dict[str, set[str]] = {}
     for call in calls:
@@ -321,7 +345,7 @@ def _plan_tool(tool: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(content, str):
             continue
         key = canonical_json(call["arguments"])
-        responses_by_arguments.setdefault(key, set()).add(content)
+        responses_by_arguments.setdefault(key, set()).add(result_signature(call["matching_observations"][0]))
     if any(len(responses) > 1 for responses in responses_by_arguments.values()):
         reason_codes.append("conflicting_results_for_identical_arguments")
 
@@ -517,6 +541,11 @@ def build_call_fixtures(inventory: dict[str, Any], access: dict[str, Any]) -> di
                 key,
                 {"input": call["arguments"], "output": result["content"], "evidence_steps": [], "evidence": []},
             )
+            status = result_error_status(result)
+            if status in {"invalid", "conflicting"}:
+                raise ValueError("cannot generate fixtures with ambiguous result error status")
+            if status != "unrecorded":
+                case["is_error"] = status == "error"
             case["evidence_steps"].append(call["step_id"])
             case["evidence"].append({key: call[key] for key in ("trajectory_path", "step_id", "tool_call_id")})
         fixture_tools.append(
@@ -552,7 +581,10 @@ def build_mcp_scenario(call_fixtures: dict[str, Any]) -> dict[str, Any]:
                 "cases": [
                     {
                         "arguments": case["input"],
-                        "result": {"content": [{"type": "text", "text": case["output"]}], "isError": False},
+                        "result": {
+                            "content": [{"type": "text", "text": case["output"]}],
+                            "isError": case.get("is_error", False),
+                        },
                         "evidence_steps": case["evidence_steps"],
                         "evidence": case["evidence"],
                     }

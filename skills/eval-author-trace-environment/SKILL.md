@@ -1,6 +1,6 @@
 ---
 name: eval-author-trace-environment
-version: 1.4.0
+version: 1.5.0
 description: >-
   Experimental workflow. Use Gym, MLflow, Intake, OpenTelemetry, or ATIF trace
   evidence to derive a private, reproducible Harbor or native NeMo Gym task candidate.
@@ -55,6 +55,12 @@ steps 1-5, then the selected provider's construction path in Step 6, one task wo
 `## Available Scripts`; an end-to-end run is in `## Examples`. Trace payloads,
 credentials, and task workspaces never go into Git.
 
+Preserve failed evidence: never rewrite or downgrade `summary.json`, delete a failed
+`validation.json`, or change `construction.json`/`candidate.json` to pass a failed
+qualification without first recording a repair. Never substitute the oracle for
+an alternative control. A reviewed correct alternative rejected by the verifier
+is a verifier defect to investigate, not a reason to weaken that control.
+
 ## Artifact contract
 
 Use one workspace per task. The tree below describes Harbor output; the
@@ -73,6 +79,7 @@ bundled skill files; `extra.*` names elsewhere are ATIF fields, not file paths.
     private/publications/<digest>/
     private/publication-review.json
     private/ground-truth/
+    private/construction.json
     safe/trace.atif.json
     safe/privacy.json
     candidate.json
@@ -137,6 +144,12 @@ finish, retain that limitation without issuing a complete review attestation.
 Never copy a redacted value into a verifier. An image-only user instruction
 blocks candidacy. The scanner cannot establish that proprietary code is safe;
 the contextual reviewer owns that judgment.
+
+Run `audit-evidence --task-dir <task-dir>` before deciding candidacy for either
+provider. Read [references/evidence-audit.md](references/evidence-audit.md) and
+inspect the private report's source locations for missing, ambiguous, or
+conflicting observations. Carry material gaps into candidate uncertainties;
+the report measures recorded evidence coverage, not task correctness or readiness.
 
 ### Resolve tool-call access
 
@@ -266,6 +279,14 @@ requirements. Never copy private trace payloads into the task; include only the
 minimal files needed to reproduce the starting state. Human-supplied or
 reviewed `Relevant experience` is necessary for readiness; never invent it.
 
+Before recording proof inputs, author the private construction contract in
+[references/construction-qualification.md](references/construction-qualification.md).
+New Harbor workspaces require requirement-to-check mappings, starting-artifact
+provenance, executed setup/reach probes, a reviewed valid alternative, and a
+bypass control for each declared dependency. `validate-task` checks declarations;
+only retained execution can establish qualification. Keep measured difficulty
+separate from these checks.
+
 Create `<task-dir>/README.md` using
 [Suite review and rerun instructions](../eval-author/references/suite-readme.md), separate
 from the reviewer-facing `task/README.md`. Map the generalized outcomes to the
@@ -299,7 +320,8 @@ harbor run -p <task-dir>/task -a nop \
 
 Repeat with `nop-2`, `oracle-1`, and `oracle-2`, selecting the matching arm
 and agent. Follow the integrity reference to declare and run the negative
-control. Retain every exact Harbor job and use the reference's
+control. Also run the declared alternative and dependency bypass controls using
+the construction reference. Retain every exact Harbor job and use the reference's
 `record-validation` command; proof requires the per-check rows from
 `references/check-grammar.md` in every job. Never hand-write rewards, job IDs,
 exceptions, or checksums.
@@ -376,7 +398,8 @@ Report the task ID, `candidate` or `no_candidate`, state basis, ground-truth
 availability and artifact count, required software and licensing constraints,
 environment status, technical status, check evidence mode, repair count,
 review status, verifier isolation, privacy review status, NOP and Oracle
-rewards when run, and paths to `summary.md` and the generated task. A
+rewards when run, construction qualification (historical proof is `unmeasured`),
+and paths to `summary.md` and the generated task. A
 `valid: true` check proves the recorded files are internally consistent;
 Harbor is the authority for whether the task actually runs.
 
@@ -400,6 +423,7 @@ the sibling `gym-to-atif` skill; put its owner-private output under
 |---|---|---|
 | `init` | Create the private, gitignored task workspace | `--task-id` |
 | `prepare` | Validate, bound, and scrub one canonical ATIF | `--task-dir --atif --source-kind` |
+| `audit-evidence` | Inspect recorded observation coverage without inferring success | `--task-dir` |
 | `review-privacy` | Record the contextual safe-ATIF review | `--reviewer-kind --note` |
 | `inventory-tool-calls` / `plan-tool-call-access` / `resolve-tool-call-access` / `generate-mock-tool-calls` | Trace-derived tool-call fixtures | `--task-dir [--decisions --reviewer-kind]` |
 | `check-candidate` | Read-only candidate metadata check before construction | `--task-dir` |
