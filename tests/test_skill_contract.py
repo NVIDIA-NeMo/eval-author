@@ -69,7 +69,7 @@ _ENVIRONMENT_DIR = _SKILLS_DIR / "eval-author-environment"
 _ETHOS_SKILLS_DIR = _SKILLS_DIR.parent / "team-skills" / "ethos"
 _ETHOS_DIR = _ETHOS_SKILLS_DIR / "ethos-write"
 _ETHOS_EXPLORE_DIR = _ETHOS_SKILLS_DIR / "ethos-explore"
-_ETHOS_TEMPLATE = _ETHOS_DIR / "references" / "templates" / "ethos.md"
+_ETHOS_TEMPLATE = _ETHOS_DIR / "references" / "templates" / "ETHOS.md"
 _ETHOS_VALIDATE = _ETHOS_DIR / "scripts" / "validate_ethos.py"
 _ETHOS_REQUIRED_SECTIONS = (
     "Role",
@@ -477,7 +477,7 @@ def _ticket_tool_item() -> dict:
 
 
 def _write_audit(tmp_path: Path, transform: Callable[[str], str] | None = None) -> Path:
-    ethos = tmp_path / "ethos.md"
+    ethos = tmp_path / "ETHOS.md"
     ethos.write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n", encoding="utf-8")
 
     audit_dir = tmp_path / ".eval-author"
@@ -2025,7 +2025,7 @@ def test_ethos_skills_are_named_for_their_directories_and_links_resolve() -> Non
 
 
 def test_local_ethos_handoff_resources_resolve() -> None:
-    """Eval Author's ethos.md handoff must reach the ethos skills and their template."""
+    """Eval Author's ETHOS.md handoff must reach the ethos skills and their template."""
     reference = _CORE_DIR / "references" / "local-ethos.md"
     checkins = reference.parent / "milestone-checkins.md"
     assert checkins.is_file()
@@ -2061,7 +2061,7 @@ def test_filled_ethos_template_passes_the_bundled_validator(tmp_path: Path) -> N
     """New Ethos files require intended behavior, without a change-permission section."""
     markdown = _filled_ethos_template()
     assert re.findall(r"^## (.+)$", markdown, flags=re.MULTILINE) == list(_ETHOS_REQUIRED_SECTIONS)
-    path = tmp_path / "ethos.md"
+    path = tmp_path / "ETHOS.md"
     path.write_text(markdown, encoding="utf-8")
     result = _run_script(_ETHOS_VALIDATE, str(path))
     assert result.returncode == 0, result.stderr
@@ -2078,7 +2078,7 @@ def test_filled_ethos_template_passes_the_bundled_validator(tmp_path: Path) -> N
 )
 def test_ethos_validator_accepts_and_preserves_extra_sections(tmp_path: Path, extra_section: str) -> None:
     """A legacy permission section remains valid extra content, without migration or deletion."""
-    path = tmp_path / "ethos.md"
+    path = tmp_path / "ETHOS.md"
     original = (_filled_ethos_template() + "\n" + extra_section).encode("utf-8")
     path.write_bytes(original)
     result = _run_script(_ETHOS_VALIDATE, str(path))
@@ -2090,7 +2090,7 @@ def test_ethos_validator_accepts_and_preserves_extra_sections(tmp_path: Path, ex
 @pytest.mark.parametrize("section", _ETHOS_REQUIRED_SECTIONS)
 def test_ethos_validator_still_requires_behavior_and_safety_sections(tmp_path: Path, section: str) -> None:
     """Every current section remains required, including behavior and safety boundaries."""
-    path = tmp_path / "ethos.md"
+    path = tmp_path / "ETHOS.md"
     path.write_text(_filled_ethos_template().replace(f"## {section}\n", ""), encoding="utf-8")
     result = _run_script(_ETHOS_VALIDATE, str(path))
     assert result.returncode == 1
@@ -2106,7 +2106,7 @@ def test_ethos_validator_still_requires_behavior_and_safety_sections(tmp_path: P
     ids=["duplicate-section", "unknown-version"],
 )
 def test_ethos_validator_rejects_malformed_files(tmp_path: Path, transform: Callable[[str], str], error: str) -> None:
-    path = tmp_path / "ethos.md"
+    path = tmp_path / "ETHOS.md"
     path.write_text(transform(_filled_ethos_template()), encoding="utf-8")
     result = _run_script(_ETHOS_VALIDATE, str(path))
     assert result.returncode == 1
@@ -2114,7 +2114,7 @@ def test_ethos_validator_rejects_malformed_files(tmp_path: Path, transform: Call
 
 
 def test_ethos_validator_warns_when_schema_version_is_missing(tmp_path: Path) -> None:
-    path = tmp_path / "ethos.md"
+    path = tmp_path / "ETHOS.md"
     path.write_text(_filled_ethos_template().replace("schema_version: 1\n", ""), encoding="utf-8")
     result = _run_script(_ETHOS_VALIDATE, str(path))
     assert result.returncode == 0, result.stderr
@@ -2316,7 +2316,7 @@ def test_audit_file_without_sources_allows_source_refs_as_notes(tmp_path: Path) 
     audit = _write_audit(
         tmp_path,
         lambda text: re.sub(
-            r"sources:\n  - name: ethos\n    path: ../ethos.md\n    sha256: sha256:[0-9a-f]{64}\n",
+            r"sources:\n  - name: ethos\n    path: ../ETHOS.md\n    sha256: sha256:[0-9a-f]{64}\n",
             "",
             text,
         ),
@@ -2332,7 +2332,7 @@ def test_audit_file_with_empty_sources_validates(tmp_path: Path) -> None:
     audit = _write_audit(
         tmp_path,
         lambda text: re.sub(
-            r"sources:\n  - name: ethos\n    path: ../ethos.md\n    sha256: sha256:[0-9a-f]{64}\n",
+            r"sources:\n  - name: ethos\n    path: ../ETHOS.md\n    sha256: sha256:[0-9a-f]{64}\n",
             "sources: []\n",
             text,
         ),
@@ -2458,7 +2458,7 @@ def test_audit_validation_rejects_stale_source_digest(tmp_path: Path) -> None:
 def test_audit_validation_rejects_source_digest_without_path(tmp_path: Path) -> None:
     audit = _write_audit(
         tmp_path,
-        lambda text: text.replace("    path: ../ethos.md\n", ""),
+        lambda text: text.replace("    path: ../ETHOS.md\n", ""),
     )
 
     code, report, _ = _run_json_script(_AUDIT_VALIDATE, "--audit", str(audit))
@@ -2472,7 +2472,7 @@ def test_audit_validation_rejects_duplicate_source_names(tmp_path: Path) -> None
     audit = _write_audit(
         tmp_path,
         lambda text: re.sub(
-            r"(sources:\n  - name: ethos\n    path: ../ethos.md\n    sha256: sha256:[0-9a-f]{64}\n)",
+            r"(sources:\n  - name: ethos\n    path: ../ETHOS.md\n    sha256: sha256:[0-9a-f]{64}\n)",
             "\\1  - name: ethos\n    description: duplicate\n",
             text,
         ),
@@ -2635,7 +2635,7 @@ def test_audit_validation_rejects_prefixed_yaml_fence(tmp_path: Path) -> None:
 
 
 def test_audit_generate_renders_valid_audit_from_items(tmp_path: Path) -> None:
-    ethos = tmp_path / "ethos.md"
+    ethos = tmp_path / "ETHOS.md"
     ethos.write_text(
         "---\nname: support-agent\ncreated_timestamp: '2026-08-25T00:00:00+00:00'\nauthor: tester\n---\n"
         "\n# Ethos: support-agent\n",
@@ -2664,7 +2664,7 @@ def test_audit_generate_renders_valid_audit_from_items(tmp_path: Path) -> None:
     assert summary["conflicting_items"] == []
     assert summary["conflicting_items_applied"] is True
     assert report["agent"] == "support-agent"
-    assert payload["sources"] == [{"name": "ethos", "path": "../ethos.md", "sha256": _digest(ethos)}]
+    assert payload["sources"] == [{"name": "ethos", "path": "../ETHOS.md", "sha256": _digest(ethos)}]
     assert "source_ethos" not in payload
     assert "source_ethos_sha256" not in payload
     _assert_literal_block_scalar(text, "description", "Looks up customer profile, plan, account status")
@@ -2677,7 +2677,7 @@ def test_audit_generate_renders_valid_audit_from_items(tmp_path: Path) -> None:
 
 
 def test_audit_generate_rejects_outputs_outside_eval_author(tmp_path: Path) -> None:
-    ethos = tmp_path / "ethos.md"
+    ethos = tmp_path / "ETHOS.md"
     ethos.write_text("# Ethos\n", encoding="utf-8")
     items = tmp_path / "items.yaml"
     _write_audit_items(items, _template_payload()["items"])
@@ -2710,7 +2710,7 @@ def test_audit_generate_explains_missing_ethos_with_bundled_skill_path(tmp_path:
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -2726,7 +2726,7 @@ def test_audit_generate_explains_missing_ethos_with_bundled_skill_path(tmp_path:
 
 @pytest.mark.skipif(os.name == "nt", reason="chmod-based unreadable-file check is POSIX-specific")
 def test_audit_generate_explains_unreadable_ethos_with_bundled_skill_path(tmp_path: Path) -> None:
-    ethos = tmp_path / "ethos.md"
+    ethos = tmp_path / "ETHOS.md"
     ethos.write_text("# Ethos\n", encoding="utf-8")
     items = tmp_path / "items.yaml"
     _write_audit_items(items, _template_payload()["items"])
@@ -2764,7 +2764,7 @@ def test_audit_generate_rejects_missing_candidate_name_before_reconcile(tmp_path
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -2790,7 +2790,7 @@ def test_audit_generate_rejects_duplicate_candidate_names_before_reconcile(tmp_p
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -2816,7 +2816,7 @@ def test_audit_generate_reconciles_existing_audit_by_default(tmp_path: Path) -> 
             + "\nManual footer must stay too.\n"
         ),
     )
-    (tmp_path / "ethos.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
+    (tmp_path / "ETHOS.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
     items_payload = _template_payload()["items"]
     items_payload.append(_ticket_tool_item())
     items = tmp_path / "items.yaml"
@@ -2825,7 +2825,7 @@ def test_audit_generate_reconciles_existing_audit_by_default(tmp_path: Path) -> 
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -2846,7 +2846,7 @@ def test_audit_generate_reconciles_existing_audit_by_default(tmp_path: Path) -> 
     assert summary["conflicting_items"] == ["customer.lookup"]
     assert summary["conflicting_items_applied"] is False
     assert summary["possibly_stale_items"] == []
-    assert payload["sources"][0]["sha256"] == _digest(tmp_path / "ethos.md")
+    assert payload["sources"][0]["sha256"] == _digest(tmp_path / "ETHOS.md")
     assert items_by_name["customer.lookup"]["description"] == "Hand reviewed lookup tool description.\n"
     assert items_by_name["ticket.create"]["kind"] == "tool"
     assert "Manual reviewer notes must stay outside the block." in text
@@ -2865,7 +2865,7 @@ def test_audit_generate_suggests_without_writing(tmp_path: Path) -> None:
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -2888,14 +2888,14 @@ def test_audit_generate_suggests_without_writing(tmp_path: Path) -> None:
 
 def test_audit_generate_partial_update_does_not_report_stale_items(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path)
-    (tmp_path / "ethos.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
+    (tmp_path / "ETHOS.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
     items = tmp_path / "items.yaml"
     _write_audit_items(items, [_ticket_tool_item()])
 
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -2921,14 +2921,14 @@ def test_audit_generate_partial_update_does_not_report_stale_items(tmp_path: Pat
 
 def test_audit_generate_full_items_mode_reports_stale_items(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path)
-    (tmp_path / "ethos.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
+    (tmp_path / "ETHOS.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
     items = tmp_path / "items.yaml"
     _write_audit_items(items, [_ticket_tool_item()])
 
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -2953,14 +2953,14 @@ def test_audit_generate_full_items_mode_reports_stale_items(tmp_path: Path) -> N
 
 def test_audit_generate_demotes_approved_audit_when_reconcile_adds_items(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path, lambda text: text.replace("status: draft\n", "status: approved\n", 1))
-    (tmp_path / "ethos.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
+    (tmp_path / "ETHOS.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
     items = tmp_path / "items.yaml"
     _write_audit_items(items, [_ticket_tool_item()])
 
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -2979,14 +2979,14 @@ def test_audit_generate_demotes_approved_audit_when_reconcile_adds_items(tmp_pat
 
 def test_audit_generate_preserves_existing_agent_unless_explicit(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path)
-    (tmp_path / "ethos.md").write_text("---\nname: other-agent\n---\n# Ethos\n", encoding="utf-8")
+    (tmp_path / "ETHOS.md").write_text("---\nname: other-agent\n---\n# Ethos\n", encoding="utf-8")
     items = tmp_path / "items.yaml"
     _write_audit_items(items, _template_payload()["items"])
 
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -3020,7 +3020,7 @@ def test_audit_generate_replace_mode_overwrites_existing_audit(tmp_path: Path) -
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -5147,8 +5147,8 @@ def test_discover_ignores_a_yaml_file_that_declares_no_harbor_work(suite: Path) 
 
 @pytest.mark.parametrize(
     ("names", "expected"),
-    [(("ethos.md",), "ethos.md"), (("ETHOS.md",), "ETHOS.md"), ((), None)],
-    ids=["current", "eval-author-0.1.0", "absent"],
+    [(("ETHOS.md",), "ETHOS.md"), (("ethos.md",), "ethos.md"), ((), None)],
+    ids=["canonical", "lowercase", "absent"],
 )
 def test_discover_records_the_root_ethos_file_by_its_actual_name(
     suite: Path, names: tuple[str, ...], expected: str | None
@@ -5160,10 +5160,28 @@ def test_discover_records_the_root_ethos_file_by_its_actual_name(
     assert _named(report, "ethos")["status"] == ("pass" if expected else "warn")
 
 
+def test_discover_prefers_uppercase_ethos_when_both_names_exist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.syspath_prepend(str(_DISCOVER_DIR / "scripts"))
+    explore = importlib.import_module("providers.harbor._explore")
+
+    # Model a case-sensitive directory even when the test host is case-insensitive.
+    class Entry:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def is_file(self) -> bool:
+            return True
+
+    monkeypatch.setattr(Path, "iterdir", lambda self: iter([Entry("ethos.md"), Entry("ETHOS.md")]))
+    assert explore._ethos_file(tmp_path) == tmp_path / "ETHOS.md"
+
+
 @_needs_unreadable_files
 def test_discover_reports_an_unreadable_ethos(suite: Path) -> None:
-    """ethos.md is advisory, so failing to read it must not cost the whole report."""
-    ethos = suite / "ethos.md"
+    """ETHOS.md is advisory, so failing to read it must not cost the whole report."""
+    ethos = suite / "ETHOS.md"
     ethos.write_text("# doctrine\n", encoding="utf-8")
     ethos.chmod(0o000)
     try:

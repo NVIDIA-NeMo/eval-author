@@ -71,7 +71,7 @@ def test_bound_aggregate_rejects_every_upstream_mutation(tmp_path, mutation, evi
     elif mutation == "audit":
         audit.write_text(audit.read_text().replace("example-agent", "changed-agent"))
     elif mutation == "source":
-        (tmp_path / "ethos.md").write_text("Changed source")
+        (tmp_path / "ETHOS.md").write_text("Changed source")
     elif mutation == "measurement":
         source = Path(json.loads(report.read_text())["binding"]["inputs"][0]["path"])
         source.write_text(source.read_text() + "\n")

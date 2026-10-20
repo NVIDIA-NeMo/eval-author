@@ -13,7 +13,7 @@ from pathlib import Path
 def bound_gap(root: Path, output: Path, tool: str, *, source: Path | None = None) -> Path:
     source = source or Path(__file__).resolve().parents[1]
     skill = source / "skills/eval-author-audit"
-    ethos = root / "ethos.md"
+    ethos = root / "ETHOS.md"
     ethos.write_text(f"# Ethos\n\n## Tools\n\n- {tool}\n")
     audit = root / ".eval-author/audit.md"
     audit.parent.mkdir(exist_ok=True)
