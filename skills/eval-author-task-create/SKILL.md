@@ -79,7 +79,9 @@ tool-gap task creation still requires the aggregate JSON report.
 
 ## Available Scripts
 
-Run `uv run <skill_dir>/scripts/task_pipeline.py <command>`. Run `task_evidence.py`
+Run `uv run <skill_dir>/scripts/task_pipeline.py <command>`; its inline metadata
+declares PyYAML and jsonschema for audit binding verification, including in a
+customer repository without those packages. Run `task_evidence.py`
 with the selected runtime's Python; Harbor preparation imports Harbor.
 
 | Script | Purpose | Arguments |
@@ -301,7 +303,7 @@ Apply [Task validation and execution evidence](../eval-author/references/task-va
 Prepare the result contract and revision manifest before execution. Record each
 native control and each agent attempt as its own `scripts/task_evidence.py run`
 invocation, with fresh native results and receipts outside the task tree. Harbor
-requires a reference and a realistic incorrect control; include applicable
+requires a reference, a realistic incorrect control, and an empty/no-op control; include applicable
 valid-alternative and side-effect cases. A failing command or missing evidence is
 not a passing negative control. Use the same Harbor Python runtime for
 preparation and runs.
@@ -328,7 +330,7 @@ TRIALS="$PWD/.eval-author/jobs/<task-slug>"
 ```
 
 Continue only when the receipt reports `passed`, with no exception and reward
-1.0. Record the incorrect control the same way, choosing its agent as described
+1.0. Record the incorrect and empty controls separately the same way, choosing their agents as described
 in [Review the verifier before running](../eval-author/references/task-validation.md#review-the-verifier-before-running).
 Fix the task, solution, or verifier when Oracle fails; do not weaken the verifier
 merely to make it pass.
@@ -411,6 +413,7 @@ uv run <skill_dir>/scripts/task_pipeline.py verify \
   --target <tool-name> \
   --evidence .eval-author/task-measurements/<task-slug>/reference-1.json \
   --evidence .eval-author/task-measurements/<task-slug>/incorrect-1.json \
+  --evidence .eval-author/task-measurements/<task-slug>/empty-1.json \
   --evidence .eval-author/task-measurements/<task-slug>/agent-1.json \
   --evidence .eval-author/task-measurements/<task-slug>/agent-2.json
 ```

@@ -15,6 +15,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -118,7 +119,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
         if not isinstance(case, dict):
             raise EvidenceError("case must be an object")
         kind = case.get("kind")
-        if kind not in ("reference", "incorrect", "alternative", "side_effect", "agent", "diagnostic"):
+        if kind not in ("reference", "incorrect", "empty", "alternative", "side_effect", "agent", "diagnostic"):
             raise EvidenceError("unknown case kind")
         kinds.add(kind)
         if not isinstance(case.get("requirement"), str) or not case["requirement"].strip():
@@ -137,8 +138,8 @@ def validate_contract(contract: dict[str, Any]) -> None:
                     any(type(v) not in (int, float) or not math.isfinite(v) for v in bounds) or bounds[0] > bounds[1]
                 ):
                     raise EvidenceError("check bounds must be finite and ordered")
-    if not {"reference", "incorrect", "agent"} <= kinds:
-        raise EvidenceError("contract requires reference, incorrect, and agent cases")
+    if not {"reference", "incorrect", "empty", "agent"} <= kinds:
+        raise EvidenceError("contract requires reference, incorrect, empty, and agent cases")
     for kind in ("alternative", "side_effect"):
         if kind not in kinds and not (
             isinstance(contract.get(f"{kind}_not_applicable"), str) and contract[f"{kind}_not_applicable"].strip()
@@ -183,6 +184,7 @@ def prepare(
         "task_sha256": task_digest(task),
         "contract": contract,
         "repairs": repairs,
+        "attempts": str(output.resolve()) + ".attempts",
     }
     if contract["provider"] == "harbor":
         try:
@@ -283,6 +285,23 @@ def run(
         "trace": str(trace.resolve()) if trace else None,
         "status": "infrastructure_error",
     }
+    attempts = Path(manifest.get("attempts", ""))
+    if not manifest.get("attempts"):
+        raise EvidenceError("unbound legacy manifest; prepare a new revision before execution")
+    if attempts.is_symlink():
+        raise EvidenceError("attempt ledger must not be a symlink")
+    attempts.mkdir(parents=True, exist_ok=True)
+    write_new(
+        attempts / (hashlib.sha256(run_id.encode()).hexdigest() + ".json"),
+        {
+            "run_id": run_id,
+            "receipt": str(output.resolve()),
+            "purpose": purpose,
+            "case": case_id,
+            "kind": case["kind"],
+            "manifest_sha256": manifest_sha,
+        },
+    )
     try:
         completed = subprocess.run(
             command, timeout=timeout, check=False, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
@@ -298,6 +317,7 @@ def run(
 
             write_new(result, build(source, manifest, case, purpose, trace))
         native = read(result)
+        _validate_control(native, manifest["contract"], case)
         receipt["native_run_id"] = native_identity(native, manifest)
         receipt["result_sha256"] = digest(result)
         if trace:
@@ -313,6 +333,15 @@ def run(
     return receipt
 
 
+def _validate_control(native: dict, contract: dict, case: dict) -> None:
+    if (
+        case["kind"] == "incorrect"
+        and contract["provider"] == "harbor"
+        and native.get("config", {}).get("agent", {}).get("name") == "nop"
+    ):
+        raise EvidenceError("incorrect control must exercise a wrong answer; NOP belongs to the empty control")
+
+
 def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]]:
     if not paths or len({p.resolve() for p in paths}) != len(paths):
         raise EvidenceError("distinct execution receipts are required")
@@ -321,6 +350,7 @@ def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]
     seen_runs = set()
     seen_results = set()
     seen_traces = set()
+    seen_trace_contents = set()
     seen_native_runs = set()
     agents = {}
     contract: dict[str, Any] = {}
@@ -347,6 +377,7 @@ def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]
         if digest(result) != receipt.get("result_sha256"):
             raise EvidenceError("native result digest mismatch")
         native = read(result)
+        _validate_control(native, contract, case)
         if contract["provider"] == "gym":
             from gym_evidence import build
 
@@ -370,15 +401,44 @@ def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]
         seen_cases.add(case_id)
         if case["kind"] == "agent":
             trace = Path(receipt["trace"])
-            if digest(trace) != receipt.get("trace_sha256") or trace.resolve() in seen_traces:
+            trace_sha = digest(trace)
+            if (
+                trace_sha != receipt.get("trace_sha256")
+                or trace.resolve() in seen_traces
+                or trace_sha in seen_trace_contents
+            ):
                 raise EvidenceError("agent trace is changed or reused")
             seen_traces.add(trace.resolve())
+            seen_trace_contents.add(trace_sha)
             agents[run_id] = receipt
     if len(manifests) != 1:
         raise EvidenceError("all evidence must use the same manifest revision")
     required = {name for name, case in contract["cases"].items() if case["kind"] not in ("agent", "diagnostic")}
     if not required <= seen_cases or len(agents) < 2:
         raise EvidenceError("every declared control and at least two agent runs are required")
+    # Every pre-registered closure attempt counts, including interrupted/failed runs.
+    # Repairs get a new manifest and ledger while preserving the previous revision.
+    ledger = Path(manifest.get("attempts", ""))
+    if not manifest.get("attempts") or ledger.is_symlink() or not ledger.is_dir():
+        raise EvidenceError("complete attempt ledger required; reprepare legacy evidence")
+    registered = []
+    for entry in sorted(ledger.iterdir()):
+        if not re.fullmatch(r"[0-9a-f]{64}\.json", entry.name):
+            continue
+        attempt = read(entry)
+        if attempt.get("manifest_sha256") != sha:
+            raise EvidenceError("attempt ledger manifest mismatch")
+        kind = attempt.get("kind")
+        # Older ledgers omitted the case kind; a retained diagnostic receipt can
+        # still identify it without editing the original ledger.
+        receipt_path = Path(attempt["receipt"])
+        if kind is None and receipt_path.is_file():
+            case_id = read(receipt_path).get("case")
+            kind = contract["cases"].get(case_id, {}).get("kind")
+        if attempt.get("purpose") == "closure" and kind != "diagnostic":
+            registered.append(Path(attempt["receipt"]).resolve())
+    if len(set(registered)) != len(registered) or set(registered) != {path.resolve() for path in paths}:
+        raise EvidenceError("all registered closure attempts must be supplied, including failures")
     return agents
 
 

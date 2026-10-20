@@ -419,6 +419,14 @@ def test_real_ratchet_calibrate_review_compare_and_damage(tmp_path):
     assert failed["observations"][0]["status"] == "regression"
     assert failed["observations"][0]["metrics"]["retention"] == 0
     assert failed["observations"][0]["metrics"]["presence_passed"] is False
+    from check_semantic_batches import check
+
+    summaries = [tmp_path / name / "semantic-regression-summary.json" for name in ("healthy", "damaged")]
+    if passed["inputs_clean"]:
+        assert check(path, summaries)["status"] == "regression"
+    else:
+        with pytest.raises(ValueError, match="clean source"):
+            check(path, summaries)
 
     omitted = semantic.run(path, runtime, tmp_path / "omitted", "check", ScriptedModel(omit_native=True))
     assert omitted["observations"][0]["status"] == "regression"

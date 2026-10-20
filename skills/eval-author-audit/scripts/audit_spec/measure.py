@@ -51,6 +51,8 @@ class MeasurementInputs:
 
     capability_judgments: JsonObject | None
     failure_case_judgments: JsonObject | None
+    capability_path: Path | None = None
+    failure_case_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -120,11 +122,12 @@ class Subject:
     trace_path: Path
     task_id: str
     run_id: str
+    trace_sha256: str = ""
     evidence_class: str | None = None
 
     def to_json(self) -> JsonObject:
         payload: JsonObject = {
-            "trace": str(self.trace_path),
+            "trace": str(self.trace_path.resolve()),
             "trace_format": "atif",
             "task_id": self.task_id,
             "run_id": self.run_id,
@@ -370,6 +373,7 @@ def _finalize_subject(subject: PendingSubject, loaded_trace: LoadedTrace, *, evi
         trace_path=subject.trace_path,
         task_id=subject.task_id,
         run_id=subject.run_id or _trace_run_id(loaded_trace),
+        trace_sha256=loaded_trace.content_sha256,
         evidence_class=evidence_class,
     )
 
@@ -411,6 +415,8 @@ def _measurement_inputs(args: argparse.Namespace, method_names: list[str]) -> Me
     if args.failure_case_judgments is not None and failure_cases.METHOD_NAME not in method_names:
         raise AuditMeasurementError("--failure-case-judgments requires --measure failure_cases")
     return MeasurementInputs(
+        capability_path=args.capability_judgments,
+        failure_case_path=args.failure_case_judgments,
         capability_judgments=_load_judgments(
             args.capability_judgments,
             schema_path=CAPABILITY_JUDGMENTS_SCHEMA_PATH,
@@ -496,6 +502,8 @@ def _measure(
         measurement = method.measure(audit, trajectory, inputs)
     except ValueError as exc:
         raise AuditMeasurementError(str(exc)) from exc
+    # This digest belongs to the exact bytes parsed into trajectory, not a later reread.
+    trace_sha = subject.trace_sha256
     audit_info = _audit_info(audit, audit_path)
     subject_info = subject.to_json()
     method_info = {"name": method.name}
@@ -503,7 +511,19 @@ def _measure(
     kind_counts = item_counts(audit)
     if not isinstance(item_kind, str) or item_kind not in kind_counts:
         raise AuditMeasurementError(f"measurement method {method.name!r} returned unsupported item kind {item_kind!r}")
-    coverage = {
+    judgments = []
+    for selected, path, payload in (
+        ("capabilities", inputs.capability_path, inputs.capability_judgments),
+        ("failure_cases", inputs.failure_case_path, inputs.failure_case_judgments),
+    ):
+        if selected == method_name and path is not None and payload is not None:
+            judgments.append(
+                {
+                    "path": str(path.resolve()),
+                    "sha256": hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest(),
+                }
+            )
+    coverage: JsonObject = {
         "schema": COVERAGE_SCHEMA,
         "audit": audit_info,
         "subject": subject_info,
@@ -511,6 +531,11 @@ def _measure(
         "item_kind": item_kind,
         "item_kind_count": kind_counts[item_kind],
         "covered": measurement["covered"],
+        "binding": {
+            "audit_sha256": hashlib.sha256(json.dumps(audit, sort_keys=True).encode()).hexdigest(),
+            "trace_sha256": trace_sha,
+            **({"judgments": judgments} if judgments else {}),
+        },
     }
     details = {
         **measurement["details"],

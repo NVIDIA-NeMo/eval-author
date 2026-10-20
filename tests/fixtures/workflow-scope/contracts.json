@@ -1,0 +1,268 @@
+{
+  "schema_version": 1,
+  "source_revision": "5c087f5",
+  "sources": [
+    "skills/eval-author/SKILL.md#choose-the-entry-route",
+    "tests/scenarios/entry-routing.md",
+    "skills/eval-author-task-create/SKILL.md#step-1-propose-dataset-improvements"
+  ],
+  "cases": {
+    "generic-help": [
+      {
+        "prompts": [
+          "Help me with evals.",
+          "Get me started with Eval Author."
+        ],
+        "context": "Fresh session; no prior authorization.",
+        "flow": "eval-author",
+        "allowed_actions": [
+          "read_skill"
+        ],
+        "required_actions": [],
+        "write_paths": [],
+        "handoff": "ask_goal"
+      }
+    ],
+    "explicit-audit": [
+      {
+        "prompts": [
+          "Audit my existing evals.",
+          "Walk me through improving the evaluations I already have."
+        ],
+        "context": "Fresh session; no prior authorization.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_skill"
+        ],
+        "required_actions": [],
+        "write_paths": [],
+        "handoff": "audit_opening"
+      }
+    ],
+    "inventory-only": [
+      {
+        "prompts": [
+          "Only find the evals and their documented run commands.",
+          "I don't know whether this repo has evals; inspect files only."
+        ],
+        "context": "Fresh session; no prior authorization.",
+        "flow": "eval-author-discover",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "inventory",
+          "write_artifact"
+        ],
+        "required_actions": [
+          "inventory"
+        ],
+        "write_paths": [
+          ".eval-author/discovery.md",
+          ".eval-author/discovery.json"
+        ],
+        "handoff": "done"
+      }
+    ],
+    "readiness": [
+      {
+        "prompts": [
+          "Check whether this supplied Harbor suite can run.",
+          "Validate and sample-run this evaluation suite."
+        ],
+        "context": "Synthetic suite location supplied. Provider validation and sample execution authorized; no installation or source changes.",
+        "flow": "eval-author-discover",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "inventory",
+          "runtime_probe",
+          "validate",
+          "execute",
+          "write_artifact"
+        ],
+        "required_actions": [
+          "runtime_probe"
+        ],
+        "write_paths": [
+          ".eval-author/discovery.md",
+          ".eval-author/discovery.json"
+        ],
+        "handoff": "readiness_report"
+      }
+    ],
+    "audit-validation": [
+      {
+        "prompts": [
+          "Only validate the supplied audit.md.",
+          "Check this audit specification's schema; do not measure traces."
+        ],
+        "context": "Fresh session; no prior authorization.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "validate"
+        ],
+        "required_actions": [
+          "validate"
+        ],
+        "write_paths": [],
+        "handoff": "done"
+      }
+    ],
+    "first-eval-opening": [
+      {
+        "prompts": [
+          "I have no evals and want to build my first suite.",
+          "Help me bootstrap evaluations."
+        ],
+        "context": "Fresh session; no prior authorization.",
+        "flow": "eval-author-first-eval",
+        "allowed_actions": [
+          "read_skill"
+        ],
+        "required_actions": [],
+        "write_paths": [],
+        "handoff": "authoring_opening"
+      }
+    ],
+    "recommendations-only": [
+      {
+        "prompts": [
+          "Suggest additions from the supplied audit; recommendations only.",
+          "Propose better eval coverage, but don't create or run tasks."
+        ],
+        "context": "Reviewed audit findings and their source paths are already supplied; proposal step accepted.",
+        "flow": "eval-author-task-create",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "propose",
+          "write_artifact"
+        ],
+        "required_actions": [
+          "propose"
+        ],
+        "write_paths": [
+          ".eval-author/proposals/dataset-recommendations.md"
+        ],
+        "handoff": "review_proposals"
+      }
+    ],
+    "task-draft": [
+      {
+        "prompts": [
+          "Create the agreed task draft from this actionable audit gap; do not execute it."
+        ],
+        "context": "Ethos, audit gap, proposal and draft contents approved; prerequisites settled. Only this draft is authorized.",
+        "flow": "eval-author-task-create",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "runtime_probe",
+          "validate",
+          "scaffold",
+          "write_artifact"
+        ],
+        "required_actions": [
+          "scaffold"
+        ],
+        "write_paths": [
+          ".eval-author/task-drafts/cover-read/",
+          ".eval-author/proposals/cover-read-instruction.md"
+        ],
+        "handoff": "review_draft"
+      }
+    ],
+    "trace-inspection": [
+      {
+        "prompts": [
+          "Inspect the supplied Intake trace; do not change the agent or run evals."
+        ],
+        "context": "Workspace and exact trace ID supplied; read access authorized.",
+        "flow": "eval-author-inspect-trace",
+        "allowed_actions": [
+          "read_skill",
+          "read_trace"
+        ],
+        "required_actions": [
+          "read_trace"
+        ],
+        "write_paths": [],
+        "handoff": "trace_report"
+      }
+    ],
+    "broaden-after-inventory": [
+      {
+        "prompts": [
+          "Only find the evals and their documented run commands.",
+          "I don't know whether this repo has evals; inspect files only."
+        ],
+        "context": "Fresh session; no prior authorization.",
+        "flow": "eval-author-discover",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "inventory",
+          "write_artifact"
+        ],
+        "required_actions": [
+          "inventory"
+        ],
+        "write_paths": [
+          ".eval-author/discovery.md",
+          ".eval-author/discovery.json"
+        ],
+        "handoff": "done"
+      },
+      {
+        "prompts": [
+          "Now audit the suite you found."
+        ],
+        "context": "Previous turn reported inventory. The user now explicitly requests an audit; no repeat routing question.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_skill"
+        ],
+        "required_actions": [],
+        "write_paths": [],
+        "handoff": "audit_opening"
+      }
+    ],
+    "narrow-to-recommendations": [
+      {
+        "prompts": [
+          "Help me improve this existing suite."
+        ],
+        "context": "Fresh session; no prior authorization.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_skill"
+        ],
+        "required_actions": [],
+        "write_paths": [],
+        "handoff": "audit_opening"
+      },
+      {
+        "prompts": [
+          "Actually, use the report I supplied and only recommend additions; don't create tasks."
+        ],
+        "context": "Reviewed audit findings and their source paths are already supplied; proposal step accepted.",
+        "flow": "eval-author-task-create",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "propose",
+          "write_artifact"
+        ],
+        "required_actions": [
+          "propose"
+        ],
+        "write_paths": [
+          ".eval-author/proposals/dataset-recommendations.md"
+        ],
+        "handoff": "review_proposals"
+      }
+    ]
+  }
+}

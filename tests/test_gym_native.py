@@ -24,11 +24,9 @@ def scaffold_draft(tmp_path):
     instruction = proposals / "cover-ledger-total-instruction.md"
     instruction.write_text("Use ledger_total to total the supplied ledger and report the amount.")
     report = tmp_path / "coverage.json"
-    report.write_text(
-        json.dumps(
-            {"uncovered_items": [{"kind": "tool", "name": "ledger_total", "reason": "not_covered_by_any_input_report"}]}
-        )
-    )
+    from audit_fixtures import bound_gap
+
+    bound_gap(tmp_path, report, "ledger_total", source=ROOT)
     output = tmp_path / ".eval-author/task-drafts/cover-ledger-total"
     command = [
         sys.executable,

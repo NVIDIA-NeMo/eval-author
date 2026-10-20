@@ -63,6 +63,47 @@
         "$ref": "#/$defs/uncoveredItem"
       }
     },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audit_sha256",
+        "inputs"
+      ],
+      "properties": {
+        "artifacts": {
+          "description": "Original artifact locations mapped to paths relative to this aggregate report.",
+          "type": "object",
+          "additionalProperties": {"type": "string", "minLength": 1}
+        },
+        "audit_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "inputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
     "coverage_by_evidence_class": {
       "description": "Per-runner coverage summaries when at least one input carried subject.evidence_class.",
       "$ref": "#/$defs/coverageByEvidenceClass"
