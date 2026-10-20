@@ -69,12 +69,17 @@ required, so core-skill pull requests can merge without one.
 
 ## Public NeMo Compass dependency
 
-The development dependencies include `trace-ingest[mlflow]` pinned to an exact
-commit in the public [NVIDIA-NeMo/labs-nemo-compass](https://github.com/NVIDIA-NeMo/labs-nemo-compass)
-repository. Local development and GitHub Actions fetch it over HTTPS with
-`uv sync --locked`; no GitHub login, token, deploy key, or separate checkout is
-required. Keep the Git revision in `pyproject.toml` and `uv.lock` synchronized
-when deliberately updating the dependency.
+The optional loaders and development environment use `nemo-compass[mlflow]==0.1.0`
+from PyPI. Compass includes the `trace_ingest` models and loaders; no separate
+trace-ingest package or Git checkout is needed. `uv sync --locked` installs the
+pinned release and its dependencies.
+
+Loader receipts record the distribution and version with a null Git revision.
+The loaders accept the pinned release from PyPI or a release wheel and reject
+Git or editable source installs. Keep their version checks and installation
+guides synchronized with dependency updates. Use a fresh environment when
+migrating from `trace-ingest` or `insight-agent`, since those distributions
+share Python import paths with Compass.
 
 For a stacked PR whose base is not `main`, run the same test matrix manually
 with `gh workflow run ci.yml --repo NVIDIA-NeMo/eval-author --ref BRANCH`.
@@ -251,3 +256,18 @@ source under test while keeping this checkout's tests, fixtures and dependencies
 fixed. The fixtures repository's `automation/gym-benchmark/run.py` freezes both
 revisions and runs interleaved repeats. This measures compatibility only; it does
 not establish live model performance, generated-task validity or defect sensitivity.
+
+## Workflow scope regression checks
+
+The [workflow scope checker](docs/determinism-checks.md#workflow-scope) compares normalized
+tool evidence and file manifests against frozen request/turn contracts.
+Run its mutation and disposable-inventory tests with:
+
+```bash
+uv run --locked pytest tests/test_workflow_scope.py -q
+```
+
+These checks do not claim live routing acceptance.
+
+See [determinism checks](docs/determinism-checks.md) for discovery comparisons,
+bound audit/task evidence, factual ledgers, and advisory host/semantic accounting.

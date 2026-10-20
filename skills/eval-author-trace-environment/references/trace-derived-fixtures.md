@@ -103,6 +103,11 @@ is supported when it has a usable definition, object inputs, exactly one textual
 output for each call, no redacted values, and no conflicting outputs for the same
 canonical input.
 
+Explicit result error flags are preserved through replay. Malformed or
+contradictory flags block replay; conflict detection includes status as well as
+text. Run the [recorded evidence audit](evidence-audit.md) to inspect source
+coverage and the distinction between unrecorded status and explicit not-error.
+
 The schema must declare an object root, use a supported JSON Schema dialect, and
 validate every recorded argument object. Local references are supported;
 unavailable references fail closed without network retrieval. Malformed schemas,
@@ -353,3 +358,5 @@ than editing version strings or attaching old proof to changed artifacts.
 
 - Follow the [trace-environment author workflow](../SKILL.md).
 - Apply the [environment-integrity proof requirements](environment-integrity.md).
+
+Call-fixture v2 cases may include optional boolean `is_error`. Preserve `true` as an error outcome and `false` as an explicitly successful outcome; absence means unrecorded, not success.

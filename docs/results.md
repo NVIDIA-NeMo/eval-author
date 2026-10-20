@@ -9,11 +9,11 @@ limitations before deciding what to change.
 
 ## Case and run catalog
 
-The case and run catalog can be found in `.eval-author/report.html` and the 
+The case and run catalog can be found in `.eval-author/report.html` and the
 `.eval-author/README.md` which is a lighter weight version for agents and humans
 who prefer markdown. These catalogs provide provide a high level overview of tasks
 and runs, and link to the corresponding assets on disc, as well as provide links
-to the Harbor viewer for Harbor generated tasks. 
+to the Harbor viewer for Harbor generated tasks.
 
 To refresh the catalog, ask: “Use Eval Author to refresh the HTML report for evaluations in
 this repository.” The report is saved at `.eval-author/report.html`, with Tasks,
@@ -49,7 +49,7 @@ See [Check readiness](existing-evals.md#check-readiness) for the next step.
 
 Review tasks at `.eval-author/report.html` as soon as cases are authored;
 the final handoff links this report. In the report, users may open a task's
-README or use the harbor viewer to review in full. Agents can start at the 
+README or use the harbor viewer to review in full. Agents can start at the
 generated suite's root `README.md`.
 
 Standalone drafts use `.eval-author/task-drafts/<task-slug>/README.md`. Trace candidates use

@@ -15,15 +15,22 @@ import os
 import shutil
 from pathlib import Path
 
-REVISION = "692d1bf57b6a9372f628b7c2004852aec7a9a83e"
+VERSION = "0.1.0"
 
 
 def load(input_path: Path, output: Path, max_traces: int) -> dict:
     """Normalize a complete export, rejecting truncation or unresolved parents."""
-    distribution = importlib.metadata.distribution("trace-ingest")
+    distribution = importlib.metadata.distribution("nemo-compass")
     provenance = json.loads(distribution.read_text("direct_url.json") or "{}")
-    if provenance.get("vcs_info", {}).get("commit_id") != REVISION:
-        raise ValueError("install the documented trace-ingest revision")
+    if distribution.version != VERSION or "vcs_info" in provenance or "dir_info" in provenance:
+        raise ValueError("install nemo-compass==0.1.0 from PyPI or its release wheel")
+    for legacy in ("trace-ingest", "insight-agent"):
+        try:
+            importlib.metadata.distribution(legacy)
+        except importlib.metadata.PackageNotFoundError:
+            pass
+        else:
+            raise ValueError(f"remove {legacy} and reinstall nemo-compass==0.1.0")
     from trace_ingest.loaders.mlflow import MLflowFileTraceConfig, MLflowFileTraceLoader
 
     raw = input_path.read_bytes()
@@ -45,7 +52,8 @@ def load(input_path: Path, output: Path, max_traces: int) -> dict:
         receipt = {
             "schema": "eval-author.trace-intel-load.v1",
             "provider": "mlflow",
-            "loader_revision": REVISION,
+            "loader_distribution": "nemo-compass",
+            "loader_revision": None,
             "loader_version": distribution.version,
             "trace_count": len(traces),
             "max_traces": max_traces,

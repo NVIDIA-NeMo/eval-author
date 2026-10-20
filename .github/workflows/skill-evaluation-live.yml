@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       run_live:
-        description: Request live evaluation on main (requires ASE environment approval)
+        description: Run live evaluation on main
         type: boolean
         default: false
       tier:
@@ -28,40 +28,42 @@ permissions:
   contents: read
 
 env:
-  # PRs only plan Tier 2 coverage; live evaluation requires main and ASE approval.
+  # PRs only plan; main pushes automatically run both tiers.
   EVALUATION_TIER: ${{ github.event_name == 'pull_request' && '2' || inputs.tier || 'both' }}
+  EVALUATION_SKILL: ${{ inputs.skill || 'all' }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Preserve running measurements and their final aggregate when main advances.
+  cancel-in-progress: false
 
 jobs:
   plan:
-    continue-on-error: true
     if: >-
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
-      - name: Report selected skills and dataset coverage without model calls
-        env:
-          EVALUATION_SKILL: ${{ inputs.skill || 'all' }}
+      - name: Plan every expected observation without model calls
+        id: plan
         run: |
-          python tools/collect_live_skill_evaluations.py --tier "$EVALUATION_TIER" --skill "$EVALUATION_SKILL" --output "$RUNNER_TEMP/skill-plan"
+          python tools/live_ci.py plan --tier "$EVALUATION_TIER" --skill "$EVALUATION_SKILL" --output "$RUNNER_TEMP/skill-plan"
           cat "$RUNNER_TEMP/skill-plan/live-skillevaluator-summary.md" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: skill-evaluation-plan-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/skill-plan/live-skillevaluator-summary.*
+          path: ${{ runner.temp }}/skill-plan/
           retention-days: 30
-          if-no-files-found: warn
+          if-no-files-found: error
 
-  live:
+  authorize:
     needs: plan
     if: >-
       vars.SKILL_EVALUATION_LIVE_ENABLED == 'true' &&
@@ -70,19 +72,61 @@ jobs:
        (github.event_name == 'workflow_dispatch' && inputs.run_live))
     environment: skill-evaluator
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
-    continue-on-error: true
+    timeout-minutes: 5
+    outputs:
+      chat: ${{ steps.config.outputs.chat }}
+      embedding: ${{ steps.config.outputs.embedding }}
+      agent: ${{ steps.config.outputs.agent }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
+      - name: Resolve model configuration once in the main-only environment
+        id: config
+        env:
+          SKILL_EVAL_LLM_MODEL: ${{ vars.SKILL_EVAL_LLM_MODEL }}
+          SKILL_EVAL_EMBEDDING_MODEL: ${{ vars.SKILL_EVAL_EMBEDDING_MODEL }}
+          SKILL_EVAL_AGENT_MODEL: ${{ vars.SKILL_EVAL_AGENT_MODEL }}
+        run: python tools/live_ci.py config
+
+  evaluate:
+    needs: [plan, authorize]
+    if: >-
+      needs.authorize.outputs.chat != '' && needs.authorize.outputs.embedding != '' &&
+      needs.authorize.outputs.agent != ''
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    name: ${{ matrix.check }} / ${{ matrix.skill }}
+    environment: skill-evaluator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      SHARD_TIER: ${{ matrix.tier }}
+      SHARD_CHECK: ${{ matrix.check }}
+      SHARD_SKILL: ${{ matrix.check == 'similarity' && 'all' || matrix.skill }}
+      SKILL_EVAL_LLM_MODEL: ${{ needs.authorize.outputs.chat }}
+      SKILL_EVAL_EMBEDDING_MODEL: ${{ needs.authorize.outputs.embedding }}
+      SKILL_EVAL_AGENT_MODEL: ${{ needs.authorize.outputs.agent }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        if: matrix.id != 'none'
+        with:
+          persist-credentials: false
+      - name: Write fallback report before dependency or Docker setup
+        if: matrix.id != 'none'
+        run: |
+          python tools/live_ci.py initialize --models-resolved --tier "$SHARD_TIER" --skill "$SHARD_SKILL" --check "$SHARD_CHECK" --output "$RUNNER_TEMP/skill-publish"
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        if: matrix.id != 'none'
         with:
           version: '0.12.3'
           python-version: '3.12'
           enable-cache: false
       - name: Install verified Docker Compose runtime
-        if: env.EVALUATION_TIER != '2'
+        if: matrix.check == 'live' && matrix.id != 'none'
         env:
           COMPOSE_VERSION: '5.5.1'
           COMPOSE_SHA256: db1889184726840f75c4f9c001048430d4f25b3be3cb084d3ddd762bc0aed576
@@ -91,43 +135,79 @@ jobs:
           echo "$COMPOSE_SHA256  $RUNNER_TEMP/docker-compose" | sha256sum --check -
           sudo install -D -m 0755 "$RUNNER_TEMP/docker-compose" /usr/local/lib/docker/cli-plugins/docker-compose
           test "$(docker compose version --short)" = "$COMPOSE_VERSION"
-      - name: Install isolated Tier 2 and 3 runtime
+      - name: Install isolated evaluator runtime
+        if: matrix.id != 'none'
         env:
-          UV_TOOL_DIR: ${{ runner.temp }}/live-evaluator-tools
-          UV_TOOL_BIN_DIR: ${{ runner.temp }}/live-evaluator-bin
+          EVALUATOR_EXTRAS: ${{ matrix.check == 'live' && 'tier3' || 'tier2' }}
         run: |
-          echo "$UV_TOOL_BIN_DIR" >> "$GITHUB_PATH"
-          uv tool install --python 3.12 'skillevaluator[tier2,tier3] @ git+https://github.com/NVIDIA/SkillEvaluator.git@7e189c6bdada8910dfa1684f25feedca87f2db85'
-      - name: Run advisory evaluations
+          uv venv --python 3.12 "$RUNNER_TEMP/live-runtime"
+          uv pip install --python "$RUNNER_TEMP/live-runtime/bin/python" "skillevaluator[$EVALUATOR_EXTRAS] @ git+https://github.com/NVIDIA/SkillEvaluator.git@7e189c6bdada8910dfa1684f25feedca87f2db85"
+      - name: Run exactly one assigned check
+        if: matrix.id != 'none'
         env:
-          EVALUATION_SKILL: ${{ inputs.skill || 'all' }}
           INFERENCE_HUB_API_KEY: ${{ secrets.INFERENCE_HUB_API_KEY }}
-          SKILL_EVAL_LLM_MODEL: ${{ vars.SKILL_EVAL_LLM_MODEL }}
-          SKILL_EVAL_EMBEDDING_MODEL: ${{ vars.SKILL_EVAL_EMBEDDING_MODEL }}
-          SKILL_EVAL_AGENT_MODEL: ${{ vars.SKILL_EVAL_AGENT_MODEL }}
         run: |
-          python tools/collect_live_skill_evaluations.py --run --tier "$EVALUATION_TIER" --skill "$EVALUATION_SKILL" --output "$RUNNER_TEMP/skill-live"
+          python tools/collect_live_skill_evaluations.py --run --ci-context-budget --tier "$SHARD_TIER" --skill "$SHARD_SKILL" --check "$SHARD_CHECK" --evaluator "$RUNNER_TEMP/live-runtime/bin/skillevaluator" --evaluator-python "$RUNNER_TEMP/live-runtime/bin/python" --output "$RUNNER_TEMP/skill-live"
+      - name: Preserve valid checkpoint or fallback
+        if: always() && matrix.id != 'none'
+        run: python tools/live_ci.py stage --source "$RUNNER_TEMP/skill-live" --output "$RUNNER_TEMP/skill-publish"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && matrix.id != 'none'
+        with:
+          name: skill-shard-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.id }}
+          path: ${{ runner.temp }}/skill-publish/live-skillevaluator-summary.*
+          retention-days: 30
+          if-no-files-found: error
       - name: Stage full native reports for private retention
-        if: ${{ always() && github.event.repository.private == true }}
+        if: always() && matrix.id != 'none' && github.event.repository.private == true
         run: python tools/stage_skill_reports.py --source "$RUNNER_TEMP/skill-live" --output "$RUNNER_TEMP/skill-live-reports"
       - name: Retain full native reports (repository access only)
-        if: ${{ always() && github.event.repository.private == true }}
+        if: always() && matrix.id != 'none' && github.event.repository.private == true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: skill-evaluation-live-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          name: skill-evaluation-live-reports-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.id }}
           path: ${{ runner.temp }}/skill-live-reports/
           retention-days: 30
           if-no-files-found: warn
+
+  aggregate:
+    needs: [plan, authorize, evaluate]
+    if: >-
+      always() && vars.SKILL_EVALUATION_LIVE_ENABLED == 'true' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && inputs.run_live))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      MODELS_RESOLVED: ${{ needs.authorize.result == 'success' && needs.authorize.outputs.chat != '' && needs.authorize.outputs.embedding != '' && needs.authorize.outputs.agent != '' }}
+      SKILL_EVAL_LLM_MODEL: ${{ needs.authorize.outputs.chat }}
+      SKILL_EVAL_EMBEDDING_MODEL: ${{ needs.authorize.outputs.embedding }}
+      SKILL_EVAL_AGENT_MODEL: ${{ needs.authorize.outputs.agent }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Account for all expected jobs before downloading results
+        run: |
+          flags=()
+          if test "$MODELS_RESOLVED" = true; then flags+=(--models-resolved); fi
+          python tools/live_ci.py initialize "${flags[@]}" --tier "$EVALUATION_TIER" --skill "$EVALUATION_SKILL" --output "$RUNNER_TEMP/skill-aggregate"
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        continue-on-error: true
+        with:
+          pattern: skill-shard-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: ${{ runner.temp }}/skill-shards
+      - name: Merge bound shard reports and keep missing jobs incomplete
+        if: always()
+        run: python tools/live_ci.py aggregate --source "$RUNNER_TEMP/skill-shards" --output "$RUNNER_TEMP/skill-aggregate"
       - name: Show sanitized summary
         if: always()
-        run: |
-          if test -f "$RUNNER_TEMP/skill-live/live-skillevaluator-summary.md"; then
-            cat "$RUNNER_TEMP/skill-live/live-skillevaluator-summary.md" >> "$GITHUB_STEP_SUMMARY"
-          fi
+        run: cat "$RUNNER_TEMP/skill-aggregate/live-skillevaluator-summary.md" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: skill-evaluations-live-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/skill-live/live-skillevaluator-summary.*
+          path: ${{ runner.temp }}/skill-aggregate/live-skillevaluator-summary.*
           retention-days: 30
-          if-no-files-found: warn
+          if-no-files-found: error

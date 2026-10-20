@@ -4,8 +4,10 @@
 # Task fidelity and verifier review
 
 **Experimental.** Apply this review when constructing either Harbor or Gym
-output. It supplements the provider's execution checks; it does not add new
-helper commands, proof arms, or summary schema fields. Keep findings and
+output. For Harbor, codify these findings using the
+[construction contract](construction-qualification.md), including its executed
+alternative and bypass arms. For Gym, retain equivalent native evidence without
+claiming Harbor qualification. Keep findings and
 supporting artifacts in private construction notes, and link them from the
 Harbor README or Gym report without copying restricted evidence.
 
@@ -96,11 +98,10 @@ contract permits one. Inspect the submitted files and per-check results, not
 only the reward or solver's own explanation. False acceptance, false rejection,
 setup failure, and missing evidence are different findings.
 
-Keep valid-alternative diagnostics separate from Harbor's required proof arms;
-the helper does not support an `alternative` arm. Retain the input revision,
-control source, execution settings, result paths and digests privately, or use
-Gym's native fixtures and controls. Do not relabel an alternative as a NOP,
-Oracle, negative, or copy arm. Source reasoning without execution remains a
+Use the `alternative` arm and construction contract for new Harbor workspaces.
+Retain the input revision, control source, execution settings, result paths and
+digests privately, or use Gym's native fixtures and controls. Do not relabel an
+alternative as a NOP, Oracle, negative, or copy arm. Source reasoning without execution remains a
 review finding. A missing diagnostic is not evidence of verifier soundness.
 
 Correct a verifier defect within the existing repair budget and preserve checks

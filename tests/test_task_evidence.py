@@ -29,7 +29,7 @@ options = dict(zip(args[2::2], args[3::2]))
 trial = Path(options["--trials-dir"]) / options["--trial-name"]
 agent = options["-a"]
 trial.mkdir(parents=True, exist_ok=True)
-if agent not in ("nop", "oracle"):
+if agent not in ("nop", "oracle", "wrong-answer"):
     call = {"tool_call_id": "call-1", "function_name": "customer.lookup", "arguments": {}}
     steps = [
         {"step_id": 1, "source": "user", "message": "Look up the customer."},
@@ -40,8 +40,9 @@ if agent not in ("nop", "oracle"):
     (trial / "agent").mkdir(exist_ok=True)
     (trial / "agent" / "trajectory.json").write_text(json.dumps(atif))
 result = {"id": str(uuid.uuid4()), "task_name": Path(options["-p"]).name, "trial_name": trial.name,
+          "config": {"agent": {"name": agent}},
           "task_checksum": "synthetic", "exception_info": None,
-          "verifier_result": {"rewards": {"reward": 0 if agent == "nop" else 1}}}
+          "verifier_result": {"rewards": {"reward": 0 if agent in ("nop", "wrong-answer") else 1}}}
 (trial / "result.json").write_text(json.dumps(result))
 """
 
@@ -69,7 +70,7 @@ def prepared(tmp_path, monkeypatch):
         "side_effect_not_applicable": "This task only returns a value.",
         "cases": {},
     }
-    for kind, reward in [("reference", 1), ("incorrect", 0), ("agent", 1)]:
+    for kind, reward in [("reference", 1), ("incorrect", 0), ("empty", 0), ("agent", 1)]:
         contract["cases"][kind] = {
             "kind": kind,
             "requirement": "Return the correct total.",
@@ -100,6 +101,7 @@ def complete(tmp_path, manifest):
     return [
         execute(tmp_path, manifest, "reference", "reference"),
         execute(tmp_path, manifest, "incorrect", "incorrect", reward=0),
+        execute(tmp_path, manifest, "empty", "empty", reward=0),
         execute(tmp_path, manifest, "agent", "repeat-1"),
         execute(tmp_path, manifest, "agent", "repeat-2"),
     ]
@@ -135,7 +137,10 @@ def reports(tmp_path):
     return before, after
 
 
-def test_acceptance_requires_controls_and_exact_agent_evidence(tmp_path, prepared):
+def test_acceptance_requires_controls_and_exact_agent_evidence(tmp_path, prepared, monkeypatch):
+    # Isolate receipt invariants here; the documented flow below uses real bound measurements.
+    monkeypatch.setattr(pipeline, "_verify_coverage_binding", lambda path: {"audit_sha256": "fixture"})
+    monkeypatch.setattr(pipeline, "_verify_lineage", lambda *args: None)
     _, _, manifest = prepared
     receipts = complete(tmp_path, manifest)
     before, after = reports(tmp_path)
@@ -346,9 +351,42 @@ def test_documented_harbor_trial_flow_is_accepted(tmp_path, monkeypatch):
                 "health": [{"pointer": "/exception_info", "equals": None}],
                 "checks": [{"pointer": "/verifier_result/rewards/reward", "min": reward, "max": reward}],
             }
-            for kind, reward in (("reference", 1), ("incorrect", 0), ("agent", 1))
+            for kind, reward in (("reference", 1), ("incorrect", 0), ("empty", 0), ("agent", 1))
         },
     }
+    baseline_trace = tmp_path / "baseline.json"
+    write(
+        baseline_trace,
+        {
+            "schema_version": "ATIF-v1.7",
+            "session_id": "baseline",
+            "agent": {"name": "example-agent", "version": "1.0.0"},
+            "steps": [{"step_id": 1, "source": "user", "message": "Read the customer."}],
+        },
+    )
+    for script, args in [
+        (
+            "measure.py",
+            [
+                "--trace",
+                baseline_trace,
+                "--evidence-class",
+                "agent_under_test",
+                "--task-id",
+                task_id,
+                "--out-dir",
+                tmp_path / "baseline",
+            ],
+        ),
+        ("report.py", ["--coverage-dir", tmp_path / "baseline", "--out", before]),
+    ]:
+        command = [sys.executable, AUDIT_SKILL / "scripts/audit_spec" / script, "--audit", audit, *args]
+        completed = subprocess.run([str(part) for part in command], capture_output=True, text=True)
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+
+    proposal = tmp_path / "proposal.md"
+    proposal.write_text("Look up the customer.")
+    pipeline._write_lineage(task, before, proposal, "customer.lookup")
     manifest = measurements / "revision-1.json"
     evidence.prepare(task, write(tmp_path / "contract.json", contract), manifest)
     fake_harbor = tmp_path / "fake_harbor.py"
@@ -357,7 +395,8 @@ def test_documented_harbor_trial_flow_is_accepted(tmp_path, monkeypatch):
     receipts = []
     for case, run_id, agent in [
         ("reference", "reference-1", "oracle"),
-        ("incorrect", "incorrect-1", "nop"),
+        ("incorrect", "incorrect-1", "wrong-answer"),
+        ("empty", "empty-1", "nop"),
         ("agent", "repeat-1", "example-agent"),
         ("agent", "repeat-2", "example-agent"),
     ]:
@@ -391,3 +430,88 @@ def test_documented_harbor_trial_flow_is_accepted(tmp_path, monkeypatch):
     completed = subprocess.run(command, capture_output=True, text=True)
     verdict = json.loads(completed.stdout)
     assert completed.returncode == 0 and verdict["accepted"] and verdict["coverage_closed"], completed.stdout
+    saved = write(tmp_path / "acceptance.json", verdict)
+    code, rechecked = pipeline._check_acceptance(saved)
+    assert code == 0 and rechecked == verdict
+    proposal.write_text("Changed requirement.")
+    with pytest.raises(pipeline.PipelineError, match="proposal content changed"):
+        pipeline._check_acceptance(saved)
+
+
+def test_copied_trace_content_is_not_a_fresh_trial(tmp_path, prepared):
+    _, _, manifest = prepared
+    receipts = complete(tmp_path, manifest)
+    first, second = [evidence.read(path) for path in receipts[-2:]]
+    Path(second["trace"]).write_bytes(Path(first["trace"]).read_bytes())
+    second["trace_sha256"] = evidence.digest(Path(second["trace"]))
+    write(receipts[-1], second)
+    with pytest.raises(evidence.EvidenceError, match="trace is changed or reused"):
+        evidence.verify_receipts(receipts, "cover-read")
+
+
+def test_failed_attempt_cannot_be_omitted_from_acceptance(tmp_path, prepared):
+    _, _, manifest = prepared
+    failed = execute(tmp_path, manifest, "agent", "failed", reward=0)
+    receipts = complete(tmp_path, manifest)
+    with pytest.raises(evidence.EvidenceError, match="all registered closure attempts"):
+        evidence.verify_receipts(receipts, "cover-read")
+    with pytest.raises(evidence.EvidenceError, match="not passed"):
+        evidence.verify_receipts([failed, *receipts], "cover-read")
+
+
+def test_unbound_legacy_report_is_not_acceptance_evidence(tmp_path):
+    report = write(tmp_path / "legacy.json", {"covered": ["read"]})
+    with pytest.raises(pipeline.PipelineError, match="unbound legacy coverage"):
+        pipeline._verify_coverage_binding(report)
+
+
+@pytest.mark.parametrize("reward", [0, 1])
+def test_diagnostic_attempt_does_not_poison_closure(tmp_path, prepared, reward):
+    task, contract_path, manifest = prepared
+    contract = evidence.read(contract_path)
+    contract["cases"]["diagnostic"] = {**contract["cases"]["agent"], "kind": "diagnostic"}
+    write(contract_path, contract)
+    diagnostic_manifest = tmp_path / "with-diagnostic.json"
+    evidence.prepare(task, contract_path, diagnostic_manifest)
+    diagnostic = execute(tmp_path, diagnostic_manifest, "diagnostic", "probe", reward=reward)
+    receipts = complete(tmp_path, diagnostic_manifest)
+    assert len(evidence.verify_receipts(receipts, "cover-read")) == 2
+    assert diagnostic.exists()
+    ledger_entry = Path(evidence.read(diagnostic_manifest)["attempts"]) / (
+        hashlib.sha256(b"probe").hexdigest() + ".json"
+    )
+    legacy_entry = evidence.read(ledger_entry)
+    legacy_entry.pop("kind")
+    legacy_entry.pop("case")
+    write(ledger_entry, legacy_entry)
+    assert len(evidence.verify_receipts(receipts, "cover-read")) == 2
+    with pytest.raises(evidence.EvidenceError):
+        evidence.verify_receipts([diagnostic, *receipts], "cover-read")
+
+
+def test_attempt_ledger_ignores_unrelated_files_but_checks_registered_entries(tmp_path, prepared):
+    _, _, manifest = prepared
+    receipts = complete(tmp_path, manifest)
+    ledger = Path(evidence.read(manifest)["attempts"])
+    (ledger / ".DS_Store").write_bytes(b"\xff")
+    (ledger / "notes.txt").write_text("Retained diagnostics")
+    assert len(evidence.verify_receipts(receipts, "cover-read")) == 2
+    (ledger / ("a" * 64 + ".json")).write_text("{")
+    with pytest.raises(evidence.EvidenceError, match="cannot read evidence"):
+        evidence.verify_receipts(receipts, "cover-read")
+
+
+def test_nop_cannot_be_the_realistic_incorrect_control(tmp_path, prepared):
+    _, _, manifest = prepared
+    for kind, expected in (("incorrect", "infrastructure_error"), ("empty", "passed")):
+        native = {"config": {"agent": {"name": "nop"}}, "rollout_id": kind, "reward": 0, "error": None}
+        result = tmp_path / f"{kind}-native.json"
+        command = [
+            sys.executable,
+            "-c",
+            f"from pathlib import Path; Path({str(result)!r}).write_text({json.dumps(native)!r})",
+        ]
+        receipt = evidence.read(execute(tmp_path, manifest, kind, kind, command=command))
+        assert receipt["status"] == expected
+        if kind == "incorrect":
+            assert "wrong answer" in receipt["error"]

@@ -1,0 +1,220 @@
+{
+  "schema_version": 1,
+  "cohort": "harness-checkpoints-v1",
+  "source_repository": "https://github.com/NVIDIA-dev/nemo-eval-author-fixtures",
+  "source_commit": "ac5ad11ca4806a3e97ba0d5cc4a2be9eb519742b",
+  "source_cohort": "portable-synthetic-v1",
+  "fixtures": [
+    {
+      "path": "skills/eval-author-audit/evals/files/ETHOS.md",
+      "source_path": "custom-agents/inventory-harness/repo/ETHOS.md",
+      "source_sha256": "d99b69fe02dfe671a4090cff61c18d58614579023e66a13d1f0dd07aca6f8e18",
+      "sha256": "d99b69fe02dfe671a4090cff61c18d58614579023e66a13d1f0dd07aca6f8e18",
+      "transformation": "none; byte-for-byte copy"
+    },
+    {
+      "path": "skills/eval-author-audit/evals/files/.eval-author/audit.md",
+      "source_path": "fixture_inputs/harness-consistency/audited-suite/.eval-author/audit.md",
+      "source_sha256": "844ac164e39da4db44494f549806b133c0914ac2a8de4f9609dae089037ad553",
+      "sha256": "f4f2726b0e49ee60449bd1babde5fd8353f6c2e243a0636f8e5f7f19fa45dfd6",
+      "transformation": "Add NVIDIA SPDX copyright/license comments for repository policy; preserve source content and shell shebang."
+    },
+    {
+      "path": "skills/eval-author-audit/evals/files/.eval-author/coverage.json",
+      "source_path": "fixture_inputs/harness-consistency/audited-suite/.eval-author/coverage.json",
+      "source_sha256": "31c35e2be0f8ce09e8ec17a8148855e00c2cb8aad9e9048d2784dec9ceabadc5",
+      "sha256": "31c35e2be0f8ce09e8ec17a8148855e00c2cb8aad9e9048d2784dec9ceabadc5",
+      "transformation": "none; byte-for-byte copy"
+    },
+    {
+      "path": "skills/eval-author-discover/evals/files/repo/suite.yaml",
+      "source_path": "fixture_inputs/harness-consistency/existing-suite/suite.yaml",
+      "source_sha256": "63e3eab6e912282cbe4cebcd7b3b79502d6d8edb0670f68f54432040502af798",
+      "sha256": "2b7b13154c6c31f03b11c86d3532eb7e8bb5630b3772a5a36584b1d63d647339",
+      "transformation": "Add NVIDIA SPDX copyright/license comments for repository policy; preserve source content and shell shebang."
+    },
+    {
+      "path": "skills/eval-author-discover/evals/files/repo/README.md",
+      "source_path": "fixture_inputs/harness-consistency/existing-suite/README.md",
+      "source_sha256": "a88cdd157817b98bd88a9f00ada4922c7758343468a9ff48fe610ad0c35e9943",
+      "sha256": "a88cdd157817b98bd88a9f00ada4922c7758343468a9ff48fe610ad0c35e9943",
+      "transformation": "none; byte-for-byte copy"
+    },
+    {
+      "path": "skills/eval-author-discover/evals/files/repo/tasks/lookup-stock/instruction.md",
+      "source_path": "fixture_inputs/harness-consistency/existing-suite/tasks/lookup-stock/instruction.md",
+      "source_sha256": "18b7e381996cd7766a319b333cd1fedf07957c58a4dc31bd7b6213799902fcdb",
+      "sha256": "18b7e381996cd7766a319b333cd1fedf07957c58a4dc31bd7b6213799902fcdb",
+      "transformation": "none; byte-for-byte copy"
+    },
+    {
+      "path": "skills/eval-author-discover/evals/files/repo/tasks/lookup-stock/task.toml",
+      "source_path": "fixture_inputs/harness-consistency/existing-suite/tasks/lookup-stock/task.toml",
+      "source_sha256": "a5b5060fd97feb297e54d83013f2fdd3cc355f9f84c68c7d0325e65bfde8d266",
+      "sha256": "1775323a3d37f1eb0a8ce655077c69c255b21c245b19f8a78dcacbd29e451e19",
+      "transformation": "Add NVIDIA SPDX copyright/license comments for repository policy; preserve source content and shell shebang."
+    },
+    {
+      "path": "skills/eval-author-discover/evals/files/repo/tasks/lookup-stock/tests/test.sh",
+      "source_path": "fixture_inputs/harness-consistency/existing-suite/tasks/lookup-stock/tests/test.sh",
+      "source_sha256": "0ffd612ee49ab471cf9308a1fdbd76b5dff074d5eb0a25e4198402152a906a28",
+      "sha256": "7a99453fff9045f12e7295ccdc9b60e5514da5cf8e0ff3d2f57abb5de413820d",
+      "transformation": "Add NVIDIA SPDX copyright/license comments for repository policy; preserve source content and shell shebang."
+    },
+    {
+      "path": "skills/eval-author-discover/evals/files/repo/tasks/lookup-stock/solution/solve.sh",
+      "source_path": "fixture_inputs/harness-consistency/existing-suite/tasks/lookup-stock/solution/solve.sh",
+      "source_sha256": "cdeb04dec375cab65efe6c27289a6a070a85f4fddc9b414be5bc82e94272b86c",
+      "sha256": "fe456ba9f9b2fc0d1a69cb7147c1a2d6b1d2800fec894371a80dbdf0e2d1cdbb",
+      "transformation": "Add NVIDIA SPDX copyright/license comments for repository policy; preserve source content and shell shebang."
+    },
+    {
+      "path": "skills/eval-author-discover/evals/files/repo/tasks/lookup-stock/environment/Dockerfile",
+      "source_path": "fixture_inputs/harness-consistency/existing-suite/tasks/lookup-stock/environment/Dockerfile",
+      "source_sha256": "8ecb3b698b3553c41b5fa33dab95afab4ce14d646c1b7e1f2091c0e19c99e2ab",
+      "sha256": "8ecb3b698b3553c41b5fa33dab95afab4ce14d646c1b7e1f2091c0e19c99e2ab",
+      "transformation": "none; byte-for-byte copy"
+    },
+    {
+      "path": "skills/eval-author-discover/evals/files/repo/tasks/lookup-stock/environment/inventory.json",
+      "source_path": "fixture_inputs/harness-consistency/existing-suite/tasks/lookup-stock/environment/inventory.json",
+      "source_sha256": "5e563c000c97a7256c44628103915dbd1a918c1a92413d246b3dff7d117543b9",
+      "sha256": "5e563c000c97a7256c44628103915dbd1a918c1a92413d246b3dff7d117543b9",
+      "transformation": "none; byte-for-byte copy"
+    },
+    {
+      "path": "skills/eval-author-inspect-trace/evals/files/README.md",
+      "source_path": "fixture_inputs/harness-consistency/intake-selection/README.md",
+      "source_sha256": "1b72184ecb159abd5fb70fa737e55d5b7c4b90ea671d9f32ac50d6a012489446",
+      "sha256": "1b72184ecb159abd5fb70fa737e55d5b7c4b90ea671d9f32ac50d6a012489446",
+      "transformation": "none; byte-for-byte copy"
+    },
+    {
+      "path": "skills/eval-author-trace-environment/evals/files/traces/lookup.atif.json",
+      "source_path": "fixture_inputs/harness-consistency/trace-source/traces/lookup.atif.json",
+      "source_sha256": "c056f3a80d293cdb16d80dbf834c1f1aa72594b2b60b4b1358eea54f4342f966",
+      "sha256": "c056f3a80d293cdb16d80dbf834c1f1aa72594b2b60b4b1358eea54f4342f966",
+      "transformation": "none; byte-for-byte copy"
+    },
+    {
+      "path": "skills/eval-author-trace-environment/evals/files/traces/provenance.json",
+      "source_path": "fixture_inputs/harness-consistency/trace-source/traces/provenance.json",
+      "source_sha256": "7a2d9559f8e6b0eca7b6b42b8a21012074cb38c55fe9321efd9f11a259cd58db",
+      "sha256": "7a2d9559f8e6b0eca7b6b42b8a21012074cb38c55fe9321efd9f11a259cd58db",
+      "transformation": "none; byte-for-byte copy"
+    },
+    {
+      "path": "skills/gym-to-atif/evals/files/source.json",
+      "source_path": "fixture_inputs/harness-consistency/gym-source/source.json",
+      "source_sha256": "bd03cd1c88a7bfacd6bc7051c884953518668f5a2390cae3cfb40d0525324086",
+      "sha256": "bd03cd1c88a7bfacd6bc7051c884953518668f5a2390cae3cfb40d0525324086",
+      "transformation": "none; byte-for-byte copy"
+    },
+    {
+      "path": "skills/gym-to-atif/evals/files/original.atif.json",
+      "source_path": "fixture_inputs/harness-consistency/trace-source/traces/lookup.atif.json",
+      "source_sha256": "c056f3a80d293cdb16d80dbf834c1f1aa72594b2b60b4b1358eea54f4342f966",
+      "sha256": "c056f3a80d293cdb16d80dbf834c1f1aa72594b2b60b4b1358eea54f4342f966",
+      "transformation": "none; byte-for-byte copy"
+    },
+    {
+      "path": "skills/gym-to-atif/evals/files/ambiguous.jsonl",
+      "source_path": "fixture_inputs/harness-consistency/gym-source/source.json",
+      "source_sha256": "bd03cd1c88a7bfacd6bc7051c884953518668f5a2390cae3cfb40d0525324086",
+      "sha256": "0308debc0dfac211d8517cf7e6c741c885e14da24ee067dd9fcd8cd52ea5a457",
+      "transformation": "Compact source JSON and duplicate into two physical JSONL lines; tests explicit row selection even for equal records."
+    }
+  ],
+  "cases": [
+    {
+      "skill": "eval-author-audit",
+      "id": "audit-opening",
+      "source_scenario": "audit",
+      "adaptation": "Opening checkpoint; no later approvals supplied."
+    },
+    {
+      "skill": "eval-author-audit",
+      "id": "audit-existing-spec",
+      "source_scenario": "audit",
+      "adaptation": "Narrow existing-spec validation checkpoint instead of replaying approval turns."
+    },
+    {
+      "skill": "eval-author-audit",
+      "id": "audit-report-interpretation",
+      "source_scenario": "audit",
+      "adaptation": "Report checkpoint with explicitly supplied historical evidence, not a newly completed audit."
+    },
+    {
+      "skill": "eval-author-discover",
+      "id": "discover-inventory",
+      "source_scenario": "discovery-inventory",
+      "adaptation": "Original inventory intent, explicit output path and scope."
+    },
+    {
+      "skill": "eval-author-discover",
+      "id": "discover-oracle-limit",
+      "source_scenario": "discovery-readiness",
+      "adaptation": "Static evidence checkpoint, not runtime readiness execution."
+    },
+    {
+      "skill": "eval-author-discover",
+      "id": "discover-blocked-readiness",
+      "source_scenario": "discovery-readiness",
+      "adaptation": "Synthetic blocked-runtime receipt supplied in prompt; no claim of a historical observed failure."
+    },
+    {
+      "skill": "eval-author-inspect-trace",
+      "id": "intake-missing-selection",
+      "source_scenario": "inspect-intake",
+      "adaptation": "Missing-source checkpoint; remote queries prohibited."
+    },
+    {
+      "skill": "eval-author-inspect-trace",
+      "id": "intake-reject-file-uri",
+      "source_scenario": "inspect-intake",
+      "adaptation": "Derived invalid-selection boundary; synthetic workspace is not live access authorization."
+    },
+    {
+      "skill": "eval-author-inspect-trace",
+      "id": "intake-launcher-blocked",
+      "source_scenario": "inspect-intake",
+      "adaptation": "Synthetic launcher-failure checkpoint; no successful Intake evidence supplied."
+    },
+    {
+      "skill": "eval-author-trace-environment",
+      "id": "trace-proposal-harbor",
+      "source_scenario": "trace-environment-harbor",
+      "adaptation": "Proposal checkpoint; explicit written-artifact scope before scaffold/validation."
+    },
+    {
+      "skill": "eval-author-trace-environment",
+      "id": "trace-proposal-gym",
+      "source_scenario": "trace-environment-gym",
+      "adaptation": "Proposal checkpoint; explicit written-artifact scope before scaffold/validation."
+    },
+    {
+      "skill": "eval-author-trace-environment",
+      "id": "trace-blocked-handoff",
+      "source_scenario": "trace-environment-harbor",
+      "adaptation": "Synthetic blocked-validation checkpoint; no historical execution claim."
+    },
+    {
+      "skill": "gym-to-atif",
+      "id": "gym-convert-record",
+      "source_scenario": "gym-conversion",
+      "adaptation": "Original conversion intent with explicit bounded paths."
+    },
+    {
+      "skill": "gym-to-atif",
+      "id": "gym-retained-original",
+      "source_scenario": "gym-conversion",
+      "adaptation": "Derived retained-original boundary; association explicitly supplied only for this synthetic case."
+    },
+    {
+      "skill": "gym-to-atif",
+      "id": "gym-require-row",
+      "source_scenario": "gym-conversion",
+      "adaptation": "Derived multi-record selection boundary from two copies of the synthetic source."
+    }
+  ]
+}

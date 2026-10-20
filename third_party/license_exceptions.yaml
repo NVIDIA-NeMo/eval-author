@@ -2,50 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Pinned upstream documents for Git sources and distributions missing license material.
-trace-ingest:
-  version: "0.1.0"
-  documents:
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/LICENSE
-      hash: sha256:4f321b887d0350e672e06c8a8bc85cff17ee2d1f3c360617079041ceee324c81
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/NOTICE
-      hash: sha256:21e258f87f7070df2df4098d246616a050406f00419fdb1affd9e40cfc3bd88f
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/THIRD_PARTY_LICENSES.md
-      hash: sha256:ac8db5f8c19b6591651fcf00be2e026ba7c787cd2ed1985101df3e8039873787
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/licenses.jsonl
-      hash: sha256:5d2c42b59fe53a1a7c0715a6841ef80077e938f776cd83930d9b4f6d64d3b4dc
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/tau-bench-LICENSE.txt
-      hash: sha256:243d23d45b80122b5ac575586ccef352fdc9c45e6d7d2605449aca8a17478b42
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/NOTICES.txt
-      hash: sha256:c35891fabc3d9f4183af9125a129f9f4d1e46803c399190f8a657d0e809e48c9
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/license_texts/0BSD.txt
-      hash: sha256:e3f18c71e10d673590eb9856c1d79dd3b4b0d65404efb5e8584dbede7edd608b
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/license_texts/Apache-2.0.txt
-      hash: sha256:074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/license_texts/BSD-2-Clause.txt
-      hash: sha256:f32fb3b417a194167cfad068223fc975ba96c5960513a10f66a3c28720aec1df
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/license_texts/BSD-3-Clause.txt
-      hash: sha256:5a93d5831e1297ab10fe643e1a631e83be392896da14ee2951285a79012df69d
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/license_texts/BSL-1.0.txt
-      hash: sha256:84c6ef3ea9e3254a54d0acf5d3e0c61ae011b8fef7dd6940591cf060e6380a8f
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/license_texts/CC0-1.0.txt
-      hash: sha256:a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/license_texts/CNRI-Python.txt
-      hash: sha256:69b5d7d41a6ece3b20c6a77774f567948766d8643f7646e3f65474692cce5c15
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/license_texts/ISC.txt
-      hash: sha256:521c6f0ed8e64736684f89843d16a4df6b4b7449acbcfc6ca6630a3037ca8c53
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/license_texts/LLVM-exception.txt
-      hash: sha256:e34c58338bd89d43e709e226610d8f32b3e3c47f4ad9a99a8dc1d4ac7842488e
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/license_texts/MIT-0.txt
-      hash: sha256:59746d6285ffa44bfc7ecada352aa5d6a20dc8eab418a60ce091cc739012c135
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/license_texts/MIT.txt
-      hash: sha256:b05785f9f18e6716bab63424b11454513b9943a222595b70411009202fc592b5
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/license_texts/MPL-2.0.txt
-      hash: sha256:66a3107d5ad6a058aab753eaac2047ccb2ed0e39465dd0fe5844da3e300d5172
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/license_texts/PSF-2.0.txt
-      hash: sha256:ab745c5061d1dea43a3885e5b4b6befc7e983954954775c5736debeefcdfd89b
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/labs-nemo-compass/692d1bf57b6a9372f628b7c2004852aec7a9a83e/third_party/license_texts/Zlib.txt
-      hash: sha256:bfb1112d49db5b1daecdfef24bd7e2f3ea0bafb33aa67aa0ab51e2bf8407c03d
-
 postgrest:
   version: "2.31.0"
   documents:

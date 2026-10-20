@@ -80,12 +80,12 @@ explicitly selected; source scanner behavior is unchanged.
 
 Refresh after cases are authored, after additions or edits, and after validation
 or actual-agent runs, including failed runs. Refresh again at the final handoff
-and link the report. When the report needs to be mentioned, always link 
+and link the report. When the report needs to be mentioned, always link
 `.eval-author/README.md` and `.eval-author/report.html` as the last lines of the
 response, after all other communication with a note like: Reivew (test cases|runs)
 created in this session in the `.eval-author/report.html` or `.eval-author/README.md`.
 
-Present evaluation findings and report links to the user; describe generation internals 
+Present evaluation findings and report links to the user; describe generation internals
 only when asked. Reuse the settled scope and authorization: a missing report is not
 a request to redesign or execute evaluations. If report generation fails,
 report that failure separately; do not alter the task, run command, execution

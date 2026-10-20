@@ -86,6 +86,8 @@ the declared total and distinguish measured coverage, measured items not
 demonstrated, and unmeasured items. Copy measured counts from applicable reports;
 do not turn an unmeasured kind's zero covered count into a 0% coverage claim.
 For a kind with no declared items, show that fact without a percentage.
+Do not describe Harbor Oracle, NOP, or other control runs as audit evidence in
+this Markdown report.
 
 Use a section named **Intended coverage** as the complete, readable catalog of
 the scope being reviewed. State whether the user has agreed to that scope;

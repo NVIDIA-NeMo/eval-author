@@ -51,6 +51,46 @@
       "items": {
         "$ref": "#/$defs/itemName"
       }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audit_sha256",
+        "trace_sha256"
+      ],
+      "properties": {
+        "audit_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "trace_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "judgments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "$defs": {
@@ -132,8 +172,22 @@
         "run_id": {
           "description": "Identifier for the specific run, trial, attempt, or repetition measured.",
           "$ref": "#/$defs/nonEmptyString"
+        },
+        "evidence_class": {
+          "description": "Runner or evidence role for this measurement. Omitted in older coverage files.",
+          "$ref": "#/$defs/evidenceClass"
         }
       }
+    },
+    "evidenceClass": {
+      "description": "How this trace should be grouped in aggregate coverage summaries.",
+      "type": "string",
+      "enum": [
+        "agent_under_test",
+        "reference_solution",
+        "nop",
+        "control"
+      ]
     },
     "method": {
       "type": "object",

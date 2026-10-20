@@ -88,6 +88,34 @@ product then carry `check_evidence: "aggregate_only"` instead of
 `"per_check"`. Mixed evidence (some jobs with rows, some without) is always
 rejected: rerun the missing arms so the proof set is uniform.
 
+## Python verifier diagnostics
+
+`validate-task` also returns advisory review leads for Python files under
+`task/tests/`, including nested helpers. It parses files without importing or
+executing them and flags direct `inspect.getsource` / `getsourcelines` calls
+(including imported aliases) and direct reads of a module's `__file__`.
+Using a module path to locate a neighboring fixture is not flagged.
+Findings contain paths and line numbers, not source excerpts.
+
+These are advisories: source analysis can be a legitimate public requirement,
+and access alone does not establish that grading depends on implementation text.
+Review the finding against the requirement; record justified uses in private
+construction notes. Otherwise test observable behavior through the supported
+interface. The scan does not resolve shadowed names, indirect aliases or dynamic
+imports, and excludes shell assertions, embedded Python and helpers outside
+`tests/`. A quiet scan is not evidence of verifier soundness.
+
+The scan follows no symlinks and is bounded to 2,048 directory entries, 128 Python
+files, 256 KiB per file, 2 MiB of read bytes and 64 findings plus a limit notice.
+Unreadable/unparseable files and skipped symlinks or exceeded limits emit
+`verifier_scan_incomplete`; review the omitted scope separately. Neither advisory
+changes proof acceptance. Run its regression tests explicitly from the repository
+root (the default pytest configuration only collects the top-level `tests/`):
+
+```bash
+uv run --locked pytest -q skills/eval-author-trace-environment/evals/tests/test_verifier_lint.py
+```
+
 ## Executed copy probes
 
 Static literal detection does not execute a candidate and can miss assertions in
@@ -105,6 +133,7 @@ agent interface as for the ordinary negative control. Before running it:
 ```bash
 python <skill_dir>/scripts/trace_environment.py record-run-inputs \
   --task-dir <task-dir> --arm copy --job-dir private/jobs/copy-1 \
+  --control-id copy-visible \
   --control-agent copy_agent:CopyOnly \
   --control-source private/copy_agent.py \
   --control-rationale "<visible material copied and requested behavior omitted>"
@@ -128,3 +157,8 @@ Missing rows and inconsistent check IDs or rewards are contract errors, never
 successful probes. Absent copy runs are reported as `not_run`, not as resistance
 to copying. `passed: true` establishes evidence consistency, not completion of
 this source-level review.
+
+The bounded static scan does not follow all path transformations. Known misses
+include `Path(m.__file__).resolve().read_text()`, `open(os.path.realpath(m.__file__))`,
+and `open(inspect.getfile(m))` (including `absolute`, `expanduser`, `abspath`,
+`normpath`, and `getsourcefile` variants). Review these manually.
