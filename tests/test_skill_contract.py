@@ -184,7 +184,9 @@ _needs_unreadable_files = pytest.mark.skipif(
 # become a hidden dependency for repositories that copy the skill.
 # referencing is the declared offline registry dependency of trace schema validation.
 # trace_ingest is bundled in pinned nemo-compass for the optional provider loaders.
-_PERMITTED_THIRD_PARTY = frozenset({"harbor", "jsonschema", "pydantic", "referencing", "trace_ingest", "yaml"})
+_PERMITTED_THIRD_PARTY = frozenset(
+    {"harbor", "jsonschema", "markdown_it", "pydantic", "referencing", "trace_ingest", "yaml"}
+)
 
 
 def _not_for_names(frontmatter: dict) -> set[str]:

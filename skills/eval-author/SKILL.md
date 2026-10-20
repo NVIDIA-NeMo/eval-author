@@ -314,6 +314,50 @@ does not require Gym output. Use the selected provider's native scaffolding,
 validation, and execution path. Missing setup is a reported prerequisite, not
 permission to silently switch providers.
 
+## Promote accepted tasks at handoff
+
+Create and validate tasks in `.eval-author/task-drafts/<task-slug>/` using the
+existing authoring workflow. Keep its scaffolding, controls, acceptance criteria,
+measurement paths, and evidence receipts unchanged.
+
+When the workflow accepts a task and adds it to a runnable suite, copy the
+accepted task directory into its final catalog. For a new repository evaluation
+environment, use one flat `.eval-author/tasks/<task-slug>/` directory across all
+features and suites. For an existing environment, follow the selected suite's
+existing final task-directory convention; do not reorganize its tasks.
+
+Copy the accepted revision without changing its task ID or contents, and never
+overwrite a different task at the destination. Record the
+draft-to-catalog path mapping in the existing handoff record. Update suite
+configurations and future run/viewer commands to the final paths and verify that
+they resolve the intended tasks using the provider's existing checks. Historical
+results and receipts keep their original paths. Prepare new execution manifests
+for future runs at the final paths under the existing evidence contract.
+
+Refresh the report with the project root selected, preserving both draft and
+finalized task paths; respect a narrower scope only when selected by the user.
+Carry existing task reporting metadata to the final task paths through the
+report's metadata patch, retaining source references.
+Before promotion, report the drafts normally; keep
+unfinished cases visible in the existing handoff record. Reporting itself never
+promotes tasks. Private trace workspaces retain their existing export workflow.
+
+Before marking the final handoff complete, verify these conditions on disk:
+
+- Every accepted task has a final directory whose relative file paths and file
+  contents match the accepted draft. Compare files, not just directory counts.
+- The future suite configuration resolves exactly the accepted task set at the
+  final paths through the provider's native configuration/task loader; loading
+  must not execute a job. Future task-viewer and rerun commands use those paths.
+- The refreshed report includes every accepted final task path once, alongside
+  existing drafts. Do not deduplicate different directories or hide later drafts.
+
+Record the verified final catalog path and task count in the existing handoff
+record and final reply. A report file or a successful agent run alone does not
+complete this handoff. If a condition fails, finish the authorized file-only
+handoff or report the specific blocker; do not mark it complete. Do not rerun
+models or controls merely to copy an unchanged accepted task.
+
 ## Establish Ethos before authoring
 
 First-eval requires an applicable `ethos.md` before case design,

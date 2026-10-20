@@ -8,7 +8,7 @@ description = "Skills that help coding assistants build agent evaluations, check
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_LICENSES.md", "third_party/licenses.jsonl", "third_party/NOTICES.txt", "third_party/license_texts/*.txt"]
 requires-python = ">=3.12,<3.14"
-dependencies = ["jsonschema>=4.23", "referencing>=0.28.4"]
+dependencies = ["jsonschema>=4.23", "markdown-it-py>=4,<5", "referencing>=0.28.4"]
 
 [project.optional-dependencies]
 # Workflow requirements are optional for skill users and included in license scans.

@@ -293,8 +293,18 @@ correctness with verifier scores. Freeze the full cohort before execution and
 retain verifier-owned submission snapshots. This diagnostic does not change
 readiness; investigate findings before handoff.
 
-Create `<task-dir>/README.md` using
-[Suite review and rerun instructions](../eval-author/references/suite-readme.md), separate
+Start `task/README.md` sections with `## Input`, documenting the generalized
+request and linking its instruction and fixtures without exposing private trace
+payloads. Follow with separate, nonempty `## Behavior under test`, `## Expected result`,
+and `## Grading` sections, preserving all native task-contract sections. In Grading,
+link the actual test entry point, verifier implementation, and criteria or judge
+files; verify the relative Markdown links. Refresh the private
+`.eval-author/report.html` and `.eval-author/README.md` at creation and validation
+handoffs using the [Report generation](../eval-author/references/suite-readme.md#report-generation).
+Do not change discovery or readiness to generate this reporting view.
+
+Create `<task-dir>/README.md` for operational/export instructions using
+[Review and rerun guidance](../eval-author/references/suite-readme.md#review-and-rerun-guidance), separate
 from the reviewer-facing `task/README.md`. Map the generalized outcomes to the
 task and its scored checks, documenting when selecting one item runs the whole
 task. Label NOP/Oracle commands as task controls; if no real-agent configuration
@@ -344,7 +354,9 @@ proof does not establish human review.
 
 ## Step 7: finalize Harbor or no_candidate and verify the summary
 
-Refresh and link the candidate suite's `README.md` with its case inventory,
+Refresh and link `.eval-author/report.html` and `.eval-author/README.md` as the
+private case/run catalog.
+Preserve the candidate suite's operational `README.md` with its export-required inventory,
 verified setup, rerun commands, result paths, and any remaining execution blockers
 before handoff. Keep source traces, control evidence, and actual-agent evidence
 distinct in the inventory.
@@ -384,7 +396,8 @@ source paths. This makes the denominator explicit and reruns idempotent:
 ```
 
 Keep a real manifest's source paths private if they reveal internal layout.
-For a generated batch, also maintain a collection-root `README.md` with the
+For a generated batch, refresh the shared HTML catalog; retain a collection-root
+`README.md` only for the functional execution/export handoff with the
 explicit runnable member set, full-collection and selected-member commands,
 and links to member guides. Distinguish blocked and no-candidate members;
 do not point Harbor at the mixed workspace parent as if it were a task dataset.
