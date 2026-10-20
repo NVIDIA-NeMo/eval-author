@@ -5,13 +5,16 @@
 
 This draft starts with the prepared inputs defined in the
 [architecture](architecture.md#supplied-inputs). Agent bundling, mutant generation
-and qualification, benchmark construction and publication, and rubric generation
-are release preparation rather than stages of a benchmark run.
+and qualification, and benchmark construction and publication are release
+preparation rather than stages of a benchmark run. The system under evaluation
+is a separate input. Coverage computation, including rubric generation when the
+system uses it, is part of the experiment.
 
 Before starting, validate the declared input identities, task inventory, baseline
-and mutant relationships, frozen rubric, and configuration. Check that the chosen
-backend can invoke the bundles and retain the evidence needed by the configured
-metrics. Validation does not execute agents or establish benchmark quality.
+and mutant relationships, case description, system version, and configuration.
+Check that the chosen backend can invoke the bundles and retain the evidence
+needed by the system under evaluation. Validation does not execute agents or
+establish benchmark quality.
 
 ## Stage contract
 
@@ -127,25 +130,42 @@ to obtain a computable score.
 
 ### 5. Compute Coverage
 
-**Purpose:** measure coverage for the same subsets using baseline behavior.
+**Purpose:** obtain the system under evaluation's coverage scores for the same
+subsets.
 
-**Inputs:** Eval Subset Definitions, baseline traces from Raw Execution Results,
-the frozen rubric, and the versioned metric implementation and settings.
+**Inputs:** the case description, Eval Subset Definitions, permitted baseline
+evidence from Raw Execution Results, and the versioned system under evaluation
+with its settings. Additional inputs such as agent source or task contents must
+be explicitly allowed by the configured evidence policy.
 
-**Operation:** measure baseline traces against the rubric and aggregate per-task
-measurements for each subset. Reuse identical per-task measurements across
-overlapping subsets within a metric configuration. Keep the rubric and
-denominator fixed within the comparison. Mutant outcomes and correlation results
-are not inputs to this stage.
+**Operation:** invoke Eval Author or another coverage system through its declared
+interface to produce scores. If that system needs a rubric, let it generate the
+rubric within this stage using only permitted inputs, and retain the resulting
+artifact. Rubric generation and measurement are parts of the system being tested,
+not assumed benchmark answers.
 
-**Outputs:** Coverage Scores, keyed by subset ID, with rubric and metric
-identities and supporting per-task measurements or judgments.
+For a method that uses one case-level rubric, freeze its generated contents and
+denominator before scoring subsets and reuse them within that comparison.
+A method that derives its coverage definition separately for each subset must
+declare that behavior and retain each definition; it must not be silently treated
+as a shared-rubric measurement. The allowed generation scope is an open protocol
+decision.
 
-**Completion:** every requested subset and metric configuration has a score or
-an explicit unavailable value and reason. If measurement requires model-generated
-judgments, their reproducibility must satisfy the chosen
+Reuse per-task measurements across overlapping subsets only when the system's
+method makes them independent of the other tasks in the subset. Systems that
+score whole subsets can instead produce scores directly. Mutant outcomes,
+mutant scores, and correlation results are never inputs to coverage computation.
+
+**Outputs:** Coverage Scores, keyed by subset ID, with system and configuration
+identities and supporting measurement evidence. Retain any generated rubrics,
+per-task measurements, and judgments with their exact inputs and versions.
+
+**Completion:** every requested subset and system configuration has a score or
+an explicit unavailable value and reason. Generated coverage artifacts are
+accounted for. If computation generates rubrics or judgments with a model,
+their reproducibility must satisfy the chosen
 [determinism contract](architecture.md#determinism); deterministic aggregation
-alone does not make those judgments deterministic.
+alone does not make those outputs deterministic.
 
 ### 6. Spearman Correlation
 
@@ -156,8 +176,8 @@ evaluation subsets.
 
 **Operation:** verify matching case, baseline, benchmark, and subset identities.
 Join scores by subset ID and compute Spearman rank correlation separately for
-each metric configuration and mutant-score variation, using average ranks for
-ties. Retain each paired score and every exclusion with its reason.
+each coverage-system configuration and mutant-score variation, using average
+ranks for ties. Retain each paired score and every exclusion with its reason.
 
 **Outputs:** Correlation Results containing the coefficient, number of included
 subsets, paired scores, configuration identities, and exclusions.
@@ -175,12 +195,14 @@ open decision; an observed coefficient alone is not a general validity claim.
 
 **Purpose:** preserve enough evidence to inspect and reproduce the analysis.
 
-**Inputs:** the frozen configuration, supplied input identities, and all stage
-outputs, including the paired scores and correlation results.
+**Inputs:** the frozen configuration, supplied input and system identities, and
+all stage outputs, including generated coverage artifacts, paired scores, and
+correlation results.
 
 **Operation:** retain an inventory of inputs, execution attempts, native evidence,
-subset memberships, scores, exclusions, implementation versions, and completion
-status. A rerun creates a distinct record linked to its reused inputs.
+subset memberships, generated rubrics and judgments when present, scores,
+exclusions, implementation versions, and completion status. A rerun creates a
+distinct record linked to its reused inputs.
 
 **Outputs:** an Experiment Record containing the inventory and analysis report,
 with evidence stored or referenced according to the eventual distribution format.
