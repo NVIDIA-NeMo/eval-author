@@ -61,8 +61,9 @@ OpenTelemetry inputs and their limits.
 
 ## Load shared normalized evidence
 
-The Gym and MLflow skills can also use NeMo Compass's pinned `trace-ingest`
-loaders to retain normalized provider evidence in a private directory. See the
+The Gym and MLflow skills can also use NeMo Compass's pinned `nemo-compass`
+distribution to retain normalized provider evidence with its bundled
+`trace_ingest` loaders. See the
 [Gym loader guide](../skills/gym-to-atif/references/trace-intel-ingest.md) for
 native `ng_trajectory` captures and the
 [MLflow loader guide](../skills/mlflow-to-atif/references/trace-intel-ingest.md)
