@@ -205,3 +205,5 @@ with every selected trace in the denominator. Hand off the private task path,
 report, and exact rerun instructions. The optional Helix packaging guide can
 prepare a separate private package when selected, but it does not authorize
 publication or upload. Never export the entire trace workspace.
+
+When adapting call-fixture v2 cases, preserve optional boolean `is_error`: `true` must replay an error outcome, `false` an explicitly successful outcome, and absence means unrecorded rather than success.

@@ -34,6 +34,7 @@ def save(path, value):
 
 
 def legacy(root):
+    (root / "private/workspace.json").unlink(missing_ok=True)
     summary = json.loads((root / "summary.json").read_text())
     summary["schema"] = driver.SCHEMA
     summary["environment"].pop("qualification", None)
@@ -452,3 +453,76 @@ def test_runtime_exercises_real_component_and_detects_broken_setup(tmp_path):
     component.write_text("import intentionally_unavailable_dependency\n")
     row = runtime.run_probe(definition)
     assert row["exit_code"] != 0 and row["observation"] is None
+
+
+@pytest.mark.parametrize("number", ["NaN", "Infinity", "-Infinity", "1e999"])
+def test_nonfinite_probe_retains_failed_receipt(tmp_path, number):
+    definition = probe("reach", "reach", f"print('{{\"reached\": {number}}}')", tmp_path)
+    output = tmp_path / "qualification.json"
+    runtime.run_probes([definition], output)
+    receipt = contract.load(tmp_path, "qualification.json")
+    assert isinstance(receipt, dict)
+    assert receipt["probes"][0]["failure"] == "invalid_observation"
+    assert receipt["probes"][0]["observation"] is None
+
+
+def test_maximum_probe_count_receipt_remains_readable(tmp_path):
+    definitions = [
+        probe(f"probe-{i}", "reach", "import json; print(json.dumps({'reached': 'x'*250000}))", tmp_path)
+        for i in range(32)
+    ]
+    runtime.run_probes(definitions, tmp_path / "qualification.json")
+    receipt = contract.load(tmp_path, "qualification.json")
+    assert isinstance(receipt, dict)
+    assert len(receipt["probes"]) == 32
+    assert all(row["failure"] == "observation_limit" and row["observation"] is None for row in receipt["probes"])
+
+
+def test_probe_numeric_type_mismatch_rejected_before_execution(tmp_path):
+    root, manifest = workspace(tmp_path)
+    probes = json.loads((root / "task/tests/qualification-probes.json").read_text())
+    probes[0]["timeout_seconds"] = float(probes[0]["timeout_seconds"])
+    save(root / "task/tests/qualification-probes.json", probes)
+    with pytest.raises(contract.ConstructionError, match="probe definitions differ"):
+        contract.validate(root)
+
+
+def test_new_init_marker_rejects_summary_downgrade(tmp_path):
+    code, result = helpers._run("init", "--root", str(tmp_path / ".eval-author"), "--task-id", "new")
+    assert code == 0
+    root = Path(result["task_dir"])
+    summary = json.loads((root / "summary.json").read_text())
+    summary["schema"] = driver.SCHEMA
+    summary["environment"].pop("qualification")
+    save(root / "summary.json", summary)
+    with pytest.raises(driver.ContractError, match="forbids summary schema downgrade"):
+        driver._load_summary(root)
+
+
+def test_alternative_cannot_duplicate_oracle(tmp_path):
+    root, _ = workspace(tmp_path)
+    source = root / "private/alternative.py"
+    source.write_bytes((root / "task/solution/solve.sh").read_bytes())
+    with pytest.raises(driver.ContractError, match="must not copy an oracle"):
+        driver._proof_control(root, "custom:Agent", source, "reviewed alternative", arm="alternative")
+
+
+def test_repair_preserves_contract_and_detects_archive_mutation(tmp_path):
+    root, _ = workspace(tmp_path)
+    before = (root / contract.PATH).read_bytes()
+    driver._record_repair(
+        argparse.Namespace(
+            task_dir=root, reason_code="other", note="Correct the failing synthetic verifier implementation."
+        )
+    )
+    archive = root / "private/repairs/repair-1/construction.json"
+    assert archive.read_bytes() == before
+    assert (root / "private/repairs/repair-1/candidate.json").read_bytes() == (root / "candidate.json").read_bytes()
+    manifest = json.loads(before)
+    manifest["review"]["note"] = "Changed after recording a repair."
+    save(root / contract.PATH, manifest)
+    report = driver._check(argparse.Namespace(task_dir=root))
+    assert {"repair": 1, "file": "construction.json"} in report["contract_changes"]
+    archive.write_text("{}")
+    with pytest.raises(driver.ContractError, match="archive of construction.json is missing or changed"):
+        driver._repairs(root)

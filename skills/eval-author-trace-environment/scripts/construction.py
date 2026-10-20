@@ -63,7 +63,7 @@ def read_bytes(root: Path, relative: str) -> bytes:
     return data
 
 
-def load(root: Path, relative: str) -> object:
+def parse(data: bytes) -> object:
     def unique(pairs):
         result = {}
         for key, value in pairs:
@@ -75,9 +75,13 @@ def load(root: Path, relative: str) -> object:
         raise ConstructionError("nonfinite JSON number in construction evidence")
 
     try:
-        return json.loads(read_bytes(root, relative), object_pairs_hook=unique, parse_constant=invalid_constant)
+        return json.loads(data, object_pairs_hook=unique, parse_constant=invalid_constant)
     except (ValueError, OSError) as error:
         raise ConstructionError("construction evidence is not readable JSON") from error
+
+
+def load(root: Path, relative: str) -> object:
+    return parse(read_bytes(root, relative))
 
 
 def file_digest(root: Path, relative: str) -> str:
@@ -291,6 +295,7 @@ def validate(root: Path) -> dict:
         read_bytes(root, probe["assertion_path"])
         by_probe[key] = probe
     require(any(p["kind"] == "setup" for p in probes), "at least one setup probe is required")
+    require(any(p["kind"] == "reach" for p in probes), "at least one reach probe is required")
     controls = manifest["controls"]
     require(isinstance(controls, list) and 2 <= len(controls) <= 128, "negative and alternative controls are required")
     by_control = {}
@@ -358,7 +363,7 @@ def validate(root: Path) -> dict:
         visit(node, set(), done)
     provenance_summary = provenance(root, manifest["starting_state"], trace, candidate)
     require(
-        load(root, "task/tests/qualification-probes.json") == probes,
+        digest(load(root, "task/tests/qualification-probes.json")) == digest(probes),
         "verifier probe definitions differ from private construction contract",
     )
     require(
@@ -395,7 +400,8 @@ def execution(root: Path, result_path: Path, context: dict, control_id: str | No
         require(row["definition_sha256"] == digest(probe), "execution probe definition changed")
         require(row["exit_code"] is None or type(row["exit_code"]) is int, "invalid probe exit code")
         require(
-            row["failure"] in (None, "start_failed", "timeout", "output_limit", "invalid_observation"),
+            row["failure"]
+            in (None, "start_failed", "timeout", "output_limit", "observation_limit", "invalid_observation"),
             "unknown probe failure",
         )
         require(

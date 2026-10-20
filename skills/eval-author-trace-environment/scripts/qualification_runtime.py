@@ -20,6 +20,11 @@ from pathlib import Path
 
 SCHEMA = "nemo.eval_author.construction_execution.v1"
 MAX_OUTPUT_BYTES = 256 * 1024
+MAX_OBSERVATION_BYTES = 48 * 1024
+
+
+def invalid_constant(value):
+    raise ValueError("nonfinite JSON number")
 
 
 def digest(value: object) -> str:
@@ -98,8 +103,12 @@ def run_probe(probe: dict) -> dict:
     observation = None
     if failure is None and code == 0:
         try:
-            observation = pointer(json.loads(output), probe["json_pointer"])
-        except (ValueError, KeyError, IndexError, TypeError, UnicodeDecodeError):
+            observation = pointer(json.loads(output, parse_constant=invalid_constant), probe["json_pointer"])
+            if len(json.dumps(observation, allow_nan=False).encode()) > MAX_OBSERVATION_BYTES:
+                observation = None
+                failure = "observation_limit"
+        except (ValueError, KeyError, IndexError, TypeError, UnicodeDecodeError, RecursionError):
+            observation = None
             failure = "invalid_observation"
     return {
         "id": probe["id"],
@@ -120,5 +129,5 @@ def run_probes(probes: list[dict], output: Path) -> None:
             raise ValueError("probe timeout must be in (0, 30]")
     # Opening exclusively before execution prevents stale success from surviving.
     with output.open("x", encoding="utf-8") as stream:
-        json.dump({"schema": SCHEMA, "probes": [run_probe(probe) for probe in probes]}, stream)
+        json.dump({"schema": SCHEMA, "probes": [run_probe(probe) for probe in probes]}, stream, allow_nan=False)
         stream.write("\n")

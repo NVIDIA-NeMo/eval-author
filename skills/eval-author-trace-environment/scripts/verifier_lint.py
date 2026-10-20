@@ -120,7 +120,7 @@ def verifier_advisories(task_dir: Path) -> list[dict[str, str]]:
                     try:
                         tree = ast.parse(data)
                         lines = _source_read_lines(tree)
-                    except (SyntaxError, ValueError, RecursionError):
+                    except (SyntaxError, ValueError, RecursionError, MemoryError):
                         incomplete(path, "source could not be parsed")
                         continue
                     for line in lines:
