@@ -244,21 +244,44 @@ def test_wrapper_grades_captured_bytes_and_refuses_overwrite(tmp_path):
         runtime.grade_submission({"answer": source}, assess, root / "logs")
 
 
-def test_wrapper_rejects_symlinks_oversize_and_invalid_checks(tmp_path):
+@pytest.mark.parametrize("kind", ["symlink", "oversize", "directory", "fifo", "parent_file", "combined"])
+def test_invalid_submission_completes_with_zero_even_if_callback_accepts(tmp_path, kind):
+    import os
+
     root = tmp_path.resolve()
     source = root / "answer"
-    source.write_bytes(b"x")
-    link = root / "link"
-    link.symlink_to(source)
-    with pytest.raises(ValueError, match="symlink"):
-        runtime.grade_submission({"answer": link}, lambda _: {"check": True}, root / "logs")
-    source.write_bytes(b"x" * (runtime.LIMIT + 1))
-    with pytest.raises(ValueError, match="bounded"):
-        runtime.grade_submission({"answer": source}, lambda _: {"check": True}, root / "logs")
+    sources = {"answer": source}
+    if kind == "symlink":
+        source.symlink_to(root / "missing")
+    elif kind == "oversize":
+        source.write_bytes(b"x" * (runtime.LIMIT + 1))
+    elif kind == "directory":
+        source.mkdir()
+    elif kind == "fifo":
+        os.mkfifo(source)
+    elif kind == "parent_file":
+        source.write_text("not a directory")
+        sources = {"answer": source / "child"}
+    else:
+        source.write_bytes(b"x" * (runtime.LIMIT // 2 + 1))
+        other = root / "other"
+        other.write_bytes(source.read_bytes())
+        sources["other"] = other
+    runtime.grade_submission(sources, lambda _: {"check": True}, root / "logs")
+    receipt = json.loads((root / "logs/review-submission.json").read_text())
+    assert receipt["invalid"]
+    assert receipt["reward"] == 0
+    assert receipt["checks"] == {"check": False}
+    assert all(value is None for value in receipt["submissions"].values())
+    assert (root / "logs/results").read_text() == "check\tFAIL\n"
+
+
+def test_wrapper_rejects_invalid_callback_checks(tmp_path):
+    source = tmp_path / "answer"
     source.write_bytes(b"x")
     with pytest.raises(ValueError, match="boolean"):
-        runtime.grade_submission({"answer": source}, lambda _: json.loads('{"check": 1}'), root / "logs")
-    assert not (root / "logs/review-submission.json").exists()
+        runtime.grade_submission({"answer": source}, lambda _: json.loads('{"check": 1}'), tmp_path / "logs")
+    assert not (tmp_path / "logs/review-submission.json").exists()
 
 
 def test_cli_binding_and_existing_readiness_unchanged(tmp_path):
@@ -282,6 +305,13 @@ def test_cli_binding_and_existing_readiness_unchanged(tmp_path):
     assert result["attempts"] == 1
     assert before == {name: (root / name).read_bytes() for name in before}
     assert "author-context" not in json.dumps(result)
+    (root / "private/jobs/run-0").mkdir(parents=True)
+    with pytest.raises(
+        driver.ContractError, match="solution review contract invalid: record the entire cohort before any job exists"
+    ):
+        driver._solution_review(
+            argparse.Namespace(task_dir=root, command="record-review-inputs", plan="private/plan.json")
+        )
 
 
 def test_missing_output_remains_ordinary_negative_control(tmp_path):
@@ -398,3 +428,63 @@ def test_shared_verifier_cannot_confirm_mismatch(tmp_path):
     value["verifier_environment_mode"] = "shared"
     save(directory / "result.json", value)
     assert run(root, binding, receipt, assessments)["counts"] == {"verifier_isolation_unverified": 1}
+
+
+@pytest.mark.parametrize("kind", ["truncated", "symlink"])
+def test_unreadable_trial_preserves_other_attempts(tmp_path, kind):
+    root, binding, receipt, assessments = setup(tmp_path, count=2)
+    bad = trial(root, assessments, number=0)
+    trial(root, assessments, number=1)
+    result = bad / "result.json"
+    if kind == "truncated":
+        result.write_text('{"task_checksum":')
+    else:
+        copy = root / "private/result-copy.json"
+        result.rename(copy)
+        result.symlink_to(copy)
+    report = run(root, binding, receipt, assessments)
+    assert report["counts"] == {"unreadable_trial_result": 1, "legitimate_pass": 1}
+    assert report["attempts"] == 2
+
+
+def test_evidence_hash_cannot_change_between_reads(tmp_path):
+    source = tmp_path / "evidence.txt"
+    source.write_text("first")
+    evidence = {}
+    review.read(tmp_path, "evidence.txt", evidence)
+    source.write_text("second")
+    with pytest.raises(ValueError, match="evidence changed while reading"):
+        review.read(tmp_path, "evidence.txt", evidence)
+
+
+def test_report_exposes_other_cohorts_and_unreadable_inventory(tmp_path):
+    root, binding, receipt, assessments = setup(tmp_path)
+    plan = json.loads((root / "private/plan.json").read_text())
+    plan["attempts"][0]["job_dir"] = "private/jobs/other"
+    save(root / "private/other-plan.json", plan)
+    other = review.record(root, "private/other-plan.json", binding)
+    (root / "private/solution-review/cohorts/broken.json").write_text("{")
+    trial(root, assessments)
+    result = run(root, binding, receipt, assessments)
+    report = json.loads((root / result["report"]).read_text())
+    inventory = report["cohort_inventory"]
+    assert {row["sha256"] for row in inventory["matching"]} == {receipt["cohort_sha256"], other["cohort_sha256"]}
+    assert inventory["unreadable"] == 1
+    assert not inventory["discovery_limited"]
+
+
+def test_invalid_submission_receipt_is_reviewable(tmp_path):
+    root, binding, receipt, assessments = setup(tmp_path)
+    directory = trial(root, assessments, reward=False, decision="unmet")
+    # An invalid-capture receipt has the same null inventory as absence but
+    # records the reason and cannot claim a passing verdict.
+    capture = directory / "verifier/review-submission.json"
+    value = json.loads(capture.read_text())
+    value["submissions"]["answer"] = None
+    value["invalid"] = {"answer": "invalid_file"}
+    (directory / "verifier/review-submission/answer").unlink()
+    save(capture, value)
+    for judgment in assessments["judgments"]:
+        for row in judgment["requirements"]:
+            row["citations"] = ["task/instruction.md", "private/jobs/run-0/task__trial/agent/trajectory.txt"]
+    assert run(root, binding, receipt, assessments)["counts"] == {"legitimate_fail": 1}

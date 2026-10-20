@@ -40,8 +40,8 @@ explicitly so ordinary NOP controls still receive a failing score. The receipt
 records captured absence as `null`; this is submission evidence, not an automatic
 pass or failure. The snapshot directory must exist and contain exactly the
 non-null entries. Missing expected snapshots or contradictory files remain
-unresolved. Callback failures, symbolic
-links and invalid checks do not produce a completed receipt.
+unresolved. Symbolic links produce a completed failed capture. Callback failures
+and invalid callback checks do not produce a completed receipt.
 
 Review the callback and artifact handoff. It must grade those captured bytes,
 cover exactly the construction manifest's check IDs, and avoid solver-controlled
@@ -181,3 +181,34 @@ rereads source evidence and writes an immutable content-addressed private
 report; changing evidence or judgments produces a new revision. Reports bind
 full evidence hashes and preserve exposure declarations. CLI summaries omit
 raw judgments, transcripts and identities. Reports are not exported.
+
+### Runtime and evidence boundaries
+
+Run exactly one trial per declared job directory: disable Harbor retries and use
+`n_attempts = 1`. Multiple trials are unresolved (`missing_or_ambiguous_trial`).
+An unreadable or interrupted result leaves that attempt unresolved without
+removing it from the denominator. Binding mismatches still reject the cohort.
+
+The current capture producer emits submission v2. Invalid symlinks, non-regular
+or oversized outputs and invalid parent components are recorded as null with an
+`invalid` reason. Combined overflow invalidates all captures. The callback receives
+null for these inputs; the wrapper forces every declared check to FAIL and reward 0
+when any input is invalid, even if the callback accepts null. Ordinary absent
+optional files remain null without an invalid reason. NOP/negative controls with
+malformed outputs therefore complete with reward 0 rather than a verifier crash.
+Permission errors and callback errors remain infrastructure failures. Review packets
+may project invalid reasons without exposing receipt verdicts or check outcomes.
+Old v1 capture tasks need a fresh producer, task binding, cohort and execution.
+
+Verifier output directories follow the process umask. Keep the host job ancestor
+private and arrange readable ownership/ACLs when collecting from a different
+container UID. Rootful Linux bind mounts are not guaranteed readable by the host
+user; `submission_evidence_unreadable` distinguishes permission failure from
+inconsistent submission binding. No cross-UID portability claim is made.
+
+Receipts detect edits and bind retained evidence; they do not authenticate authors,
+execution times, or enforce the denominator against an author who moves/deletes
+jobs or cohorts. Reports inventory all discoverable cohorts for the same binding
+(up to 256 entries), including unreadable/limited-discovery warnings. Review this
+inventory for omitted experiments. Missing inventory entries are not evidence that
+no other experiment ran. There is no timestamp-based anti-reuse guarantee.

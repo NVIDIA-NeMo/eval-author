@@ -3717,7 +3717,9 @@ def _solution_review(args: argparse.Namespace) -> dict[str, Any]:
         if args.command == "record-review-inputs":
             return solution_review.record(task_dir, args.plan, binding)
         return solution_review.review(task_dir, args.cohort, args.assessments, binding)
-    except (ValueError, OSError, KeyError, TypeError, RecursionError) as error:
+    except construction.ConstructionError as error:
+        raise ContractError(f"solution review contract invalid: {error}") from error
+    except (OSError, RecursionError) as error:
         raise ContractError("solution review contract invalid; inspect private inputs and retained evidence") from error
 
 
