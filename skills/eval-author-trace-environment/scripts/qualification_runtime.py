@@ -22,6 +22,11 @@ from pathlib import Path
 SCHEMA = "nemo.eval_author.construction_execution.v2"
 MAX_OUTPUT_BYTES = 256 * 1024
 MAX_RECEIPT_BYTES = 2 * 1024 * 1024
+MAX_OBSERVATION_BYTES = 48 * 1024
+
+
+def invalid_constant(value):
+    raise ValueError("nonfinite JSON number")
 
 
 def digest(value: object) -> str:
@@ -44,6 +49,17 @@ def pointer(value: object, path: str) -> object:
         else:
             raise ValueError("pointer does not address a container")
     return value
+
+
+def observation(output: bytes | bytearray, path: str) -> tuple[object, str | None]:
+    try:
+        value = pointer(json.loads(output, parse_constant=invalid_constant), path)
+        encoded = json.dumps(value, allow_nan=False).encode()
+        if len(encoded) > MAX_OBSERVATION_BYTES:
+            return None, "observation_limit"
+        return value, None
+    except (ValueError, KeyError, IndexError, TypeError, UnicodeDecodeError, RecursionError):
+        return None, "invalid_observation"
 
 
 def run_probe(probe: dict) -> dict:
@@ -98,21 +114,20 @@ def run_probe(probe: dict) -> dict:
                     pass
                 code = process.wait()
             process.stdout.close()
-    observation = None
     if failure is None and code != 0:
         failure = "nonzero_exit"
     if failure is None and code == 0:
-        try:
-            observation = pointer(json.loads(output), probe["json_pointer"])
-        except (ValueError, KeyError, IndexError, TypeError, UnicodeDecodeError):
-            failure = "invalid_observation"
+        observed, failure = observation(output, probe["json_pointer"])
+        observation_value = observed
+    else:
+        observation_value = None
     return {
         "id": probe["id"],
         "definition_sha256": digest(probe),
         "exit_code": code,
         "failure": failure,
         "output_sha256": hashlib.sha256(output).hexdigest(),
-        "observation": observation,
+        "observation": observation_value,
         "output_bytes": bytes(output),
         "output_truncated": failure == "output_limit",
     }
@@ -147,7 +162,7 @@ def run_probes(probes: list[dict], output: Path) -> None:
                 captured.write(row.pop("output_bytes"))
             row["output_file"] = f"qualification-output/{probe['id']}.bin"
             rows.append(row)
-        data = json.dumps({"schema": SCHEMA, "probes": rows}) + "\n"
+        data = json.dumps({"schema": SCHEMA, "probes": rows}, allow_nan=False) + "\n"
         if len(data.encode()) > MAX_RECEIPT_BYTES:
             raise ValueError("probe receipt exceeds evidence limit")
         stream.write(data)

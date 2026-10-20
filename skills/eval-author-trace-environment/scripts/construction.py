@@ -10,7 +10,7 @@ import json
 import re
 from pathlib import Path
 
-from qualification_runtime import MAX_OUTPUT_BYTES, digest, pointer
+from qualification_runtime import MAX_OUTPUT_BYTES, digest, observation, pointer
 from qualification_runtime import SCHEMA as EXECUTION_SCHEMA
 
 SCHEMA = "nemo.eval_author.construction.v1"
@@ -63,7 +63,7 @@ def read_bytes(root: Path, relative: str) -> bytes:
     return data
 
 
-def load(root: Path, relative: str) -> object:
+def parse(data: bytes) -> object:
     def unique(pairs):
         result = {}
         for key, value in pairs:
@@ -75,9 +75,13 @@ def load(root: Path, relative: str) -> object:
         raise ConstructionError("nonfinite JSON number in construction evidence")
 
     try:
-        return json.loads(read_bytes(root, relative), object_pairs_hook=unique, parse_constant=invalid_constant)
+        return json.loads(data, object_pairs_hook=unique, parse_constant=invalid_constant)
     except (ValueError, OSError) as error:
         raise ConstructionError("construction evidence is not readable JSON") from error
+
+
+def load(root: Path, relative: str) -> object:
+    return parse(read_bytes(root, relative))
 
 
 def file_digest(root: Path, relative: str) -> str:
@@ -291,6 +295,7 @@ def validate(root: Path) -> dict:
         read_bytes(root, probe["assertion_path"])
         by_probe[key] = probe
     require(any(p["kind"] == "setup" for p in probes), "at least one setup probe is required")
+    require(any(p["kind"] == "reach" for p in probes), "at least one reach probe is required")
     controls = manifest["controls"]
     require(isinstance(controls, list) and 2 <= len(controls) <= 128, "negative and alternative controls are required")
     by_control = {}
@@ -358,7 +363,7 @@ def validate(root: Path) -> dict:
         visit(node, set(), done)
     provenance_summary = provenance(root, manifest["starting_state"], trace, candidate)
     require(
-        load(root, "task/tests/qualification-probes.json") == probes,
+        digest(load(root, "task/tests/qualification-probes.json")) == digest(probes),
         "verifier probe definitions differ from private construction contract",
     )
     require(
@@ -380,10 +385,9 @@ def execution(root: Path, result_path: Path, context: dict, control_id: str | No
     evidence = load(root, relative)
     evidence = fields(evidence, "schema probes", "execution receipt")
     require(
-        evidence["schema"] in (EXECUTION_SCHEMA, "nemo.eval_author.construction_execution.v1"),
+        evidence["schema"] == EXECUTION_SCHEMA,
         "unknown execution receipt schema",
     )
-    retained = evidence["schema"] == EXECUTION_SCHEMA
     rows = evidence["probes"]
     probes = context["manifest"]["probes"]
     require(isinstance(rows, list) and len(rows) == len(probes), "missing execution probes")
@@ -393,8 +397,7 @@ def execution(root: Path, result_path: Path, context: dict, control_id: str | No
     for row in rows:
         fields(
             row,
-            "id definition_sha256 exit_code failure output_sha256 observation"
-            + (" output_file output_truncated" if retained else ""),
+            "id definition_sha256 exit_code failure output_sha256 observation output_file output_truncated",
             "execution probe",
         )
         key = row["id"]
@@ -404,43 +407,47 @@ def execution(root: Path, result_path: Path, context: dict, control_id: str | No
         require(row["definition_sha256"] == digest(probe), "execution probe definition changed")
         require(row["exit_code"] is None or type(row["exit_code"]) is int, "invalid probe exit code")
         require(
-            row["failure"] in (None, "start_failed", "timeout", "output_limit", "invalid_observation")
-            or retained
-            and row["failure"] == "nonzero_exit",
+            row["failure"]
+            in (
+                None,
+                "start_failed",
+                "timeout",
+                "output_limit",
+                "observation_limit",
+                "invalid_observation",
+                "nonzero_exit",
+            ),
             "unknown probe failure",
         )
         require(
             isinstance(row["output_sha256"], str) and SHA.fullmatch(row["output_sha256"]) is not None,
             "missing probe output digest",
         )
-        if retained:
-            require(
-                row["output_file"] == f"qualification-output/{key}.bin"
-                and type(row["output_truncated"]) is bool
-                and row["output_truncated"] == (row["failure"] == "output_limit"),
-                "invalid retained probe output",
-            )
-            output = read_bytes(root, str(Path(relative).parent / row["output_file"]))
-            require(
-                len(output) <= MAX_OUTPUT_BYTES and hashlib.sha256(output).hexdigest() == row["output_sha256"],
-                "probe output changed or oversized",
-            )
-            failure, code = row["failure"], row["exit_code"]
-            require(
-                (failure == "start_failed" and code is None and not output)
-                or (failure in ("timeout", "output_limit") and type(code) is int)
-                or (failure == "nonzero_exit" and type(code) is int and code != 0)
-                or (failure in (None, "invalid_observation") and code == 0),
-                "inconsistent probe execution status",
-            )
-            if failure is None:
-                try:
-                    observed = pointer(json.loads(output), probe["json_pointer"])
-                except (ValueError, KeyError, IndexError, TypeError, UnicodeDecodeError) as error:
-                    raise ConstructionError("invalid retained probe observation") from error
-                require(digest(observed) == digest(row["observation"]), "probe observation differs from output")
-            else:
-                require(row["observation"] is None, "failed probe cannot claim an observation")
+        require(
+            row["output_file"] == f"qualification-output/{key}.bin"
+            and type(row["output_truncated"]) is bool
+            and row["output_truncated"] == (row["failure"] == "output_limit"),
+            "invalid retained probe output",
+        )
+        output = read_bytes(root, str(Path(relative).parent / row["output_file"]))
+        require(
+            len(output) <= MAX_OUTPUT_BYTES and hashlib.sha256(output).hexdigest() == row["output_sha256"],
+            "probe output changed or oversized",
+        )
+        failure, code = row["failure"], row["exit_code"]
+        require(
+            (failure == "start_failed" and code is None and not output)
+            or (failure in ("timeout", "output_limit") and type(code) is int)
+            or (failure == "nonzero_exit" and type(code) is int and code != 0)
+            or (failure in (None, "invalid_observation", "observation_limit") and code == 0),
+            "inconsistent probe execution status",
+        )
+        if failure in (None, "invalid_observation", "observation_limit"):
+            observed, observed_failure = observation(output, probe["json_pointer"])
+            require(observed_failure == failure, "probe observation status differs from output")
+            require(digest(observed) == digest(row["observation"]), "probe observation differs from output")
+        else:
+            require(row["observation"] is None, "failed probe cannot claim an observation")
         if row["failure"] is None and row["exit_code"] == 0 and digest(row["observation"]) == digest(probe["equals"]):
             passed.add(key)
     setup = {p["id"] for p in probes if p["kind"] == "setup"}

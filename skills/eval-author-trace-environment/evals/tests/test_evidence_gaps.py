@@ -17,11 +17,12 @@ driver = construction_tests.driver
 review = review_tests.review
 
 
-def test_capture_helper_nonregular_file_is_ignored(tmp_path):
+def test_capture_helper_nonregular_file_is_rejected(tmp_path):
     root, _ = construction_tests.workspace(tmp_path)
     helper = root / "task/tests/review_runtime.py"
     os.mkfifo(helper)
-    driver._validate_task(root)
+    with pytest.raises(driver.ContractError, match="helper is not a bounded regular file"):
+        driver._validate_task(root)
 
 
 def test_misplaced_handoff_and_direct_capture(tmp_path):
@@ -58,7 +59,7 @@ def execution_fixture(tmp_path, script):
     return root, directory, context
 
 
-def test_retained_exception_and_legacy_receipt(tmp_path):
+def test_retained_exception_and_rejected_receipt_downgrade(tmp_path):
     root, directory, context = execution_fixture(tmp_path, "raise RuntimeError('native checker failed')")
     result = contract.execution(root, directory.parent / "result.json", context, "control")
     assert not result["behavior_reached"]
@@ -70,7 +71,8 @@ def test_retained_exception_and_legacy_receipt(tmp_path):
     row.pop("output_truncated")
     row["failure"] = None  # Historical v1 represented nonzero exit this way.
     construction_tests.save(directory / "qualification.json", receipt)
-    assert not contract.execution(root, directory.parent / "result.json", context, "control")["behavior_reached"]
+    with pytest.raises(contract.ConstructionError, match="unknown execution receipt schema"):
+        contract.execution(root, directory.parent / "result.json", context, "control")
 
 
 @pytest.mark.parametrize("mutation", ["observation", "bytes", "locator", "symlink", "status"])
@@ -91,7 +93,14 @@ def test_probe_evidence_tampering_rejected(tmp_path, mutation):
     else:
         row["exit_code"] = 1
     construction_tests.save(directory / "qualification.json", receipt)
-    with pytest.raises((ValueError, OSError)):
+    messages = {
+        "observation": "probe observation differs from output",
+        "bytes": "probe output changed or oversized",
+        "locator": "invalid retained probe output",
+        "symlink": "evidence symlinks are not allowed",
+        "status": "inconsistent probe execution status",
+    }
+    with pytest.raises(contract.ConstructionError, match=messages[mutation]):
         contract.execution(root, directory.parent / "result.json", context, "control")
 
 
@@ -105,7 +114,7 @@ def test_full_probe_count_with_saturated_outputs(tmp_path):
     assert all((tmp_path / r["output_file"]).stat().st_size == runtime.MAX_OUTPUT_BYTES for r in rows)
 
 
-def test_aggregate_observation_overflow_leaves_invalid_receipt(tmp_path):
+def test_aggregate_observation_overflow_retains_failed_receipt(tmp_path):
     probes = [
         construction_tests.probe(
             f"probe-{i}", "reach", "import json; print(json.dumps({'reached':'x'*70000}))", tmp_path
@@ -113,9 +122,10 @@ def test_aggregate_observation_overflow_leaves_invalid_receipt(tmp_path):
         for i in range(32)
     ]
     output = tmp_path / "qualification.json"
-    with pytest.raises(ValueError, match="receipt exceeds"):
-        runtime.run_probes(probes, output)
-    assert output.read_bytes() == b""
+    runtime.run_probes(probes, output)
+    receipt = contract.load(tmp_path, "qualification.json")
+    assert isinstance(receipt, dict)
+    assert all(row["failure"] == "observation_limit" and not row["output_truncated"] for row in receipt["probes"])
 
 
 @pytest.mark.parametrize("kind", ["duplicate", "unsafe", "existing_directory", "symlink"])
@@ -130,7 +140,13 @@ def test_output_inventory_refused_before_completion(tmp_path, kind):
         (tmp_path / "qualification-output").mkdir()
     else:
         (tmp_path / "qualification-output").symlink_to(tmp_path, target_is_directory=True)
-    with pytest.raises((ValueError, OSError)):
+    messages = {
+        "duplicate": "probe IDs must be unique safe names",
+        "unsafe": "probe IDs must be unique safe names",
+        "existing_directory": "File exists",
+        "symlink": "File exists",
+    }
+    with pytest.raises((ValueError, FileExistsError), match=messages[kind]):
         runtime.run_probes(probes, tmp_path / "qualification.json")
 
 
@@ -205,3 +221,83 @@ def test_public_context_rejects_symlinks(tmp_path):
     source.symlink_to(root / "task/instruction.md")
     with pytest.raises(ValueError, match="symlink"):
         review.validate_plan(root, plan)
+
+
+@pytest.mark.parametrize("failure", ["invalid_observation", "observation_limit"])
+def test_success_cannot_be_relabelled_as_failed_observation(tmp_path, failure):
+    root, directory, context = execution_fixture(tmp_path, "print('{\"reached\": true}')")
+    receipt = json.loads((directory / "qualification.json").read_text())
+    receipt["probes"][0].update(failure=failure, observation=None)
+    construction_tests.save(directory / "qualification.json", receipt)
+    with pytest.raises(contract.ConstructionError, match="probe observation status differs from output"):
+        contract.execution(root, directory.parent / "result.json", context, "control")
+
+
+def test_capture_gate_survives_workspace_alias(tmp_path):
+    root, _ = construction_tests.workspace(tmp_path)
+    shutil.copyfile(construction_tests.SKILL / "scripts/review_runtime.py", root / "task/tests/review_runtime.py")
+    (root / "task/tests/grade.py").write_text(
+        "from review_runtime import grade_submission\ngrade_submission({}, lambda x: {})\n"
+    )
+    alias = tmp_path / "alias"
+    alias.symlink_to(root, target_is_directory=True)
+    with pytest.raises(driver.ContractError, match="requires a nonempty"):
+        driver._validate_task(alias)
+
+
+def test_step_handoff_is_accepted_and_nested_handoff_rejected(tmp_path):
+    root, _ = construction_tests.workspace(tmp_path)
+    shutil.copyfile(construction_tests.SKILL / "scripts/review_runtime.py", root / "task/tests/review_runtime.py")
+    (root / "task/tests/grade.py").write_text(
+        "from review_runtime import grade_submission\ngrade_submission({}, lambda x: {})\n"
+    )
+    config = root / "task/task.toml"
+    config.write_text(config.read_text() + '\n[[steps]]\nname = "solve"\nartifacts = ["/workspace/answer"]\n')
+    driver._validate_task(root)
+    config.write_text(config.read_text() + '\n[steps.agent]\nartifacts = ["/workspace/answer"]\n')
+    with pytest.raises(driver.ContractError, match="nested artifacts are ignored"):
+        driver._validate_task(root)
+
+
+def test_context_solver_paths_must_be_unique(tmp_path):
+    root, _, _, _, plan = context_setup(tmp_path)
+    other = root / "task/environment/other.csv"
+    other.write_text("other input")
+    plan["public_context"].append(
+        {**plan["public_context"][0], "path": "task/environment/other.csv", "sha256": review.sha(other.read_bytes())}
+    )
+    with pytest.raises(ValueError, match="declare solver-visible location"):
+        review.validate_plan(root, plan)
+
+
+@pytest.mark.parametrize("kind", ["internal_symlink", "oversized", "invalid_python"])
+def test_incomplete_capture_scan_fails_closed(tmp_path, kind):
+    root, _ = construction_tests.workspace(tmp_path)
+    helper = root / "task/tests/review_runtime.py"
+    shutil.copyfile(construction_tests.SKILL / "scripts/review_runtime.py", helper)
+    grader = root / "task/tests/grade.py"
+    if kind == "internal_symlink":
+        grader.symlink_to(helper)
+    elif kind == "oversized":
+        grader.write_bytes(b"#" * (256 * 1024 + 1))
+    else:
+        grader.write_text("def invalid(")
+    with pytest.raises(driver.ContractError, match="submission capture inspection failed"):
+        driver._validate_task(root)
+
+
+def test_public_context_is_read_once_per_review(tmp_path, monkeypatch):
+    root, binding, receipt, assessments, _ = context_setup(tmp_path)
+    review_tests.trial(root, assessments)
+    assessments["judgments"][0]["requirements"][0]["citations"].append("task/environment/input.csv")
+    reads = []
+    original = review.read
+
+    def tracked(root, relative, evidence):
+        if relative == "task/environment/input.csv":
+            reads.append(relative)
+        return original(root, relative, evidence)
+
+    monkeypatch.setattr(review, "read", tracked)
+    assert review_tests.run(root, binding, receipt, assessments)["counts"] == {"legitimate_pass": 1}
+    assert len(reads) == 1

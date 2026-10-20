@@ -42,7 +42,7 @@ package = false
 override-dependencies = ["protobuf>=7.36.0"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "skills/eval-author-trace-environment/evals/tests"]
 
 [tool.ruff]
 line-length = 120

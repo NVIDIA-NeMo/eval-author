@@ -157,14 +157,14 @@ Ordinary scored checks and rewards remain authoritative for task outcomes.
 Execution receipt v2 retains combined output in verifier-owned
 `qualification-output/<probe-id>.bin` files, bounded to 256 KiB each and 32 probes.
 The receipt binds each exact locator and retained-byte hash, explicitly labels
-nonzero exits and output truncation, and is limited to 2 MiB. Oversized aggregate
-observations leave an invalid receipt, not a completed proof. Validation rereads
-the output and recomputes successful JSON observations; changed output or
-observations are rejected. An output-limit hash identifies the retained prefix,
+nonzero exits and output truncation, and is limited to 2 MiB. Oversized parsed
+observations retain an explicit failed result within that bound. Validation rereads
+the output and recomputes successful, invalid and oversized JSON observations;
+changed output or observation status is rejected. An output-limit hash identifies the retained prefix,
 not unseen trailing output. Keep raw output private: it may contain submitted
 data or diagnostic details and is not included in CLI summaries or export.
-Historical v1 receipts retain their previous validation semantics and lack
-retained output; do not claim the stronger evidence for them.
+Historical v1 receipts require their original skill revision; the current runtime
+requires v2 receipts and retained output.
 
 The verifier remains reviewed code, not cryptographically trusted code. Retained
 local files can be fabricated by their owner, just like existing Harbor results.
@@ -228,8 +228,9 @@ qualify construction. No additional CLI or authoring agent is introduced.
 ## Status and compatibility
 
 New `init` workspaces use summary v3, run-input v2 and validation v7. Summary v3
-requires the manifest independently of its presence: deleting it cannot downgrade
-the workspace to historical proof. `finalize`, `check` and publication rederive
+requires the manifest; deleting it fails validation. The creation marker also
+rejects a summary-only downgrade to historical proof. These are edit-detection
+tripwires, not tamper-proof storage. `finalize`, `check` and publication rederive
 proof from retained results and execution receipts. Changed/missing evidence
 fails validation; fixing a task uses the existing bounded repair protocol.
 
@@ -261,3 +262,32 @@ uv run --locked pytest -q skills/eval-author-trace-environment/evals/tests
 These cover synthetic provider receipts, real local probe execution, provenance,
 dependency controls and finalization/publication integrity. They do not replace
 live provider qualification of a generated task.
+
+### Evidence limitations and repair history
+
+Review identities, including `reviewer_kind: human`, are unverified self-declarations,
+not authenticated approvals. New workspaces carry a write-once creation marker;
+changing only the summary schema cannot select the historical qualification path.
+This is a tripwire, not protection against an author deleting or forging evidence.
+Historical `unmeasured` qualification is not qualified.
+
+Record a repair before editing the candidate or construction contract. Repairs
+retain both files alongside prior proof reports; `check.contract_changes` lists
+changes against those snapshots for review, without asserting that changes are valid.
+Reverse edits currently require strictly decreasing trace steps: multiple edits to
+the same file within one step must be represented by a single before/after reversal.
+Receipts bind retained files consistently; they do not authenticate execution time
+or prove that Harbor actually ran.
+
+Probe observations reject nonfinite JSON and are capped at 48 KiB of serialized JSON each (`observation_limit`), keeping 32-probe receipts below the 2 MiB reader limit. Command output overflow remains `output_limit`.
+
+The current producer and consumer require execution receipt v2 together. Historical
+v1 receipts are not accepted with the current bundled runtime; inspect them with
+the original skill revision or rerun the task with the current producer and fresh
+bindings. Editing the schema cannot disable retained-output checks.
+
+Both successful and invalid/oversized parsed observations are rederived from the
+retained bytes. Output cannot authenticate exit codes, process start failures,
+timeouts, or whether omitted bytes existed after truncation. These execution facts
+remain trusted producer claims; in particular, stdout alone cannot disprove a
+forged `nonzero_exit`. Hash binding establishes consistency, not trusted execution.

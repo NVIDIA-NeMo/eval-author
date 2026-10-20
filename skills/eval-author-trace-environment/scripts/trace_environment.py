@@ -300,6 +300,15 @@ def _summary_path(task_dir: Path) -> Path:
 
 def _load_summary(task_dir: Path) -> dict[str, Any]:
     summary = _load_object(_summary_path(task_dir), label="summary")
+    marker = task_dir / "private/workspace.json"
+    if marker.exists() or marker.is_symlink():
+        if marker.is_symlink() or _load_object(marker, label="workspace marker") != {
+            "schema": "nemo.eval_author.workspace.v1",
+            "summary_schema": QUALIFIED_SUMMARY_SCHEMA,
+        }:
+            raise ContractError("invalid workspace creation marker")
+        if summary.get("schema") != QUALIFIED_SUMMARY_SCHEMA:
+            raise ContractError("workspace creation marker forbids summary schema downgrade")
     if set(summary) != _SUMMARY_KEYS:
         raise ContractError("summary fields do not match the versioned contract")
     if summary.get("schema") not in (SCHEMA, QUALIFIED_SUMMARY_SCHEMA):
@@ -431,6 +440,12 @@ def _init(args: argparse.Namespace) -> dict[str, Any]:
         "did_not_work": [],
         "reasons": [],
     }
+    _write_bytes_once(
+        task_dir / "private/workspace.json",
+        (
+            json.dumps({"schema": "nemo.eval_author.workspace.v1", "summary_schema": QUALIFIED_SUMMARY_SCHEMA}) + "\n"
+        ).encode(),
+    )
     _write_json(_summary_path(task_dir), summary)
     return {"task_dir": str(task_dir), "status": "pending", "gitignored": True}
 
@@ -1942,15 +1957,32 @@ def _validate_task(task_dir: Path) -> dict[str, Any]:
     agent_environment = config.get("environment")
     if not isinstance(agent_environment, dict) or agent_environment.get("network_mode") != "no-network":
         raise ContractError("[environment].network_mode must be no-network")
-    if any("artifacts" in table for table in (verifier, verifier_environment, agent_environment)):
-        raise ContractError(
-            "artifact handoff must be top-level in task.toml, before table headers; nested artifacts are ignored"
-        )
-    if uses_submission_capture(task_dir) and (not isinstance(config.get("artifacts"), list) or not config["artifacts"]):
-        raise ContractError("submission capture requires a nonempty top-level artifacts handoff in task.toml")
     steps = config.get("steps", [])
     if not isinstance(steps, list):
         raise ContractError("task/task.toml steps must be an array of tables")
+
+    def check_artifact_tables(table, location=()):
+        if isinstance(table, dict):
+            if (
+                "artifacts" in table
+                and location != ()
+                and not (len(location) == 2 and location[0] == "steps" and isinstance(location[1], int))
+            ):
+                raise ContractError("artifact handoff belongs at top-level or step root; nested artifacts are ignored")
+            for key, value in table.items():
+                check_artifact_tables(value, (*location, key))
+        elif isinstance(table, list):
+            for index, value in enumerate(table):
+                check_artifact_tables(value, (*location, index))
+
+    check_artifact_tables(config)
+    handoffs = [config.get("artifacts"), *(step.get("artifacts") for step in steps if isinstance(step, dict))]
+    try:
+        capture = uses_submission_capture(task_dir)
+    except (ValueError, OSError) as error:
+        raise ContractError(f"submission capture inspection failed: {error}") from error
+    if capture and not any(isinstance(value, list) and value for value in handoffs):
+        raise ContractError("submission capture requires a nonempty top-level or step artifacts handoff in task.toml")
     for index, step in enumerate(steps, start=1):
         if not isinstance(step, dict):
             raise ContractError(f"task/task.toml step {index} must be a table")
@@ -2349,7 +2381,7 @@ def _repairs(task_dir: Path) -> list[dict[str, Any]]:
         if receipt["index"] != index:
             raise ContractError("repair receipt index does not match its file name")
         superseded = receipt["superseded"]
-        for name in ("validation.json", "reproducibility.json"):
+        for name in ("validation.json", "reproducibility.json", "candidate.json", "construction.json"):
             record = superseded.get(name)
             archived = root / f"repair-{index}" / name
             if record is None:
@@ -2394,6 +2426,15 @@ def _record_repair(args: argparse.Namespace) -> dict[str, Any]:
         digest = _sha256_file(path)
         shutil.move(str(path), archive / name)
         superseded[name] = {"sha256": digest}
+    for name, path in (
+        ("candidate.json", task_dir / "candidate.json"),
+        ("construction.json", task_dir / "private/construction.json"),
+    ):
+        if path.is_file():
+            _write_bytes_once(archive / name, path.read_bytes())
+            superseded[name] = {"sha256": _sha256_file(archive / name)}
+        else:
+            superseded[name] = None
     receipt = {
         "schema": REPAIR_SCHEMA,
         "index": index,
@@ -2636,6 +2677,11 @@ def _proof_control(task_dir: Path, agent: str, source: Path, rationale: str, *, 
     source_path = source_path.resolve()
     if not source_path.is_relative_to(task_dir / "private") or not source_path.stat().st_size:
         raise ContractError(f"{arm} control source must be nonempty and stay under private/")
+    if arm == "alternative" and any(
+        path.is_file() and _sha256_file(path) == _sha256_file(source_path)
+        for path in (task_dir / "task/solution").rglob("*")
+    ):
+        raise ContractError("alternative control must not copy an oracle solution file")
     return {
         "agent": identity,
         "source_path": source_path.relative_to(task_dir).as_posix(),
@@ -2665,6 +2711,8 @@ def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
     if context is not None and args.arm in construction.CUSTOM_ARMS:
         if control_id not in context["controls"] or context["controls"][control_id]["arm"] != args.arm:
             raise ContractError("custom proof arm requires a matching declared --control-id")
+    elif context is not None and control_id is not None:
+        raise ContractError("built-in arms must not identify custom controls")
     elif control_id is not None or args.arm in ("alternative", "bypass"):
         raise ContractError("control IDs, alternative and bypass arms require a construction contract")
     control = None
@@ -3310,6 +3358,16 @@ def _check(args: argparse.Namespace) -> dict[str, Any]:
         "valid": not errors,
         "errors": errors,
         "repairs": len(repairs),
+        "contract_changes": [
+            {"repair": receipt["index"], "file": name}
+            for receipt in repairs
+            for name, path in (
+                ("candidate.json", task_dir / "candidate.json"),
+                ("construction.json", task_dir / "private/construction.json"),
+            )
+            if receipt["superseded"].get(name) is not None
+            and (not path.is_file() or _sha256_file(path) != receipt["superseded"][name]["sha256"])
+        ],
         "qualification": summary["environment"].get("qualification", "unmeasured"),
     }
 
@@ -3400,21 +3458,23 @@ def _batch_status(args: argparse.Namespace) -> dict[str, Any]:
                 if summary["schema"] == QUALIFIED_SUMMARY_SCHEMA and summary["status"] != "pending":
                     checked = _check(argparse.Namespace(task_dir=task_dir))
                     if not checked["valid"]:
-                        raise ContractError("finalized construction evidence no longer validates")
+                        raise ContractError("; ".join(checked["errors"]))
                 if summary["status"] == "pending":
                     status = "pending_prepared" if summary["source"] is not None else "pending_unprepared"
                 elif summary["status"] == "candidate":
                     status = f"candidate_{summary['environment']['status']}"
                 else:
                     status = "no_candidate"
-            except (ContractError, OSError) as error:
+            except (ContractError, OSError, UnicodeError) as error:
                 status = "invalid"
                 results.append({"task_id": member["task_id"], "status": status, "error": str(error)})
                 counts[status] = counts.get(status, 0) + 1
                 continue
         counts[status] = counts.get(status, 0) + 1
         row: dict[str, Any] = {"task_id": member["task_id"], "status": status}
-        row["qualification"] = qualification
+        if status != "missing":
+            row["qualification"] = qualification
+            row["qualified"] = qualification == "passed"
         try:
             repair_count = len(_repairs(task_dir))
         except ContractError:
@@ -3549,6 +3609,7 @@ def _write_publication(task_dir: Path, output_dir: Path) -> None:
             )
         },
         "construction_qualification": summary["environment"].get("qualification", "unmeasured"),
+        "construction_qualified": summary["environment"].get("qualification") == "passed",
         "reproducibility": reproducibility_summary,
         "technical_validation": validation_summary,
     }
@@ -3679,7 +3740,9 @@ def _solution_review(args: argparse.Namespace) -> dict[str, Any]:
         if args.command == "record-review-inputs":
             return solution_review.record(task_dir, args.plan, binding)
         return solution_review.review(task_dir, args.cohort, args.assessments, binding)
-    except (ValueError, OSError, KeyError, TypeError, RecursionError) as error:
+    except construction.ConstructionError as error:
+        raise ContractError(f"solution review contract invalid: {error}") from error
+    except (OSError, RecursionError) as error:
         raise ContractError("solution review contract invalid; inspect private inputs and retained evidence") from error
 
 

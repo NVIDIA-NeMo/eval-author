@@ -49,23 +49,22 @@ def persist(root: Path, category: str, value: dict) -> str:
 def read(root: Path, relative: str, evidence: dict) -> bytes:
     path = contract.secure_path(root, relative)
     data = read_regular(path)
-    evidence[relative] = sha(data)
+    require(evidence.setdefault(relative, sha(data)) == sha(data), "evidence changed while reading")
     return data
 
 
 def load(root: Path, relative: str, evidence: dict) -> object:
     # Reuse duplicate-key/nonfinite rejection, and bind exactly the parsed bytes.
     data = read(root, relative, evidence)
-    value = contract.load(root, relative)
-    require(sha(read_regular(root / relative)) == sha(data), "evidence changed while reading")
-    return value
+    return contract.parse(data)
 
 
-def public_context(root: Path, plan: dict) -> set[str]:
+def public_context(root: Path, plan: dict, evidence: dict | None = None) -> set[str]:
     """Validate explicitly reviewed solver-visible files, never infer visibility."""
     entries = plan.get("public_context", [])
     require(isinstance(entries, list) and len(entries) <= 32, "expected at most 32 public context files")
     paths: set[str] = set()
+    solver_paths: set[str] = set()
     total = 0
     for entry in entries:
         fields(entry, "path sha256 solver_path purpose review", "public context")
@@ -83,21 +82,24 @@ def public_context(root: Path, plan: dict) -> set[str]:
             and entry["solver_path"].startswith("/")
             and entry["solver_path"] == Path(entry["solver_path"]).as_posix()
             and ".." not in Path(entry["solver_path"]).parts
+            and entry["solver_path"] not in solver_paths
             and entry["purpose"] in ("input", "runtime_context"),
             "declare solver-visible location and context purpose",
         )
         contract.review(entry["review"])
-        data = read_regular(path)
+        data = read(root, relative, evidence if evidence is not None else {})
         total += len(data)
         require(total <= contract.MAX_BYTES and sha(data) == entry["sha256"], "public context changed or oversized")
+        solver_paths.add(entry["solver_path"])
         paths.add(relative)
     return paths
 
 
-def validate_plan(root: Path, value: object) -> dict:
+def validate_plan(root: Path, value: object, *, check_context: bool = True) -> dict:
     extra = " public_context" if isinstance(value, dict) and "public_context" in value else ""
     plan = fields(value, "author_id author_context_id attempts" + extra, "review plan")
-    public_context(root, plan)
+    if check_context:
+        public_context(root, plan)
     require(all(contract.text(plan[key]) for key in ("author_id", "author_context_id")), "author identity required")
     attempts = plan["attempts"]
     require(isinstance(attempts, list) and 1 <= len(attempts) <= 32, "expected 1..32 planned attempts")
@@ -137,9 +139,8 @@ def validate_plan(root: Path, value: object) -> dict:
 def record(root: Path, plan_path: str, binding: dict) -> dict:
     private_path(root, plan_path)
     evidence: dict[str, str] = {}
-    plan = validate_plan(root, load(root, plan_path, evidence))
-    for path in sorted(public_context(root, plan)):
-        read(root, path, evidence)
+    plan = validate_plan(root, load(root, plan_path, evidence), check_context=False)
+    public_context(root, plan, evidence)
     for attempt in plan["attempts"]:
         require(not private_path(root, attempt["job_dir"]).exists(), "record the entire cohort before any job exists")
         read(root, attempt["prompt"], evidence)
@@ -215,7 +216,9 @@ def assessment_map(value: object, cohort: dict, requirements: list[str]) -> dict
     return result
 
 
-def review_attempt(root: Path, attempt: dict, rows: list | None, cohort: dict, evidence: dict) -> str:
+def review_attempt(
+    root: Path, attempt: dict, rows: list | None, cohort: dict, evidence: dict, context_paths: set[str]
+) -> str:
     job = private_path(root, attempt["job_dir"])
     if not job.exists():
         return "missing_job"
@@ -234,7 +237,10 @@ def review_attempt(root: Path, attempt: dict, rows: list | None, cohort: dict, e
     if len(trials) != 1:
         return "missing_or_ambiguous_trial"
     trial = trials[0].parent.relative_to(root).as_posix()
-    result = load(root, f"{trial}/result.json", evidence)
+    try:
+        result = load(root, f"{trial}/result.json", evidence)
+    except (ValueError, OSError):
+        return "unreadable_trial_result"
     if not isinstance(result, dict):
         raise contract.ConstructionError("trial result must be an object")
     require(result.get("task_checksum") == cohort["binding"]["task_checksum"], "trial task differs from cohort")
@@ -261,7 +267,7 @@ def review_attempt(root: Path, attempt: dict, rows: list | None, cohort: dict, e
     try:
         receipt = fields(
             load(root, f"{prefix}/review-submission.json", evidence),
-            "schema producer_sha256 submissions checks reward",
+            "schema producer_sha256 submissions invalid checks reward",
             "submission receipt",
         )
         require(
@@ -276,6 +282,16 @@ def review_attempt(root: Path, attempt: dict, rows: list | None, cohort: dict, e
             and all(v is None or isinstance(v, str) and contract.SHA.fullmatch(v) for v in submissions.values()),
             "invalid submission inventory",
         )
+        invalid = receipt["invalid"]
+        require(
+            isinstance(invalid, dict)
+            and all(
+                key in submissions and submissions[key] is None and reason in ("invalid_file", "combined_limit")
+                for key, reason in invalid.items()
+            ),
+            "invalid submission reasons",
+        )
+        require(not invalid or receipt["reward"] == 0, "invalid submission cannot pass")
         require(
             isinstance(checks, dict)
             and set(checks) == set(cohort["binding"]["checks"])
@@ -313,6 +329,8 @@ def review_attempt(root: Path, attempt: dict, rows: list | None, cohort: dict, e
             data = read(root, f"{prefix}/review-submission/{key}", evidence)
             total += len(data)
             require(sha(data) == checksum and total <= contract.MAX_BYTES, "snapshot changed or oversized")
+    except PermissionError:
+        return "submission_evidence_unreadable"
     except (ValueError, OSError):
         return "submission_binding_unverified"
     try:
@@ -321,23 +339,23 @@ def review_attempt(root: Path, attempt: dict, rows: list | None, cohort: dict, e
         return "missing_transcript"
     if rows is None:
         return "missing_assessment"
+    allowed = (
+        {f"{prefix}/review-submission/{key}" for key in present}
+        | absence_citations
+        | {f"{trial}/{attempt['transcript']}"}
+    )
     for row in rows:
         citations = row["citations"]
-        allowed = (
-            {f"{prefix}/review-submission/{key}" for key in present}
-            | absence_citations
-            | {f"{trial}/{attempt['transcript']}"}
-        )
         require(
             "task/instruction.md" in citations
             and bool(set(citations) & allowed)
-            and set(citations) <= allowed | {"task/instruction.md"} | public_context(root, cohort["plan"]),
+            and set(citations) <= allowed | {"task/instruction.md"} | context_paths,
             "citation must bind this trial and public contract",
         )
         for citation in citations:
             # Only these exact null-entry locators are supported. The complete
             # receipt was already read and hashed above; do not resolve pointers.
-            if citation not in absence_citations:
+            if citation not in absence_citations and citation not in context_paths:
                 read(root, citation, evidence)
     decisions = {row["decision"] for row in rows}
     if "unmet" in decisions:
@@ -345,6 +363,31 @@ def review_attempt(root: Path, attempt: dict, rows: list | None, cohort: dict, e
     if "uncertain" in decisions:
         return "uncertain_assessment"
     return "legitimate_pass" if reward == 1 else "false_reject"
+
+
+def cohort_inventory(root: Path, binding: dict) -> dict:
+    directory = private_path(root, "private/solution-review/cohorts")
+    matches, unreadable, limited = [], 0, False
+    with os.scandir(directory) as entries:
+        for index, entry in enumerate(entries):
+            if index >= 256:
+                limited = True
+                break
+            try:
+                require(entry.is_file(follow_symlinks=False), "cohort must be regular")
+                data = contract.parse(read_regular(Path(entry.path)))
+                if not isinstance(data, dict):
+                    raise contract.ConstructionError("cohort must be an object")
+                require(entry.name == f"{digest(data)}.json", "cohort name mismatch")
+                if data.get("binding") == binding:
+                    matches.append({"sha256": digest(data), "attempts": len(data["plan"]["attempts"])})
+            except (ValueError, OSError, KeyError, TypeError):
+                unreadable += 1
+    return {
+        "matching": sorted(matches, key=lambda row: row["sha256"]),
+        "unreadable": unreadable,
+        "discovery_limited": limited,
+    }
 
 
 def review(root: Path, cohort_path: str, assessment_path: str, binding: dict) -> dict:
@@ -356,31 +399,36 @@ def review(root: Path, cohort_path: str, assessment_path: str, binding: dict) ->
     )
     require(cohort["schema"] == COHORT_SCHEMA and cohort["binding"] == binding, "stale or invalid review cohort")
     require(cohort_path == f"private/solution-review/cohorts/{digest(cohort)}.json", "cohort receipt was edited")
-    validate_plan(root, cohort["plan"])
-    context_paths = public_context(root, cohort["plan"])
+    validate_plan(root, cohort["plan"], check_context=False)
+    context_paths = public_context(root, cohort["plan"], evidence)
     private_path(root, cohort["plan_path"])
     require(load(root, cohort["plan_path"], evidence) == cohort["plan"], "retained plan differs from cohort")
+    require(isinstance(cohort["inputs"], dict), "invalid cohort inputs")
     require(
         set(cohort["inputs"])
         == {cohort["plan_path"], *(a["prompt"] for a in cohort["plan"]["attempts"])} | context_paths,
         "cohort inputs incomplete",
     )
-    require(isinstance(cohort["inputs"], dict), "invalid cohort inputs")
     for path, checksum in cohort["inputs"].items():
         if path not in context_paths:
             private_path(root, path)
-        require(sha(read(root, path, evidence)) == checksum, "pre-run inputs changed")
+            read(root, path, evidence)
+        require(evidence[path] == checksum, "pre-run inputs changed")
     require(
         cohort["producer_sha256"]
         == sha(read_regular(Path(__file__).with_name("review_runtime.py")))
         == sha(read_regular(root / "task/tests/review_runtime.py")),
         "review producer changed",
     )
-    assessment = load(root, assessment_path, evidence)
+    assessment = fields(
+        load(root, assessment_path, evidence),
+        "schema cohort_sha256 reviewer_id context_id exposure judgments",
+        "assessments",
+    )
     judgments = assessment_map(assessment, cohort, binding["requirements"])
     outcomes = []
     for attempt in cohort["plan"]["attempts"]:
-        outcome = review_attempt(root, attempt, judgments.get(attempt["id"]), cohort, evidence)
+        outcome = review_attempt(root, attempt, judgments.get(attempt["id"]), cohort, evidence, context_paths)
         outcomes.append({"attempt_id": attempt["id"], "purpose": attempt["purpose"], "outcome": outcome})
     counts = dict(sorted(Counter(o["outcome"] for o in outcomes).items()))
     resolved = {"false_accept", "false_reject", "legitimate_pass", "legitimate_fail"}
@@ -396,9 +444,10 @@ def review(root: Path, cohort_path: str, assessment_path: str, binding: dict) ->
         "unresolved": incomplete,
         "counts": counts,
         "cohort_sha256": digest(cohort),
+        "cohort_inventory": cohort_inventory(root, binding),
         "outcomes": outcomes,
         "solver_exposure": dict(Counter(a["exposure"] for a in cohort["plan"]["attempts"])),
-        "reviewer_exposure": assessment["exposure"] if isinstance(assessment, dict) else "unknown",
+        "reviewer_exposure": assessment["exposure"],
         "evidence": evidence,
     }
     relative = persist(root, "reports", report)

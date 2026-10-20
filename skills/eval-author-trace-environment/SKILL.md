@@ -55,6 +55,12 @@ steps 1-5, then the selected provider's construction path in Step 6, one task wo
 `## Available Scripts`; an end-to-end run is in `## Examples`. Trace payloads,
 credentials, and task workspaces never go into Git.
 
+Preserve failed evidence: never rewrite or downgrade `summary.json`, delete a failed
+`validation.json`, or change `construction.json`/`candidate.json` to pass a failed
+qualification without first recording a repair. Never substitute the oracle for
+an alternative control. A reviewed correct alternative rejected by the verifier
+is a verifier defect to investigate, not a reason to weaken that control.
+
 ## Artifact contract
 
 Use one workspace per task. The tree below describes Harbor output; the
