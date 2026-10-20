@@ -157,3 +157,8 @@ Missing rows and inconsistent check IDs or rewards are contract errors, never
 successful probes. Absent copy runs are reported as `not_run`, not as resistance
 to copying. `passed: true` establishes evidence consistency, not completion of
 this source-level review.
+
+The bounded static scan does not follow all path transformations. Known misses
+include `Path(m.__file__).resolve().read_text()`, `open(os.path.realpath(m.__file__))`,
+and `open(inspect.getfile(m))` (including `absolute`, `expanduser`, `abspath`,
+`normpath`, and `getsourcefile` variants). Review these manually.

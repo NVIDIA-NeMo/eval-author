@@ -209,8 +209,9 @@ qualify construction. No additional CLI or authoring agent is introduced.
 ## Status and compatibility
 
 New `init` workspaces use summary v3, run-input v2 and validation v7. Summary v3
-requires the manifest independently of its presence: deleting it cannot downgrade
-the workspace to historical proof. `finalize`, `check` and publication rederive
+requires the manifest; deleting it fails validation. The creation marker also
+rejects a summary-only downgrade to historical proof. These are edit-detection
+tripwires, not tamper-proof storage. `finalize`, `check` and publication rederive
 proof from retained results and execution receipts. Changed/missing evidence
 fails validation; fixing a task uses the existing bounded repair protocol.
 
@@ -242,3 +243,21 @@ uv run --locked pytest -q skills/eval-author-trace-environment/evals/tests
 These cover synthetic provider receipts, real local probe execution, provenance,
 dependency controls and finalization/publication integrity. They do not replace
 live provider qualification of a generated task.
+
+### Evidence limitations and repair history
+
+Review identities, including `reviewer_kind: human`, are unverified self-declarations,
+not authenticated approvals. New workspaces carry a write-once creation marker;
+changing only the summary schema cannot select the historical qualification path.
+This is a tripwire, not protection against an author deleting or forging evidence.
+Historical `unmeasured` qualification is not qualified.
+
+Record a repair before editing the candidate or construction contract. Repairs
+retain both files alongside prior proof reports; `check.contract_changes` lists
+changes against those snapshots for review, without asserting that changes are valid.
+Reverse edits currently require strictly decreasing trace steps: multiple edits to
+the same file within one step must be represented by a single before/after reversal.
+Receipts bind retained files consistently; they do not authenticate execution time
+or prove that Harbor actually ran.
+
+Probe observations reject nonfinite JSON and are capped at 48 KiB of serialized JSON each (`observation_limit`), keeping 32-probe receipts below the 2 MiB reader limit. Command output overflow remains `output_limit`.

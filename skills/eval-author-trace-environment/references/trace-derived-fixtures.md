@@ -358,3 +358,5 @@ than editing version strings or attaching old proof to changed artifacts.
 
 - Follow the [trace-environment author workflow](../SKILL.md).
 - Apply the [environment-integrity proof requirements](environment-integrity.md).
+
+Call-fixture v2 cases may include optional boolean `is_error`. Preserve `true` as an error outcome and `false` as an explicitly successful outcome; absence means unrecorded, not success.

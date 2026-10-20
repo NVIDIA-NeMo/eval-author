@@ -299,6 +299,15 @@ def _summary_path(task_dir: Path) -> Path:
 
 def _load_summary(task_dir: Path) -> dict[str, Any]:
     summary = _load_object(_summary_path(task_dir), label="summary")
+    marker = task_dir / "private/workspace.json"
+    if marker.exists() or marker.is_symlink():
+        if marker.is_symlink() or _load_object(marker, label="workspace marker") != {
+            "schema": "nemo.eval_author.workspace.v1",
+            "summary_schema": QUALIFIED_SUMMARY_SCHEMA,
+        }:
+            raise ContractError("invalid workspace creation marker")
+        if summary.get("schema") != QUALIFIED_SUMMARY_SCHEMA:
+            raise ContractError("workspace creation marker forbids summary schema downgrade")
     if set(summary) != _SUMMARY_KEYS:
         raise ContractError("summary fields do not match the versioned contract")
     if summary.get("schema") not in (SCHEMA, QUALIFIED_SUMMARY_SCHEMA):
@@ -430,6 +439,12 @@ def _init(args: argparse.Namespace) -> dict[str, Any]:
         "did_not_work": [],
         "reasons": [],
     }
+    _write_bytes_once(
+        task_dir / "private/workspace.json",
+        (
+            json.dumps({"schema": "nemo.eval_author.workspace.v1", "summary_schema": QUALIFIED_SUMMARY_SCHEMA}) + "\n"
+        ).encode(),
+    )
     _write_json(_summary_path(task_dir), summary)
     return {"task_dir": str(task_dir), "status": "pending", "gitignored": True}
 
@@ -2342,7 +2357,7 @@ def _repairs(task_dir: Path) -> list[dict[str, Any]]:
         if receipt["index"] != index:
             raise ContractError("repair receipt index does not match its file name")
         superseded = receipt["superseded"]
-        for name in ("validation.json", "reproducibility.json"):
+        for name in ("validation.json", "reproducibility.json", "candidate.json", "construction.json"):
             record = superseded.get(name)
             archived = root / f"repair-{index}" / name
             if record is None:
@@ -2387,6 +2402,15 @@ def _record_repair(args: argparse.Namespace) -> dict[str, Any]:
         digest = _sha256_file(path)
         shutil.move(str(path), archive / name)
         superseded[name] = {"sha256": digest}
+    for name, path in (
+        ("candidate.json", task_dir / "candidate.json"),
+        ("construction.json", task_dir / "private/construction.json"),
+    ):
+        if path.is_file():
+            _write_bytes_once(archive / name, path.read_bytes())
+            superseded[name] = {"sha256": _sha256_file(archive / name)}
+        else:
+            superseded[name] = None
     receipt = {
         "schema": REPAIR_SCHEMA,
         "index": index,
@@ -2629,6 +2653,11 @@ def _proof_control(task_dir: Path, agent: str, source: Path, rationale: str, *, 
     source_path = source_path.resolve()
     if not source_path.is_relative_to(task_dir / "private") or not source_path.stat().st_size:
         raise ContractError(f"{arm} control source must be nonempty and stay under private/")
+    if arm == "alternative" and any(
+        path.is_file() and _sha256_file(path) == _sha256_file(source_path)
+        for path in (task_dir / "task/solution").rglob("*")
+    ):
+        raise ContractError("alternative control must not copy an oracle solution file")
     return {
         "agent": identity,
         "source_path": source_path.relative_to(task_dir).as_posix(),
@@ -2658,6 +2687,8 @@ def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
     if context is not None and args.arm in construction.CUSTOM_ARMS:
         if control_id not in context["controls"] or context["controls"][control_id]["arm"] != args.arm:
             raise ContractError("custom proof arm requires a matching declared --control-id")
+    elif context is not None and control_id is not None:
+        raise ContractError("built-in arms must not identify custom controls")
     elif control_id is not None or args.arm in ("alternative", "bypass"):
         raise ContractError("control IDs, alternative and bypass arms require a construction contract")
     control = None
@@ -3303,6 +3334,16 @@ def _check(args: argparse.Namespace) -> dict[str, Any]:
         "valid": not errors,
         "errors": errors,
         "repairs": len(repairs),
+        "contract_changes": [
+            {"repair": receipt["index"], "file": name}
+            for receipt in repairs
+            for name, path in (
+                ("candidate.json", task_dir / "candidate.json"),
+                ("construction.json", task_dir / "private/construction.json"),
+            )
+            if receipt["superseded"].get(name) is not None
+            and (not path.is_file() or _sha256_file(path) != receipt["superseded"][name]["sha256"])
+        ],
         "qualification": summary["environment"].get("qualification", "unmeasured"),
     }
 
@@ -3393,21 +3434,23 @@ def _batch_status(args: argparse.Namespace) -> dict[str, Any]:
                 if summary["schema"] == QUALIFIED_SUMMARY_SCHEMA and summary["status"] != "pending":
                     checked = _check(argparse.Namespace(task_dir=task_dir))
                     if not checked["valid"]:
-                        raise ContractError("finalized construction evidence no longer validates")
+                        raise ContractError("; ".join(checked["errors"]))
                 if summary["status"] == "pending":
                     status = "pending_prepared" if summary["source"] is not None else "pending_unprepared"
                 elif summary["status"] == "candidate":
                     status = f"candidate_{summary['environment']['status']}"
                 else:
                     status = "no_candidate"
-            except (ContractError, OSError) as error:
+            except (ContractError, OSError, UnicodeError) as error:
                 status = "invalid"
                 results.append({"task_id": member["task_id"], "status": status, "error": str(error)})
                 counts[status] = counts.get(status, 0) + 1
                 continue
         counts[status] = counts.get(status, 0) + 1
         row: dict[str, Any] = {"task_id": member["task_id"], "status": status}
-        row["qualification"] = qualification
+        if status != "missing":
+            row["qualification"] = qualification
+            row["qualified"] = qualification == "passed"
         try:
             repair_count = len(_repairs(task_dir))
         except ContractError:
@@ -3542,6 +3585,7 @@ def _write_publication(task_dir: Path, output_dir: Path) -> None:
             )
         },
         "construction_qualification": summary["environment"].get("qualification", "unmeasured"),
+        "construction_qualified": summary["environment"].get("qualification") == "passed",
         "reproducibility": reproducibility_summary,
         "technical_validation": validation_summary,
     }
