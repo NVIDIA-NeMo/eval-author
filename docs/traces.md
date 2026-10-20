@@ -122,6 +122,16 @@ and remaining blockers. The shared `summary.json` remains a pending preparation
 record. Gym controls do not measure model performance. Harbor's automated
 readiness, batch reporting, and publication/export do not cover Gym products.
 
+### Record tool calls across many traces
+
+**Experimental:** To study how tools behave across a set of traces, ask the
+trace-to-environment skill to import them into a tool-call corpus. List the
+selected ATIF files and how you chose them in a members manifest. The corpus
+records every call's source, trace and session identity, tool and schema
+version, arguments, results, error status, order, and timing, copied as
+recorded. It stays private. See the
+[tool-call corpus reference](../skills/eval-author-trace-environment/references/tool-corpus.md).
+
 ## Sharing generated tasks
 
 **Experimental:** Publication review and export currently cover Harbor products.

@@ -30,6 +30,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 import construction  # noqa: E402
 import solution_review  # noqa: E402
+import tool_corpus  # noqa: E402
 from evidence_audit import audit_evidence  # noqa: E402
 from fixture_compiler import (  # noqa: E402
     DECISIONS_SCHEMA,
@@ -219,6 +220,7 @@ _PRIVATE_KEY_BYTES = re.compile(rb"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
 _BEARER_BYTES = re.compile(rb"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}")
 _CREDENTIALED_URL_BYTES = re.compile(rb"(?i)https?://[^\s/:@]+:[^\s/@]+@")
 _BATCH_MEMBER_KEYS = frozenset({"task_id", "atif", "source_kind"})
+_CORPUS_MEMBER_KEYS = frozenset({"atif", "source_kind"})
 _MIN_VALIDATION_RUNS = {"nop": 2, "oracle": 2, "negative": 1, "copy": 0}
 
 
@@ -3493,6 +3495,86 @@ def _batch_status(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _load_corpus_members(path: Path) -> tuple[str, list[dict[str, str]]]:
+    manifest = _load_object(path, label="corpus members manifest")
+    if set(manifest) != {"schema", "selection", "members"} or manifest.get("schema") != tool_corpus.MEMBERS_SCHEMA:
+        raise ContractError("corpus members manifest fields do not match the versioned contract")
+    selection = manifest["selection"]
+    if not isinstance(selection, str) or not selection.strip():
+        raise ContractError("corpus members manifest selection must be nonempty text")
+    members = manifest["members"]
+    if not isinstance(members, list) or not members:
+        raise ContractError("corpus members manifest members must be a nonempty list")
+    paths: set[str] = set()
+    for index, member in enumerate(members):
+        if not isinstance(member, dict) or set(member) != _CORPUS_MEMBER_KEYS:
+            raise ContractError(f"corpus member {index} fields do not match the versioned contract")
+        atif = member["atif"]
+        if not isinstance(atif, str) or not atif.strip():
+            raise ContractError(f"corpus member {index}.atif must be nonempty text")
+        if atif in paths:
+            raise ContractError(f"corpus members manifest lists {atif!r} more than once")
+        paths.add(atif)
+        if member["source_kind"] not in {"atif", "intake", "mlflow", "otel", "gym"}:
+            raise ContractError(f"corpus member {index}.source_kind is not recognized")
+    return selection, members
+
+
+def _corpus_import(args: argparse.Namespace) -> dict[str, Any]:
+    members_path = args.members.resolve()
+    selection, members = _load_corpus_members(members_path)
+    corpus_dir = args.corpus_dir.absolute()
+    if corpus_dir.exists() or corpus_dir.is_symlink():
+        raise ContractError("corpus directory already exists; import into a new directory")
+    sources: list[dict[str, Any]] = []
+    calls: list[dict[str, Any]] = []
+    digests: set[str] = set()
+    # Validate every member before writing anything: a corpus is complete or absent.
+    for index, member in enumerate(members):
+        source_path = Path(member["atif"])
+        if not source_path.is_absolute():
+            source_path = members_path.parent / source_path
+        if source_path.is_symlink() or not source_path.is_file():
+            raise ContractError(f"corpus member {index} must be a regular file")
+        if source_path.stat().st_size > MAX_RAW_SOURCE_BYTES:
+            raise ContractError(f"corpus member {index} exceeds the {MAX_RAW_SOURCE_BYTES}-byte limit")
+        data = source_path.read_bytes()
+        digest = _sha256(data)
+        if digest in digests:
+            raise ContractError(f"corpus member {index} has the same bytes as an earlier member")
+        digests.add(digest)
+        try:
+            trajectory = json.loads(data.decode("utf-8"))
+            _validate_trajectory(trajectory)
+        except (UnicodeDecodeError, json.JSONDecodeError, ContractError) as error:
+            raise ContractError(f"corpus member {index} is not valid ATIF: {error}") from error
+        source, rows = tool_corpus.extract_source(
+            trajectory,
+            source_sha256=digest,
+            path=member["atif"],
+            source_kind=member["source_kind"],
+            selection=selection,
+        )
+        sources.append(source)
+        calls.extend(rows)
+    manifest, files = tool_corpus.corpus_files(sources, calls)
+    corpus_dir.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{corpus_dir.name}.", dir=corpus_dir.parent))
+    try:
+        for name, payload in files.items():
+            _write_bytes_once(staging / name, payload)
+        staging.rename(corpus_dir)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    return {
+        "schema": tool_corpus.MANIFEST_SCHEMA,
+        "corpus_dir": str(corpus_dir),
+        "manifest_sha256": _sha256(files["manifest.json"]),
+        "counts": manifest["counts"],
+    }
+
+
 def _reject_symlinks(root: Path) -> None:
     for path in (root, *root.rglob("*")):
         if path.is_symlink():
@@ -3913,6 +3995,13 @@ def _parser() -> argparse.ArgumentParser:
     batch_status.add_argument("--root", type=Path, default=Path(".eval-author/trace-environments"))
     batch_status.add_argument("--manifest", required=True, type=Path)
     batch_status.set_defaults(run=_batch_status)
+
+    corpus_import = subparsers.add_parser(
+        "corpus-import", help="record every tool call from a members manifest into a new private corpus"
+    )
+    corpus_import.add_argument("--members", required=True, type=Path)
+    corpus_import.add_argument("--corpus-dir", required=True, type=Path)
+    corpus_import.set_defaults(run=_corpus_import)
 
     publication = subparsers.add_parser("prepare-publication", help="stage the exact public product for private review")
     publication.add_argument("--task-dir", required=True, type=Path)
