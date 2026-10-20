@@ -9,20 +9,16 @@ limitations before deciding what to change.
 
 ## Case and run catalog
 
-Ask: “Use Eval Author to refresh the HTML report for evaluations in
+The case and run catalog can be found in `.eval-author/report.html` and the 
+`.eval-author/README.md` which is a lighter weight version for agents and humans
+who prefer markdown. These catalogs provide provide a high level overview of tasks
+and runs, and link to the corresponding assets on disc, as well as provide links
+to the Harbor viewer for Harbor generated tasks. 
+
+To refresh the catalog, ask: “Use Eval Author to refresh the HTML report for evaluations in
 this repository.” The report is saved at `.eval-author/report.html`, with Tasks,
-Runs, and viewer Settings. It can be generated before any task has run.
-The same command maintains the task and run tables inside a marked section of
-`.eval-author/README.md`, preserving existing suite documentation and rerun
-commands outside that section. Tasks and Runs keep the same tables, scores,
-statuses, and warnings as the HTML; Settings is omitted. Change source artifacts
-or report metadata, then refresh both views. Its relative links open task
-documentation, and Harbor links use the default viewer addresses. Use the HTML
-report for saved viewer settings and connection checks.
-Test cases and Gym workload definitions are organized by discovered directory.
-Draft and finalized directories remain visible together. Gym definitions open
-their source and task documentation; they do not use Harbor's viewer. Gym run
-evidence stays linked from the suite README.
+Runs, and viewer Settings. The same command maintains the task and run tables inside a m
+arked section of `.eval-author/README.md`.
 
 See the [Report generation](../skills/eval-author/references/suite-readme.md#report-generation)
 for selected roots, metadata, and CLI usage. The report reads existing artifacts;

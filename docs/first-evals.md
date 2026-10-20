@@ -111,10 +111,7 @@ open run evidence in the Harbor viewer. If your Harbor viewer uses a different a
 update it in **Settings**.
 
 For a Markdown version of the task and run tables, open `.eval-author/README.md`.
-Report refresh maintains its marked section and preserves your suite documentation
-and rerun commands. Both draft and finalized task directories remain visible.
-Gym cases link their native definitions and task README; the Runs table shows
-Harbor jobs, while Gym run evidence stays in the suite documentation.
+
 To update the report after changing cases or running evaluations, ask:
 
 ```text

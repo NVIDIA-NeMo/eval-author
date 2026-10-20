@@ -300,11 +300,9 @@ the suite and task README run instructions for either provider and refresh
 Preserve the full-suite command and concrete commands for individual coverage items,
 following [Review and rerun guidance](../eval-author/references/suite-readme.md#review-and-rerun-guidance).
 
-Report refresh must not change the evaluation result or workflow state. Explain
-results, failed controls, generated/validated/executed counts, remaining blockers,
-rerun and viewer instructions, and any rendering failure before the final links.
-Always link `.eval-author/README.md` and `.eval-author/report.html` as the last
-lines of the response, after all other communication. Do not link
+Report refresh must not change the evaluation result or workflow state. When the report
+should be mentioned in a response, link `.eval-author/README.md` and `.eval-author/report.html`
+as the last lines of the response, after all other communication. Do not link
 `.eval-author/first-eval.md` in the run handoff unless asked.
 
 Continue saving and updating `.eval-author/first-eval.md`
