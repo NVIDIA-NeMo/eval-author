@@ -144,8 +144,13 @@ attest a remote service's deployed source.
 python <task_create_dir>/scripts/task_evidence.py prepare \
   --task-dir .eval-author/task-drafts/cover-read \
   --contract .eval-author/task-measurements/cover-read/contract.json \
+  --construction-plan .eval-author/task-measurements/cover-read/construction-plan.json \
   --out .eval-author/task-measurements/cover-read/revision-1.json
 ```
+
+For newly authored drafts, first validate the private
+[construction plan](construction-plan.md). This binds declarations, not execution
+proof; native controls below remain required.
 
 The manifest snapshots file bytes, paths, directories and permissions, excluding
 only `.git`, `.venv`, `__pycache__`, `.pytest_cache`, and `.ruff_cache`. Symlinks

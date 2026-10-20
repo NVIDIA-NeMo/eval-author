@@ -214,6 +214,12 @@ Read [Starting data](references/starting-data.md) before generating records.
 
 ## Step 5: Make the end state readable
 
+At the calling task flow's [construction-plan handoff](../eval-author/references/construction-plan.md),
+supply the provenance and hashes of materialized starting inputs. Label authored
+state explicitly; a post-action trace snapshot cannot establish the pre-action
+state. Keep unresolved domain rules visible. Kit smoke evidence establishes setup
+health, not that a negative control reached the behavior it was meant to test.
+
 Graders need the resulting state, not the agent's account of it. Declare exactly
 what reaches the verifier and which volatile fields, such as timestamps and
 generated identifiers, it should ignore.

@@ -102,6 +102,11 @@ verdict with model judgment.
 
 ## Step 1: propose dataset improvements
 
+Apply [private construction declarations](../eval-author/references/construction-plan.md)
+to each proposal: name grading authority, copied versus authored starting inputs,
+and the intended requirement-to-check mapping. Retain unresolved authority as an
+open design question; proposal-only work still stops here without scaffolding.
+
 Use the shared [Coverage planning](../eval-author/references/coverage-planning.md)
 procedure for source scope, priorities, and proposed example breadth. Reuse the
 audit's confirmed corpus and exclusions when inspecting evidence; a discovered
@@ -202,6 +207,12 @@ measurement directories. Use those paths verbatim for the rest of this flow.
 Do not invent alternate slugs or filenames.
 
 ## Step 3: design the smallest objective task
+
+After the scope checkpoint below and draft creation, materialize the private
+[construction plan](../eval-author/references/construction-plan.md), validate its
+input hashes and native check mappings, and bind it when preparing run evidence.
+Declare prerequisites only when they matter to the task; plan a bypass control
+that targets the dependent check. A declaration is not proof of necessity.
 
 Before generating task instructions, fixtures, or scaffolds, use the shared
 [coverage-planning checkpoint](../eval-author/references/coverage-planning.md).

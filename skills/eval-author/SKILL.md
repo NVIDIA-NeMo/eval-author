@@ -473,6 +473,11 @@ For completed discovery, validation, or execution reports, lead with the verdict
 or outcome, then the evidence. This format does not apply to onboarding or an
 intent question while establishing Ethos.
 
+For proposal and task-construction evidence, use
+[private construction declarations](references/construction-plan.md) to connect
+authority, starting inputs, and native checks. Preserve the selected flow's scope
+and review checkpoints; proposal declarations do not authorize task scaffolding.
+
 For dataset proposals, follow `eval-author-task-create` Step 1: lead with concrete
 recommendations and their evidence, then supporting coverage counts and limits. An empty
 task-generation selection does not establish that the dataset needs no changes.

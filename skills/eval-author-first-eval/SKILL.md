@@ -147,6 +147,12 @@ the pilot's size does not determine the expansion's scope.
 
 ## 5. Prepare cases and grading
 
+For each new case, use [private construction declarations](../eval-author/references/construction-plan.md)
+to record grading authority, authored or copied inputs, and observable checks.
+Validate and bind the private plan before recording native controls. Keep simple
+cases simple; preserve correct inaction and nonbinary rewards where the agreed
+requirements call for them. A healthy agent failure remains a valid baseline.
+
 Apply [Task validation and execution evidence](../eval-author/references/task-validation.md)
 for requirement-to-check review, declared verifier controls, and revision-bound
 run receipts. Include a realistic incorrect result and applicable valid-alternative

@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA = "nemo.eval_author.task_evidence.v1"
+MANIFEST_SCHEMA = "nemo.eval_author.task_evidence.v2"
 IGNORED = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache"}
 
 
@@ -160,7 +161,12 @@ def write_new(path: Path, value: dict[str, Any]) -> None:
 
 
 def prepare(
-    task: Path, contract_path: Path, output: Path, previous: Path | None = None, reason: str | None = None
+    task: Path,
+    contract_path: Path,
+    output: Path,
+    previous: Path | None = None,
+    reason: str | None = None,
+    construction_plan: Path | None = None,
 ) -> dict[str, Any]:
     contract = read(contract_path)
     validate_contract(contract)
@@ -168,7 +174,7 @@ def prepare(
     repairs = []
     if previous:
         old = read(previous)
-        if old.get("schema") != SCHEMA or old.get("task_dir") != str(task.resolve()):
+        if old.get("schema") not in (SCHEMA, MANIFEST_SCHEMA) or old.get("task_dir") != str(task.resolve()):
             raise EvidenceError("repair must refer to the same task's previous manifest")
         if old.get("contract", {}).get("task_id") != contract["task_id"] or not reason or not reason.strip():
             raise EvidenceError("repair requires the same task ID and a concrete reason")
@@ -178,8 +184,12 @@ def prepare(
         repairs = [*repairs, {"manifest": str(previous.resolve()), "sha256": digest(previous), "reason": reason}]
     elif reason:
         raise EvidenceError("repair reason requires --previous")
+    from construction_plan import bind
+
+    construction = bind(construction_plan, task, contract) if construction_plan else {"status": "unmeasured"}
     manifest = {
-        "schema": SCHEMA,
+        "schema": MANIFEST_SCHEMA,
+        "construction": construction,
         "task_dir": str(task.resolve()),
         "task_sha256": task_digest(task),
         "contract": contract,
@@ -203,9 +213,15 @@ def prepare(
 
 def manifest_at(path: Path) -> dict[str, Any]:
     manifest = read(path)
-    if manifest.get("schema") != SCHEMA:
+    if manifest.get("schema") not in (SCHEMA, MANIFEST_SCHEMA):
         raise EvidenceError("unsupported manifest schema")
     validate_contract(manifest.get("contract", {}))
+    if manifest["schema"] == MANIFEST_SCHEMA or "construction" in manifest:
+        from construction_plan import recheck
+
+        construction = manifest.get("construction")
+        if construction != {"status": "unmeasured"}:
+            recheck(construction, Path(manifest["task_dir"]), manifest["contract"])
     repairs = manifest.get("repairs")
     if not isinstance(repairs, list) or len(repairs) > 3:
         raise EvidenceError("invalid repair ledger")
@@ -449,6 +465,7 @@ def main() -> int:
     prep.add_argument("--task-dir", type=Path, required=True)
     prep.add_argument("--contract", type=Path, required=True)
     prep.add_argument("--out", type=Path, required=True)
+    prep.add_argument("--construction-plan", type=Path, help="private construction declarations to bind and recheck")
     prep.add_argument("--previous", type=Path, help="previous manifest when repairing this task")
     prep.add_argument("--reason", help="concrete repair reason; retain all earlier receipts")
     execute = commands.add_parser("run")
@@ -465,7 +482,9 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.action == "prepare":
-            payload = prepare(args.task_dir, args.contract, args.out, args.previous, args.reason)
+            payload = prepare(
+                args.task_dir, args.contract, args.out, args.previous, args.reason, args.construction_plan
+            )
         else:
             command = args.command[1:] if args.command[:1] == ["--"] else args.command
             payload = run(
