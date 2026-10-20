@@ -40,7 +40,7 @@ from fixture_compiler import (  # noqa: E402
     resolve_tool_access,
 )
 from mock_registration import probe_registration  # noqa: E402
-from verifier_lint import verifier_advisories  # noqa: E402
+from verifier_lint import uses_submission_capture, verifier_advisories  # noqa: E402
 
 SCHEMA = "nemo.eval_author.trace_environment_summary.v2"
 QUALIFIED_SUMMARY_SCHEMA = "nemo.eval_author.trace_environment_summary.v3"
@@ -1960,6 +1960,29 @@ def _validate_task(task_dir: Path) -> dict[str, Any]:
     steps = config.get("steps", [])
     if not isinstance(steps, list):
         raise ContractError("task/task.toml steps must be an array of tables")
+
+    def check_artifact_tables(table, location=()):
+        if isinstance(table, dict):
+            if (
+                "artifacts" in table
+                and location != ()
+                and not (len(location) == 2 and location[0] == "steps" and isinstance(location[1], int))
+            ):
+                raise ContractError("artifact handoff belongs at top-level or step root; nested artifacts are ignored")
+            for key, value in table.items():
+                check_artifact_tables(value, (*location, key))
+        elif isinstance(table, list):
+            for index, value in enumerate(table):
+                check_artifact_tables(value, (*location, index))
+
+    check_artifact_tables(config)
+    handoffs = [config.get("artifacts"), *(step.get("artifacts") for step in steps if isinstance(step, dict))]
+    try:
+        capture = uses_submission_capture(task_dir)
+    except (ValueError, OSError) as error:
+        raise ContractError(f"submission capture inspection failed: {error}") from error
+    if capture and not any(isinstance(value, list) and value for value in handoffs):
+        raise ContractError("submission capture requires a nonempty top-level or step artifacts handoff in task.toml")
     for index, step in enumerate(steps, start=1):
         if not isinstance(step, dict):
             raise ContractError(f"task/task.toml step {index} must be a table")

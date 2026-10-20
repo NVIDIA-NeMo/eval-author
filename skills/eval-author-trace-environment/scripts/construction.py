@@ -10,8 +10,8 @@ import json
 import re
 from pathlib import Path
 
+from qualification_runtime import MAX_OUTPUT_BYTES, digest, observation, pointer
 from qualification_runtime import SCHEMA as EXECUTION_SCHEMA
-from qualification_runtime import digest, pointer
 
 SCHEMA = "nemo.eval_author.construction.v1"
 PATH = "private/construction.json"
@@ -384,7 +384,10 @@ def execution(root: Path, result_path: Path, context: dict, control_id: str | No
     relative = (result_path.parent / "verifier" / "qualification.json").relative_to(root).as_posix()
     evidence = load(root, relative)
     evidence = fields(evidence, "schema probes", "execution receipt")
-    require(evidence["schema"] == EXECUTION_SCHEMA, "unknown execution receipt schema")
+    require(
+        evidence["schema"] == EXECUTION_SCHEMA,
+        "unknown execution receipt schema",
+    )
     rows = evidence["probes"]
     probes = context["manifest"]["probes"]
     require(isinstance(rows, list) and len(rows) == len(probes), "missing execution probes")
@@ -392,7 +395,11 @@ def execution(root: Path, result_path: Path, context: dict, control_id: str | No
     seen = set()
     by_id = {p["id"]: p for p in probes}
     for row in rows:
-        fields(row, "id definition_sha256 exit_code failure output_sha256 observation", "execution probe")
+        fields(
+            row,
+            "id definition_sha256 exit_code failure output_sha256 observation output_file output_truncated",
+            "execution probe",
+        )
         key = row["id"]
         require(isinstance(key, str) and key in by_id and key not in seen, "unknown or duplicate execution probe")
         seen.add(key)
@@ -401,13 +408,46 @@ def execution(root: Path, result_path: Path, context: dict, control_id: str | No
         require(row["exit_code"] is None or type(row["exit_code"]) is int, "invalid probe exit code")
         require(
             row["failure"]
-            in (None, "start_failed", "timeout", "output_limit", "observation_limit", "invalid_observation"),
+            in (
+                None,
+                "start_failed",
+                "timeout",
+                "output_limit",
+                "observation_limit",
+                "invalid_observation",
+                "nonzero_exit",
+            ),
             "unknown probe failure",
         )
         require(
             isinstance(row["output_sha256"], str) and SHA.fullmatch(row["output_sha256"]) is not None,
             "missing probe output digest",
         )
+        require(
+            row["output_file"] == f"qualification-output/{key}.bin"
+            and type(row["output_truncated"]) is bool
+            and row["output_truncated"] == (row["failure"] == "output_limit"),
+            "invalid retained probe output",
+        )
+        output = read_bytes(root, str(Path(relative).parent / row["output_file"]))
+        require(
+            len(output) <= MAX_OUTPUT_BYTES and hashlib.sha256(output).hexdigest() == row["output_sha256"],
+            "probe output changed or oversized",
+        )
+        failure, code = row["failure"], row["exit_code"]
+        require(
+            (failure == "start_failed" and code is None and not output)
+            or (failure in ("timeout", "output_limit") and type(code) is int)
+            or (failure == "nonzero_exit" and type(code) is int and code != 0)
+            or (failure in (None, "invalid_observation", "observation_limit") and code == 0),
+            "inconsistent probe execution status",
+        )
+        if failure in (None, "invalid_observation", "observation_limit"):
+            observed, observed_failure = observation(output, probe["json_pointer"])
+            require(observed_failure == failure, "probe observation status differs from output")
+            require(digest(observed) == digest(row["observation"]), "probe observation differs from output")
+        else:
+            require(row["observation"] is None, "failed probe cannot claim an observation")
         if row["failure"] is None and row["exit_code"] == 0 and digest(row["observation"]) == digest(probe["equals"]):
             passed.add(key)
     setup = {p["id"] for p in probes if p["kind"] == "setup"}

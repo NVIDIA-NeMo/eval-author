@@ -16,6 +16,67 @@ MAX_TOTAL_BYTES = 2 * 1024 * 1024
 MAX_FINDINGS = 64
 
 
+def uses_submission_capture(task_dir: Path) -> bool:
+    """Recognize direct bundled capture calls; not a proof of dynamic wiring."""
+    # Accept aliases above the workspace (e.g. /tmp on macOS), but never
+    # follow links inside the authored bundle. A present uninspectable helper
+    # or incomplete scan is an error, not evidence that capture is unused.
+    task_dir = task_dir.resolve()
+    root = task_dir / "task/tests"
+    helper = root / "review_runtime.py"
+
+    def unsafe(path: Path) -> bool:
+        return any(
+            (task_dir / part).is_symlink() for part in (path.relative_to(task_dir), *path.relative_to(task_dir).parents)
+        )
+
+    if unsafe(helper):
+        raise ValueError("submission capture helper uses an internal symlink")
+    if not helper.exists():
+        return False
+    try:
+        if not helper.is_file() or helper.stat().st_size > MAX_FILE_BYTES:
+            raise ValueError("submission capture helper is not a bounded regular file")
+        if helper.read_bytes() != Path(__file__).with_name("review_runtime.py").read_bytes():
+            return False
+        total = 0
+        found = False
+        for index, path in enumerate(root.rglob("*")):
+            if index >= MAX_ENTRIES:
+                raise ValueError("submission capture scan exceeds entry limit")
+            if unsafe(path):
+                raise ValueError("submission capture scan encounters an internal symlink")
+            if path.suffix != ".py":
+                continue
+            if not path.is_file() or path.stat().st_size > MAX_FILE_BYTES:
+                raise ValueError("submission capture scan requires bounded regular Python files")
+            source = path.read_bytes()
+            total += len(source)
+            if total > MAX_TOTAL_BYTES:
+                raise ValueError("submission capture scan exceeds byte limit")
+            tree = ast.parse(source)
+            functions, modules = set(), set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module == "review_runtime":
+                    functions.update(i.asname or i.name for i in node.names if i.name == "grade_submission")
+                elif isinstance(node, ast.Import):
+                    modules.update(i.asname or i.name for i in node.names if i.name == "review_runtime")
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                f = node.func
+                if (isinstance(f, ast.Name) and f.id in functions) or (
+                    isinstance(f, ast.Attribute)
+                    and f.attr == "grade_submission"
+                    and isinstance(f.value, ast.Name)
+                    and f.value.id in modules
+                ):
+                    found = True
+        return found
+    except (OSError, SyntaxError, RecursionError, MemoryError) as error:
+        raise ValueError("submission capture scan incomplete") from error
+
+
 def _module_file(node: ast.AST) -> bool:
     if isinstance(node, ast.Attribute) and node.attr == "__file__":
         return True

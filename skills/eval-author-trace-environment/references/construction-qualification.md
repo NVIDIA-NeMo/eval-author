@@ -120,6 +120,13 @@ this test pass. Do not require the correct final answer merely to establish
 reachability. NOP setup probes must also pass so broken setup cannot create a
 false progress distinction.
 
+Keep reach work distinct from full correctness checking. For native artifacts,
+exercise the relevant interface with a bounded observation; do not repeat an
+expensive full validation merely to establish reach. Exercise the probe on the
+valid alternative and each defective control before accepting qualification.
+If a subprocess times out or cannot start, preserve that error rather than
+turning it into a false observation or weakening the requirement.
+
 The probe wrapper must derive observations from the invoked component, not emit
 constant success markers. Verify imports target the submitted checkout; verify
 test collection is nonempty where relevant. Observe trusted side effects or
@@ -146,6 +153,18 @@ and refuses to overwrite old evidence. A matching value counts only with exit
 zero and no start, timeout, output-limit or parse failure. Missing evidence is a
 contract error; an executed setup/reach failure is retained as failed qualification.
 Ordinary scored checks and rewards remain authoritative for task outcomes.
+
+Execution receipt v2 retains combined output in verifier-owned
+`qualification-output/<probe-id>.bin` files, bounded to 256 KiB each and 32 probes.
+The receipt binds each exact locator and retained-byte hash, explicitly labels
+nonzero exits and output truncation, and is limited to 2 MiB. Oversized parsed
+observations retain an explicit failed result within that bound. Validation rereads
+the output and recomputes successful, invalid and oversized JSON observations;
+changed output or observation status is rejected. An output-limit hash identifies the retained prefix,
+not unseen trailing output. Keep raw output private: it may contain submitted
+data or diagnostic details and is not included in CLI summaries or export.
+Historical v1 receipts require their original skill revision; the current runtime
+requires v2 receipts and retained output.
 
 The verifier remains reviewed code, not cryptographically trusted code. Retained
 local files can be fabricated by their owner, just like existing Harbor results.
@@ -261,3 +280,14 @@ Receipts bind retained files consistently; they do not authenticate execution ti
 or prove that Harbor actually ran.
 
 Probe observations reject nonfinite JSON and are capped at 48 KiB of serialized JSON each (`observation_limit`), keeping 32-probe receipts below the 2 MiB reader limit. Command output overflow remains `output_limit`.
+
+The current producer and consumer require execution receipt v2 together. Historical
+v1 receipts are not accepted with the current bundled runtime; inspect them with
+the original skill revision or rerun the task with the current producer and fresh
+bindings. Editing the schema cannot disable retained-output checks.
+
+Both successful and invalid/oversized parsed observations are rederived from the
+retained bytes. Output cannot authenticate exit codes, process start failures,
+timeouts, or whether omitted bytes existed after truncation. These execution facts
+remain trusted producer claims; in particular, stdout alone cannot disprove a
+forged `nonzero_exit`. Hash binding establishes consistency, not trusted execution.
