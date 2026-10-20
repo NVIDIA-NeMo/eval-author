@@ -1,6 +1,6 @@
 ---
 name: eval-author-trace-environment
-version: 1.7.0
+version: 1.8.0
 description: >-
   Experimental workflow. Use Gym, MLflow, Intake, OpenTelemetry, or ATIF trace
   evidence to derive a private, reproducible Harbor or native NeMo Gym task candidate.
@@ -9,6 +9,7 @@ triggers:
   - turn ATIF into a Harbor task environment
   - turn a trace into a native Gym task
   - derive an eval task from Gym MLflow Intake or OpenTelemetry data
+  - record tool calls across many traces in one corpus
 not-for:
   - eval-author (use for the shared standard and routing)
   - mlflow-to-atif (use only to normalize MLflow traces into ATIF)
@@ -422,6 +423,14 @@ and paths to `summary.md` and the generated task. A
 `valid: true` check proves the recorded files are internally consistent;
 Harbor is the authority for whether the task actually runs.
 
+## Tool-call corpus
+
+To collect tool observations across many traces without deriving tasks, read
+and follow `references/tool-corpus.md`. `corpus-import` takes a members
+manifest of validated ATIF files plus a selection description. It writes a new
+private corpus that records every call verbatim and in order. The corpus does
+not deduplicate or merge traces, and it is not a task or an environment.
+
 ## Examples
 
 Steps 1–7 cover Harbor authoring; the [Gym extension](references/gym-output.md)
@@ -455,6 +464,7 @@ the sibling `gym-to-atif` skill; put its owner-private output under
 | `finalize` | Write the candidate decision and summary | `--task-dir --status [--human-reviewed]` |
 | `check` | Verify digests, artifacts, proof, and repair ledger | `--task-dir` |
 | `batch-prepare` / `batch-status` | Prepare and report a checked-in manifest | `--manifest [--root]` |
+| `corpus-import` | Record every tool call from many traces in a new private corpus | `--members --corpus-dir` |
 | `prepare-publication` / `review-publication` / `export` | Digest-bound publication gate and whitelist export | `--task-dir` |
 | `check-runtime` | Read-only Harbor capability preflight | `[--task-dir]` |
 
