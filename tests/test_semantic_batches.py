@@ -14,7 +14,7 @@ from semantic_regression import MEASUREMENT_VERSION, SCOPE
 from test_semantic_regression import suite
 
 
-def test_batches_preserve_regressions_and_reject_changed_baselines(tmp_path):
+def retained_batches(tmp_path):
     spec = tmp_path / "suite.json"
     configuration = suite()
     configuration["cases"][0]["baseline"] = "lock.json"
@@ -103,6 +103,11 @@ def test_batches_preserve_regressions_and_reject_changed_baselines(tmp_path):
         path = work / "summary.json"
         path.write_text(json.dumps(report))
         paths.append(path)
+    return spec, paths, lock, report, input_binding
+
+
+def test_batches_preserve_regressions_and_reject_changed_baselines(tmp_path):
+    spec, paths, lock, report, input_binding = retained_batches(tmp_path)
     assert batches.check(spec, paths)["status"] == "passed"
     # Updating summary digests cannot legitimize an incompatible baseline lock.
     lock_path = tmp_path / "lock.json"
@@ -169,3 +174,58 @@ def test_batches_preserve_regressions_and_reject_changed_baselines(tmp_path):
         batches.check(spec, paths)
     with pytest.raises(ValueError, match="two or more"):
         batches.check(spec, paths[:1])
+
+
+@pytest.mark.parametrize("field,value", [("inputs_clean", False), ("source_revision", "updated")])
+def test_changed_batch_provenance_is_rejected(tmp_path, field, value):
+    spec, paths, *_ = retained_batches(tmp_path)
+    report = json.loads(paths[-1].read_text())
+    report[field] = value
+    paths[-1].write_text(json.dumps(report))
+    with pytest.raises(ValueError, match="clean source|conditions changed"):
+        batches.check(spec, paths)
+
+
+@pytest.mark.parametrize("change", ["failed", "not_attempted", "duplicate"])
+def test_incomplete_or_duplicate_runs_are_rejected_after_binding_checks(tmp_path, change):
+    spec, paths, *_ = retained_batches(tmp_path)
+    case = paths[-1].parent / "audit"
+    accounting = json.loads((case / "batch.json").read_text())
+    if change == "duplicate":
+        accounting["runs"][1] = accounting["runs"][0].copy()
+    else:
+        accounting["runs"][0]["status"] = change
+    (case / "batch.json").write_text(json.dumps(accounting))
+    batch_sha = sha((case / "batch.json").read_bytes())
+    gate = json.loads((case / "gate-result.json").read_text())
+    gate["input_binding"]["files"]["batch.json"] = batch_sha
+    (case / "gate-result.json").write_text(json.dumps(gate))
+    report = json.loads(paths[-1].read_text())
+    report["observations"][0].update(
+        gate, batch_digest=batch_sha, gate_digest=sha((case / "gate-result.json").read_bytes())
+    )
+    paths[-1].write_text(json.dumps(report))
+    with pytest.raises(ValueError, match="invalid batch run|duplicate run"):
+        batches.check(spec, paths)
+
+
+def test_real_check_summaries_preserve_incomplete_batches(tmp_path):
+    import semantic_regression as semantic
+
+    spec = tmp_path / "suite.json"
+    semantic.dump(spec, suite())
+    paths = []
+    for index in range(2):
+        output = tmp_path / f"run-{index}"
+        result = semantic.run(
+            spec, None, output, "check", lambda *args: pytest.fail("missing baseline must not call a model")
+        )
+        assert result["observations"][0]["status"] == "incomplete"
+        paths.append(output / "semantic-regression-summary.json")
+    # Dirty source checkouts are intentionally rejected, independently of the
+    # incomplete execution results produced by the real runner.
+    if json.loads(paths[0].read_text())["inputs_clean"]:
+        assert batches.check(spec, paths)["status"] == "incomplete"
+    else:
+        with pytest.raises(ValueError, match="clean source"):
+            batches.check(spec, paths)

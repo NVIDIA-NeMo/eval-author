@@ -62,9 +62,10 @@ the last skill change, confirms the `NVSkills CI` status passed, and keeps the
 `Attach NVSkills validation signatures` commit it pushes. Unsigned changes do not
 reach the catalog, which keeps the last signed version. Keep ethos skill changes
 out of pull requests that change `skills/`: one run covers every changed skill,
-so a core-skill failure would block the ethos signature. NVSkills validation is
-opt-in through `/nvskills-ci`; opening or updating a pull request does not create
-an automatic validation gate. Core-skill pull requests can merge without it.
+so a core-skill failure would block the ethos signature. The
+`request / require-nvskills-ci / require-nvskills-ci` check fails on any pull
+request that changes `skills/` or `team-skills/` without a passing run; it is not
+required, so core-skill pull requests can merge without one.
 
 ## Public NeMo Compass dependency
 
@@ -257,7 +258,9 @@ The [workflow scope checker](docs/determinism-checks.md#workflow-scope) compares
 tool evidence and file manifests against frozen request/turn contracts.
 Run its mutation and disposable-inventory tests with:
 
-    uv run --locked pytest tests/test_workflow_scope.py -q
+```bash
+uv run --locked pytest tests/test_workflow_scope.py -q
+```
 
 These checks do not claim live routing acceptance.
 

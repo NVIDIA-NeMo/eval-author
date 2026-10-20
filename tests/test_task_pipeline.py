@@ -212,7 +212,9 @@ def test_select_assigns_deduped_slugs_for_colliding_tool_names(tmp_path: Path) -
 def test_scaffold_uses_harbor_native_task_layout(tmp_path: Path) -> None:
     """Scaffold installs the proposal into a Harbor-native task draft layout."""
     report = tmp_path / "report.json"
-    _write_report(report, covered=["write"], uncovered=["read"])
+    from audit_fixtures import bound_gap
+
+    bound_gap(tmp_path, report, "read")
     proposals = tmp_path / ".eval-author" / "proposals"
     proposals.mkdir(parents=True)
     instruction = proposals / "cover-read-instruction.md"
@@ -280,6 +282,38 @@ def test_scaffold_rejects_mismatched_proposal_filename(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert payload["valid"] is False
     assert "cover-read-instruction.md" in payload["error"]
+
+
+@pytest.mark.parametrize("provider", ["harbor", "gym"])
+def test_scaffold_rejects_unbound_report_before_creating_a_draft(tmp_path, provider):
+    report = tmp_path / "report.json"
+    _write_report(report, covered=[], uncovered=["read"])
+    instruction = tmp_path / ".eval-author/proposals/cover-read-instruction.md"
+    instruction.parent.mkdir(parents=True)
+    instruction.write_text("Read the record.")
+    draft = tmp_path / ".eval-author/task-drafts/cover-read"
+    result = _run(
+        "scaffold",
+        "--report",
+        str(report),
+        "--target",
+        "read",
+        "--out",
+        str(draft),
+        "--task-name",
+        "example/cover-read",
+        "--description",
+        "Read fixture",
+        "--author",
+        "Test",
+        "--instruction-file",
+        str(instruction),
+        "--provider",
+        provider,
+    )
+    assert result.returncode == 1
+    assert "unbound legacy coverage" in json.loads(result.stdout)["error"]
+    assert not draft.exists()
 
 
 def test_verify_rejects_single_after_report(tmp_path: Path) -> None:

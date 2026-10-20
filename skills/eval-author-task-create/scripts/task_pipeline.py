@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["pyyaml>=6.0", "jsonschema>=4.23"]
+# [tool.ty.environment]
+# extra-paths = ["."]
+# ///
 
 """Select actionable audit gaps, scaffold Gym or Harbor drafts, and verify closure."""
 
@@ -289,6 +295,7 @@ def _scaffold(
         raise PipelineError(f"cannot read instruction {instruction_file}: {exc}") from exc
     if not instruction.strip():
         raise PipelineError("instruction file is empty")
+    _verify_coverage_binding(report_path)
     if provider == "gym":
         if not gym_python:
             raise PipelineError("--gym-python must select an existing Gym runtime")

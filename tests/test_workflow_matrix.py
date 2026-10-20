@@ -114,7 +114,7 @@ def attempt(tmp_path):
     }
 
 
-def test_native_review_and_installation_mutations_fail_closed(tmp_path):
+def test_review_mutations_fail_but_later_skill_updates_preserve_evidence(tmp_path):
     recorded = attempt(tmp_path)
     assert matrix.evaluate(CONTRACTS, recorded)["status"] == "pass"  # adapter unit test, not live evidence
     changed = copy.deepcopy(recorded)
@@ -128,7 +128,68 @@ def test_native_review_and_installation_mutations_fail_closed(tmp_path):
     (Path(recorded["skills_root"]) / "SKILL.md").write_text("changed")
     payload["evidence"]["turns"][0]["flow"] = "eval-author"
     review.write_text(json.dumps(payload))
-    assert matrix.evaluate(CONTRACTS, recorded)["status"] == "incomplete"
+    assert matrix.evaluate(CONTRACTS, recorded)["status"] == "pass"
+
+
+@pytest.mark.parametrize("platform", matrix.PLATFORMS)
+def test_saved_attempt_is_portable_and_does_not_read_original_skills(tmp_path, platform):
+    root = tmp_path / "original"
+    root.mkdir()
+    recorded = attempt(root)
+    cell = next(
+        c
+        for c in matrix.plan(CONTRACTS)["cells"]
+        if c["host"] == "codex" and c["case"] == recorded["case"] and c["platform"] == platform and c["repeat"] == 0
+    )
+    recorded.update(cell)
+    record_path = Path(recorded["captures"][0]["path"])
+    captured = json.loads(record_path.read_text())
+    captured.update(cell=cell, platform=platform, skills_root=r"C:\old\skills")
+    captured["raw"]["path"] = r"C:\old\capture\native.jsonl"
+    record_path.write_text(json.dumps(captured))
+    recorded["captures"][0]["sha256"] = sha(record_path.read_bytes())
+    recorded["skills_root"] = r"C:\old\skills"
+    recorded["review"] = "review.json"
+    for entry in recorded["captures"] + recorded["raw_turns"]:
+        entry["path"] = Path(entry["path"]).name
+    (root / "attempt.json").write_text(json.dumps(recorded))
+    destination = tmp_path / "archive"
+    root.rename(destination)
+    loaded = matrix.load_attempt(destination / "attempt.json")
+    assert matrix.evaluate(CONTRACTS, loaded)["status"] == "pass"
+    (destination / "native.jsonl").write_text("{}")
+    assert matrix.evaluate(CONTRACTS, loaded)["status"] == "incomplete"
+
+
+@pytest.mark.parametrize("scalar", [1, True, "warning", None])
+def test_scalar_native_events_mark_only_the_attempt_incomplete(tmp_path, scalar):
+    recorded = attempt(tmp_path)
+    recorded["prompts"].append("Follow up")
+    Path(recorded["raw_turns"][0]["path"]).write_text(json.dumps(scalar))
+    with pytest.raises(ValueError, match="object"):
+        matrix.native_session("codex", encoded(scalar))
+    # Exercise the summary's normal error handling with a valid single-turn cell.
+    recorded["prompts"].pop()
+    result = matrix.summarize(matrix.plan(CONTRACTS), CONTRACTS, [recorded])
+    assert result["observations"][0]["status"] == "incomplete"
+    assert "object" in result["observations"][0]["reason"]
+
+
+@pytest.mark.parametrize("field", matrix.PROVENANCE)
+def test_repeats_require_consistent_provenance(tmp_path, monkeypatch, field):
+    recorded = attempt(tmp_path)
+    second = copy.deepcopy(recorded)
+    second.update(matrix.plan(CONTRACTS)["cells"][1])
+    raw = tmp_path / "second.jsonl"
+    raw.write_text('{"type":"turn.completed"}\n\n')
+    second["raw_turns"] = [{"path": str(raw), "sha256": sha(raw.read_bytes())}]
+    # Isolate cross-repeat accounting: each capture can independently validate.
+    monkeypatch.setattr(matrix, "evaluate", lambda *args: {"status": "pass"})
+    assert matrix.summarize(matrix.plan(CONTRACTS), CONTRACTS, [recorded, second])["counts"]["pass"] == 2
+    second[field] = "upgraded"
+    result = matrix.summarize(matrix.plan(CONTRACTS), CONTRACTS, [recorded, second])
+    assert result["counts"]["pass"] == 0
+    assert all("repeat provenance differs within cell" in row["incomplete"] for row in result["observations"][:2])
 
 
 def test_matrix_cannot_drop_unmeasured_cells():

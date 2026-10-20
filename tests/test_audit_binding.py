@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -145,3 +147,62 @@ def test_bound_aggregate_keeps_reference_coverage_separate(tmp_path):
     trace.write_text(trace.read_text() + "\n")
     code, result, _ = _run_json_script(_AUDIT_REPORT, "--verify-existing", str(report))
     assert code == 1 and not result["written"], result
+
+
+def test_relative_unclassified_inputs_can_be_reverified(tmp_path):
+    audit, _, _, _ = measured(tmp_path, None)
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_AUDIT_REPORT),
+            "--audit",
+            str(audit),
+            "--coverage-dir",
+            "measurements",
+            "--out",
+            "relative.json",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    code, result, _ = _run_json_script(_AUDIT_REPORT, "--verify-existing", str(tmp_path / "relative.json"))
+    assert code == 0, result
+
+
+@pytest.mark.parametrize("evidence_class", ["agent_under_test", None])
+def test_aggregate_survives_workspace_relocation(tmp_path, evidence_class):
+    workspace = tmp_path / "original"
+    workspace.mkdir()
+    _, _, _, report = measured(workspace, evidence_class)
+    retained = {p.relative_to(workspace): p.read_bytes() for p in workspace.rglob("*") if p.is_file()}
+    relocated = tmp_path / "retained"
+    workspace.rename(relocated)
+    code, result, _ = _run_json_script(_AUDIT_REPORT, "--verify-existing", str(relocated / report.name))
+    assert code == 0, result
+    assert retained == {p.relative_to(relocated): p.read_bytes() for p in relocated.rglob("*") if p.is_file()}
+    (relocated / "trace.json").write_text("{}")
+    code, result, _ = _run_json_script(_AUDIT_REPORT, "--verify-existing", str(relocated / report.name))
+    assert code == 1 and result["valid"] is False
+
+
+@pytest.mark.parametrize("contents", [None, b"{", b"\xff"])
+def test_missing_or_corrupt_judgments_produce_structured_errors(tmp_path, contents):
+    audit, _, judgments, _ = measured(tmp_path)
+    if contents is None:
+        judgments.unlink()
+    else:
+        judgments.write_bytes(contents)
+    code, result, stderr = _run_json_script(
+        _AUDIT_REPORT,
+        "--audit",
+        str(audit),
+        "--coverage-dir",
+        str(tmp_path / "measurements"),
+        "--out",
+        str(tmp_path / "broken.json"),
+    )
+    assert code == 1 and result["error_type"] == "coverage_input"
+    assert str(judgments) in result["error"]
+    assert "Traceback" not in stderr

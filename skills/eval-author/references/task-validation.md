@@ -58,8 +58,9 @@ Declare a small set of controls appropriate to the task:
   checks. Prove the check with a tamper control: the reference solution followed
   by an edit to one preserved value must fail.
 
-NOP can serve as the incorrect control only when doing nothing is incorrect and
-its failure exercises the intended assertion. Harbor's built-in control agents
+The empty/NOP control is separate from the realistic incorrect-answer control.
+Do not use NOP for both: the incorrect control must attempt a plausible wrong
+answer or action and reach grading. Harbor's built-in control agents
 are `nop` and `oracle`; run any other control as a custom agent
 (`-a <module:Class>`) whose source lives in the task tree. The recorder adds no
 shell, so set its import path with `env PYTHONPATH=<dir> harbor ...`. Do not swap
@@ -200,7 +201,9 @@ missing or corrupt results, health failure, and changed inputs cannot pass.
 Nonzero command exits are infrastructure errors even if a reward file exists;
 use native negative controls whose execution succeeds while grading rejects them.
 
-`diagnostic` cases are retained but cannot count as acceptance evidence. For
+`diagnostic` cases are retained separately in the attempt ledger and cannot count
+as acceptance evidence. Omit diagnostic receipts from `verify`; they do not
+block acceptance of the registered closure controls and agent runs. For
 first-eval, report all control outcomes and the actual agent baseline, including
 legitimate agent failures. Do not add mandatory repeated proof as onboarding.
 For task-create, supply every control receipt and both agent receipts to
@@ -222,10 +225,16 @@ agent evidence for acceptance. The recorder retains digests of prior manifests
 and limits a repair chain to three revisions after the initial attempt. Do not
 reset the chain to evade that budget. Retain unresolved work when exhausted.
 A process killed before it writes a receipt remains missing evidence; preserve
-its partial job and use fresh paths for a later attempt.
+its partial job, prepare a repair manifest with `--previous` and `--reason`, and
+use fresh paths when rerunning the required controls and agent attempts.
 
 
 ## Revalidate saved acceptance
+
+Treat recorded evidence as read-only. Never edit, delete, rename, or
+hand-regenerate measurements, receipts, gate results, summaries, or attempt
+ledgers to change a verdict. Rerun into fresh outputs, retain the old evidence,
+and report discrepancies rather than reconciling them by hand.
 
 Keep the draft's `.eval-author-lineage.json`, source coverage report and proposal.
 The task pipeline binds those inputs to the execution manifest and rechecks the
@@ -237,7 +246,7 @@ A repair needs a new manifest and fresh proof, preserving the old ledger.
 Before relying on a saved acceptance, run:
 
 ```bash
-python <task_create_dir>/scripts/task_pipeline.py check-acceptance \
+uv run <task_create_dir>/scripts/task_pipeline.py check-acceptance \
   --report .eval-author/task-measurements/<task-slug>/acceptance.json
 ```
 

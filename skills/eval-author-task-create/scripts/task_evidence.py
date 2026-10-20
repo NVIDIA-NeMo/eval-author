@@ -15,6 +15,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -296,6 +297,8 @@ def run(
             "run_id": run_id,
             "receipt": str(output.resolve()),
             "purpose": purpose,
+            "case": case_id,
+            "kind": case["kind"],
             "manifest_sha256": manifest_sha,
         },
     )
@@ -314,6 +317,7 @@ def run(
 
             write_new(result, build(source, manifest, case, purpose, trace))
         native = read(result)
+        _validate_control(native, manifest["contract"], case)
         receipt["native_run_id"] = native_identity(native, manifest)
         receipt["result_sha256"] = digest(result)
         if trace:
@@ -327,6 +331,15 @@ def run(
         receipt["error"] = str(exc)
     write_new(output, receipt)
     return receipt
+
+
+def _validate_control(native: dict, contract: dict, case: dict) -> None:
+    if (
+        case["kind"] == "incorrect"
+        and contract["provider"] == "harbor"
+        and native.get("config", {}).get("agent", {}).get("name") == "nop"
+    ):
+        raise EvidenceError("incorrect control must exercise a wrong answer; NOP belongs to the empty control")
 
 
 def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]]:
@@ -364,6 +377,7 @@ def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]
         if digest(result) != receipt.get("result_sha256"):
             raise EvidenceError("native result digest mismatch")
         native = read(result)
+        _validate_control(native, contract, case)
         if contract["provider"] == "gym":
             from gym_evidence import build
 
@@ -409,10 +423,19 @@ def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]
         raise EvidenceError("complete attempt ledger required; reprepare legacy evidence")
     registered = []
     for entry in sorted(ledger.iterdir()):
+        if not re.fullmatch(r"[0-9a-f]{64}\.json", entry.name):
+            continue
         attempt = read(entry)
         if attempt.get("manifest_sha256") != sha:
             raise EvidenceError("attempt ledger manifest mismatch")
-        if attempt.get("purpose") == "closure":
+        kind = attempt.get("kind")
+        # Older ledgers omitted the case kind; a retained diagnostic receipt can
+        # still identify it without editing the original ledger.
+        receipt_path = Path(attempt["receipt"])
+        if kind is None and receipt_path.is_file():
+            case_id = read(receipt_path).get("case")
+            kind = contract["cases"].get(case_id, {}).get("kind")
+        if attempt.get("purpose") == "closure" and kind != "diagnostic":
             registered.append(Path(attempt["receipt"]).resolve())
     if len(set(registered)) != len(registered) or set(registered) != {path.resolve() for path in paths}:
         raise EvidenceError("all registered closure attempts must be supplied, including failures")

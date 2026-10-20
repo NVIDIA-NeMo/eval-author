@@ -40,6 +40,7 @@ if agent not in ("nop", "oracle", "wrong-answer"):
     (trial / "agent").mkdir(exist_ok=True)
     (trial / "agent" / "trajectory.json").write_text(json.dumps(atif))
 result = {"id": str(uuid.uuid4()), "task_name": Path(options["-p"]).name, "trial_name": trial.name,
+          "config": {"agent": {"name": agent}},
           "task_checksum": "synthetic", "exception_info": None,
           "verifier_result": {"rewards": {"reward": 0 if agent in ("nop", "wrong-answer") else 1}}}
 (trial / "result.json").write_text(json.dumps(result))
@@ -462,3 +463,55 @@ def test_unbound_legacy_report_is_not_acceptance_evidence(tmp_path):
     report = write(tmp_path / "legacy.json", {"covered": ["read"]})
     with pytest.raises(pipeline.PipelineError, match="unbound legacy coverage"):
         pipeline._verify_coverage_binding(report)
+
+
+@pytest.mark.parametrize("reward", [0, 1])
+def test_diagnostic_attempt_does_not_poison_closure(tmp_path, prepared, reward):
+    task, contract_path, manifest = prepared
+    contract = evidence.read(contract_path)
+    contract["cases"]["diagnostic"] = {**contract["cases"]["agent"], "kind": "diagnostic"}
+    write(contract_path, contract)
+    diagnostic_manifest = tmp_path / "with-diagnostic.json"
+    evidence.prepare(task, contract_path, diagnostic_manifest)
+    diagnostic = execute(tmp_path, diagnostic_manifest, "diagnostic", "probe", reward=reward)
+    receipts = complete(tmp_path, diagnostic_manifest)
+    assert len(evidence.verify_receipts(receipts, "cover-read")) == 2
+    assert diagnostic.exists()
+    ledger_entry = Path(evidence.read(diagnostic_manifest)["attempts"]) / (
+        hashlib.sha256(b"probe").hexdigest() + ".json"
+    )
+    legacy_entry = evidence.read(ledger_entry)
+    legacy_entry.pop("kind")
+    legacy_entry.pop("case")
+    write(ledger_entry, legacy_entry)
+    assert len(evidence.verify_receipts(receipts, "cover-read")) == 2
+    with pytest.raises(evidence.EvidenceError):
+        evidence.verify_receipts([diagnostic, *receipts], "cover-read")
+
+
+def test_attempt_ledger_ignores_unrelated_files_but_checks_registered_entries(tmp_path, prepared):
+    _, _, manifest = prepared
+    receipts = complete(tmp_path, manifest)
+    ledger = Path(evidence.read(manifest)["attempts"])
+    (ledger / ".DS_Store").write_bytes(b"\xff")
+    (ledger / "notes.txt").write_text("Retained diagnostics")
+    assert len(evidence.verify_receipts(receipts, "cover-read")) == 2
+    (ledger / ("a" * 64 + ".json")).write_text("{")
+    with pytest.raises(evidence.EvidenceError, match="cannot read evidence"):
+        evidence.verify_receipts(receipts, "cover-read")
+
+
+def test_nop_cannot_be_the_realistic_incorrect_control(tmp_path, prepared):
+    _, _, manifest = prepared
+    for kind, expected in (("incorrect", "infrastructure_error"), ("empty", "passed")):
+        native = {"config": {"agent": {"name": "nop"}}, "rollout_id": kind, "reward": 0, "error": None}
+        result = tmp_path / f"{kind}-native.json"
+        command = [
+            sys.executable,
+            "-c",
+            f"from pathlib import Path; Path({str(result)!r}).write_text({json.dumps(native)!r})",
+        ]
+        receipt = evidence.read(execute(tmp_path, manifest, kind, kind, command=command))
+        assert receipt["status"] == expected
+        if kind == "incorrect":
+            assert "wrong answer" in receipt["error"]

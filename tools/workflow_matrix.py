@@ -16,13 +16,14 @@ import json
 from itertools import product
 from pathlib import Path
 
-from check_workflow_scope import CONTRACTS, check, snapshot
+from check_workflow_scope import CONTRACTS, check
 from discovery_determinism import encoded, read, sha
 
 SCHEMA = "nemo.workflow_matrix.v1"
 HOSTS = ("codex", "claude-code", "cursor", "pi")
 FORMS = ("checkout", "copied")
 PLATFORMS = ("darwin", "linux", "win32")
+PROVENANCE = ("host_version", "model", "source_revision", "fixture_sha256", "settings", "skills_sha256")
 
 
 def plan(contracts: dict, repeats: int = 2) -> dict:
@@ -109,6 +110,8 @@ def native_session(host: str, raw: bytes) -> str:
         if not line.strip():
             continue
         event = json.loads(line)
+        if not isinstance(event, dict):
+            raise ValueError("native event must be an object")
         identity = (
             event.get("thread_id")
             if host == "codex" and event.get("type") == "thread.started"
@@ -126,12 +129,9 @@ def native_session(host: str, raw: bytes) -> str:
 def evaluate(contracts: dict, attempt: dict) -> dict:
     """Re-read every retained artifact; a review is bound to its actual capture."""
     errors = []
-    for field in ("host_version", "model", "source_revision", "fixture_sha256", "settings"):
+    for field in PROVENANCE:
         if not attempt.get(field):
             errors.append(f"missing {field}")
-    installed = snapshot(Path(attempt["skills_root"]))
-    if not installed["complete"] or sha(encoded(installed)) != attempt["skills_sha256"]:
-        errors.append("loaded skill installation changed or incomplete")
     review = read(Path(attempt["review"]))
     native, raw_digests, sessions = [], [], []
     for turn, entry in enumerate(attempt["raw_turns"]):
@@ -176,11 +176,11 @@ def evaluate(contracts: dict, attempt: dict) -> dict:
         if (
             captured.get("turn") != turn
             or captured.get("prompt") != prompt
-            or captured.get("raw") != attempt["raw_turns"][turn]
+            or captured.get("raw", {}).get("sha256") != attempt["raw_turns"][turn]["sha256"]
             or any(attempt.get(key) != value for key, value in captured["cell"].items())
         ):
             errors.append("capture differs from planned turn or native stream")
-        for field in ("host_version", "model", "settings", "skills_root", "skills_sha256"):
+        for field in ("host_version", "model", "settings", "skills_sha256"):
             if captured.get(field) != attempt.get(field):
                 errors.append("capture provenance differs: " + field)
         if turn == 0 and sha(encoded(captured["before"])) != attempt["fixture_sha256"]:
@@ -222,6 +222,7 @@ def summarize(matrix: dict, contracts: dict, attempts: list[dict]) -> dict:
     recorded = {}
     raw_identities = set()
     attempt_ids = set()
+    conditions: dict[str, set[bytes]] = {}
     for attempt in attempts:
         identifier = attempt["id"]
         attempt_id = attempt.get("attempt_id", identifier)
@@ -234,6 +235,8 @@ def summarize(matrix: dict, contracts: dict, attempts: list[dict]) -> dict:
         if attempt.get("skip_reason"):
             row = {"status": "skipped", "reason": attempt["skip_reason"]}
         else:
+            group = identifier.rsplit("/", 1)[0]
+            conditions.setdefault(group, set()).add(encoded([attempt.get(field) for field in PROVENANCE]))
             try:
                 identities = [sha(Path(entry["path"]).read_bytes()) for entry in attempt["raw_turns"]]
                 if any(identity in raw_identities for identity in identities) or len(set(identities)) != len(
@@ -245,6 +248,12 @@ def summarize(matrix: dict, contracts: dict, attempts: list[dict]) -> dict:
             except (OSError, ValueError, KeyError, TypeError, IndexError) as exc:
                 row = {"status": "incomplete", "reason": str(exc)}
         recorded.setdefault(identifier, []).append({"attempt_id": attempt_id, **row})
+    for identifier, trials in recorded.items():
+        if len(conditions.get(identifier.rsplit("/", 1)[0], set())) > 1:
+            for trial in trials:
+                if trial["status"] not in ("fail", "skipped"):
+                    trial["status"] = "incomplete"
+                    trial.setdefault("incomplete", []).append("repeat provenance differs within cell")
     counts = {"pass": 0, "fail": 0, "incomplete": 0, "skipped": 0}
     rows = []
     for cell in cells:
@@ -269,6 +278,16 @@ def summarize(matrix: dict, contracts: dict, attempts: list[dict]) -> dict:
     }
 
 
+def load_attempt(path: Path) -> dict:
+    """Resolve portable artifact locators relative to the saved attempt, never cwd."""
+    attempt = read(path)
+    if not attempt.get("skip_reason"):
+        attempt["review"] = str((path.resolve().parent / attempt["review"]).resolve())
+        for entry in attempt.get("raw_turns", []) + attempt.get("captures", []):
+            entry["path"] = str((path.resolve().parent / entry["path"]).resolve())
+    return attempt
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--contracts", type=Path, default=CONTRACTS)
@@ -278,7 +297,9 @@ def main() -> int:
     try:
         contracts = read(args.contracts)
         result = (
-            summarize(read(args.matrix), contracts, [read(p) for p in args.attempt]) if args.matrix else plan(contracts)
+            summarize(read(args.matrix), contracts, [load_attempt(p) for p in args.attempt])
+            if args.matrix
+            else plan(contracts)
         )
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0 if args.matrix is None or result["passed"] else 1 if result["counts"]["fail"] else 2

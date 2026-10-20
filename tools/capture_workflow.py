@@ -79,7 +79,7 @@ def capture(
             record["reason"] = type(exc).__name__
     raw_path = output / "native.jsonl"
     raw = raw_path.read_bytes()
-    record["raw"] = {"path": str(raw_path), "sha256": sha(raw)}
+    record["raw"] = {"path": raw_path.name, "sha256": sha(raw)}
     record["after"] = snapshot(repo)
     record["skills_unchanged"] = snapshot(skills) == installed
     try:

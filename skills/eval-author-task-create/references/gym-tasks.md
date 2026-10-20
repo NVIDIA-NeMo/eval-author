@@ -58,7 +58,7 @@ Keep each draft in a fresh `.eval-author/task-drafts/<task-slug>/` directory.
 For an actionable uncovered tool, the existing selector chooses the same gap:
 
 ```bash
-python scripts/task_pipeline.py scaffold --provider gym \
+uv run scripts/task_pipeline.py scaffold --provider gym \
   --gym-python /path/to/Gym/.venv/bin/python \
   --report <aggregate-coverage.json> --target <tool-name> \
   --out .eval-author/task-drafts/<task-slug> \

@@ -79,7 +79,9 @@ tool-gap task creation still requires the aggregate JSON report.
 
 ## Available Scripts
 
-Run `uv run <skill_dir>/scripts/task_pipeline.py <command>`. Run `task_evidence.py`
+Run `uv run <skill_dir>/scripts/task_pipeline.py <command>`; its inline metadata
+declares PyYAML and jsonschema for audit binding verification, including in a
+customer repository without those packages. Run `task_evidence.py`
 with the selected runtime's Python; Harbor preparation imports Harbor.
 
 | Script | Purpose | Arguments |
@@ -411,6 +413,7 @@ uv run <skill_dir>/scripts/task_pipeline.py verify \
   --target <tool-name> \
   --evidence .eval-author/task-measurements/<task-slug>/reference-1.json \
   --evidence .eval-author/task-measurements/<task-slug>/incorrect-1.json \
+  --evidence .eval-author/task-measurements/<task-slug>/empty-1.json \
   --evidence .eval-author/task-measurements/<task-slug>/agent-1.json \
   --evidence .eval-author/task-measurements/<task-slug>/agent-2.json
 ```

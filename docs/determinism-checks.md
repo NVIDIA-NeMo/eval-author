@@ -159,6 +159,19 @@ records each measurement file's byte digest and rejects changed traces,
 denominators, judgments and duplicate/copy measurements. Existing unbound v1
 reports remain readable for review, but cannot establish task acceptance.
 
+New aggregate reports retain a relative artifact index for the audit,
+measurements, traces and judgment files. Preserve their relative layout when
+moving a workspace or archiving evidence; verification uses the retained byte
+digests without rewriting the original measurements. Legacy reports without an
+artifact index still require their recorded locations. This portability applies
+to coverage aggregates; execution manifests and saved task acceptance still
+require the prepared task workspace and recorded receipt locations.
+
+Coverage bindings describe retained inputs, not a re-execution or version pin of
+the measurement implementation. Keep the measurement source revision with an
+experiment when comparing versions; an update to the installed skills does not
+invalidate historical measurements by itself.
+
 ```bash
 uv run --locked python skills/eval-author-audit/scripts/audit_spec/report.py \
   --verify-existing /absolute/path/to/audit-coverage-report.json
@@ -176,7 +189,7 @@ Synthetic receipt tests do not establish verifier quality or real-agent success.
 
 `task_evidence.py run` registers each attempt before launching its command in a
 manifest-specific `.attempts` directory. Acceptance requires every registered
-closure attempt, including failed or interrupted attempts, all controls, and at
+non-diagnostic closure attempt, including failed or interrupted attempts, all controls, and at
 least two distinct agent runs. Copying a trace to another path cannot create a
 fresh run. Repair through a new manifest, retaining the previous manifest,
 ledger and results; do not delete failed entries to obtain acceptance. This is
@@ -233,10 +246,13 @@ The batch checker requires the same clean source, frozen suite/models/run count,
 case denominator and reviewed comparison identity. It rereads the suite's locked
 baseline and each batch's retained reports/claims rather than trusting digest
 strings in the summaries. It also verifies retained `gate-result.json` bytes
-against `gate_digest` and the reported verdict/metrics, so editing a summary
-cannot turn a regression into a pass. Keep those private directories intact.
-Semantic captures include `batch.json` and `batch_digest` so a copied result
-cannot pass as an independent batch. Failed, empty and incomplete results remain evidence. Old summaries
+against `gate_digest` and the reported verdict/metrics, so an inconsistent
+summary edit is rejected. It does not recompute the semantic verdict or detect
+coordinated rewrites of all retained artifacts. Keep those private directories
+intact. Semantic captures include `batch.json`, `batch_digest` and run IDs to
+reject resubmitting an unchanged batch. They do not prove independent execution
+against renamed copies with rewritten identities and hashes. Failed, empty and
+incomplete results remain evidence. Old summaries
 without batch identity and gate input bindings must be rerun. Gate receipts bind
 the batch, configuration, clustering inputs, baseline and measurement identity.
 The checker validates baseline run counts and measurement compatibility. Existing
@@ -296,6 +312,14 @@ need review of every action, including commands joined to a skill read.
 An attempt contains the planned cell fields plus `attempt_id`, `host_version`,
 `model`, `source_revision`, `fixture_sha256`, `settings`, `skills_root`,
 `skills_sha256`, `review`, `raw_turns`, and `captures` (`path`/`sha256` per turn).
+Use POSIX paths relative to the attempt JSON for `review`, `raw_turns[].path`
+and `captures[].path`. The summary resolves these from the attempt file, so an
+unchanged bundle can move between machines and operating systems. Absolute paths
+in older attempt files remain supported at their original locations.
+`skills_root` and the capture's original raw path are descriptive provenance;
+verification uses their capture-time digests and `skills_unchanged`, without
+reading the current skills installation. Repeats of a cell must share host
+version, model, source revision, fixture digest, settings and skill digest.
 Each capture is the recorder's retained `capture.json`; its process must exit 0,
 its provenance must match, and its before/after snapshots must equal the review. These labels
 and the declared installation/model are reviewed provenance, not independent

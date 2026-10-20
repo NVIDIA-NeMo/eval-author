@@ -368,6 +368,12 @@ alone does not authorize creating or running evals.
 These hold for every sub-flow. They exist because the repository belongs to the
 user, not to you.
 
+- **Treat recorded evidence as read-only.** Never edit, delete, rename, or
+  hand-regenerate measurements, receipts, gate results, summaries, or attempt
+  ledgers to change a verdict. If a result looks wrong, rerun to produce new
+  evidence, keep the old evidence, and report the discrepancy instead of
+  reconciling it by hand. Archiving unchanged evidence is fine; preserve its
+  linked artifacts and relative layout.
 - **Propose, never mutate customer source.** Read the user's source and report on
   it. Do not edit, move, or reformat any of it, including its `.gitignore`. The
   evaluation artifacts you add belong under `.eval-author/`, which is theirs to

@@ -99,6 +99,13 @@ def test_normalization_retains_samples_unknown_fields_and_duplicates(tmp_path):
         determinism.compare([first, second])
 
 
+def test_copied_discovery_report_does_not_count_as_another_attempt(tmp_path):
+    first = capture(tmp_path, minimal(), 0)
+    copied = capture(tmp_path, minimal(), 1)
+    with pytest.raises(ValueError, match="copied reports"):
+        determinism.compare([first, copied])
+
+
 @pytest.mark.parametrize("mutation", ["omission", "contradiction", "unsupported", "stage", "source", "boolean"])
 def test_factual_summary_rejects_changed_claims(tmp_path, mutation):
     source = tmp_path / "source.json"

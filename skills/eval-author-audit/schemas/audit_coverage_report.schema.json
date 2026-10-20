@@ -71,6 +71,11 @@
         "inputs"
       ],
       "properties": {
+        "artifacts": {
+          "description": "Original artifact locations mapped to paths relative to this aggregate report.",
+          "type": "object",
+          "additionalProperties": {"type": "string", "minLength": 1}
+        },
         "audit_sha256": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"

@@ -7,9 +7,12 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
+import os
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeAlias
@@ -83,12 +86,24 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except AuditCoverageInputError as exc:
         _print(
-            {"valid": True, "written": False, "error_type": "coverage_input", "error": str(exc)}, compact=args.compact
+            {
+                "valid": not bool(args.verify_existing),
+                "written": False,
+                "error_type": "coverage_input",
+                "error": str(exc),
+            },
+            compact=args.compact,
         )
         return 1
     except AuditCoverageReportError as exc:
         _print(
-            {"valid": True, "written": False, "error_type": "coverage_report", "error": str(exc)}, compact=args.compact
+            {
+                "valid": not bool(args.verify_existing),
+                "written": False,
+                "error_type": "coverage_report",
+                "error": str(exc),
+            },
+            compact=args.compact,
         )
         return 1
 
@@ -154,7 +169,13 @@ def _load_coverage(path: Path) -> CoverageInput:
     return CoverageInput(path=path, payload=payload, raw_sha256=hashlib.sha256(raw).hexdigest())
 
 
-def _aggregate(*, audit: JsonObject, audit_path: Path, coverage_inputs: list[CoverageInput]) -> JsonObject:
+def _aggregate(
+    *,
+    audit: JsonObject,
+    audit_path: Path,
+    coverage_inputs: list[CoverageInput],
+    artifact_path: Callable[[str], Path] = Path,
+) -> JsonObject:
     """Aggregate coverage; headline fields use the agent-under-test bucket when labeled."""
     audit_items = audit["items"]
     audit_items_by_name = {item["name"]: item for item in audit_items}
@@ -180,6 +201,7 @@ def _aggregate(*, audit: JsonObject, audit_path: Path, coverage_inputs: list[Cov
                 audit=audit,
                 audit_counts=audit_counts,
                 audit_item_kinds=audit_item_kinds,
+                artifact_path=artifact_path,
             )
         )
         subject = payload.get("subject")
@@ -189,7 +211,7 @@ def _aggregate(*, audit: JsonObject, audit_path: Path, coverage_inputs: list[Cov
             warnings.append(
                 {
                     "kind": "missing_evidence_class",
-                    "coverage": str(coverage_input.path),
+                    "coverage": str(coverage_input.path.resolve()),
                     "message": (
                         "subject.evidence_class is missing; this input is included in legacy union totals only. "
                         "Re-measure with a current measure.py (or pass --evidence-class) to enable per-runner summaries."
@@ -267,18 +289,34 @@ def verify_existing(path: Path) -> dict:
         binding = report.get("binding")
         if not binding:
             raise AuditCoverageInputError("unbound legacy coverage: remeasure and aggregate before acceptance")
-        audit_path = Path(report["audit"]["path"])
+        _validate_report(report)
+        artifacts = binding.get("artifacts", {})
+
+        def artifact_path(original: str) -> Path:
+            return (path.resolve().parent / artifacts[original]).resolve() if original in artifacts else Path(original)
+
+        audit_path = artifact_path(report["audit"]["path"])
         audit = load_audit_spec(audit_path)
         inputs = []
         for entry in binding["inputs"]:
-            source = Path(entry["path"])
+            source = artifact_path(entry["path"])
             if _digest(source) != entry["sha256"]:
                 raise AuditCoverageInputError("coverage measurement digest changed")
             inputs.append(_load_coverage(source))
         if not inputs or len({entry.path.resolve() for entry in inputs}) != len(inputs):
             raise AuditCoverageInputError("distinct coverage inputs are required")
-        rebuilt = _aggregate(audit=audit, audit_path=audit_path, coverage_inputs=inputs)
-        if rebuilt != report:
+        rebuilt = _aggregate(audit=audit, audit_path=audit_path, coverage_inputs=inputs, artifact_path=artifact_path)
+        # Location is a retrieval hint, not an evidence identity. Preserve the
+        # original measurement bytes and compare the report at its current location.
+        expected = copy.deepcopy(report)
+        expected["binding"].pop("artifacts", None)
+        expected["audit"]["path"] = str(audit_path.resolve())
+        for entry in expected["binding"]["inputs"] + expected["input_reports"]:
+            entry["path"] = str(artifact_path(entry["path"]).resolve())
+        for warning in expected["warnings"]:
+            if "coverage" in warning:
+                warning["coverage"] = str(artifact_path(warning["coverage"]).resolve())
+        if rebuilt != expected:
             raise AuditCoverageInputError("coverage aggregate or denominator changed; regenerate evidence")
         _validate_report(rebuilt)
         return binding
@@ -293,19 +331,23 @@ def _validate_coverage_matches_audit(
     audit: JsonObject,
     audit_counts: dict[str, int],
     audit_item_kinds: dict[str, str],
+    artifact_path: Callable[[str], Path] = Path,
 ) -> list[JsonObject]:
     """Reject stale or incompatible coverage files before aggregating them."""
     warnings: list[JsonObject] = []
     binding = coverage.get("binding")
     if binding is not None:
         for judgment in binding.get("judgments", []):
-            contents = json.loads(Path(judgment["path"]).read_bytes())
+            try:
+                contents = json.loads(artifact_path(judgment["path"]).read_bytes())
+            except (OSError, ValueError) as exc:
+                raise AuditCoverageInputError(f"cannot read semantic judgments {judgment['path']}: {exc}") from exc
             if hashlib.sha256(json.dumps(contents, sort_keys=True).encode()).hexdigest() != judgment["sha256"]:
                 raise AuditCoverageInputError("semantic judgment content changed")
         expected = hashlib.sha256(json.dumps(audit, sort_keys=True).encode()).hexdigest()
         if binding["audit_sha256"] != expected:
             raise AuditCoverageInputError("measurement denominator digest changed")
-        if _digest(Path(coverage["subject"]["trace"])) != binding["trace_sha256"]:
+        if _digest(artifact_path(coverage["subject"]["trace"])) != binding["trace_sha256"]:
             raise AuditCoverageInputError("measured trace digest changed")
     coverage_audit = coverage["audit"]
     for field in ("schema", "agent", "item_count"):
@@ -319,7 +361,7 @@ def _validate_coverage_matches_audit(
         warnings.append(
             {
                 "kind": "audit_status_mismatch",
-                "coverage": str(coverage_path),
+                "coverage": str(coverage_path.resolve()),
                 "input_status": coverage_audit["status"],
                 "current_status": audit["status"],
             }
@@ -545,6 +587,24 @@ def _validate_json(
 def _write_report(report: JsonObject, *, out: Path, compact: bool) -> None:
     """Write the aggregate report after every validation step has passed."""
     out.parent.mkdir(parents=True, exist_ok=True)
+    if "binding" in report:
+        paths = {report["audit"]["path"]}
+        for entry in report["binding"]["inputs"]:
+            paths.add(entry["path"])
+            coverage = _load_coverage(Path(entry["path"])).payload
+            paths.add(coverage["subject"]["trace"])
+            paths.update(judgment["path"] for judgment in coverage["binding"].get("judgments", []))
+        # Retaining the same relative layout makes the evidence portable without
+        # rewriting measurements (and invalidating their byte digests).
+        artifacts = {}
+        for value in sorted(paths):
+            try:
+                artifacts[value] = Path(os.path.relpath(value, out.resolve().parent)).as_posix()
+            except ValueError:
+                # Windows cannot express a relative path across drives. Keep
+                # that external artifact usable at its original location.
+                artifacts[value] = value
+        report["binding"]["artifacts"] = artifacts
     out.write_text(_json(report, compact=compact) + "\n", encoding="utf-8")
 
 

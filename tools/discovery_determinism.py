@@ -120,6 +120,8 @@ def compare(records: list[dict], *, mutation: bool = False) -> dict:
         raise ValueError("each attempt requires a distinct retained raw report")
     for record in records:
         validate_capture(record)
+    if len({record["raw_sha256"] for record in records}) != len(records):
+        raise ValueError("each attempt requires distinct raw report bytes; copied reports are not reruns")
     conditions = [encoded(record["provenance"]) for record in records]
     decisions = [encoded([record["exit_status"], record["decision"]]) for record in records]
     changed_inputs = len(set(conditions)) != 1
