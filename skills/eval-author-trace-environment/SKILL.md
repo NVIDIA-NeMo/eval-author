@@ -1,6 +1,6 @@
 ---
 name: eval-author-trace-environment
-version: 1.5.0
+version: 1.6.1
 description: >-
   Experimental workflow. Use Gym, MLflow, Intake, OpenTelemetry, or ATIF trace
   evidence to derive a private, reproducible Harbor or native NeMo Gym task candidate.
@@ -286,6 +286,12 @@ provenance, executed setup/reach probes, a reviewed valid alternative, and a
 bypass control for each declared dependency. `validate-task` checks declarations;
 only retained execution can establish qualification. Keep measured difficulty
 separate from these checks.
+
+For an authorized cohort of fresh solutions, use the optional
+[solution-review diagnostic](references/solution-review.md) to compare reviewed
+correctness with verifier scores. Freeze the full cohort before execution and
+retain verifier-owned submission snapshots. This diagnostic does not change
+readiness; investigate findings before handoff.
 
 Create `<task-dir>/README.md` using
 [Suite review and rerun instructions](../eval-author/references/suite-readme.md), separate
