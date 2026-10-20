@@ -1,5 +1,5 @@
 ## Description: <br>
-Entry point for an AI agent's ethos.md (a durable snapshot of what the agent is for, what it must not do, and what success looks like) that routes requests to explore and capture intent (ethos-explore) or to write or edit the file (ethos-write), including renaming an Eval Author 0.1.0 ETHOS.md. <br>
+Entry point for an AI agent's ETHOS.md (a durable snapshot of what the agent is for, what it must not do, and what success looks like) that routes requests to explore and capture intent (ethos-explore) or to write or edit the file (ethos-write). <br>
 
 This skill is for research and development only. <br>
 
@@ -9,7 +9,7 @@ NVIDIA <br>
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers building AI agents use this skill with a coding assistant to find, explain, create, update, or rename their agent's ethos.md, routing each request to the ethos-explore or ethos-write sub-flow while ensuring the file records only user-confirmed intent. <br>
+Developers building AI agents use this skill with a coding assistant to find, explain, create or update their agent's ETHOS.md, routing each request to the ethos-explore or ethos-write sub-flow while ensuring the file records only user-confirmed intent. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
@@ -25,17 +25,17 @@ Risk: Review before execution as proposals could introduce incorrect or misleadi
 Mitigation: Review and scan skill before deployment. <br>
 
 ## Reference(s): <br>
-- [ethos.md overview (README.md)](README.md) <br>
+- [ETHOS.md overview (README.md)](README.md) <br>
 - [ethos-explore skill](../ethos-explore/SKILL.md) <br>
 - [ethos-write skill](../ethos-write/SKILL.md) <br>
-- [ethos.md schema-v1 template](../ethos-write/references/templates/ethos.md) <br>
+- [ETHOS.md schema-v1 template](../ethos-write/references/templates/ETHOS.md) <br>
 
 
 ## Skill Output: <br>
 **Output Type(s):** [Analysis, Shell commands, Files] <br>
-**Output Format:** [Markdown with inline bash code blocks; routed sub-flows produce a single local ethos.md file] <br>
+**Output Format:** [Markdown with inline bash code blocks; routed sub-flows produce a single local ETHOS.md file] <br>
 **Output Parameters:** [1D] <br>
-**Other Properties Related to Output:** [Routing reads the local checkout only and works offline; writes are limited to the ethos.md file via sub-flows and nothing is committed automatically.] <br>
+**Other Properties Related to Output:** [Routing reads the local checkout only and works offline; writes are limited to the ETHOS.md file via sub-flows and nothing is committed automatically.] <br>
 
 ## Evaluation Agents Used: <br>
 - Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`) <br>

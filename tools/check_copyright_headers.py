@@ -19,7 +19,7 @@ HASH_SUFFIXES = {".env", ".py", ".sh", ".toml", ".yaml", ".yml"}
 HTML_SUFFIXES = {".md"}
 HASH_FILENAMES = {".env.example", ".gitignore", "Makefile"}
 # Templates copied verbatim into users' repositories carry no header.
-HEADERLESS_TEMPLATES = {"team-skills/ethos/ethos-write/references/templates/ethos.md"}
+HEADERLESS_TEMPLATES = {"team-skills/ethos/ethos-write/references/templates/ETHOS.md"}
 # NVSkills CI generates and signs these reports. Adding local headers would
 # invalidate the signatures, so preserve their bytes in check and fix modes.
 # Keep this list explicit: other files in these skills still require headers.

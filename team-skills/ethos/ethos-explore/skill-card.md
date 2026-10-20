@@ -1,5 +1,5 @@
 ## Description: <br>
-Captures what an AI agent is supposed to do — its purpose, boundaries, and success criteria — by exploring the user's codebase and docs first, then asking one intent question at a time for what source cannot supply, and handing the answers to ethos-write, which writes ethos.md. <br>
+Captures what an AI agent is supposed to do — its purpose, boundaries, and success criteria — by exploring the user's codebase and docs first, then asking one intent question at a time for what source cannot supply, and handing the answers to ethos-write, which writes ETHOS.md. <br>
 
 This skill is for research and development only. <br>
 
@@ -9,7 +9,7 @@ NVIDIA <br>
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers and engineers building, evaluating, reviewing, or changing an AI agent use this skill to scan the agent's repository and run a short intent interview that captures the agent's role, purpose, scope, principles, constraints, and vision as a draft ethos.md for ethos-write. <br>
+Developers and engineers building, evaluating, reviewing, or changing an AI agent use this skill to scan the agent's repository and run a short intent interview that captures the agent's role, purpose, scope, principles, constraints, and vision as a draft ETHOS.md for ethos-write. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
@@ -28,8 +28,8 @@ Mitigation: Review and scan skill before deployment. <br>
 
 
 ## Skill Output: <br>
-**Output Type(s):** [Analysis, Interview questions, Draft ethos.md content] <br>
-**Output Format:** [Markdown (one intent question per message, then a full draft ethos.md with one ## section per field)] <br>
+**Output Type(s):** [Analysis, Interview questions, Draft ETHOS.md content] <br>
+**Output Format:** [Markdown (one intent question per message, then a full draft ETHOS.md with one ## section per field)] <br>
 **Output Parameters:** [1D] <br>
 **Other Properties Related to Output:** [Read-only codebase pre-flight; writes no files itself and hands the structured conversation to ethos-write.] <br>
 

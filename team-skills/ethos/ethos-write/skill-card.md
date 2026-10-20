@@ -1,5 +1,5 @@
 ## Description: <br>
-Writes an AI agent's ethos.md — a durable snapshot of its purpose, intended behavior, boundaries, and success criteria — from the answers gathered by ethos-explore, rendering the schema-v1 template, validating the front matter and required markdown sections, saving the file in the agent's repository, and reviewing it with the user (it also edits an existing ethos.md). <br>
+Writes an AI agent's ETHOS.md — a durable snapshot of its purpose, intended behavior, boundaries, and success criteria — from the answers gathered by ethos-explore, rendering the schema-v1 template, validating the front matter and required markdown sections, saving the file in the agent's repository, and reviewing it with the user (it also edits an existing ETHOS.md). <br>
 
 This skill is for research and development only. <br>
 
@@ -9,7 +9,7 @@ NVIDIA <br>
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers and engineers building, evaluating, reviewing, or changing an AI agent use this skill to turn the design answers gathered by ethos-explore into a validated ethos.md committed in the agent's repository, or to edit an existing ethos.md in place. <br>
+Developers and engineers building, evaluating, reviewing, or changing an AI agent use this skill to turn the design answers gathered by ethos-explore into a validated ETHOS.md committed in the agent's repository, or to edit an existing ETHOS.md in place. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
@@ -25,14 +25,14 @@ Risk: Review before execution as proposals could introduce incorrect or misleadi
 Mitigation: Review and scan skill before deployment. <br>
 
 ## Reference(s): <br>
-- [ethos.md schema-v1 template](references/templates/ethos.md) <br>
+- [ETHOS.md schema-v1 template](references/templates/ETHOS.md) <br>
 
 
 ## Skill Output: <br>
 **Output Type(s):** [Files, Shell commands, Analysis] <br>
-**Output Format:** [Markdown (ethos.md with YAML front matter and fourteen canonical ## sections), plus a gut-check summary paragraph] <br>
+**Output Format:** [Markdown (ETHOS.md with YAML front matter and fourteen canonical ## sections), plus a gut-check summary paragraph] <br>
 **Output Parameters:** [1D] <br>
-**Other Properties Related to Output:** [Writes one local file (ethos.md at the repository root unless the user names another path); validated offline by the bundled standard-library script scripts/validate_ethos.py (Python 3.10+); overwrites only after user confirmation.] <br>
+**Other Properties Related to Output:** [Writes one local file (ETHOS.md at the repository root unless the user names another path); validated offline by the bundled standard-library script scripts/validate_ethos.py (Python 3.10+); overwrites only after user confirmation.] <br>
 
 ## Evaluation Agents Used: <br>
 - Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`) <br>

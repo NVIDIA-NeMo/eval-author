@@ -3,13 +3,13 @@ schema_version: 1
 name: <canonical-agent-name>
 created_timestamp: <ISO 8601 creation timestamp, e.g. 2026-06-02T20:00:00Z>
 updated_timestamp: <ISO 8601 timestamp of the last edit; omit on first write>
-author: <human or agent that created this ethos.md>
+author: <human or agent that created this ETHOS.md>
 owner: <accountable human or team for the agent's behavioral or safety approvals; omit if unowned>
 ---
 
-# ethos.md: <name>
+# ETHOS.md: <name>
 
-> This file is the agent's ethos.md — a snapshot of the intended behavior,
+> This file is the agent's ETHOS.md — a snapshot of the intended behavior,
 > capabilities, validation setup, and boundaries for this agent. People and
 > agents read it before they build, evaluate, review, or change this agent.
 > Keep it accurate; stale entries here lead them to the wrong conclusions.
