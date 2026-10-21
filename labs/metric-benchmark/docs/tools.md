@@ -109,3 +109,24 @@ partial observations. Do not run two writers against the same output directory.
 The optional `METRIC_BENCHMARK_DOCKER_TEST=1` execution test runs six local
 Oracle/NOP trials and checks CLI-to-library resume. It requires Docker and the
 `python:3.12-slim` image; it does not call a model or a benchmark service.
+
+## Compute mutant scores
+
+```bash
+uv run python labs/metric-benchmark/compute_mutant_scores.py \
+  --results execution-results/results.json --subsets subsets.json \
+  --config selection.json --output mutant-scores.json
+```
+
+Library: `compute_mutant_scores(raw, subsets, selection)`.
+`case.selection()` produces the selection configuration for local execution;
+write it with `write_json(path, case.selection())` for manual CLI use.
+The score is the equally weighted mean over mutants of the signed mean paired
+task degradation. Improvements remain negative. The output includes `diagnostics`
+with `code: negative_mutant_score`, subset ID, and negative value.
+`mutant_bundle_id` identifies an individual effect; null identifies the subset
+aggregate. These flags are for inspection only: they neither fail scoring nor
+clip values or exclude correlation pairs. Incomplete required pairs make
+the subset unavailable. `attempt_policy: latest` selects by attempt number,
+never by reward. Repetitions require a future explicit aggregation policy.
+The prepared subset manifest is unchanged when the experiment run ID changes.
