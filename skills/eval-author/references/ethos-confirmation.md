@@ -37,10 +37,14 @@ Before displaying the results checklist, use `journey_state.py update` to set
 `ethos.stage` to `review`, save the question as `pending_question`, and set
 `next_handoff` to `ethos-orchestrate`. Keep the Ethos item unchecked and current
 when prerequisites are complete. Pass the orchestrator the existing content and
-ask it to confirm both document identity and current intended behavior. Below
-**Next Steps** and the checklist, use this review template:
+ask it to confirm both document identity and current intended behavior. Use this
+complete **Next Steps** section after the results table and any Recommendations:
 
 ```markdown
+### Next Steps
+
+[Shared three-item checklist from the core, with saved progress]
+
 I found [ETHOS.md](path-to-the-document).
 
 [Brief summary of this agent's intended behavior, boundaries, and success criteria]

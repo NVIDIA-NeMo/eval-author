@@ -200,8 +200,9 @@ credentials for later evaluation runs, and traces for audit measurement, stay in
 the table as later requirements, not optional recommendations or blockers to
 Ethos. Missing Ethos skills can block
 this step; missing `ETHOS.md` alone does not, because the Ethos skills can create it.
-For an existing document, use the [existing Ethos review](ethos-confirmation.md#review-an-existing-document)
-below the checklist. For a missing document, explain that `ETHOS.md` records what
+For an existing document, use the complete **Next Steps** section from the
+[existing Ethos review](ethos-confirmation.md#review-an-existing-document), including
+its heading and checklist once. For a missing document, explain that `ETHOS.md` records what
 the agent should do, what it should avoid, and what a good result looks like, then
 present the orchestrator's next question. If blocked, preserve progress
 without displaying the checklist or starting dependent Ethos work.

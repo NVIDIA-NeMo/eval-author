@@ -135,6 +135,9 @@ and Harbor; omit sections only under the template's stated conditions.
   Next Steps, the checklist, and all Ethos guidance, even if Recommendations are present
 - No suggestions or blockers remain: omit those empty sections and go directly
   from the table to **Next Steps** and the checklist
+- An existing `ETHOS.md` needs current confirmation: show the complete review
+  section, including the literal **Next Steps** heading before the checklist;
+  a checklist directly after the results table without that heading fails
 - `ETHOS.md` is missing but the Ethos skills are available: proceed below the
   checklist; the absent document is not a blocker
 - Resume an Ethos question: use **Next Steps** and saved checklist progress only
