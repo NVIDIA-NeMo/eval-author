@@ -245,7 +245,7 @@ With no goal supplied, Eval Author asks whether you want to create evaluations,
 check existing coverage, or improve a suite. For first evaluations, it shows:
 
 - [ ] **Check how your agent runs and how you’ll test it**
-- [ ] **Agree on what your agent should do**
+- [ ] **Agree on what your agent should do using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)**
 - [ ] **Create your first evaluations**
 
 For an audit, the third item is **Check what your evaluations cover**. For

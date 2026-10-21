@@ -327,7 +327,10 @@ def checklist(state: dict) -> list[dict]:
             "blocked": "setup" in blocked,
         },
         {
-            "label": "Agree on what your agent should do",
+            "label": (
+                "Agree on what your agent should do using "
+                "[ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)"
+            ),
             "complete": ethos_done,
             "blocked": "ethos" in blocked,
         },
