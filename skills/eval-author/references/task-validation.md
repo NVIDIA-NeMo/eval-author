@@ -78,6 +78,12 @@ passing result establishes comprehensive soundness, fairness, or difficulty.
 
 ## Prepare immutable inputs
 
+When grading delegates to a verifier-owned helper, follow
+[trusted verifier helpers](verifier-helpers.md): distinguish helper startup,
+protocol and runtime faults from explicit submitted-program failures. A helper
+failure must propagate through native verifier health, never become a healthy
+negative score. Preserve the original task and receipts when diagnosing faults.
+
 Use `eval-author-task-create/scripts/task_evidence.py` with Python 3.11+; Harbor
 preparation also needs the same Harbor Python runtime used for execution. Finish
 the task, verifier, control implementations, and any result adapter before
