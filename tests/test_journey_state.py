@@ -77,6 +77,23 @@ def test_resume_and_journey_switch_reuse_shared_confirmations(state, tmp_path):
     assert state.checklist(resumed)[2]["label"] == "Check what your existing evaluations cover"
 
 
+def test_ethos_completion_pause_survives_resume_and_continuation(state, tmp_path):
+    setup_ready(state, tmp_path)
+    confirmed = ethos_ready(state, tmp_path)
+    question = "We’re ready to build your evaluation suite. Ready to continue?"
+    state.update(tmp_path, {"pending_question": question, "next_handoff": "eval-author-first-eval"})
+    resumed = state.initialize(tmp_path, agent="assistant", journey="create", setup="gym")
+    assert resumed["ethos"] == confirmed["ethos"]
+    assert resumed["pending_question"] == question
+    assert resumed["next_handoff"] == "eval-author-first-eval"
+    assert [row["complete"] for row in state.checklist(resumed)] == [True, True, False]
+    assert state.checklist(resumed)[2]["current"]
+    continued = state.update(tmp_path, {"pending_question": None, "journey_status": {"create": "in_progress"}})
+    assert continued["ethos"] == confirmed["ethos"]
+    assert state.load_state(tmp_path)["pending_question"] is None
+    assert not state.checklist(continued)[2]["complete"]
+
+
 def test_observed_checks_and_user_answers_survive_resume_without_implying_execution(state, tmp_path):
     setup_ready(state, tmp_path, setup="harbor")
     checks = {

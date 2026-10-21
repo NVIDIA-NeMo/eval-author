@@ -59,7 +59,8 @@ Read only this skill and the core before that response; repository inspection,
 Ethos validation, prerequisite questions, and state writes wait until the user
 continues. Reuse confirmed agent, prerequisites, and Ethos on continuation.
 
-After shared onboarding, follow [Guided audit milestones](references/guided-audit.md):
+After shared onboarding's completion pause and the user's continuation, follow
+[Guided audit milestones](references/guided-audit.md):
 confirm evals and traces, define intended coverage, measure selected evidence,
 then generate and review `audit-coverage-report.md`. Keep source and content
 reviews explicit. Use bounded agent and eval reads. Do not enumerate or read traces

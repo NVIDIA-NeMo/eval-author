@@ -316,6 +316,47 @@
         ],
         "handoff": "shared_prerequisites"
       }
+    ],
+    "ethos-completion-pause": [
+      {
+        "prompts": [
+          "The saved ETHOS.md matches my intent.",
+          "Yes, I confirm the saved Ethos."
+        ],
+        "context": "The selected goal is first evaluations. Shared prerequisites are complete; the canonical Ethos skills have saved and validated root ETHOS.md and presented it for review. The user now confirms its saved content. Evaluation source selection has not started.",
+        "flow": "eval-author",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "validate",
+          "write_artifact"
+        ],
+        "required_actions": [],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "ethos_complete_pause"
+      },
+      {
+        "prompts": [
+          "Continue.",
+          "Yes, let’s build the evaluation suite."
+        ],
+        "context": "The previous turn confirmed saved Ethos, showed Next Steps with the first two checklist items complete, and asked Ready to continue? Shared state retains the continuation question and first-eval handoff. Source selection has not started.",
+        "flow": "eval-author-first-eval",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "validate",
+          "write_artifact",
+          "delegate"
+        ],
+        "required_actions": [],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "source_scope_selection"
+      }
     ]
   }
 }

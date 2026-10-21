@@ -63,6 +63,8 @@ Consume the path, confirmed digest, validation result, and unresolved intent fro
 the core's [Ethos confirmation](../eval-author/references/ethos-confirmation.md)
 handoff. Reopen only changed or unresolved content. Do not restart an interview,
 write another Ethos, or add a separate content review for unchanged approval.
+When shared onboarding finishes, show the core's completion pause before source
+selection or evaluation work. Continue the stages below only after the user replies.
 
 ## 2. Reuse prerequisites and verify when needed
 

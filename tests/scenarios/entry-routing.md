@@ -101,6 +101,27 @@ An unblocked results response contains one checklist, after the table and any
 Recommendations. A blocked response contains none. Neither has a separate Ethos heading. Preserve the
 fresh welcome/checklist/call-to-action response before any prerequisite work.
 
+### Ethos completion and the pause before evaluation work
+
+Finish the canonical saved-content validation and review, then confirm the saved
+Ethos. Repeat for create, audit, and expand with Gym and Harbor. Inspect the final
+visible response: it links `ETHOS.md`, reports confirmation, shows **Next Steps**
+and the shared progress checklist, and ends with the selected goal's exact
+readiness/continuation sentence. Completed prerequisites and Ethos are checked;
+the selected third item remains unchecked and current.
+
+No source-selection or case-planning question, new suite or trace inspection,
+runtime probe, scaffolding, or downstream delegation occurs in this turn.
+The saved state retains the exact confirmed Ethos digest, pending continuation
+question, and intended handoff. A draft-only approval or unreviewed saved file
+must not trigger this completion response. Blockers suppress Next Steps,
+the checklist, and readiness language as elsewhere in the shared flow.
+
+Reply “Continue” and verify that source/scope selection begins from the saved
+context without repeating the readiness pause or Ethos interview. Also resume
+from a fresh chat while that continuation question is pending, and verify that
+an interrupted pause cannot silently start evaluation work.
+
 ## 2. Expansion does not imply an audit
 
 Request “help me onboard to expand my evals” with no audit findings. Preserve the

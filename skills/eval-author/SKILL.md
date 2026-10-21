@@ -154,8 +154,9 @@ Read [Shared prerequisites and Ethos](references/shared-prerequisites.md) for
 the prerequisite table and checks, shared state, resumption, and the exact handoff.
 
 Use `ethos-orchestrate` to review, create, or update `ETHOS.md`. Pass along the
-context and answers already collected, then resume the selected evaluation flow
-when [Ethos confirmation](references/ethos-confirmation.md) is complete.
+context and answers already collected. When [Ethos confirmation](references/ethos-confirmation.md)
+is complete, show the [completion pause](references/shared-prerequisites.md#pause-after-ethos-confirmation)
+before resuming the selected evaluation flow.
 
 The shared prerequisite flow confirms repository-root `ETHOS.md`. Preserve supplied
 alternate-path documents and resolve the root requirement without silently copying
@@ -174,7 +175,8 @@ An explicitly selected addition or proposal-only request keeps that scope.
 
 ### Downstream progress
 
-Once prerequisites and Ethos are confirmed, follow the selected skill's stages.
+Once prerequisites and Ethos are confirmed, present the completion pause and wait
+for the user to continue before following the selected skill's stages.
 Keep the selected third checklist item current. Reuse completed shared steps.
 Keep scope and evidence reviews, source selection, and execution authorization.
 

@@ -147,6 +147,31 @@ def test_prerequisite_inspection_does_not_authorize_downstream_work(action):
     assert f"turn[1]: forbidden action {action}" in report["violations"]
 
 
+@pytest.mark.parametrize(
+    "action", ["inventory", "runtime_probe", "read_trace", "propose", "scaffold", "execute", "delegate"]
+)
+def test_ethos_completion_waits_before_downstream_work(action):
+    evidence, raw = capture("ethos-completion-pause")
+    raw = add_call(evidence, raw, action=action)
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert f"turn[0]: forbidden action {action}" in report["violations"]
+
+
+def test_ethos_completion_can_save_state_but_cannot_create_evaluations():
+    evidence, raw = capture("ethos-completion-pause")
+    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/.working/journey-state.json"])
+    assert scope.check(CONTRACTS, evidence, raw)["status"] == "pass"
+    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/tasks/new-case/task.toml"])
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert "turn[0]: forbidden write attempt .eval-author/tasks/new-case/task.toml" in report["violations"]
+
+
+def test_ethos_completion_continuation_allows_source_scope_handoff():
+    evidence, raw = capture("ethos-completion-pause")
+    raw = add_call(evidence, raw, action="delegate", turn=1)
+    assert scope.check(CONTRACTS, evidence, raw)["status"] == "pass"
+
+
 def test_transient_write_is_rejected_even_if_snapshots_match():
     evidence, raw = capture("recommendations-only")
     raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/tasks/unauthorized/task.toml"])

@@ -87,8 +87,11 @@ string. Failed validation remains an unfinished review, even if the file has
 a digest. Use only the
 confirmed exact content for downstream cases or audit items. Validation alone
 is not intent confirmation; unchanged previously accepted content needs no
-repeated approval. Present the returned path and unresolved gaps, then continue
-the selected journey's next action.
+repeated approval. Present the returned path and unresolved gaps, then follow the
+shared [completion pause](shared-prerequisites.md#pause-after-ethos-confirmation).
+End the turn after Next Steps, the updated checklist, and the continuation question.
+Do not begin source selection or delegate evaluation work until the user continues.
+If Blockers remain, use the blocked response instead.
 
 ## Recovery
 

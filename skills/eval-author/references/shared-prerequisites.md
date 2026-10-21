@@ -156,6 +156,44 @@ digest, remaining intent questions, and stage. Do not infer content approval fro
 file presence, structural validity, or an implemented behavior. Do not write the
 canonical document before its content is confirmed.
 
+## Pause after Ethos confirmation
+
+After the saved `ETHOS.md` has been validated and its content reviewed and
+confirmed, link the file and briefly report that result. A draft approval or file
+write alone does not complete this step. If an issue blocks the selected next
+step, show **Blockers** with “These items prevent us from continuing with your
+evaluations.” and omit Next Steps, the checklist, and readiness language.
+
+Otherwise, show this in the final visible response, then **end the turn**:
+
+```markdown
+### Next Steps
+
+[Shared three-item checklist with saved progress]
+
+We’re ready to build your evaluation suite. Ready to continue?
+```
+
+Use the core's exact checklist wording and selected third item. Mark prerequisites
+and Ethos complete only when their work is complete; leave the selected evaluation
+step unchecked and derive the current marker from shared state. When the first
+two steps are complete, the third is current. For audit, use “We’re ready to check what your existing
+evaluations cover. Ready to continue?” For expansion, use “We’re ready to improve
+your existing evaluations. Ready to continue?” This indicates readiness to begin
+that flow, not proof that agent execution is configured or has succeeded.
+
+Save this continuation question as `pending_question` and the selected downstream
+skill as `next_handoff`. Preserve confirmed Ethos and prerequisite findings. Do
+not ask source-selection or case-planning questions, inspect new suite or trace
+sources, probe runtimes, create evaluations, or delegate downstream work in this
+turn. The pause must remain visible after tools finish; commentary alone is not
+sufficient.
+
+After the user continues, clear the pending continuation question and hand off
+with the saved context. Do not repeat this pause when resuming downstream work
+that has already started. Keep later execution requirements explicit and pause
+only the work they actually block.
+
 ## Save and resume
 
 `.eval-author/.working/journey-state.json` is the sole authority for workflow
@@ -197,7 +235,8 @@ unavailable, and continue independently possible work.
 
 ## Hand off
 
-Pass the selected journey, repository/agent, setup and prerequisite evidence and answers,
+After the user continues from the completion pause, pass the selected journey,
+repository/agent, setup and prerequisite evidence and answers,
 confirmed Ethos result, and unresolved dependencies. First-eval continues with
 its source/scope decision; audit continues with selected evals and traces;
 expansion follows the core's explicit expansion handoff. Never repeat shared
