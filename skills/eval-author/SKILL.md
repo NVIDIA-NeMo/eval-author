@@ -135,8 +135,7 @@ reviewed audit findings, use `eval-author-task-create` proposals and its existin
 eligibility checks. For other existing suites, inspect the selected definitions
 and agree on the intended additions; save that plan and the next action in shared
 state. Explain any remaining authoring support needed rather than inventing
-measured gaps or routing through an unwanted audit. General expansion execution
-belongs to Journey 3; this entry integration does not implement a new generator.
+measured gaps or routing through an unwanted audit.
 An explicitly selected addition or proposal-only request keeps that scope.
 
 ### Downstream progress
