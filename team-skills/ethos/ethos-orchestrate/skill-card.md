@@ -33,7 +33,7 @@ Mitigation: Review and scan skill before deployment. <br>
 
 ## Skill Output: <br>
 **Output Type(s):** [Analysis, Shell commands, Files] <br>
-**Output Format:** [Markdown with inline bash code blocks; routed sub-flows produce a single local ETHOS.md file] <br>
+**Output Format:** [Markdown with inline bash code blocks; routed sub-flows produce a single ETHOS.md file] <br>
 **Output Parameters:** [1D] <br>
 **Other Properties Related to Output:** [Routing reads the local checkout only and works offline; writes are limited to the ETHOS.md file via sub-flows and nothing is committed automatically.] <br>
 

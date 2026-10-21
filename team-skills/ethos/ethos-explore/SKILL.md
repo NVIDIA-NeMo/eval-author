@@ -15,7 +15,7 @@ not-for:
   - ethos-write (use to write or edit the ETHOS.md file once explore is done)
   - ethos-orchestrate (use to choose between exploring and writing an ETHOS.md)
   - superpowers:brainstorming (use for design work that is not about an agent's intended behavior)
-compatibility: Dialogue-driven with read-only pre-flight (`ls`, `find`, `Read`); one intent question per message after the codebase scan; at least three questions covering Purpose & Outcomes, Principles, and Vision; safe under any sandbox; works offline; output is a structured conversation handed to ethos-write.
+compatibility: Dialogue-driven with read-only pre-flight (`ls`, `find`, `Read`); one intent question per message after the codebase scan; at least three answered questions covering Purpose & Outcomes, Principles, and Vision, counting confirmed replies from a caller handoff; safe under any sandbox; works offline; output is a structured conversation handed to ethos-write.
 license: Apache-2.0
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash
@@ -36,7 +36,8 @@ codebase and docs, infer implementation-shaped fields, then ask the user for
 intent source cannot own. Do not skip the interview because the scan looked
 complete, and do not skip a question because you think you already know the
 answer. Do not dump the draft ETHOS.md until that interview has asked at least
-three questions and received a reply to each.
+three questions and received a reply to each. In a continuation, count the
+supported prior replies described below; do not demand three new questions.
 
 The division of labor is: **infer implementation, ask for intent.** Almost
 everything about what the agent *is* can be read from source. Nothing about what
@@ -100,6 +101,17 @@ The ETHOS.md records durable intent, not a running list of observed failures.
 Track known issues and recurring failure patterns where the team tracks bugs.
 
 ## Pre-flight
+
+When ethos-orchestrate passes an Eval Author continuation, follow its
+[caller handoff contract](../ethos-orchestrate/SKILL.md#continue-an-eval-author-handoff).
+Reuse the selected agent, root `ethos_path`, source findings, prior answers,
+and unfinished stage. Do not repeat orientation, repository/agent selection,
+or an edit/start-over question already settled by the handoff. Check only
+source context that is missing or has changed. If an existing file needs
+intent clarification, keep that route rather than redirecting to the writer
+just because the file exists. Resume a completed interview at draft review.
+
+For standalone entry, use this pre-flight:
 
 Check whether an ETHOS.md already exists for this agent. Look for `ETHOS.md`
 at the repository root and next to the agent's package. If one is present, ask the user whether they want to edit
@@ -202,9 +214,17 @@ The scan told you what the agent is. It cannot tell you what the developer
 wants. Run a real interview for that intent before you show a draft ETHOS.md.
 
 This step is a hard gate. Do not present the full draft, and do not hand off
-to `ethos-write`, until you have asked at least three questions and received a
-reply to each. "The scan filled everything" and "asking feels unnecessary"
-are not reasons to skip it.
+to `ethos-write`, until at least three intent questions have user replies,
+including confirmed replies carried by a matching caller handoff. "The scan
+filled everything" and "asking feels unnecessary" are not reasons to skip it.
+
+In a caller continuation, a prior answer counts only when its provenance
+records an explicit user reply or acceptance of that topic for this agent.
+Count each answered question once, even if it covers several fields; source
+findings and repeated copies of an answer do not increase the count. Retain
+completed topic coverage across sessions. Ask only questions still needed to
+meet that coverage and count, or to resolve changed intent. Missing or
+conflicting provenance leaves the affected topic unconfirmed.
 
 ### What to ask
 
@@ -217,21 +237,23 @@ After the scan, split fields into two piles:
   and `Vision` always; then `Constraints`, `Trade-offs`, and
   a ranked `Success Criteria` when the repo only has eval wiring.
 
-Walk the intent pile. Skip a topic only when **this conversation** already
-answered it. A README, prompt, or roadmap is not a substitute for a user
+Walk the intent pile. Skip a topic only when **this conversation or a supported
+caller handoff** already answered it. A README, prompt, or roadmap is not a substitute for a user
 reply on the always-ask topics below. Keep every other unanswered intent
 topic on the list. Greenfield work adds `Role`, `Scope`, and whether the
 agent is prompt-only before that intent list.
 
 Question count is at least three, then however many remaining intent topics
 still need a reply. Prefer fewer sharp questions over a long checklist, but
-never go below three.
+never go below three answered questions in total; a continuation need not ask
+three new ones.
 
-### Always ask these three
+### Cover these three intent topics
 
 Code and docs can look like they already answered them. They did not, until
 the user says so. Ask even when you have a high-confidence draft. Confirming
-an inference counts; silently filling the section does not.
+an inference counts; silently filling the section does not. A supported caller
+answer already establishes that topic; do not ask it again on a continuation.
 
 1. **`Purpose & Outcomes`** (business objective). Confirm the mission and the
    result the agent is accountable for. If you inferred a metric from a
@@ -246,8 +268,8 @@ an inference counts; silently filling the section does not.
 If `Role` is missing or vague, ask that first so the rest of the interview
 is grounded. It does not replace one of the three always-ask topics.
 
-Ask about remaining topics in this order, skipping any this conversation
-already answered:
+Ask about remaining topics in this order, skipping any this conversation or
+a supported caller handoff already answered:
 
 1. `Constraints` — hard bounds on the agent's operation, including runtime
    action approvals where needed.
@@ -319,18 +341,18 @@ draft before the next question.
 
 These mean you skipped the interview:
 
-- You are about to paste the full ETHOS.md and have asked fewer than three
-  questions
+- You are about to paste the full ETHOS.md with fewer than three supported
+  answered questions, counting the caller's prior replies on a continuation
 - You filled `Purpose & Outcomes`, `Principles`, or `Vision` from the scan
   without a user reply
 - Several intent questions in one message
-- Handing off to `ethos-write` with fewer than three Q&A replies in this
-  conversation
+- Handing off to `ethos-write` with fewer than three supported Q&A replies
+  across this conversation and the caller handoff
 
 | Excuse | Reality |
 | --- | --- |
 | The scan filled everything | Code never owns intent. Ask at least three questions. |
-| I already know Purpose / Principles / Vision | Those answers belong to the user. Confirm the draft. |
+| I already know Purpose / Principles / Vision | Those answers belong to the user. Reuse supported user replies; otherwise confirm the draft. |
 | Asking feels unnecessary | Unnecessary-looking questions are the ones that catch speculative Vision. |
 | Batching questions saves turns | One question gets a real answer. A dump gets shallow ones. |
 | The draft review can collect intent | Review is for corrections. Ask intent first. |
@@ -342,8 +364,9 @@ After the interview, present the entire ETHOS.md at once — every field, with
 inferred values shown inline and remaining gaps as `_(none)_`. Then ask
 one question:
 
-> "Here's the full ETHOS.md I'd write. Tell me what to change, and I need a
-> concrete Role before I can hand off to `ethos-write`."
+> "Here's the full ETHOS.md I'd write. Does this capture the intended
+> purpose, behavior, boundaries, and success and failure criteria? Confirm
+> it or tell me what to change before I save it."
 
 Show the rendered ETHOS.md inline in markdown (one `##` section per field,
 same shape as the on-disk file). For fields you defaulted, note the
@@ -376,8 +399,10 @@ Allowed follow-ups after the draft:
 
 ## Step 4 — Hand off
 
-After the user's reply, apply the corrections and check the one hard
-precondition:
+After the user's reply, apply any corrections and obtain explicit confirmation
+of the resulting draft before handing off. An unanswered review or a reply
+that only supplies corrections is not confirmation of the revised contents.
+Check the one hard precondition:
 
 1. **Role** is a concrete one-sentence answer (not "help with stuff").
 
@@ -390,7 +415,11 @@ for honest gaps, and note them in `Open Questions` when they affect safe use
 or evaluation. Do not drop a heading.
 
 If the Role quality gate is satisfied, announce the handoff in one line
-("Handing off to `ethos-write` to write `ETHOS.md`") and trigger it.
+("Handing off to `ethos-write` to write `ETHOS.md`") and trigger it once the
+draft is confirmed. For a caller continuation, carry the exact agreed draft,
+answer provenance, and `progress.stage: write` with `draft_confirmed: true`.
+If waiting for a reply, return the unfinished stage and remaining questions
+to the caller without creating another progress file.
 
 ## If the user pushes back
 
@@ -402,12 +431,13 @@ If the Role quality gate is satisfied, announce the handoff in one line
 - **They keep changing their mind on Role.** Stop. Tell them the agent will
   not be useful until they can write one concrete sentence and offer to
   come back later. Do not loop on rewording.
-- **They skip remaining intent questions.** You already asked at least
-  three, including `Purpose & Outcomes`, `Principles`, and `Vision`. Treat
+- **They skip remaining intent questions.** At least three questions already
+  have replies, counting supported caller answers and covering
+  `Purpose & Outcomes`, `Principles`, and `Vision`. Treat
   skipped topics as `I don't know`: write `_(none)_`, record them in
   `Open Questions`, and say once what it costs. Then present the draft. Do
   not re-open the full interview.
-- **They say "just write it" before three questions.** Ask the next
+- **They say "just write it" before three answered questions.** Ask the next
   always-ask question anyway. After they answer or decline each of the
   three, continue.
 
@@ -440,11 +470,13 @@ If the Role quality gate is satisfied, announce the handoff in one line
 - **Do not skip the codebase scan even when the user seems eager to
   answer questions.** Spending the first five minutes reading makes the
   interview shorter and sharper. Asking something the codebase already
-  answers loses trust immediately.
+  answers loses trust immediately. Reuse a caller's supported scan findings;
+  inspect only missing or changed context on a continuation.
 - **Do not skip the intent interview even when the scan looks complete.**
-  Ask at least three questions. Always ask `Purpose & Outcomes`,
-  `Principles`, and `Vision`, even when you think you already know. One at
-  a time. Multiple choice when you can.
+  Require at least three answered questions covering `Purpose & Outcomes`,
+  `Principles`, and `Vision`. Supported caller replies count; new inferences
+  do not. Ask unanswered questions one at a time, using multiple choice when
+  you can.
 - **Do not invent Vision from a backlog.** A future-work bullet is
   speculative until the user confirms it. Ask, or write `_(none)_`.
 - **A framework import is not a harness.** Describe how the agent runs. Do not

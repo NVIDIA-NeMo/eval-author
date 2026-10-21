@@ -8,7 +8,7 @@
       "assertions": [
         "Adds the email and phone-number redaction rule under ## Constraints and keeps the existing gateway and warranty constraints.",
         "Leaves the other required sections and the custom ## Glossary section unchanged.",
-        "Keeps created_timestamp, owner, and team_channel unchanged and sets updated_timestamp to an ISO 8601 timestamp.",
+        "Keeps author, created_timestamp, owner, and team_channel unchanged and sets updated_timestamp to an ISO 8601 timestamp.",
         "Runs validate_ethos.py on the edited file and reports that it is valid.",
         "Shows the updated contents or the change and asks the user to confirm it.",
         "Does not create or modify any file other than ETHOS.md."
@@ -38,17 +38,22 @@
       "expected_script": "validate_ethos.py"
     },
     {
-      "id": "write-explicit-vague-role",
-      "prompt": "Use ethos-write to write an ETHOS.md for my agent at /workspace/output/ETHOS.md. Role: it helps with stuff. Fill in the rest however you think is best.",
-      "expected_output": "Stops before writing because Role is a hard precondition and 'helps with stuff' is not concrete. Explains that, asks for one concrete sentence describing the agent's role (or routes back to ethos-explore for Role only), and does not invent a role or other intent. /workspace/output/ETHOS.md is not created.",
+      "id": "write-caller-resume-saved-review",
+      "prompt": "Continue ethos-write from ethos-orchestrate for an interrupted Eval Author review. caller=eval-author; journey=audit; repository=/workspace/input/router-help; agent=router-help; ethos_path=/workspace/input/router-help/ETHOS.md; orientation_shown=true. Progress: stage=review; draft_confirmed=true; confirmed_digest=null; remaining_questions=[saved-file confirmation]. Prior-answer provenance: the same user completed the intent interview and accepted the complete draft before the preceding write. The file was saved successfully, but the user has not yet reviewed the saved contents. No changes are requested. Resume the saved-file review.",
+      "expected_output": "Validates the existing ETHOS.md, presents the gut-check and saved contents, and requests final confirmation. Leaves the file byte-for-byte unchanged, including created_timestamp, owner, team_channel and Glossary. Returns review as unfinished and a null confirmed_digest until the user replies. Does not restart the interview or ask whether to edit or start over.",
       "assertions": [
-        "Does not create /workspace/output/ETHOS.md.",
-        "Says the Role is too vague to write the file.",
-        "Asks for one concrete sentence describing the agent's role, or routes back to ethos-explore for Role.",
-        "Does not invent a Role, purpose, or other intent sections."
+        "Runs validate_ethos.py and accurately reports its result.",
+        "Shows a gut-check and the saved contents, then asks the user to confirm them.",
+        "Leaves ETHOS.md byte-for-byte unchanged and does not set updated_timestamp just to resume review.",
+        "Does not ask whether to edit or start over, choose a path, or repeat the intent interview.",
+        "Does not report complete or a confirmed digest before saved-file confirmation. A completed handoff uses the SHA-256 digest as 64 lowercase hexadecimal characters without a prefix.",
+        "Creates no separate progress record or intent-notes document."
       ],
       "expected_skill": "ethos-write",
-      "files": []
+      "files": [
+        "files/router-help/ETHOS.md"
+      ],
+      "expected_script": "validate_ethos.py"
     },
     {
       "id": "write-negative",

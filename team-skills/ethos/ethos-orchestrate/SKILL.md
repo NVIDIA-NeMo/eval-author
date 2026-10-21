@@ -20,7 +20,7 @@ not-for:
   - ethos-write (use to render, validate, save, and review the file from agreed answers)
   - eval-author (use to build, audit, or run evaluations; it calls this skill when it needs an ETHOS.md)
 compatibility: >-
-  Routing reads the local checkout only. Sub-flows write one local ETHOS.md;
+  Routing reads the local checkout only. Sub-flows write one ETHOS.md;
   validation needs Python 3.10+ and ethos-write's standard-library script.
   Works offline.
 license: Apache-2.0
@@ -38,7 +38,79 @@ Help a developer create and maintain their agent's `ETHOS.md`. Route each
 request to the narrow sub-flow that owns it, and carry what is already known
 into that sub-flow so the user is never asked twice.
 
+## Continue an Eval Author handoff
+
+Eval Author calls this entry point during its shared prerequisite and Ethos
+step. Treat that call as a continuation, using this contract:
+
+| Field | Meaning |
+| --- | --- |
+| `caller` | `eval-author` |
+| `journey` | The selected creation, audit, or improvement journey; return to it when Ethos is complete |
+| `repository`, `agent` | The selected repository and agent identity; reuse them instead of rediscovering or re-asking |
+| `ethos_path` | The selected repository's root `ETHOS.md`; no additional Ethos file |
+| `source_findings` | Relevant code/documentation findings and their source paths; evidence of implementation, not confirmed intent |
+| `prior_answers` | Topic, question, answer, and provenance for each earlier user reply; distinguish user-confirmed answers from inferred drafts |
+| `progress` | `stage`, `draft_confirmed`, `confirmed_digest`, and `remaining_questions`, as described below |
+| `orientation_shown` | `true` when the caller already showed its three-item journey checklist |
+
+Check that the context belongs to this repository and agent. Reuse supported
+source findings and explicit user answers, including answers retained by the
+caller from an earlier session. Source text and a bare completion flag do not
+establish user agreement. Carry the answer provenance into each sub-flow.
+
+When `orientation_shown` is true, continue within the caller's checklist.
+Do not display the standalone four-step opening or ask "Ready to start?"
+again. The caller updates its checklist; this skill reports Ethos progress.
+This skips only repeated orientation, not intent, draft, or saved-file review.
+
+Resume the earliest unfinished stage:
+
+| `progress.stage` | Continue with |
+| --- | --- |
+| `explore` | ethos-explore's bounded source inspection, reusing the supplied findings |
+| `interview` | ethos-explore's remaining questions; supported prior user replies count toward topic coverage and question count |
+| `draft` | ethos-explore's whole-draft review, retaining the completed interview |
+| `write` | ethos-write only after explicit draft confirmation and with the exact agreed draft available |
+| `review` | ethos-write's validation and saved-file review; do not rewrite an unchanged file |
+| `complete` | ethos-write's read-only validation and digest check; reuse completion only for the same confirmed contents |
+
+`draft_confirmed` means the user explicitly accepted the proposed contents
+before writing. Reuse it only when the agreed draft and confirmation can be
+recovered from the caller context; otherwise resume draft review without
+repeating answered questions. `confirmed_digest` is the SHA-256 digest of the
+exact saved bytes the user reviewed and accepted, encoded as 64 lowercase
+hexadecimal characters without a prefix. A changed file, changed agent,
+or unresolved conflict between the file and current source findings prevents
+automatic reuse; revisit only the affected intent or review stage. Unknown
+or inconsistent progress is not confirmation.
+
+For a fresh absent-file workflow, route through ethos-explore and then
+ethos-write; a resumed workflow retains its completed stages. For an existing
+file, read it alongside the relevant source findings: specific agreed
+edits go to ethos-write; missing or conflicting intent goes to ethos-explore;
+an otherwise suitable file goes to ethos-write for validation and confirmation
+or unchanged-file reuse. Do not ask "edit or start over" when the handoff
+already settles the operation. Preserve existing custom content and metadata.
+
+Return `path`, `validation` (status and any warnings/errors),
+`remaining_questions`, `confirmed_digest`, and `stage` to Eval Author at each
+pause and on completion. Return `confirmed_digest: null` until the saved
+contents are confirmed; a structurally valid file alone is not completion.
+Completion requires successful bundled validation, explicit user acceptance,
+and a digest matching the accepted saved bytes. If validation cannot run,
+return that limitation and the unfinished review stage.
+The caller owns persistence in `.eval-author/.working/journey-state.json`.
+Carry new user replies with their provenance and the updated draft-confirmation
+state back in the handoff context so the caller can persist the next resume.
+Do not create a second progress record or an intent-notes document. If a
+required Ethos sub-flow is unavailable, return the missing dependency and
+unfinished stage rather than authoring through a parallel fallback.
+
 ## Choose the entry route
+
+For a caller continuation, use the handoff rules above. The following routing
+and opening apply to standalone requests.
 
 Locate an existing file first: the user's path, otherwise `ETHOS.md` at the
 repository root or at the root of the selected agent's package.
@@ -92,7 +164,7 @@ unfinished step instead of repeating the opening.
 | ETHOS.md | The agent's intent snapshot: front matter plus fourteen required `##` sections, schema version 1 |
 | Section | One required `##` heading from the [template](../ethos-write/references/templates/ETHOS.md). Extra headings are allowed and preserved |
 | Inferred | Drafted from source; shown to the user as an option, never final |
-| Confirmed | Answered or accepted by the user in this conversation |
+| Confirmed | Answered or accepted by the user in this conversation, or carried with explicit user-reply provenance in a matching caller handoff |
 
 ## Sub-flows
 
@@ -109,8 +181,8 @@ This file carries the standard and the routing; the sub-flow carries the steps.
 - **Write only the ETHOS.md.** Never edit the agent's code, prompts, configs,
   or evals. The file goes at the user's path or the repository root, and
   nothing is committed automatically.
-- **Preserve what exists.** Keep custom sections, extra front-matter keys, and
-  `created_timestamp` on edits.
+- **Preserve what exists.** Keep custom sections, extra front-matter keys,
+  `author`, and `created_timestamp` on edits.
 - **Capture intent without authorizing application changes.** Do not ask
   optimization or change-permission questions in the interview, draft review,
   or completion checkpoint. Creating an ETHOS.md implies no follow-up to
@@ -129,7 +201,8 @@ This file carries the standard and the routing; the sub-flow carries the steps.
 Do not assume the user knows the term. Before the first question, explain in a
 sentence or two that ETHOS.md records what the agent should do, what it should
 avoid, and what a good result looks like, and that people and agents working on
-the agent read it first. Make the explanation concrete for this agent.
+the agent read it first. Make the explanation concrete for this agent. Reuse
+that explanation when the caller has already given it.
 
 Ask one question per message, prefer multiple choice grounded in what the scan
 found, and always allow "I don't know". When reporting an existing file, lead

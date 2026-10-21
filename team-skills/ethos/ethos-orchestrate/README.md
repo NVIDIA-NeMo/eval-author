@@ -157,8 +157,17 @@ relevant sections in place and sets `updated_timestamp`.
 
 ## Using ETHOS.md with Eval Author
 
-Eval Author's first evaluations and coverage audits use ETHOS.md as their target
-and hand off to these skills to create or revise it. Installing Eval Author
+Eval Author's creation, audit, and improvement journeys use ETHOS.md as their
+target and call `ethos-orchestrate` through its
+[caller handoff](SKILL.md#continue-an-eval-author-handoff). The handoff reuses
+Eval Author's journey checklist, source findings, confirmed answers, and
+unfinished stage. It does not repeat the standalone opening or require three
+new interview answers when supported earlier replies already cover them.
+The Ethos skills still own the interview, draft confirmation, writing,
+validation, and saved-file review. Eval Author owns the shared resume record;
+the Ethos skills return their progress and the confirmed file digest.
+
+Installing Eval Author
 (`npx skills add NVIDIA-NeMo/eval-author --skill '*'`) does not install
 them; follow [How to use](#how-to-use) to add all three from
 `nvidia/skills`.

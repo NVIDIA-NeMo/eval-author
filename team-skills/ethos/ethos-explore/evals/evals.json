@@ -36,17 +36,21 @@
       ]
     },
     {
-      "id": "explore-greenfield-role-first",
-      "prompt": "I want to build an agent for my team that helps with stuff. There's no code yet. Help me figure out what it should do.",
-      "expected_output": "Recognizes a greenfield agent with nothing to scan and a vague role, so it asks for a concrete Role first: one question about the single job the agent does and for whom, preferably with options and an 'I don't know' escape. It does not invent a role, draft sections, or write an ETHOS.md.",
+      "id": "explore-caller-resume-draft",
+      "prompt": "Continue ethos-explore from ethos-orchestrate for an Eval Author handoff. caller=eval-author; journey=create; repository=/workspace/input/router-help; agent=router-help; ethos_path=/workspace/input/router-help/ETHOS.md; orientation_shown=true. The caller already read README.md and agent.yaml and selected this agent. Progress: stage=draft; draft_confirmed=false; confirmed_digest=null; remaining_questions=[draft confirmation]. Prior answers with provenance: the same user explicitly answered each question in the earlier session: (purpose-1) Mission is working Wi-Fi without waiting for support; ticket-free resolution target 70%, owned by support operations. (principles-1) Warn before destructive resets and escalate uncertain hardware faults. (vision-1) No planned expansion; record none. (constraints-1) Use only the internal gateway, never ask for Wi-Fi passwords, and leave warranty decisions to a human. (tradeoffs-1) Credential safety and no refund promises are hard gates; prioritize correctness, then resolution, then latency and cost. (success-1) Working connectivity or an actionable ticket; current KB-correct guidance; no refund or warranty promises. Role confirmed: answer Acme customer setup, firmware, and troubleshooting questions for RT-200 and RT-300 routers. Remaining source details may be read from the selected files. Show me where we left off.",
+      "expected_output": "Reuses the supported prior interview answers and presents the entire schema-v1 ETHOS.md draft for explicit confirmation. It includes all fourteen sections, preserves the stated purpose, boundaries and success criteria, and records no planned expansion as none. It asks one draft-confirmation question, without restarting the interview or writing the file.",
       "assertions": [
-        "Asks first for a concrete Role: what one job the agent does and for whom.",
-        "Asks exactly one question in the reply.",
-        "Does not invent a Role or fill other sections on the user's behalf.",
-        "Does not write an ETHOS.md or present a full draft."
+        "Presents a complete draft with all fourteen required sections and the concrete router-help Role.",
+        "Uses the explicit prior user replies for purpose, principles, vision, constraints, trade-offs, and success criteria.",
+        "Does not restart the interview, ask three new questions, or repeat Ready to start.",
+        "Asks the user to confirm the proposed contents before handing off for writing.",
+        "Creates no file and does not treat draft_confirmed=false as permission to write."
       ],
       "expected_skill": "ethos-explore",
-      "files": []
+      "files": [
+        "files/router-help/README.md",
+        "files/router-help/agent.yaml"
+      ]
     },
     {
       "id": "explore-negative",

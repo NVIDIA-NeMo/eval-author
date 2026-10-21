@@ -38,18 +38,20 @@
       ]
     },
     {
-      "id": "orchestrate-existing-uppercase",
-      "prompt": "Our agent repo at /workspace/input/docs-qa still has the ETHOS.md that Eval Author 0.1.0 created last month. Bring it in line with the current ETHOS.md convention.",
-      "expected_output": "Recognizes that the existing ETHOS.md already uses the canonical filename and schema v1. Leaves its name and contents unchanged. No interview is started and no sections are rewritten. Reports whether the file validates, or says the validator was not run.",
+      "id": "orchestrate-caller-resume-interview",
+      "prompt": "Continue the Eval Author handoff through ethos-orchestrate for router-help. The user already saw the three-item checklist and chose to build evals. Handoff: caller=eval-author; journey=create; repository=/workspace/input/router-help; agent=router-help; ethos_path=/workspace/input/router-help/ETHOS.md; orientation_shown=true. Source findings: README.md and agent.yaml describe RT-200/RT-300 router support, kb_search, create_ticket, and the internal gateway. Prior answers from the same user for this agent, retained from the earlier session: question purpose-1 asked whether ticket deflection was the intended outcome; the user answered that the mission is working Wi-Fi without waiting for support, with a 70% ticket-free resolution target owned by support operations. Question principles-1 asked how to handle uncertain or destructive fixes; the user answered to warn before reset instructions and escalate uncertain hardware faults. These are explicit user replies, not source inferences. Progress: stage=interview; draft_confirmed=false; confirmed_digest=null; remaining_questions=[Vision, Constraints, Trade-offs]. Continue with the next question.",
+      "expected_output": "Routes to ethos-explore using the supplied repository, agent, source findings, and prior user replies. Continues with exactly one Vision question and waits. Counts the two supported earlier answers without repeating them, the journey checklist, or Ready to start. Does not write ETHOS.md or present the full draft before the interview is complete.",
       "assertions": [
-        "Recognizes ETHOS.md as the canonical filename.",
-        "Leaves /workspace/input/docs-qa/ETHOS.md with its original name and contents.",
-        "Does not start an intent interview or rewrite sections.",
-        "Reports the validation result for ETHOS.md, or states that the validator was not run."
+        "Uses ethos-explore as the sub-flow for the unfinished interview.",
+        "Asks exactly one question about Vision, allowing an explicit none or unknown answer.",
+        "Does not ask Purpose & Outcomes or Principles again, and does not require three new answers in this session.",
+        "Does not repeat a four-step checklist, Ready to start, or repository/agent selection.",
+        "Does not write ETHOS.md or present a full draft while remaining intent topics are unresolved."
       ],
       "expected_skill": "ethos-orchestrate",
       "files": [
-        "files/docs-qa/ETHOS.md"
+        "files/router-help/README.md",
+        "files/router-help/agent.yaml"
       ]
     },
     {
