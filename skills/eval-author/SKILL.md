@@ -10,9 +10,10 @@ description: >-
   "what's the state of the eval suite here?", "what happened in this trace?", or
   when you need to pick between bootstrapping evals, auditing existing evals,
   finding out whether evals exist, or proposing improvements from an audit.
-  Establishes Ethos when the selected flow needs it, without changing the
-  agent's implementation. The selected sub-flow uses the provider's supported
-  tools and saves findings under `.eval-author/`.
+  Requires a confirmed ETHOS.md for creating, auditing, and improving
+  evaluations, without changing the agent's implementation. The selected
+  sub-flow uses the provider's supported tools and saves findings under
+  `.eval-author/`.
 triggers:
   - help me build evals for my agent
   - my agent has no evals yet
