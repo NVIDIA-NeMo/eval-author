@@ -824,11 +824,13 @@ def test_inspect_flow_is_reached_only_through_eval_author() -> None:
     assert "after `eval-author` selects it" in inspect_body
 
 
-def test_inspect_flow_is_only_a_cli_driven_skill() -> None:
+def test_inspect_flow_keeps_intake_cli_and_adds_local_privacy() -> None:
     _, body = _frontmatter_and_body(_INSPECT_DIR)
 
-    # Evaluation inputs are separate from the CLI-only runtime implementation.
-    assert {path.name for path in _INSPECT_DIR.iterdir()} == {"SKILL.md", "evals"}
+    # Remote Intake remains CLI-driven; local ATIF gains a privacy entry point.
+    assert {path.name for path in _INSPECT_DIR.iterdir()} == {"SKILL.md", "evals", "scripts"}
+    assert (_INSPECT_DIR / "scripts/trace_privacy.py").is_file()
+    assert "needs no Intake access" in body
     assert (_INSPECT_DIR / "evals").is_dir()
     for command in (
         "nemo intake traces",

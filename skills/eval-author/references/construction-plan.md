@@ -1,82 +1,94 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Private construction declarations
+# Shared construction contract
 
-Use the same evidence discipline for proposals and new tasks: identify who or
-what defines correctness, distinguish copied inputs from authored starting state,
-and connect every requirement to an observable check. Keep these declarations
-outside the agent-visible task tree. A trace's final state is not proof of its
-starting state; a source agent's answer or self-test is not an independent oracle.
+New construction uses `nemo.eval_author.construction.v2`, for Harbor and Gym.
+Keep `construction.json` private, outside the task tree. Trace workspaces use
+`private/construction.json`. Proposals may leave authority unresolved; a draft
+must identify the rule or independent evidence that defines correctness.
 
-For proposal-only work, record this in the proposal without scaffolding a task.
-For trace-derived proposals or starting state, also use
-[trace construction](trace-construction.md) to preserve the source finding,
-cutoff, reconstruction limits and intended behavioral distinction.
-An unresolved answer rule is a useful design question, not permission to invent
-an expected answer. Missing input files can be authored later when the domain
-rules support them; label that intent rather than claiming historical recovery.
-Do not add a dependency chain to a simple task merely to make it harder.
+The same contract serves first-eval, task-create and trace-derived construction.
+Provider adapters interpret native observations; they do not define another
+construction document.
 
-For a selected new draft, write `construction-plan.json` in its private
-measurement directory. Use the validator below before running controls, then
-pass the plan to `task_evidence.py prepare --construction-plan <path>`. The
-recorder binds exact plan and task-input bytes and rechecks them at execution
-and receipt verification. Historical manifests remain readable; callers without
-a plan have unmeasured construction declarations.
-
-## Format and validation
-
-The schema is `nemo.eval_author.construction_plan.v1`. Its required fields are:
-
-| Field | Contents |
+| Field | Required contents |
 |---|---|
-| `task_id`, `provider` | Match the native result contract; provider is `harbor` or `gym`. |
-| `requirements` | Objects with `id`, `statement`, and `authority: {basis, reference}`. Basis is `specification`, `user_decision`, `independent_reference`, or `unresolved`. Cite the actual rule or evidence, not the source agent's confidence. |
-| `inputs` | Objects with task-relative `path`, `basis` (`copied` or `authored`), `source`, `rationale`, and `sha256`. Hash may be null in proposal mode; draft mode requires the materialized bytes. Empty is appropriate when no files are needed. |
-| `checks` | Objects with `id`, `requirements` (IDs), and `success` (native JSON-pointer assertion). Map all requirements, including preserved state where relevant. |
-| `cases` | Objects with `case` (native contract case ID) and `observations`: objects with `check` (ID) and `expected` (native assertion). These must exactly match that case's behavior assertions. |
-| `prerequisites` | Usually empty. Each declared prerequisite has `before`, `after` (requirement IDs), `bypass_case`, and `check`. The bypass must fail the dependent requirement's own check, not an unrelated or aggregate check. |
+| `schema`, `task_id`, `provider` | Schema above; stable task identity; `harbor` or `gym`. |
+| `requirements` | `id`, `statement`, `authority: {basis, reference}`, `candidate_index`. Authority basis: `specification`, `user_decision`, `independent_reference`, or `unresolved`. Index is null without a bound candidate. |
+| `inputs` | `path`, `sha256`, `basis`, `source`, `rationale`, `edits`, `review`. Paths are task-relative. Native inputs use `copied`/`authored`, a source description, `edits: []`, `review: null`. Trace inputs retain observed/exact-reversal/authored provenance and review. |
+| `checks` | `id`, `requirements` (IDs), `success` (JSON-pointer assertion). Every requirement maps to scored checks. |
+| `cases` | `case`, `kind`, `observations: [{check, expected}]`, `requirements`, `reaches`, `dependency`, `rationale`, `review`. Native cases match the result contract; unused trace metadata is `[]`/null. |
+| `prerequisites` | `id`, `before`, `after`, `bypass_case`, `check`. Each bypass contradicts the dependent requirement's scored check. Usually `[]`. |
+| `probes` | Trace setup/reach definitions, or `[]` for native result-contract observations. |
+| `starting_state` | Trace cutoff, input roots, external inputs, no-files reason and review; null for native declarations. Input artifacts live only in `inputs`. |
+| `review` | Trace construction review, or null for native declarations. |
+| `bindings` | Trace `candidate_sha256` and `trace_sha256`, or null for native tasks. |
+| `migration` | Original artifact `{path, sha256, schema}` bindings, or `[]` for a new contract. |
 
-IDs use lowercase kebab-case. Assertions use `{"pointer": "/...", "equals": value}`
-or `{"pointer": "/...", "min": number, "max": number}`. Use the actual native
-result shape. Do not write an adapter to fabricate observations a provider lacks.
+Assertions use `{"pointer":"/...","equals":value}` or finite `min`/`max`.
+Trace checks use `/checks/<check-id>` and `PASS`/`FAIL`, read from retained
+verifier rows. Negative/copy/bypass cases declare only the checks they must fail;
+Oracle and valid alternatives declare every check passing. NOP declares every
+check failing. Native cases use the provider's actual result fields.
 
-For example, a requirement `total` can cite an independently reviewed sum rule;
-its check `total-correct` can map to native `/verifier_result/rewards/reward`
-with `min: 1, max: 1`. Reference and agent cases map that success assertion.
-An incorrect control expecting reward zero maps the same check with
-`min: 0, max: 0`: its control receipt passes when the task success condition fails.
-Map the empty and any alternative or side-effect cases too. For nonbinary rewards,
-use the actual agreed success threshold rather than assuming one means success.
-A correct zero-valued answer is not an empty submission.
+The [provenance and probe field definitions](../../eval-author-trace-environment/references/construction-qualification.md)
+remain applicable to trace fields. In v2, move `starting_state.artifacts` into
+`inputs`, remove the `task/` path prefix, and use each artifact review note as
+its rationale. Requirements carry the bound candidate statement and an explicit
+correctness authority. A source agent's answer does not establish that authority.
 
 ```bash
-python <task_create_dir>/scripts/construction_plan.py \
-  --plan <private-plan.json> --mode proposal
-python <task_create_dir>/scripts/construction_plan.py \
-  --plan <private-plan.json> --mode draft \
-  --task-dir <task-directory> --contract <native-contract.json>
+python <eval_author_dir>/scripts/construction_contract.py --plan <private-contract.json> --mode proposal
+python <eval_author_dir>/scripts/construction_contract.py --plan <private-contract.json> \
+  --mode draft --task-dir <native-task> --contract <native-result-contract.json>
+python <eval_author_dir>/scripts/construction_contract.py --plan <workspace>/private/construction.json \
+  --mode draft --workspace <workspace>
 ```
 
-Proposal validation permits unresolved authority and unmaterialized inputs.
-Draft validation rejects unresolved authority, mismatched hashes, unmapped
-requirements, incompatible native assertions, and cyclic prerequisite declarations.
-The plan is a declaration, not an additional verifier or a replacement for the
-native contract. Use concrete alternative/side-effect not-applicable explanations
-in that contract when appropriate.
+For native runs, pass this file to `task_evidence.py prepare --construction-plan`.
+For trace workspace runs, the same shared evidence implementation binds the file
+through `record-run-inputs`. Changes require a new revision and retained repair
+history before fresh proof.
 
-## What this proves and what remains to run
+## Import existing artifacts without rewriting evidence
 
-A structurally valid plan proves consistency of declarations and byte bindings.
-It does not prove the grading rule is correct, a dependency is necessary, the
-starting state is historical, or the task is difficult. Review the evidence and
-run the native controls described in [task validation](task-validation.md).
+Both `construction_plan.v1` and `construction.v1` remain readable through their
+existing script APIs. Migration writes a new private file and records the exact
+original path, schema and SHA-256. It never modifies the source or its receipts.
 
-Keep setup health separate from behavior evidence. An import smoke, absent
-exception, or aggregate reward alone does not establish that a targeted negative
-reached the intended behavior. Inspect the native control evidence; if it cannot
-show that distinction, retain it as unmeasured instead of claiming qualification.
-A failed healthy real-agent attempt can be a useful first-eval baseline; do not
-rewrite its expected success condition or repair the task to turn it into a pass.
-Task-create's successful repeated gap closure is a separate acceptance rule.
+```bash
+python <eval_author_dir>/scripts/construction_contract.py --plan <old-native-plan.json> \
+  --contract <native-result-contract.json> --migrate-to <private-new-plan.json>
+python <eval_author_dir>/scripts/construction_contract.py --plan <old-workspace>/private/construction.json \
+  --workspace <old-workspace> --migrate-to <private-imported-contract.json>
+```
+
+Native imports without a result contract leave case kinds unresolved. Trace
+imports preserve provenance, probes, controls, reviews and dependencies, while
+leaving correctness authority unresolved for explicit review. Keep the source
+files available: canonical validation rechecks their hashes.
+
+An imported contract is a proposal for a new revision. Keep historical workspaces
+and proof untouched. To activate it, create a fresh private workspace, retain the
+bound source/candidate and task inputs, review the imported authority, and use
+v2 as its construction file before recording new run inputs. For a sidecar import
+in an unproved workspace, keep the original file and select the reviewed v2 file:
+
+```bash
+python <eval_author_dir>/scripts/construction_contract.py --plan <workspace>/private/construction-v2.json \
+  --workspace <workspace> --activate
+```
+
+Activation writes a private, digest-bound active-contract marker; new run inputs
+bind both the selected path and hash. After a canonical revision fails, record
+its repair before editing, keep the old contract, write a new contract path and
+activate it before fresh proof. The repair archives the former marker and exact
+contract bytes. Imports from already-proved legacy workspaces activate in a new
+workspace, preserving the original proof unchanged. Historical rewards
+remain attached to their original contract hashes; migration grants no execution
+credit.
+
+Use [task validation](task-validation.md) for native qualification and
+[trace input handoff](trace-input.md) for trace workspace qualification. Keep
+measured difficulty and coverage closure separate from construction qualification.

@@ -1,7 +1,8 @@
 ---
 name: eval-author-inspect-trace
 description: >-
-  Use when eval-author has routed to this sub-flow for one Intake trace. Do not
+  Use when eval-author has routed here to inspect one Intake trace, or to
+  prepare and privacy-review a local ATIF source for task construction. Do not
   use for instrumenting agents, ingesting telemetry, importing a trace store,
   verifying ingest, or querying Intake outside Eval Author; those belong to
   nemo-intake.
@@ -16,8 +17,9 @@ not-for:
   - nemo-intake (use to instrument agents, ingest telemetry, or query Intake outside Eval Author)
   - nemo-experimentalist (use for an optimization experiment across many trials)
 compatibility: >-
-  A working nemo CLI invocation, an explicit workspace, and read access to
-  Intake on a configured local or remote NeMo Helix instance.
+  Local ATIF preparation needs Python and the shared Eval Author scripts.
+  Remote Intake inspection also needs a working nemo CLI, an explicit workspace,
+  and read access to Intake on a configured NeMo Helix instance.
 maturity: alpha
 license: Apache-2.0
 user-invocable: false
@@ -27,6 +29,15 @@ allowed-tools: Bash Read Write Grep Glob
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
 # Eval Author: inspect an Intake trace
+
+## Local ATIF privacy handoff
+
+For a local ATIF file passed toward task construction, use
+`scripts/trace_privacy.py` and the [ATIF source handoff](../eval-author/references/trace-input.md).
+This branch starts before Intake CLI resolution and needs no Intake access. It
+owns scrubbing, the contextual privacy review, and the observation evidence audit.
+Return the private workspace to first-eval or task-create after review; candidacy
+belongs to task-create. For a remote Intake investigation, continue below.
 
 ## Purpose
 

@@ -53,9 +53,9 @@ For each necessary input, choose an evidence basis:
 
 Inventory required files, runtime dependencies and external state. Input hashes
 bind bytes but do not establish completeness. Keep unverified dependencies
-explicit rather than replacing their behavior with one recorded response. Use
-the construction plan's copied/authored fields for materialized inputs; retain
-cutoff and reversal details privately in the proposal, without a new schema.
+explicit rather than replacing their behavior with one recorded response. Use the [shared construction contract](construction-plan.md) for materialized
+inputs, cutoff, reversal evidence, controls and dependencies. Use the
+[ATIF handoff](trace-input.md) for privacy, admission and environment tooling.
 
 ## Test the distinction the proposal promises
 

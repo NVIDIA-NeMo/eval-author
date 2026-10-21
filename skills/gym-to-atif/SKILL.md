@@ -229,3 +229,10 @@ installed location. Commands use the existing Python interpreter.
   protocol mapping. Do not flatten unknown content to pass conversion.
 - Output already exists: use a fresh private directory; the converter never
   overwrites retained evidence.
+
+## Handoff for task construction
+
+When this conversion supplies a new evaluation task, pass the retained ATIF to
+[inspect-trace privacy preparation](../eval-author-inspect-trace/SKILL.md#local-atif-privacy-handoff)
+before candidate admission or fixture generation. Preserve normalization losses
+and uncertainties. Conversion-only requests end with the canonical artifact.

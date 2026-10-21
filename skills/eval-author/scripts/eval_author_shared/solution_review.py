@@ -1,0 +1,459 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""Private, optional solution/verdict diagnostics; never an admission gate."""
+
+from __future__ import annotations
+
+import json
+import os
+from collections import Counter
+from pathlib import Path
+
+from . import legacy_construction as contract
+from .runtime_assets import ASSETS
+from .runtime_assets import load as load_runtime
+
+digest = load_runtime("qualification_runtime").digest
+_review = load_runtime("review_runtime")
+SUBMISSION_SCHEMA, read_regular, sha = _review.SCHEMA, _review.read_regular, _review.sha
+
+COHORT_SCHEMA = "nemo.eval_author.solution_review_cohort.v1"
+ASSESSMENT_SCHEMA = "nemo.eval_author.solution_assessments.v1"
+REPORT_SCHEMA = "nemo.eval_author.solution_review.v1"
+ATTEMPT_KEYS = "id purpose job_dir agent model_name context_id exposure prompt transcript"
+require = contract.require
+fields = contract.fields
+
+
+def private_path(root: Path, relative: str) -> Path:
+    path = contract.secure_path(root, relative)
+    require(relative == path.relative_to(root).as_posix(), "evidence paths must be canonical")
+    require(
+        relative.startswith("private/") and "probes" not in path.relative_to(root).parts, "private evidence required"
+    )
+    return path
+
+
+def persist(root: Path, category: str, value: dict) -> str:
+    relative = f"private/solution-review/{category}/{digest(value)}.json"
+    path = private_path(root, relative)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    data = (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()
+    if path.exists():
+        require(read_regular(path) == data, "existing review artifact changed")
+    else:
+        with path.open("xb") as stream:
+            path.chmod(0o600)
+            stream.write(data)
+    return relative
+
+
+def read(root: Path, relative: str, evidence: dict) -> bytes:
+    path = contract.secure_path(root, relative)
+    data = read_regular(path)
+    require(evidence.setdefault(relative, sha(data)) == sha(data), "evidence changed while reading")
+    return data
+
+
+def load(root: Path, relative: str, evidence: dict) -> object:
+    # Reuse duplicate-key/nonfinite rejection, and bind exactly the parsed bytes.
+    data = read(root, relative, evidence)
+    return contract.parse(data)
+
+
+def public_context(root: Path, plan: dict, evidence: dict | None = None) -> set[str]:
+    """Validate explicitly reviewed solver-visible files, never infer visibility."""
+    entries = plan.get("public_context", [])
+    require(isinstance(entries, list) and len(entries) <= 32, "expected at most 32 public context files")
+    paths: set[str] = set()
+    solver_paths: set[str] = set()
+    total = 0
+    for entry in entries:
+        fields(entry, "path sha256 solver_path purpose review", "public context")
+        relative = entry["path"]
+        path = contract.secure_path(root, relative)
+        require(
+            relative == path.relative_to(root).as_posix()
+            and relative.startswith("task/environment/")
+            and path.name != "Dockerfile"
+            and relative not in paths,
+            "public context must name distinct canonical environment input files",
+        )
+        require(
+            isinstance(entry["solver_path"], str)
+            and entry["solver_path"].startswith("/")
+            and entry["solver_path"] == Path(entry["solver_path"]).as_posix()
+            and ".." not in Path(entry["solver_path"]).parts
+            and entry["solver_path"] not in solver_paths
+            and entry["purpose"] in ("input", "runtime_context"),
+            "declare solver-visible location and context purpose",
+        )
+        contract.review(entry["review"])
+        data = read(root, relative, evidence if evidence is not None else {})
+        total += len(data)
+        require(total <= contract.MAX_BYTES and sha(data) == entry["sha256"], "public context changed or oversized")
+        solver_paths.add(entry["solver_path"])
+        paths.add(relative)
+    return paths
+
+
+def validate_plan(root: Path, value: object, *, check_context: bool = True) -> dict:
+    extra = " public_context" if isinstance(value, dict) and "public_context" in value else ""
+    plan = fields(value, "author_id author_context_id attempts" + extra, "review plan")
+    if check_context:
+        public_context(root, plan)
+    require(all(contract.text(plan[key]) for key in ("author_id", "author_context_id")), "author identity required")
+    attempts = plan["attempts"]
+    require(isinstance(attempts, list) and 1 <= len(attempts) <= 32, "expected 1..32 planned attempts")
+    ids, jobs, contexts = set(), set(), {plan["author_context_id"]}
+    for attempt in attempts:
+        attempt = fields(attempt, ATTEMPT_KEYS, "planned attempt")
+        require(contract.identity(attempt["id"]) and attempt["id"] not in ids, "duplicate or invalid attempt ID")
+        ids.add(attempt["id"])
+        require(attempt["purpose"] in ("solution", "adversarial"), "unknown attempt purpose")
+        require(attempt["exposure"] in ("public_only", "verifier_visible", "unknown"), "declare solver exposure")
+        require(
+            all(contract.text(attempt[key]) for key in ("agent", "context_id", "transcript")),
+            "attempt identity missing",
+        )
+        require(
+            attempt["agent"] not in ("oracle", "harbor.agents.oracle:OracleAgent"),
+            "Oracle is not an independent solution",
+        )
+        require(attempt["model_name"] is None or contract.text(attempt["model_name"]), "invalid model identity")
+        require(
+            attempt["context_id"] not in contexts, "solver contexts must be distinct from author and other attempts"
+        )
+        contexts.add(attempt["context_id"])
+        job = private_path(root, attempt["job_dir"])
+        require(job not in jobs, "duplicate job directory")
+        require(not any(job in other.parents or other in job.parents for other in jobs), "job directories overlap")
+        jobs.add(job)
+        private_path(root, attempt["prompt"])
+        transcript = contract.secure_path(root, attempt["transcript"])
+        require(
+            attempt["transcript"].startswith("agent/") and transcript.suffix in (".json", ".jsonl", ".txt"),
+            "transcript must name a retained agent log",
+        )
+    return plan
+
+
+def record(root: Path, plan_path: str, binding: dict) -> dict:
+    private_path(root, plan_path)
+    evidence: dict[str, str] = {}
+    plan = validate_plan(root, load(root, plan_path, evidence), check_context=False)
+    public_context(root, plan, evidence)
+    for attempt in plan["attempts"]:
+        require(not private_path(root, attempt["job_dir"]).exists(), "record the entire cohort before any job exists")
+        read(root, attempt["prompt"], evidence)
+    producer = read_regular((ASSETS / "review_runtime.py"))
+    require(
+        read_regular(root / "task/tests/review_runtime.py") == producer, "copy the bundled review producer into tests"
+    )
+    receipt = {
+        "schema": COHORT_SCHEMA,
+        "plan_path": plan_path,
+        "plan": plan,
+        "binding": binding,
+        "inputs": evidence,
+        "producer_sha256": sha(producer),
+    }
+    relative = persist(root, "cohorts", receipt)
+    return {
+        "diagnostic_only": True,
+        "attempts": len(plan["attempts"]),
+        "cohort": relative,
+        "cohort_sha256": digest(receipt),
+    }
+
+
+def assessment_map(value: object, cohort: dict, requirements: list[str]) -> dict:
+    assessment = fields(value, "schema cohort_sha256 reviewer_id context_id exposure judgments", "assessments")
+    require(
+        assessment["schema"] == ASSESSMENT_SCHEMA and assessment["cohort_sha256"] == digest(cohort),
+        "assessment cohort mismatch",
+    )
+    plan = cohort["plan"]
+    require(
+        contract.text(assessment["reviewer_id"]) and assessment["reviewer_id"] != plan["author_id"],
+        "distinct reviewer required",
+    )
+    require(
+        contract.text(assessment["context_id"])
+        and assessment["context_id"] not in {plan["author_context_id"], *(a["context_id"] for a in plan["attempts"])},
+        "distinct reviewer context required",
+    )
+    require(
+        assessment["exposure"] in ("submission_and_contract", "verdict_visible", "unknown"), "declare reviewer exposure"
+    )
+    judgments = assessment["judgments"]
+    require(isinstance(judgments, list) and len(judgments) <= len(plan["attempts"]), "bounded judgments required")
+    result = {}
+    known = {a["id"] for a in plan["attempts"]}
+    for judgment in judgments:
+        judgment = fields(judgment, "attempt_id requirements", "judgment")
+        key = judgment["attempt_id"]
+        require(isinstance(key, str) and key in known and key not in result, "unknown or duplicate judgment")
+        rows = judgment["requirements"]
+        require(isinstance(rows, list) and len(rows) == len(requirements), "assess every mapped requirement")
+        seen = set()
+        for row in rows:
+            row = fields(row, "id decision rationale citations", "requirement judgment")
+            require(
+                isinstance(row["id"], str) and row["id"] in requirements and row["id"] not in seen,
+                "unknown or repeated requirement",
+            )
+            seen.add(row["id"])
+            require(
+                row["decision"] in ("met", "unmet", "uncertain") and contract.text(row["rationale"]),
+                "explain requirement decision",
+            )
+            require(
+                isinstance(row["citations"], list)
+                and 2 <= len(row["citations"]) <= 16
+                and all(isinstance(c, str) for c in row["citations"]),
+                "cite the public contract and trial evidence",
+            )
+        result[key] = rows
+    return result
+
+
+def review_attempt(
+    root: Path, attempt: dict, rows: list | None, cohort: dict, evidence: dict, context_paths: set[str]
+) -> str:
+    job = private_path(root, attempt["job_dir"])
+    if not job.exists():
+        return "missing_job"
+    trials = []
+    with os.scandir(job) as entries:
+        for index, entry in enumerate(entries):
+            if index >= 256:
+                return "trial_discovery_limit"
+            path = Path(entry.path)
+            if entry.is_symlink():
+                return "unsafe_trial_path"
+            if entry.is_dir(follow_symlinks=False) and (path / "result.json").exists():
+                trials.append(path / "result.json")
+                if len(trials) == 2:
+                    break
+    if len(trials) != 1:
+        return "missing_or_ambiguous_trial"
+    trial = trials[0].parent.relative_to(root).as_posix()
+    try:
+        result = load(root, f"{trial}/result.json", evidence)
+    except (ValueError, OSError):
+        return "unreadable_trial_result"
+    if not isinstance(result, dict):
+        raise contract.ConstructionError("trial result must be an object")
+    require(result.get("task_checksum") == cohort["binding"]["task_checksum"], "trial task differs from cohort")
+    config = result.get("config")
+    if not isinstance(config, dict) or not isinstance(config.get("agent"), dict):
+        raise contract.ConstructionError("trial agent missing")
+    agent = config["agent"]
+    identity = agent.get("import_path") or agent.get("name")
+    require(not (agent.get("import_path") and agent.get("name")), "ambiguous trial agent")
+    require(
+        identity == attempt["agent"] and agent.get("model_name") == attempt["model_name"],
+        "trial agent differs from cohort",
+    )
+    if result.get("exception_info") is not None:
+        return "infrastructure_failure"
+    if result.get("verifier_environment_mode") != "separate":
+        return "verifier_isolation_unverified"
+    verifier = result.get("verifier_result")
+    rewards = verifier.get("rewards") if isinstance(verifier, dict) else None
+    reward = rewards.get("reward") if isinstance(rewards, dict) else None
+    if type(reward) not in (int, float) or reward not in (0, 1):
+        return "missing_or_nonbinary_reward"
+    prefix = f"{trial}/verifier"
+    try:
+        receipt = fields(
+            load(root, f"{prefix}/review-submission.json", evidence),
+            "schema producer_sha256 submissions invalid checks reward",
+            "submission receipt",
+        )
+        require(
+            receipt["schema"] == SUBMISSION_SCHEMA and receipt["producer_sha256"] == cohort["producer_sha256"],
+            "unbound producer",
+        )
+        submissions, checks = receipt["submissions"], receipt["checks"]
+        require(
+            isinstance(submissions, dict)
+            and 1 <= len(submissions) <= 32
+            and all(contract.identity(k) for k in submissions)
+            and all(v is None or isinstance(v, str) and contract.SHA.fullmatch(v) for v in submissions.values()),
+            "invalid submission inventory",
+        )
+        invalid = receipt["invalid"]
+        require(
+            isinstance(invalid, dict)
+            and all(
+                key in submissions and submissions[key] is None and reason in ("invalid_file", "combined_limit")
+                for key, reason in invalid.items()
+            ),
+            "invalid submission reasons",
+        )
+        require(not invalid or receipt["reward"] == 0, "invalid submission cannot pass")
+        require(
+            isinstance(checks, dict)
+            and set(checks) == set(cohort["binding"]["checks"])
+            and all(type(v) is bool for v in checks.values()),
+            "invalid check inventory",
+        )
+        require(
+            type(receipt["reward"]) is int and receipt["reward"] == reward == int(all(checks.values())),
+            "conflicting verdicts",
+        )
+        expected = "".join(f"{key}\t{'PASS' if value else 'FAIL'}\n" for key, value in sorted(checks.items()))
+        require(read(root, f"{prefix}/results", evidence) == expected.encode(), "conflicting check rows")
+        require(
+            read(root, f"{prefix}/reward.txt", evidence).strip() == str(int(reward)).encode(), "conflicting reward file"
+        )
+        snapshots = private_path(root, f"{prefix}/review-submission")
+        require(snapshots.is_dir(), "snapshot directory missing")
+        present = {key for key, checksum in submissions.items() if checksum is not None}
+        found = set()
+        with os.scandir(snapshots) as entries:
+            for index, entry in enumerate(entries):
+                require(index < 32 and entry.name in present, "unexpected snapshot")
+                require(entry.is_file(follow_symlinks=False), "snapshot must be a regular file")
+                found.add(entry.name)
+        require(found == present, "snapshot inventory differs from receipt")
+        absence_citations = {
+            f"{prefix}/review-submission.json#/submissions/{key}"
+            for key, checksum in submissions.items()
+            if checksum is None
+        }
+        total = 0
+        for key, checksum in submissions.items():
+            if checksum is None:
+                continue
+            data = read(root, f"{prefix}/review-submission/{key}", evidence)
+            total += len(data)
+            require(sha(data) == checksum and total <= contract.MAX_BYTES, "snapshot changed or oversized")
+    except PermissionError:
+        return "submission_evidence_unreadable"
+    except (ValueError, OSError):
+        return "submission_binding_unverified"
+    try:
+        read(root, f"{trial}/{attempt['transcript']}", evidence)
+    except (ValueError, OSError):
+        return "missing_transcript"
+    if rows is None:
+        return "missing_assessment"
+    allowed = (
+        {f"{prefix}/review-submission/{key}" for key in present}
+        | absence_citations
+        | {f"{trial}/{attempt['transcript']}"}
+    )
+    for row in rows:
+        citations = row["citations"]
+        require(
+            "task/instruction.md" in citations
+            and bool(set(citations) & allowed)
+            and set(citations) <= allowed | {"task/instruction.md"} | context_paths,
+            "citation must bind this trial and public contract",
+        )
+        for citation in citations:
+            # Only these exact null-entry locators are supported. The complete
+            # receipt was already read and hashed above; do not resolve pointers.
+            if citation not in absence_citations and citation not in context_paths:
+                read(root, citation, evidence)
+    decisions = {row["decision"] for row in rows}
+    if "unmet" in decisions:
+        return "false_accept" if reward == 1 else "legitimate_fail"
+    if "uncertain" in decisions:
+        return "uncertain_assessment"
+    return "legitimate_pass" if reward == 1 else "false_reject"
+
+
+def cohort_inventory(root: Path, binding: dict) -> dict:
+    directory = private_path(root, "private/solution-review/cohorts")
+    matches, unreadable, limited = [], 0, False
+    with os.scandir(directory) as entries:
+        for index, entry in enumerate(entries):
+            if index >= 256:
+                limited = True
+                break
+            try:
+                require(entry.is_file(follow_symlinks=False), "cohort must be regular")
+                data = contract.parse(read_regular(Path(entry.path)))
+                if not isinstance(data, dict):
+                    raise contract.ConstructionError("cohort must be an object")
+                require(entry.name == f"{digest(data)}.json", "cohort name mismatch")
+                if data.get("binding") == binding:
+                    matches.append({"sha256": digest(data), "attempts": len(data["plan"]["attempts"])})
+            except (ValueError, OSError, KeyError, TypeError):
+                unreadable += 1
+    return {
+        "matching": sorted(matches, key=lambda row: row["sha256"]),
+        "unreadable": unreadable,
+        "discovery_limited": limited,
+    }
+
+
+def review(root: Path, cohort_path: str, assessment_path: str, binding: dict) -> dict:
+    for path in (cohort_path, assessment_path):
+        private_path(root, path)
+    evidence: dict[str, str] = {}
+    cohort = fields(
+        load(root, cohort_path, evidence), "schema plan plan_path binding inputs producer_sha256", "cohort receipt"
+    )
+    require(cohort["schema"] == COHORT_SCHEMA and cohort["binding"] == binding, "stale or invalid review cohort")
+    require(cohort_path == f"private/solution-review/cohorts/{digest(cohort)}.json", "cohort receipt was edited")
+    validate_plan(root, cohort["plan"], check_context=False)
+    context_paths = public_context(root, cohort["plan"], evidence)
+    private_path(root, cohort["plan_path"])
+    require(load(root, cohort["plan_path"], evidence) == cohort["plan"], "retained plan differs from cohort")
+    require(isinstance(cohort["inputs"], dict), "invalid cohort inputs")
+    require(
+        set(cohort["inputs"])
+        == {cohort["plan_path"], *(a["prompt"] for a in cohort["plan"]["attempts"])} | context_paths,
+        "cohort inputs incomplete",
+    )
+    for path, checksum in cohort["inputs"].items():
+        if path not in context_paths:
+            private_path(root, path)
+            read(root, path, evidence)
+        require(evidence[path] == checksum, "pre-run inputs changed")
+    require(
+        cohort["producer_sha256"]
+        == sha(read_regular((ASSETS / "review_runtime.py")))
+        == sha(read_regular(root / "task/tests/review_runtime.py")),
+        "review producer changed",
+    )
+    assessment = fields(
+        load(root, assessment_path, evidence),
+        "schema cohort_sha256 reviewer_id context_id exposure judgments",
+        "assessments",
+    )
+    judgments = assessment_map(assessment, cohort, binding["requirements"])
+    outcomes = []
+    for attempt in cohort["plan"]["attempts"]:
+        outcome = review_attempt(root, attempt, judgments.get(attempt["id"]), cohort, evidence, context_paths)
+        outcomes.append({"attempt_id": attempt["id"], "purpose": attempt["purpose"], "outcome": outcome})
+    counts = dict(sorted(Counter(o["outcome"] for o in outcomes).items()))
+    resolved = {"false_accept", "false_reject", "legitimate_pass", "legitimate_fail"}
+    incomplete = sum(n for key, n in counts.items() if key not in resolved)
+    findings = counts.get("false_accept", 0) + counts.get("false_reject", 0)
+    status = "findings_present" if findings else "incomplete" if incomplete else "no_findings_in_reviewed_cohort"
+    report = {
+        "schema": REPORT_SCHEMA,
+        "diagnostic_only": True,
+        "independence": "declared_separation_only",
+        "status": status,
+        "attempts": len(outcomes),
+        "unresolved": incomplete,
+        "counts": counts,
+        "cohort_sha256": digest(cohort),
+        "cohort_inventory": cohort_inventory(root, binding),
+        "outcomes": outcomes,
+        "solver_exposure": dict(Counter(a["exposure"] for a in cohort["plan"]["attempts"])),
+        "reviewer_exposure": assessment["exposure"],
+        "evidence": evidence,
+    }
+    relative = persist(root, "reports", report)
+    return {
+        key: report[key] for key in ("diagnostic_only", "independence", "status", "attempts", "unresolved", "counts")
+    } | {"report": relative}

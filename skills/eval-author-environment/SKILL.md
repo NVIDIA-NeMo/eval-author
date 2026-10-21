@@ -59,6 +59,15 @@ query over that data. A few
 hand-typed fixture rows with hand-computed answers are not starting data, and a
 task's own NOP, Oracle, or verifier controls never prove the environment.
 
+## Trace-backed tools and integrity
+
+For an admitted trace source, follow the [ATIF environment handoff](../eval-author/references/trace-input.md).
+Use `scripts/trace_tools.py` for tool inventory/access, mock generation, verifier
+lint, reproducibility/contamination checks and optional solution review. Preserve
+source-state provenance and reviewed real/mock/none decisions in the shared
+construction contract. The environment kit and its smoke handoff still precede
+task tests. Recorded replay covers only its declared interactions.
+
 ## Purpose
 
 Read `eval-author` for the shared evidence standard and boundaries. Start this

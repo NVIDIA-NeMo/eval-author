@@ -2122,6 +2122,9 @@ def test_publication_review_rejects_tampered_preview(tmp_path: Path, change: str
 @pytest.mark.skipif(not hasattr(os, "setxattr"), reason="extended attributes require OS support")
 @pytest.mark.parametrize("status", ["candidate", "no_candidate"])
 def test_publication_omits_source_extended_attributes(tmp_path: Path, status: str) -> None:
+    setxattr = getattr(os, "setxattr")
+    listxattr = getattr(os, "listxattr")
+    getxattr = getattr(os, "getxattr")
     task_dir, _ = _workspace(tmp_path)
     _candidate(task_dir, status=status)
     if status == "candidate":
@@ -2134,18 +2137,18 @@ def test_publication_omits_source_extended_attributes(tmp_path: Path, status: st
         sources.extend([task_dir / "reproducibility.json", task_dir / "task", task_dir / "task/tests/test.sh"])
     attribute = "user.fixture_note"
     for path in sources:
-        os.setxattr(path, attribute, b"fixture metadata before review")
+        setxattr(path, attribute, b"fixture metadata before review")
     preview = _review_publication(task_dir)
     preview_dir = Path(preview["preview_dir"])
     for path in sources:
-        assert attribute not in os.listxattr(preview_dir / path.relative_to(task_dir))
-        os.setxattr(path, attribute, b"fixture metadata changed after review")
+        assert attribute not in listxattr(preview_dir / path.relative_to(task_dir))
+        setxattr(path, attribute, b"fixture metadata changed after review")
     output = tmp_path / "product"
     code, result = _run("export", "--task-dir", str(task_dir), "--output-dir", str(output))
     assert code == 0, result
     for path in sources:
-        assert os.getxattr(path, attribute) == b"fixture metadata changed after review"
-        assert attribute not in os.listxattr(output / path.relative_to(task_dir))
+        assert getxattr(path, attribute) == b"fixture metadata changed after review"
+        assert attribute not in listxattr(output / path.relative_to(task_dir))
     for path in output.rglob("*"):
         if path.is_file():
             assert path.read_bytes() == (preview_dir / path.relative_to(output)).read_bytes()

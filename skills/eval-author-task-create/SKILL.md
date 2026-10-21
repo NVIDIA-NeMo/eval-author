@@ -40,6 +40,17 @@ allowed-tools: Bash Read Write Grep Glob
 
 # Eval Author: create task
 
+## ATIF source mode
+
+For a user-requested task from an ATIF trace, use the shared
+[ATIF source handoff](../eval-author/references/trace-input.md): privacy review,
+candidate admission, environment preparation, construction and native qualification.
+This source mode does not require an audit gap and does not claim coverage closure.
+Skip the audit selector and gap-only scaffold/acceptance steps; use the selected
+provider's native task initialization and the handoff's qualification procedure.
+For audit-gap requests, retain Steps 1–8 and their measured eligibility rules.
+Proposal-only requests still stop before construction.
+
 ## Purpose
 
 Read `eval-author` for the shared evidence standard and boundaries. Read

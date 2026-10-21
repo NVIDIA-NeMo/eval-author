@@ -31,6 +31,13 @@ allowed-tools: Bash Read Write Grep Glob
 
 # Eval Author: first eval
 
+## ATIF as a starting source
+
+When the user supplies an ATIF trace for a new suite, follow the shared
+[ATIF source handoff](../eval-author/references/trace-input.md). Establish Ethos
+and admit the source before constructing its case; keep the usual environment-kit
+handoff. A rejected source is a retained outcome, not a reason to invent a case.
+
 ## Purpose
 
 Read `eval-author` for the shared standard and boundaries. Follow
