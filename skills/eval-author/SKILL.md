@@ -81,10 +81,15 @@ explicit goal starts that work; there is no separate permission-to-start questio
 | Audit coverage | `eval-author-audit`, continuing with eval and trace selection |
 | Improve or expand evals | Preserve the expansion goal and use the expansion handoff below; an audit is optional |
 
-When the goal is unclear, ask: “Would you like to build your first evaluations,
-audit your existing coverage, or improve your evaluation suite?” Reuse known
-context and ask only for the unresolved goal. A request to find out what exists
-uses discovery inventory and its findings can inform that choice.
+When the goal is unclear, ask “What would you like to do?” and present these
+options as a bulleted list:
+
+- Build your first evaluations.
+- Audit your existing coverage.
+- Improve your evaluation suite.
+
+Reuse known context and ask only for the unresolved goal. A request to find out
+what exists uses discovery inventory and its findings can inform that choice.
 
 Explicit inventory, readiness, repair, trace inspection, supported Gym or MLflow
 trace conversion, trace-derived authoring, proposal-only, and audit
