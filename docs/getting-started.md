@@ -241,24 +241,10 @@ Then start your first interaction:
 Use eval-author to help me with the evals for my agent.
 ```
 
-With no goal supplied, Eval Author asks whether you want to create evaluations,
-check existing coverage, or improve a suite. For first evaluations, it shows:
-
-- [ ] **Check how your agent runs and how you’ll test it**
-- [ ] **Agree on how your agent behaves using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)**
-- [ ] **Create your first evaluations**
-
-For an audit, the third item is **Check what your existing evaluations cover**. For
-improvements, it is **Improve your existing evaluations**. The first two steps
-are shared across all three goals and work with Gym and Harbor.
-
-It reuses known answers throughout the selected workflow.
-Prerequisites are user-confirmed at entry; runtime checks happen when needed for
-execution. Ethos is confirmed through `ethos-orchestrate`, with unchanged accepted
-content reused. Internal progress lives in `.eval-author/.working/`; reports,
-accepted tasks, and run evidence remain available at their documented paths.
-A narrow request to find evals, check readiness, or validate an audit keeps that
-scope and does not start full onboarding.
+Eval Author helps you build your first evaluations, audit existing coverage, or
+improve a suite. It first confirms your setup and your agent's intended behavior
+in `ETHOS.md`, then continues with your selected goal. You can also use a
+[more specific starter prompt](../README.md#start-here).
 
 ## Find existing evaluations
 
