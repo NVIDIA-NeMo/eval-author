@@ -148,9 +148,6 @@ source selection, and execution authorization.
 When the user asks a side question, answer it, then resume the pending decision
 or unfinished work. A side question does not confirm pending content.
 
-Discovery inventory ends with findings and a next-step choice unless
-that next step was already requested.
-
 ## The standard
 
 **Every fact you record comes from authoritative evidence, not a guess.**
