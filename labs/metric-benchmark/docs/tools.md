@@ -192,3 +192,19 @@ scores, but native report bytes and their receipt hashes can differ between
 workspaces. Cached replay preserves the exact saved artifacts. The adapter gives
 each task a stable measurement run ID so multi-task subsets satisfy Eval Author's
 distinct-evidence validation.
+
+## Correlate the subset scores
+
+```bash
+uv run python labs/metric-benchmark/correlate.py \
+  --coverage coverage-scores.json --mutant-scores mutant-scores.json \
+  --output correlation.json
+```
+
+Library: `correlate(coverage, mutant_scores, missing_policy="error")`.
+Artifacts must match in source identity, selection and subset IDs. Correlation
+uses Spearman ranks with average ties. Constant ranks or fewer than two usable
+pairs give an explicit undefined coefficient. `--missing-policy exclude` is an
+opt-in that records excluded pairs and their reasons. The default rejects
+unavailable pairs. This coefficient is descriptive: overlapping subsets do not
+provide independent samples, and the tool does not report significance tests.
