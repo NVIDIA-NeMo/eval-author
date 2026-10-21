@@ -208,3 +208,46 @@ pairs give an explicit undefined coefficient. `--missing-policy exclude` is an
 opt-in that records excluded pairs and their reasons. The default rejects
 unavailable pairs. This coefficient is descriptive: overlapping subsets do not
 provide independent samples, and the tool does not report significance tests.
+
+## Run the configured experiment
+
+```bash
+uv run python labs/metric-benchmark/run_experiment.py \
+  --benchmark benchmark.yaml --run-id trial-1 --output private-run
+```
+
+Library: `run_experiment(benchmark_path, run_id, output, results_root=None,
+cached_only=False)` calls the stage libraries directly. `--results <execution-root>`
+skips agent execution and consumes its `execution.json` manifest. Add
+`--cached-only` to also prohibit new coverage invocations. The same configured
+experiment can therefore run entirely, resume completed work, or analyze saved
+observations without an LLM directing the process.
+
+The orchestrator validates all cases before coverage work, freezes input and
+implementation identities, and writes each case's `selection.json`,
+`coverage-config.json`, `subsets.json`, and `case-description.json` under
+`analysis/case-NNNN/`. These are usable directly with the individual CLIs above.
+It writes validation, mutant-score, coverage-score and correlation artifacts in
+that same directory. `experiment.json` indexes per-case correlations only after
+all stages succeed and input/evidence digests are rechecked. Cases are not pooled.
+There is no separate record-experiment stage or runtime preparation stage.
+
+### Small, prepared smoke benchmark
+
+`examples/smoke/benchmark.yaml` includes two Docker tasks, Oracle/NOP agents and
+three fixed subsets. Its coverage command deliberately computes **synthetic
+subset size**, not Eval Author coverage. It tests wiring and cannot establish
+metric validity. Run it from the repository root with:
+
+```bash
+uv run python labs/metric-benchmark/run_experiment.py \
+  --benchmark labs/metric-benchmark/examples/smoke/benchmark.yaml \
+  --run-id smoke-1 --output /tmp/metric-benchmark-smoke
+```
+
+This runs four local Harbor trials and requires Docker with `python:3.12-slim`.
+It does not need model credentials. Use a new output directory for fresh execution.
+Production benchmarks supply qualified agent bundles, actual case descriptions,
+fixed subset manifests, and a configured metric authoring command. The Eval Author
+adapter is tested with real native measurement/reporting and fixed authored
+observations; fresh model-backed authoring still requires its own runtime setup.
