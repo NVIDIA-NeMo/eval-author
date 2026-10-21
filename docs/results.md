@@ -94,8 +94,8 @@ outcomes. See [Build your first evaluations](first-evals.md).
 ## Open readable cases and traces
 
 Start with the html report or the README.md for artifact paths and commands. Harbor
-tasks and recorded jobs use its native local viewer. For Gym JSONL and standalone
-ATIF, Eval Author includes an offline reader that creates a private `report.html`
+tasks and recorded jobs use its native local viewer. For Gym JSONL and ATIF,
+MLflow, or Gym traces, Eval Author includes an offline reader that creates a private `report.html`
 you can open directly in a browser; see [Local review](../skills/eval-author/references/local-review.md)
 for commands and supported formats.
 

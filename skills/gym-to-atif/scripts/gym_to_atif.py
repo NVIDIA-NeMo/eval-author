@@ -3,33 +3,29 @@
 # SPDX-License-Identifier: Apache-2.0
 """Offline conversion of one Gym Responses record. Never fetch embedded paths/URLs.
 
-Prefer --source-atif for Harbor-backed records. Output is private evidence, not
-publication approval, proof, or a claim of lossless round-trip conversion.
+Prefer --source-atif for Harbor-backed records. Otherwise NeMo Compass loads the
+record and exports ATIF. Output is private evidence, not publication approval,
+proof, or a claim of lossless round-trip conversion.
 """
 
 from __future__ import annotations
 
 import argparse
-import copy
 import hashlib
 import json
 import os
 import re
+import sys
+from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType
 from typing import Any
-from urllib.parse import urlsplit
 
 MAX_SOURCE_BYTES = 128 * 1024 * 1024
 MAX_ATIF_BYTES = 25 * 1024 * 1024
-IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
-SUFFIX_TYPES = {
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-}
-RECEIPT_SCHEMA = "nemo.eval_author.gym_to_atif.v1"
+RECEIPT_SCHEMA = "nemo.eval_author.gym_to_atif.v2"
+AGENT_NAME = "unknown-gym-agent"
+AGENT_VERSION = "unknown"
 ATIF_VERSION = re.compile(r"ATIF-v1\.[0-7]")
 
 
@@ -209,284 +205,48 @@ def envelope(record: Any) -> tuple[dict[str, Any], dict[str, Any]]:
     return request, response
 
 
-def _signature(item: Any) -> Any:
-    if not isinstance(item, dict):
-        return item
-    # Normalize only message wrapper defaults, never tool kinds or fuzzy text.
-    if item.get("type", "message") != "message" or "role" not in item:
-        return item
-    return {
-        **{k: v for k, v in item.items() if k not in {"id", "status"} and not (k == "phase" and v is None)},
-        "type": "message",
-    }
+def _trace_loading() -> ModuleType:
+    """Import the shared Compass loader from the sibling eval-author skill."""
+    scripts = str(Path(__file__).resolve().parents[2] / "eval-author/scripts")
+    if scripts not in sys.path:
+        sys.path.append(scripts)
+    try:
+        import trace_loading
+    except ModuleNotFoundError as exc:
+        if exc.name != "trace_loading":
+            raise
+        raise SystemExit(
+            "Incomplete skill installation: install the sibling eval-author skill alongside gym-to-atif."
+        ) from None
+    return trace_loading
 
 
-class Projection:
-    def __init__(self, record: dict[str, Any], source_digest: str):
-        self.record = record
-        self.source_digest = source_digest
-        self.steps: list[dict[str, Any]] = []
-        self.calls: dict[str, dict[str, Any]] = {}
-        self.results: set[str] = set()
-        self.uncertainties = [
-            "Agent implementation/version and per-item timing are not inferred from model names or response timestamps.",
-            "ATIF step segmentation follows Gym item order, not an inferred original LLM-call grouping.",
-            "ATIF session_id is derived from the source record digest, not a native session identifier.",
-        ]
-        self.losses = ["Gym-specific fields not projected into ATIF remain in the exact private Gym source record."]
-        self.operations: list[str] = []
-        self.bridge = isinstance(record.get("atif_conversion"), dict)
-        self.last_type: str | None = None
+def project(source: Path) -> tuple[dict[str, Any], list[str], str]:
+    """Load one private Gym record file through NeMo Compass and export ATIF."""
+    trace_loading = _trace_loading()
+    try:
+        (trace,) = trace_loading.load_traces(source, "gym", max_traces=1)
+        payload = trace_loading.export_atif(trace, agent_name=AGENT_NAME, agent_version=AGENT_VERSION)
+    except trace_loading.TraceLoadError as error:
+        raise ConversionError(str(error)) from None
+    except ValueError as error:
+        from trace_ingest.exporters.atif import ATIFExportError
+        from trace_ingest.loaders.gym import GymTraceLoadError
 
-    def image(self, url: Any, path: str) -> dict[str, Any]:
-        if not isinstance(url, str) or not url.strip():
-            raise ConversionError(f"image URL unavailable at {path}; supply the original ATIF")
-        if url.startswith("data:"):
-            media_type = url[5:].split(";", 1)[0].split(",", 1)[0]
-        else:
-            media_type = SUFFIX_TYPES.get(Path(urlsplit(url).path).suffix.lower())
-            if media_type:
-                self.uncertainties.append(f"Image MIME inferred from path suffix, not fetched or verified: {path}")
-        if media_type not in IMAGE_TYPES:
-            raise ConversionError(f"image MIME is not established at {path}; supply source ATIF or a typed data URI")
-        self.uncertainties.append(
-            f"Image bytes/references are retained without fetching or validating the media: {path}"
-        )
-        return {"type": "image", "source": {"media_type": media_type, "path": url}}
-
-    def serialized_parts(self, text: str, path: str) -> list[dict[str, Any]] | None:
-        if not self.bridge or not text.lstrip().startswith("["):
-            return None
-        try:
-            value = decode(text)
-        except ConversionError:
-            return None
-        if not isinstance(value, list) or not any(isinstance(p, dict) and p.get("type") == "image" for p in value):
-            return None
-        result = []
-        for part in value:
-            if not isinstance(part, dict):
-                raise ConversionError(f"malformed serialized ATIF content at {path}")
-            if part.get("type") == "text" and isinstance(part.get("text"), str):
-                result.append({"type": "text", "text": part["text"]})
-            elif part.get("type") == "image" and isinstance(part.get("source"), dict):
-                source = part["source"]
-                if (
-                    not isinstance(source.get("media_type"), str)
-                    or source["media_type"] not in IMAGE_TYPES
-                    or not isinstance(source.get("path"), str)
-                    or not source["path"].strip()
-                ):
-                    raise ConversionError(f"serialized image source is unsupported at {path}; use original ATIF")
-                result.append({"type": "image", "source": {"media_type": source["media_type"], "path": source["path"]}})
-            else:
-                raise ConversionError(f"unsupported serialized content at {path}")
-        self.operations.append(f"Recovered serialized ATIF image parts: {path}")
-        self.uncertainties.append(
-            f"ATIF-shaped text was interpreted as serialized content using Harbor-bridge metadata: {path}"
-        )
-        return result
-
-    def content(self, value: Any, path: str) -> str | list[dict[str, Any]]:
-        if isinstance(value, str):
-            return self.serialized_parts(value, path) or value
-        if not isinstance(value, list):
-            raise ConversionError(f"unsupported message/tool content at {path}")
-        parts = []
-        for index, part in enumerate(value):
-            pointer = f"{path}[{index}]"
-            if not isinstance(part, dict):
-                raise ConversionError(f"content part must be an object at {pointer}")
-            kind = part.get("type")
-            if not isinstance(kind, str):
-                raise ConversionError(f"content part type must be text at {pointer}")
-            if kind in {"input_text", "output_text", "text"} and isinstance(part.get("text"), str):
-                recovered = self.serialized_parts(part["text"], pointer)
-                parts.extend(recovered or [{"type": "text", "text": part["text"]}])
-            elif kind == "input_image":
-                parts.append(self.image(part.get("image_url"), pointer))
-            elif kind == "refusal" and isinstance(part.get("refusal"), str):
-                parts.append({"type": "text", "text": part["refusal"]})
-                self.operations.append(f"Refusal retained as text; not a success label: {pointer}")
-            else:
-                raise ConversionError(
-                    f"unsupported content part at {pointer}; original ATIF or an explicit adapter is required"
-                )
-        return parts
-
-    def step(self, source: str, message: Any, item: dict[str, Any], path: str) -> dict[str, Any]:
-        metadata = {"item_path": path}
-        for key in ("id", "role", "phase", "status", "namespace"):
-            if key in item:
-                metadata[key] = item[key]
-        step = {"step_id": len(self.steps) + 1, "source": source, "message": message, "extra": {"gym": metadata}}
-        self.steps.append(step)
-        return step
-
-    def item(self, item: Any, path: str) -> None:
-        if not isinstance(item, dict):
-            raise ConversionError(f"Gym item must be an object at {path}")
-        kind = item.get("type", "message" if "role" in item else None)
-        if not isinstance(kind, str):
-            raise ConversionError(f"Gym item type must be text at {path}")
-        if kind == "message":
-            role = item.get("role")
-            if not isinstance(role, str) or role not in {"user", "assistant", "system", "developer"}:
-                raise ConversionError(f"unsupported message role at {path}")
-            source = "agent" if role == "assistant" else "system" if role == "developer" else role
-            if role == "developer":
-                self.losses.append(f"Developer role projected to system with original role retained in extra: {path}")
-            self.step(source, self.content(item.get("content"), path + ".content"), item, path)
-        elif kind == "function_call":
-            call_id, name, arguments = item.get("call_id"), item.get("name"), item.get("arguments")
-            if not isinstance(call_id, str) or not call_id or call_id in self.calls:
-                raise ConversionError(f"missing or duplicate call_id at {path}")
-            if not isinstance(name, str) or not name or not isinstance(arguments, str):
-                raise ConversionError(f"invalid function call at {path}")
-            if item.get("namespace") is not None:
-                raise ConversionError(f"namespaced function calls need an explicit identity adapter at {path}")
-            arguments = decode(arguments)
-            if not isinstance(arguments, dict):
-                raise ConversionError(f"function arguments must encode an object at {path}")
-            step = self.steps[-1] if self.last_type == "function_call" else self.step("agent", "", item, path)
-            call = {
-                "tool_call_id": call_id,
-                "function_name": name,
-                "arguments": arguments,
-                "extra": {"gym_item_path": path},
-            }
-            step.setdefault("tool_calls", []).append(call)
-            self.calls[call_id] = step
-        elif kind == "function_call_output":
-            call_id = item.get("call_id")
-            if not isinstance(call_id, str) or call_id not in self.calls or call_id in self.results:
-                raise ConversionError(f"unmatched or duplicate tool result at {path}; no tool call will be invented")
-            result = {
-                "source_call_id": call_id,
-                "content": self.content(item.get("output"), path + ".output"),
-                "extra": {"gym_item_path": path, "gym_status": item.get("status")},
-            }
-            if self.steps[-1] is not self.calls[call_id]:
-                self.uncertainties.append(
-                    f"Tool result follows later items; ATIF attachment changes presentation order: {path}"
-                )
-            self.calls[call_id].setdefault("observation", {"results": []})["results"].append(result)
-            self.results.add(call_id)
-            self.operations.append(
-                f"Tool observation attached to its recorded call; original item position retained: {path}"
-            )
-        elif kind == "reasoning":
-            summary = item.get("summary", [])
-            if not isinstance(summary, list) or any(
-                not isinstance(p, dict) or p.get("type") != "summary_text" or not isinstance(p.get("text"), str)
-                for p in summary
-            ):
-                raise ConversionError(f"unsupported reasoning summary at {path}")
-            step = self.step("agent", "", item, path)
-            step["extra"]["gym"]["reasoning_summary"] = copy.deepcopy(summary)
-            self.uncertainties.append(f"Recorded reasoning summary is not treated as verbatim model reasoning: {path}")
-            if item.get("encrypted_content") or item.get("content"):
-                self.losses.append(f"Additional/encrypted reasoning retained only in original Gym record: {path}")
-        else:
-            raise ConversionError(f"unsupported Gym item type at {path}; supply original ATIF or an explicit adapter")
-        self.last_type = kind
-
-    def convert(self, output_scope: str = "auto") -> dict[str, Any]:
-        if output_scope not in {"auto", "full", "generated"}:
-            raise ConversionError("unsupported output scope")
-        request, response = envelope(self.record)
-        if request.get("previous_response_id") or request.get("conversation"):
-            raise ConversionError(
-                "remote conversation references are not resolved; supply self-contained input or original ATIF"
-            )
-        incoming = request.get("input", [])
-        if isinstance(incoming, str):
-            incoming = [{"type": "message", "role": "user", "content": incoming}]
-        if not isinstance(incoming, list):
-            raise ConversionError("Gym request.input must be text or an item array")
-        outgoing = response["output"]
-        if output_scope == "auto":
-            prefix = (
-                bool(incoming)
-                and len(outgoing) >= len(incoming)
-                and all(_signature(a) == _signature(b) for a, b in zip(incoming, outgoing))
-            )
-            prompt_items = any(
-                isinstance(p, dict) and isinstance(p.get("role"), str) and p["role"] in {"user", "system", "developer"}
-                for p in outgoing
-            )
-            if prefix or not incoming:
-                output_scope = "full"
-                if prefix:
-                    self.operations.append("Exact request prefix already in response.output; not duplicated")
-            elif prompt_items:
-                raise ConversionError(
-                    "ambiguous prompt/history overlap; choose --output-scope full or generated explicitly"
-                )
-            else:
-                output_scope = "generated"
-        self.operations.append("Gym response output scope: " + output_scope)
-        items = [(p, f"$.response.output[{i}]") for i, p in enumerate(outgoing)]
-        if output_scope == "generated":
-            items = [(p, f"$.responses_create_params.input[{i}]") for i, p in enumerate(incoming)] + items
-        instructions = request.get("instructions")
-        if instructions is not None and not isinstance(instructions, str):
-            raise ConversionError("request instructions must be text")
-        if instructions:
-            instruction = {"role": "system", "content": instructions}
-            if not items or _signature(items[0][0]) != _signature(instruction):
-                items.insert(0, (instruction, "$.responses_create_params.instructions"))
-                self.operations.append("Request instructions projected as a leading system step")
-        for item, path in items:
-            self.item(item, path)
-        if not any(s["source"] == "user" for s in self.steps):
-            raise ConversionError("Gym record contains no root user instruction; it will not be invented")
-        if self.calls.keys() - self.results:
-            self.uncertainties.append("Some recorded calls have no recorded result; no observations were invented")
-        model = response.get("model") or request.get("model")
-        agent = {"name": "unknown-gym-agent", "version": "unknown"}
-        if isinstance(model, str) and model:
-            agent["model_name"] = model
-        tools = request.get("tools", response.get("tools", []))
-        if tools is not None:
-            if not isinstance(tools, list) or any(not isinstance(t, dict) for t in tools):
-                raise ConversionError("tool definitions must be an array of objects")
-            agent["tool_definitions"] = copy.deepcopy(tools)
-        source = {
-            "record_sha256": self.source_digest,
-            "response_id": response.get("id"),
-            "response_status": response.get("status"),
-            "adapter": "gym_to_atif.v1",
-        }
-        if "reward" in self.record:
-            source["reported_reward"] = self.record["reward"]
-        if response.get("usage") is not None:
-            source["aggregate_usage"] = copy.deepcopy(response["usage"])
-        if response.get("status") not in (None, "completed"):
-            self.uncertainties.append("Gym response is not completed; status/reward do not establish task proof")
-        if self.bridge:
-            self.losses.append(
-                "Upstream ATIF-to-Gym conversion can omit metadata/subagent/tool-definition evidence; consult original ATIF"
-            )
-        return {
-            "schema_version": "ATIF-v1.7",
-            "session_id": "gym-" + self.source_digest.removeprefix("sha256:"),
-            "agent": agent,
-            "steps": self.steps,
-            "extra": {
-                "gym_source": source,
-                "normalization": {
-                    "uncertainties": self.uncertainties,
-                    "losses": self.losses,
-                    "gym_operations": self.operations,
-                },
-            },
-        }
+        # Compass load/export messages are structural; pydantic validation text can echo values.
+        if isinstance(error, (ATIFExportError, GymTraceLoadError)):
+            reason = str(error).replace(str(source), source.name)
+            raise ConversionError(f"NeMo Compass rejected the Gym record: {reason}") from None
+        raise ConversionError("NeMo Compass could not load or export the Gym record") from None
+    losses = payload["extra"]["compass"]["loss_codes"]
+    return payload, list(losses), trace_loading.TRACE_INGEST_VERSION
 
 
 def normalize(
-    record_bytes: bytes, source_atif: bytes | None = None, *, allow_projection: bool = False, output_scope: str = "auto"
+    source: Path, source_atif: bytes | None = None, *, allow_projection: bool = False, selected_line: int | None = None
 ) -> tuple[bytes, dict[str, Any]]:
+    """Convert the exact record retained at ``source``; return ATIF bytes and the receipt."""
+    record_bytes = source.read_bytes()
     if len(record_bytes) > MAX_SOURCE_BYTES or (source_atif is not None and len(source_atif) > MAX_SOURCE_BYTES):
         raise ConversionError("source exceeds the raw-byte limit")
     record = decode(record_bytes)
@@ -500,6 +260,7 @@ def normalize(
                 raise ConversionError("atif_conversion trajectory metadata must be arrays")
     # No path from atif_conversion is ever dereferenced. Only a caller-supplied
     # --source-atif can authorize reading an original trajectory.
+    loader_version = None
     if source_atif is not None:
         payload = decode(source_atif)
         if not isinstance(payload, dict):
@@ -512,15 +273,7 @@ def normalize(
             raise ConversionError("supplied ATIF session does not match advertised Gym trajectory metadata")
         canonical = source_atif
         basis = "provided_atif"
-        uncertainties = [
-            "Gym/ATIF association is operator-supplied; session metadata is checked when available.",
-            "Referenced media are not copied, fetched or validated; retain the original media alongside the ATIF.",
-        ]
-        if len(descriptions) > 1:
-            uncertainties.append(
-                "One explicitly selected ATIF from a multi-step Harbor run is retained; Gym aggregate reward is not transferred."
-            )
-        losses = []
+        losses: list[str] = []
     else:
         if bridge is not None and not allow_projection:
             raise ConversionError(
@@ -530,12 +283,11 @@ def normalize(
             len(bridge.get("trajectories", [])) > 1 or len(bridge.get("source_trajectory_paths", [])) > 1
         ):
             raise ConversionError("multi-step Harbor projection is ambiguous; explicitly supply one original ATIF")
-        projection = Projection(record, digest(record_bytes))
-        payload = projection.convert(output_scope)
+        payload, losses, loader_version = project(source)
         canonical = encode(payload)
         if len(canonical) > MAX_ATIF_BYTES:
             raise ConversionError("projected ATIF exceeds the canonical byte limit")
-        basis, uncertainties, losses = "gym_projection", projection.uncertainties, projection.losses
+        basis = "gym_projection"
     # Same structural boundary prepare enforces; dev tests also validate against Harbor.
     try:
         _validate_trajectory(payload)
@@ -550,26 +302,38 @@ def normalize(
         "source_atif_sha256": digest(source_atif) if source_atif is not None else None,
         "atif_bytes_preserved": source_atif is not None,
         "lossless_round_trip_claimed": False,
-        "uncertainties": uncertainties,
         "losses": losses,
         "media_fetched": False,
+        "selected_line": selected_line,
+        "loader_version": loader_version,
     }
 
 
-def write_output(output: Path, raw: bytes, atif: bytes, receipt: dict[str, Any]) -> None:
+def write_output(output: Path, raw: bytes, convert: Callable[[Path], tuple[bytes, dict[str, Any]]]) -> dict[str, Any]:
+    """Retain ``raw`` as source.gym.json, convert that file, and write ATIF plus receipt.
+
+    Nothing is left behind when any step fails.
+    """
     if output.exists() or output.is_symlink():
         raise ConversionError("output directory already exists; use a new private directory")
     old_umask = os.umask(0o077)
     written: list[Path] = []
     created = False
+
+    def write(name: str, data: bytes) -> Path:
+        path = output / name
+        with path.open("xb") as stream:
+            written.append(path)
+            stream.write(data)
+        return path
+
     try:
         output.mkdir(parents=True, mode=0o700)
         created = True
-        for name, data in (("source.gym.json", raw), ("trace.atif.json", atif), ("conversion.json", encode(receipt))):
-            path = output / name
-            with path.open("xb") as stream:
-                written.append(path)
-                stream.write(data)
+        atif, receipt = convert(write("source.gym.json", raw))
+        write("trace.atif.json", atif)
+        write("conversion.json", encode(receipt))
+        return receipt
     except BaseException:
         for path in written:
             path.unlink(missing_ok=True)
@@ -592,15 +356,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Allow a lossy Gym projection when a source ATIF is advertised but unavailable",
     )
-    parser.add_argument("--output-scope", choices=("auto", "full", "generated"), default="auto")
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         raw = read_source(args.input, args.row)
         original = read_source(args.source_atif) if args.source_atif else None
-        atif, receipt = normalize(raw, original, allow_projection=args.allow_projection, output_scope=args.output_scope)
-        receipt["selected_line"] = args.row
-        write_output(args.output_dir, raw, atif, receipt)
+        receipt = write_output(
+            args.output_dir,
+            raw,
+            lambda source: normalize(source, original, allow_projection=args.allow_projection, selected_line=args.row),
+        )
         print(
             json.dumps(
                 {
@@ -608,7 +373,6 @@ def main(argv: list[str] | None = None) -> int:
                     "basis": receipt["basis"],
                     "source_kind": receipt["source_kind"],
                     "output_dir": str(args.output_dir),
-                    "uncertainty_count": len(receipt["uncertainties"]),
                     "loss_count": len(receipt["losses"]),
                 }
             )

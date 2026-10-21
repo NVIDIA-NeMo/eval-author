@@ -104,7 +104,7 @@ def inputs(tmp_path):
     conversion = dump(
         tmp_path / "conversion.json",
         {
-            "schema": "nemo.eval_author.gym_to_atif.v1",
+            "schema": "nemo.eval_author.gym_to_atif.v2",
             "basis": "gym_projection",
             "selected_line": 1,
             "gym_sha256": "sha256:" + hashlib.sha256((tmp_path / "rollouts.jsonl").read_bytes()).hexdigest(),
@@ -135,6 +135,7 @@ def test_native_rollout_binds_input_health_and_conversion(inputs):
         ("disabled", "disabled"),
         ("conversion_row", "does not bind"),
         ("conversion_hash", "does not bind"),
+        ("conversion_schema_v1", "does not bind"),
         ("trace", "does not bind"),
         ("duplicate_health", "missing or duplicate"),
         ("null_trajectory", "missing native Gym rollout ID"),
@@ -153,10 +154,13 @@ def test_rejects_wrong_native_evidence(inputs, mutation, message):
     elif mutation == "null_trajectory":
         native = gym.jsonl(Path(source["rollouts"]))[0][1]
         line(Path(source["rollouts"]), {**native, "ng_trajectory": None})
-    elif mutation in ("conversion_row", "conversion_hash"):
+    elif mutation in ("conversion_row", "conversion_hash", "conversion_schema_v1"):
         path = Path(source["conversion"])
         value = evidence.read(path)
-        value["selected_line" if mutation == "conversion_row" else "gym_sha256"] = 2
+        if mutation == "conversion_schema_v1":
+            value["schema"] = "nemo.eval_author.gym_to_atif.v1"
+        else:
+            value["selected_line" if mutation == "conversion_row" else "gym_sha256"] = 2
         dump(path, value)
     elif mutation == "trace":
         trace.write_text("{}")
@@ -364,11 +368,14 @@ def check_native_artifacts(output, draft):
     converter = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(converter)
     raw = converter.read_source(output / "cli-rollouts.jsonl", source["row"])
-    atif, conversion = converter.normalize(raw, None, allow_projection=True, output_scope="auto")
-    conversion["selected_line"] = source["row"]
-    trace = output / "evidence.atif.json"
-    trace.write_bytes(atif)
-    source["conversion"] = str(dump(output / "evidence-conversion.json", conversion))
+    converted = output / "evidence-converted"
+    converter.write_output(
+        converted,
+        raw,
+        lambda path: converter.normalize(path, None, allow_projection=True, selected_line=source["row"]),
+    )
+    trace = converted / "trace.atif.json"
+    source["conversion"] = str(converted / "conversion.json")
     gym.build(source, manifest, {"kind": "agent"}, "baseline", trace)
 
 

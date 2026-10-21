@@ -7,14 +7,13 @@
       "cli": "harbor",
       "probe_seconds": 10,
       "python": ">=3.12",
-      "supported": {"audit": ">=0.16.1", "discovery": ">=0.20.0", "authoring": ">=0.20.0"},
+      "supported": {"discovery": ">=0.20.0", "authoring": ">=0.20.0"},
       "test_profiles": {
         "ci": {"version": "0.20.0", "python": "3.12", "evidence": "pyproject.toml dependency-groups.dev; .github/workflows/ci.yml"},
         "manual_discovery": {"version": "0.23.0", "python": "3.12", "evidence": "tools/discover_scenarios.py"}
       },
       "install_profile": "ci",
       "capabilities": {
-        "audit": {"imports": ["harbor.models.trajectories:Trajectory"], "help": [[]]},
         "discovery": {"imports": ["harbor.agents.factory:AgentFactory", "harbor.environments.factory:EnvironmentFactory", "harbor.job:Job", "harbor.models.agent.name:AgentName", "harbor.models.environment_type:EnvironmentType", "harbor.models.job.config:JobConfig.validate_agent_concurrency_limits", "harbor.models.task.config:TaskConfig", "harbor.models.task.paths:TaskPaths", "harbor.models.task.task:Task", "harbor.utils.env:get_required_host_vars", "harbor.utils.import_path:import_class"], "help": [[], ["run"], ["jobs", "start"]]},
         "authoring": {"imports": ["harbor.models.task.config:TaskConfig"], "help": [[], ["tasks", "init"], ["run"]]}
       }
@@ -24,14 +23,13 @@
       "cli": "gym",
       "probe_seconds": 60,
       "python": ">=3.13.14",
-      "supported": {"audit": ">=0.6.0", "discovery": ">=0.6.0", "authoring": ">=0.6.0"},
+      "supported": {"discovery": ">=0.6.0", "authoring": ">=0.6.0"},
       "test_profiles": {
         "ci": {"version": "0.6.0", "python": "3.13.14", "revision": "3045a793346a31291d7ea4ae6af3f94a35036ce5", "evidence": ".github/workflows/ci.yml gym-compatibility"},
         "manual_discovery": {"version": "0.6.0", "python": "3.13.14", "evidence": "tools/discover_scenarios.py"}
       },
       "install_profile": "ci",
       "capabilities": {
-        "audit": {"imports": [], "help": [[]]},
         "discovery": {"imports": [], "help": [[], ["env", "validate"], ["env", "test"]]},
         "authoring": {"imports": ["nemo_gym.environment.scaffold:scaffold_environment"], "help": [[], ["env", "validate"], ["env", "test"], ["eval", "run"]]}
       }

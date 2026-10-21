@@ -5,6 +5,7 @@
 
 import copy
 import json
+import shutil
 import stat
 import subprocess
 import sys
@@ -13,9 +14,25 @@ from pathlib import Path
 import pytest
 from harbor.models.trajectories import Trajectory
 
-SCRIPTS = Path(__file__).resolve().parents[1] / "skills/gym-to-atif/scripts"
-TRACE_ENVIRONMENT_SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author-trace-environment/scripts"
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "skills/gym-to-atif/scripts"
+EVAL_FILES = ROOT / "skills/gym-to-atif/evals/files"
+TRACE_ENVIRONMENT_SCRIPTS = ROOT / "skills/eval-author-trace-environment/scripts"
 IMAGE = "data:image/png;base64,iVBORw0KGgo="  # schema fixture, not a decoded/validated image
+RECEIPT_FIELDS = {
+    "schema",
+    "basis",
+    "source_kind",
+    "gym_sha256",
+    "atif_sha256",
+    "source_atif_sha256",
+    "atif_bytes_preserved",
+    "lossless_round_trip_claimed",
+    "losses",
+    "media_fetched",
+    "selected_line",
+    "loader_version",
+}
 
 
 @pytest.fixture
@@ -48,11 +65,17 @@ def rollout():
     }
 
 
-def normalize(adapter, source, **kwargs):
-    encoded, receipt = adapter.normalize(json.dumps(source).encode(), **kwargs)
+def convert(adapter, tmp_path, source, source_atif=None, **kwargs):
+    """Run the real write path: retain the record, convert that file, write ATIF and receipt."""
+    output = tmp_path / f"converted-{len(list(tmp_path.iterdir()))}"
+    receipt = adapter.write_output(
+        output, json.dumps(source).encode(), lambda path: adapter.normalize(path, source_atif, **kwargs)
+    )
+    encoded = (output / "trace.atif.json").read_bytes()
     canonical = json.loads(encoded)
-    Trajectory.model_validate(canonical)  # provider-owned ATIF validation, not a handwritten schema
-    return canonical, receipt
+    if source_atif is None:
+        Trajectory.model_validate(canonical)  # provider-owned ATIF validation, not a handwritten schema
+    return canonical, receipt, encoded
 
 
 def cli(*args):
@@ -61,132 +84,117 @@ def cli(*args):
     return completed.returncode, json.loads(completed.stdout)
 
 
-def test_native_projection_retains_pairing_and_does_not_invent_agent_or_proof(adapter):
+def tool_steps(canonical):
+    return [step for step in canonical["steps"] if step.get("tool_calls")]
+
+
+def test_compass_projection_retains_pairing_and_does_not_invent_agent_or_proof(adapter, tmp_path):
     source = rollout()
-    canonical, receipt = normalize(adapter, source)
-    assert [step["source"] for step in canonical["steps"]] == ["user", "agent", "agent"]
-    call = canonical["steps"][1]
-    assert call["tool_calls"][0]["arguments"] == {"path": "fixture.json"}
-    assert call["observation"]["results"][0]["source_call_id"] == "call-1"
+    canonical, receipt, encoded = convert(adapter, tmp_path, source)
+    assert canonical["steps"][0] == {
+        "step_id": 1,
+        "source": "user",
+        "message": "Read the public fixture.",
+        "is_copied_context": False,
+    }
+    [call] = tool_steps(canonical)
+    assert call["tool_calls"] == [
+        {"tool_call_id": "call-1", "function_name": "read", "arguments": {"path": "fixture.json"}}
+    ]
+    assert call["observation"]["results"] == [{"source_call_id": "call-1", "content": "recorded result"}]
+    assert canonical["steps"][-1]["message"] == "Done."
+    assert canonical["agent"]["name"] == "unknown-gym-agent" and canonical["agent"]["version"] == "unknown"
     assert canonical["agent"]["tool_definitions"] == source["responses_create_params"]["tools"]
-    assert canonical["agent"]["name"] == "unknown-gym-agent"
+    assert canonical["extra"]["compass"]["exporter"] == "trace_ingest.exporters.atif@1"
     assert "final_metrics" not in canonical
-    assert canonical["extra"]["gym_source"]["reported_reward"] == 0.5
-    assert all("timestamp" not in step and "metrics" not in step for step in canonical["steps"])
+    assert all("timestamp" not in step for step in canonical["steps"])
+    assert set(receipt) == RECEIPT_FIELDS
+    assert receipt["schema"] == "nemo.eval_author.gym_to_atif.v2"
     assert receipt["basis"] == "gym_projection" and receipt["source_kind"] == "gym"
-    assert receipt["lossless_round_trip_claimed"] is False
-    again, again_receipt = normalize(adapter, source)
+    assert receipt["losses"] == canonical["extra"]["compass"]["loss_codes"]
+    assert receipt["loader_version"] == "0.2.0"
+    assert receipt["lossless_round_trip_claimed"] is False and receipt["media_fetched"] is False
+    assert receipt["atif_bytes_preserved"] is False and receipt["source_atif_sha256"] is None
+    assert receipt["selected_line"] is None
+    assert receipt["atif_sha256"] == adapter.digest(encoded)
+    assert receipt["gym_sha256"] == adapter.digest(json.dumps(source).encode())
+    again, again_receipt, _ = convert(adapter, tmp_path, source)
     assert (again, again_receipt) == (canonical, receipt)
 
 
-def test_developer_role_and_request_instructions_are_explicit(adapter):
+def test_request_instructions_and_developer_role_become_system_steps(adapter, tmp_path):
     source = rollout()
     source["responses_create_params"]["instructions"] = "Recorded system instructions"
     source["responses_create_params"]["input"].insert(0, {"role": "developer", "content": "Recorded developer rules"})
-    canonical, receipt = normalize(adapter, source)
-    assert canonical["steps"][0]["message"] == "Recorded system instructions"
-    assert canonical["steps"][1]["source"] == "system"
-    assert canonical["steps"][1]["extra"]["gym"]["role"] == "developer"
-    assert any("Developer role" in loss for loss in receipt["losses"])
+    canonical, _, _ = convert(adapter, tmp_path, source)
+    assert [(step["source"], step["message"]) for step in canonical["steps"][:3]] == [
+        ("system", "Recorded system instructions"),
+        ("system", "Recorded developer rules"),
+        ("user", "Read the public fixture."),
+    ]
 
 
-def test_adjacent_calls_keep_observation_arrival_order(adapter):
+def test_each_call_keeps_its_own_result(adapter, tmp_path):
     source = rollout()
     output = source["response"]["output"]
     output.insert(1, {"type": "function_call", "call_id": "call-2", "name": "read", "arguments": "{}"})
     output.insert(2, {"type": "function_call_output", "call_id": "call-2", "output": "Second result arrived first"})
-    canonical, _ = normalize(adapter, source)
-    step = canonical["steps"][1]
-    assert [c["tool_call_id"] for c in step["tool_calls"]] == ["call-1", "call-2"]
-    assert [r["source_call_id"] for r in step["observation"]["results"]] == ["call-2", "call-1"]
+    canonical, _, _ = convert(adapter, tmp_path, source)
+    pairs = [
+        (step["tool_calls"][0]["tool_call_id"], step["observation"]["results"][0]["source_call_id"])
+        for step in tool_steps(canonical)
+    ]
+    assert pairs == [("call-1", "call-1"), ("call-2", "call-2")]
 
 
-def test_full_output_exact_prefix_is_not_duplicated(adapter):
+def test_full_output_exact_prefix_is_not_duplicated(adapter, tmp_path):
     source = rollout()
     prompt = {**source["responses_create_params"]["input"][0], "type": "message", "phase": None}
     source["response"]["output"].insert(0, prompt)
-    canonical, _ = normalize(adapter, source)
+    canonical, _, _ = convert(adapter, tmp_path, source)
     assert sum(step["source"] == "user" for step in canonical["steps"]) == 1
-    assert "not duplicated" in str(canonical["extra"]["normalization"]["gym_operations"])
 
 
-def test_ambiguous_history_requires_explicit_scope(adapter):
+def test_ambiguous_history_is_rejected(adapter, tmp_path):
     source = rollout()
     source["response"]["output"].insert(0, {"type": "message", "role": "user", "content": "Different recorded prompt"})
-    with pytest.raises(adapter.ConversionError, match="overlap"):
-        normalize(adapter, source)
-    canonical, _ = normalize(adapter, source, output_scope="full")
-    assert canonical["steps"][0]["message"] == "Different recorded prompt"
-    assert sum(step["source"] == "user" for step in canonical["steps"]) == 1
+    with pytest.raises(adapter.ConversionError, match="prompt history"):
+        convert(adapter, tmp_path, source)
+    assert list(tmp_path.iterdir()) == []
 
 
-def test_standalone_full_response_and_missing_prompt(adapter):
+def test_standalone_response_without_request_input_is_rejected(adapter, tmp_path):
     source = rollout()
-    with pytest.raises(adapter.ConversionError, match="root user"):
-        normalize(adapter, source["response"])
+    with pytest.raises(adapter.ConversionError, match="no recoverable user instruction"):
+        convert(adapter, tmp_path, source["response"])
     source["response"]["output"].insert(0, {"type": "message", "role": "user", "content": "Recorded request"})
-    canonical, _ = normalize(adapter, source["response"])
-    assert canonical["steps"][0]["source"] == "user"
+    with pytest.raises(adapter.ConversionError, match="no recoverable user instruction"):
+        convert(adapter, tmp_path, source["response"])
+    assert list(tmp_path.iterdir()) == []
 
 
-def test_harbor_source_atif_wins_byte_for_byte_and_never_follows_embedded_paths(adapter):
+def test_typed_images_become_atif_image_parts_and_untyped_images_are_omitted(adapter, tmp_path):
     source = rollout()
-    source["atif_conversion"] = {
-        "source_trajectory_paths": ["/not-authorized/do-not-read.json"],
-        "trajectories": [{"session_id": "source-session"}],
-    }
-    with pytest.raises(adapter.ConversionError, match="--source-atif"):
-        normalize(adapter, source)
-    atif = {
-        "schema_version": "ATIF-v1.6",
-        "session_id": "source-session",
-        "agent": {"name": "real-agent", "version": "1.0"},
-        "steps": [{"step_id": 1, "source": "user", "message": "Original request"}],
-    }
-    exact = json.dumps(atif, indent=4).encode() + b"\n\n"
-    result, receipt = adapter.normalize(json.dumps(source).encode(), exact)
-    assert result == exact
-    assert json.loads(result)["schema_version"] == "ATIF-v1.6"
-    assert receipt["atif_bytes_preserved"] is True and receipt["source_kind"] == "atif"
-    wrong = copy.deepcopy(atif)
-    wrong["session_id"] = "wrong-session"
-    with pytest.raises(adapter.ConversionError, match="does not match"):
-        adapter.normalize(json.dumps(source).encode(), json.dumps(wrong).encode())
-
-
-def test_multistep_bridge_requires_explicit_original_not_first_output_last_reward(adapter):
-    source = rollout()
-    source["atif_conversion"] = {"trajectories": [{"session_id": "one"}, {"session_id": "two"}]}
-    with pytest.raises(adapter.ConversionError, match="multi-step"):
-        normalize(adapter, source, allow_projection=True)
-
-
-def test_structured_images_preserved_in_user_and_tool_content(adapter):
-    source = rollout()
-    source["responses_create_params"]["input"][0]["content"] = [{"type": "input_image", "image_url": IMAGE}]
-    source["response"]["output"][1]["output"] = [
-        {"type": "input_image", "image_url": "https://example.org/fixture.png"}
+    source["responses_create_params"]["input"][0]["content"] = [
+        {"type": "input_text", "text": "Describe this."},
+        {"type": "input_image", "image_url": IMAGE},
     ]
-    canonical, _ = normalize(adapter, source)
-    assert canonical["steps"][0]["message"][0]["source"]["path"] == IMAGE
-    assert canonical["steps"][1]["observation"]["results"][0]["content"][0]["type"] == "image"
-    assert "MIME inferred" in str(canonical["extra"]["normalization"]["uncertainties"])
-
-
-def test_bridge_serialized_images_recovered_not_treated_as_plain_instruction(adapter):
-    source = rollout()
-    image = {"type": "image", "source": {"media_type": "image/png", "path": "/unread/local.png"}}
-    source["atif_conversion"] = {"source_trajectory_paths": ["/unread/source.json"], "warnings": ["serialized images"]}
-    source["responses_create_params"]["input"][0]["content"] = json.dumps([image])
-    source["response"]["output"][2]["content"][0]["text"] = json.dumps([image])
-    canonical, receipt = normalize(adapter, source, allow_projection=True)
-    assert canonical["steps"][0]["message"] == [image]
-    assert canonical["steps"][-1]["message"] == [image]
-    assert receipt["losses"]
+    canonical, receipt, _ = convert(adapter, tmp_path, source)
+    assert canonical["steps"][0]["message"] == [
+        {"type": "text", "text": "Describe this."},
+        {"type": "image", "source": {"media_type": "image/png", "path": IMAGE}},
+    ]
     assert receipt["media_fetched"] is False
+    source["responses_create_params"]["input"][0]["content"] = [
+        {"type": "input_image", "image_url": "https://example.org/opaque"}
+    ]
+    canonical, receipt, _ = convert(adapter, tmp_path, source)
+    assert canonical["steps"][0]["message"] == "[image omitted: media type not recorded]"
+    assert "image_without_media_type_omitted" in receipt["losses"]
+    assert "example.org" not in json.dumps(canonical["steps"])
 
 
-def test_reasoning_summary_does_not_claim_verbatim_chain_of_thought(adapter):
+def test_agent_steps_keep_assistant_text_and_drop_reasoning(adapter, tmp_path):
     source = rollout()
     source["response"]["output"].insert(
         0,
@@ -196,56 +204,113 @@ def test_reasoning_summary_does_not_claim_verbatim_chain_of_thought(adapter):
             "encrypted_content": "OPAQUE-CONTENT",
         },
     )
-    canonical, _ = normalize(adapter, source)
-    step = canonical["steps"][1]
-    assert step["message"] == "" and "reasoning_content" not in step
-    assert step["extra"]["gym"]["reasoning_summary"][0]["text"] == "Recorded summary"
+    canonical, receipt, _ = convert(adapter, tmp_path, source)
+    assert "reasoning_not_exported" in receipt["losses"]
     assert "OPAQUE-CONTENT" not in json.dumps(canonical)
+    assert all("reasoning_content" not in step for step in canonical["steps"])
+    llm = next(step for step in canonical["steps"] if step.get("llm_call_count") == 1)
+    assert llm["message"] == "Done." and llm["model_name"] == "example-model"
+    assert "recorded result" not in llm["message"]
+
+
+def test_harbor_source_atif_wins_byte_for_byte_and_never_follows_embedded_paths(adapter, tmp_path):
+    source = rollout()
+    source["atif_conversion"] = {
+        "source_trajectory_paths": ["/not-authorized/do-not-read.json"],
+        "trajectories": [{"session_id": "source-session"}],
+    }
+    with pytest.raises(adapter.ConversionError, match="--source-atif"):
+        convert(adapter, tmp_path, source)
+    atif = {
+        "schema_version": "ATIF-v1.6",
+        "session_id": "source-session",
+        "agent": {"name": "real-agent", "version": "1.0"},
+        "steps": [{"step_id": 1, "source": "user", "message": "Original request"}],
+    }
+    exact = json.dumps(atif, indent=4).encode() + b"\n\n"
+    _, receipt, result = convert(adapter, tmp_path, source, exact)
+    assert result == exact
+    assert set(receipt) == RECEIPT_FIELDS
+    assert receipt["basis"] == "provided_atif" and receipt["source_kind"] == "atif"
+    assert receipt["atif_bytes_preserved"] is True and receipt["source_atif_sha256"] == adapter.digest(exact)
+    assert receipt["losses"] == [] and receipt["loader_version"] is None
+    wrong = copy.deepcopy(atif)
+    wrong["session_id"] = "wrong-session"
+    with pytest.raises(adapter.ConversionError, match="does not match"):
+        convert(adapter, tmp_path, source, json.dumps(wrong).encode())
+
+
+def test_bridge_projection_requires_explicit_opt_in(adapter, tmp_path):
+    source = rollout()
+    source["atif_conversion"] = {"source_trajectory_paths": ["/unread/source.json"]}
+    with pytest.raises(adapter.ConversionError, match="--allow-projection"):
+        convert(adapter, tmp_path, source)
+    _, receipt, _ = convert(adapter, tmp_path, source, allow_projection=True)
+    assert receipt["basis"] == "gym_projection"
+
+
+def test_multistep_bridge_requires_explicit_original_not_first_output_last_reward(adapter, tmp_path):
+    source = rollout()
+    source["atif_conversion"] = {"trajectories": [{"session_id": "one"}, {"session_id": "two"}]}
+    with pytest.raises(adapter.ConversionError, match="multi-step"):
+        convert(adapter, tmp_path, source, allow_projection=True)
 
 
 @pytest.mark.parametrize(
-    "mutation",
+    "mutation,message",
     [
-        "unknown-call",
-        "duplicate-call",
-        "non-object-arguments",
-        "unknown-type",
-        "opaque-image",
-        "remote-context",
-        "namespace",
+        ("unknown-call", "invalid Gym rollout"),
+        ("duplicate-call", "invalid Gym rollout"),
+        ("unknown-type", "unsupported Gym conversation item"),
+        ("remote-context", "remote conversation state"),
+        ("namespace", "namespaced Gym functions"),
+        ("not-gym", "rollout envelope or standalone Responses object"),
     ],
 )
-def test_unsupported_or_incomplete_mappings_fail_closed(adapter, mutation):
+def test_unsupported_or_incomplete_mappings_fail_closed(adapter, tmp_path, mutation, message):
     source = rollout()
     output = source["response"]["output"]
     if mutation == "unknown-call":
         output[1]["call_id"] = "missing"
     elif mutation == "duplicate-call":
         output.insert(1, copy.deepcopy(output[0]))
-    elif mutation == "non-object-arguments":
-        output[0]["arguments"] = "[]"
     elif mutation == "unknown-type":
         output[0]["type"] = "computer_call"
-    elif mutation == "opaque-image":
-        source["responses_create_params"]["input"][0]["content"] = [
-            {"type": "input_image", "image_url": "https://example.org/opaque"}
-        ]
     elif mutation == "remote-context":
         source["responses_create_params"]["previous_response_id"] = "not-fetched"
-    else:
+    elif mutation == "namespace":
         output[0]["namespace"] = "scope"
-    with pytest.raises(adapter.ConversionError):
-        normalize(adapter, source)
+    else:
+        source = {"ng_trajectory": {"schema_version": "1.0"}}
+    with pytest.raises(adapter.ConversionError, match=message) as error:
+        convert(adapter, tmp_path, source)
+    assert str(tmp_path) not in str(error.value)
+    assert list(tmp_path.iterdir()) == []
 
 
-def test_no_result_is_invented_for_failed_rollout(adapter):
+def test_no_result_is_invented_for_failed_rollout(adapter, tmp_path):
     source = rollout()
     source["response"]["output"] = source["response"]["output"][:1]
     source["response"]["status"] = "failed"
-    canonical, _ = normalize(adapter, source)
-    assert "observation" not in canonical["steps"][1]
-    assert canonical["extra"]["gym_source"]["response_status"] == "failed"
-    assert "no observations were invented" in str(canonical["extra"]["normalization"]["uncertainties"])
+    canonical, receipt, _ = convert(adapter, tmp_path, source)
+    [call] = tool_steps(canonical)
+    assert "observation" not in call
+    assert "tool_result_missing" in receipt["losses"]
+
+
+@pytest.mark.parametrize(("name", "row"), [("source.json", None), ("ambiguous.jsonl", 1)])
+def test_eval_fixtures_convert_to_prepare_compatible_atif(tmp_path, monkeypatch, name, row):
+    out = tmp_path / "converted"
+    code, result = cli(
+        "--input", str(EVAL_FILES / name), *(["--row", str(row)] if row else []), "--output-dir", str(out)
+    )
+    assert code == 0 and result["basis"] == "gym_projection"
+    receipt = json.loads((out / "conversion.json").read_text())
+    assert receipt["selected_line"] == row
+    monkeypatch.syspath_prepend(str(TRACE_ENVIRONMENT_SCRIPTS))
+    import trace_environment
+
+    trace_environment._validate_trajectory(json.loads((out / "trace.atif.json").read_text()))
 
 
 def test_jsonl_selection_private_output_and_no_overwrite(tmp_path):
@@ -261,6 +326,7 @@ def test_jsonl_selection_private_output_and_no_overwrite(tmp_path):
     assert code == 0 and result["source_kind"] == "gym"
     assert (out / "source.gym.json").read_bytes() == lines[1]
     assert json.loads((out / "trace.atif.json").read_text())["steps"][0]["message"] == "Second independent episode"
+    assert json.loads((out / "conversion.json").read_text())["selected_line"] == 2
     assert stat.S_IMODE(out.stat().st_mode) == 0o700
     assert all(stat.S_IMODE(p.stat().st_mode) == 0o600 for p in out.iterdir())
     before = {p.name: p.read_bytes() for p in out.iterdir()}
@@ -269,32 +335,18 @@ def test_jsonl_selection_private_output_and_no_overwrite(tmp_path):
     assert before == {p.name: p.read_bytes() for p in out.iterdir()}
 
 
-@pytest.mark.parametrize("serialized", [False, True])
-def test_prepare_accepts_gym_provenance_and_blocks_image_only_instruction(tmp_path, serialized):
-    source = tmp_path / "rollout.json"
+@pytest.mark.parametrize("image_only", [False, True])
+def test_prepare_accepts_gym_provenance_and_blocks_image_only_instruction(tmp_path, image_only):
     record = rollout()
-    record["responses_create_params"]["input"][0]["content"] = [{"type": "input_image", "image_url": IMAGE}]
-    flags = []
-    if serialized:
-        record["atif_conversion"] = {"source_trajectory_paths": ["/never-opened/original.json"]}
-        record["responses_create_params"]["input"][0]["content"] = json.dumps(
-            [{"type": "image", "source": {"media_type": "image/png", "path": IMAGE}}]
-        )
-        flags = ["--allow-projection"]
+    if image_only:
+        record["responses_create_params"]["input"][0]["content"] = [{"type": "input_image", "image_url": IMAGE}]
+    source = tmp_path / "rollout.json"
     source.write_text(json.dumps(record))
     out = tmp_path / "converted"
-    assert cli("--input", str(source), "--output-dir", str(out), *flags)[0] == 0
+    assert cli("--input", str(source), "--output-dir", str(out))[0] == 0
     helper = TRACE_ENVIRONMENT_SCRIPTS / "trace_environment.py"
     init = subprocess.run(
-        [
-            sys.executable,
-            str(helper),
-            "init",
-            "--root",
-            str(tmp_path / ".eval-author" / "tasks"),
-            "--task-id",
-            "gym-image",
-        ],
+        [sys.executable, str(helper), "init", "--root", str(tmp_path / ".eval-author" / "tasks"), "--task-id", "gym"],
         capture_output=True,
         text=True,
     )
@@ -316,11 +368,12 @@ def test_prepare_accepts_gym_provenance_and_blocks_image_only_instruction(tmp_pa
         text=True,
     )
     assert prepared.returncode == 0, prepared.stdout
-    assert json.loads(prepared.stdout)["blocking_reason_count"] == 1
+    assert json.loads(prepared.stdout)["blocking_reason_count"] == int(image_only)
     summary = json.loads((task / "summary.json").read_text())
     assert summary["source"]["kind"] == "gym"
-    assert "image_only_user_instruction:step-1" in summary["privacy"]["blocking_reasons"]
-    assert IMAGE not in (task / "safe/trace.atif.json").read_text()
+    if image_only:
+        assert "image_only_user_instruction:step-1" in summary["privacy"]["blocking_reasons"]
+        assert IMAGE not in (task / "safe/trace.atif.json").read_text()
     checked = subprocess.run(
         [sys.executable, str(helper), "check", "--task-dir", str(task)], capture_output=True, text=True
     )
@@ -362,10 +415,10 @@ def test_batch_gym_provenance_and_resume(tmp_path):
     assert summary["source"]["kind"] == "gym"
 
 
-def test_direct_conversion_enforces_raw_byte_limit(adapter, monkeypatch):
+def test_direct_conversion_enforces_raw_byte_limit(adapter, monkeypatch, tmp_path):
     monkeypatch.setattr(adapter, "MAX_SOURCE_BYTES", 8)
     with pytest.raises(adapter.ConversionError, match="raw-byte"):
-        adapter.normalize(json.dumps(rollout()).encode())
+        convert(adapter, tmp_path, rollout())
 
 
 def test_errors_do_not_echo_source_payload_and_duplicate_keys_are_rejected(tmp_path):
@@ -373,4 +426,20 @@ def test_errors_do_not_echo_source_payload_and_duplicate_keys_are_rejected(tmp_p
     source.write_text('{"secret":"DO-NOT-PRINT", "secret":"DO-NOT-PRINT"}')
     code, result = cli("--input", str(source), "--output-dir", str(tmp_path / "out"))
     assert code == 2 and "DO-NOT-PRINT" not in json.dumps(result)
+    assert not (tmp_path / "out").exists()
+
+
+def test_missing_sibling_loader_names_the_incomplete_installation(tmp_path):
+    lone = tmp_path / "skills/gym-to-atif/scripts"
+    lone.mkdir(parents=True)
+    shutil.copy2(SCRIPTS / "gym_to_atif.py", lone)
+    source = tmp_path / "rollout.json"
+    source.write_text(json.dumps(rollout()))
+    completed = subprocess.run(
+        [sys.executable, str(lone / "gym_to_atif.py"), "--input", str(source), "--output-dir", str(tmp_path / "out")],
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode != 0
+    assert "install the sibling eval-author skill alongside gym-to-atif" in completed.stderr
     assert not (tmp_path / "out").exists()

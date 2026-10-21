@@ -293,7 +293,7 @@ you need to create, validate, or run Harbor tasks.
 | Generate or validate an audit specification; aggregate measured coverage | Python 3.11+, PyYAML, and jsonschema. These operations read local evidence and do not call NeMo services. |
 | Measure coverage from ATIF traces | Python 3.12+ and the [audit dependencies](../skills/eval-author-audit/requirements.txt), including Harbor. Measurement does not start evaluation jobs. |
 | Convert exported MLflow traces | Python 3.11+ and the standard library. Live MLflow queries additionally need an existing MLflow environment and access to the store. |
-| Convert Gym traces with `gym-to-atif` | Python 3.11+ and the standard library for conversion. |
+| Convert Gym traces with `gym-to-atif` | Python 3.12–3.13, the skill's [requirements](../skills/gym-to-atif/requirements.txt) (`nemo-compass-trace-ingest` 0.2.0), and the sibling eval-author skill. |
 | Prepare and validate a trace-derived environment (**experimental**) | Python 3.11+, jsonschema 4.23+, and referencing 0.28.4+ for preparation; Harbor and Docker for Harbor checks, or the sibling task-create skill and Gym v0.6.0+ in Python 3.13.14+ for [native Gym output](../skills/eval-author-trace-environment/references/gym-output.md). |
 | Inspect NeMo Intake traces | A working `nemo` CLI, an explicit workspace, and read access to a configured local or remote NeMo Helix instance. |
 | Generate the Harbor HTML case/run report | Python 3.11+, jsonschema 4.23+, and markdown-it-py 4.x. Reads local task/run artifacts; no Harbor runtime, Docker, model access, or network is needed to render. See the [Report generation](../skills/eval-author/references/suite-readme.md#report-generation). |

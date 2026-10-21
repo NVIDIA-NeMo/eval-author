@@ -1,11 +1,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Render explicitly selected Gym records or standalone ATIF as private offline HTML.
+"""Render explicitly selected Gym records or loaded provider traces as private offline HTML.
 
 This is a reader, not a provider validator, converter, or case-to-run matcher.
 Only the named input is read. All recorded content is escaped text, including
-URLs, Markdown, tool arguments, and image references. Requires only Python 3.11+.
+URLs, Markdown, tool arguments, and image references. The ``gym-jsonl`` reader
+requires only Python 3.11+; every other format loads through the sibling
+``trace_loading.py`` and needs its pinned ``nemo-compass-trace-ingest``.
 """
 
 from __future__ import annotations
@@ -19,8 +21,14 @@ import math
 import os
 import re
 import stat
+import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from trace_ingest import Trace
+
+TRACE_FORMATS = ("atif", "mlflow", "gym", "trace")
 
 MAX_SOURCE_BYTES = 32 * 1024 * 1024
 MAX_SELECTED_BYTES = 8 * 1024 * 1024
@@ -212,89 +220,63 @@ class Renderer:
             )
         return body
 
-    def atif(self, record: dict) -> str:
-        version = record.get("schema_version")
-        if version not in tuple(f"ATIF-v1.{minor}" for minor in range(8)):
-            return self.problem("Unsupported or missing ATIF schema_version; use the raw record below.")
-        body = fields(
-            {
-                k: v
-                for k, v in record.items()
-                if k in {"schema_version", "session_id", "trajectory_id", "agent", "notes"}
-            }
-        )
-        steps = record.get("steps")
-        if not isinstance(steps, list) or not steps:
-            body += self.problem("Missing or malformed ATIF steps.") + fields(steps)
-        else:
-            for ordinal, step in enumerate(steps, 1):
-                if not isinstance(step, dict):
-                    body += self.problem(f"Malformed step at position {ordinal}.") + fields(step)
-                    continue
-                step_label = (
-                    f"Step {step['step_id']}" if "step_id" in step else f"Step at position {ordinal} (ID missing)"
-                )
-                label = f"{step_label} · {step.get('source', 'Unspecified source')}"
-                rendered = self.content(step.get("message"))
-                if step.get("is_copied_context") is True:
-                    rendered = '<p class="notice">Copied context (as recorded).</p>' + rendered
-                if "reasoning_content" in step:
-                    rendered += details("Recorded reasoning", fields(step["reasoning_content"]))
-                calls = step.get("tool_calls")
-                if calls is not None:
-                    if not isinstance(calls, list):
-                        rendered += self.problem("Malformed tool_calls list.") + fields(calls)
-                    else:
-                        for call in calls:
-                            if isinstance(call, dict):
-                                rendered += (
-                                    "<h4>Tool call: "
-                                    + escape(call.get("function_name", "Unspecified tool"))
-                                    + "</h4>"
-                                    + fields(call)
-                                )
-                            else:
-                                rendered += self.problem("Malformed tool call.") + fields(call)
-                observation = step.get("observation")
-                if observation is not None:
-                    rendered += "<h4>Tool results / observations</h4>"
-                    if isinstance(observation, dict) and isinstance(observation.get("results"), list):
-                        for result in observation["results"]:
-                            if isinstance(result, dict):
-                                rendered += fields({k: v for k, v in result.items() if k != "content"})
-                                if "content" in result and result["content"] is not None:
-                                    rendered += self.content(result["content"])
-                            else:
-                                rendered += self.problem("Malformed observation result.") + fields(result)
-                        rendered += remainder(observation, {"results"})
-                    else:
-                        rendered += self.problem("Malformed observation.") + fields(observation)
-                rendered += remainder(
-                    step, {"step_id", "source", "message", "reasoning_content", "tool_calls", "observation"}
-                )
-                body += f'<div class="message"><h3>{escape(label)}</h3>{rendered}</div>'
-        body += section("results", "Final metrics (as recorded)", fields(record.get("final_metrics")))
-        if record.get("continued_trajectory_ref") or record.get("subagent_trajectories"):
-            body += self.problem(
-                "Continuation references are not followed. Embedded subagents remain structured data below, outside the rendered transcript."
+    def trace(self, trace: Trace) -> str:
+        dump = trace.model_dump(mode="json")
+        body = fields({k: dump.get(k) for k in ("id", "schema_version", "source_url")})
+        pending = [(span, 0) for span in reversed(dump.get("root_spans") or [])]
+        if not pending:
+            body += self.problem("Trace has no spans.")
+        spans = ""
+        while pending:
+            span, depth = pending.pop()
+            pending.extend((child, depth + 1) for child in reversed(span.get("children") or []))
+            attributes = span.get("attributes") or {}
+            name = span.get("tool_name") or attributes.get("name") or ""
+            label = f"{span.get('kind', 'UNKNOWN')} · {name}" if name else str(span.get("kind", "UNKNOWN"))
+            rendered = fields(
+                {k: span[k] for k in ("id", "model", "start_time", "end_time") if span.get(k) is not None}
             )
-        body += section(
-            "metadata",
-            "Provenance, conversion limits, and other recorded fields",
-            fields(
-                {
-                    k: v
-                    for k, v in record.items()
-                    if k
-                    not in {"schema_version", "session_id", "trajectory_id", "agent", "notes", "steps", "final_metrics"}
-                }
-            ),
-        )
+            for key, title in (("input", "Input"), ("output", "Output")):
+                if key in span:
+                    value = span[key]
+                    rendered += f"<h4>{title}</h4>" + (text(value) if isinstance(value, str) else fields(value))
+            if span.get("error") is not None:
+                rendered += self.problem("Recorded span error follows.") + text(span["error"])
+            call = span.get("tool_call") or {}
+            for ordinal, result in enumerate(call.get("results") or [], 1):
+                rendered += f"<h4>Tool result {ordinal} · is_error: {escape(result.get('is_error'))}</h4>"
+                if "content" in result:
+                    content = result["content"]
+                    rendered += text(content) if isinstance(content, str) else fields(content)
+                if result.get("attributes"):
+                    rendered += details("Result attributes", fields(result["attributes"]))
+            rest = {k: v for k, v in span.items() if k in {"tool_call", "token_counts", "cost_usd"} and v is not None}
+            if attributes:
+                rest["attributes"] = attributes
+            if span.get("tool_definitions"):
+                rest["tool_definitions"] = span["tool_definitions"]
+            if rest:
+                rendered += details("Additional recorded fields", fields(rest))
+            spans += (
+                f'<div class="message" style="margin-left: {min(depth, 12) * 24}px">'
+                f"<h3>{escape(label)}</h3>{rendered}</div>"
+            )
+        body += section("spans", "Spans (depth-first)", spans)
+        if dump.get("attributes"):
+            body += section("metadata", "Trace attributes", fields(dump["attributes"]))
         return body
 
-    def record(self, raw: bytes | None, number: int, format_name: str, role: str, missing: str | None = None) -> str:
-        title = f"Row {number}" if format_name == "gym-jsonl" else "ATIF trajectory"
-        body = f'<article id="record-{number}" data-record="{number}"><a class="top" href="#top">Back to index</a><h2>{title}</h2>'
+    def trace_record(self, trace: Trace | None, number: int, role: str, problem: str | None = None) -> str:
+        body = f'<article id="record-{number}" data-record="{number}"><a class="top" href="#top">Back to index</a>'
+        body += f"<h2>Trace {number}</h2>"
+        body += f'<p class="badge">{escape(ROLES[role])} · caller-supplied label</p>'
+        if trace is None:
+            return body + self.problem(problem or "Trace could not be loaded.") + "</article>"
+        return body + self.trace(trace) + "</article>"
+
+    def record(self, raw: bytes | None, number: int, role: str, missing: str | None = None) -> str:
+        body = f'<article id="record-{number}" data-record="{number}"><a class="top" href="#top">Back to index</a>'
+        body += f"<h2>Row {number}</h2>"
         body += f'<p class="badge">{escape(ROLES[role])} · caller-supplied label</p>'
         if missing:
             return body + self.problem(missing) + "</article>"
@@ -316,7 +298,7 @@ class Renderer:
             elif not isinstance(record, dict):
                 body += self.problem("Unsupported record: expected a JSON object.")
             else:
-                body += self.gym(record, role) if format_name == "gym-jsonl" else self.atif(record)
+                body += self.gym(record, role)
         except (ValueError, RecursionError):
             body += self.problem(
                 "Malformed JSON record (including duplicate keys, non-finite numbers, or excessive nesting)."
@@ -406,23 +388,59 @@ def read_records(path: Path, rows: list[int] | None) -> list[tuple[int, bytes | 
     return records
 
 
-def document(
-    path: Path, records: list[tuple[int, bytes | None, str | None]], format_name: str, role: str
-) -> tuple[str, int]:
+def load_traces(path: Path, format_name: str) -> list[Trace]:
+    """Load through the sibling eval-author ``trace_loading`` module, imported only when needed."""
+    scripts = str(Path(__file__).resolve().parent)
+    if scripts not in sys.path:
+        sys.path.append(scripts)
+    try:
+        import trace_loading
+    except ModuleNotFoundError as exc:
+        if exc.name != "trace_loading":
+            raise
+        raise ReviewError(
+            "Incomplete skill installation: trace_loading.py is missing beside render_review.py."
+        ) from None
+
+    try:
+        trace_loading.check_installation()
+    except trace_loading.TraceLoadError as exc:
+        raise ReviewError(str(exc)) from None
+    return trace_loading.load_traces(path, format_name)
+
+
+def render_traces(renderer: Renderer, path: Path, format_name: str, role: str) -> list[tuple[int, str]]:
+    _number, raw, missing = read_records(path, None)[0]
+    if missing:
+        return [(1, renderer.trace_record(None, 1, role, missing))]
+    assert raw is not None
+    try:
+        traces = load_traces(path, format_name)
+    except ReviewError:
+        raise
+    except Exception:  # noqa: BLE001 - any loader failure is reported, never its content
+        return [(1, renderer.trace_record(None, 1, role, f"Malformed or unsupported {format_name} input; not loaded."))]
+    return [(number, renderer.trace_record(trace, number, role)) for number, trace in enumerate(traces, 1)]
+
+
+def document(path: Path, rows: list[int] | None, format_name: str, role: str) -> tuple[str, int, int]:
     renderer = Renderer()
+    if format_name == "gym-jsonl":
+        rendered = [
+            (number, renderer.record(raw, number, role, missing)) for number, raw, missing in read_records(path, rows)
+        ]
+    else:
+        rendered = render_traces(renderer, path, format_name, role)
     parts = []
     size = 0
-    for number, raw, missing in records:
-        part = renderer.record(raw, number, format_name, role, missing)
+    for _number, part in rendered:
         size += len(part.encode("utf-8", errors="xmlcharrefreplace"))
         if size > MAX_REPORT_BYTES:
             raise ReviewError("Rendered records exceed 32 MiB; select fewer rows.")
         parts.append(part)
     body = "".join(parts)
-    links = "".join(
-        f'<li><a href="#record-{number}">{"Row " + str(number) if format_name == "gym-jsonl" else "ATIF trajectory"}</a></li>'
-        for number, _, _ in records
-    )
+    noun = "Row" if format_name == "gym-jsonl" else "Trace"
+    links = "".join(f'<li><a href="#record-{number}">{noun} {number}</a></li>' for number, _ in rendered)
     page = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -430,19 +448,19 @@ def document(
 <title>Generated case review</title><style>{STYLE}</style></head>
 <body><header id="top"><p class="badge">EVAL AUTHOR · LOCAL REVIEW</p><h1>Generated case review</h1>
 <p><a href="{escape(path.as_uri())}">Original input</a>: {escape(path)}</p>
-<p>{len(records)} selected record(s) · {renderer.issues} issue(s) · {escape(format_name)}</p>
+<p>{len(rendered)} selected record(s) · {renderer.issues} issue(s) · {escape(format_name)}</p>
 <p class="muted">This snapshot contains selected source data. Keep it as private as the source.</p>
 <p class="notice">Labels are supplied by the caller. Rendering does not validate a task, prove execution or success,
 or associate a case with a run. Request and response remain in their recorded order and may overlap.
-Missing capture is not proof that an action did not happen. ATIF schema validity is not checked.</p>
+Missing capture is not proof that an action did not happen. Provider schema validity is not checked.</p>
 <nav aria-label="Selected records"><ul>{links}</ul></nav></header><main>{body}</main></body></html>"""
-    return page, renderer.issues
+    return page, renderer.issues, len(rendered)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, required=True)
-    parser.add_argument("--format", choices=("gym-jsonl", "atif"), required=True)
+    parser.add_argument("--format", choices=("gym-jsonl", *TRACE_FORMATS), required=True)
     parser.add_argument("--rows", type=select_rows, help="Gym physical lines, e.g. 1,3-5; required for JSONL")
     parser.add_argument("--evidence-role", choices=tuple(ROLES), required=True)
     parser.add_argument(
@@ -450,11 +468,10 @@ def main() -> int:
     )
     args = parser.parse_args()
     if (args.format == "gym-jsonl") != (args.rows is not None):
-        parser.error("--rows is required for gym-jsonl and cannot be used with atif")
+        parser.error("--rows is required for gym-jsonl and cannot be used with other formats")
     try:
         path = args.input.expanduser().absolute()
-        records = read_records(path, args.rows)
-        page, issues = document(path, records, args.format, args.evidence_role)
+        page, issues, count = document(path, args.rows, args.format, args.evidence_role)
         output = args.output_dir.expanduser().absolute()
         # mkdir is exclusive, including dangling symlinks. Never change an existing directory.
         output.mkdir(mode=0o700)
@@ -479,7 +496,7 @@ def main() -> int:
             {
                 "status": "attention" if issues else "ok",
                 "report": str(report),
-                "records": len(records),
+                "records": count,
                 "issues": issues,
             }
         )

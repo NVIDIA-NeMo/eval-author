@@ -203,8 +203,9 @@ If the location is unknown, ask the next focused source question rather than sea
 directory, platform accounts, or unrelated jobs for candidate traces.
 
 Once selected, inspect only that source to establish which records are accessible
-and usable. Audit measurement accepts local ATIF files or Harbor trial directories
-containing ATIF; selecting a remote source does not grant access or make it ATIF.
+and usable. Audit measurement accepts one local ATIF, MLflow export, Gym record, or
+normalized trace file, or a Harbor trial directory containing ATIF; selecting a
+remote source does not grant access or make it loadable.
 For other formats or inaccessible services, explain the needed local export or
 appropriate supported conversion. Do not query Intake or start platform discovery
 from this skill. Preserve the source selection and describe the limitation.
@@ -319,7 +320,7 @@ Reuse existing measurements only when their inputs still apply.
 If traces are absent, inaccessible, invalid, or unavailable in a supported format,
 name the specific limitation and needed evidence. Keep **Measure coverage**
 unchecked with the reason on its checklist line, such as “Deferred: selected
-trace directory is missing” or “Unavailable: run records need an ATIF export.”
+trace directory is missing” or “Unavailable: run records need a local trace export.”
 Preserve that reason in progress notes and every later checklist until resolved.
 Do not report 0% coverage, fabricate
 measurement files, or treat the lack of traces as uncovered behavior. The

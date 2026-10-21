@@ -2,13 +2,13 @@
 name: eval-author-trace-environment
 version: 1.7.0
 description: >-
-  Experimental workflow. Use Gym, MLflow, Intake, OpenTelemetry, or ATIF trace
+  Experimental workflow. Use Gym, MLflow, Intake, or ATIF trace
   evidence to derive a private, reproducible Harbor or native NeMo Gym task candidate.
 triggers:
   - create an evaluation environment from a trace
   - turn ATIF into a Harbor task environment
   - turn a trace into a native Gym task
-  - derive an eval task from Gym MLflow Intake or OpenTelemetry data
+  - derive an eval task from Gym MLflow or Intake data
 not-for:
   - eval-author (use for the shared standard and routing)
   - mlflow-to-atif (use only to normalize MLflow traces into ATIF)
@@ -17,7 +17,9 @@ not-for:
   - eval-author-inspect-trace (use to explain an Intake trace without creating an environment)
   - eval-author-environment (use when first-eval or task-create needs a reusable environment for its agreed cases)
 compatibility: >-
-  Python 3.11+, jsonschema 4.23+, referencing 0.28.4+; mlflow-to-atif for MLflow; gym-to-atif for Gym; nemo CLI for Intake; Harbor and
+  Python 3.11+, jsonschema 4.23+, referencing 0.28.4+; Python 3.12–3.13 and nemo-compass-trace-ingest 0.2.0
+  (requirements.txt) with the sibling eval-author trace loader for Compass loading; mlflow-to-atif for MLflow;
+  gym-to-atif for Gym; nemo CLI for Intake; Harbor and
   Docker for Harbor proof. Gym output uses the sibling eval-author-task-create
   scaffolder. Verify authoring runtimes using eval-author’s shared locator
   and runtime-policy.json.
@@ -109,8 +111,9 @@ before redirecting provider output there.
 Read and follow `references/sources.md`. One task per trace; never merge
 unrelated traces, and never invent an instruction, tool result, file, or final
 answer. Existing ATIF is used as-is; MLflow goes through `mlflow-to-atif`;
-Intake reads one exact trace plus every detailed span; bounded JSON OTLP
-exports map spans directly. For Gym, read and follow the `gym-to-atif` skill:
+Intake reads one exact trace plus every detailed span and exports ATIF through
+the sibling `eval-author` skill's shared loader; OpenTelemetry traces must be
+ingested into Intake first. For Gym, read and follow the `gym-to-atif` skill:
 prefer a retained Harbor ATIF, otherwise use its offline adapter.
 Record every missing or lossy field under
 `extra.normalization.uncertainties` or `extra.normalization.losses`. If no
@@ -122,7 +125,7 @@ complete human instruction exists, record no_candidate instead of guessing.
 python <skill_dir>/scripts/trace_environment.py prepare \
   --task-dir <task-dir> \
   --atif <canonical-atif-file> \
-  --source-kind <atif|mlflow|intake|otel|gym>
+  --source-kind <atif|mlflow|intake|gym>
 ```
 
 The helper retains an exact owner-private original, writes the bounded canonical

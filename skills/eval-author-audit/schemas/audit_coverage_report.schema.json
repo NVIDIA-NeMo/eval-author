@@ -74,7 +74,10 @@
         "artifacts": {
           "description": "Original artifact locations mapped to paths relative to this aggregate report.",
           "type": "object",
-          "additionalProperties": {"type": "string", "minLength": 1}
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "audit_sha256": {
           "type": "string",
@@ -332,6 +335,7 @@
       "required": [
         "trace",
         "trace_format",
+        "source_kind",
         "task_id",
         "run_id"
       ],
@@ -341,8 +345,17 @@
           "$ref": "#/$defs/pathString"
         },
         "trace_format": {
-          "description": "Trace serialization format understood by the measurement method.",
-          "const": "atif"
+          "description": "Normalized trace model the measurement method read.",
+          "const": "nemo-compass-trace"
+        },
+        "source_kind": {
+          "description": "Source format the trace was loaded from by the shared NeMo Compass loader.",
+          "enum": [
+            "atif",
+            "mlflow",
+            "gym",
+            "trace"
+          ]
         },
         "task_id": {
           "description": "Stable task, scenario, or case identifier for grouping measurements.",

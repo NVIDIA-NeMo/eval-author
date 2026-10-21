@@ -47,33 +47,33 @@ Write the converted traces to a new private directory at
 
 The [MLflow conversion skill](../skills/mlflow-to-atif/SKILL.md) accepts a
 `Trace.to_dict()` export, an array of exports, or a `{"traces": [...]}` object.
-It writes one owner-private `.atif.json` file per trace. Conversion preserves
-recorded evidence and reports losses; it cannot recover missing instructions
-or results.
+It loads the export through the pinned NeMo Compass loader and writes one
+owner-private `.atif.json` file per trace with Compass's ATIF exporter. Export
+records known losses under `extra.compass.loss_codes`; it cannot recover
+missing instructions or results.
 
 For Gym traces, use the standalone
 [Gym conversion skill](../skills/gym-to-atif/SKILL.md) with one
 rollout JSON record or one explicit JSONL line. Prefer the original Harbor ATIF
 when retained. The experimental trace-to-environment
 [source guide](../skills/eval-author-trace-environment/references/sources.md)
-describes the supported ATIF, Gym, MLflow, Intake, and bounded JSON
-OpenTelemetry inputs and their limits.
+describes the supported ATIF, Gym, MLflow, and Intake inputs and their limits;
+ingest OpenTelemetry traces into Intake first.
 
 ## Load shared normalized evidence
 
-The Gym and MLflow skills can also use NeMo Compass's pinned `nemo-compass`
-distribution to retain normalized provider evidence with its bundled
-`trace_ingest` loaders. See the
-[Gym loader guide](../skills/gym-to-atif/references/trace-intel-ingest.md) for
-native `ng_trajectory` captures and the
-[MLflow loader guide](../skills/mlflow-to-atif/references/trace-intel-ingest.md)
-for complete bounded exports. These optional commands need Python 3.12 or 3.13
-and the documented dependencies; loading makes no model calls or live queries.
+Eval Author loads provider traces through one shared module,
+`skills/eval-author/scripts/trace_loading.py`, backed by NeMo Compass's pinned
+`nemo-compass-trace-ingest` distribution. It normalizes ATIF, MLflow, Gym, and
+Intake evidence into Compass `Trace` objects and can export each trace as ATIF.
+See the [trace loading guide](../skills/eval-author/references/trace-loading.md).
+Loading needs Python 3.12 or 3.13 and the skill's `requirements.txt`; it makes
+no model calls or live queries.
 
-Their output is a NeMo Compass model, not an ATIF trajectory. Keep using the
-ATIF converters for coverage measurement or experimental environment derivation.
-A capture that loads successfully can still lack sufficient interaction evidence
-for either workflow.
+The normalized `traces.normalized.jsonl` is not an ATIF trajectory; only the
+files it writes under `atif/` with `--emit-atif` are. A capture that loads
+successfully can still lack sufficient interaction evidence for coverage
+measurement or experimental environment derivation.
 
 ## Build an evaluation task
 
@@ -109,7 +109,7 @@ Review privacy and ground truth, complete the native task, and validate it
 with the installed Gym runtime. Retain controls and exact rerun instructions.
 ```
 
-The source can be ATIF, Gym, MLflow, Intake, or supported OpenTelemetry data;
+The source can be ATIF, Gym, MLflow, or Intake (including OpenTelemetry ingested into Intake);
 source format does not select the output provider. No audit coverage report is
 required. The [Gym extension](../skills/eval-author-trace-environment/references/gym-output.md)
 shares trace preparation and candidacy, then reuses Gym's native scaffolder,

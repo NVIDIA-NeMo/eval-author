@@ -5,7 +5,7 @@ description: >-
   Generate, validate, measure, and report on an audit-spec coverage denominator
   for Eval Author. Use when the user wants a hand-editable audit.md file derived
   from Ethos, needs schema enforcement for declared tools, capabilities, failure
-  cases, evidence, and references, wants to measure which audit items one ATIF
+  cases, evidence, and references, wants to measure which audit items one
   trace covers, wants to aggregate coverage across measured traces, or accepts
   a coverage audit of existing evals. Changes
   none of the user's source, and saves audit artifacts under `.eval-author/`.
@@ -13,7 +13,7 @@ triggers:
   - audit my existing evals
   - generate audit.md from ETHOS.md
   - validate audit.md coverage schema
-  - measure audit.md coverage against a harbor trace
+  - measure audit.md coverage against a harbor, mlflow, or gym trace
   - aggregate audit.md coverage reports
   - check audit.md coverage denominator
   - what should my evals cover from the agent ethos
@@ -25,8 +25,8 @@ not-for:
   - eval-author-inspect-trace (use after eval-author selects an Intake trace)
   - nemo-experimentalist (use to optimize an agent from Insights or explicit datasets)
 compatibility: >-
-  Python 3.11 or later for generation and validation; Python 3.12 or later for
-  ATIF measurement via Harbor's trajectory model. Dependencies are listed in requirements.txt.
+  Python 3.11 or later for generation and validation; Python 3.12–3.13 and
+  nemo-compass-trace-ingest 0.2.0 for trace measurement. Dependencies are listed in requirements.txt.
   Generation, validation, measurement, and aggregation read local files only;
   they do not start Harbor jobs or call platform services.
 maturity: alpha
@@ -43,7 +43,7 @@ allowed-tools: Bash Read Write Grep Glob
 
 Read `eval-author` for the shared standard, vocabulary, and boundaries. This
 sub-flow generates and validates a finite coverage denominator from `<ethos_path>` and
-reviewed audit items, then can measure ATIF traces and aggregate coverage reports
+reviewed audit items, then can measure traces and aggregate coverage reports
 against it. It also writes a human-readable `audit-coverage-report.md` and reviews
 the findings with the user. It does not generate tasks yet.
 
@@ -182,13 +182,13 @@ audit; keep their scope. Read-only and `suggest` requests remain read-only.
 Audit-spec mechanics live under `scripts/audit_spec/`:
 
 Read `scripts/audit_spec/README.md` for the current measurement assumptions:
-ATIF input, Harbor trajectory parsing, v1 `tool_calls`, `capabilities`, and
-`failure_cases` coverage, and coverage aggregation from `coverage.json` files.
+ATIF, MLflow, Gym, or normalized trace input loaded through NeMo Compass, v2
+`tool_calls`, `capabilities`, and `failure_cases` coverage, and coverage aggregation from `coverage.json` files.
 
 | Script | Use it to |
 |---|---|
 | `scripts/audit_spec/generate.py` | Create, reconcile, replace, or preview `.eval-author/audit.md` from `ETHOS.md` and reviewed item proposals |
-| `scripts/audit_spec/measure.py` | Measure one ATIF trace or Harbor trial directory against `audit.md` and write coverage/details files for each selected method |
+| `scripts/audit_spec/measure.py` | Measure one ATIF/MLflow/Gym/normalized trace or Harbor trial directory against `audit.md` and write coverage/details files for each selected method |
 | `scripts/audit_spec/report.py` | Aggregate per-trace `coverage.json` files into one coverage report with uncovered audit items |
 | `scripts/audit_spec/validate.py` | Validate the marked audit-spec block in `audit.md` |
 
@@ -332,11 +332,12 @@ provided and cross-item references such as `required_tools` and `applies_to`.
 Validation proves only structure and references, not that the denominator is
 complete or correct.
 
-## Step 4: Measure One ATIF Trace
+## Step 4: Measure One Trace
 
 After validation and the guided audit's specification review (when applicable),
-measure one completed trial directory or one ATIF trajectory file from the
-user-confirmed source. If that input is missing or unusable, follow the guided
+measure one completed trial directory or one trace file from the
+user-confirmed source. `--source-kind atif|mlflow|gym|trace` (default `atif`)
+selects the one-trace `--trace` format; `trace` is eval-author `trace_loading.py` output. If that input is missing or unusable, follow the guided
 audit's unavailable-evidence guidance; do not search elsewhere without the
 user selecting another location. Use `--measure` to select one or more
 comma-separated measurement methods; the default is `tool_calls`.
@@ -357,13 +358,14 @@ uv run --with-requirements <skill_dir>/requirements.txt \
 ```
 
 Harbor trial dirs normally contain `agent/trajectory.json`; pass `--evidence-class`
-to override stamping. `--trace` does not infer runner role from ATIF bytes alone.
+to override stamping. `--trace` does not infer runner role from trace bytes alone.
 
 ```bash
 uv run --with-requirements <skill_dir>/requirements.txt \
   <skill_dir>/scripts/audit_spec/measure.py \
   --audit .eval-author/audit.md \
   --trace <path-to>/trajectory.json \
+  --source-kind atif \
   --task-id <task-id> \
   --run-id <run-id> \
   --evidence-class agent_under_test \
@@ -374,8 +376,8 @@ uv run --with-requirements <skill_dir>/requirements.txt \
 `--measure` may be passed more than once or as CSV, for example
 `--measure tool_calls,capabilities,failure_cases`. The default is `tool_calls`;
 include the other methods when the user wants the same trace to count against
-capability or failure-case items. The script loads the trajectory once, then runs
-each selected method against the same parsed Harbor trajectory model. Unknown
+capability or failure-case items. The script loads the trace once through NeMo
+Compass and runs each method on that `Trace`; tool calls are TOOL spans (`span_id`). Unknown
 method names fail before the trace is loaded.
 
 When capability evidence contains non-tool kinds such as `user_intent`, `output`,
@@ -386,7 +388,7 @@ capability `name` plus the zero-based `evidence_required` index, copy the
 evidence `kind` and `description` exactly, and judge only non-tool evidence. Do
 not write judgments for `tool_call`; the script measures those deterministically.
 Set the sidecar's required `trace_sha256` to `sha256:` followed by the lowercase
-SHA-256 digest of the exact ATIF trajectory file you inspected. Measurement
+SHA-256 digest of the exact trace file you inspected. Measurement
 rejects the sidecar if those trace bytes have changed or another trace is used.
 Use the capability description, evidence description, and concrete trace content
 as the rubric: mark `satisfied` only when the trace clearly demonstrates the
@@ -402,6 +404,7 @@ uv run --with-requirements <skill_dir>/requirements.txt \
   <skill_dir>/scripts/audit_spec/measure.py \
   --audit .eval-author/audit.md \
   --trace <path-to>/trajectory.json \
+  --source-kind atif \
   --task-id <task-id> \
   --run-id <run-id> \
   --measure capabilities \
@@ -427,6 +430,7 @@ uv run --with-requirements <skill_dir>/requirements.txt \
   <skill_dir>/scripts/audit_spec/measure.py \
   --audit .eval-author/audit.md \
   --trace <path-to>/trajectory.json \
+  --source-kind atif \
   --task-id <task-id> \
   --run-id <run-id> \
   --measure failure_cases \
@@ -512,9 +516,7 @@ gaps to [`eval-author-task-create`](../eval-author-task-create/SKILL.md) using
 ## Prerequisites
 
 Establish Ethos and review audit items first. Generation/validation need Python 3.11+, PyYAML, and jsonschema; no provider probe.
-ATIF measurement from Harbor or NeMo Gym needs Python 3.12+ and Harbor's trajectory model; use `requirements.txt`.
-Use the [shared locator](../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks) with `--provider harbor --flow audit`.
-For Gym traces, follow [Gym audit inputs](references/gym-audit.md); offline conversion and measurement need no Gym runtime. Commands read local files, not services.
+Trace measurement needs Python 3.12+, `requirements.txt`, and the sibling eval-author skill's `trace_loading.py`; no provider runtime or locator probe. For Gym traces, follow [Gym audit inputs](references/gym-audit.md). Commands read local files, not services.
 
 ## Limitations
 
@@ -526,8 +528,8 @@ uncovered. It does not establish task quality, agent correctness, or absent scen
 
 - Invalid tool or capability reference: match the declared stable `name`, repair
   the audit item, and rerun `validate.py` before measurement.
-- Missing or invalid ATIF: obtain the original trajectory or a supported
-  conversion; a reward alone cannot substitute for interaction evidence.
+- Missing or unloadable trace: obtain the original trace in a supported
+  source kind; a reward alone cannot substitute for interaction evidence.
 - Stale judgment digest or target: inspect the current trace and evidence
   requirement, regenerate the judgment, and remeasure; never relabel old evidence.
 - Aggregate metadata mismatch: remeasure against the current audit. A status-only

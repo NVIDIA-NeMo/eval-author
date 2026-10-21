@@ -101,11 +101,15 @@ def scaffold_trace_draft(tmp_path, *, gym_rollouts=None):
         source.write_text(synthetic_atif)
     else:
         scripts = ROOT / "skills/gym-to-atif/scripts"
-        for script, directory in (("gym_to_atif.py", "converted"), ("load_gym_trace.py", "ng-evidence")):
+        loader = ROOT / "skills/eval-author/scripts/trace_loading.py"
+        for command, directory in (
+            ([str(scripts / "gym_to_atif.py")], "converted"),
+            ([str(loader), "--source-kind", "gym"], "ng-evidence"),
+        ):
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(scripts / script),
+                    *command,
                     "--input",
                     str(gym_rollouts),
                     "--row",
@@ -121,19 +125,23 @@ def scaffold_trace_draft(tmp_path, *, gym_rollouts=None):
         raw = gym_rollouts.read_bytes().splitlines(keepends=True)[0]
         converted = task_dir / "private/converted"
         assert (converted / "source.gym.json").read_bytes() == raw
-        normalized = json.loads((task_dir / "private/ng-evidence/trace.normalized.json").read_text())
+        [normalized_line] = (task_dir / "private/ng-evidence/traces.normalized.jsonl").read_text().splitlines()
+        normalized = json.loads(normalized_line)
         assert normalized["attributes"]["gym"]["ng_trajectory"] == json.loads(raw)["ng_trajectory"]
         source = converted / "trace.atif.json"
         atif = json.loads(source.read_text())
         instruction_text = next(step["message"] for step in atif["steps"] if step["source"] == "user")
-        assert atif["steps"][1]["tool_calls"][0]["function_name"] == "ledger_total"
+        tool_names = [call["function_name"] for step in atif["steps"] for call in step.get("tool_calls", [])]
+        assert "ledger_total" in tool_names
         # Attachment-only evidence loads, but is not silently promoted to an ATIF trajectory.
         attachment = task_dir / "private/attachment-only.json"
         attachment.write_text(json.dumps({"ng_trajectory": json.loads(raw)["ng_trajectory"]}))
         loaded = subprocess.run(
             [
                 sys.executable,
-                str(scripts / "load_gym_trace.py"),
+                str(loader),
+                "--source-kind",
+                "gym",
                 "--input",
                 str(attachment),
                 "--output-dir",

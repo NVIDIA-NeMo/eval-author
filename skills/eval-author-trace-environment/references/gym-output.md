@@ -30,18 +30,21 @@ both `responses_create_params` / `response` and an `ng_trajectory` attachment
 can follow this path after workspace initialization:
 
 ```bash
-python <skill_dir>/../gym-to-atif/scripts/gym_to_atif.py \
+uv run --with-requirements <skill_dir>/../gym-to-atif/requirements.txt \
+  <skill_dir>/../gym-to-atif/scripts/gym_to_atif.py \
   --input <rollouts.jsonl> --row 1 --output-dir <task-dir>/private/converted
 python <skill_dir>/scripts/trace_environment.py prepare \
   --task-dir <task-dir> --atif <task-dir>/private/converted/trace.atif.json \
   --source-kind gym
 ```
 
-The ATIF converter uses the Responses envelope, not the attachment. To inspect
-native attachment evidence as well, use the sibling
-[NeMo Compass loader](../../gym-to-atif/references/trace-intel-ingest.md) on the
-same row and retain its output under `private/ng-evidence/`. Those normalized
-files are not ATIF. An attachment-only export can be loaded for inspection but
+The ATIF converter loads the record through NeMo Compass, which builds the trace
+from the schema 1.0 attachment when present. To retain the normalized Compass
+evidence as well, run the sibling eval-author
+[NeMo Compass trace loader](../../eval-author/references/trace-loading.md) with
+`--source-kind gym` on the same row and retain its output under
+`private/ng-evidence/`. Its `traces.normalized.jsonl` is not ATIF. An
+attachment-only export can be loaded for inspection but
 cannot currently enter `prepare`; it needs a complete supported Responses
 record, original ATIF, or a separately implemented and tested ATIF mapping.
 Do not manufacture a Responses envelope from invocation history to bypass this

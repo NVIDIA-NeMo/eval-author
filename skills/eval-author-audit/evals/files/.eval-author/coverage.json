@@ -52,7 +52,8 @@
         "run_id": "baseline-01",
         "task_id": "lookup-baseline",
         "trace": "traces/lookup.atif.json",
-        "trace_format": "atif"
+        "trace_format": "nemo-compass-trace",
+        "source_kind": "atif"
       }
     }
   ],

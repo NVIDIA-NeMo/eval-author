@@ -51,21 +51,27 @@ nemo intake traces get --output-format=json --workspace="WORKSPACE" --mode=detai
 nemo intake spans list --output-format=json --workspace="WORKSPACE" --filter.trace-id="TRACE_ID" --mode=detailed --sort=started_at --all-pages > <task-dir>/private/intake-spans.json
 ```
 
-Require every returned span's `trace_id` to match the selected trace. Convert
-those records to ATIF: root input becomes the user instruction; model output
-becomes agent steps; each tool span becomes a paired tool call and observation;
-errors and unmapped attributes remain cited in `extra.intake`. If there is no
-complete human instruction, record no_candidate.
+Load both files through the sibling `eval-author` skill's shared NeMo Compass
+loader, which rejects any span whose `trace_id` differs from the selected trace,
+and export the trace as ATIF. `--output-dir` must not exist yet:
+
+```bash
+uv run --with-requirements <eval-author skill>/requirements.txt \
+  <eval-author skill>/scripts/trace_loading.py --source-kind intake \
+  --input <task-dir>/private/intake-trace.json \
+  --spans <task-dir>/private/intake-spans.json \
+  --workspace WORKSPACE --output-dir <task-dir>/private/intake \
+  --emit-atif --agent-name <agent name>
+```
+
+Then pass the emitted file to
+`prepare --atif <task-dir>/private/intake/atif/<file> --source-kind intake`.
+The loader's errors are content-free. When it fails, check privately whether
+the trace has a complete human instruction; if not, record no_candidate.
 
 ## OpenTelemetry
 
-Prefer an existing Intake trace produced from the telemetry and use the Intake
-path above. For a bounded JSON OTLP export, map the root and descendant spans
-directly using the same rules, preserving trace IDs, span IDs, parent IDs,
-timestamps, status, and semantic attributes under `extra.otel`. Do not parse
-protobuf bytes, contact a collector, or ingest remote data in this flow. If the
-export cannot establish parentage or a human instruction, record no_candidate
-instead of guessing.
+OTel traces must be ingested into Intake first; then follow the Intake path above.
 
 ## Canonical verification and bounded normalization
 

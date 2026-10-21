@@ -50,7 +50,8 @@ compatibility: >-
   Discovery, audit, and task creation use the local checkout.
   Task execution requires the selected Gym or Harbor runtime and may require Docker and provider
   credentials. Trace inspection requires the nemo CLI, an explicit workspace,
-  and read access to configured Intake.
+  and read access to configured Intake. Trace loading requires Python 3.12–3.13
+  and nemo-compass-trace-ingest 0.2.0 from requirements.txt.
 maturity: alpha
 license: Apache-2.0
 user-invocable: true
@@ -290,6 +291,11 @@ tool gaps and uses the selected Gym or Harbor native scaffolder rather than gues
 layout. For a requested full workflow, proceed from audit to proposals even when
 there are no eligible tool gaps; an audit-only request ends with the findings.
 
+Sub-flows that read provider traces load them through the shared
+`scripts/trace_loading.py`, which normalizes ATIF, MLflow, Gym, and Intake
+evidence into NeMo Compass traces and exports ATIF when a task artifact needs it.
+Read [Trace loading](references/trace-loading.md) before running it.
+
 ## Select the evaluation provider
 
 Use the same rule for first-eval, audit-derived task creation, and trace-derived
@@ -304,9 +310,10 @@ has the final say and can override the default or request a provider change.
 All flows that need a runtime use the shared
 [runtime locator and policy](references/runtime-prerequisites.md#runtime-prerequisite-checks).
 Use `--flow authoring` for first-eval, task-create, environment, and trace-derived
-authoring; `--flow discovery` for readiness; `--flow audit` when audit needs a
-provider runtime. This does not add runtime requirements to file-only inventory,
-planning, or provider-independent audit work. Keep the selected Python/CLI pair
+authoring and `--flow discovery` for readiness. Audit needs no provider runtime:
+measurement reads traces through NeMo Compass from the audit skill's
+`requirements.txt`. This does not add runtime requirements to file-only inventory
+or planning. Keep the selected Python/CLI pair
 and recorded version; missing setup or ambiguity never authorizes a provider switch.
 
 Select the output provider independently of the evidence source: a Gym trace

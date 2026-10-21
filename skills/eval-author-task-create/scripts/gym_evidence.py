@@ -180,7 +180,7 @@ def build(
     if trace is not None:
         conversion = read(Path(source["conversion"]))
         if (
-            conversion.get("schema") != "nemo.eval_author.gym_to_atif.v1"
+            conversion.get("schema") != "nemo.eval_author.gym_to_atif.v2"
             or conversion.get("gym_sha256") != "sha256:" + hashlib.sha256(raw).hexdigest()
             or conversion.get("atif_sha256") != "sha256:" + digest(trace)
             or conversion.get("selected_line") != index

@@ -219,6 +219,7 @@ _PRIVATE_KEY_BYTES = re.compile(rb"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
 _BEARER_BYTES = re.compile(rb"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}")
 _CREDENTIALED_URL_BYTES = re.compile(rb"(?i)https?://[^\s/:@]+:[^\s/@]+@")
 _BATCH_MEMBER_KEYS = frozenset({"task_id", "atif", "source_kind"})
+_PREPARE_SOURCE_KINDS = ("atif", "intake", "mlflow", "gym")
 _MIN_VALIDATION_RUNS = {"nop": 2, "oracle": 2, "negative": 1, "copy": 0}
 
 
@@ -325,7 +326,7 @@ def _load_summary(task_dir: Path) -> dict[str, Any]:
     if source is not None and (
         not isinstance(source, dict)
         or set(source) != _SOURCE_KEYS
-        or source.get("kind") not in ("atif", "intake", "mlflow", "otel", "gym")
+        or source.get("kind") not in _PREPARE_SOURCE_KINDS
         or source.get("original_path") != "private/source.atif.json"
         or source.get("canonical_path") != "private/canonical.atif.json"
         or source.get("safe_path") != "safe/trace.atif.json"
@@ -3392,7 +3393,7 @@ def _load_batch_manifest(path: Path) -> list[dict[str, Any]]:
         atif = member.get("atif")
         if not isinstance(atif, str) or not atif.strip():
             raise ContractError(f"batch manifest member {index}.atif must be nonempty text")
-        if member.get("source_kind") not in {"atif", "intake", "mlflow", "otel", "gym"}:
+        if member.get("source_kind") not in _PREPARE_SOURCE_KINDS:
             raise ContractError(f"batch manifest member {index}.source_kind is not recognized")
     return members
 
@@ -3765,7 +3766,7 @@ def _parser() -> argparse.ArgumentParser:
     prepare = subparsers.add_parser("prepare", help="validate and scrub one canonical ATIF trajectory")
     prepare.add_argument("--task-dir", required=True, type=Path)
     prepare.add_argument("--atif", required=True, type=Path)
-    prepare.add_argument("--source-kind", choices=("atif", "intake", "mlflow", "otel", "gym"), required=True)
+    prepare.add_argument("--source-kind", choices=_PREPARE_SOURCE_KINDS, required=True)
     prepare.set_defaults(run=_prepare)
 
     audit = subparsers.add_parser("audit-evidence", help="report observation coverage without inferring correctness")
