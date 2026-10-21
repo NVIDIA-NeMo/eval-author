@@ -42,3 +42,25 @@ The initial backend is `local_harbor`, pinned to Harbor 0.20.0. Its settings are
 by default). NeMo Helix is a future backend. Native Harbor settings and coverage
 commands are trusted local programs, not a sandbox or secret store. Supply
 credentials through the runtime environment, not benchmark YAML committed to Git.
+
+## Validate a results directory
+
+```bash
+uv run python labs/metric-benchmark/validate_results.py \
+  --benchmark benchmark.yaml --case case-id \
+  --results-root execution-results --output validation.json
+```
+
+Library: `validate_results(raw, case, results_root, benchmark_root)`.
+Every configured agent/task pair must be accounted for, with one selected run per
+agent and an explicit attempt policy. The validator checks native Harbor trial
+identities, configured agents, completion status, measurements, and safe evidence
+paths; it hashes the files for subsequent change detection. The initial validator
+reads native directories, not archives or multi-step trial aggregations.
+A missing execution is an explicit `status: missing` entry with a null measurement
+and `unavailable_evidence.native_results` reason. A completed verifier zero is a
+valid observation; an execution exception is unavailable even if it saved a reward.
+Store the validation report outside the results root.
+
+These checks establish artifact consistency, not mutation activation, verifier
+correctness, or scientific validity. Such qualification belongs to prepared cases.
