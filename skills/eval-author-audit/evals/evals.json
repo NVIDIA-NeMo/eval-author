@@ -4,11 +4,13 @@
     {
       "id": "audit-shared-entry",
       "prompt": "Audit coverage of my existing evaluations against /workspace/input/ETHOS.md. I have not selected traces. Start the shared prerequisite and Ethos flow; do not search or read traces.",
-      "expected_output": "Shows the shared three-item checklist with Check what your existing evaluations cover selected. Reuses the supplied agent context for bounded prerequisite and Ethos work. Uses ethos-orchestrate for Ethos confirmation. Keeps runtime probes, trace searches, and measurement out of the shared prerequisite flow; records any working state under .eval-author/.working/.",
+      "expected_output": "Welcomes the user with the fixed core welcome before the checklist. Shows the shared three-item checklist with Check what your existing evaluations cover selected. Reuses the supplied agent context for bounded prerequisite and Ethos work. Uses ethos-orchestrate for Ethos confirmation. Keeps runtime probes, trace searches, and measurement out of the shared prerequisite flow; records any working state under .eval-author/.working/. The welcome and checklist appear together in the final user-facing response before findings or the next question, not only in progress messages.",
       "assertions": [
+        "Introduces the requested help with a brief welcome before showing the checklist. The welcome followed by the checklist must appear in the final user-facing response before findings or the next question; progress-only text does not satisfy this",
         "Shows Check how your agent runs and how you’ll test it, Agree on how your agent behaves using ETHOS.md, and Check what your existing evaluations cover. ETHOS.md links to https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md.",
         "Uses the supplied Ethos through the shared orchestrator without rewriting unconfirmed content.",
-        "Does not probe runtimes, search or read unselected traces, measure coverage, or create working files outside .eval-author/.working/."
+        "Does not probe runtimes, search or read unselected traces, measure coverage, or create working files outside .eval-author/.working/.",
+        "copies this welcome exactly before the checklist in the final response: Welcome to Eval Author! I’ll help you evaluate your agent against the behavior you expect. Here’s what we’ll work through: Preserves the exact checklist labels and link; scope limits appear afterward, not as added item text"
       ],
       "expected_skill": "eval-author-audit",
       "files": [

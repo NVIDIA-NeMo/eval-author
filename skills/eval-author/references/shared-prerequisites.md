@@ -12,7 +12,11 @@ existing input requirements and do not acquire a full onboarding checklist.
 
 Read the repository's supplied agent files and documentation with bounded reads.
 Reuse known identity, repository paths, runtime choice, and answers. Ask for an
-accessible path or agent identity only if unresolved. Do not enumerate or read
+accessible path or agent identity only if unresolved. When naming the agent or
+setup, make its basis clear: the user's request, repository documentation,
+the existing suite, or a previously confirmed answer. Describe inferred identity
+and default choices as such; neither is a user confirmation. Reuse explicit
+choices without asking the user to select them again. Do not enumerate or read
 traces before the user selects their source and location.
 
 Honor the user's Gym or Harbor choice, otherwise preserve the selected suite's

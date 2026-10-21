@@ -74,6 +74,10 @@ Use the requested outcome and prior answers before asking a question. Creating,
 auditing, and improving evals use the **Shared prerequisites and Ethos** flow
 below for Gym and Harbor, including direct invocations of their skills.
 
+Use the fixed welcome and checklist under **Shared prerequisites and Ethos**
+below. If the goal is unclear, show that welcome before asking the goal question,
+then show the checklist once the goal is selected.
+
 | Request | Route after shared prerequisites and Ethos |
 |---|---|
 | Build first evals | `eval-author-first-eval`, continuing at the first unfinished authoring stage |
@@ -101,16 +105,23 @@ absent. Supported trace conversion retains its existing dedicated skills.
 
 ### Shared prerequisites and Ethos
 
-Show a three-item checklist before starting the shared flow. Use literal
-checkboxes and mark the current item **We're here**. For first evaluations:
+Copy this welcome and checklist verbatim into the final user-facing response,
+rendered as Markdown. Show them together before findings or the next question;
+progress or thinking messages alone do not satisfy this opening.
 
-- [ ] **Check how your agent runs and how you’ll test it** — identify the repository and agent and confirm the prerequisites relevant to your goal
-- [ ] **Agree on how your agent behaves using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)** — agree on its purpose, expected behavior, boundaries, and success criteria
-- [ ] **Create your first evaluations** — build and validate evaluations using the agreed scope
+Welcome to Eval Author! I’ll help you evaluate your agent against the behavior you expect. Here’s what we’ll work through:
+
+- [ ] **Check how your agent runs and how you’ll test it** — **We're here**
+- [ ] **Agree on how your agent behaves using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)**
+- [ ] **Create your first evaluations**
 
 For an audit, replace the third item with **Check what your existing evaluations cover**.
-For improvements, use **Improve your existing evaluations**. Show only the
-selected third item and reuse completed items and pending questions on return.
+For improvements, use **Improve your existing evaluations**. These exact third-item
+labels, completed checkboxes, and the position of **We're here** are the only
+variations. Keep the welcome, checklist wording, order, and Ethos link unchanged.
+Put scope limits and other explanations after the checklist rather than adding
+them to its items. On resume, use the same opening with saved progress and the
+pending question; do not reset completed items.
 Explain findings and ask for missing decisions or content confirmation.
 Record user-confirmed prerequisites separately from runtime verification.
 Mark each step complete when its work and required review are finished.

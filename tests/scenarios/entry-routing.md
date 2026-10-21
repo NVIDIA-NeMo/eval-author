@@ -8,7 +8,8 @@ expansion requests. This is a manual protocol, not an execution record or a
 claim of passing model evaluation. Use fresh, isolated synthetic workspaces
 with the sibling skills available and no customer data or provider credentials.
 Retain replies, channels, tool calls, and delegation logs. Judge the selected
-workflow and actions, not exact phrasing.
+workflow and actions. The fixed welcome and checklist must also match the core
+skill's exact wording.
 
 The [offline scope checker](../../docs/determinism-checks.md#workflow-scope) makes a subset
 of these route and effect expectations executable against normalized captures.
@@ -21,6 +22,17 @@ repositories. The first orientation has the same three checklist items: confirm
 the agent/setup, confirm Ethos, then the selected build/audit/improve item. If the
 goal is unknown, ask whether to create, audit, or improve; explicit inventory
 remains a scoped option.
+Use the core's fixed welcome followed by its exact checklist once the goal is
+known, then findings and the next question. Only the selected third-item label,
+checkmarks, and current-step marker vary. Keep scope limits after the checklist.
+Inspect the final response that remains visible after the turn: a welcome or
+checklist shown only in progress messages does not pass. If the goal is unknown,
+the fixed welcome precedes the goal question. On resume, keep the same wording
+with saved progress. When naming the agent and setup, distinguish explicit requests,
+repository findings, prior confirmations, and defaults. Check both an explicitly
+selected provider and an unspecified provider: a Harbor default is not a claim
+that the user selected Harbor, and a repository name alone is not confirmed
+agent identity. Explicit choices do not need to be asked again.
 Do not probe runtimes, install, read unselected traces, or execute agents in
 the shared prerequisite flow. Confirm prerequisites together and label them user-confirmed.
 
