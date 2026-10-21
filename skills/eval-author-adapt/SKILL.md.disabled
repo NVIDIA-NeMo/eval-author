@@ -164,10 +164,7 @@ Have Harbor's validator or task model load each created task, and compare its
 requests, steps, and criteria with the source mapping and resolved decisions.
 Fix conversion errors before reusing the pattern for other cases in scope.
 
-At the first task-creation milestone, read
-[Explaining a task draft](references/explaining-a-task-draft.md) for the explanation
-of cases, grading decisions, validation evidence, and remaining inputs. Record
-created, partly implemented, and deferred cases in the mapping; verify the linked
+Record created, partly implemented, and deferred cases in the mapping; verify the linked
 files exist. This stage produces tasks and supported graders, not just notes.
 
 ## 6. Prepare the execution environment
