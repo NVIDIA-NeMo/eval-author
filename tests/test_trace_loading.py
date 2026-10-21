@@ -180,7 +180,7 @@ def test_each_kind_loads_with_private_outputs_and_receipt_digests(kind, trace_id
     assert all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in output.iterdir())
     [trace] = normalized(output)
     assert trace["id"] == trace_id
-    assert trace["schema_version"] == "2"
+    assert trace["schema_version"] == "3"
 
     receipt = json.loads((output / "loading.json").read_text())
     copies = {name: output / name for name in receipt["source_sha256"]}
@@ -200,7 +200,7 @@ def test_each_kind_loads_with_private_outputs_and_receipt_digests(kind, trace_id
         "source_kind": kind,
         "loader_distribution": "nemo-compass",
         "loader_version": "0.2.0",
-        "trace_schema_version": "2",
+        "trace_schema_version": "3",
         "source_sha256": receipt["source_sha256"],
         "normalized_sha256": "sha256:" + digest,
         "trace_count": 1,

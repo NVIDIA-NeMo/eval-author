@@ -242,9 +242,23 @@ class Renderer:
                     rendered += f"<h4>{title}</h4>" + (text(value) if isinstance(value, str) else fields(value))
             if span.get("error") is not None:
                 rendered += self.problem("Recorded span error follows.") + text(span["error"])
+            # Conversation text lives on AGENT turns, not on step spans.
+            for turn in span.get("turns") or []:
+                rendered += f"<h4>Turn {escape(turn.get('index'))} · {escape(turn.get('role'))}</h4>"
+                content = turn.get("content")
+                if content is not None:
+                    rendered += text(content) if isinstance(content, str) else fields(content)
+                if turn.get("reasoning") is not None:
+                    rendered += "<h4>Recorded reasoning</h4>" + text(turn["reasoning"])
+                for ordinal, result in enumerate(turn.get("unlinked_results") or [], 1):
+                    status = escape(result.get("error_status"))
+                    rendered += f"<h4>Unlinked tool result {ordinal} · error_status: {status}</h4>"
+                    if "content" in result:
+                        value = result["content"]
+                        rendered += text(value) if isinstance(value, str) else fields(value)
             call = span.get("tool_call") or {}
             for ordinal, result in enumerate(call.get("results") or [], 1):
-                rendered += f"<h4>Tool result {ordinal} · is_error: {escape(result.get('is_error'))}</h4>"
+                rendered += f"<h4>Tool result {ordinal} · error_status: {escape(result.get('error_status'))}</h4>"
                 if "content" in result:
                     content = result["content"]
                     rendered += text(content) if isinstance(content, str) else fields(content)
