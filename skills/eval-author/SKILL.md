@@ -141,9 +141,8 @@ An explicitly selected addition or proposal-only request keeps that scope.
 ### Downstream progress
 
 Once prerequisites and Ethos are confirmed, follow the selected skill's stages.
-Keep the selected third checklist item current and name the current stage in
-plain language. Reuse completed shared steps. Keep scope and evidence reviews,
-source selection, and execution authorization.
+Keep the selected third checklist item current. Reuse completed shared steps.
+Keep scope and evidence reviews, source selection, and execution authorization.
 
 When the user asks a side question, answer it, then resume the pending decision
 or unfinished work. A side question does not confirm pending content.
