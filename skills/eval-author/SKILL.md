@@ -1,7 +1,9 @@
 ---
 name: eval-author
 description: >-
-  Guide broad eval-help requests into onboarding to build or expand evals.
+  For fresh creation, audit, expansion, or undecided eval-help requests, read
+  this skill, show its fixed welcome and checklist or goal choices, then end
+  the turn before repository work. Scoped utilities keep their requested scope.
   Build first evals from a required Ethos, work on existing evaluation suites
   in a user's repository, derive an environment from trace
   evidence (experimental), or understand an agent run from NeMo Intake. Owns the evidence
@@ -74,9 +76,20 @@ Use the requested outcome and prior answers before asking a question. Creating,
 auditing, and improving evals use the **Shared prerequisites and Ethos** flow
 below for Gym and Harbor, including direct invocations of their skills.
 
-Use the fixed welcome and checklist under **Shared prerequisites and Ethos**
-below. If the goal is unclear, show that welcome before asking the goal question,
-then show the checklist once the goal is selected.
+The first response to a new shared flow is orientation only. Determine the goal
+from the user's request and conversation already available, without inspecting the
+repository. If known, show only the fixed welcome and matching checklist below.
+If unknown, show only that welcome, the goal question, and its three choices.
+**End the turn immediately after that response.**
+
+Before this response, read only the entry skill and this core skill as needed.
+Do not inspect repository files or saved state, validate Ethos, check prerequisites,
+run helper commands, write files, or delegate work. This also applies to direct
+first-eval and full-audit invocations. Prerequisite questions and findings belong
+to later turns. After the user continues, begin the shared prerequisite flow;
+if they selected a previously unknown goal, show its checklist before that work.
+Continuations and goal switches within an existing shared flow reuse progress
+rather than repeating this pause.
 
 | Request | Route after shared prerequisites and Ethos |
 |---|---|
@@ -106,8 +119,9 @@ absent. Supported trace conversion retains its existing dedicated skills.
 ### Shared prerequisites and Ethos
 
 Copy this welcome and checklist verbatim into the final user-facing response,
-rendered as Markdown. Show them together before findings or the next question;
-progress or thinking messages alone do not satisfy this opening.
+rendered as Markdown. They are the entire known-goal opening response; do not
+append findings or a prerequisite question. Progress or thinking messages alone
+do not satisfy this opening.
 
 Welcome to Eval Author! I’ll help you evaluate your agent against the behavior you expect. Here’s what we’ll work through:
 
@@ -119,10 +133,10 @@ For an audit, replace the third item with **Check what your existing evaluations
 For improvements, use **Improve your existing evaluations**. These exact third-item
 labels, completed checkboxes, and the position of **We're here** are the only
 variations. Keep the welcome, checklist wording, order, and Ethos link unchanged.
-Put scope limits and other explanations after the checklist rather than adding
-them to its items. On resume, use the same opening with saved progress and the
-pending question; do not reset completed items.
-Explain findings and ask for missing decisions or content confirmation.
+On later turns, put scope limits and other explanations after the checklist
+rather than adding them to its items. On resume, use the same wording with saved
+progress and the pending question; do not reset completed items.
+After the opening turn, explain findings and ask for missing decisions or content confirmation.
 Record user-confirmed prerequisites separately from runtime verification.
 Mark each step complete when its work and required review are finished.
 

@@ -130,7 +130,7 @@
       "skill": "eval-author-audit",
       "id": "audit-shared-entry",
       "source_scenario": "audit",
-      "adaptation": "Exercises the shared prerequisite and Ethos flow with no preselected traces."
+      "adaptation": "Opening-only first response; supplied Ethos stays unread and no traces are selected"
     },
     {
       "skill": "eval-author-audit",
@@ -228,7 +228,7 @@
           "skills/eval-author/references/shared-prerequisites.md",
           "tests/scenarios/entry-routing.md"
         ],
-        "scope": "Gym shared-entry checkpoint for first evaluations through the direct skill entry"
+        "scope": "Gym opening-only first response for first evaluations through the direct skill entry"
       },
       {
         "skill": "eval-author-first-eval",
@@ -238,7 +238,7 @@
           "skills/eval-author/references/shared-prerequisites.md",
           "tests/scenarios/entry-routing.md"
         ],
-        "scope": "Harbor shared-entry checkpoint for first evaluations through the direct skill entry"
+        "scope": "Harbor opening-only first response for first evaluations through the direct skill entry"
       },
       {
         "skill": "eval-author",
@@ -248,7 +248,7 @@
           "skills/eval-author/references/shared-prerequisites.md",
           "tests/scenarios/entry-routing.md"
         ],
-        "scope": "Gym shared-entry checkpoint for expansion through the core skill entry"
+        "scope": "Gym opening-only first response for expansion through the core skill entry"
       },
       {
         "skill": "eval-author",
@@ -258,7 +258,7 @@
           "skills/eval-author/references/shared-prerequisites.md",
           "tests/scenarios/entry-routing.md"
         ],
-        "scope": "Harbor shared-entry checkpoint for expansion through the core skill entry"
+        "scope": "Harbor opening-only first response for expansion through the core skill entry"
       }
     ],
     "fixtures": [

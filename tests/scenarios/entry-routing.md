@@ -22,13 +22,20 @@ repositories. The first orientation has the same three checklist items: confirm
 the agent/setup, confirm Ethos, then the selected build/audit/improve item. If the
 goal is unknown, ask whether to create, audit, or improve; explicit inventory
 remains a scoped option.
-Use the core's fixed welcome followed by its exact checklist once the goal is
-known, then findings and the next question. Only the selected third-item label,
-checkmarks, and current-step marker vary. Keep scope limits after the checklist.
+The first turn contains only the fixed welcome and exact checklist for a known
+goal, or the fixed welcome, goal question, and three choices for an unknown goal.
+It ends there, even when repository or Ethos paths are supplied. Inspect the
+tool trace: only the invoked skill and shared core may be loaded before this
+reply. Repository/state reads, Ethos validation, prerequisite checks or questions,
+helper commands, writes, and delegation all fail this opening checkpoint.
 Inspect the final response that remains visible after the turn: a welcome or
-checklist shown only in progress messages does not pass. If the goal is unknown,
-the fixed welcome precedes the goal question. On resume, keep the same wording
-with saved progress. When naming the agent and setup, distinguish explicit requests,
+checklist shown only in progress messages does not pass.
+
+Reply to continue, or select a goal. Check that the selected checklist is shown
+and prerequisite work can now begin without repeating the opening-only pause.
+Only the selected third-item label, checkmarks, and current-step marker vary.
+On resume, keep the same wording with saved progress. When naming the agent
+and setup on subsequent turns, distinguish explicit requests,
 repository findings, prior confirmations, and defaults. Check both an explicitly
 selected provider and an unspecified provider: a Harbor default is not a claim
 that the user selected Harbor, and a repository name alone is not confirmed

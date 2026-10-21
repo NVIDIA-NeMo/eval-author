@@ -96,6 +96,49 @@ def test_scope_broadening_is_rejected(case, action):
     assert scope.check(CONTRACTS, evidence, raw)["status"] == "fail"
 
 
+@pytest.mark.parametrize(
+    "case,turn",
+    [
+        ("generic-help", 0),
+        ("explicit-audit", 0),
+        ("first-eval-opening", 0),
+        ("explicit-expansion", 0),
+        ("narrow-to-recommendations", 0),
+        ("broaden-after-inventory", 1),
+        ("continue-shared-entry", 0),
+    ],
+)
+@pytest.mark.parametrize("action", ["read_repository", "validate", "delegate", "write_artifact"])
+def test_shared_opening_rejects_prerequisite_work(case, turn, action):
+    evidence, raw = capture(case)
+    writes = [".eval-author/.working/journey-state.json"] if action == "write_artifact" else []
+    raw = add_call(evidence, raw, action=action, writes=writes, turn=turn)
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert report["status"] == "fail"
+    assert f"turn[{turn}]: forbidden action {action}" in report["violations"]
+    if writes:
+        assert f"turn[{turn}]: forbidden write attempt {writes[0]}" in report["violations"]
+
+
+def test_shared_setup_work_is_allowed_after_opening():
+    evidence, raw = capture("continue-shared-entry")
+    for action in ("read_repository", "validate", "write_artifact"):
+        writes = [".eval-author/.working/journey-state.json"] if action == "write_artifact" else []
+        raw = add_call(evidence, raw, action=action, writes=writes, turn=1)
+    evidence["turns"][1]["after"]["entries"] = {
+        ".eval-author": {"kind": "directory", "mode": 0o755},
+        ".eval-author/.working": {"kind": "directory", "mode": 0o755},
+        ".eval-author/.working/journey-state.json": {
+            "kind": "file",
+            "mode": 0o644,
+            "sha256": scope.digest(b"{}"),
+        },
+    }
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert report["status"] == "pass"
+    assert report["host_acceptance"] == "not_measured"
+
+
 def test_transient_write_is_rejected_even_if_snapshots_match():
     evidence, raw = capture("recommendations-only")
     raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/tasks/unauthorized/task.toml"])

@@ -46,18 +46,18 @@ configuration. No real Intake source is supplied, so these cases cannot prove
 successful service access or trace inspection. Supplied error receipts are
 constructed checkpoint inputs, not observed runtime results.
 
-The new entry cases stop at the first unanswered prerequisite or Ethos question,
-before case design or execution. They check the selected checklist, preservation
-of the user's setup, and the Ethos handoff. Missing Gym setup and unverified
-Harbor setup remain distinct from execution evidence; absent model credentials
-do not block this discussion. The cases permit reads but no file writes, so they
-do not test saved-state persistence.
+The entry cases check an opening-only first turn: the fixed welcome and selected
+checklist must appear in the final reply before any repository work. Supplied
+agent documentation and Ethos files remain unread. Only the entry skill and
+shared core may be loaded; prerequisite questions, validation, state writes,
+and Ethos delegation wait for the next user turn. These cases do not test
+prerequisite completion, Ethos handoff, or saved-state persistence.
 
-Isolated staging may omit the shared core or Ethos skills. The direct first-eval
-cases require loading the core when available, or an explicit dependency handoff
-when it is missing. Both entries require `ethos-orchestrate` for Ethos work and
-an honest blocker if unavailable. Passing a dependency handoff does not establish
-successful integrated onboarding, Ethos confirmation, or later-turn resumption.
+Isolated staging may omit the shared core. Direct entries require loading the
+core when available, or an explicit dependency handoff when it is missing.
+Checking or invoking the separate Ethos skills belongs to a later turn.
+Passing the opening or a dependency handoff does not establish successful
+integrated onboarding, Ethos confirmation, or later-turn resumption.
 
 Each case explicitly selects its input files. SkillEvaluator stages these under
 `/workspace/input`; output artifacts go under `/workspace/output`. The dataset

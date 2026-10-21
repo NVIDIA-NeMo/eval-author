@@ -32,17 +32,11 @@
         "context": "Fresh session; no prior authorization.",
         "flow": "eval-author-audit",
         "allowed_actions": [
-          "read_skill",
-          "read_repository",
-          "validate",
-          "write_artifact",
-          "delegate"
+          "read_skill"
         ],
         "required_actions": [],
-        "write_paths": [
-          ".eval-author/.working/"
-        ],
-        "handoff": "shared_prerequisites"
+        "write_paths": [],
+        "handoff": "shared_opening"
       }
     ],
     "inventory-only": [
@@ -125,17 +119,11 @@
         "context": "Fresh session; no prior authorization.",
         "flow": "eval-author-first-eval",
         "allowed_actions": [
-          "read_skill",
-          "read_repository",
-          "validate",
-          "write_artifact",
-          "delegate"
+          "read_skill"
         ],
         "required_actions": [],
-        "write_paths": [
-          ".eval-author/.working/"
-        ],
-        "handoff": "shared_prerequisites"
+        "write_paths": [],
+        "handoff": "shared_opening"
       }
     ],
     "recommendations-only": [
@@ -234,17 +222,11 @@
         "context": "Previous turn reported inventory. The user now explicitly requests an audit; no repeat routing question.",
         "flow": "eval-author-audit",
         "allowed_actions": [
-          "read_skill",
-          "read_repository",
-          "validate",
-          "write_artifact",
-          "delegate"
+          "read_skill"
         ],
         "required_actions": [],
-        "write_paths": [
-          ".eval-author/.working/"
-        ],
-        "handoff": "shared_prerequisites"
+        "write_paths": [],
+        "handoff": "shared_opening"
       }
     ],
     "narrow-to-recommendations": [
@@ -255,17 +237,11 @@
         "context": "Fresh session; no prior authorization.",
         "flow": "eval-author",
         "allowed_actions": [
-          "read_skill",
-          "read_repository",
-          "validate",
-          "write_artifact",
-          "delegate"
+          "read_skill"
         ],
         "required_actions": [],
-        "write_paths": [
-          ".eval-author/.working/"
-        ],
-        "handoff": "shared_prerequisites"
+        "write_paths": [],
+        "handoff": "shared_opening"
       },
       {
         "prompts": [
@@ -296,6 +272,36 @@
         ],
         "context": "Fresh session; existing evals, no audit requested.",
         "flow": "eval-author",
+        "allowed_actions": [
+          "read_skill"
+        ],
+        "required_actions": [],
+        "write_paths": [],
+        "handoff": "shared_opening"
+      }
+    ],
+    "continue-shared-entry": [
+      {
+        "prompts": [
+          "I have no evals and want to build my first suite.",
+          "Help me bootstrap evaluations."
+        ],
+        "context": "Fresh session; no prior authorization.",
+        "flow": "eval-author-first-eval",
+        "allowed_actions": [
+          "read_skill"
+        ],
+        "required_actions": [],
+        "write_paths": [],
+        "handoff": "shared_opening"
+      },
+      {
+        "prompts": [
+          "Continue with setup. You may read the supplied agent README.md and save our setup answers.",
+          "Go ahead with the setup step using the supplied agent documentation and record our answers."
+        ],
+        "context": "The previous turn showed only the shared welcome and creation checklist. The user now requests setup work; prerequisite and Ethos decisions remain unconfirmed.",
+        "flow": "eval-author-first-eval",
         "allowed_actions": [
           "read_skill",
           "read_repository",
