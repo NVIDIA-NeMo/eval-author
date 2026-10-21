@@ -328,7 +328,7 @@ def checklist(state: dict) -> list[dict]:
         },
         {
             "label": (
-                "Agree on what your agent should do using "
+                "Agree on how your agent behaves using "
                 "[ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)"
             ),
             "complete": ethos_done,

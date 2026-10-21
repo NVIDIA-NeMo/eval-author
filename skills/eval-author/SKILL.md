@@ -106,7 +106,7 @@ Show a three-item checklist before starting the shared flow. Use literal
 checkboxes and mark the current item **We're here**. For first evaluations:
 
 - [ ] **Check how your agent runs and how you’ll test it** — identify the repository and agent and confirm the prerequisites relevant to your goal
-- [ ] **Agree on what your agent should do using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)** — agree on its purpose, expected behavior, boundaries, and success criteria
+- [ ] **Agree on how your agent behaves using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)** — agree on its purpose, expected behavior, boundaries, and success criteria
 - [ ] **Create your first evaluations** — build and validate evaluations using the agreed scope
 
 For an audit, replace the third item with **Check what your evaluations cover**.

@@ -2048,7 +2048,7 @@ def test_shared_prerequisites_replace_duplicate_onboarding() -> None:
     reference = (_CORE_DIR / "references" / "shared-prerequisites.md").read_text()
     assert "Check how your agent runs and how you’ll test it" in core
     assert (
-        "Agree on what your agent should do using "
+        "Agree on how your agent behaves using "
         "[ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)"
     ) in core
     assert "An expansion request does not imply an audit" in core

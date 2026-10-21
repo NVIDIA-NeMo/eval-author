@@ -6,7 +6,7 @@
       "prompt": "Audit coverage of my existing evaluations against /workspace/input/ETHOS.md. I have not selected traces. Start the shared prerequisite and Ethos flow; do not search or read traces.",
       "expected_output": "Shows the shared three-item checklist with Check what your evaluations cover selected. Reuses the supplied agent context and performs bounded prerequisite and Ethos work without a separate start-approval gate. Uses ethos-orchestrate for Ethos confirmation. Keeps runtime probes, trace searches, and measurement out of the shared prerequisite flow; records any working state under .eval-author/.working/.",
       "assertions": [
-        "Shows Check how your agent runs and how you’ll test it, Agree on what your agent should do using ETHOS.md, and Check what your evaluations cover. ETHOS.md links to https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md.",
+        "Shows Check how your agent runs and how you’ll test it, Agree on how your agent behaves using ETHOS.md, and Check what your evaluations cover. ETHOS.md links to https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md.",
         "Does not ask Ready to get started or require an audit-opening acceptance.",
         "Uses the supplied Ethos through the shared orchestrator without rewriting unconfirmed content.",
         "Does not probe runtimes, search or read unselected traces, measure coverage, or create working files outside .eval-author/.working/."
