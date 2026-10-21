@@ -314,8 +314,7 @@ python <skill_dir>/scripts/trace_environment.py record-validation \
 
 Use the actual manifest control ID rather than the illustrative `incomplete`.
 Include `--bypass-job-dir` for each dependency control and `--copy-job-dir` for
-declared copy controls. For retained historical workspaces only, omit the new
-control ID and additional arms; construction qualification remains unmeasured.
+declared copy controls.
 
 The helper requires unique Harbor job IDs, each result's task checksum matching
 the current task and its pre-run receipt, separate verifier mode in every
@@ -330,15 +329,12 @@ report means the retained rewards and evidence are consistent, not that containe
 freshness has been verified. Failed rewards remain technical evidence: retain
 them and report the candidate as failed.
 
-Validation v6, reproducibility v3, and public product v3 replace the previous
-contracts and their broader claim names. Preserve previous reports privately
-before regenerating them from the unchanged task and retained evidence; do not
-edit schema strings or claims in place. Jobs with genuine matching pre-run
-receipts can be rechecked without claiming a new execution. Historical proof
-without those receipts must be rerun; do not fabricate receipts for completed
-jobs. Keep historical fixture results labeled with their original contract.
-Run receipts and control source/rationale stay private and are never exported.
-Validation v6 adds an optional `copy` arm (minimum zero); follow
+Validation v7, reproducibility v3, and public product v5 are the current
+contracts; do not edit schema strings or claims in place. Jobs with genuine
+matching pre-run receipts can be rechecked without claiming a new execution.
+Proof without those receipts must be rerun; do not fabricate receipts for
+completed jobs. Run receipts and control source/rationale stay private and are
+never exported. The optional `copy` arm (minimum zero) follows
 `check-grammar.md` to select applicable copy probes and review partial passes.
 The exported `copy_probes` summary reports `not_run` when none were supplied,
 or rewards, exception flags and passing check IDs when they were recorded.

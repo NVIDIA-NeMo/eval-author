@@ -28,7 +28,23 @@ _IMAGE_OBJECT_START = re.compile(r'\{\s*"type"\s*:\s*"image"')
 _POSITIONAL_SEGMENT = r"(?:[0-9]+|trajectory|subagent|step|tool|turn)"
 _POSITIONAL_ID = re.compile(rf"{_POSITIONAL_SEGMENT}(?:/{_POSITIONAL_SEGMENT})*")
 # Identifier-like keys inside free-form source JSON (tool inputs, outputs, and extensions).
-_IDENTIFIER_KEYS = frozenset({"parent_span_id", "session_id", "span_id", "trace_id", "trajectory_id"})
+_IDENTIFIER_KEYS = frozenset(
+    {"parent_span_id", "session_id", "source_call_id", "span_id", "tool_call_id", "trace_id", "trajectory_id"}
+)
+# Compass marks identifier fields with ``x-identifier`` (``trace_ingest.identifier_fields()``).
+# Marked span and turn ids keep loader positions, marked links become opaque file URLs, and
+# every other marked field is pseudonymized, so newly marked fields are never missed.
+_SPAN_ID_FIELDS = {
+    "Span": frozenset({"id"}),
+    "Turn": frozenset({"id", "llm_span_ids", "dispatch_span_id", "tool_call_span_ids"}),
+    "Loss": frozenset({"span_id", "turn_id"}),
+    "SubagentRef": frozenset({"span_id"}),
+    "RunInfo": frozenset({"subagent_span_ids"}),
+}
+_URL_FIELDS = frozenset({"source_url"})
+_SCRUBBED_MODELS = frozenset({"Trace", "Span", "Turn", "ToolCall", "ToolResult", "SubagentRef", "RunInfo", "Loss"})
+# Loss codes eval-author writes itself; their details hold only counts.
+OWN_LOSS_CODES = frozenset({"provider_redaction_quote_escaped", "image_data_omitted"})
 _EMAIL = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
 _SSN = re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")
 _IPV4 = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])")
@@ -124,6 +140,19 @@ def load_trace(
     except (ValueError, OSError) as error:
         raise TraceSourceError(f"could not load the source as {kind}: {_describe(error)}") from error
     return traces[0]
+
+
+_PATH_REF_LOSSES = frozenset({"unresolved_subagent_ref", "invalid_subagent_trajectory"})
+
+
+def unresolved_trajectory_paths(trace: Trace) -> bool:
+    """Whether the loader could not follow a subagent reference that names a trajectory file."""
+    return any(
+        loss.code in _PATH_REF_LOSSES
+        and isinstance(loss.detail.get("ref"), dict)
+        and bool(loss.detail["ref"].get("trajectory_path"))
+        for loss in trace.losses
+    )
 
 
 def retarget_source_urls(payload: dict[str, Any], loaded: Path, original: Path) -> None:
@@ -351,7 +380,13 @@ class _Scrubber:
     """Scrub a dumped Trace field by field so the result still validates as a Trace."""
 
     def __init__(self) -> None:
+        from trace_ingest import identifier_fields
+
         self.counts: dict[str, int] = {}
+        self.identifiers = identifier_fields()
+        unvisited = sorted(set(self.identifiers) - _SCRUBBED_MODELS)
+        if unvisited:
+            raise TraceSourceError(f"the safe-trace scrubber does not visit Compass identifier models: {unvisited}")
 
     def _count(self, kind: str) -> None:
         self.counts[kind] = self.counts.get(kind, 0) + 1
@@ -377,8 +412,23 @@ class _Scrubber:
     def text(self, value: Any) -> Any:
         return redact_text(value, self.counts) if isinstance(value, str) else self.json(value)
 
-    def ids(self, value: list[Any]) -> list[Any]:
-        return [self.span_id(item) for item in value]
+    def identifier(self, model: str, name: str) -> Callable[[Any], Any]:
+        """The handler for one field Compass marks as an identifier."""
+        if name in _URL_FIELDS:
+            one = self.url
+        elif name in _SPAN_ID_FIELDS.get(model, ()):
+            one = self.span_id
+        else:
+            one = self.pseudonym
+
+        def handle(value: Any) -> Any:
+            if isinstance(value, list):
+                return [one(item) for item in value]
+            if value is None or isinstance(value, str):
+                return one(value)
+            raise TraceSourceError(f"{model}.{name} holds an identifier the scrubber cannot pseudonymize")
+
+        return handle
 
     def json(self, value: Any, key: str | None = None) -> Any:
         if isinstance(value, dict):
@@ -402,6 +452,11 @@ class _Scrubber:
     def fields(self, value: dict[str, Any], handlers: dict[str, Callable[[Any], Any]]) -> dict[str, Any]:
         return {key: handlers[key](item) if key in handlers else self.json(item, key) for key, item in value.items()}
 
+    def model(self, model: str, value: dict[str, Any], handlers: dict[str, Callable[[Any], Any]]) -> dict[str, Any]:
+        """Scrub one Compass model; its marked identifier fields override any other handling."""
+        marked = {name: self.identifier(model, name) for name in self.identifiers.get(model, ())}
+        return self.fields(value, {**handlers, **marked})
+
     def each(self, handler: Callable[[Any], Any]) -> Callable[[list[Any]], list[Any]]:
         return lambda items: [handler(item) for item in items]
 
@@ -411,12 +466,11 @@ class _Scrubber:
             case = items.get("logical_case_id")
             return {"logical_case_id": self.pseudonym(case)} if isinstance(case, str) else {}
 
-        return self.fields(
+        return self.model(
+            "Trace",
             value,
             {
-                "id": self.pseudonym,
                 "schema_version": _KEEP,
-                "source_url": self.url,
                 "root_spans": self.each(self.span),
                 "attributes": attributes,
                 "losses": self.each(self.loss),
@@ -424,14 +478,32 @@ class _Scrubber:
         )
 
     def loss(self, value: dict[str, Any]) -> dict[str, Any]:
-        return self.fields(value, {"code": _KEEP, "span_id": self.span_id, "turn_id": self.span_id})
+        code = value.get("code")
+        return self.model("Loss", value, {"code": _KEEP, "detail": lambda detail: self.loss_detail(code, detail)})
+
+    def loss_detail(self, code: Any, detail: Any) -> Any:
+        """Keep loss details as structured data with each identifier pseudonymized like its trace field."""
+        if code in OWN_LOSS_CODES or not isinstance(detail, dict):
+            return self.json(detail)
+        scrubbed: dict[str, Any] = {}
+        for key, item in detail.items():
+            if key == "ref" and isinstance(item, dict):
+                # ``extra`` is opaque source JSON.
+                scrubbed[key] = self.subagent_ref({name: part for name, part in item.items() if name != "extra"})
+            elif key == "continued_trajectory_ref":
+                scrubbed[key] = self.identifier("RunInfo", "continued_trajectory_ref")(item)
+            elif key == "tool_call_id":
+                scrubbed[key] = self.identifier("ToolCall", "call_id")(item)
+            elif key == "llm_call_count" and type(item) is int:
+                scrubbed[key] = item
+            # ``definition`` and any other key is opaque source JSON and is dropped.
+        return scrubbed
 
     def span(self, value: dict[str, Any]) -> dict[str, Any]:
-        return self.fields(
+        return self.model(
+            "Span",
             value,
             {
-                "id": self.span_id,
-                "source_url": self.url,
                 "kind": _KEEP,
                 "children": self.each(self.span),
                 "start_time": _KEEP,
@@ -444,30 +516,21 @@ class _Scrubber:
         )
 
     def run(self, value: dict[str, Any]) -> dict[str, Any]:
-        return self.fields(
-            value,
-            {
-                "schema_version": _KEEP,
-                "session_id": self.pseudonym,
-                "trajectory_id": self.pseudonym,
-                "continued_trajectory_ref": self.pseudonym,
-                "subagent_span_ids": self.ids,
-            },
-        )
+        return self.model("RunInfo", value, {"schema_version": _KEEP})
 
     def tool_call(self, value: dict[str, Any]) -> dict[str, Any]:
-        return self.fields(
+        return self.model(
+            "ToolCall",
             value,
             {
-                "call_id": self.pseudonym,
-                "result_id": self.pseudonym,
                 "results": self.each(self.result),
                 "initiator": _KEEP,
             },
         )
 
     def result(self, value: dict[str, Any]) -> dict[str, Any]:
-        return self.fields(
+        return self.model(
+            "ToolResult",
             value,
             {
                 "error_status": _KEEP,
@@ -477,28 +540,17 @@ class _Scrubber:
         )
 
     def subagent_ref(self, value: dict[str, Any]) -> dict[str, Any]:
-        return self.fields(
-            value,
-            {
-                "span_id": self.span_id,
-                "trajectory_id": self.pseudonym,
-                "session_id": self.pseudonym,
-                "trajectory_path": self.pseudonym,
-            },
-        )
+        return self.model("SubagentRef", value, {})
 
     def turn(self, value: dict[str, Any]) -> dict[str, Any]:
-        return self.fields(
+        return self.model(
+            "Turn",
             value,
             {
-                "id": self.span_id,
                 "role": _KEEP,
                 "authorship": _KEEP,
                 "content": self.content,
                 "timestamp": _KEEP,
-                "llm_span_ids": self.ids,
-                "tool_call_span_ids": self.ids,
-                "dispatch_span_id": self.span_id,
                 "unlinked_results": self.each(self.result),
             },
         )
@@ -548,13 +600,15 @@ class TraceIndex:
     """Turn and span lookups that citations and construction pointers resolve against."""
 
     def __init__(self, trace: Trace) -> None:
-        from trace_ingest.turns import iter_turns
+        from trace_ingest import turns_in_execution_order
 
         self.trace = trace
         self.turns: dict[str, tuple[Span, Turn]] = {}
+        # Positions follow execution: a subagent's turns sit right after the turn that ran it,
+        # so cutoff and reversed-edit comparisons hold across agents.
         self.position: dict[str, int] = {}
         self.span_turn: dict[str, str] = {}
-        for position, (agent, turn) in enumerate(iter_turns(trace)):
+        for position, (agent, turn) in enumerate(turns_in_execution_order(trace)):
             self.turns[turn.id] = (agent, turn)
             self.position[turn.id] = position
             dispatch = [turn.dispatch_span_id] if turn.dispatch_span_id is not None else []

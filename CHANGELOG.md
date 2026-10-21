@@ -31,11 +31,19 @@ preview: workflows, skills, and saved artifacts may change between releases.
   construction `cutoff_turn_id` and `{turn_id|span_id, pointer}` sources, and
   `safe_trace_sha256`. Tool scope is strict per agent, with reviewable
   `suggested_definition`/`suggested_override`; results carry Compass
-  `error_status`. Schema ids are bumped, and workspaces from the older
-  workflow are refused; re-run `prepare` in a new task directory. See
+  `error_status`. The safe trace pseudonymizes every field Compass marks as an
+  identifier, and the ids inside loss details alike. Construction cutoffs and
+  reversed edits compare turns in execution order, across agents. A source that
+  needs a JSON escape repair and names subagent trajectory files by path is
+  refused. Schema ids are bumped, and workspaces from the older
+  workflow are refused; re-run `prepare` in a new task directory. Every
+  workspace is qualified (summary v5, validation v7), so
+  `record-validation --allow-aggregate-only` and the workspace creation marker
+  are removed. See
   [Trace sources](skills/eval-author-trace-environment/references/sources.md).
 - **Generated case review** (`render_review.py`) shows each agent's
-  conversation turns and each tool result's `error_status`.
+  conversation turns with their authorship, and each tool result's
+  `error_status`.
 - **Audit coverage reports** are now `nemo.eval_author.audit_coverage_report.v2`:
   their subjects read Compass traces (`trace_format: nemo-compass-trace`) and
   record `source_kind`.

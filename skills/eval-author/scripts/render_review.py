@@ -243,19 +243,28 @@ class Renderer:
             if span.get("error") is not None:
                 rendered += self.problem("Recorded span error follows.") + text(span["error"])
             # Conversation text lives on AGENT turns, not on step spans.
+            recorded_turns = []
             for turn in span.get("turns") or []:
-                rendered += f"<h4>Turn {escape(turn.get('index'))} · {escape(turn.get('role'))}</h4>"
+                heading = " · ".join(escape(turn.get(key)) for key in ("index", "role", "authorship") if key in turn)
+                rendered += f"<h4>Turn {heading}</h4>"
                 content = turn.get("content")
                 if content is not None:
                     rendered += text(content) if isinstance(content, str) else fields(content)
                 if turn.get("reasoning") is not None:
                     rendered += "<h4>Recorded reasoning</h4>" + text(turn["reasoning"])
+                unlinked = []
                 for ordinal, result in enumerate(turn.get("unlinked_results") or [], 1):
                     status = escape(result.get("error_status"))
                     rendered += f"<h4>Unlinked tool result {ordinal} · error_status: {status}</h4>"
                     if "content" in result:
                         value = result["content"]
                         rendered += text(value) if isinstance(value, str) else fields(value)
+                    unlinked.append({k: v for k, v in result.items() if k not in {"content", "error_status"}})
+                shown = {"index", "role", "authorship", "content", "reasoning", "unlinked_results"}
+                recorded = {k: v for k, v in turn.items() if k not in shown}
+                if unlinked:
+                    recorded["unlinked_results"] = unlinked
+                recorded_turns.append(recorded)
             call = span.get("tool_call") or {}
             for ordinal, result in enumerate(call.get("results") or [], 1):
                 rendered += f"<h4>Tool result {ordinal} · error_status: {escape(result.get('error_status'))}</h4>"
@@ -269,6 +278,8 @@ class Renderer:
                 rest["attributes"] = attributes
             if span.get("tool_definitions"):
                 rest["tool_definitions"] = span["tool_definitions"]
+            if recorded_turns:
+                rest["turns"] = recorded_turns
             if rest:
                 rendered += details("Additional recorded fields", fields(rest))
             spans += (

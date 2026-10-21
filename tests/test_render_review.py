@@ -297,6 +297,19 @@ def test_atif_trace_renders_spans_depth_first_with_tool_results_and_error_flags(
     assert not any(tag in {"script", "img"} for tag, _attrs in report.elements)
 
 
+def test_trace_turns_show_authorship_and_keep_other_turn_fields(tmp_path):
+    record = atif_record()
+    record["steps"][0]["extra"] = {"SYNTHETIC_TURN_EXTRA": "kept"}
+    source = write_json(tmp_path / "source.atif.json", record)
+    output = tmp_path / "review"
+    _summary, report = read_report(invoke(source, output, format="atif", rows=None, role="source"), output)
+    spans = report.section("spans")
+    # Turn authorship separates the recorded user instruction from model-written turns.
+    assert "Turn 1 · user · unknown" in spans
+    assert "Turn 2 · agent · model" in spans
+    assert "SYNTHETIC_TURN_EXTRA" in spans.split("Additional recorded fields", 1)[1]
+
+
 def test_mlflow_export_renders_instruction_and_tool_name(tmp_path):
     source = SCRIPT.parents[3] / "skills/eval-author-trace-environment/evals/files/traces/mlflow.json"
     output = tmp_path / "review"

@@ -126,16 +126,19 @@ python <skill_dir>/scripts/trace_environment.py prepare \
   --source-kind atif
 ```
 
-Add `--row N` for a JSONL source and `--spans <file> --workspace <name>` for
-Intake.
+Add `--row N` for a Gym JSONL source and `--spans <file> --workspace <name>`
+for Intake. An ATIF JSONL source must contain exactly one trajectory.
 
 The helper retains an exact owner-private original, writes the bounded canonical
 Trace and a scrubbed safe Trace, replaces every image with `[image omitted]`,
-drops attributes, pseudonymizes ids and source URLs (positional ids such as
-`trajectory/turn/3` are kept because they carry no source data), and
-records only redaction counts in the safe report. It recognizes common secret
-fields, bearer tokens, private keys, and personal data classes (emails, phones,
-SSNs, IP addresses, cluster-local hostnames, home paths). It also writes
+drops attributes, pseudonymizes every field Compass marks as an identifier and
+source URLs (positional ids such as `trajectory/turn/3` are kept because they
+carry no source data), gives the ids inside loss details the same pseudonyms,
+drops opaque loss details (skipped tool definitions, subagent reference
+extensions), and records only redaction counts in the safe report. It
+recognizes common secret fields, bearer tokens, private keys, and personal data
+classes (emails, phones, SSNs, IP addresses, cluster-local hostnames, home
+paths). It also writes
 `private/privacy-audit.json`: a complete string-field and character denominator,
 URL hosts, and candidate name, organization, and street-address findings —
 contextual leads, not automatic claims. Review every text field in
@@ -426,7 +429,7 @@ Report the task ID, `candidate` or `no_candidate`, state basis, ground-truth
 availability and artifact count, required software and licensing constraints,
 environment status, technical status, check evidence mode, repair count,
 review status, verifier isolation, privacy review status, NOP and Oracle
-rewards when run, construction qualification (historical proof is `unmeasured`),
+rewards when run, construction qualification,
 and paths to `summary.md` and the generated task. A
 `valid: true` check proves the recorded files are internally consistent;
 Harbor is the authority for whether the task actually runs.
@@ -462,7 +465,7 @@ directory.
 | `probe` | Diagnostic NOP/Oracle run or adoption; never proof | `--task-dir --arm --results-from` |
 | `record-reproducibility` | Hash the task tree and integrity scan | `--task-dir` |
 | `record-run-inputs` | Bind one future Harbor job to arm and task digest | `--task-dir --arm --job-dir` |
-| `record-validation` | Derive proof from retained Harbor jobs | `--task-dir --*-job-dir --harbor-version [--copy-job-dir] [--allow-aggregate-only]` |
+| `record-validation` | Derive proof from retained Harbor jobs | `--task-dir --*-job-dir --harbor-version [--copy-job-dir]` |
 | `record-repair` | Archive superseded proof and record one bounded repair | `--task-dir --reason-code --note` |
 | `finalize` | Write the candidate decision and summary | `--task-dir --status [--human-reviewed]` |
 | `check` | Verify digests, artifacts, proof, and repair ledger | `--task-dir` |
@@ -498,6 +501,6 @@ Docker are not required unless the selected Gym components need them.
 - `validate-task` exits 1: fix each listed issue; hints name the contract. Rerun after every edit.
 - `probe` reports `not_run`: Harbor is missing; probing is optional, proof is not.
 - `record-validation` fails with `missing_check_evidence`: apply
-  `references/check-grammar.md` and rerun the jobs (`--allow-aggregate-only` only for historical proof).
+  `references/check-grammar.md` and rerun the jobs.
 - `record-validation` fails on NOP PASS rows: the untouched environment passes a scored check; tighten it and repair.
 - `check` reports stale or missing proof after a repair: re-record `record-reproducibility` and re-prove.

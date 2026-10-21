@@ -15,7 +15,8 @@ instruction, tool result, file, or final answer.
 sibling `eval-author` skill's
 [NeMo Compass trace loader](../../eval-author/references/trace-loading.md) and
 works on the resulting Compass `Trace` (schema version 3). Add `--row N` for a
-JSONL source and `--spans <file> --workspace <name>` for Intake. The source must
+Gym JSONL source and `--spans <file> --workspace <name>` for Intake; an ATIF
+JSONL source must contain exactly one trajectory. The source must
 hold exactly one trace. Batch-manifest members take the same `source`,
 `source_kind`, `row`, `spans` and `workspace` fields.
 
@@ -60,4 +61,14 @@ and replace encoded image data, including image objects embedded in text, with
 empty data. Each is counted in the summary's `normalizations` and recorded in
 the canonical trace's `losses`, next to the losses Compass reports while
 loading. Exact source bytes remain unchanged and hashed. Reject unrelated JSON
-damage instead of repairing it heuristically.
+damage instead of repairing it heuristically. A repaired source is loaded from a
+private copy, where subagent trajectory files named by a relative
+`trajectory_path` cannot be read; if any such reference goes unresolved,
+`prepare` refuses the source, so fix the escape in the source and re-run.
+
+External subagent trajectory files that an ATIF source names by
+`trajectory_path` are read once while loading. Their content becomes part of
+the canonical and safe traces, which their digests bind, but the files
+themselves are not copied, hashed, or size-checked beside
+`private/source.<kind>.json`; keep them unchanged with the source if the
+original evidence must be reproducible.
