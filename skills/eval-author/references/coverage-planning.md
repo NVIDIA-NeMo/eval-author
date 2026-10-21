@@ -7,7 +7,7 @@ Read this when planning first evals or proposing and creating additional coverag
 Present scope and case tables in conversation. Save the current agreement,
 source manifest references, and case inventory in the selected journey's `scopes`
 entry in `.eval-author/.working/journey-state.json`. Audit-based recommendations
-remain a deliverable in `.eval-author/dataset-recommendations.md`. Do not create
+remain a deliverable in `.eval-author/proposals/dataset-recommendations.md`. Do not create
 another planning document. A proposal stays provisional until the user settles
 its open choices; it does not authorize generating or running evaluations.
 

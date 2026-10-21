@@ -156,7 +156,7 @@
           "propose"
         ],
         "write_paths": [
-          ".eval-author/dataset-recommendations.md"
+          ".eval-author/proposals/dataset-recommendations.md"
         ],
         "handoff": "review_proposals"
       }
@@ -283,7 +283,7 @@
           "propose"
         ],
         "write_paths": [
-          ".eval-author/dataset-recommendations.md"
+          ".eval-author/proposals/dataset-recommendations.md"
         ],
         "handoff": "review_proposals"
       }

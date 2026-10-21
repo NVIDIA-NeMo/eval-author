@@ -12,7 +12,7 @@ and existing suite.
 ## Version and rerun plan
 
 During proposal work, include this plan in the Gym recommendation in
-`.eval-author/dataset-recommendations.md`. Use the repository's existing
+`.eval-author/proposals/dataset-recommendations.md`. Use the repository's existing
 versions and lockfiles when available. Record the intended consumer: native
 Gym, Helix Evaluator, or another explicitly selected runner. For each item, give the exact pin or
 artifact identity, its evidence source, and whether it is observed, proposed, or

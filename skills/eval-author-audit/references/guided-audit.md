@@ -274,7 +274,7 @@ improvements**. Carry the Audit coverage report, reviewed Audit specification,
 available Coverage measurements (JSON) and evidence, selected source scope, user
 corrections, and agreed priorities.
 Do not restart the audit or repeat settled questions. Explain that proposals
-will be saved in `.eval-author/dataset-recommendations.md`; creating
+will be saved in `.eval-author/proposals/dataset-recommendations.md`; creating
 and running tasks is a later step with its own scope. If the user declines,
 finish with the reviewed report and completed checklist.
 

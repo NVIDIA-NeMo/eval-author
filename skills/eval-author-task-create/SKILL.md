@@ -150,7 +150,7 @@ measurement limitation, not proof of a dataset deficiency. Failure-case coverage
 skill's `failure_cases` measurement; manual observations alone do not change
 measurement status. Failure cases remain ineligible for automatic tool-gap generation.
 
-Write recommendations to `.eval-author/dataset-recommendations.md` as
+Write recommendations to `.eval-author/proposals/dataset-recommendations.md` as
 skill-authored analysis; keep the generated coverage JSON unchanged. Rank by
 expected value and strength of evidence, explaining why the first action comes
 first. Apply established user priorities, including cost when relevant, and
@@ -218,7 +218,7 @@ if that choice remains open.
 Present the proposed priorities and breadth for review, including an option to
 start with a minimal pilot and expand. Reuse already agreed scope rather than
 asking again. Save the agreement in
-`.eval-author/dataset-recommendations.md`: selected corpus and exclusions,
+`.eval-author/proposals/dataset-recommendations.md`: selected corpus and exclusions,
 priorities and cost constraints, distinct input-example counts per behavior,
 variations and difficulty, positive and negative scenarios, expected outcomes,
 and pilot or expansion status. Keep this planning record out of the agent-facing
@@ -450,7 +450,7 @@ execution is blocked. Preserve the actual agent settings in the full-suite and s
 commands; link measured coverage reports separately from run instructions.
 
 At the handoff, reconcile agreed scope with delivered examples in
-`.eval-author/dataset-recommendations.md`, including partial or blocked
+`.eval-author/proposals/dataset-recommendations.md`, including partial or blocked
 work. Show planned and delivered distinct input counts per behavior, links to
 their tasks, and generated, validated, and actually executed examples separately.
 Include completed checks and run evidence, remaining variations or outcomes,

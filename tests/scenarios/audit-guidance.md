@@ -433,7 +433,7 @@ Links to those reused artifacts retain their established labels and targets
 during the offer and accepted handoff; the report becoming reviewed does not
 rename it or make the JSON results the **Audit coverage report**.
 The ranked, evidence-based proposals are saved and linked as
-`.eval-author/dataset-recommendations.md`, distinguishing new tasks,
+`.eval-author/proposals/dataset-recommendations.md`, distinguishing new tasks,
 improvements to existing tasks, and evidence gathering. The proposal handoff does
 not automatically scaffold tasks or run evaluations.
 

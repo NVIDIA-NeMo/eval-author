@@ -177,7 +177,7 @@ traces, and existing cases. Recommendations may include a new scenario, a
 stronger check, retaining a failing case as a regression test, or gathering more
 evidence. Each recommendation explains its priority, expected behavior, how a
 verifier would check it, and supporting evidence. They are saved in
-`.eval-author/dataset-recommendations.md`. You can request this directly
+`.eval-author/proposals/dataset-recommendations.md`. You can request this directly
 or accept Eval Author's offer during the audit review; the handoff reuses the
 audit inputs and settled answers.
 

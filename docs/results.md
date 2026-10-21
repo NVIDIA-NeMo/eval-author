@@ -178,7 +178,7 @@ report alone does not start proposal work.
 Accepting the findings and this offer starts the proposal workflow directly,
 reusing the report, specification, selected sources, and prior answers. Its
 recommendations are ranked with expected behavior, verifier design, and evidence,
-and saved in `.eval-author/dataset-recommendations.md`. Creating or
+and saved in `.eval-author/proposals/dataset-recommendations.md`. Creating or
 running the proposed tasks remains separately scoped.
 
 The next-step offer adapts to the findings: with no evaluations, Eval Author
