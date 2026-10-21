@@ -262,14 +262,6 @@ the accepted task set, that report and rerun links use those stable paths, and
 that validation receipts describe the accepted revision. Keep historical paths
 and receipts intact; do not rerun models merely to update a status.
 
-## Establish Ethos before authoring
-
-First-eval requires an applicable `ETHOS.md` before case design,
-new scoring decisions, or task authoring. Read [Ethos confirmation](references/ethos-confirmation.md)
-for the handoff to the canonical Ethos workflow and its confirmed result.
-Agent documentation can inform Ethos before any evaluation inventory. Existing
-evals establish what is currently tested; they do not replace intended behavior.
-
 ## Gather requirements and setup from evidence
 
 During discovery and authoring source inspection, read and follow

@@ -9,7 +9,10 @@ single owner of Ethos exploration, draft confirmation, validation, and writing.
 Do not implement another interview or local authoring fallback in Eval Author.
 
 Explain that Ethos records what the agent should do, what it should avoid, and
-what a good result looks like. Reuse the shared prerequisite orientation. The
+what a good result looks like. Existing evaluations describe current coverage;
+they do not establish the agent's intended behavior.
+
+Reuse the shared prerequisite orientation. The
 shared prerequisite flow confirms repository-root `ETHOS.md`. Preserve existing
 alternate-path documents; do not silently copy, delete, or replace them. Resolve
 the intended root document with the user if needed. Explicitly scoped `--ethos`
