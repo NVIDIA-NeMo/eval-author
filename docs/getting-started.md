@@ -248,7 +248,7 @@ check existing coverage, or improve a suite. For first evaluations, it shows:
 - [ ] **Agree on how your agent behaves using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)**
 - [ ] **Create your first evaluations**
 
-For an audit, the third item is **Check what your evaluations cover**. For
+For an audit, the third item is **Check what your existing evaluations cover**. For
 improvements, it is **Improve your existing evaluations**. The first two steps
 are shared across all three goals and work with Gym and Harbor.
 

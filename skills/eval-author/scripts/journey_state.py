@@ -32,7 +32,7 @@ from working_paths import (  # noqa: E402
 
 JOURNEYS = {
     "create": "Create your first evaluations",
-    "audit": "Check what your evaluations cover",
+    "audit": "Check what your existing evaluations cover",
     "expand": "Improve your existing evaluations",
 }
 STAGES = {"explore", "interview", "draft", "write", "review", "complete"}

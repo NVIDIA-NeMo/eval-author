@@ -43,7 +43,7 @@ def ethos_ready(state, repo):
     "journey,label",
     [
         ("create", "Create your first evaluations"),
-        ("audit", "Check what your evaluations cover"),
+        ("audit", "Check what your existing evaluations cover"),
         ("expand", "Improve your existing evaluations"),
     ],
 )
@@ -74,7 +74,7 @@ def test_resume_and_journey_switch_reuse_shared_confirmations(state, tmp_path):
     assert resumed["ethos"] == original["ethos"]
     assert resumed["scopes"]["create"]["cases"] == ["refund"]
     assert resumed["pending_question"] is None
-    assert state.checklist(resumed)[2]["label"] == "Check what your evaluations cover"
+    assert state.checklist(resumed)[2]["label"] == "Check what your existing evaluations cover"
 
 
 def test_provider_change_invalidates_only_provider_answers_and_scope_approval(state, tmp_path):

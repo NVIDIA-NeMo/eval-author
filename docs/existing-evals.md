@@ -50,7 +50,7 @@ A full audit uses the same shared entry as creating or improving evals:
 
 - [ ] **Check how your agent runs and how you’ll test it** — establish the selected agent and confirm relevant prerequisites
 - [ ] **Agree on how your agent behaves using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)** — agree on intended behavior, boundaries, and success criteria
-- [ ] **Check what your evaluations cover** — select evidence, define intended coverage, measure it, and review the report
+- [ ] **Check what your existing evaluations cover** — select evidence, define intended coverage, measure it, and review the report
 
 Known context and unchanged accepted Ethos are reused. There is no extra
 permission-to-start question. Ethos exploration and writing belong to
