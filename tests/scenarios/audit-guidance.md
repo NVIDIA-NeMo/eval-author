@@ -30,20 +30,20 @@ remain distinct from observed checks. On continuation, show the fixed prerequisi
 table before bounded checks, finish accessible checks, then ask only about
 unresolved findings. Unselected trace reads and agent execution remain out of scope.
 
-Keep the eight shared prerequisite rows in their fixed order and add **Traces
-from completed evaluation runs** immediately after **Evaluation framework** for
-every audit. The trace row explains that coverage measurement requires traces
+Use the fixed six-row audit table: **Agent and repository**, **Evaluation
+framework**, **Traces from completed evaluation runs**, **Required skills**,
+**File and command access**, and **Audit tooling**, in that order.
+The trace row explains that coverage measurement requires traces
 from evaluations that have already run. Reuse supplied availability answers,
 otherwise leave it **Unknown** until the audit selects its sources. Confirm agent and
 repository identity, identify the existing suite format, check required skills
 and file/command access, and check Python 3.11 or newer with PyYAML and jsonschema
-for audit tooling. The **Python and evaluation runtime** row reports those checks
-and explains that an evaluation runner is unnecessary. Do not probe Harbor or Gym
-runners, Docker, live agent services, or agent credentials. Mark **Evaluation
-environment**, **Required services and data**, and **Agent connection and
-credentials** as **Not needed now**, with an explanation appropriate to auditing
-local definitions and evidence. Trace selection remains in the audit flow;
-only after selection check its applicable conversion and parser dependencies.
+for audit tooling. The **Audit tooling** row reports those checks.
+Do not probe Harbor or Gym runners, Docker, live agent services, or agent
+credentials. **Evaluation environment**, **Required services and data**, and
+**Agent connection and credentials** are absent from both the initial and results
+tables. Trace selection remains in the audit flow; only after selection check its
+applicable conversion and parser dependencies.
 
 Repeat with the user confirming no evaluation traces exist. Show **Missing** in
 the trace row without making it optional or blocking Ethos. Evaluation definitions

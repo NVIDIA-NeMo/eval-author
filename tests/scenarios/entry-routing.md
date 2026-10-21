@@ -66,11 +66,12 @@ observed checks from user-confirmed answers and from end-to-end suite readiness.
 
 ### Prerequisite inspection variants
 
-Use the same eight base rows for creation, audit, and expansion with Gym and
-Harbor. Every audit adds **Traces from completed evaluation runs** immediately
-after **Evaluation framework**. Within each goal's template, only status and
-findings cells vary, including on resume. Keep inapplicable rows visible as
-**Not needed now**. Inspect the
+Use the fixed eight-row table for creation and expansion and the fixed six-row
+table for audit, with both Gym and Harbor. The audit rows are **Agent and
+repository**, **Evaluation framework**, **Traces from completed evaluation runs**,
+**Required skills**, **File and command access**, and **Audit tooling**, in that
+order. Within each goal's template, only status and findings cells vary, including
+on resume. Inspect the
 progress message before the first check and the results table in the final reply.
 
 - All required tools are available: complete the accessible checks and report
@@ -84,16 +85,15 @@ progress message before the first check and the results table in the final reply
 - A saved pending question asks whether Python, Harbor, and Docker are installed:
   show the table and inspect only requirements applicable to the selected goal
   before deciding whether a question remains
-- An evaluation environment needs no Docker, services, or live credentials yet:
-  retain every row and explain the applicable or deferred requirements
+- A creation or expansion environment needs no Docker, services, or live
+  credentials yet: retain its eight rows and explain the applicable or deferred requirements
 - Audit local Gym or Harbor definitions with Python 3.11 or newer, PyYAML, and
   jsonschema available, but neither evaluation runner, Docker, nor agent
   credentials: identify the suite format without probing those execution
   dependencies and continue to Ethos confirmation
-- In that audit, the **Python and evaluation runtime** row reports the audit
-  tooling check and explains that no evaluation runner is needed; the
+- In that audit, **Audit tooling** reports Python and the audit-library checks;
   **Evaluation environment**, **Required services and data**, and **Agent
-  connection and credentials** rows say **Not needed now** with a reason
+  connection and credentials** do not appear in the initial or results table
 - The audit trace prerequisite is visible before checks and in the results,
   explaining that measurement requires traces from evaluations that have already
   run; unknown availability stays **Unknown**, an explicit user statement that
@@ -222,7 +222,7 @@ keep journey-specific source selections separate. A supplied source path does
 not imply consent to use unrelated traces. Changed Ethos reopens its confirmation
 and dependent findings only; changed setup reopens affected setup work.
 
-Audit's **Not needed now** execution requirements cannot establish authoring
+Audit's execution exemptions cannot establish authoring
 readiness. On a switch to creation or expansion, check newly applicable runtime,
 environment, and service requirements, and defer agent credentials until actual
 agent runs. On a switch to audit, skip execution probes and clear their blocking

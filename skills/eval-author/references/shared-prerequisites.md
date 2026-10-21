@@ -16,12 +16,14 @@ repository context or save state in preparation for either orientation turn.
 
 ## Check the agent and setup
 
-After the user continues, show this introduction and table before repository
-inspection or commands. Send it as a visible progress message, then perform the
-checks in the same turn; do not stop for an answer or ask the user to attest to
-installed software.
+After the user continues, show this introduction and the selected goal's table
+before repository inspection or commands. Send it as a visible progress message,
+then perform the checks in the same turn; do not stop for an answer or ask the
+user to attest to installed software.
 
 I’ll check the prerequisites below, then explain anything that’s missing or unclear.
+
+For creation and improvements:
 
 | Prerequisite | Status | Findings |
 |---|---|---|
@@ -34,21 +36,24 @@ I’ll check the prerequisites below, then explain anything that’s missing or 
 | Required services and data | Checking | — |
 | Agent connection and credentials | Needed before agent runs | — |
 
-For audit, insert this prerequisite immediately after **Evaluation framework**:
+For audit:
 
 | Prerequisite | Status | Findings |
 |---|---|---|
+| Agent and repository | Checking | — |
+| Evaluation framework | Checking | — |
 | Traces from completed evaluation runs | Unknown | Coverage measurement requires traces from evaluations that have already run. We’ll select them after confirming ETHOS.md |
+| Required skills | Checking | — |
+| File and command access | Checking | — |
+| Audit tooling | Checking | — |
 
-Use the same nine-row table for every audit and the eight-row table above for
+Use the same six-row table for every audit and the eight-row table above for
 creation and improvements, for both Gym and Harbor. Copy the introduction, column
 headings, row labels, and row order exactly for the selected goal. Change only the
 status and findings cells. Keep every row, including those marked **Not needed
-now**; do not otherwise add, rename, reorder, or omit rows.
-For audit, start the evaluation environment and agent
-connection rows as **Not needed now** and explain that existing evidence is being
-reviewed without running the agent. Update the cells as evidence becomes available and repeat
-the table with results in the final reply so it remains visible alongside questions.
+now**; do not add, rename, reorder, or omit rows from the selected template.
+Update the cells as evidence becomes available and repeat the table with results
+in the final reply so it remains visible alongside questions.
 On resume, reuse findings already in context; show the table before loading saved
 state, then update it from applicable records. Do not keep a second progress record.
 Recheck affected facts when the environment changes.
@@ -78,7 +83,8 @@ Select checks by the requested work. The common checks are:
 or bounded suite documentation. Check an existing Python environment against
 `audit_tools` in `scripts/runtime-policy.json`: Python 3.11+ with PyYAML and
 jsonschema for audit specification generation, validation, and report aggregation.
-Use bounded version and import checks and retain the exact interpreter and results.
+Report these checks under **Audit tooling**. Use bounded version and import checks
+and retain the exact interpreter and results.
 This does not require an installed Gym or Harbor execution runtime.
 On resume, reuse `python` evidence only when it establishes this audit tooling.
 An older authoring-runtime check may verify Python without PyYAML or jsonschema;
@@ -86,10 +92,9 @@ mark that prerequisite `unknown` and check the audit requirements before derivin
 the results checklist, even when the saved goal is already audit.
 
 Skip evaluation runner, Docker, live agent service, and agent credential probes.
-Keep the environment and connection rows **Not needed now**. In the services and
-data row, explain that live agent services are unnecessary and access to selected
-evidence will be checked within the audit. Required skills are the shared, Ethos,
-and audit skills; do not recommend authoring-only assistant skills for this step.
+Access to selected evaluation definitions and traces is checked with those inputs
+within the audit. Required skills are the shared, Ethos, and audit skills;
+do not recommend authoring-only assistant skills for this step.
 Reassess old audit state the same way: replace obsolete execution requirements
 with explained exemptions and remove their blocking effect on this audit,
 retaining the earlier evidence.
@@ -146,9 +151,10 @@ successful runtime probe does not prove the suite or agent is ready to run.
 
 After this pass, ask only for unresolved information or decisions needed for the
 next Ethos action, such as an inaccessible repository location, ambiguous agent,
-or access required for that action. Keep later execution requirements in the
-table, with the work they block and when they must be resolved. Do not label them
-optional or hold up Ethos for them. Do not ask the user to confirm facts already
+or access required for that action. For creation and improvements, keep later
+execution requirements in the table, with the work they block and when they must
+be resolved. Do not label them optional or hold up Ethos for them. Do not ask the
+user to confirm facts already
 established by checks. Preserve progress; a saved availability question must go
 through these checks before it is asked again.
 
@@ -195,11 +201,11 @@ These items prevent us from continuing with Ethos.
 [Ethos explanation and next action]
 ```
 
-Omit empty Recommendations and Blockers sections. Required runtime setup or
-credentials for later evaluation runs, and traces for audit measurement, stay in
-the table as later requirements, not optional recommendations or blockers to
-Ethos. Missing Ethos skills can block
-this step; missing `ETHOS.md` alone does not, because the Ethos skills can create it.
+Omit empty Recommendations and Blockers sections. Creation and improvement tables
+retain runtime setup and credentials needed for later evaluation runs; the audit
+table retains traces needed for coverage measurement. These later requirements
+are not optional recommendations or blockers to Ethos. Missing Ethos skills can
+block this step; missing `ETHOS.md` alone does not, because the Ethos skills can create it.
 For an existing document, use the complete **Next Steps** section from the
 [existing Ethos review](ethos-confirmation.md#review-an-existing-document), including
 its heading and checklist once. For a missing document, explain that `ETHOS.md` records what
