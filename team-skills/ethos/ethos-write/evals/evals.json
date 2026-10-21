@@ -38,15 +38,15 @@
       "expected_script": "validate_ethos.py"
     },
     {
-      "id": "write-caller-resume-saved-review",
-      "prompt": "Continue ethos-write from ethos-orchestrate for an interrupted Eval Author review. caller=eval-author; journey=audit; repository=/workspace/input/router-help; agent=router-help; ethos_path=/workspace/input/router-help/ETHOS.md; orientation_shown=true. Progress: stage=review; draft_confirmed=true; confirmed_digest=null; remaining_questions=[saved-file confirmation]. Prior-answer provenance: the same user completed the intent interview and accepted the complete draft before the preceding write. The file was saved successfully, but the user has not yet reviewed the saved contents. No changes are requested. Resume the saved-file review.",
-      "expected_output": "Validates the existing ETHOS.md, presents the gut-check and saved contents, and requests final confirmation. Leaves the file byte-for-byte unchanged, including created_timestamp, owner, team_channel and Glossary. Returns review as unfinished and a null confirmed_digest until the user replies. Does not restart the interview or ask whether to edit or start over.",
+      "id": "write-resume-saved-review",
+      "prompt": "Continue ethos-write from ethos-orchestrate for an interrupted saved-file review. We are working on router-help in /workspace/input/router-help and saved its ETHOS.md in that directory. In our earlier conversation, I completed the intent interview and explicitly accepted the full proposed draft. It was saved successfully, but I have not yet reviewed the saved contents. No changes are requested. Resume the saved-file review.",
+      "expected_output": "Validates the existing ETHOS.md, presents the gut-check and saved contents, and requests final confirmation. Leaves the file byte-for-byte unchanged, including created_timestamp, owner, team_channel and Glossary. Explains that saved-file review remains unfinished until the user replies. Does not restart the interview or ask whether to edit or start over.",
       "assertions": [
         "Runs validate_ethos.py and accurately reports its result.",
         "Shows a gut-check and the saved contents, then asks the user to confirm them.",
         "Leaves ETHOS.md byte-for-byte unchanged and does not set updated_timestamp just to resume review.",
         "Does not ask whether to edit or start over, choose a path, or repeat the intent interview.",
-        "Does not report complete or a confirmed digest before saved-file confirmation. A completed handoff uses the SHA-256 digest as 64 lowercase hexadecimal characters without a prefix.",
+        "Does not report completion before the user accepts the saved contents.",
         "Creates no separate progress record or intent-notes document."
       ],
       "expected_skill": "ethos-write",

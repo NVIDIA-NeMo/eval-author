@@ -2,7 +2,7 @@
 schema_version: 1
 name: docs-qa
 created_timestamp: 2026-09-10T09:00:00Z
-author: eval-author
+author: docs-team
 ---
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->

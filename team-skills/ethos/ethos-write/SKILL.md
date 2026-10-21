@@ -43,9 +43,9 @@ and how to weigh a win on one metric against a loss on another.
 
 ## Location
 
-For an Eval Author continuation, use the root `ethos_path` already selected
-under the [caller handoff contract](../ethos-orchestrate/SKILL.md#continue-an-eval-author-handoff).
-Do not ask for another path or create another copy. For standalone use:
+On continuation, reuse the selected file location from
+[prior context](../ethos-orchestrate/SKILL.md#continue-from-prior-context).
+Do not ask for another path or create another copy. Otherwise:
 
 The ETHOS.md is a local file in the agent's repository, committed alongside
 the code it describes. Use the path the user names. Otherwise reuse an
@@ -95,48 +95,24 @@ The parser cannot catch a vague `Role`, which is why this skill enforces it
 upstream: the user sees a clear gap-question instead of a file that validates
 and then helps nobody.
 
-## Continue a caller handoff
+## Continue from prior context
 
-Reuse the repository, agent name, answers and their provenance, and selected
-operation passed by ethos-orchestrate. Do not restart the interview or ask
-again whether to edit or start over. Reuse completed focus checks; an honest
-`_(none)_` that the user already confirmed is not a reason to reopen them.
-Before creating or changing contents,
-require explicit confirmation of the full proposed draft; a handoff's
-`draft_confirmed` applies only to the exact agreed draft available in context.
-If it is unavailable or has changed, return to draft review while retaining
-the completed interview. For a requested edit, present the proposed changes
-in their existing context and get confirmation before writing.
-
-At `stage: review`, validate and show the existing saved file without
-rewriting it. At `stage: complete`, validate it and compare its current SHA-256
-digest with the confirmed digest. Reuse final review only when the bytes match,
-the confirmation belongs to this repository and agent, and the orchestrator
-found no unresolved intent conflict. Otherwise resume review or targeted
-intent clarification. A matching digest alone does not establish validation
-or user confirmation. A suitable existing file with no prior confirmation
-also follows validation and saved-file review, without a gratuitous rewrite.
-
-After the user accepts the saved contents, compute the SHA-256 digest over
-those exact bytes as 64 lowercase hexadecimal characters without a prefix.
-Return `path`, `validation` (status and warnings/errors),
-`remaining_questions`, `confirmed_digest`, and `stage: complete` to the caller.
-Successful bundled validation is required for completion; if it cannot run,
-return that limitation with the unfinished review stage.
-On any earlier pause, return the unfinished stage with a null
-`confirmed_digest`; do not report Ethos complete. The caller persists these
-fields in its existing working state. This skill writes no separate resume
-or intent-notes document.
+Follow the orchestrator's [continuation guidance](../ethos-orchestrate/SKILL.md#continue-from-prior-context).
+Reuse confirmed answers and completed focus checks, including an honest
+`_(none)_` the user accepted. Recover the exact accepted draft before writing;
+if it is missing or changed, return to draft review without restarting the
+interview. For a requested revision, show the proposed changes in context and
+obtain confirmation before writing. A saved-file review does not authorize a rewrite.
 
 ## What you do
 
 1. **Confirm the agent name.** Short and recognizable: `it-helpdesk`,
    `support-triage`, `code-reviewer`. If the user has not named it, propose
-   two options based on the role. Reuse a name already confirmed by the caller.
+   two options based on the role. Reuse a name already confirmed in prior context.
 
 2. **Pre-flight: locate the file.** Resolve `ETHOS_PATH` as described in
    [Location](#location). If a file already exists there, ask the user whether
-   to edit it or start over unless the caller has already selected the
+   to edit it or start over unless prior context already establishes the
    operation. An existing-file review does not authorize a rewrite.
 
    ```bash
@@ -190,7 +166,7 @@ or intent-notes document.
    for agents and humans to read directly.
 
 5. **Write the file.** Write to `ETHOS_PATH`, creating its directory if needed.
-   A caller continuation must satisfy its draft-confirmation gate first.
+   A continuation must satisfy its draft-confirmation gate first.
    Preserve `author` and `created_timestamp` on edits, along with custom sections and
    extra front-matter keys. Skip writing when validating or reviewing an
    unchanged existing file; do not update its timestamp just for reuse.
@@ -224,15 +200,16 @@ or intent-notes document.
 
    Then print the full file contents and ask: "Does this match what we
    agreed? Edit anything you want to change." If the user edits, repeat
-   steps 5–7, including a fresh gut-check. For a caller continuation, confirm
+   steps 5–7, including a fresh gut-check. On continuation, confirm
    any revised draft before writing it. Reuse a prior final review only under
    the unchanged-file conditions above.
 
 8. **Hand off.** Once confirmed, tell the user where the file is and that it is
    ready to commit. It is now the reference for evaluating, reviewing, or
    changing this agent. When intent changes, edit it in place and set
-   `updated_timestamp`. On a caller continuation, return the confirmed path,
-   digest, and validation result so Eval Author can resume its selected journey.
+   `updated_timestamp`. On continuation, return the confirmed path,
+   validation result, unresolved questions, and what the user confirmed to
+   the invoking conversation or workflow.
 
 ## Verification
 

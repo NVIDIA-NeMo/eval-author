@@ -9,7 +9,7 @@ NVIDIA <br>
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers building AI agents use this skill with a coding assistant to find, explain, create or update their agent's ETHOS.md, routing each request to the ethos-explore or ethos-write sub-flow while ensuring the file records only user-confirmed intent. <br>
+Developers building AI agents use this skill with a coding assistant to find, explain, create or update their agent's ETHOS.md, routing each request to the ethos-explore or ethos-write sub-flow while ensuring the file records only user-confirmed intent. Interrupted conversations can resume from supported prior context without repeating completed questions or assuming unconfirmed approval. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
