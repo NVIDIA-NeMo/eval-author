@@ -90,9 +90,10 @@ run helper commands, write files, or delegate work. This also applies to direct
 first-eval and full-audit invocations. Prerequisite questions and findings belong
 to later turns. After the user continues, show the prerequisite table from the
 shared procedure, then inspect the accessible prerequisites before asking about
-anything unresolved. On that turn, show the selected checklist under **Next Steps**
-after the results table and any Recommendations or Blockers, including when the
-user has just selected a previously unknown goal.
+anything unresolved. If no Blockers remain, show the selected checklist under
+**Next Steps** after the results table and any Recommendations, including when the
+user has just selected a previously unknown goal. If blocked, end with the
+Blockers and omit Next Steps, the checklist, and Ethos guidance.
 Continuations and goal switches within an existing shared flow reuse progress
 rather than repeating this pause.
 

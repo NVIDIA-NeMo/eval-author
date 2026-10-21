@@ -107,13 +107,15 @@ or the next action; do not display the placeholders.
 - Include **Blockers** only when an unresolved issue prevents the next Ethos
   action; explain the affected action and the answer or change needed, with
   relevant setup documentation
-- Always include **Next Steps** after the table and any Recommendations or
-  Blockers, followed by the shared three-item checklist with current progress
+- If **Blockers** is present, end with the required action or focused question
+  in that section; omit Next Steps, the checklist, and all Ethos guidance
+- Include **Next Steps** only when no Blockers remain, after the table and any
+  Recommendations, followed by the shared three-item checklist with current progress
 - Copy the checklist wording, Ethos link, and selected goal's third item from the
   core; derive checkmarks and the current-step marker from shared state, and do
   not repeat the checklist before the table
-- Below the checklist, ask the focused question needed to resolve a blocker;
-  otherwise continue through `ethos-orchestrate` without a separate Ethos heading
+- When unblocked, continue below the checklist through `ethos-orchestrate`
+  without a separate Ethos heading
 
 ```markdown
 ### Recommendations
@@ -128,11 +130,13 @@ These items prevent us from continuing with Ethos.
 
 - [Blocked action, reason, and the action or answer needed]
 
+[Focused question needed to resolve a blocker; end the blocked response here]
+
 ### Next Steps
 
 [Shared three-item checklist from the core, with saved progress]
 
-[Focused blocker question, or Ethos explanation and next action]
+[Ethos explanation and next action]
 ```
 
 Omit empty Recommendations and Blockers sections. Required runtime setup or
@@ -141,8 +145,8 @@ not optional recommendations or blockers to Ethos. Missing Ethos skills can bloc
 this step; missing `ETHOS.md` alone does not, because the Ethos skills can create it.
 When entering Ethos, explain below the checklist that `ETHOS.md` records what the
 agent should do, what it should avoid, and what a good result looks like, then
-present the orchestrator's review or next question. If blocked, keep the checklist
-visible without starting the dependent Ethos work.
+present the orchestrator's review or next question. If blocked, preserve progress
+without displaying the checklist or starting dependent Ethos work.
 
 ## Confirm Ethos
 

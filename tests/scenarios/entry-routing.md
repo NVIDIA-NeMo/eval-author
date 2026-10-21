@@ -34,7 +34,8 @@ checklist shown only in progress messages does not pass.
 
 Reply to continue, or select a goal. Prerequisite work can now begin without
 repeating the opening-only pause. In the results response, the selected checklist
-appears under **Next Steps**, after the table and any Recommendations or Blockers.
+appears under **Next Steps**, after the table and any Recommendations, only when
+no Blockers remain. A blocked response ends at Blockers without a checklist or Ethos guidance.
 Only the selected third-item label, checkmarks, and current-step marker vary.
 On resume, keep the same wording with saved progress. When naming the agent
 and setup on subsequent turns, distinguish explicit requests,
@@ -86,17 +87,18 @@ and Harbor; omit sections only under the template's stated conditions.
   keep their later requirements in the table, without classifying them as
   optional or adding them to **Blockers**; continue below the checklist in **Next Steps**
 - Required Ethos skills or access needed for the next Ethos action are missing:
-  show **Blockers** with the affected action and remedy, then **Next Steps** with
-  the checklist and the focused question; do not start a dependent Ethos interview
+  show **Blockers** with the affected action, remedy, and focused question; omit
+  Next Steps, the checklist, and all Ethos guidance, even if Recommendations are present
 - No suggestions or blockers remain: omit those empty sections and go directly
   from the table to **Next Steps** and the checklist
 - `ETHOS.md` is missing but the Ethos skills are available: proceed below the
   checklist; the absent document is not a blocker
-- Resume an Ethos question: use **Next Steps** and saved checklist progress without restarting
-  onboarding or imposing prerequisite tables on scoped utilities
+- Resume an Ethos question: use **Next Steps** and saved checklist progress only
+  if no Blockers remain, without restarting onboarding or imposing prerequisite
+  tables on scoped utilities
 
-The results response contains one checklist, after the table and all included
-Recommendations and Blockers. It has no separate Ethos heading. Preserve the
+An unblocked results response contains one checklist, after the table and any
+Recommendations. A blocked response contains none. Neither has a separate Ethos heading. Preserve the
 fresh welcome/checklist/call-to-action response before any prerequisite work.
 
 ## 2. Expansion does not imply an audit
