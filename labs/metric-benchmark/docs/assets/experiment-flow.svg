@@ -1,0 +1,134 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Editable SVG: labels are text; no external fonts, scripts, or assets. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1320" viewBox="0 0 1280 1320" role="img" aria-labelledby="title description">
+  <title id="title">Metric benchmark: from case examples to correlation</title>
+  <desc id="description">Three phases: prepare case examples for the experiment; run the baseline and mutants against all eval tasks; analyze the saved results. Prep supplies the agent, mutants, case description, benchmark tasks, and experiment configuration. It constructs subsets using a fixed seed and bundles their exact memberships in an authoritative versioned manifest. Execution produces a shared results directory. Analysis consumes the prepared subset manifest, computes mutant scores from baseline and mutant outcomes, and computes coverage from the case description and baseline evidence using metric computation such as Eval Author. The two scores are joined by subset for correlation. Configuration governs execution and analysis. Prep is outside the experiment; the local Harbor loop and future Helix implementation are planned execution backends.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M1 1 L9 5 L1 9 Z" fill="#64748b"/>
+    </marker>
+    <marker id="purple-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M1 1 L9 5 L1 9 Z" fill="#7c62b3"/>
+    </marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #1e293b; }
+      .title { font-size: 32px; font-weight: 700; letter-spacing: -.5px; }
+      .subtitle { font-size: 19px; fill: #64748b; }
+      .phase { font-size: 25px; font-weight: 700; }
+      .number { font-size: 19px; font-weight: 700; fill: #fff; text-anchor: middle; }
+      .label { font-size: 21px; font-weight: 700; }
+      .detail { font-size: 18px; fill: #475569; }
+      .small { font-size: 16px; fill: #64748b; }
+      .mono { font-family: 'DejaVu Sans Mono', Consolas, monospace; font-size: 16px; fill: #334155; }
+      .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: 1.4px; }
+      .flow { fill: none; stroke: #64748b; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow); }
+      .analysis-flow { fill: none; stroke: #7c62b3; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#purple-arrow); }
+      .card { fill: #fff; stroke-width: 1.5; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="1320" rx="20" fill="#fff"/>
+  <text x="48" y="54" class="title">Metric benchmark</text>
+  <text x="48" y="85" class="subtitle">Does coverage predict how well eval tasks detect agent degradation?</text>
+
+  <!-- 1. Case preparation: the five supplied inputs. -->
+  <rect x="32" y="116" width="1216" height="330" rx="20" fill="#eff9f6" stroke="#cce9e0"/>
+  <circle cx="72" cy="156" r="19" fill="#16856b"/>
+  <text x="72" y="163" class="number">1</text>
+  <text x="107" y="165" class="phase">Prep</text>
+  <text x="181" y="165" class="detail">Prepare case examples for the experiment</text>
+  <rect x="1004" y="140" width="214" height="30" rx="15" fill="#d9eee6"/>
+  <text x="1111" y="160" text-anchor="middle" class="small" style="fill:#246653">Outside the experiment</text>
+
+  <g class="card" stroke="#b9dcd0">
+    <rect x="64" y="194" width="220" height="82" rx="12"/>
+    <rect x="297" y="194" width="220" height="82" rx="12"/>
+    <rect x="530" y="194" width="220" height="82" rx="12"/>
+    <rect x="763" y="194" width="220" height="82" rx="12"/>
+    <rect x="996" y="194" width="220" height="82" rx="12"/>
+  </g>
+  <text x="82" y="226" class="label">Agent</text>
+  <text x="82" y="254" class="detail">Baseline bundle</text>
+  <text x="315" y="226" class="label">Mutants</text>
+  <text x="315" y="254" class="detail">Fixed variant cohort</text>
+  <text x="548" y="226" class="label">Case description</text>
+  <text x="548" y="254" class="detail">Intended behavior</text>
+  <text x="781" y="226" class="label">Benchmark tasks</text>
+  <text x="781" y="254" class="detail">Tasks + verifiers</text>
+  <text x="1014" y="226" class="label">benchmark.yaml</text>
+  <text x="1014" y="254" class="detail">Fixed configuration</text>
+  <rect x="64" y="294" width="490" height="110" rx="12" class="card" stroke="#b9dcd0"/>
+  <text x="86" y="327" class="label">Construct eval subsets</text>
+  <text x="86" y="356" class="detail">Pinned task inventory + fixed seed</text>
+  <text x="86" y="383" class="small">Freeze membership before inspecting outcomes.</text>
+  <path d="M554 349 H646" class="flow"/>
+  <rect x="650" y="294" width="566" height="110" rx="12" fill="#d9eee6" stroke="#a7cdbf" stroke-width="1.5"/>
+  <text x="672" y="327" class="label">Subset manifest</text>
+  <text x="672" y="356" class="detail">Stable subset IDs + exact task membership</text>
+  <text x="672" y="383" class="small">Versioned subsets.json · algorithm + fixed seed recorded</text>
+  <text x="64" y="431" class="small">Prep emits benchmark.yaml + its input artifacts. The orchestrator reads the YAML and invokes Python stage tools.</text>
+
+  <g transform="translate(0 110)">
+  <path d="M310 336 V364" class="flow"/>
+
+  <!-- 2. Replaceable execution backend and its durable interface. -->
+  <rect x="32" y="366" width="1216" height="242" rx="20" fill="#f0f6fe" stroke="#d0e0f7"/>
+  <circle cx="72" cy="406" r="19" fill="#3578c4"/>
+  <text x="72" y="413" class="number">2</text>
+  <text x="107" y="415" class="phase">Run mutants x eval tasks</text>
+  <text x="1216" y="413" text-anchor="end" class="small">Same tasks · baseline + every mutant</text>
+
+  <rect x="64" y="442" width="490" height="136" rx="12" class="card" stroke="#b8d0ed"/>
+  <text x="86" y="475" class="label">Execute evals</text>
+  <text x="86" y="505" class="detail">Mutants + baseline x eval tasks</text>
+  <text x="86" y="535" class="small">One full benchmark per agent; local jobs run in sequence.</text>
+  <text x="86" y="560" class="small">Planned Python tools: local Harbor, then Helix.</text>
+  <path d="M554 510 H646" class="flow"/>
+  <rect x="650" y="442" width="566" height="136" rx="12" fill="#e0edfc" stroke="#9ebfe6" stroke-width="1.5"/>
+  <text x="672" y="474" class="label">Results directory</text>
+  <text x="672" y="504" class="detail">Shared index + native task results</text>
+  <text x="672" y="534" class="mono">results.json</text>
+  <text x="672" y="560" class="mono">agents/&lt;agent&gt;/&lt;run&gt;/&lt;native-trial&gt;/</text>
+
+  <!-- 3. The analysis branch deliberately keeps metric computation separate. -->
+  <rect x="32" y="650" width="1216" height="526" rx="20" fill="#f7f4fc" stroke="#e1d7f0"/>
+  <!-- Results feed every analysis component through the shared contract. -->
+  <path d="M680 578 V624 Q680 634 670 634 H650 Q640 634 640 644 V646" class="flow"/>
+  <circle cx="72" cy="690" r="19" fill="#8060b0"/>
+  <text x="72" y="697" class="number">3</text>
+  <text x="107" y="699" class="phase">Score analysis</text>
+  <text x="64" y="735" class="detail">Read the saved results.</text>
+  <text x="64" y="762" class="detail">Compare the same subsets.</text>
+
+  <rect x="470" y="710" width="340" height="82" rx="12" class="card" stroke="#cbb9e2"/>
+  <text x="640" y="742" text-anchor="middle" class="label">Subset manifest</text>
+  <text x="640" y="770" text-anchor="middle" class="detail">Fixed membership from prep</text>
+
+  <path d="M590 792 V810 Q590 820 580 820 H330 Q320 820 320 830 V856" class="analysis-flow"/>
+  <path d="M690 792 V810 Q690 820 700 820 H950 Q960 820 960 830 V856" class="analysis-flow"/>
+
+  <rect x="870" y="684" width="326" height="98" rx="12" fill="#ede5f8" stroke="#cbb9e2" stroke-width="1.5"/>
+  <text x="892" y="713" class="eyebrow" style="fill:#74549f">METHOD BEING EVALUATED</text>
+  <text x="892" y="743" class="label">Metric computation</text>
+  <text x="892" y="769" class="detail">(e.g. Eval Author)</text>
+  <path d="M1130 782 V856" class="analysis-flow"/>
+
+  <rect x="120" y="860" width="400" height="112" rx="12" class="card" stroke="#cbb9e2"/>
+  <text x="144" y="894" class="label">Compute mutant scores</text>
+  <text x="144" y="924" class="detail">Baseline + mutant outcomes</text>
+  <text x="144" y="951" class="mono">compute_mutant_scores.py</text>
+
+  <rect x="760" y="860" width="436" height="112" rx="12" class="card" stroke="#cbb9e2"/>
+  <text x="784" y="894" class="label">Compute coverage</text>
+  <text x="784" y="924" class="detail">Case description + baseline evidence</text>
+  <text x="784" y="951" class="mono">compute_coverage.py</text>
+
+  <path d="M320 972 V999 Q320 1010 332 1010 H540 Q550 1010 550 1020 V1046" class="analysis-flow"/>
+  <path d="M960 972 V999 Q960 1010 948 1010 H740 Q730 1010 730 1020 V1046" class="analysis-flow"/>
+  <text x="640" y="1009" text-anchor="middle" class="small" style="fill:#74549f">Join by subset</text>
+  <rect x="440" y="1050" width="400" height="94" rx="14" fill="#73549f"/>
+  <text x="640" y="1087" text-anchor="middle" class="label" style="fill:#fff;font-size:25px">Correlation</text>
+  <text x="640" y="1118" text-anchor="middle" class="mono" style="fill:#f0e9fa">correlate.py</text>
+  </g>
+</svg>
