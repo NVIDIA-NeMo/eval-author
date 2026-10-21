@@ -71,9 +71,9 @@ skips, and what Solve leaves behind.
 
 ### Prerequisites
 
-Use the core's routing to distinguish inventory from readiness. Journey 0 only
-reads setup requirements and records user confirmation; it never calls this
-runtime-probing workflow. A scoped inventory request uses **Explore an uncertain
+Use the core's routing to distinguish inventory from readiness. The shared
+prerequisite flow only reads setup requirements and records user confirmation;
+it never calls this runtime-probing workflow. A scoped inventory request uses **Explore an uncertain
 starting point** below without probes. A scoped readiness request retains the
 provider-owned validation in Steps 1–6. A downstream authoring call reuses shared
 answers and verifies only the runtime capabilities its operation needs.

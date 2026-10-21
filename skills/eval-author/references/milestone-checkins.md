@@ -1,11 +1,12 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Authoring milestones after Journey 0
+# Authoring milestones after prerequisites and Ethos
 
-Journey 0 owns common orientation, prerequisite answers, Ethos confirmation, and
-resumption. Consume its accepted result instead of opening another onboarding
-flow. This reference owns downstream first-eval work and scope reviews only.
+The shared prerequisite flow owns common orientation, prerequisite answers,
+Ethos confirmation, and resumption. Consume its accepted result instead of
+opening another onboarding flow. This reference owns downstream first-eval work
+and scope reviews only.
 
 ## Explain progress and ask for decisions
 
@@ -37,8 +38,9 @@ unreviewed snapshots and preserve historical evidence paths.
 
 ## Consume shared prerequisites
 
-Journey 0 supplies agent identity, selected Gym or Harbor setup, prerequisite
-answers, and the confirmed Ethos result from [Ethos confirmation](ethos-confirmation.md).
+The shared prerequisite flow supplies agent identity, selected Gym or Harbor
+setup, prerequisite answers, and the confirmed Ethos result from
+[Ethos confirmation](ethos-confirmation.md).
 Neither a file nor a user-confirmed installation proves runtime readiness.
 Planning can proceed without the runtime. At the first authoring operation that
 requires it, use the shared [runtime locator](runtime-prerequisites.md) with

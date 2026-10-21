@@ -49,7 +49,8 @@ the findings with the user. It does not generate tasks yet.
 
 ## Start a guided audit
 
-A full audit enters the core's Journey 0, including direct invocation. Show its
+A full audit enters the core's shared prerequisite flow, including direct
+invocation. Show its
 three-item checklist with **Audit your coverage** selected. Reuse confirmed
 agent, prerequisites, and Ethos. Continue authorized work without a separate
 opening acceptance or repeated Ethos milestone.

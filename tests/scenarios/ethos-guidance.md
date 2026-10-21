@@ -76,7 +76,7 @@ and safety rules still appear.
 ## 2. Eval Author delegates to the canonical orchestrator
 
 **Start:** Supply selected agent context, prior answers with provenance, and
-Journey 0 progress. Request continuation for first-eval, audit, and expansion.
+shared prerequisite progress. Request continuation for first-eval, audit, and expansion.
 
 **Inspect:** Eval Author maps its state into ordinary Ethos conversation context:
 repository, agent, selected document path, findings, prior answers with provenance,
@@ -87,7 +87,7 @@ Confirm draft content before writing. Eval Author maps the reported path,
 validation, outstanding work, and user confirmations back to shared journey state
 and computes the saved content digest itself.
 Unchanged confirmed content is reused without another interview or review gate.
-The three-item Journey 0 orientation is not repeated inside Ethos.
+The three-item shared prerequisite orientation is not repeated inside Ethos.
 
 ## 3. Missing canonical Ethos skills
 

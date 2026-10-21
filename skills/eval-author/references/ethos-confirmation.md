@@ -9,12 +9,13 @@ single owner of Ethos exploration, draft confirmation, validation, and writing.
 Do not implement another interview or local authoring fallback in Eval Author.
 
 Explain that Ethos records what the agent should do, what it should avoid, and
-what a good result looks like. Reuse the Journey 0 orientation. Journey 0
-confirms repository-root `ETHOS.md`. Preserve existing alternate-path
-documents; do not silently copy, delete, or replace them. Resolve the intended
-root document with the user if needed. Explicitly scoped `--ethos` utilities can
-use their supplied path without claiming Journey 0 confirmed that document.
-Resolve ambiguous identity or conflicting intent before accepting it.
+what a good result looks like. Reuse the shared prerequisite orientation. The
+shared prerequisite flow confirms repository-root `ETHOS.md`. Preserve existing
+alternate-path documents; do not silently copy, delete, or replace them. Resolve
+the intended root document with the user if needed. Explicitly scoped `--ethos`
+utilities can use their supplied path without claiming the shared prerequisite
+flow confirmed that document. Resolve ambiguous identity or conflicting intent
+before accepting it.
 
 ## Call and return
 

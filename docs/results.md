@@ -210,7 +210,8 @@ coverage or validate a runnable evaluation task.
 Shared internal progress and agreed scope are stored in
 `.eval-author/.working/journey-state.json`; they are not a second report or plan.
 
-These are typical paths relative to the repository being evaluated. Journey 0 uses repository-root `ETHOS.md`; scoped utilities can use an explicit
+These are typical paths relative to the repository being evaluated. The shared
+prerequisite flow uses repository-root `ETHOS.md`; scoped utilities can use an explicit
 alternate path. Workflows may stop before producing every artifact when
 prerequisites are missing.
 

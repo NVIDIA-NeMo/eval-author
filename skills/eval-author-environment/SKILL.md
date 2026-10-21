@@ -35,7 +35,7 @@ allowed-tools: Bash Read Write Grep Glob
 
 # Eval Author: environment
 
-Consume the caller's shared Journey 0 context and accepted case scope. Do not
+Consume the caller's shared prerequisite context and accepted case scope. Do not
 repeat agent, prerequisite, or Ethos onboarding. Real environment verification
 remains required here and is separate from prerequisite confirmation. Save
 workflow stage and pending decisions in shared journey state; the kit documents

@@ -34,8 +34,8 @@ allowed-tools: Bash Read Write Grep Glob
 ## Purpose
 
 Read `eval-author` for the shared standard and boundaries. Direct invocations
-enter its Journey 0, consuming an applicable saved result on return. Follow
-[Milestone check-ins](../eval-author/references/milestone-checkins.md) for
+enter its shared prerequisite flow, consuming an applicable saved result on
+return. Follow [Milestone check-ins](../eval-author/references/milestone-checkins.md) for
 downstream stage decisions and use the core's three-item checklist. A statement
 that no evals exist settles the starting point; no discovery is needed to prove
 absence. The stages below retain the existing authoring implementation, but
@@ -58,7 +58,7 @@ A working suite and strong evaluation quality are separate claims.
 ## 1. Reuse the confirmed Ethos
 
 Consume the path, confirmed digest, validation result, and unresolved intent from
-Journey 0's [Ethos confirmation](../eval-author/references/ethos-confirmation.md)
+the core's [Ethos confirmation](../eval-author/references/ethos-confirmation.md)
 handoff. Reopen only changed or unresolved content. Do not restart an interview,
 write another Ethos, or add a separate content review for unchanged approval.
 

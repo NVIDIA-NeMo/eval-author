@@ -1,10 +1,10 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Audit milestones after Journey 0
+# Audit milestones after prerequisites and Ethos
 
-Journey 0 owns the opening checklist, prerequisite answers, Ethos confirmation,
-and shared resumption. A direct full audit uses that same flow. Afterward keep
+The shared prerequisite flow owns the opening checklist, prerequisite answers,
+Ethos confirmation, and shared resumption. A direct full audit uses that same flow. Afterward keep
 **Audit your coverage** current in the three-item checklist while explaining the
 current coverage milestone. There is no second audit opening or Ethos checkpoint.
 

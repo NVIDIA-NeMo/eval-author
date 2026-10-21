@@ -53,7 +53,7 @@ findings and prior answers. Accepting the audit's offer to propose tasks also
 enters Step 1 directly; reuse the reviewed Audit coverage report and agreed priorities.
 When handing off from a guided audit, wait for an explicit answer accepting that
 offer; report acceptance alone is not permission to begin proposals.
-For task creation, consume the core's Journey 0 result, including direct
+For task creation, consume the core's shared prerequisite result, including direct
 invocation. Proposal-only requests keep their supplied-input scope. Reuse the
 confirmed Ethos and prerequisites without another interview or start gate.
 A general expansion request without audit findings follows the core's expansion

@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Journey 0: shared prerequisites and Ethos
+# Shared prerequisites and Ethos
 
 The core owns orientation and goal selection. This procedure owns the common
 entry for creating, auditing, and improving evals, including direct skill calls.
@@ -23,14 +23,15 @@ switching the selected runtime.
 
 Read the shared `scripts/runtime-policy.json` authoring requirements for the
 selected setup and its Python version. Scoped audit checks retain their own
-operation-specific policy; they do not lower Journey 0’s authoring requirements. Confirm only outstanding prerequisites together: installed skills
-and file/command permissions, the applicable runtime, required environment and
+operation-specific policy; they do not lower the shared authoring requirements.
+Confirm only outstanding prerequisites together: installed skills and
+file/command permissions, the applicable runtime, required environment and
 service/data access. Do not ask for credentials or secret values. Credentials
 are required only for the execution that uses them. Optional assistant skills
 remain optional. Reuse supplied answers and explain what each missing item blocks.
 
-Journey 0 does not run the runtime locator, install software, repair setup, or
-execute agents. Record answers as **user-confirmed**, never tested or ready.
+The shared prerequisite flow does not run the runtime locator, install software,
+repair setup, or execute agents. Record answers as **user-confirmed**, never tested or ready.
 Missing setup leaves dependent work pending while independent agent review,
 Ethos work, and planning continue. Runtime verification belongs to the downstream
 operation that needs the runtime and reuses these answers.

@@ -26,7 +26,7 @@ It does not launch assistants or select their routes.
 
 The [contracts](../tests/fixtures/workflow-scope/contracts.json) pin their source
 revision and policy references. Cases cover broad help, explicit audit, inventory,
-readiness, narrow audit validation, shared Journey 0 entry, recommendations, task
+readiness, narrow audit validation, shared prerequisites and Ethos, recommendations, task
 drafting, trace inspection, and follow-ups that broaden or narrow scope.
 Each turn specifies exact prompt alternatives, prior context, selected flow,
 permitted and required actions, allowed writes, and terminal handoff.

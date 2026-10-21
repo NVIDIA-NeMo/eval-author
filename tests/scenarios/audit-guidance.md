@@ -23,11 +23,11 @@ Add distinct trace candidates under `runs/selected/` and `runs/other/` when a ca
 needs them. Use synthetic canonical ATIF only when exercising measurement.
 Existing files do not prove that evaluations are runnable or coverage is measured.
 
-Every fresh full audit uses the core's three-item Journey 0 checklist with
+Every fresh full audit uses the core's three-item shared prerequisite checklist with
 **Audit your coverage** selected. It starts bounded agent/setup and Ethos work
 without a separate opening approval. Repeat with Gym and Harbor, missing Ethos,
 and unchanged confirmed Ethos. Confirmed prerequisites are not runtime-tested.
-No runtime probes, unselected trace reads, or agent execution belong to Journey 0.
+No runtime probes, unselected trace reads, or agent execution belong to the shared prerequisite flow.
 
 Use `ethos-orchestrate` through the confirmation adapter. Reuse applicable answers
 and unchanged confirmed content. For missing or revised intent, review the draft

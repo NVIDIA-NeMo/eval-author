@@ -42,7 +42,7 @@
         "write_paths": [
           ".eval-author/.working/"
         ],
-        "handoff": "journey_0"
+        "handoff": "shared_prerequisites"
       }
     ],
     "inventory-only": [
@@ -135,7 +135,7 @@
         "write_paths": [
           ".eval-author/.working/"
         ],
-        "handoff": "journey_0"
+        "handoff": "shared_prerequisites"
       }
     ],
     "recommendations-only": [
@@ -244,7 +244,7 @@
         "write_paths": [
           ".eval-author/.working/"
         ],
-        "handoff": "journey_0"
+        "handoff": "shared_prerequisites"
       }
     ],
     "narrow-to-recommendations": [
@@ -265,7 +265,7 @@
         "write_paths": [
           ".eval-author/.working/"
         ],
-        "handoff": "journey_0"
+        "handoff": "shared_prerequisites"
       },
       {
         "prompts": [
@@ -307,7 +307,7 @@
         "write_paths": [
           ".eval-author/.working/"
         ],
-        "handoff": "journey_0"
+        "handoff": "shared_prerequisites"
       }
     ]
   }

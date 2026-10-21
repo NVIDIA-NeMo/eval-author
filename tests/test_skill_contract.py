@@ -2042,10 +2042,10 @@ def test_ethos_confirmation_handoff_resources_resolve() -> None:
     assert "confirmed_digest" in text
 
 
-def test_shared_journey_replaces_duplicate_onboarding() -> None:
+def test_shared_prerequisites_replace_duplicate_onboarding() -> None:
     """The shared entry must retain scoped operations and one state authority."""
     _, core = _frontmatter_and_body(_CORE_DIR)
-    reference = (_CORE_DIR / "references" / "journey-0.md").read_text()
+    reference = (_CORE_DIR / "references" / "shared-prerequisites.md").read_text()
     assert "Confirm your agent and evaluation setup" in core
     assert "Find out what your agent is supposed to do (Ethos)" in core
     assert "An expansion request does not imply an audit" in core
@@ -2054,7 +2054,7 @@ def test_shared_journey_replaces_duplicate_onboarding() -> None:
     assert "does not run the runtime locator" in reference
     for skill_dir in (_FIRST_EVAL_DIR, _AUDIT_DIR):
         _, body = _frontmatter_and_body(skill_dir)
-        assert "Journey 0" in body
+        assert "shared prerequisite flow" in body
         assert "Ready to get started?" not in body
 
 

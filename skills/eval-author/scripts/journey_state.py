@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Persist Journey 0 decisions; never probe runtimes, infer approval, or write ETHOS.md.
+"""Persist shared prerequisite decisions; never probe runtimes, infer approval, or write ETHOS.md.
 
 The assistant records user answers with provenance. These records are not proof
 that a runtime works or an evaluation passed. Show is read-only, including when
@@ -138,7 +138,7 @@ def validate(state: dict) -> None:
             "runtime",
             "python",
         }:
-            raise ValueError(f"{key} is required for Journey 0")
+            raise ValueError(f"{key} is required for the shared prerequisite flow")
     ethos = state["ethos"]
     if not isinstance(ethos, dict) or set(ethos) != set(empty_ethos()):
         raise ValueError("Invalid Ethos state")

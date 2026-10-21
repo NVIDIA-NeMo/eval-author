@@ -22,7 +22,7 @@ the agent/setup, confirm Ethos, then the selected build/audit/improve item. A cl
 goal starts bounded useful inspection without another start approval. Unknown
 goal asks create/audit/improve only; explicit inventory remains a scoped option.
 Do not probe runtimes, install, read unselected traces, or execute agents in
-Journey 0. Confirm prerequisites together and label them user-confirmed.
+the shared prerequisite flow. Confirm prerequisites together and label them user-confirmed.
 
 ## 2. Expansion does not imply an audit
 

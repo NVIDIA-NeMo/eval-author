@@ -70,11 +70,11 @@ each request to the narrow sub-flow that owns it.
 ## Choose the entry route
 
 Use the requested outcome and prior answers before asking a question. Creating,
-auditing, and improving evals share **Journey 0** below for Gym and Harbor,
-including direct invocations of their skills. An explicit goal starts that work;
-there is no separate permission-to-start question.
+auditing, and improving evals use the **Shared prerequisites and Ethos** flow
+below for Gym and Harbor, including direct invocations of their skills. An
+explicit goal starts that work; there is no separate permission-to-start question.
 
-| Request | Route after Journey 0 |
+| Request | Route after shared prerequisites and Ethos |
 |---|---|
 | Build first evals | `eval-author-first-eval`, continuing at the first unfinished authoring stage |
 | Audit coverage | `eval-author-audit`, continuing with eval and trace selection |
@@ -95,7 +95,7 @@ Adaptation is disabled: explain this for evaluation-framework conversion
 requests, preserving the user's existing material rather than treating it as
 absent. Supported trace conversion retains its existing dedicated skills.
 
-### Journey 0: shared prerequisites and Ethos
+### Shared prerequisites and Ethos
 
 Show this three-item checklist before starting the shared flow. Use literal
 checkboxes, mark the current item **We're here**, and substitute the selected
@@ -110,12 +110,13 @@ orientation; do not add a “Ready to get started?” gate. Explain results and 
 only for missing decisions or content confirmation. Do not mark prerequisite
 confirmation as runtime verification or mark downstream work complete at handoff.
 
-Read [Journey 0](references/journey-0.md) for prerequisite confirmation, shared
-state, resumption, and the exact handoff. Use [Ethos confirmation](references/ethos-confirmation.md)
-to invoke `ethos-orchestrate`; Eval Author does not maintain a second Ethos
-interview or writer. Journey 0 confirms repository-root `ETHOS.md`. Preserve supplied alternate-path
-documents and resolve the root requirement without silently copying or replacing
-them. Scoped utilities retain their explicit `--ethos` path behavior.
+Read [Shared prerequisites and Ethos](references/shared-prerequisites.md) for
+prerequisite confirmation, shared state, resumption, and the exact handoff. Use
+[Ethos confirmation](references/ethos-confirmation.md) to invoke `ethos-orchestrate`;
+Eval Author does not maintain a second Ethos interview or writer. The shared
+prerequisite flow confirms repository-root `ETHOS.md`. Preserve supplied
+alternate-path documents and resolve the root requirement without silently copying
+or replacing them. Scoped utilities retain their explicit `--ethos` path behavior.
 
 ### Expansion handoff
 
@@ -132,8 +133,9 @@ An explicitly selected addition or proposal-only request keeps that scope.
 
 ### Downstream progress
 
-After Journey 0, [Milestone check-ins](references/milestone-checkins.md) supplies
-first-eval's existing authoring stages. The audit uses its coverage milestones.
+Once prerequisites and Ethos are confirmed,
+[Milestone check-ins](references/milestone-checkins.md) supplies first-eval's
+existing authoring stages. The audit uses its coverage milestones.
 Their completed shared stages are consumed, never repeated. Keep substantive
 scope and evidence reviews, source selection, and execution authorization; remove
 only redundant start and transition questions when the next action is already
@@ -274,10 +276,12 @@ about missing facts affecting the next work. Never request secret values.
 ## Route after the evaluation starting point
 
 The entry routes above own discovery performed before authoring. Within an
-authoring flow, Journey 0 supplies confirmed Ethos and prerequisite answers. The downstream flow verifies its runtime when required and
-then reuses the settled starting point or calls `eval-author-discover` if source
-selection is still needed. Its runtime probes can be used separately during the
-runtime stage. Reuse completed checks and answers when their inputs are unchanged.
+authoring flow, the shared prerequisite flow supplies confirmed Ethos and
+prerequisite answers. The downstream flow verifies its runtime when required
+and then reuses the settled starting point or calls `eval-author-discover` if
+source selection is still needed. Its runtime probes can be used separately
+during the runtime stage. Reuse completed checks and answers when their inputs
+are unchanged.
 
 When a discovery scan found no Harbor evals, follow its **When no Harbor evals
 were found** conversation before routing candidate material; an empty Harbor
