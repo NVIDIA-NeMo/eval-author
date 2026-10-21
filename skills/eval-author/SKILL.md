@@ -250,11 +250,12 @@ permission to silently switch providers.
 ## Keep task paths stable
 
 Create new tasks directly in `.eval-author/tasks/<task-slug>/`, or the selected
-existing suite's established task directory when that flow permits it. Draft,
-validated, and accepted are statuses of the same directory. Do not copy or move
-a task merely to accept it. Add only accepted tasks to the runnable suite's
-explicit task set, and preserve unfinished cases in shared state and reports.
-Private trace workspaces retain their reviewed export workflow.
+existing suite's established task directory when that flow permits it.
+Keep task files at the same path as their status changes. Include only accepted
+tasks in the saved suite configuration.
+
+For tasks derived from traces, follow the trace-environment skill's
+[workspace and publication rules](../eval-author-trace-environment/SKILL.md).
 
 Before final handoff, verify that the provider configuration resolves exactly
 the accepted task set, that report and rerun links use those stable paths, and
