@@ -105,9 +105,9 @@ absent. Supported trace conversion retains its existing dedicated skills.
 Show a three-item checklist before starting the shared flow. Use literal
 checkboxes and mark the current item **We're here**. For first evaluations:
 
-- [ ] **Check how your agent runs and how you’ll test it** — identify the repository and agent and confirm the prerequisites relevant to your goal.
-- [ ] **Agree on what your agent should do using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)** — agree on its purpose, expected behavior, boundaries, and success criteria.
-- [ ] **Create your first evaluations** — build and validate evaluations using the agreed scope.
+- [ ] **Check how your agent runs and how you’ll test it** — identify the repository and agent and confirm the prerequisites relevant to your goal
+- [ ] **Agree on what your agent should do using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)** — agree on its purpose, expected behavior, boundaries, and success criteria
+- [ ] **Create your first evaluations** — build and validate evaluations using the agreed scope
 
 For an audit, replace the third item with **Check what your evaluations cover**.
 For improvements, use **Improve your existing evaluations**. Show only the
@@ -367,6 +367,8 @@ user, not to you.
   changes a remote resource.
 
 ## Communicating with the user
+
+Omit trailing periods from user-facing list items.
 
 Do not append a footer that names or links a skill, quotes its instructions, or
 explains that a skill requires you to ask or wait, unless the host explicitly
