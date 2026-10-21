@@ -32,8 +32,15 @@ helper commands, writes, and delegation all fail this opening checkpoint.
 Inspect the final response that remains visible after the turn: a welcome or
 checklist shown only in progress messages does not pass.
 
-Reply to continue, or select a goal. Prerequisite work can now begin without
-repeating the opening-only pause. In the results response, the selected checklist
+If the goal was initially unclear, choose each goal in separate runs. That reply
+must produce only the matching three-item checklist and **Ready to get started?**
+in the final visible response, then end the turn. Do not repeat the welcome or
+show the prerequisite table yet. No repository/state reads, probes, state writes,
+or delegation may occur during this goal-selection reply. The first checklist
+item is current; no items are complete.
+
+Reply to **Ready to get started?**. Only now can prerequisite work begin. In the
+results response, the selected checklist
 appears under **Next Steps**, after the table and any Recommendations, only when
 no Blockers remain. A blocked response ends at Blockers without a checklist or Ethos guidance.
 Only the selected third-item label, checkmarks, and current-step marker vary.

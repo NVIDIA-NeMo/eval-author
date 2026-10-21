@@ -106,6 +106,8 @@ def test_scope_broadening_is_rejected(case, action):
         ("narrow-to-recommendations", 0),
         ("broaden-after-inventory", 1),
         ("continue-shared-entry", 0),
+        ("clarify-goal-before-setup", 0),
+        ("clarify-goal-before-setup", 1),
     ],
 )
 @pytest.mark.parametrize("action", ["read_repository", "runtime_probe", "validate", "delegate", "write_artifact"])
@@ -120,12 +122,13 @@ def test_shared_opening_rejects_prerequisite_work(case, turn, action):
         assert f"turn[{turn}]: forbidden write attempt {writes[0]}" in report["violations"]
 
 
-def test_shared_setup_work_is_allowed_after_opening():
-    evidence, raw = capture("continue-shared-entry")
+@pytest.mark.parametrize("case,turn", [("continue-shared-entry", 1), ("clarify-goal-before-setup", 2)])
+def test_shared_setup_work_is_allowed_after_opening(case, turn):
+    evidence, raw = capture(case)
     for action in ("read_repository", "runtime_probe", "validate", "write_artifact"):
         writes = [".eval-author/.working/journey-state.json"] if action == "write_artifact" else []
-        raw = add_call(evidence, raw, action=action, writes=writes, turn=1)
-    evidence["turns"][1]["after"]["entries"] = {
+        raw = add_call(evidence, raw, action=action, writes=writes, turn=turn)
+    evidence["turns"][turn]["after"]["entries"] = {
         ".eval-author": {"kind": "directory", "mode": 0o755},
         ".eval-author/.working": {"kind": "directory", "mode": 0o755},
         ".eval-author/.working/journey-state.json": {

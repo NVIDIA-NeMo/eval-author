@@ -84,15 +84,21 @@ to action below.
 If unknown, show only that welcome, the goal question, and its three choices.
 **End the turn immediately after that response.**
 
-Before this response, read only the entry skill and this core skill as needed.
+When the user answers the goal question, show only the matching three-item
+checklist and **Ready to get started?** in the final visible response, then end
+the turn. The welcome was already shown; use the same checklist wording and
+current-step marker as the known-goal opening. Selecting a goal does not skip
+this overview or start prerequisite checks.
+
+Before either orientation response, read only the entry skill and this core skill
+as needed.
 Do not inspect repository files or saved state, validate Ethos, check prerequisites,
 run helper commands, write files, or delegate work. This also applies to direct
 first-eval and full-audit invocations. Prerequisite questions and findings belong
-to later turns. After the user continues, show the prerequisite table from the
-shared procedure, then inspect the accessible prerequisites before asking about
+to later turns. Only after the user replies to **Ready to get started?**, show the
+prerequisite table from the shared procedure, then inspect the accessible prerequisites before asking about
 anything unresolved. If no Blockers remain, show the selected checklist under
-**Next Steps** after the results table and any Recommendations, including when the
-user has just selected a previously unknown goal. If blocked, end with the
+**Next Steps** after the results table and any Recommendations. If blocked, end with the
 Blockers and omit Next Steps, the checklist, and Ethos guidance.
 Continuations and goal switches within an existing shared flow reuse progress
 rather than repeating this pause.
@@ -125,8 +131,10 @@ absent. Supported trace conversion retains its existing dedicated skills.
 ### Shared prerequisites and Ethos
 
 Copy this welcome, checklist, and call to action verbatim into the final user-facing
-response, rendered as Markdown. They are the entire known-goal opening response;
-do not append findings or a prerequisite question. Progress or thinking messages alone
+response, rendered as Markdown. They are the entire opening response when the goal
+is known from the initial request; after goal clarification, use only the checklist
+and call to action as described above. Do not append findings or a prerequisite
+question. Progress or thinking messages alone
 do not satisfy this opening.
 
 Welcome to Eval Author! I’ll help you evaluate your agent against the behavior you expect. Here’s what we’ll work through:

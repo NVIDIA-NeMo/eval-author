@@ -357,6 +357,57 @@
         ],
         "handoff": "source_scope_selection"
       }
+    ],
+    "clarify-goal-before-setup": [
+      {
+        "prompts": [
+          "Help me with evals.",
+          "Get me started with Eval Author."
+        ],
+        "context": "Fresh session; no prior authorization.",
+        "flow": "eval-author",
+        "allowed_actions": [
+          "read_skill"
+        ],
+        "required_actions": [],
+        "write_paths": [],
+        "handoff": "ask_goal"
+      },
+      {
+        "prompts": [
+          "Build my first evals.",
+          "I want to create my first evaluation suite."
+        ],
+        "context": "The previous turn showed the fixed welcome and asked which evaluation goal to pursue. No checklist or Ready to get started? prompt has been shown and no repository inspection has occurred. The user now selects creation.",
+        "flow": "eval-author",
+        "allowed_actions": [
+          "read_skill"
+        ],
+        "required_actions": [],
+        "write_paths": [],
+        "handoff": "shared_opening"
+      },
+      {
+        "prompts": [
+          "Ready to get started.",
+          "Yes, continue with the prerequisite checks."
+        ],
+        "context": "After goal clarification, the previous turn displayed the creation checklist and Ready to get started? without inspection. The user now requests prerequisite checks; agent documentation is available and setup decisions remain unconfirmed.",
+        "flow": "eval-author-first-eval",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "runtime_probe",
+          "validate",
+          "write_artifact",
+          "delegate"
+        ],
+        "required_actions": [],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "shared_prerequisites"
+      }
     ]
   }
 }

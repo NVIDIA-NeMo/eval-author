@@ -7,9 +7,11 @@ The core owns orientation and goal selection. This procedure owns the common
 entry for creating, auditing, and improving evals, including direct skill calls.
 It supports Gym and Harbor through the same flow. Scoped operations retain their
 existing input requirements and do not acquire a full onboarding checklist.
-For a new flow, begin this procedure only after the core's opening-only response
-has ended and the user continues. Do not load repository context or save state
-in preparation for that opening.
+For a new flow, begin this procedure only after the selected goal's three-item
+checklist and **Ready to get started?** have been shown and the user replies to
+that call to action. If the goal was initially unclear, the goal-choice reply
+triggers that checklist-only orientation, not this procedure. Do not load
+repository context or save state in preparation for either orientation turn.
 
 ## Check the agent and setup
 
