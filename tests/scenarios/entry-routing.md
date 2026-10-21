@@ -147,11 +147,37 @@ runtime verification; schema validation does not claim measured coverage.
 Explanation-only requests do not start work. A trace source must still be selected
 before searches or reads. Explicit source selections are reused.
 
+### Existing Ethos requires current confirmation
+
+For each new shared entry with Gym and Harbor, supply a valid root `ETHOS.md` and
+saved state with a matching confirmed digest from an earlier flow. Complete the
+opening and prerequisite checks. Under **Next Steps**, Ethos must remain
+unchecked and current when setup is complete. The response links the actual file,
+briefly summarizes its intended behavior, and asks whether it is the right
+document for the selected agent and still accurate. It must not reuse historical
+approval, mark Ethos complete, or show the evaluation readiness question yet.
+
+- Confirm it is correct and current: validate and record the exact saved content
+  with this reply's provenance, then show the completion pause and wait
+- Say it belongs to another agent or needs changes: keep review pending and let
+  `ethos-orchestrate` resolve the identity or revise intent before confirmation
+- Ask a side question or say you are unsure: keep Ethos incomplete; preserve the
+  review question without starting evaluations
+- Resume after the question: retain the pending review; after answering it in
+  this flow, continue or switch goals without asking for the same review again
+
+Keep the existing file unchanged when accepted without edits. Retain prior
+answers and source findings instead of restarting the interview. Inspect shared
+state as well as the visible checklist; old `complete` state must not bypass review.
+
 ## 4. Resume and switch journeys
 
 Save accepted prerequisites and Ethos, a pending scope question, and evidence
-references in `.eval-author/.working/journey-state.json`. Resume from a fresh
-chat and switch from create to audit or improve. Reuse unchanged common decisions;
+references in `.eval-author/.working/journey-state.json`. Resume the same goal
+from a fresh chat with its accepted scope, current Ethos confirmation, pending
+question, and handoff; do not restart shared entry or reopen unchanged review.
+Then switch from create to audit or improve. Retain shared confirmation and
+saved scopes, but select the new goal's question and handoff;
 keep journey-specific source selections separate. A supplied source path does
 not imply consent to use unrelated traces. Changed Ethos reopens its confirmation
 and dependent findings only; changed setup reopens affected setup work.

@@ -162,7 +162,10 @@ Read [Shared prerequisites and Ethos](references/shared-prerequisites.md) for
 the prerequisite table and checks, shared state, resumption, and the exact handoff.
 
 Use `ethos-orchestrate` to review, create, or update `ETHOS.md`. Pass along the
-context and answers already collected. When [Ethos confirmation](references/ethos-confirmation.md)
+context and answers already collected. For an existing document, ask the user to
+confirm it is the right Ethos for this agent and accurately describes its current
+intended behavior. A saved confirmation from an earlier flow does not
+replace this review. When [Ethos confirmation](references/ethos-confirmation.md)
 is complete, show the [completion pause](references/shared-prerequisites.md#pause-after-ethos-confirmation)
 before resuming the selected evaluation flow.
 

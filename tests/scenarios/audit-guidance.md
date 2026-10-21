@@ -31,7 +31,8 @@ table before bounded checks, finish accessible checks, then ask only about
 unresolved findings. Unselected trace reads and agent execution remain out of scope.
 
 Use `ethos-orchestrate` through the confirmation adapter. Reuse applicable answers
-and unchanged confirmed content. For missing or revised intent, review the draft
+and content, but show an existing Ethos for confirmation that it is correct and
+current before continuing, even if it was previously accepted. For missing or revised intent, review the draft
 before canonical writes. Missing skills are a dependency limitation, not a reason
 to create another fallback interview. Preserve custom sections and creation
 metadata. A substantive format mismatch stays explicit for the canonical workflow.
@@ -134,8 +135,8 @@ but do not identify a trace source in the supplied conversation.
 **Request:** “Audit `evals/account-support/` against our accepted `ETHOS.md` and
 show me what our recorded runs cover.”
 
-**Entry:** Show the shared three-item checklist and reuse confirmed unchanged
-Ethos for bounded source inspection.
+**Entry:** Follow the shared opening and prerequisites, then confirm the existing
+Ethos is correct and current before continuing to bounded source inspection.
 
 The agent now inspects the bounded evaluation definitions and presents the
 discovered suite and case links with a short explanation of what they test,
@@ -157,8 +158,8 @@ measuring, or aggregating work belonging to a later milestone.
 **Request:** “Audit `evals/account-support/` using the accepted `ETHOS.md` and the
 ATIF traces in `runs/selected/`. Those are the runs for this audit.”
 
-**Entry:** The shared checklist appears and applicable confirmed Ethos is
-reused. Preserve the supplied suite and trace selections.
+**Entry:** The shared checklist appears and the existing Ethos is reviewed for
+confirmation that it is correct and current. Preserve the supplied suite and trace selections.
 
 **Inspect:** The agent records and uses the explicitly selected evaluation suite
 and supplied trace location without asking the user to select either again. It
@@ -213,8 +214,9 @@ report remains useful without an aggregate; it must not imply one was generated.
 omit evaluation and run directories. Request: “No evaluations or run traces exist.
 Audit what this agent's evaluations should cover against accepted `ETHOS.md`.”
 
-**Entry:** The shared three-item checklist appears. Reuse accepted Ethos and
-the settled absence; missing measurements do not prevent specification planning.
+**Entry:** The shared three-item checklist appears. Confirm the existing Ethos
+is correct and current; reuse the settled absence. Missing measurements do not
+prevent specification planning.
 
 **Inspect:** The agent keeps the audit purpose and checklist, reuses the accepted
 Ethos, and treats the user's statement as settling absence. It does not scan to
@@ -378,7 +380,8 @@ or prerequisite checks occur.
 **Continue:** Show the fixed prerequisite table before inspecting the named
 documents, shared state, and accessible prerequisites. Use bounded runtime checks;
 finish the accessible checks before asking about unresolved items. No trace searches occur.
-Reuse confirmed Ethos or route missing content through `ethos-orchestrate`.
+Use `ethos-orchestrate` to confirm that existing Ethos is correct and current,
+or create missing content. An earlier review does not skip this confirmation.
 Confirm the selected eval set and missing trace source before dependent trace work.
 
 **Deferral:** Leave the trace source unresolved and continue agreed independent

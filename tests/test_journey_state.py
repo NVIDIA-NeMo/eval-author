@@ -62,13 +62,24 @@ def test_same_three_step_flow_and_execution_credentials_deferred(state, tmp_path
     assert not state.checklist(ready)[2]["complete"]
 
 
-def test_resume_and_journey_switch_reuse_shared_confirmations(state, tmp_path):
+def test_downstream_resume_and_journey_switch_reuse_shared_confirmations(state, tmp_path):
     setup_ready(state, tmp_path)
     original = ethos_ready(state, tmp_path)
     state.update(
         tmp_path,
-        {"scopes": {"create": {"cases": ["refund"], "confirmed": True}}, "pending_question": "Which case first?"},
+        {
+            "scopes": {"create": {"cases": ["refund"], "confirmed": True}},
+            "journey_status": {"create": "in_progress"},
+            "pending_question": "Which case first?",
+            "next_handoff": "eval-author-first-eval",
+        },
     )
+    ongoing = state.initialize(tmp_path, agent="assistant", journey="create", setup="gym")
+    assert ongoing["ethos"] == original["ethos"]
+    assert ongoing["scopes"]["create"]["confirmed"]
+    assert ongoing["journey_status"]["create"] == "in_progress"
+    assert ongoing["pending_question"] == "Which case first?"
+    assert ongoing["next_handoff"] == "eval-author-first-eval"
     resumed = state.initialize(tmp_path, agent="assistant", journey="audit", setup="gym")
     assert resumed["prerequisites"] == original["prerequisites"]
     assert resumed["ethos"] == original["ethos"]
@@ -92,6 +103,45 @@ def test_ethos_completion_pause_survives_resume_and_continuation(state, tmp_path
     assert continued["ethos"] == confirmed["ethos"]
     assert state.load_state(tmp_path)["pending_question"] is None
     assert not state.checklist(continued)[2]["complete"]
+
+
+@pytest.mark.parametrize("journey", ["create", "audit", "expand"])
+def test_existing_ethos_review_replaces_historical_confirmation(state, tmp_path, journey):
+    setup_ready(state, tmp_path, journey=journey)
+    previous = ethos_ready(state, tmp_path)
+    source_findings = [{"path": "README.md", "summary": "Account support agent"}]
+    prior_answers = [
+        {"topic": "purpose", "question": "What outcome?", "answer": "Account recovery", "source": "old reply"}
+    ]
+    state.update(tmp_path, {"ethos": {"source_findings": source_findings, "prior_answers": prior_answers}})
+    question = (
+        "Is this the right ETHOS.md for assistant, and does it accurately describe how the agent should behave today?"
+    )
+    state.update(
+        tmp_path,
+        {"ethos": {"stage": "review"}, "pending_question": question, "next_handoff": "ethos-orchestrate"},
+    )
+    pending = state.initialize(tmp_path, agent="assistant", journey=journey, setup="gym")
+    assert pending["ethos"]["confirmed_digest"] is None
+    assert pending["ethos"]["confirmation_source"] is None
+    assert pending["ethos"]["source_findings"] == source_findings
+    assert pending["ethos"]["prior_answers"] == prior_answers
+    assert pending["prerequisites"] == previous["prerequisites"]
+    assert pending["pending_question"] == question
+    assert pending["next_handoff"] == "ethos-orchestrate"
+    assert [row["complete"] for row in state.checklist(pending)] == [True, False, False]
+    assert state.checklist(pending)[1]["current"]
+
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path),
+        source="current conversation: user confirms document identity and intent",
+        validation="ethos-write parser passed",
+    )
+    assert confirmed["ethos"]["confirmed_digest"] == previous["ethos"]["confirmed_digest"]
+    assert confirmed["ethos"]["confirmation_source"] != previous["ethos"]["confirmation_source"]
+    assert [row["complete"] for row in state.checklist(confirmed)] == [True, True, False]
+    assert state.load_state(tmp_path)["ethos"] == confirmed["ethos"]
 
 
 def test_observed_checks_and_user_answers_survive_resume_without_implying_execution(state, tmp_path):

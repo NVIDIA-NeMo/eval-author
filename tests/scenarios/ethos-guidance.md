@@ -86,7 +86,9 @@ unresolved intent is asked; the canonical workflow owns exploration and writing.
 Confirm draft content before writing. Eval Author maps the reported path,
 validation, outstanding work, and user confirmations back to shared journey state
 and computes the saved content digest itself.
-Unchanged confirmed content is reused without another interview or review gate.
+An existing document is linked and summarized for the user's confirmation that
+it is correct and current on shared entry, even when an earlier flow confirmed unchanged
+content. After that reply, continuations reuse it without another interview.
 The three-item shared prerequisite orientation is not repeated inside Ethos.
 
 ## 3. Missing canonical Ethos skills

@@ -145,18 +145,23 @@ Omit empty Recommendations and Blockers sections. Required runtime setup or
 credentials for later evaluation runs stay in the table as later requirements,
 not optional recommendations or blockers to Ethos. Missing Ethos skills can block
 this step; missing `ETHOS.md` alone does not, because the Ethos skills can create it.
-When entering Ethos, explain below the checklist that `ETHOS.md` records what the
-agent should do, what it should avoid, and what a good result looks like, then
-present the orchestrator's review or next question. If blocked, preserve progress
+For an existing document, use the [existing Ethos review](ethos-confirmation.md#review-an-existing-document)
+below the checklist. For a missing document, explain that `ETHOS.md` records what
+the agent should do, what it should avoid, and what a good result looks like, then
+present the orchestrator's next question. If blocked, preserve progress
 without displaying the checklist or starting dependent Ethos work.
 
 ## Confirm Ethos
 
-Invoke [Ethos confirmation](ethos-confirmation.md) for repository-root `ETHOS.md`. Reuse confirmed unchanged
-content and prior answers. Record the returned path, validation result, confirmed
-digest, remaining intent questions, and stage. Do not infer content approval from
-file presence, structural validity, or an implemented behavior. Do not write the
-canonical document before its content is confirmed.
+Invoke [Ethos confirmation](ethos-confirmation.md) for repository-root `ETHOS.md`.
+Reuse content and prior answers, but have the user confirm an existing document
+is the right one and still accurate, even when saved state records an earlier
+confirmation. Before rendering the results checklist, mark that review pending
+as described in the adapter; keep Ethos unchecked until the user answers.
+Record the returned path, validation result, confirmed digest, remaining intent
+questions, and stage. Do not infer content approval from file presence,
+structural validity, or an implemented behavior. Do not write the canonical
+document before its content is confirmed.
 
 ## Pause after Ethos confirmation
 

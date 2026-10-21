@@ -24,6 +24,44 @@ utilities can use their supplied path without claiming the shared prerequisite
 flow confirmed that document. Resolve ambiguous identity or conflicting intent
 before accepting it.
 
+## Review an existing document
+
+When entering the shared flow's Ethos step with an existing `ETHOS.md`, use
+`ethos-orchestrate` to review it with the user before moving on. This includes a
+new shared flow that loads older completed state: an earlier confirmation or
+matching digest does not
+establish that this is still the correct document or that its intent is current.
+Reuse the content, source findings, and prior answers to make the review brief.
+
+Before displaying the results checklist, use `journey_state.py update` to set
+`ethos.stage` to `review`, save the question as `pending_question`, and set
+`next_handoff` to `ethos-orchestrate`. Keep the Ethos item unchecked and current
+when prerequisites are complete. Pass the orchestrator the existing content and
+ask it to confirm both document identity and current intended behavior. Below
+**Next Steps** and the checklist, use this review template:
+
+```markdown
+I found [ETHOS.md](path-to-the-document).
+
+[Brief summary of this agent's intended behavior, boundaries, and success criteria]
+
+Is this the right ETHOS.md for [agent], and does it accurately describe how the agent should behave today?
+```
+
+Replace placeholders with the actual file link, agent, and a summary grounded in
+the document. Wait for the user's answer before marking Ethos complete or
+offering to continue with evaluations. A wrong document, requested changes, or
+uncertainty stays in review and returns to the orchestrator for clarification or
+revision. Do not describe an old confirmation as reusable approval.
+
+Within the current flow, resume an unanswered review instead of starting
+it again. Once the user has explicitly confirmed the correct saved document and
+its current intent, reuse that reply for unchanged content through the completion
+pause, goal switches, and downstream work. Resuming that downstream work in a new
+conversation does not start a new shared flow or reopen this review; retain its
+accepted scope, pending question, and handoff. Do not reopen review on every state
+read or repeat the interview. Changes to the agent or document reopen the affected review.
+
 ## Call and return
 
 Load shared journey state before each call, including a fresh chat or a switch
@@ -37,6 +75,9 @@ context needed to continue:
   `answer`, and `source` identifying the actual reply or other provenance.
 - Describe the unfinished Ethos step and remaining questions from saved state.
   Include prior user confirmation only for the exact content it established.
+  Label an earlier flow's confirmation as history; explicitly request
+  the pending review of the document and its current intent instead of treating
+  that history as completion.
 - Recover the exact draft contents and any `draft_source` confirmation
   provenance. Map the stored reference into ordinary conversation context; the
   Ethos skills do not need to read or understand Eval Author's state file.
@@ -74,9 +115,9 @@ and confirmation fields; Ethos does not implement that state schema.
 Check that the document path resolves to this repository's root `ETHOS.md`.
 Eval Author computes `confirmed_digest` as SHA-256 over the exact saved bytes,
 encoded as 64 lowercase hexadecimal characters without a prefix. Before reusing
-a saved confirmation, compare the current bytes with that digest and retain its
-user-reply provenance. Changed contents reopen only the affected review or
-intent step. Persist unfinished stages and answers through
+the current flow's confirmation, compare the current bytes with that
+digest and retain its user-reply provenance. Changed contents reopen the affected
+review or intent step. Persist unfinished stages and answers through
 `journey_state.py update`. For completion, require successful returned validation
 and explicit saved-content confirmation, then use `confirm-ethos` with the
 computed digest, the user's confirmation reference as
@@ -86,8 +127,7 @@ not pass a structured validation object as if it were the helper's provenance
 string. Failed validation remains an unfinished review, even if the file has
 a digest. Use only the
 confirmed exact content for downstream cases or audit items. Validation alone
-is not intent confirmation; unchanged previously accepted content needs no
-repeated approval. Present the returned path and unresolved gaps, then follow the
+is not intent confirmation. Present the returned path and unresolved gaps, then follow the
 shared [completion pause](shared-prerequisites.md#pause-after-ethos-confirmation).
 End the turn after Next Steps, the updated checklist, and the continuation question.
 Do not begin source selection or delegate evaluation work until the user continues.

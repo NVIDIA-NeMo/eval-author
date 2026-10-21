@@ -61,8 +61,10 @@ A working suite and strong evaluation quality are separate claims.
 
 Consume the path, confirmed digest, validation result, and unresolved intent from
 the core's [Ethos confirmation](../eval-author/references/ethos-confirmation.md)
-handoff. Reopen only changed or unresolved content. Do not restart an interview,
-write another Ethos, or add a separate content review for unchanged approval.
+handoff after the user has confirmed the document and its current intent in the
+shared flow. A new shared entry does not skip that review because saved state was
+previously complete. After the handoff, reopen only changed or unresolved content; reuse the
+current confirmation without repeating the interview or writing another Ethos.
 When shared onboarding finishes, show the core's completion pause before source
 selection or evaluation work. Continue the stages below only after the user replies.
 
