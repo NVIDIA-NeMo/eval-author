@@ -84,9 +84,10 @@ to action below.
 If unknown, show only that welcome, the goal question, and its three choices.
 **End the turn immediately after that response.**
 
-When the user answers the goal question, show only the matching three-item
-checklist and **Ready to get started?** in the final visible response, then end
-the turn. The welcome was already shown; use the same checklist wording and
+When the user answers the goal question, show the fixed sentence for the selected
+goal below, followed by the matching three-item checklist and **Ready to get started?**
+as the entire final visible response, then end the turn. The welcome was already shown;
+use the same checklist wording and
 current-step marker as the known-goal opening. Selecting a goal does not skip
 this overview or start prerequisite checks.
 
@@ -132,8 +133,9 @@ absent. Supported trace conversion retains its existing dedicated skills.
 
 Copy this welcome, checklist, and call to action verbatim into the final user-facing
 response, rendered as Markdown. They are the entire opening response when the goal
-is known from the initial request; after goal clarification, use only the checklist
-and call to action as described above. Do not append findings or a prerequisite
+is known from the initial request; after goal clarification, replace the welcome
+with the selected goal's sentence below, followed by the checklist and call to
+action. Do not append findings or a prerequisite
 question. Progress or thinking messages alone
 do not satisfy this opening.
 
@@ -144,6 +146,14 @@ Welcome to Eval Author! I’ll help you evaluate your agent against the behavior
 - [ ] **Create your first evaluations**
 
 Ready to get started?
+
+After goal clarification, use exactly one of these sentences above the checklist:
+
+| Selected goal | Introductory sentence |
+|---|---|
+| First evaluations | We’ll build your first evaluations. Here’s what we’ll work through: |
+| Audit | We’ll check what your existing evaluations cover. Here’s what we’ll work through: |
+| Improvements | We’ll improve your existing evaluations. Here’s what we’ll work through: |
 
 For an audit, replace the third item with **Check what your existing evaluations cover**.
 For improvements, use **Improve your existing evaluations**. These exact third-item

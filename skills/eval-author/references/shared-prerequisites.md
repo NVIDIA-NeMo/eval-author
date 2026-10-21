@@ -10,7 +10,8 @@ existing input requirements and do not acquire a full onboarding checklist.
 For a new flow, begin this procedure only after the selected goal's three-item
 checklist and **Ready to get started?** have been shown and the user replies to
 that call to action. If the goal was initially unclear, the goal-choice reply
-triggers that checklist-only orientation, not this procedure. Do not load
+triggers the selected goal's introductory sentence, checklist, and call to action,
+not this procedure. Do not load
 repository context or save state in preparation for either orientation turn.
 
 ## Check the agent and setup

@@ -33,8 +33,11 @@ Inspect the final response that remains visible after the turn: a welcome or
 checklist shown only in progress messages does not pass.
 
 If the goal was initially unclear, choose each goal in separate runs. That reply
-must produce only the matching three-item checklist and **Ready to get started?**
-in the final visible response, then end the turn. Do not repeat the welcome or
+must produce the core's exact sentence for that goal, followed by the matching
+three-item checklist and **Ready to get started?** as the final visible response,
+then end the turn. For creation, the introduction is “We’ll build your first
+evaluations. Here’s what we’ll work through:” above the checklist. Use the
+corresponding fixed sentence for audit and improvements. Do not repeat the welcome or
 show the prerequisite table yet. No repository/state reads, probes, state writes,
 or delegation may occur during this goal-selection reply. The first checklist
 item is current; no items are complete.
