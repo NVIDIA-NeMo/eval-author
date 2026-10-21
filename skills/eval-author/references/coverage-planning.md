@@ -4,12 +4,11 @@
 # Agree on the corpus and coverage
 
 Read this when planning first evals or proposing and creating additional coverage.
-Present scope and case tables in conversation. Save the current agreement,
-source manifest references, and case inventory in the selected journey's `scopes`
-entry in `.eval-author/.working/journey-state.json`. Audit-based recommendations
-remain a deliverable in `.eval-author/proposals/dataset-recommendations.md`. Do not create
-another planning document. A proposal stays provisional until the user settles
-its open choices; it does not authorize generating or running evaluations.
+Keep the current agreement in [shared workflow state](shared-prerequisites.md#save-and-resume),
+with links to any source manifest and case inventory. Audit-based proposals
+remain in `.eval-author/proposals/dataset-recommendations.md`.
+A proposal is provisional until the user settles its open choices; it is not
+permission to generate or run evaluations.
 
 ## Select trace evidence before using it
 
