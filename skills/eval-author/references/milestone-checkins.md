@@ -13,10 +13,10 @@ and scope reviews only.
 Complete authorized work, explain its outcome and limitations, and show the
 three-item core checklist with the selected third item current until authoring
 finishes. Within that item, name the current authoring stage in ordinary prose.
-Do not add a generic start or transition approval. Ask a focused question when
-intent, source selection, scope, or execution authorization is unresolved. Reuse
-answered decisions. A side question does not approve pending content or reset
-onboarding; answer it, then resume the unfinished work.
+Ask a focused question when intent, source selection, scope, or execution
+authorization is unresolved. Reuse answered decisions. A side question does not
+approve pending content or reset onboarding; answer it, then resume the unfinished
+work.
 
 Finish independent work before a required question or continue work unaffected
 by the missing answer. Do not perform the dependent action until the answer is

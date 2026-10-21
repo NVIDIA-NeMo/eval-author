@@ -81,7 +81,7 @@ a digest. Use only the
 confirmed exact content for downstream cases or audit items. Validation alone
 is not intent confirmation; unchanged previously accepted content needs no
 repeated approval. Present the returned path and unresolved gaps, then continue
-the selected journey's next action without another generic transition gate.
+the selected journey's next action.
 
 ## Recovery
 

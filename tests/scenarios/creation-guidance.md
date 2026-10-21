@@ -88,8 +88,7 @@ missing. Increasing attempts does not increase distinct-example counts; neither
 renaming an example nor reusing it under another behavior increases the unique
 total. A broad plan is not silently reduced to the pilot without this answer.
 Repeat with the cost preference and two-example scope already agreed in the
-conversation: the agent applies them and continues authorized preparation,
-without repeating the priorities question or adding another approval loop.
+conversation: the agent applies them to the preparation work.
 
 ## 3. Pilot, then meaningful expansion
 

@@ -55,7 +55,7 @@ When handing off from a guided audit, wait for an explicit answer accepting that
 offer; report acceptance alone is not permission to begin proposals.
 For task creation, consume the core's shared prerequisite result, including direct
 invocation. Proposal-only requests keep their supplied-input scope. Reuse the
-confirmed Ethos and prerequisites without another interview or start gate.
+confirmed Ethos and prerequisites.
 A general expansion request without audit findings follows the core's expansion
 handoff; this tool-gap generator does not invent measurement inputs or require
 an unsolicited audit. Explain missing inputs for explicitly requested audit-gap

@@ -52,14 +52,12 @@ the findings with the user. It does not generate tasks yet.
 A full audit enters the core's shared prerequisite flow, including direct
 invocation. Show its
 three-item checklist with **Check what your existing evaluations cover** selected. Reuse confirmed
-agent, prerequisites, and Ethos. Continue authorized work without a separate
-opening acceptance or repeated Ethos milestone.
+agent, prerequisites, and Ethos.
 
 After shared onboarding, follow [Guided audit milestones](references/guided-audit.md):
 confirm evals and traces, define intended coverage, measure selected evidence,
-then generate and review `audit-coverage-report.md`. The source and content
-reviews remain meaningful decisions; there is no generic permission-to-start
-question. Use bounded agent and eval reads. Do not enumerate or read traces
+then generate and review `audit-coverage-report.md`. Keep source and content
+reviews explicit. Use bounded agent and eval reads. Do not enumerate or read traces
 until their source and location are selected. An existing accepted source choice
 needs no repeated confirmation.
 

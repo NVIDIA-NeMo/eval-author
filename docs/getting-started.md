@@ -252,7 +252,7 @@ For an audit, the third item is **Check what your existing evaluations cover**. 
 improvements, it is **Improve your existing evaluations**. The first two steps
 are shared across all three goals and work with Gym and Harbor.
 
-It reuses known answers and begins useful work without another start question.
+It reuses known answers throughout the selected workflow.
 Prerequisites are user-confirmed at entry; runtime checks happen when needed for
 execution. Ethos is confirmed through `ethos-orchestrate`, with unchanged accepted
 content reused. Internal progress lives in `.eval-author/.working/`; reports,

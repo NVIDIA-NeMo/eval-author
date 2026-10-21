@@ -24,9 +24,9 @@ needs them. Use synthetic canonical ATIF only when exercising measurement.
 Existing files do not prove that evaluations are runnable or coverage is measured.
 
 Every fresh full audit uses the core's three-item shared prerequisite checklist with
-**Check what your existing evaluations cover** selected. It starts bounded agent/setup and Ethos work
-without a separate opening approval. Repeat with Gym and Harbor, missing Ethos,
-and unchanged confirmed Ethos. Confirmed prerequisites are not runtime-tested.
+**Check what your existing evaluations cover** selected. Repeat with Gym and
+Harbor, missing Ethos, and unchanged confirmed Ethos. Confirmed prerequisites are
+not runtime-tested.
 No runtime probes, unselected trace reads, or agent execution belong to the shared prerequisite flow.
 
 Use `ethos-orchestrate` through the confirmation adapter. Reuse applicable answers
@@ -37,8 +37,7 @@ metadata. A substantive format mismatch stays explicit for the canonical workflo
 
 Afterward, keep **Check what your existing evaluations cover** current while naming the present coverage
 stage. Ask about missing suite, source, or content decisions and wait before the
-dependent operation; reuse decisions already supplied. Do not add generic stage
-transition approval when the next work is authorized. Independent source-safe
+dependent operation; reuse decisions already supplied. Independent source-safe
 work can proceed while measurement inputs are unavailable.
 
 Trace-location selection must precede any trace search, enumeration, reading,
@@ -134,9 +133,8 @@ but do not identify a trace source in the supplied conversation.
 **Request:** “Audit `evals/account-support/` against our accepted `ETHOS.md` and
 show me what our recorded runs cover.”
 
-**Entry:** Show the shared three-item checklist, reuse confirmed unchanged
-Ethos, and continue bounded source inspection without a start or duplicate
-Ethos approval question.
+**Entry:** Show the shared three-item checklist and reuse confirmed unchanged
+Ethos for bounded source inspection.
 
 The agent now inspects the bounded evaluation definitions and presents the
 discovered suite and case links with a short explanation of what they test,
@@ -151,7 +149,7 @@ explanations, not just the final question.
 
 **Inspect:** Subsequent trace operations stay within that selection. The agent
 explains what it found and resolves any missing scope or content decision before
-dependent work. Known source choices do not trigger generic transition approvals.
+dependent work.
 
 ## 2. Supplied trace location is reused
 
@@ -159,8 +157,7 @@ dependent work. Known source choices do not trigger generic transition approvals
 ATIF traces in `runs/selected/`. Those are the runs for this audit.”
 
 **Entry:** The shared checklist appears and applicable confirmed Ethos is
-reused. Supplied suite and trace selections remain selected without another
-source or transition approval.
+reused. Preserve the supplied suite and trace selections.
 
 **Inspect:** The agent records and uses the explicitly selected evaluation suite
 and supplied trace location without asking the user to select either again. It
@@ -216,8 +213,7 @@ omit evaluation and run directories. Request: “No evaluations or run traces ex
 Audit what this agent's evaluations should cover against accepted `ETHOS.md`.”
 
 **Entry:** The shared three-item checklist appears. Reuse accepted Ethos and
-the settled absence without another opening approval. Useful bounded work may
-start immediately; missing measurements do not prevent specification planning.
+the settled absence; missing measurements do not prevent specification planning.
 
 **Inspect:** The agent keeps the audit purpose and checklist, reuses the accepted
 Ethos, and treats the user's statement as settling absence. It does not scan to
@@ -226,8 +222,7 @@ It explains the proposed specification-only scope and leaves measurement pending
 because traces do not exist. Scope review must precede specification drafting.
 
 **Bounded follow-ups:** Reuse the supplied absence and registry to draft the
-specification. Do not ask the user to approve the same absence or stage transition
-again. Inspect the resulting specification and validation evidence: tools,
+specification. Inspect the resulting specification and validation evidence: tools,
 capabilities, and failure cases follow the accepted Ethos and registry without
 invented execution evidence. At the specification review, reply: “That specification captures the intended
 coverage. Finalize the specification-only findings with measurement pending.”
@@ -265,15 +260,14 @@ measurement is still unanswered.
 **Request:** “Let's pick up the audit where we left off.”
 
 **Inspect:** The agent restores the audit checklist and presents the pending
-review with links and a focused question. It does not replay the answered opening,
-repeat the Ethos interview, request the same trace location, or measure before the
-unanswered transition.
+review with links and a focused question. It reuses the confirmed Ethos and trace
+location, and waits for the pending specification review before measurement.
 
 **Reply:** “The specification looks right. Continue with measurement.”
 
 **Inspect:** The agent records the answer and continues from that point. Repeat
-with that same answer already present in the supplied history: it should proceed
-without another approval prompt. If a selected source has since disappeared or
+with that same answer already present in the supplied history and verify that
+the saved review state reflects it. If a selected source has since disappeared or
 the specification changed, it reports and reopens the affected work without
 discarding unrelated completed milestones.
 
@@ -359,9 +353,8 @@ must list eligible files explicitly, or `--coverage-dir` must name directories
 containing only selected measurements, rather than the shared parent tree.
 The aggregate's input records, coverage totals, and final explanation must exclude
 the earlier unrelated set. It must not read additional raw traces to broaden the
-scope. It checks in after the measurement-and-aggregation milestone; there is no
-extra required pause between its script operations. Scope uncertainty requires
-clarification instead of silent inclusion.
+scope. It checks in after the measurement-and-aggregation milestone. Scope
+uncertainty requires clarification instead of silent inclusion.
 
 ## 8. Combined skill loading and GLAMR audit request
 
@@ -375,11 +368,10 @@ no Ethos file. Trace location is unknown in both variants.
 in `docs/agent.md` and the existing cases are in `evals/cases.jsonl`.” In the
 accepted-Ethos variant, add: “The existing `ETHOS.md` was already reviewed.”
 
-**Inspect:** The shared checklist appears first. Bounded reads of the named agent
-documents and shared state are allowed immediately. No runtime probes or trace
-searches occur. Reuse confirmed Ethos or route missing content through
-`ethos-orchestrate`; do not show a second audit opening. Confirm the selected
-eval set and missing trace source before dependent trace work.
+**Inspect:** The shared checklist appears first. Agent inspection is bounded to
+the named documents and shared state. No runtime probes or trace searches occur.
+Reuse confirmed Ethos or route missing content through `ethos-orchestrate`.
+Confirm the selected eval set and missing trace source before dependent trace work.
 
 **Deferral:** Leave the trace source unresolved and continue agreed independent
 specification work. Measurement stays unmeasured; no new trace source is inferred.

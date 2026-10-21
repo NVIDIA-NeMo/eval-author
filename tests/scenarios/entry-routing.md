@@ -18,9 +18,9 @@ Its synthetic tests are not a record of passing conversational replay.
 
 Request first evals, an audit, and expansion in separate synthetic Gym and Harbor
 repositories. The first orientation has the same three checklist items: confirm
-the agent/setup, confirm Ethos, then the selected build/audit/improve item. A clear
-goal starts bounded useful inspection without another start approval. Unknown
-goal asks create/audit/improve only; explicit inventory remains a scoped option.
+the agent/setup, confirm Ethos, then the selected build/audit/improve item. If the
+goal is unknown, ask whether to create, audit, or improve; explicit inventory
+remains a scoped option.
 Do not probe runtimes, install, read unselected traces, or execute agents in
 the shared prerequisite flow. Confirm prerequisites together and label them user-confirmed.
 

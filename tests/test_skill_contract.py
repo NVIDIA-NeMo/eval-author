@@ -2058,7 +2058,6 @@ def test_shared_prerequisites_replace_duplicate_onboarding() -> None:
     for skill_dir in (_FIRST_EVAL_DIR, _AUDIT_DIR):
         _, body = _frontmatter_and_body(skill_dir)
         assert "shared prerequisite flow" in body
-        assert "Ready to get started?" not in body
 
 
 def _filled_ethos_template() -> str:

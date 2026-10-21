@@ -6,16 +6,15 @@
 The shared prerequisite flow owns the opening checklist, prerequisite answers,
 Ethos confirmation, and shared resumption. A direct full audit uses that same flow. Afterward keep
 **Check what your existing evaluations cover** current in the three-item checklist while explaining the
-current coverage milestone. There is no second audit opening or Ethos checkpoint.
+current coverage milestone. Reuse completed shared steps.
 
 ## Decisions and progress
 
 Complete authorized work, explain the result and limits, and link its artifacts.
 Ask for missing source, scope, or content decisions; reuse prior answers. A
 pending source selection blocks reads from that source. A pending content review
-blocks dependent measurement. Do not require generic stage-transition acceptance
-when the next step is already selected. Retain explicit deferrals and continue
-independent work that is already authorized.
+blocks dependent measurement. Retain explicit deferrals and continue independent
+work that is already authorized.
 
 Store suite and trace selections separately, including candidates, exclusions,
 and source bounds, in `.eval-author/.working/journey-state.json`. It also owns

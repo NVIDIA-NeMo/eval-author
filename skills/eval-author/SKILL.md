@@ -72,8 +72,7 @@ each request to the narrow sub-flow that owns it.
 
 Use the requested outcome and prior answers before asking a question. Creating,
 auditing, and improving evals use the **Shared prerequisites and Ethos** flow
-below for Gym and Harbor, including direct invocations of their skills. An
-explicit goal starts that work; there is no separate permission-to-start question.
+below for Gym and Harbor, including direct invocations of their skills.
 
 | Request | Route after shared prerequisites and Ethos |
 |---|---|
@@ -112,10 +111,9 @@ checkboxes and mark the current item **We're here**. For first evaluations:
 For an audit, replace the third item with **Check what your existing evaluations cover**.
 For improvements, use **Improve your existing evaluations**. Show only the
 selected third item and reuse completed items and pending questions on return.
-Continue authorized inspection after the
-orientation; do not add a “Ready to get started?” gate. Explain results and ask
-only for missing decisions or content confirmation. Do not mark prerequisite
-confirmation as runtime verification or mark downstream work complete at handoff.
+Explain findings and ask for missing decisions or content confirmation.
+Record user-confirmed prerequisites separately from runtime verification.
+Mark each step complete when its work and required review are finished.
 
 Read [Shared prerequisites and Ethos](references/shared-prerequisites.md) for
 prerequisite confirmation, shared state, resumption, and the exact handoff. Use
@@ -144,9 +142,8 @@ Once prerequisites and Ethos are confirmed,
 [Milestone check-ins](references/milestone-checkins.md) supplies first-eval's
 existing authoring stages. The audit uses its coverage milestones.
 Their completed shared stages are consumed, never repeated. Keep substantive
-scope and evidence reviews, source selection, and execution authorization; remove
-only redundant start and transition questions when the next action is already
-settled. Discovery inventory ends with findings and a next-step choice unless
+scope and evidence reviews, source selection, and execution authorization.
+Discovery inventory ends with findings and a next-step choice unless
 that next step was already requested.
 
 ## The standard
