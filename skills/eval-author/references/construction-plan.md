@@ -10,6 +10,9 @@ outside the agent-visible task tree. A trace's final state is not proof of its
 starting state; a source agent's answer or self-test is not an independent oracle.
 
 For proposal-only work, record this in the proposal without scaffolding a task.
+For trace-derived proposals or starting state, also use
+[trace construction](trace-construction.md) to preserve the source finding,
+cutoff, reconstruction limits and intended behavioral distinction.
 An unresolved answer rule is a useful design question, not permission to invent
 an expected answer. Missing input files can be authored later when the domain
 rules support them; label that intent rather than claiming historical recovery.

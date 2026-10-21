@@ -253,6 +253,11 @@ reads this export as its trusted observation.
 
 ## Step 7: Prove the environment
 
+For trace-derived stateful or continuation environments, use the
+[transition and reset checks](../eval-author/references/trace-construction.md#when-state-spans-calls-or-turns)
+to distinguish tested sequences from broader fidelity. Keep those observations
+in the existing environment plan alongside the smoke evidence below.
+
 Prove the environment once, right after building it and before any task's tests
 are written:
 

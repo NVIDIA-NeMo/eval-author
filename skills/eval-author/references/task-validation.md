@@ -78,6 +78,30 @@ passing result establishes comprehensive soundness, fairness, or difficulty.
 
 ## Prepare immutable inputs
 
+### Distinguish verifier faults from rejected submissions
+
+When a verifier delegates work to a verifier-owned helper, an unexpected helper exit, missing
+dependency or malformed helper report is a verifier error, not evidence of a
+wrong answer. Check helper readiness independently of submission correctness and
+propagate unexpected failures through the native runtime's error path. Recognizing
+one reserved error code is insufficient if all other exits become healthy negative
+scores. Conversely, a malformed submission is a behavioral rejection when the
+public contract requires a valid format and the verifier itself remains healthy.
+A submitted program's exception or nonzero exit can likewise be a legitimate
+behavioral failure. Distinguish the submitted process from the verifier-owned
+driver; do not classify every child-process failure as broken infrastructure.
+
+If helper failure handling is uncertain, diagnose it on a private copy bound to
+the original task digest and the exact injected change. Exercise a missing helper,
+syntax/startup failure or malformed helper response as applicable; confirm a native
+verification error rather than reward zero with successful health. Do not alter
+an accepted task or its receipts in place. Keep these fault audits separate from
+normal controls: diagnostic receipts cannot establish acceptance or coverage
+closure. Record unresolved helper health explicitly; ordinary solver passes do
+not resolve it. Fix confirmed defects under the existing revision/repair workflow.
+
+### Bind the task and its controls
+
 Use `eval-author-task-create/scripts/task_evidence.py` with Python 3.11+; Harbor
 preparation also needs the same Harbor Python runtime used for execution. Finish
 the task, verifier, control implementations, and any result adapter before
