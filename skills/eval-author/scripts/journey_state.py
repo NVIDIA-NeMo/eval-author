@@ -52,6 +52,7 @@ PREREQUISITES = {
 DEFERRED = {"agent_connection", "model_credentials"}
 PROVIDER_DEPENDENT = {"runtime", "python", "environment", "services", "data", *DEFERRED}
 AGENT_DEPENDENT = {"services", "data", *DEFERRED}
+AUDIT_DEPENDENT = PROVIDER_DEPENDENT | {"skills"}
 LEGACY_NAMES = ("audit-progress.md", "first-eval.md", "intent-notes.md")
 MAX_BYTES = 2 * 1024 * 1024
 DIGEST = re.compile(r"[0-9a-f]{64}")
@@ -141,10 +142,11 @@ def validate(state: dict) -> None:
             "command_execution",
             "skills",
             "ethos_skills",
-            "runtime",
             "python",
         }:
             raise ValueError(f"{key} is required for the shared prerequisite flow")
+        if answer["status"] == "not_required" and key == "runtime" and state["journey"] != "audit":
+            raise ValueError("runtime is required when creating or improving evaluations")
     ethos = state["ethos"]
     if not isinstance(ethos, dict) or set(ethos) != set(empty_ethos()):
         raise ValueError("Invalid Ethos state")
@@ -350,13 +352,18 @@ def checklist(state: dict) -> list[dict]:
 
 
 def view(state: dict) -> dict:
-    policy = runtime_policy()["providers"].get(state["setup"])
+    policy = runtime_policy()
+    provider = policy["providers"].get(state["setup"])
+    if state["journey"] == "audit":
+        requirements = {"runtime": None, **policy["audit_tools"]}
+    elif provider:
+        requirements = {"runtime": provider["supported"]["authoring"], "python": provider["python"]}
+    else:
+        requirements = None
     return {
         "state": state,
         "checklist": checklist(state) if state["journey"] else [],
-        "runtime_requirements": {"runtime": policy["supported"]["authoring"], "python": policy["python"]}
-        if policy
-        else None,
+        "runtime_requirements": requirements,
         "confirmation_is_runtime_evidence": False,
     }
 
@@ -387,6 +394,18 @@ def initialize(repo: Path, *, agent: str | None = None, journey: str | None = No
             state["pending_question"] = None
             state["next_handoff"] = None
         if journey is not None and journey != state["journey"]:
+            if state["journey"] is not None and "audit" in (journey, state["journey"]):
+                # Audit tooling and authoring tooling have different requirements.
+                # Keep evidence for review, but neither exemptions nor version
+                # checks from the previous flow establish readiness for this one.
+                for key in AUDIT_DEPENDENT & state["prerequisites"].keys():
+                    state["prerequisites"][key]["status"] = "unknown"
+                # Prerequisite IDs identify blockers whose applicability is now
+                # stale. Retain their evidence under the previous flow; unknown
+                # legacy IDs need caller review before they can be dismissed.
+                for blocker in state["blockers"]:
+                    if blocker["phase"] == "setup" and blocker["id"] in AUDIT_DEPENDENT:
+                        blocker["phase"] = state["journey"]
             state["journey"] = journey
             state["pending_question"] = None
             state["next_handoff"] = None

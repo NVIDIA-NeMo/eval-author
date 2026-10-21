@@ -62,7 +62,7 @@ def test_same_three_step_flow_and_execution_credentials_deferred(state, tmp_path
     assert not state.checklist(ready)[2]["complete"]
 
 
-def test_downstream_resume_and_journey_switch_reuse_shared_confirmations(state, tmp_path):
+def test_downstream_resume_preserves_progress_and_audit_switch_reopens_applicability(state, tmp_path):
     setup_ready(state, tmp_path)
     original = ethos_ready(state, tmp_path)
     state.update(
@@ -81,11 +81,208 @@ def test_downstream_resume_and_journey_switch_reuse_shared_confirmations(state, 
     assert ongoing["pending_question"] == "Which case first?"
     assert ongoing["next_handoff"] == "eval-author-first-eval"
     resumed = state.initialize(tmp_path, agent="assistant", journey="audit", setup="gym")
-    assert resumed["prerequisites"] == original["prerequisites"]
+    for key, answer in original["prerequisites"].items():
+        assert resumed["prerequisites"][key]["source"] == answer["source"]
+        assert resumed["prerequisites"][key]["status"] == (
+            "unknown" if key in state.AUDIT_DEPENDENT else answer["status"]
+        )
     assert resumed["ethos"] == original["ethos"]
     assert resumed["scopes"]["create"]["cases"] == ["refund"]
+    assert resumed["scopes"]["create"]["confirmed"]
+    assert resumed["journey_status"]["create"] == "in_progress"
     assert resumed["pending_question"] is None
     assert state.checklist(resumed)[2]["label"] == "Check what your existing evaluations cover"
+
+
+def audit_ready(state, repo, *, setup="gym"):
+    setup_ready(state, repo, journey="audit", setup=setup)
+    return state.update(
+        repo,
+        {
+            "prerequisites": {
+                "python": {
+                    "status": "verified",
+                    "source": "Python 3.11 with PyYAML 6.0 and jsonschema 4.0 for audit generation and validation",
+                },
+                **{
+                    key: {"status": "not_required", "source": "Local audit reads definitions and saved evidence"}
+                    for key in {"runtime", "environment", "services", "data", *state.DEFERRED}
+                },
+            }
+        },
+    )
+
+
+@pytest.mark.parametrize("provider", ["gym", "harbor"])
+def test_audit_ready_without_runners_containers_or_execution_credentials(state, tmp_path, provider):
+    ready = audit_ready(state, tmp_path, setup=provider)
+    assert state.checklist(ready)[0]["complete"]
+    assert state.checklist(ready)[1]["current"]
+    requirements = state.view(ready)["runtime_requirements"]
+    assert requirements == {
+        "runtime": None,
+        "python": ">=3.11",
+        "packages": {"PyYAML": ">=6.0", "jsonschema": ">=4.0"},
+    }
+    assert state.load_state(tmp_path) == ready
+
+
+@pytest.mark.parametrize(
+    "required", ["code_access", "file_writes", "command_execution", "skills", "ethos_skills", "python"]
+)
+def test_audit_still_requires_access_skills_and_python(state, tmp_path, required):
+    audit_ready(state, tmp_path)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match=f"{required} is required"):
+        state.update(tmp_path, {"prerequisites": {required: {"status": "not_required", "source": "Skip checks"}}})
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("journey", [None, "create", "expand"])
+def test_runtime_exemption_is_only_valid_for_audit(state, tmp_path, journey):
+    state.initialize(tmp_path, journey=journey, setup="harbor")
+    with pytest.raises(ValueError, match="runtime is required"):
+        state.update(tmp_path, {"prerequisites": {"runtime": {"status": "not_required", "source": "No runner"}}})
+
+
+@pytest.mark.parametrize("provider", ["gym", "harbor"])
+@pytest.mark.parametrize("journey", ["create", "expand"])
+def test_audit_exemptions_and_weaker_python_cannot_establish_authoring_readiness(state, tmp_path, provider, journey):
+    audit_ready(state, tmp_path, setup=provider)
+    ethos_ready(state, tmp_path)
+    original = state.update(
+        tmp_path,
+        {
+            "scopes": {"audit": {"traces": ["selected.json"], "confirmed": True}},
+            "journey_status": {"audit": "complete"},
+        },
+    )
+    changed = state.initialize(tmp_path, journey=journey)
+    assert changed["schema_version"] == 1
+    for key, answer in original["prerequisites"].items():
+        assert changed["prerequisites"][key] == {
+            "status": "unknown" if key in state.AUDIT_DEPENDENT else answer["status"],
+            "source": answer["source"],
+        }
+    assert not state.checklist(changed)[0]["complete"]
+    assert changed["ethos"] == original["ethos"]
+    assert changed["scopes"] == original["scopes"]
+    assert changed["journey_status"] == original["journey_status"]
+    policy = state.runtime_policy()["providers"][provider]
+    assert state.view(changed)["runtime_requirements"] == {
+        "runtime": policy["supported"]["authoring"],
+        "python": policy["python"],
+    }
+    assert state.load_state(tmp_path) == changed
+
+
+@pytest.mark.parametrize("before,after", [("audit", "audit"), ("create", "expand"), ("expand", "create")])
+def test_compatible_journey_resume_preserves_prerequisite_evidence(state, tmp_path, before, after):
+    if before == "audit":
+        audit_ready(state, tmp_path)
+    else:
+        setup_ready(state, tmp_path, journey=before)
+    original = state.update(
+        tmp_path,
+        {
+            "pending_question": "Current question",
+            "next_handoff": "current-flow",
+            "journey_status": {before: "in_progress"},
+        },
+    )
+    resumed = state.initialize(tmp_path, journey=after)
+    assert resumed["prerequisites"] == original["prerequisites"]
+    assert resumed["journey_status"] == original["journey_status"]
+    assert state.checklist(resumed)[0]["complete"]
+    assert resumed["pending_question"] == ("Current question" if before == after else None)
+    assert resumed["next_handoff"] == ("current-flow" if before == after else None)
+
+
+@pytest.mark.parametrize("journey", ["create", "expand"])
+def test_authoring_problems_are_reassessed_for_audit_without_discarding_evidence(state, tmp_path, journey):
+    setup_ready(state, tmp_path, journey=journey, setup="harbor")
+    original = state.update(
+        tmp_path,
+        {
+            "prerequisites": {
+                "runtime": {"status": "missing", "source": "Harbor CLI was not found"},
+                "environment": {"status": "missing", "source": "Docker daemon was unavailable"},
+                "model_credentials": {"status": "missing", "source": "Required credential was unavailable"},
+            },
+            "pending_question": "Provide an authoring runtime?",
+            "next_handoff": "runtime-setup",
+            "blockers": [
+                {"id": "runtime", "phase": "setup", "message": "Harbor CLI was not found"},
+                {"id": "environment", "phase": "setup", "message": "Docker daemon was unavailable"},
+                {"id": "model_credentials", "phase": "setup", "message": "Required credential was unavailable"},
+            ],
+        },
+    )
+    changed = state.initialize(tmp_path, journey="audit")
+    assert changed["pending_question"] is None
+    assert changed["next_handoff"] is None
+    for key in ("runtime", "environment", "model_credentials"):
+        assert changed["prerequisites"][key]["status"] == "unknown"
+        assert changed["prerequisites"][key]["source"] == original["prerequisites"][key]["source"]
+    assert changed["prerequisites"]["code_access"] == original["prerequisites"]["code_access"]
+    assert changed["prerequisites"]["ethos_skills"] == original["prerequisites"]["ethos_skills"]
+    assert changed["blockers"] == [{**blocker, "phase": journey} for blocker in original["blockers"]]
+    assert not state.checklist(changed)[0]["blocked"]
+    assert not state.checklist(changed)[2]["blocked"]
+
+
+def test_flow_switch_preserves_common_and_unclassified_legacy_blockers_for_review(state, tmp_path):
+    audit_ready(state, tmp_path)
+    original = state.update(
+        tmp_path,
+        {
+            "blockers": [
+                {"id": "python", "phase": "setup", "message": "Audit Python packages unavailable"},
+                {"id": "skills", "phase": "setup", "message": "Audit skill unavailable"},
+                {"id": "code_access", "phase": "setup", "message": "Agent source inaccessible"},
+                {"id": "ethos_skills", "phase": "setup", "message": "Ethos skills unavailable"},
+                {"id": "legacy-setup", "phase": "setup", "message": "Unclassified setup problem"},
+                {"id": "review-intent", "phase": "ethos", "message": "Intent still needs confirmation"},
+                {"id": "select-traces", "phase": "audit", "message": "Trace selection unresolved"},
+            ]
+        },
+    )
+    changed = state.initialize(tmp_path, journey="create")
+    assert changed["blockers"][:2] == [{**blocker, "phase": "audit"} for blocker in original["blockers"][:2]]
+    assert changed["blockers"][2:] == original["blockers"][2:]
+    assert state.checklist(changed)[0]["blocked"]
+    assert state.checklist(changed)[1]["blocked"]
+    assert not state.checklist(changed)[2]["blocked"]
+
+
+def test_returning_to_authoring_reconciles_preserved_blockers_with_new_checks(state, tmp_path):
+    setup_ready(state, tmp_path, setup="harbor")
+    state.update(
+        tmp_path,
+        {
+            "prerequisites": {"runtime": {"status": "missing", "source": "Harbor CLI was not found"}},
+            "blockers": [{"id": "runtime", "phase": "setup", "message": "Harbor CLI was not found"}],
+        },
+    )
+    audited = audit_ready(state, tmp_path, setup="harbor")
+    assert state.checklist(audited)[0]["complete"]
+    assert not state.checklist(audited)[2]["blocked"]
+    returned = state.initialize(tmp_path, journey="create")
+    assert returned["prerequisites"]["runtime"]["status"] == "unknown"
+    assert not state.checklist(returned)[0]["complete"]
+    assert returned["blockers"] == [{"id": "runtime", "phase": "create", "message": "Harbor CLI was not found"}]
+    assert state.checklist(returned)[2]["blocked"]
+    reassessed = state.update(
+        tmp_path,
+        {
+            "prerequisites": {
+                key: {"status": "verified", "source": "Current authoring checks passed"} for key in state.PREREQUISITES
+            },
+            "blockers": [],
+        },
+    )
+    assert state.checklist(reassessed)[0]["complete"]
+    assert not state.checklist(reassessed)[2]["blocked"]
 
 
 def test_ethos_completion_pause_survives_resume_and_continuation(state, tmp_path):

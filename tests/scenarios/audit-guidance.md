@@ -30,6 +30,26 @@ remain distinct from observed checks. On continuation, show the fixed prerequisi
 table before bounded checks, finish accessible checks, then ask only about
 unresolved findings. Unselected trace reads and agent execution remain out of scope.
 
+Keep all eight prerequisite rows in their fixed order. Confirm agent and
+repository identity, identify the existing suite format, check required skills
+and file/command access, and check Python 3.11 or newer with PyYAML and jsonschema
+for audit tooling. The **Python and evaluation runtime** row reports those checks
+and explains that an evaluation runner is unnecessary. Do not probe Harbor or Gym
+runners, Docker, live agent services, or agent credentials. Mark **Evaluation
+environment**, **Required services and data**, and **Agent connection and
+credentials** as **Not needed now**, with an explanation appropriate to auditing
+local definitions and evidence. Trace selection remains in the audit flow;
+only after selection check its applicable conversion and parser dependencies.
+
+Repeat the shared entry with neither evaluation runner, Docker, nor agent
+credentials available. Ethos confirmation and specification work must remain
+available. For selected local ATIF, measurement uses Harbor's trajectory parser,
+including for converted Gym evidence, without running Harbor jobs or requiring a
+Gym runner. Repeat with that parser unavailable: record measurement as blocked,
+preserve selected evidence and agreed independent specification work, and do not
+reopen Ethos or treat this as an onboarding blocker. A missing conversion tool
+similarly blocks only the selected conversion and dependent measurement.
+
 Use `ethos-orchestrate` through the confirmation adapter. Reuse applicable answers
 and content, but show an existing Ethos for confirmation that it is correct and
 current before continuing, even if it was previously accepted. For missing or revised intent, review the draft
@@ -378,8 +398,10 @@ accepted-Ethos variant, add: “The existing `ETHOS.md` was already reviewed.”
 or prerequisite checks occur.
 
 **Continue:** Show the fixed prerequisite table before inspecting the named
-documents, shared state, and accessible prerequisites. Use bounded runtime checks;
-finish the accessible checks before asking about unresolved items. No trace searches occur.
+documents, shared state, and accessible prerequisites. Check Python and audit
+tooling, identify the existing evaluation format, and skip runner, Docker,
+live-service, and agent credential probes. Finish the accessible checks before
+asking about unresolved items. No trace searches occur.
 Use `ethos-orchestrate` to confirm that existing Ethos is correct and current,
 or create missing content. An earlier review does not skip this confirmation.
 Confirm the selected eval set and missing trace source before dependent trace work.

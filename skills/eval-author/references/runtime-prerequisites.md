@@ -13,7 +13,7 @@ Explore stays in the discovery skill and does not run these probes.
 
 ## Runtime prerequisite checks
 
-Use the bundled locator for every runtime prerequisite check, for both providers.
+Use the bundled locator for evaluation runtime prerequisite checks, for both providers.
 It uses [runtime-policy.json](../scripts/runtime-policy.json) for supported package
 ranges, Python requirements, and flow-specific import/CLI capabilities. It does
 not install, activate, upgrade, scan evals, or execute jobs. It does execute
@@ -24,9 +24,14 @@ python3.11 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --prov
 python3.11 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider gym --flow authoring
 ```
 
-Use Python 3.11+ to run the locator. Select `--flow audit` for audit runtime
-requirements, `discovery` for readiness, and `authoring` for shared prerequisites, first-eval,
-task-create, environment, or trace-derived authoring. Use `--provider both` only
+Use Python 3.11+ to run the locator. Select `discovery` for readiness and
+`authoring` for creation/improvement prerequisites, first-eval, task-create,
+environment, or trace-derived authoring. Audit shared entry checks the existing
+Python environment and packages in `audit_tools` from the policy directly; it
+does not probe an evaluation runner. After ATIF evidence is selected for audit
+measurement, use `--provider harbor --flow audit` for the trajectory parser,
+including for converted Gym evidence. This does not change the suite's framework
+or require an evaluation environment. Use `--provider both` only
 when both runtimes are needed. File-only inventory never runs this command.
 Here `<skill_dir>` is the eval-author skill directory. The shared files ship in
 its `scripts/` directory; every flow uses this one locator and policy. If this

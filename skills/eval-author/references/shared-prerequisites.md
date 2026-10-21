@@ -37,7 +37,9 @@ I’ll check the prerequisites below, then explain anything that’s missing or 
 Copy the introduction, column headings, row labels, and row order exactly for
 every goal and for both Gym and Harbor. Change only the status and findings cells.
 Keep every row, including those marked **Not needed now**; do not add, rename,
-reorder, or omit rows. Update the cells as evidence becomes available and repeat
+reorder, or omit rows. For audit, start the evaluation environment and agent
+connection rows as **Not needed now** and explain that existing evidence is being
+reviewed without running the agent. Update the cells as evidence becomes available and repeat
 the table with results in the final reply so it remains visible alongside questions.
 On resume, reuse findings already in context; show the table before loading saved
 state, then update it from applicable records. Do not keep a second progress record.
@@ -57,15 +59,48 @@ separate from availability: a first suite needs an intended supported format,
 not an existing task. Explain unsupported material without converting it or
 switching the selected runtime.
 
-Read the shared `scripts/runtime-policy.json` authoring requirements for the
-selected setup and its Python version. Scoped audit checks retain their own
-operation-specific policy; they do not lower the shared authoring requirements.
-Inspect each applicable row before asking about unresolved items:
+Select checks by the requested work. The common checks are:
 
 - Find required Eval Author and Ethos skills in the available catalog and supplied
   skill locations; distinguish files found from skills available to the assistant
 - Establish file and command access from host permissions and actual bounded
   reads or commands; keep any write probe under `.eval-author/.working/`
+
+**For an audit**, identify the existing evaluation format from supplied context
+or bounded suite documentation. Check an existing Python environment against
+`audit_tools` in `scripts/runtime-policy.json`: Python 3.11+ with PyYAML and
+jsonschema for audit specification generation, validation, and report aggregation.
+Use bounded version and import checks and retain the exact interpreter and results.
+This does not require an installed Gym or Harbor execution runtime.
+On resume, reuse `python` evidence only when it establishes this audit tooling.
+An older authoring-runtime check may verify Python without PyYAML or jsonschema;
+mark that prerequisite `unknown` and check the audit requirements before deriving
+the results checklist, even when the saved goal is already audit.
+
+Skip evaluation runner, Docker, live agent service, and agent credential probes.
+Keep the environment and connection rows **Not needed now**. In the services and
+data row, explain that live agent services are unnecessary and access to selected
+evidence will be checked within the audit. Required skills are the shared, Ethos,
+and audit skills; do not recommend authoring-only assistant skills for this step.
+Reassess old audit state the same way: replace obsolete execution requirements
+with explained exemptions and remove their blocking effect on this audit,
+retaining the earlier evidence.
+
+Select suites and traces within the audit after Ethos confirmation. Once evidence
+is selected, check only the dependencies for its preparation and measurement.
+ATIF measurement needs the Harbor trajectory parser, including for converted Gym
+traces; use the existing locator with `--provider harbor --flow audit` then.
+It does not need a Gym runner, Docker, or agent credentials. Local Gym and MLflow
+export conversion uses the selected converter's requirements; access to a live
+source is relevant only when the user explicitly selects it. A missing parser,
+converter, or trace source blocks dependent measurement, not Ethos or independent
+specification work. Preserve the user's evaluation framework when choosing a
+parser dependency. Refer to the audit skill for those operations; do not move
+trace selection or measurement into shared prerequisites.
+
+**For creation and improvements**, read the selected setup's authoring and Python
+requirements from `scripts/runtime-policy.json`, then:
+
 - Use the shared [runtime locator](runtime-prerequisites.md#runtime-prerequisite-checks)
   with the selected provider and `--flow authoring` to inspect Python, package
   versions, imports, and CLI availability; retain its exact interpreter, command,
@@ -80,7 +115,8 @@ Inspect each applicable row before asking about unresolved items:
   is safely observable without exposing values; their absence blocks actual-agent
   runs, not this prerequisite review or planning
 
-Check all accessible items even when one fails. A denied command, timeout, or
+Check all applicable, accessible items even when one fails. Skip checks marked
+**Not needed now** rather than probing them for completeness. A denied command, timeout, or
 inaccessible location is an unknown with its actual reason, not proof that a
 dependency is absent. Optional assistant skills remain optional. Do not install,
 repair setup, execute agents, or run evaluations during these checks.
@@ -222,7 +258,13 @@ automatically, even when they describe a prior approval. Preserve conflicts and 
 records for resolution; do not replace them with fresh success state.
 
 Resume the pending question or earliest unfinished, non-deferred step. A goal
-change reuses applicable common decisions. A changed agent, setup, or Ethos
+change reuses applicable common decisions. Switching between audit and authoring
+reopens runtime, Python tooling, environment, service/data, execution access, and
+flow-specific skill checks; previous sources remain available for reassessment.
+An audit exemption or successful audit import does not establish authoring
+readiness. Re-evaluate recorded blockers before displaying results for the new
+goal, retaining evidence but excluding requirements that do not apply.
+A changed agent, setup, or Ethos
 reopens only affected work; changed Ethos invalidates its confirmation until
 reconfirmed while retaining source findings and prior intent answers. Persist
 source findings, answers, exact draft content/reference, and the pending question
@@ -268,7 +310,7 @@ python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository update 
 
 `--journey` accepts `create`, `audit`, or `expand`; `--setup` accepts `gym` or
 `harbor`. `init` reuses state and invalidates affected facts when identity or
-setup changes. `show` derives checklist status without writing. Do not maintain
+setup changes, or when switching between audit and authoring. `show` derives checklist status without writing. Do not maintain
 a separate saved checklist.
 
 An update is a partial JSON mapping. Allowed fields are `prerequisites`, `ethos`,
@@ -282,11 +324,27 @@ answers; preserve that distinction on resume. Link retained command results from
 `agent_connection`, and `model_credentials`. The last two are execution-dependent.
 Never put credential values in state.
 
+For audit, record `runtime` as `not_required` with the reason that no evaluation
+runner is used. Record the checked audit Python environment and its required
+imports under `python`; use `not_required` for the environment, live services,
+execution credentials, and data not needed at shared entry. Selected evidence
+access and later parser/conversion results belong to the audit scope and findings.
+Do not mark the audit interpreter as proof of the agent's runtime requirements.
+The helper's audit `runtime_requirements` describe audit tooling independently
+of the selected Gym or Harbor source format.
+
 `scopes` is keyed by journey and holds agreed source bounds, scope tables,
 case inventory, and downstream decisions. Updating a journey's scope replaces
 that entry, so read and preserve unaffected fields first. `journey_status` maps
 a journey to `pending`, `in_progress`, or `complete`. Blockers have `id`, `phase`
-(`setup`, `ethos`, or a journey), and `message`. Pending question and next handoff
+(`setup`, `ethos`, or a journey), and `message`. For a prerequisite blocker, use
+its prerequisite key as `id`. On an audit/authoring switch, the helper retains
+affected setup blockers under the previous journey's phase and marks affected
+prerequisite answers `unknown` while preserving their source. Reassess them for
+the new operation, including retained blockers when returning to that journey;
+clear a blocker only when the new evidence resolves it or establishes that it
+does not apply. Review legacy blockers without these IDs explicitly rather
+than treating them as current requirements automatically. Pending question and next handoff
 are strings or null. Reopening a dependency must not silently erase old evidence.
 
 During Ethos work, the `ethos` update accepts:

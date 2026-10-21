@@ -58,6 +58,9 @@ then end the turn.
 Read only this skill and the core before that response; repository inspection,
 Ethos validation, prerequisite questions, and state writes wait until the user
 continues. Reuse confirmed agent, prerequisites, and Ethos on continuation.
+Apply the shared flow's audit checks: local audit tooling and source access,
+without evaluation runner, Docker, live agent service, or credential probes.
+Check conversion and trajectory-parser dependencies only after evidence selection.
 
 After shared onboarding's completion pause and the user's continuation, follow
 [Guided audit milestones](references/guided-audit.md):

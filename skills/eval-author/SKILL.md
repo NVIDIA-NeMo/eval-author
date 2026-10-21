@@ -170,6 +170,9 @@ Mark each step complete when its work and required review are finished.
 
 Read [Shared prerequisites and Ethos](references/shared-prerequisites.md) for
 the prerequisite table and checks, shared state, resumption, and the exact handoff.
+Keep its table fixed while selecting checks for the goal: audits need source
+access and audit tooling; authoring also checks the selected evaluation runtime
+and applicable task environment. Reassess requirements when the goal changes.
 
 Use `ethos-orchestrate` to review, create, or update `ETHOS.md`. Pass along the
 context and answers already collected. For an existing document, ask the user to
@@ -293,9 +296,11 @@ has the final say and can override the default or request a provider change.
 
 All flows that need a runtime use the shared
 [runtime locator and policy](references/runtime-prerequisites.md#runtime-prerequisite-checks).
-Use `--flow authoring` for shared prerequisites, first-eval, task-create, environment, and trace-derived
-authoring; `--flow discovery` for readiness; `--flow audit` when audit needs a
-provider runtime. This does not add runtime requirements to file-only inventory,
+Use `--flow authoring` for creation/improvement prerequisites, first-eval,
+task-create, environment, and trace-derived authoring; `--flow discovery` for
+readiness; `--provider harbor --flow audit` for selected ATIF measurement.
+Audit entry checks its Python tooling without probing an evaluation runner.
+This does not add runtime requirements to file-only inventory,
 planning, or provider-independent audit work. Keep the selected Python/CLI pair
 and recorded version; missing setup or ambiguity never authorizes a provider switch.
 

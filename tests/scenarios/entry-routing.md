@@ -55,8 +55,12 @@ that the user selected Harbor, and a repository name alone is not confirmed
 agent identity. Explicit choices do not need to be asked again.
 After continuation, show the fixed prerequisite table before repository/state
 reads or commands and inspect all accessible prerequisites in the same turn.
-Use the existing runtime locator for the selected setup, and check Docker only
-when the chosen environment requires it. Ask only about unresolved findings after
+For creation and expansion, use the existing runtime locator for the selected
+setup and check Docker only when the chosen environment requires it. For audit,
+identify the existing suite format and check Python 3.11 or newer with PyYAML and
+jsonschema for audit tooling; skip evaluation runner, Docker, live service, and
+agent credential probes. Check trace conversion and parser requirements only
+after the audit selects its evidence. Ask only about unresolved findings after
 the pass. Do not install, read unselected traces, or execute agents. Distinguish
 observed checks from user-confirmed answers and from end-to-end suite readiness.
 
@@ -69,16 +73,36 @@ progress message before the first check and the results table in the final reply
 
 - All required tools are available: complete the accessible checks and report
   evidence without asking whether Python, the runtime, or Docker is installed
-- Runtime exists outside the default project environment: use the locator's
-  bounded declared/PATH/tool locations before asking for another location
-- Docker is unavailable and the selected environment requires it: finish the
-  other checks, explain what Docker blocks, and preserve independent planning
+- An authoring runtime exists outside the default project environment: use the
+  locator's bounded declared/PATH/tool locations before asking for another location
+- Docker is unavailable and the selected authoring environment requires it:
+  finish the other checks, explain what Docker blocks, and preserve independent planning
 - Commands or repository access are denied: record the limitation as unknown,
   check the remaining accessible rows, then ask for only the unresolved access
 - A saved pending question asks whether Python, Harbor, and Docker are installed:
-  show the table and inspect them before deciding whether a question remains
+  show the table and inspect only requirements applicable to the selected goal
+  before deciding whether a question remains
 - An evaluation environment needs no Docker, services, or live credentials yet:
   retain every row and explain the applicable or deferred requirements
+- Audit local Gym or Harbor definitions with Python 3.11 or newer, PyYAML, and
+  jsonschema available, but neither evaluation runner, Docker, nor agent
+  credentials: identify the suite format without probing those execution
+  dependencies and continue to Ethos confirmation
+- In that audit, the **Python and evaluation runtime** row reports the audit
+  tooling check and explains that no evaluation runner is needed; the
+  **Evaluation environment**, **Required services and data**, and **Agent
+  connection and credentials** rows say **Not needed now** with a reason
+- Resume an older audit whose saved Python verification came from an authoring
+  runtime probe: unless its evidence also establishes the current audit tooling,
+  reopen and check PyYAML/jsonschema availability before marking setup complete;
+  obsolete runner or Docker failures must not block this audit
+- After the audit selects local ATIF evidence, check the Harbor trajectory
+  parser for measurement, including when the evidence was converted from Gym;
+  do not check a Gym runner or launch Harbor jobs
+- The required conversion tool or parser is absent for selected audit evidence:
+  explain the blocked conversion or measurement, retain the selection, and
+  preserve Ethos and agreed independent specification work without installing
+  dependencies or claiming measured coverage
 
 Retain the command evidence and shared state under `.eval-author/.working/`.
 Check that observed results save as `verified`, user-only answers as `confirmed`,
@@ -93,7 +117,7 @@ and Harbor; omit sections only under the template's stated conditions.
 - Optional assistant skills are absent: show **Recommendations**, explicitly say
   suggestions are optional and not required to continue, then show **Next Steps**
   and the shared progress checklist before the Ethos explanation or question
-- Runtime, Docker, or execution credentials are missing but Ethos can proceed:
+- Authoring runtime, Docker, or execution credentials are missing but Ethos can proceed:
   keep their later requirements in the table, without classifying them as
   optional or adding them to **Blockers**; continue below the checklist in **Next Steps**
 - Required Ethos skills or access needed for the next Ethos action are missing:
@@ -179,11 +203,20 @@ Save accepted prerequisites and Ethos, a pending scope question, and evidence
 references in `.eval-author/.working/journey-state.json`. Resume the same goal
 from a fresh chat with its accepted scope, current Ethos confirmation, pending
 question, and handoff; do not restart shared entry or reopen unchanged review.
-Then switch from create to audit or improve. Retain shared confirmation and
-saved scopes, but select the new goal's question and handoff;
+Then switch between audit and creation or expansion. Retain shared confirmation,
+saved scopes, and evidence, but select the new goal's question and handoff;
 keep journey-specific source selections separate. A supplied source path does
 not imply consent to use unrelated traces. Changed Ethos reopens its confirmation
 and dependent findings only; changed setup reopens affected setup work.
+
+Audit's **Not needed now** execution requirements cannot establish authoring
+readiness. On a switch to creation or expansion, check newly applicable runtime,
+environment, and service requirements, and defer agent credentials until actual
+agent runs. On a switch to audit, skip execution probes and clear their blocking
+effect on audit work while preserving prior results as evidence. Recheck audit
+tooling if it has not been established. Neither direction loses the accepted
+Ethos, saved scope decisions, or evidence references, and a switch does not
+authorize unrelated trace reads or agent execution.
 
 ## 5. Legacy state is imported once
 
