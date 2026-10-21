@@ -46,20 +46,15 @@ available traces. Explain what is covered, what is missing, and what the
 evidence cannot establish.
 ```
 
-A full audit uses the same shared entry as creating or improving evals:
+A full audit starts with the [shared setup and Ethos confirmation](getting-started.md).
 
-- [ ] **Check how your agent runs and how you’ll test it** — establish the selected agent and confirm relevant prerequisites
-- [ ] **Agree on how your agent behaves using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)** — agree on intended behavior, boundaries, and success criteria
-- [ ] **Check what your existing evaluations cover** — select evidence, define intended coverage, measure it, and review the report
+Milestone and source-selection questions hand the conversation back
+to you. Work stops while the answer is pending, including background work and
+delegated reviews. Independent work can finish before a checkpoint or continue
+after you explicitly defer the missing input and agree to that work; asking a
+question while continuing it in the background is not a check-in.
 
-Known context and unchanged accepted Ethos are reused. Ethos exploration and
-writing belong to
-[ethos-orchestrate](../team-skills/ethos/ethos-orchestrate/SKILL.md); Eval Author
-passes existing findings and answers into it. Review proposed new or revised
-content before it is saved. Missing runtime setup does not block provider-independent
-specification work, and confirmation is kept distinct from execution evidence.
-
-After Ethos confirmation, Eval Author shows the existing evaluations it found,
+After the Ethos check-in, Eval Author shows the existing evaluations it found,
 links their suite and case locations, and explains what they test. It asks you
 to confirm which suites belong in the audit, including any additions or
 exclusions, and waits before moving to traces. Suites you already explicitly
@@ -100,12 +95,11 @@ and failure cases and links directly to the full **Intended coverage** section.
 It asks which intended checks are missing or incorrect and names the next
 milestone. Agreeing to this scope does not approve the final report's findings.
 
-**Journey state** (`.eval-author/.working/journey-state.json`) records selected
-paths, limitations, confirmations, pending questions, and next action. It is the
-single progress record across journeys. Legacy progress notes are imported once;
-new runs do not write them. On return, Eval Author resumes unfinished work and
-preserves applicable answers. Requests only to validate, measure, or aggregate
-coverage keep their supplied-input scope.
+**Shared progress** (`.eval-author/.working/journey-state.json`) records conversation state:
+selected paths, limitations, answered or pending questions, and the next action.
+On return to an already-started audit, Eval Author resumes unfinished milestones
+with completed work and prior answers intact. Requests only to validate a
+specification or measure or aggregate coverage stay within that scope.
 
 Coverage measurement compares that specification with recorded ATIF traces.
 ATIF is a structured record of an agent's interaction. Measurements are saved
@@ -154,12 +148,6 @@ alternative, such as addressing an observed agent failure or gathering specific
 evidence.
 
 See [Read your results](results.md) for the saved artifacts and their limits.
-
-## Improve your existing evaluations
-
-Improvement uses the same shared prerequisite and Ethos confirmation. An audit
-is optional. After confirmation, continue with the existing supported authoring
-flow and preserve the supplied context and any unfinished handoff in shared state.
 
 ## Propose new evaluations
 
