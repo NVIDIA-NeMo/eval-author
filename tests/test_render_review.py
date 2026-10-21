@@ -295,7 +295,7 @@ def test_atif_trace_renders_spans_depth_first_with_tool_results_and_error_flags(
 
 
 def test_mlflow_export_renders_instruction_and_tool_name(tmp_path):
-    source = SCRIPT.parents[3] / "skills/mlflow-to-atif/evals/files/valid.json"
+    source = SCRIPT.parents[3] / "skills/eval-author-trace-environment/evals/files/traces/mlflow.json"
     output = tmp_path / "review"
     _summary, report = read_report(invoke(source, output, format="mlflow", rows=None, role="source"), output)
     spans = report.section("spans")

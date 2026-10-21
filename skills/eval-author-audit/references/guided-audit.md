@@ -206,8 +206,8 @@ Once selected, inspect only that source to establish which records are accessibl
 and usable. Audit measurement accepts one local ATIF, MLflow export, Gym record, or
 normalized trace file, or a Harbor trial directory containing ATIF; selecting a
 remote source does not grant access or make it loadable.
-For other formats or inaccessible services, explain the needed local export or
-appropriate supported conversion. Do not query Intake or start platform discovery
+For other formats or inaccessible services, explain the needed local export.
+Do not query Intake or start platform discovery
 from this skill. Preserve the source selection and describe the limitation.
 
 When the selected run folder is missing, explain that measurement is unavailable.

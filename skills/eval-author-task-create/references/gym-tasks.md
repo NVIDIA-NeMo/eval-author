@@ -123,7 +123,7 @@ environments. Its Helix export section applies only when that consumer is select
 Apply [Task validation and execution evidence](../../eval-author/references/task-validation.md)
 for the shared control contract and recorder. Prepare the revision manifest after
 completing native files. Use the maintained [native evidence adapter](gym-evidence.md) to retain native
-verifier cases, rollout and health records, and verified ATIF conversion receipts. Keep job outputs outside the hashed draft. Report unverified
+verifier cases, rollout and health records, and verified trace loading receipts. Keep job outputs outside the hashed draft. Report unverified
 service deployment identity explicitly; the local digest does not attest a
 running remote service. Verifier fixtures alone do not establish task-gap closure.
 

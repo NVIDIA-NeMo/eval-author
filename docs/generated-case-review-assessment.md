@@ -32,10 +32,10 @@ Assessed on September 30, 2026 against the repository's pinned versions:
   pinned source and versioned documentation, plus six dependency-free source CLI
   help probes. A configured Gym runtime was unavailable; dataset preparation,
   profiling, and health checks were not executed.
-- **Eval Author's Gym converter:** an offline synthetic two-row JSONL check
-  confirmed explicit physical-line selection, exact source-row retention, and
-  ATIF output. Omitting the row selector was rejected. Conversion supplies
-  structured evidence, not a human review interface.
+- **Gym rollout loading:** NeMo Compass's Gym loader, through Eval Author's
+  `trace_loading.py`, requires an explicit physical-line selection for JSONL
+  and retains the exact source row. Loading supplies structured evidence, not
+  a human review interface.
 
 No model calls, live evaluations, customer traces, or container jobs were used.
 Current online documentation can describe features newer than these pins.
@@ -115,7 +115,7 @@ standard library and the browser's existing links and expandable details:
   keeping the request and grading fields distinct, and ATIF, MLflow, Gym, or
   normalized trace files loaded through the pinned NeMo Compass trace loader.
 - It presents recorded messages, tool calls and their results, final responses,
-  and available rewards/errors. It preserves converter uncertainty, missing
+  and available rewards/errors. It preserves loader uncertainty, missing
   capture, unsupported content, and malformed-record errors explicitly.
 - It requires a caller-supplied evidence role, links the selected original,
   retains raw records, and never follows embedded paths. A role label does not

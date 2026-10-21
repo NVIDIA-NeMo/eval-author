@@ -18,7 +18,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "skills/eval-author/scripts/trace_loading.py"
 ATIF_FIXTURE = ROOT / "skills/eval-author-trace-environment/evals/files/traces/lookup.atif.json"
-MLFLOW_FIXTURE = ROOT / "skills/mlflow-to-atif/evals/files/valid.json"
+MLFLOW_FIXTURE = ROOT / "skills/eval-author-trace-environment/evals/files/traces/mlflow.json"
 
 
 @pytest.fixture
@@ -148,7 +148,7 @@ def test_each_kind_loads_with_private_outputs_and_receipt_digests(kind, trace_id
     args = sources(kind, tmp_path)
     result = invoke("--source-kind", kind, *args, "--output-dir", output)
     assert result.returncode == 0, result.stdout + result.stderr
-    assert json.loads(result.stdout) == {"status": "loaded", "traces": 1, "atif_emitted": False}
+    assert json.loads(result.stdout) == {"status": "loaded", "traces": 1}
     assert result.stderr == ""
     assert stat.S_IMODE(output.stat().st_mode) == 0o700
     assert all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in output.iterdir())
@@ -170,7 +170,7 @@ def test_each_kind_loads_with_private_outputs_and_receipt_digests(kind, trace_id
     assert list(copies) == expected_names
     digest = hashlib.sha256((output / "traces.normalized.jsonl").read_bytes()).hexdigest()
     assert receipt == {
-        "schema": "nemo.eval_author.trace_load.v1",
+        "schema": "nemo.eval_author.trace_load.v2",
         "source_kind": kind,
         "loader_distribution": "nemo-compass",
         "loader_version": "0.2.0",
@@ -179,10 +179,7 @@ def test_each_kind_loads_with_private_outputs_and_receipt_digests(kind, trace_id
         "normalized_sha256": "sha256:" + digest,
         "trace_count": 1,
         "max_traces": 1000,
-        "atif_emitted": False,
-        "atif": [],
     }
-    assert not (output / "atif").exists()
 
 
 def test_gym_row_selects_one_record_and_keeps_missing_results(tmp_path):
@@ -210,34 +207,6 @@ def test_normalized_output_reloads_as_trace_kind(tmp_path):
     assert [{**trace, "source_url": None} for trace in normalized(second)] == [
         {**trace, "source_url": None} for trace in normalized(first)
     ]
-
-
-@pytest.mark.parametrize("kind", ["atif", "mlflow", "gym", "intake"])
-def test_emitted_atif_passes_trace_environment_validation(kind, tmp_path, monkeypatch):
-    monkeypatch.syspath_prepend(str(ROOT / "skills/eval-author-trace-environment/scripts"))
-    trace_environment = importlib.import_module("trace_environment")
-    output = tmp_path / "loaded"
-    result = invoke(
-        "--source-kind", kind, *sources(kind, tmp_path), "--output-dir", output, "--emit-atif", "--agent-name", "demo"
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert json.loads(result.stdout)["atif_emitted"] is True
-    assert stat.S_IMODE((output / "atif").stat().st_mode) == 0o700
-    receipt = json.loads((output / "loading.json").read_text())
-    [entry] = receipt["atif"]
-    path = output / entry["path"]
-    assert stat.S_IMODE(path.stat().st_mode) == 0o600
-    assert entry["sha256"] == "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
-    assert entry["trace_id"] == normalized(output)[0]["id"]
-    atif = json.loads(path.read_text())
-    trace_environment._validate_trajectory(atif)
-    if kind == "atif":
-        # ATIF-origin traces are rebuilt exactly.
-        assert atif == json.loads(ATIF_FIXTURE.read_text())
-    else:
-        assert atif["agent"]["name"] == "demo"
-        assert atif["extra"]["compass"]["exporter"] == "trace_ingest.exporters.atif@1"
-        assert any(step["source"] == "user" for step in atif["steps"])
 
 
 def test_existing_output_directory_is_never_modified(tmp_path):

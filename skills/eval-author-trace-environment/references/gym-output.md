@@ -4,7 +4,8 @@
 # Produce a native Gym task from trace evidence
 
 **Experimental.** Use this extension when Gym is the selected output provider.
-Any supported trace source can produce a Gym task. Follow shared Steps 1-5 in
+Any source that `prepare` accepts can produce a Gym task; until trace-environment
+reads NeMo Compass Traces that means ATIF only (see [sources](sources.md)). Follow shared Steps 1-5 in
 [the skill](../SKILL.md), including privacy review, tool-access decisions,
 ground-truth and software inventories, and `check-candidate`. A proposal may
 provide context, but an audit report or uncovered tool is not a prerequisite.
@@ -23,32 +24,25 @@ authoring and native controls or agent runs using
 [Report generation](../../eval-author/references/suite-readme.md#report-generation).
 Preserve authored suite and task documentation outside generated markers.
 
-## Start from a rollout with ng_trajectory
+## Start from a Gym rollout
 
-Select one physical JSONL line from a private Gym rollout file. A record with
-both `responses_create_params` / `response` and an `ng_trajectory` attachment
-can follow this path after workspace initialization:
+`prepare` reads ATIF only until trace-environment reads NeMo Compass Traces.
+A Gym run enters this workflow through its retained original Harbor ATIF:
 
 ```bash
-uv run --with-requirements <skill_dir>/../gym-to-atif/requirements.txt \
-  <skill_dir>/../gym-to-atif/scripts/gym_to_atif.py \
-  --input <rollouts.jsonl> --row 1 --output-dir <task-dir>/private/converted
 python <skill_dir>/scripts/trace_environment.py prepare \
-  --task-dir <task-dir> --atif <task-dir>/private/converted/trace.atif.json \
-  --source-kind gym
+  --task-dir <task-dir> --atif <private-harbor-job/agent/trajectory.json> \
+  --source-kind atif
 ```
 
-The ATIF converter loads the record through NeMo Compass, which builds the trace
-from the schema 1.0 attachment when present. To retain the normalized Compass
-evidence as well, run the sibling eval-author
+Gym-native Responses records and `ng_trajectory` attachments cannot enter
+`prepare` yet. To retain normalized evidence for the same rollout, run the
+sibling eval-author
 [NeMo Compass trace loader](../../eval-author/references/trace-loading.md) with
-`--source-kind gym` on the same row and retain its output under
-`private/ng-evidence/`. Its `traces.normalized.jsonl` is not ATIF. An
-attachment-only export can be loaded for inspection but
-cannot currently enter `prepare`; it needs a complete supported Responses
-record, original ATIF, or a separately implemented and tested ATIF mapping.
-Do not manufacture a Responses envelope from invocation history to bypass this
-boundary. Continue shared privacy review and candidacy before scaffolding.
+`--source-kind gym` on the selected row and keep its output under
+`private/ng-evidence/`. Do not manufacture ATIF or a Responses envelope to
+bypass this boundary. Continue shared privacy review and candidacy before
+scaffolding.
 
 ## Native workspace and scaffold
 

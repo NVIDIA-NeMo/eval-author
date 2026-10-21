@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-import hashlib
+import importlib.util
 import math
 from pathlib import Path
 from typing import Any
@@ -12,6 +12,8 @@ from typing import Any
 from task_evidence import EvidenceError, digest, loads, read
 
 INPUTS = ("dataset", "config", "runtime", "reset")
+TRACE_LOAD_SCHEMA = "nemo.eval_author.trace_load.v2"
+_TRACE_LOADING = Path(__file__).resolve().parents[2] / "eval-author/scripts/trace_loading.py"
 
 
 def jsonl(path: Path) -> list[tuple[bytes, dict[str, Any]]]:
@@ -31,6 +33,16 @@ def jsonl(path: Path) -> list[tuple[bytes, dict[str, Any]]]:
     if not rows:
         raise EvidenceError("empty native JSONL")
     return rows
+
+
+def pinned_loader() -> tuple[str, str]:
+    """Return the sibling eval-author loader's pinned Compass distribution and version."""
+    spec = importlib.util.spec_from_file_location("_task_create_trace_loading", _TRACE_LOADING)
+    if spec is None or spec.loader is None or not _TRACE_LOADING.is_file():
+        raise EvidenceError("install the sibling eval-author skill to bind Gym trace evidence")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.COMPASS_DISTRIBUTION, module.COMPASS_VERSION
 
 
 def snapshot(task: Path, contract: dict[str, Any]) -> dict[str, Any]:
@@ -60,9 +72,8 @@ def source_paths(source: dict[str, Any]) -> list[Path]:
     paths = [Path(source[name]) for name in names]
     inputs = source.get("inputs", {})
     paths.extend(Path(inputs[name]) for name in INPUTS)
-    for optional in ("conversion", "source_atif"):
-        if source.get(optional):
-            paths.append(Path(source[optional]))
+    if source.get("loading"):
+        paths.append(Path(source["loading"]))
     return paths
 
 
@@ -131,7 +142,7 @@ def build(
     index = source.get("row")
     if type(index) is not int or not 1 <= index <= len(rows):
         raise EvidenceError("Gym rollout row must be one-based and present")
-    raw, native = rows[index - 1]
+    _, native = rows[index - 1]
     trajectory = native.get("ng_trajectory")
     identity = trajectory.get("rollout_id") if isinstance(trajectory, dict) else None
     if not isinstance(identity, str) or not identity:
@@ -178,26 +189,31 @@ def build(
     if purpose == "closure" and case["kind"] == "agent" and health["verdict"] != "healthy":
         raise EvidenceError("unobserved Gym health cannot establish measured gap closure")
     if trace is not None:
-        conversion = read(Path(source["conversion"]))
+        # The recorded command loads the same rollout file and row with eval-author's
+        # trace_loading.py; its receipt binds the source bytes to the normalized trace.
+        if not source.get("loading"):
+            raise EvidenceError("Gym trace evidence requires the trace_loading.py receipt as loading")
+        loading = read(Path(source["loading"]))
+        source_digests = loading.get("source_sha256")
         if (
-            conversion.get("schema") != "nemo.eval_author.gym_to_atif.v2"
-            or conversion.get("gym_sha256") != "sha256:" + hashlib.sha256(raw).hexdigest()
-            or conversion.get("atif_sha256") != "sha256:" + digest(trace)
-            or conversion.get("selected_line") != index
+            loading.get("schema") != TRACE_LOAD_SCHEMA
+            or loading.get("source_kind") != "gym"
+            or (loading.get("loader_distribution"), loading.get("loader_version")) != pinned_loader()
+            or loading.get("trace_count") != 1
+            or not isinstance(source_digests, dict)
+            or list(source_digests.values()) != ["sha256:" + digest(Path(source["rollouts"]))]
+            or loading.get("normalized_sha256") != "sha256:" + digest(trace)
         ):
-            raise EvidenceError("Gym conversion does not bind selected rollout to ATIF")
-        if conversion.get("basis") == "provided_atif":
-            original = source.get("source_atif")
-            if (
-                not original
-                or conversion.get("atif_bytes_preserved") is not True
-                or conversion.get("source_atif_sha256") != "sha256:" + digest(Path(original))
-                or digest(Path(original)) != digest(trace)
-            ):
-                raise EvidenceError("retained native ATIF does not match conversion provenance")
-        elif conversion.get("basis") != "gym_projection":
-            raise EvidenceError("unknown Gym conversion basis")
+            raise EvidenceError("Gym trace loading receipt does not bind the rollouts to the trace")
+        traces = jsonl(trace)
+        same_identity = [
+            row
+            for _, row in rows
+            if isinstance(row.get("ng_trajectory"), dict) and row["ng_trajectory"].get("rollout_id") == identity
+        ]
+        if len(traces) != 1 or traces[0][1].get("id") != identity or len(same_identity) != 1:
+            raise EvidenceError("normalized Gym trace does not identify the selected rollout")
     elif purpose == "closure" and case["kind"] == "agent":
-        raise EvidenceError("Gym closure requires a converted ATIF trace")
+        raise EvidenceError("Gym closure requires the normalized trace from trace_loading.py")
     result.update(native_run_id=identity, reward=reward, health={**health, "ignored_checks": []}, row=index)
     return result

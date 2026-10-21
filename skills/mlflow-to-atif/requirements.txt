@@ -1,1 +1,0 @@
-nemo-compass[mlflow]==0.2.0

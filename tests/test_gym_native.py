@@ -4,7 +4,6 @@
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -56,7 +55,7 @@ def scaffold_draft(tmp_path):
     return output, instruction, command, receipt
 
 
-def scaffold_trace_draft(tmp_path, *, gym_rollouts=None):
+def scaffold_trace_draft(tmp_path):
     """Follow the trace extension without creating an audit or selecting a coverage gap."""
     assert GYM_PYTHON is not None
     helper = ROOT / "skills/eval-author-trace-environment/scripts/trace_environment.py"
@@ -74,103 +73,32 @@ def scaffold_trace_draft(tmp_path, *, gym_rollouts=None):
     task_dir = Path(initialized["task_dir"])
     instruction_text = "Use ledger_total and report the total for each list: [7, -2, 13] and [0, 6, -10]."
     source = task_dir / "private/input.atif.json"
-    synthetic_atif = json.dumps(
-        {
-            "schema_version": "ATIF-v1.7",
-            "session_id": "synthetic-ledger",
-            "agent": {"name": "fixture-agent", "version": "1"},
-            "steps": [
-                {"step_id": 1, "source": "user", "message": instruction_text},
-                {
-                    "step_id": 2,
-                    "source": "agent",
-                    "message": "Compute the totals.",
-                    "tool_calls": [
-                        {
-                            "tool_call_id": "call-1",
-                            "function_name": "ledger_total",
-                            "arguments": {"amounts": [7, -2, 13]},
-                        }
-                    ],
-                    "observation": {"results": [{"source_call_id": "call-1", "content": '{"total":18}'}]},
-                },
-            ],
-        }
-    )
-    if gym_rollouts is None:
-        source.write_text(synthetic_atif)
-    else:
-        scripts = ROOT / "skills/gym-to-atif/scripts"
-        loader = ROOT / "skills/eval-author/scripts/trace_loading.py"
-        for command, directory in (
-            ([str(scripts / "gym_to_atif.py")], "converted"),
-            ([str(loader), "--source-kind", "gym"], "ng-evidence"),
-        ):
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    *command,
-                    "--input",
-                    str(gym_rollouts),
-                    "--row",
-                    "1",
-                    "--output-dir",
-                    str(task_dir / "private" / directory),
+    source.write_text(
+        json.dumps(
+            {
+                "schema_version": "ATIF-v1.7",
+                "session_id": "synthetic-ledger",
+                "agent": {"name": "fixture-agent", "version": "1"},
+                "steps": [
+                    {"step_id": 1, "source": "user", "message": instruction_text},
+                    {
+                        "step_id": 2,
+                        "source": "agent",
+                        "message": "Compute the totals.",
+                        "tool_calls": [
+                            {
+                                "tool_call_id": "call-1",
+                                "function_name": "ledger_total",
+                                "arguments": {"amounts": [7, -2, 13]},
+                            }
+                        ],
+                        "observation": {"results": [{"source_call_id": "call-1", "content": '{"total":18}'}]},
+                    },
                 ],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            assert result.returncode == 0, result.stdout + result.stderr
-        raw = gym_rollouts.read_bytes().splitlines(keepends=True)[0]
-        converted = task_dir / "private/converted"
-        assert (converted / "source.gym.json").read_bytes() == raw
-        [normalized_line] = (task_dir / "private/ng-evidence/traces.normalized.jsonl").read_text().splitlines()
-        normalized = json.loads(normalized_line)
-        assert normalized["attributes"]["gym"]["ng_trajectory"] == json.loads(raw)["ng_trajectory"]
-        source = converted / "trace.atif.json"
-        atif = json.loads(source.read_text())
-        instruction_text = next(step["message"] for step in atif["steps"] if step["source"] == "user")
-        tool_names = [call["function_name"] for step in atif["steps"] for call in step.get("tool_calls", [])]
-        assert "ledger_total" in tool_names
-        # Attachment-only evidence loads, but is not silently promoted to an ATIF trajectory.
-        attachment = task_dir / "private/attachment-only.json"
-        attachment.write_text(json.dumps({"ng_trajectory": json.loads(raw)["ng_trajectory"]}))
-        loaded = subprocess.run(
-            [
-                sys.executable,
-                str(loader),
-                "--source-kind",
-                "gym",
-                "--input",
-                str(attachment),
-                "--output-dir",
-                str(task_dir / "private/attachment-evidence"),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
+            }
         )
-        assert loaded.returncode == 0, loaded.stdout + loaded.stderr
-        assert json.loads(loaded.stdout)["atif_emitted"] is False
-        rejected = subprocess.run(
-            [
-                sys.executable,
-                str(scripts / "gym_to_atif.py"),
-                "--input",
-                str(attachment),
-                "--output-dir",
-                str(task_dir / "private/unsupported-atif"),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        assert rejected.returncode == 2
-        assert not (task_dir / "private/unsupported-atif/trace.atif.json").exists()
-    trace_command(
-        "prepare", "--task-dir", task_dir, "--atif", source, "--source-kind", "gym" if gym_rollouts else "atif"
     )
+    trace_command("prepare", "--task-dir", task_dir, "--atif", source, "--source-kind", "atif")
     trace_command(
         "review-privacy", "--task-dir", task_dir, "--reviewer-kind", "agent", "--note", "Synthetic test data reviewed."
     )
@@ -240,7 +168,7 @@ def scaffold_trace_draft(tmp_path, *, gym_rollouts=None):
     # Native drafts must not manufacture Harbor proof or finalize a pending preparation record.
     summary = json.loads((task_dir / "summary.json").read_text())
     assert summary["status"] == "pending"
-    assert summary["source"]["kind"] == ("gym" if gym_rollouts else "atif")
+    assert summary["source"]["kind"] == "atif"
     assert summary["environment"]["technical_status"] == "not_run"
     assert not (task_dir / "validation.json").exists()
     assert not (tmp_path / "coverage.json").exists()
@@ -248,44 +176,7 @@ def scaffold_trace_draft(tmp_path, *, gym_rollouts=None):
     return output, instruction, command, json.loads(result.stdout)
 
 
-def scaffold_ng_trace_draft(tmp_path):
-    """Produce a real Gym rollout attachment, then derive a new native task from one row."""
-    assert GYM_PYTHON is not None
-    resource = tmp_path / "source-resource"
-    (resource / "tests").mkdir(parents=True)
-    fixtures = HARNESS_ROOT / "tests/fixtures/gym_ledger"
-    shutil.copyfile(fixtures / "app.py", resource / "app.py")
-    shutil.copyfile(fixtures / "verifier_cases.jsonl", resource / "tests/verifier_cases.jsonl")
-    output = tmp_path / "source-run"
-    result = subprocess.run(
-        [
-            GYM_PYTHON,
-            str(fixtures / "smoke.py"),
-            "--output",
-            str(output),
-            "--resources-app",
-            str(resource / "app.py"),
-            "--dataset",
-            str(fixtures / "data.jsonl"),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=90,
-        umask=0o077,
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
-    rollouts = output / "cli-rollouts.jsonl"
-    row = json.loads(rollouts.read_text().splitlines()[0])
-    assert row["ng_trajectory"]["schema_version"] == "1.0"
-    assert row["ng_trajectory"]["invocations"]
-    assert row["responses_create_params"]["input"]
-    assert row["response"]["output"]
-    return scaffold_trace_draft(tmp_path, gym_rollouts=rollouts)
-
-
-@pytest.fixture(
-    params=[scaffold_draft, scaffold_trace_draft, scaffold_ng_trace_draft], ids=["audit", "trace", "ng-trajectory"]
-)
+@pytest.fixture(params=[scaffold_draft, scaffold_trace_draft], ids=["audit", "trace"])
 def draft_builder(request):
     # Build inside the test call so preparation regressions are JUnit failures,
     # while fixture/setup errors remain incomplete execution evidence.

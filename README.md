@@ -60,7 +60,7 @@ ATIF traces requires Python 3.12+ and the
 Task execution may need Docker, application access, and model credentials,
 depending on the task and agent. See the
 [full requirements](docs/getting-started.md#requirements)
-for each workflow, including local trace conversion and experimental
+for each workflow, including local trace loading and experimental
 environment preparation.
 
 ## Start here

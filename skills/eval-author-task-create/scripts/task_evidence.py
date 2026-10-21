@@ -253,7 +253,7 @@ def run(
     if purpose not in ("baseline", "closure"):
         raise EvidenceError("purpose must be baseline or closure")
     if purpose == "closure" and case["kind"] == "agent" and trace is None:
-        raise EvidenceError("agent evidence requires a fresh ATIF trace")
+        raise EvidenceError("agent evidence requires a fresh trace")
     paths = [output, result] + ([trace] if trace is not None else [])
     if len({p.resolve() for p in paths}) != len(paths):
         raise EvidenceError("receipt, native result, and trace must have distinct paths")

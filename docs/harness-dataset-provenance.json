@@ -102,27 +102,6 @@
       "source_sha256": "7a2d9559f8e6b0eca7b6b42b8a21012074cb38c55fe9321efd9f11a259cd58db",
       "sha256": "7a2d9559f8e6b0eca7b6b42b8a21012074cb38c55fe9321efd9f11a259cd58db",
       "transformation": "none; byte-for-byte copy"
-    },
-    {
-      "path": "skills/gym-to-atif/evals/files/source.json",
-      "source_path": "fixture_inputs/harness-consistency/gym-source/source.json",
-      "source_sha256": "bd03cd1c88a7bfacd6bc7051c884953518668f5a2390cae3cfb40d0525324086",
-      "sha256": "bd03cd1c88a7bfacd6bc7051c884953518668f5a2390cae3cfb40d0525324086",
-      "transformation": "none; byte-for-byte copy"
-    },
-    {
-      "path": "skills/gym-to-atif/evals/files/original.atif.json",
-      "source_path": "fixture_inputs/harness-consistency/trace-source/traces/lookup.atif.json",
-      "source_sha256": "c056f3a80d293cdb16d80dbf834c1f1aa72594b2b60b4b1358eea54f4342f966",
-      "sha256": "c056f3a80d293cdb16d80dbf834c1f1aa72594b2b60b4b1358eea54f4342f966",
-      "transformation": "none; byte-for-byte copy"
-    },
-    {
-      "path": "skills/gym-to-atif/evals/files/ambiguous.jsonl",
-      "source_path": "fixture_inputs/harness-consistency/gym-source/source.json",
-      "source_sha256": "bd03cd1c88a7bfacd6bc7051c884953518668f5a2390cae3cfb40d0525324086",
-      "sha256": "0308debc0dfac211d8517cf7e6c741c885e14da24ee067dd9fcd8cd52ea5a457",
-      "transformation": "Compact source JSON and duplicate into two physical JSONL lines; tests explicit row selection even for equal records."
     }
   ],
   "cases": [
@@ -197,24 +176,6 @@
       "id": "trace-blocked-handoff",
       "source_scenario": "trace-environment-harbor",
       "adaptation": "Synthetic blocked-validation checkpoint; no historical execution claim."
-    },
-    {
-      "skill": "gym-to-atif",
-      "id": "gym-convert-record",
-      "source_scenario": "gym-conversion",
-      "adaptation": "Original conversion intent with explicit bounded paths."
-    },
-    {
-      "skill": "gym-to-atif",
-      "id": "gym-retained-original",
-      "source_scenario": "gym-conversion",
-      "adaptation": "Derived retained-original boundary; association explicitly supplied only for this synthetic case."
-    },
-    {
-      "skill": "gym-to-atif",
-      "id": "gym-require-row",
-      "source_scenario": "gym-conversion",
-      "adaptation": "Derived multi-record selection boundary from two copies of the synthetic source."
     }
   ]
 }

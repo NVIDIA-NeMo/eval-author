@@ -41,8 +41,6 @@ not-for:
   - eval-author-trace-environment (experimental; use to derive a Harbor or native Gym task from canonical ATIF evidence)
   - eval-author-environment (use after an authoring sub-flow hands over its cases to build and prove their task environment)
   - nemo-intake (use to instrument agents, ingest telemetry, or query Intake outside Eval Author)
-  - mlflow-to-atif (use to convert MLflow traces into canonical ATIF files)
-  - gym-to-atif (use to convert Gym Responses traces into canonical ATIF files)
   - nemo-experimentalist (use to run insight-driven optimization end to end, which drives the Eval Author agent itself)
   - nemo-evaluator (use to run an existing benchmark rather than work on a repository's own suite)
 compatibility: >-
@@ -278,7 +276,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 | `eval-author-audit` | Generate and validate a finite `audit.md` coverage denominator, measure and aggregate trace coverage, and report findings |
 | `eval-author-task-create` | Propose concrete dataset improvements from audit findings; when task creation is requested, create one eligible Gym or Harbor task and prove it with native controls and repeated measured runs |
 | `eval-author-inspect-trace` | Understand one Intake trace without presuming that the trace contains a failure. Not user-invocable; this skill selects it |
-| `eval-author-trace-environment` | **Experimental.** Normalize one trace to ATIF, make a privacy-reviewed candidate decision, and build a private Harbor or native Gym task when evidence supports it |
+| `eval-author-trace-environment` | **Experimental.** Prepare one ATIF trace, make a privacy-reviewed candidate decision, and build a private Harbor or native Gym task when evidence supports it |
 | `eval-author-environment` | Build and prove the environment a Harbor or Gym task runs in: provider fit, how each dependency is provided, starting data and reset, end-state export, and isolation. Not user-invocable; first-eval and task-create hand it their agreed cases |
 
 `eval-author-audit` works one level above tasks: it generates and validates the
@@ -293,7 +291,7 @@ there are no eligible tool gaps; an audit-only request ends with the findings.
 
 Sub-flows that read provider traces load them through the shared
 `scripts/trace_loading.py`, which normalizes ATIF, MLflow, Gym, and Intake
-evidence into NeMo Compass traces and exports ATIF when a task artifact needs it.
+evidence into NeMo Compass traces; Eval Author never converts traces into ATIF.
 Read [Trace loading](references/trace-loading.md) before running it.
 
 ## Select the evaluation provider

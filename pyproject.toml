@@ -56,5 +56,4 @@ extra-paths = [
   "tools",
   "skills/eval-author/scripts",
   "skills/eval-author-trace-environment/scripts",
-  "skills/gym-to-atif/scripts",
 ]

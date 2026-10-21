@@ -12,7 +12,7 @@ from audit_fixtures import bound_audit
 
 ROOT = Path(__file__).resolve().parents[1]
 MEASURE = ROOT / "skills/eval-author-audit/scripts/audit_spec/measure.py"
-MLFLOW_EXPORT = ROOT / "skills/mlflow-to-atif/evals/files/valid.json"
+MLFLOW_EXPORT = ROOT / "skills/eval-author-trace-environment/evals/files/traces/mlflow.json"
 
 
 def test_measure_reads_mlflow_export_tool_spans(tmp_path: Path) -> None:

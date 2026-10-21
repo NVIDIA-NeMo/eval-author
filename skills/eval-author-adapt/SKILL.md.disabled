@@ -16,7 +16,6 @@ not-for:
   - eval-author (use for shared onboarding, evidence standards, and routing)
   - eval-author-discover (use to find and validate existing Harbor suites)
   - eval-author-task-create (use to create tasks from actionable audit tool gaps)
-  - mlflow-to-atif (use to normalize traces rather than migrate eval cases)
 compatibility: >-
   Source inspection and local Ethos work need no Harbor or NeMo service.
   Scaffolding and structure validation require the installed Harbor CLI and

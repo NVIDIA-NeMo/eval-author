@@ -6,6 +6,25 @@
 Notable changes to NeMo Eval Author are recorded here. Eval Author is a research
 preview: workflows, skills, and saved artifacts may change between releases.
 
+## Unreleased
+
+### Removed
+
+- **ATIF converters.** The `gym-to-atif` and `mlflow-to-atif` skills and
+  `trace_loading.py --emit-atif` are gone; Eval Author loads every trace into a
+  NeMo Compass `Trace` and never writes ATIF. The trace loading receipt is now
+  `nemo.eval_author.trace_load.v2`, without `atif_emitted` or `atif`. See
+  [Load local traces](docs/traces.md#load-local-traces).
+
+### Changed
+
+- **Trace-derived environments read ATIF only for now.** `prepare` and batch
+  manifests accept `source_kind: atif` until the workflow reads Compass Traces.
+- **Gym closure evidence** binds the selected rollout through the
+  `trace_load.v2` receipt and its normalized trace instead of a Gym-to-ATIF
+  conversion receipt. See
+  [Native Gym evidence](skills/eval-author-task-create/references/gym-evidence.md).
+
 ## 0.1.0
 
 Initial research-preview release, tested with Harbor 0.20.0 and NeMo Gym v0.6.0.

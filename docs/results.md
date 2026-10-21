@@ -201,9 +201,9 @@ A generated candidate can still have an unproven environment or unresolved
 software requirements. Read those limits before attempting execution or
 [sharing a task](traces.md#sharing-generated-tasks).
 
-Converting a trace to ATIF, the Agent Trajectory Interchange Format, produces a
-structured record for downstream tools. Conversion alone does not measure
-coverage or validate a runnable evaluation task.
+Loading a trace into a NeMo Compass `Trace` produces a structured record for
+downstream tools. Loading alone does not measure coverage or validate a
+runnable evaluation task.
 
 ## Saved output
 
@@ -218,7 +218,6 @@ producing every artifact when prerequisites are missing.
 | Coverage audit | The four artifacts listed under [Coverage audits](#coverage-audits), plus supporting evidence in `.eval-author/audit-measurements/` |
 | Intake trace inspection | `.eval-author/traces/` |
 | Trace-derived environments (**experimental**) | A private, gitignored workspace per task under `.eval-author/trace-environments/`, with a root `README.md` for generated-case review and reruns; generated batches also have a collection-root guide. No-candidate outcomes do not create a suite guide. |
-| MLflow conversion | One `.atif.json` file per trace in the private output directory you select. |
 
 [Choose another workflow](../README.md#start-here) or review
 [runtime requirements](getting-started.md#requirements).
