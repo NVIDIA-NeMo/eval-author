@@ -66,9 +66,11 @@ observed checks from user-confirmed answers and from end-to-end suite readiness.
 
 ### Prerequisite inspection variants
 
-Use the same table columns, row labels, and order for creation, audit, and
-expansion with Gym and Harbor. Only status and findings cells vary, including
-on resume. Keep inapplicable rows visible as **Not needed now**. Inspect the
+Use the same eight base rows for creation, audit, and expansion with Gym and
+Harbor. Every audit adds **Traces from completed evaluation runs** immediately
+after **Evaluation framework**. Within each goal's template, only status and
+findings cells vary, including on resume. Keep inapplicable rows visible as
+**Not needed now**. Inspect the
 progress message before the first check and the results table in the final reply.
 
 - All required tools are available: complete the accessible checks and report
@@ -92,6 +94,14 @@ progress message before the first check and the results table in the final reply
   tooling check and explains that no evaluation runner is needed; the
   **Evaluation environment**, **Required services and data**, and **Agent
   connection and credentials** rows say **Not needed now** with a reason
+- The audit trace prerequisite is visible before checks and in the results,
+  explaining that measurement requires traces from evaluations that have already
+  run; unknown availability stays **Unknown**, an explicit user statement that
+  traces exist is **Confirmed by you**, and confirmed absence is **Missing**
+- Missing traces keep coverage measurement pending while Ethos can continue;
+  do not label traces optional or **Not needed now**, ask for trace selection
+  during shared prerequisites, search unselected sources, or run evaluations
+  to produce traces
 - Resume an older audit whose saved Python verification came from an authoring
   runtime probe: unless its evidence also establishes the current audit tooling,
   reopen and check PyYAML/jsonschema availability before marking setup complete;

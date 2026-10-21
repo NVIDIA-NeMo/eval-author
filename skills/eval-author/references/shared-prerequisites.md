@@ -34,10 +34,18 @@ I’ll check the prerequisites below, then explain anything that’s missing or 
 | Required services and data | Checking | — |
 | Agent connection and credentials | Needed before agent runs | — |
 
-Copy the introduction, column headings, row labels, and row order exactly for
-every goal and for both Gym and Harbor. Change only the status and findings cells.
-Keep every row, including those marked **Not needed now**; do not add, rename,
-reorder, or omit rows. For audit, start the evaluation environment and agent
+For audit, insert this prerequisite immediately after **Evaluation framework**:
+
+| Prerequisite | Status | Findings |
+|---|---|---|
+| Traces from completed evaluation runs | Unknown | Coverage measurement requires traces from evaluations that have already run. We’ll select them after confirming ETHOS.md |
+
+Use the same nine-row table for every audit and the eight-row table above for
+creation and improvements, for both Gym and Harbor. Copy the introduction, column
+headings, row labels, and row order exactly for the selected goal. Change only the
+status and findings cells. Keep every row, including those marked **Not needed
+now**; do not otherwise add, rename, reorder, or omit rows.
+For audit, start the evaluation environment and agent
 connection rows as **Not needed now** and explain that existing evidence is being
 reviewed without running the agent. Update the cells as evidence becomes available and repeat
 the table with results in the final reply so it remains visible alongside questions.
@@ -88,6 +96,15 @@ retaining the earlier evidence.
 
 Select suites and traces within the audit after Ethos confirmation. Once evidence
 is selected, check only the dependencies for its preparation and measurement.
+Keep the **Traces from completed evaluation runs** prerequisite visible in both
+the initial and results tables. Reuse any supplied availability answer: use
+**Confirmed by you** when the user says those traces exist, **Missing** when they
+say none exist, and **Unknown** otherwise. Verify usable traces and their suite/run
+mapping only after source selection. Evaluation definitions and pass/fail scores
+alone do not satisfy this prerequisite. Missing traces block coverage measurement,
+not Ethos confirmation or independently requested specification work. Do not mark
+them **Not needed now**, make them optional recommendations, or run evaluations
+to create them during the audit.
 ATIF measurement needs the Harbor trajectory parser, including for converted Gym
 traces; use the existing locator with `--provider harbor --flow audit` then.
 It does not need a Gym runner, Docker, or agent credentials. Local Gym and MLflow
@@ -179,8 +196,9 @@ These items prevent us from continuing with Ethos.
 ```
 
 Omit empty Recommendations and Blockers sections. Required runtime setup or
-credentials for later evaluation runs stay in the table as later requirements,
-not optional recommendations or blockers to Ethos. Missing Ethos skills can block
+credentials for later evaluation runs, and traces for audit measurement, stay in
+the table as later requirements, not optional recommendations or blockers to
+Ethos. Missing Ethos skills can block
 this step; missing `ETHOS.md` alone does not, because the Ethos skills can create it.
 For an existing document, use the [existing Ethos review](ethos-confirmation.md#review-an-existing-document)
 below the checklist. For a missing document, explain that `ETHOS.md` records what
@@ -327,8 +345,10 @@ Never put credential values in state.
 For audit, record `runtime` as `not_required` with the reason that no evaluation
 runner is used. Record the checked audit Python environment and its required
 imports under `python`; use `not_required` for the environment, live services,
-execution credentials, and data not needed at shared entry. Selected evidence
-access and later parser/conversion results belong to the audit scope and findings.
+execution credentials, and data not needed at shared entry. Save trace availability
+and its provenance in the audit scope alongside source-selection decisions;
+shared data exemptions do not satisfy the trace prerequisite. Selected evidence
+access and later parser/conversion results belong to that scope and findings.
 Do not mark the audit interpreter as proof of the agent's runtime requirements.
 The helper's audit `runtime_requirements` describe audit tooling independently
 of the selected Gym or Harbor source format.
