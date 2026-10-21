@@ -3,95 +3,37 @@
 
 # Experiment stages
 
-This draft starts with the prepared inputs defined in the
-[architecture](architecture.md#supplied-inputs). Agent bundling, mutant generation
-and qualification, subset construction, and benchmark construction and publication are release
-preparation rather than stages of a benchmark run. The system under evaluation
-is a separate input. Coverage computation, including rubric generation when the
-system uses it, is part of the experiment. The [three-stage overview](architecture.md#experiment-flow)
-shows preparation of case examples as stage 1. Run mutants x eval tasks is stage 2;
-score analysis is stage 3, with its individual components numbered 3.1–3.3.
+The experiment runs the four stages below using the supplied YAML configuration.
+Each stage has a Python tool and an importable API; the orchestrator validates
+inputs, calls the tools in dependency order, and passes their outputs onward.
 
-Each stage has explicit inputs and outputs. Execution produces a results
-directory through one of its supported implementations. The Python analysis
-runner consumes that directory and calls its operations in a fixed order. An
-agent or a person can invoke the runner, but neither supplies missing control
-flow or decides whether a stage has completed.
+**Prep:** case construction and subset preparation happen outside this repository.
+Runs consume the [prepared inputs](architecture.md#supplied-inputs), including a
+fixed subset manifest.
+
+| Stage | Tool |
+| --- | --- |
+| 1. Run mutants x eval tasks | Planned local Harbor loop; future NeMo Helix implementation |
+| 2. Compute mutant scores | `compute_mutant_scores.py` |
+| 3. Compute coverage | `compute_coverage.py` |
+| 4. Correlation | `correlate.py` |
+
+The analysis tools are provided in the implementation PRs above this design.
+Their [tool guide](https://github.com/NVIDIA-NeMo/eval-author/blob/feat/metric-benchmark-record/labs/metric-benchmark/docs/tools.md)
+describes available commands and implementation status.
 
 ## Stage contract
 
-The benchmark's YAML definition selects the inputs, stage settings, and execution
-implementation. Each executable stage provides a Python API and a command-line
-tool. The orchestrator validates that definition and invokes the APIs in
-dependency order. Prep produces the definition and its input artifacts when
-building the benchmark; experiment runs consume them.
+Each stage has declared inputs, parameters, outputs, and completion criteria.
+Outputs become available downstream only after validation. The runner stops on a
+stage error. Scoring accepts only configured execution statuses, so a failed
+execution's numeric reward is not automatically treated as a valid observation.
 
-Each stage has declared inputs, fixed parameters, outputs, and completion
-criteria. Outputs become available downstream only after validation.
-The program controls transitions and stops on a stage error. Scoring accepts
-only the configured execution statuses, so an unsuccessful execution's numeric
-reward is not automatically treated as a valid observation.
+The analysis pipeline can reuse verified coverage results when their inputs and
+saved files match. Changed inputs require a new output directory. Task-subset
+membership stays fixed; analysis never resamples subsets or reruns benchmark tasks.
 
-On a repeated invocation, the analysis pipeline recomputes inexpensive
-deterministic stages and reuses completed coverage requests after verifying
-their inputs and saved files. Changed inputs cause an error in the existing
-output directory. A coverage request without a completion receipt runs again;
-the adapter owns any external side effects from an interrupted request.
-
-The implementation stack provides standalone Python tools for analysis
-components 3.1–3.3; see its [tool guide](https://github.com/NVIDIA-NeMo/eval-author/blob/feat/metric-benchmark-record/labs/metric-benchmark/README.md). Stage 2 defines the execution boundary. The current
-tools consume the fixtures v1 saved-results index and native evidence, and
-never rerun benchmark agents.
-
-| Component | Command in the implementation stack |
-| --- | --- |
-| Prep: subset construction | `construct_subsets.py` |
-| 3.1. Mutant scoring | `compute_mutant_scores.py` |
-| 3.2. Coverage | `compute_coverage.py` |
-| 3.3. Correlation | `correlate.py` |
-| Analysis runner (manifest input pending) | `run_analysis.py` |
-
-## 1. Prep
-
-Prep prepares case examples for the experiment. The
-[prepared-input contract](architecture.md#supplied-inputs) describes
-the baseline, mutants, case description, tasks with their subset manifest, and configuration supplied to
-the experiment. The experiment does not execute this preparation process.
-
-### Subset construction
-
-**Purpose:** prepare fixed evaluation subsets shared by every run and metric tool.
-
-**Inputs:** the pinned benchmark task inventory and fixed subset count, size,
-and seed. Execution results and coverage scores are not inputs to prep.
-
-**Operation:** the sampler sorts task identities and applies its versioned,
-seeded algorithm to select distinct subsets of the configured size. The seed is
-fixed for the benchmark version and recorded as construction provenance.
-Subsets are frozen before inspecting outcomes or coverage scores.
-
-**Output:** a versioned `subsets.json` manifest with the source benchmark identity,
-task inventory and revisions, stable subset IDs, explicit membership, algorithm,
-count, size, and seed. The manifest's memberships are authoritative; analysis
-reads them rather than regenerating them from the seed. Changing the inventory,
-seed, or memberships creates a new benchmark version.
-
-**Completion:** all subset IDs and memberships are unique, every member belongs
-to the pinned inventory, and the requested count and size are satisfied.
-Impossible requests fail. Analysis validates the manifest against the execution
-inventory; missing observations never cause it to alter the prepared subsets.
-
-**Current implementation:** the existing `eval_subset_definitions` artifact
-contains the memberships and sampling parameters. The Python sampler accepts a
-task inventory directly, but its CLI currently obtains that inventory from saved
-results. A prep CLI accepting the inventory without results is still needed.
-The combined `run_analysis.py` also still generates subsets; it needs to accept
-and pin a supplied manifest instead. Standalone mutant scoring and coverage
-already accept `--subsets`. The current artifact includes an `experiment_id`;
-its binding must be separated from benchmark identity to reuse one unchanged
-manifest across independently identified runs.
-
-## 2. Run mutants x eval tasks
+## 1. Run mutants x eval tasks
 
 **Purpose:** execute the benchmark tasks against the baseline and supplied
 mutants and produce the results directory consumed by analysis.
@@ -99,8 +41,8 @@ mutants and produce the results directory consumed by analysis.
 **Inputs:** prepared agent bundles, benchmark tasks, and experiment execution
 settings.
 
-**Implementations:** the initial local implementation uses a simple deterministic
-loop: baseline first, then the configured mutants, with one Harbor job per agent
+**Implementations:** the first execution script will run Harbor tasks in a
+basic local loop: baseline first, then the configured mutants, with one Harbor job per agent
 covering the full benchmark. Agent jobs run sequentially. Task concurrency within
 a Harbor job is an explicit execution setting; a fully sequential run uses one
 concurrent trial. The initial analysis supports one trial per agent/task within
@@ -112,7 +54,7 @@ The baseline is included because mutant scoring compares its outcomes with each
 mutant's outcomes. The repository currently supplies the analysis tools; the
 local Harbor loop is the first execution implementation to add here.
 
-A future Helix implementation will use an orchestrator to run evaluations at
+A future NeMo Helix implementation will use an orchestrator to run evaluations at
 scale. Each implementation owns invocation, scheduling, retries, and collection
 and produces the same output contract. Analysis can rerun against saved results
 without repeating this execution phase.
@@ -188,9 +130,9 @@ the new producers will adopt this layout, but the reader does not yet enforce
 these folder names. The local Harbor implementation still needs the code that
 builds the shared index from native job/trial metadata.
 
-The Helix implementation will export the same agent/run layout and index with
+The NeMo Helix implementation will export the same agent/run layout and index with
 task-level evidence in a supported format. Its scheduling and storage can differ
-internally. Analysis reads the common index and evidence without a Helix-specific
+internally. Analysis reads the common index and evidence without a NeMo Helix-specific
 service API. An archive can replace a trial directory when the index explicitly
 declares its path and format; the native evidence contents still need to be
 readable by the coverage implementation.
@@ -205,12 +147,10 @@ to their scoring policy.
 
 The shared contract covers directory contents as well as paths: measurements
 have consistent meanings, and the evidence formats are readable by the coverage
-implementation. A Helix implementation will produce that same contract rather
-than making analysis interpret Helix-specific result metadata.
+implementation. A NeMo Helix implementation will produce that same contract rather
+than making analysis interpret NeMo Helix-specific result metadata.
 
-## 3. Score analysis
-
-### 3.1. Compute Mutant Scores
+## 2. Compute mutant scores
 
 **Purpose:** measure each subset's sensitivity to the supplied mutations.
 
@@ -244,7 +184,7 @@ the individual mutant effects used in the aggregate.
 value and reason. Missing required pairs produce unavailable scores; the
 function does not remove tasks or mutants to obtain a numeric result.
 
-### 3.2. Compute Coverage
+## 3. Compute coverage
 
 **Purpose:** obtain the system under evaluation's coverage scores for the same
 subsets.
@@ -288,7 +228,7 @@ requests complete. If the tool generates rubrics or judgments with a model,
 those files are observations. The [benchmark orchestration](architecture.md#benchmark-orchestration)
 is deterministic; fresh model outputs are not assumed identical.
 
-### 3.3. Correlation
+## 4. Correlation
 
 **Purpose:** determine whether coverage predicts mutation sensitivity across
 evaluation subsets.

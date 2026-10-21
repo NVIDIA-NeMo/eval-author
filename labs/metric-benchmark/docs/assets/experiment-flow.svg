@@ -3,7 +3,7 @@
 <!-- Editable SVG: labels are text; no external fonts, scripts, or assets. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1320" viewBox="0 0 1280 1320" role="img" aria-labelledby="title description">
   <title id="title">Metric benchmark: from case examples to correlation</title>
-  <desc id="description">Three phases: prepare case examples for the experiment; run the baseline and mutants against all eval tasks; analyze the saved results. Prep supplies the agent, mutants, case description, benchmark tasks, and experiment configuration. It constructs subsets using a fixed seed and bundles their exact memberships in an authoritative versioned manifest. Execution produces a shared results directory. Analysis consumes the prepared subset manifest, computes mutant scores from baseline and mutant outcomes, and computes coverage from the case description and baseline evidence using metric computation such as Eval Author. The two scores are joined by subset for correlation. Configuration governs execution and analysis. Prep is outside the experiment; the local Harbor loop and future Helix implementation are planned execution backends.</desc>
+  <desc id="description">Three phases: prepare case examples for the experiment; run the baseline and mutants against all eval tasks; analyze the saved results. Prep supplies the agent, mutants, case description, benchmark tasks, and experiment configuration. It constructs subsets using a fixed seed and bundles their exact memberships in an authoritative versioned manifest. Execution produces a shared results directory. Analysis consumes the prepared subset manifest, computes mutant scores from baseline and mutant outcomes, and computes coverage from the case description and baseline evidence using metric computation such as Eval Author. The two scores are joined by subset for correlation. Configuration governs execution and analysis. Prep is outside the experiment; the local Harbor loop and future NeMo Helix implementation are planned execution backends.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M1 1 L9 5 L1 9 Z" fill="#64748b"/>
@@ -39,7 +39,7 @@
   <text x="107" y="165" class="phase">Prep</text>
   <text x="181" y="165" class="detail">Prepare case examples for the experiment</text>
   <rect x="1004" y="140" width="214" height="30" rx="15" fill="#d9eee6"/>
-  <text x="1111" y="160" text-anchor="middle" class="small" style="fill:#246653">Outside the experiment</text>
+  <text x="1111" y="160" text-anchor="middle" class="small" style="fill:#246653">Prepared externally</text>
 
   <g class="card" stroke="#b9dcd0">
     <rect x="64" y="194" width="220" height="82" rx="12"/>
@@ -83,7 +83,7 @@
   <text x="86" y="475" class="label">Execute evals</text>
   <text x="86" y="505" class="detail">Mutants + baseline x eval tasks</text>
   <text x="86" y="535" class="small">One full benchmark per agent; local jobs run in sequence.</text>
-  <text x="86" y="560" class="small">Planned Python tools: local Harbor, then Helix.</text>
+  <text x="86" y="560" class="small">Planned Python tools: local Harbor, then NeMo Helix.</text>
   <path d="M554 510 H646" class="flow"/>
   <rect x="650" y="442" width="566" height="136" rx="12" fill="#e0edfc" stroke="#9ebfe6" stroke-width="1.5"/>
   <text x="672" y="474" class="label">Results directory</text>

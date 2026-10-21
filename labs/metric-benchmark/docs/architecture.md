@@ -61,7 +61,7 @@ keeping the unchanged inputs fixed.
 ## 1. Prep
 
 Prep prepares case examples for the experiment. This case-construction process
-is outside the experiment itself. It produces the
+is outside this repository and the experiment itself. It produces the
 baseline agent, creates and qualifies its mutants, and assembles the case
 description, task set, and configuration in the benchmark's input format. Prep
 also constructs the eval subsets and bundles their manifest with the task set.
@@ -114,7 +114,7 @@ are the **execution implementation** and the **results-directory interface**.
 
 | Component | Role |
 | --- | --- |
-| Execution implementation | Runs the configured agent-by-task matrix and assembles its outputs. The initial implementation is a simple local Harbor loop, one agent's full benchmark at a time. A future Helix implementation will orchestrate evaluations at scale. |
+| Execution implementation | Runs the configured agent-by-task matrix and assembles its outputs. The initial implementation is a simple local Harbor loop, one agent's full benchmark at a time. A future NeMo Helix implementation will orchestrate evaluations at scale. |
 | Results directory | Carries the task inventory, agent/task identities, statuses, measurements, and native evidence into analysis. Both execution implementations produce the same contract. |
 
 The proposed layout is agent-first: `agents/<agent>/<run>/<native-trial>/`, with
@@ -157,9 +157,9 @@ packaging are implementation details.
 
 Mutant scoring uses mean signed baseline-to-mutant degradation, with equal
 weight for tasks and mutants. Correlation compares the ranks of the paired
-scores, with average ranks for ties. The [component descriptions](stages.md#3-score-analysis)
+scores, with average ranks for ties. The [component descriptions](stages.md#2-compute-mutant-scores)
 specify these calculations and the handling of missing or undefined values.
-The [tool guide](https://github.com/NVIDIA-NeMo/eval-author/blob/feat/metric-benchmark-record/labs/metric-benchmark/README.md) documents the commands and their current
+The [tool guide](https://github.com/NVIDIA-NeMo/eval-author/blob/feat/metric-benchmark-record/labs/metric-benchmark/docs/tools.md) documents the commands and their current
 implementation status.
 
 ### Metric computation (e.g. Eval Author)
@@ -178,7 +178,7 @@ Tool-specific adapters provide the common invocation interface needed to
 evaluate other systems, such as skill-based or LangChain-based workflows.
 They handle differences in native inputs, runtimes, and outputs; the experiment
 still performs the same Compute Coverage stage. Integration details and current
-implementation limits are described in the [tool guide](https://github.com/NVIDIA-NeMo/eval-author/blob/feat/metric-benchmark-record/labs/metric-benchmark/README.md#coverage-system-invocation).
+implementation limits are described in the [tool guide](https://github.com/NVIDIA-NeMo/eval-author/blob/feat/metric-benchmark-record/labs/metric-benchmark/docs/tools.md#coverage-system-invocation).
 
 ## Benchmark orchestration
 
@@ -202,13 +202,13 @@ configuration and coordinates their execution.
 
 | Stage | Python tool / library operation |
 | --- | --- |
-| Execute evals | Local Harbor execution tool, or a future Helix execution tool; both expose the same results-directory contract |
+| Execute evals | Local Harbor execution tool, or a future NeMo Helix execution tool; both expose the same results-directory contract |
 | Compute mutant scores | `compute_mutant_scores.py` / `metric_benchmark.scoring.compute_mutant_scores` |
 | Compute coverage | `compute_coverage.py` / `metric_benchmark.coverage.invoke_coverage` |
 | Correlation | `correlate.py` / `metric_benchmark.correlation.correlate` |
 
-Subset construction is also a reusable Python tool, invoked when building the
-benchmark. The experiment runner consumes its fixed manifest. Execution tools
+External prep builds the benchmark and its fixed subset manifest. The
+experiment runner consumes those artifacts. Execution tools
 can have multiple implementations without changing the analysis tools or their
 input contract. Available commands and implementation status are documented in
-the [tool guide](https://github.com/NVIDIA-NeMo/eval-author/blob/feat/metric-benchmark-record/labs/metric-benchmark/README.md#fixed-python-pipeline).
+the [tool guide](https://github.com/NVIDIA-NeMo/eval-author/blob/feat/metric-benchmark-record/labs/metric-benchmark/docs/tools.md#fixed-python-pipeline).
