@@ -32,8 +32,9 @@ helper commands, writes, and delegation all fail this opening checkpoint.
 Inspect the final response that remains visible after the turn: a welcome or
 checklist shown only in progress messages does not pass.
 
-Reply to continue, or select a goal. Check that the selected checklist is shown
-and prerequisite work can now begin without repeating the opening-only pause.
+Reply to continue, or select a goal. Prerequisite work can now begin without
+repeating the opening-only pause. In the results response, the selected checklist
+appears under **Next Steps**, after the table and any Recommendations or Blockers.
 Only the selected third-item label, checkmarks, and current-step marker vary.
 On resume, keep the same wording with saved progress. When naming the agent
 and setup on subsequent turns, distinguish explicit requests,
@@ -79,20 +80,24 @@ headings and introductory sentences. Keep the section order across goals, Gym,
 and Harbor; omit sections only under the template's stated conditions.
 
 - Optional assistant skills are absent: show **Recommendations**, explicitly say
-  suggestions are optional and not required to continue, then show **Agree on how
-  your agent behaves** before the Ethos explanation or question
+  suggestions are optional and not required to continue, then show **Next Steps**
+  and the shared progress checklist before the Ethos explanation or question
 - Runtime, Docker, or execution credentials are missing but Ethos can proceed:
   keep their later requirements in the table, without classifying them as
-  optional or adding them to **Blockers**; continue under the Ethos heading
+  optional or adding them to **Blockers**; continue below the checklist in **Next Steps**
 - Required Ethos skills or access needed for the next Ethos action are missing:
-  show **Blockers** with the affected action and required answer or remedy; do not
-  start an Ethos interview or show its transition heading before resolution
+  show **Blockers** with the affected action and remedy, then **Next Steps** with
+  the checklist and the focused question; do not start a dependent Ethos interview
 - No suggestions or blockers remain: omit those empty sections and go directly
-  from the table to **Agree on how your agent behaves**
-- `ETHOS.md` is missing but the Ethos skills are available: proceed under the
-  Ethos heading; the absent document is not a blocker
-- Resume an Ethos question: retain the same Ethos heading without restarting
+  from the table to **Next Steps** and the checklist
+- `ETHOS.md` is missing but the Ethos skills are available: proceed below the
+  checklist; the absent document is not a blocker
+- Resume an Ethos question: use **Next Steps** and saved checklist progress without restarting
   onboarding or imposing prerequisite tables on scoped utilities
+
+The results response contains one checklist, after the table and all included
+Recommendations and Blockers. It has no separate Ethos heading. Preserve the
+fresh welcome/checklist/call-to-action response before any prerequisite work.
 
 ## 2. Expansion does not imply an audit
 

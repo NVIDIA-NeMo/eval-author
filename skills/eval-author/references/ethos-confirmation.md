@@ -8,10 +8,11 @@ This adapter connects Eval Author to
 single owner of Ethos exploration, draft confirmation, validation, and writing.
 Do not implement another interview or local authoring fallback in Eval Author.
 
-When entering or resuming Ethos in the shared flow, use the heading and fixed
-introduction from [Present results and the next step](shared-prerequisites.md#present-results-and-the-next-step)
-before its explanation, review, or question. Keep this orientation in Eval Author;
-the Ethos skills own the content that follows. Existing evaluations describe
+When entering or resuming Ethos in the shared flow, use **Next Steps** and the
+shared progress checklist from [Present results and the next step](shared-prerequisites.md#present-results-and-the-next-step)
+before its explanation, review, or question. If prerequisite results are included,
+place that section after the table and any Recommendations or Blockers. Keep this
+orientation in Eval Author; the Ethos skills own the content that follows. Existing evaluations describe
 current coverage; they do not establish the agent's intended behavior.
 
 Reuse the shared prerequisite orientation. The

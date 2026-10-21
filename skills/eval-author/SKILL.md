@@ -90,8 +90,9 @@ run helper commands, write files, or delegate work. This also applies to direct
 first-eval and full-audit invocations. Prerequisite questions and findings belong
 to later turns. After the user continues, show the prerequisite table from the
 shared procedure, then inspect the accessible prerequisites before asking about
-anything unresolved. If they selected a previously unknown goal, show its checklist
-before that work.
+anything unresolved. On that turn, show the selected checklist under **Next Steps**
+after the results table and any Recommendations or Blockers, including when the
+user has just selected a previously unknown goal.
 Continuations and goal switches within an existing shared flow reuse progress
 rather than repeating this pause.
 
@@ -139,8 +140,9 @@ For an audit, replace the third item with **Check what your existing evaluations
 For improvements, use **Improve your existing evaluations**. These exact third-item
 labels, completed checkboxes, and the position of **We're here** are the only
 variations. Keep the welcome, checklist wording, order, and Ethos link unchanged.
-On later turns, put scope limits and other explanations after the checklist
-rather than adding them to its items. On resume, use the same checklist wording
+Keep scope limits and other explanations outside the checklist items. For
+prerequisite results, use the **Next Steps** placement defined in the shared
+procedure. On resume, use the same checklist wording
 with saved progress and the pending question instead of the opening call to action;
 do not reset completed items.
 After the opening turn, explain findings and ask for missing decisions or content confirmation.

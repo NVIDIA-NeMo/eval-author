@@ -107,10 +107,13 @@ or the next action; do not display the placeholders.
 - Include **Blockers** only when an unresolved issue prevents the next Ethos
   action; explain the affected action and the answer or change needed, with
   relevant setup documentation
-- When a blocker prevents proceeding, ask its focused question under **Blockers**
-  and omit the Ethos section until it is resolved
-- Otherwise, include **Agree on how your agent behaves** before any Ethos
-  explanation, review, or interview question; continue through `ethos-orchestrate`
+- Always include **Next Steps** after the table and any Recommendations or
+  Blockers, followed by the shared three-item checklist with current progress
+- Copy the checklist wording, Ethos link, and selected goal's third item from the
+  core; derive checkmarks and the current-step marker from shared state, and do
+  not repeat the checklist before the table
+- Below the checklist, ask the focused question needed to resolve a blocker;
+  otherwise continue through `ethos-orchestrate` without a separate Ethos heading
 
 ```markdown
 ### Recommendations
@@ -125,17 +128,21 @@ These items prevent us from continuing with Ethos.
 
 - [Blocked action, reason, and the action or answer needed]
 
-### Agree on how your agent behaves
+### Next Steps
 
-[ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md) records what your agent should do, what it should avoid, and what a good result looks like.
+[Shared three-item checklist from the core, with saved progress]
 
-[Review, explanation, or next question from ethos-orchestrate]
+[Focused blocker question, or Ethos explanation and next action]
 ```
 
 Omit empty Recommendations and Blockers sections. Required runtime setup or
 credentials for later evaluation runs stay in the table as later requirements,
 not optional recommendations or blockers to Ethos. Missing Ethos skills can block
 this step; missing `ETHOS.md` alone does not, because the Ethos skills can create it.
+When entering Ethos, explain below the checklist that `ETHOS.md` records what the
+agent should do, what it should avoid, and what a good result looks like, then
+present the orchestrator's review or next question. If blocked, keep the checklist
+visible without starting the dependent Ethos work.
 
 ## Confirm Ethos
 
