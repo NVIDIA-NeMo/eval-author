@@ -45,10 +45,11 @@ Loading needs Python 3.12 or 3.13 and the skill's `requirements.txt`; it makes
 no model calls or live queries.
 
 Coverage audits measure ATIF, MLflow, Gym, and normalized traces directly. The
-experimental trace-to-environment workflow's `prepare` step reads ATIF only
-until it reads Compass Traces; its
+experimental trace-to-environment workflow's `prepare` step loads any of these
+through the same module but needs a trace that records turns: ATIF today, with
+Gym, MLflow and Intake following once Compass records turns for them. Its
 [source guide](../skills/eval-author-trace-environment/references/sources.md)
-describes this temporary limit. A capture that loads successfully can still
+describes this limit. A capture that loads successfully can still
 lack sufficient interaction evidence for coverage measurement or experimental
 environment derivation.
 
@@ -58,7 +59,7 @@ environment derivation.
 
 ```text
 Use Eval Author to derive a private Harbor task from
-/absolute/path/trace.atif.json. Use the task ID support-case.
+/absolute/path/trajectory.json (ATIF). Use the task ID support-case.
 Review the trace for private data, explain what ground truth it supports,
 and validate the candidate when the required runtime is available.
 ```
@@ -81,13 +82,13 @@ Choose Gym explicitly or use a repository whose existing suite uses Gym:
 
 ```text
 Use eval-author-trace-environment to produce a native Gym task from
-/absolute/path/trace.atif.json, with task ID ledger-total.
+/absolute/path/trajectory.json (ATIF), with task ID ledger-total.
 Review privacy and ground truth, complete the native task, and validate it
 with the installed Gym runtime. Retain controls and exact rerun instructions.
 ```
 
-The source must be ATIF, including a Gym run's retained Harbor ATIF, until the
-workflow reads NeMo Compass Traces; source format does not select the output
+The source must record turns (ATIF today, including a Gym run's retained Harbor
+ATIF); source format does not select the output
 provider. No audit coverage report is
 required. The [Gym extension](../skills/eval-author-trace-environment/references/gym-output.md)
 shares trace preparation and candidacy, then reuses Gym's native scaffolder,

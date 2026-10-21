@@ -1,105 +1,108 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Deterministic evidence coverage for validated ATIF; never a correctness judge."""
+"""Deterministic evidence coverage for a safe Compass Trace; never a correctness judge."""
 
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from fixture_compiler import canonical_json, result_error_status, result_signature
+from fixture_compiler import canonical_json, result_entry, result_signature
+from trace_source import tool_spans
 
-SCHEMA = "nemo.eval_author.trace_environment_evidence_audit.v1"
+if TYPE_CHECKING:
+    from trace_ingest import Trace
+
+SCHEMA = "nemo.eval_author.trace_environment_evidence_audit.v2"
 
 
-def audit_evidence(trajectory: dict[str, Any], *, safe_atif_sha256: str) -> dict[str, Any]:
-    """Use scoped indices, not trace text or user-chosen identifiers, in the report."""
+def audit_evidence(trace: Trace, *, safe_trace_sha256: str) -> dict[str, Any]:
+    """Locate findings by safe-trace span and turn ids, never by trace text."""
+    from trace_ingest import Initiator, TurnRole
+    from trace_ingest.turns import iter_turns
+
     counts = dict.fromkeys(
         (
-            "trajectories",
-            "steps",
+            "agents",
+            "turns",
             "calls",
-            "observations",
+            "results",
             "paired_calls",
-            "missing_observation_calls",
-            "multiple_observation_calls",
-            "unlinked_observations",
-            "error_observations",
-            "not_error_observations",
-            "unrecorded_status_observations",
-            "invalid_status_observations",
-            "conflicting_status_observations",
-            "agent_steps_without_observations",
+            "missing_result_calls",
+            "multiple_result_calls",
+            "unlinked_results",
+            "harness_initiated_calls",
+            "error_results",
+            "not_error_results",
+            "unrecorded_status_results",
+            "invalid_status_results",
+            "conflicting_status_results",
+            "agent_turns_without_results",
             "conflicting_input_groups",
         ),
         0,
     )
     findings: list[dict[str, Any]] = []
 
-    def visit(current: dict[str, Any], path: str) -> None:
-        counts["trajectories"] += 1
-        # Scope is per trajectory AND explicit tool server. Reused call IDs in
-        # other steps or children are never used to join observations.
-        groups: dict[str, list[tuple[str, str]]] = {}
-        for index, step in enumerate(current["steps"]):
-            counts["steps"] += 1
-            step_path = f"{path}.steps[{index}]"
-            calls = step.get("tool_calls") or []
-            results = (step.get("observation") or {}).get("results", [])
-            counts["calls"] += len(calls)
-            counts["observations"] += len(results)
-            if step["source"] == "agent" and not results:
-                counts["agent_steps_without_observations"] += 1
-                findings.append({"code": "agent_step_without_observation", "path": step_path})
-            paired: dict[str, list[tuple[int, dict[str, Any]]]] = {}
-            for result_index, result in enumerate(results):
-                result_path = f"{step_path}.observation.results[{result_index}]"
-                source = result.get("source_call_id")
-                if source is None:
-                    counts["unlinked_observations"] += 1
-                    findings.append({"code": "unlinked_observation", "path": result_path})
-                else:
-                    paired.setdefault(source, []).append((result_index, result))
-                status = result_error_status(result)
-                counter = (
-                    f"{status}_observations" if status in {"error", "not_error"} else f"{status}_status_observations"
-                )
-                counts[counter] += 1
-                if status != "not_error":
-                    findings.append({"code": f"result_status_{status}", "path": result_path})
-            for call_index, call in enumerate(calls):
-                call_path = f"{step_path}.tool_calls[{call_index}]"
-                matches = paired.get(call["tool_call_id"], [])
-                if len(matches) != 1:
-                    code = "missing_observation" if not matches else "multiple_observations"
-                    counts["missing_observation_calls" if not matches else "multiple_observation_calls"] += 1
-                    findings.append({"code": code, "path": call_path})
-                    continue
-                counts["paired_calls"] += 1
-                extra = call.get("extra")
-                scope = extra.get("tool_scope") if isinstance(extra, dict) else None
-                server = scope.get("server") if isinstance(scope, dict) else None
-                server = server if isinstance(server, str) and server else None
-                name, arguments = call.get("function_name"), call.get("arguments")
-                if not isinstance(name, str) or not name.strip() or not isinstance(arguments, dict):
-                    continue  # the tool-access plan reports schema/name problems
-                key = canonical_json([server, name.strip(), arguments])
-                groups.setdefault(key, []).append((call_path, result_signature(matches[0][1])))
-        for entries in groups.values():
-            if len({signature for _, signature in entries}) > 1:
-                counts["conflicting_input_groups"] += 1
-                findings.append(
-                    {"code": "conflicting_results_for_identical_arguments", "paths": [p for p, _ in entries]}
-                )
-        for index, child in enumerate(current.get("subagent_trajectories") or []):
-            visit(child, f"{path}.subagent_trajectories[{index}]")
+    def record_status(status: str, location: dict[str, Any]) -> None:
+        counts[f"{status}_results" if status in {"error", "not_error"} else f"{status}_status_results"] += 1
+        if status != "not_error":
+            findings.append({"code": f"result_status_{status}", **location})
 
-    visit(trajectory, "$")
+    results_by_span = {
+        span.id: len(span.tool_call.results) if span.tool_call is not None else 0 for _, span in tool_spans(trace)
+    }
+    agents: set[str] = set()
+    for agent, turn in iter_turns(trace):
+        agents.add(agent.id)
+        counts["turns"] += 1
+        result_count = len(turn.unlinked_results) + sum(results_by_span[span_id] for span_id in turn.tool_call_span_ids)
+        if turn.role is TurnRole.AGENT and not result_count:
+            counts["agent_turns_without_results"] += 1
+            findings.append({"code": "agent_turn_without_results", "turn_id": turn.id})
+        for index, result in enumerate(turn.unlinked_results):
+            counts["results"] += 1
+            counts["unlinked_results"] += 1
+            location = {"turn_id": turn.id, "unlinked_result": index}
+            findings.append({"code": "unlinked_result", **location})
+            record_status(result.error_status.value, location)
+    counts["agents"] = len(agents)
+
+    # Scope is the owning AGENT span AND the explicit tool server. Reused call ids in
+    # other turns or agents never join results; Compass pairs them per call.
+    groups: dict[str, list[tuple[str, str]]] = {}
+    for agent_span_id, span in tool_spans(trace):
+        counts["calls"] += 1
+        call = span.tool_call
+        results = call.results if call is not None else []
+        if call is not None and call.initiator is Initiator.HARNESS:
+            counts["harness_initiated_calls"] += 1
+        for index, result in enumerate(results):
+            counts["results"] += 1
+            record_status(result.error_status.value, {"span_id": span.id, "result": index})
+        if len(results) != 1:
+            code = "missing_result" if not results else "multiple_results"
+            counts["missing_result_calls" if not results else "multiple_result_calls"] += 1
+            findings.append({"code": code, "span_id": span.id})
+            continue
+        counts["paired_calls"] += 1
+        name = span.tool_name.strip() if isinstance(span.tool_name, str) else ""
+        if not name or not isinstance(span.input, dict):
+            continue  # the tool-access plan reports schema and name problems
+        server = call.server if call is not None and call.server else None
+        key = canonical_json([agent_span_id, server, name, span.input])
+        groups.setdefault(key, []).append((span.id, result_signature(result_entry(results[0]))))
+    for entries in groups.values():
+        if len({signature for _, signature in entries}) > 1:
+            counts["conflicting_input_groups"] += 1
+            findings.append(
+                {"code": "conflicting_results_for_identical_arguments", "span_ids": [span_id for span_id, _ in entries]}
+            )
     return {
         "schema": SCHEMA,
-        "safe_atif_sha256": safe_atif_sha256,
-        "scope": "recorded_observation_coverage",
+        "safe_trace_sha256": safe_trace_sha256,
+        "scope": "recorded_result_coverage",
         "execution_verified": False,
         "counts": counts,
         "finding_counts": dict(sorted(Counter(item["code"] for item in findings).items())),

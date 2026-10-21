@@ -15,9 +15,9 @@ Write `private/construction.json` with these exact top-level fields:
 
 | Field | Content |
 | --- | --- |
-| `schema` | `nemo.eval_author.construction.v1` |
+| `schema` | `nemo.eval_author.construction.v2` |
 | `candidate_sha256` | SHA-256 of the exact `candidate.json` bytes |
-| `trace_sha256` | SHA-256 of the exact `safe/trace.atif.json` bytes |
+| `trace_sha256` | SHA-256 of the exact `safe/trace.json` bytes |
 | `requirements` | Stable IDs joined to candidate requirement indices and scored check IDs |
 | `probes` | Executable setup and behavior-reach observations described below |
 | `controls` | Declared negative, alternative, optional copy, and dependency bypass controls |
@@ -48,12 +48,12 @@ invalidate existing proof inputs; retain the old evidence and run fresh jobs.
 
 ## Record starting-file provenance
 
-`starting_state` has exactly `cutoff_step_id`, `roots`, `artifacts`,
+`starting_state` has exactly `cutoff_turn_id`, `roots`, `artifacts`,
 `external_inputs`, `no_files_reason` and `review`.
 
-- `cutoff_step_id` identifies the chosen starting point in the trace's list
-  order, not numeric step-ID order. Explain why that point represents the task
-  start in `review.note`.
+- `cutoff_turn_id` is a safe-trace turn id marking the chosen starting point in
+  trace turn order. Explain why that point represents the task start in
+  `review.note`.
 - `roots` lists directories under `task/environment/` containing starting inputs.
   Every file beneath these roots must have exactly one artifact entry. Symlinks
   and nonregular files are rejected. Do not include reference solutions or graders.
@@ -71,11 +71,13 @@ The supported bases are:
 
 | Basis | Required evidence |
 | --- | --- |
-| `observed` | `source` is `{"step_id":N,"pointer":"/observation/results/0/content"}` addressing exact text within that step at/before cutoff; UTF-8 bytes must equal the starting file; `edits: []`. |
-| `reversed_edit` | `source` addresses a recorded later full-text snapshot. `edits` is a nonempty list of `{before: <source-reference>, after: <source-reference>}`. Each pair addresses text in the same later mutation step. Apply pairs in strictly descending trace order; each `after` must match exactly once and is replaced by `before`. The resulting bytes must equal the starting file. |
+| `observed` | `source` is `{"turn_id":"trajectory/turn/1","pointer":"/content"}` or `{"span_id":"trajectory/step/2/tool/0","pointer":"/tool_call/results/0/content"}` addressing exact text at/before cutoff; UTF-8 bytes must equal the starting file; `edits: []`. |
+| `reversed_edit` | `source` addresses a recorded later full-text snapshot. `edits` is a nonempty list of `{before: <source-reference>, after: <source-reference>}`. Each pair addresses text in the same later turn (for example `{"span_id":"trajectory/step/5/tool/0","pointer":"/input/old_text"}`). Apply pairs in strictly descending trace order; each `after` must match exactly once and is replaced by `before`. The resulting bytes must equal the starting file. |
 | `authored` | `source: null`, `edits: []`, concrete review, and candidate `state_basis: "reconstructed"`. Preserve this classification even if later execution validates the fixture. |
 
-JSON pointers are relative to the selected step. Exact reversal validates only
+JSON pointers (RFC 6901) address the turn's JSON, or the span's JSON without
+its `children`. A span takes the order of the turn that lists it in
+`tool_call_span_ids` or `llm_span_ids`. Exact reversal validates only
 the declared edits: review that all intervening relevant changes are accounted
 for and the cited fields actually represent file content and edits. Ambiguous,
 binary or unsupported transformations cannot claim this exact-reversal proof;
@@ -274,8 +276,8 @@ Historical `unmeasured` qualification is not qualified.
 Record a repair before editing the candidate or construction contract. Repairs
 retain both files alongside prior proof reports; `check.contract_changes` lists
 changes against those snapshots for review, without asserting that changes are valid.
-Reverse edits currently require strictly decreasing trace steps: multiple edits to
-the same file within one step must be represented by a single before/after reversal.
+Reverse edits currently require strictly decreasing trace turns: multiple edits to
+the same file within one turn must be represented by a single before/after reversal.
 Receipts bind retained files consistently; they do not authenticate execution time
 or prove that Harbor actually ran.
 

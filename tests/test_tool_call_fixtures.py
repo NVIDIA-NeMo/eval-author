@@ -30,6 +30,7 @@ from harbor.models.trial.paths import EnvironmentPaths
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.types import TextContent
+from trace_ingest import Trace
 
 # Importlib-mode collection does not add the tests directory to sys.path.
 # Load this standalone test helper module by path, as it loads the skill scripts.
@@ -51,6 +52,7 @@ _write_json = _helpers._write_json
 
 fc = importlib.import_module("fixture_compiler")
 registration = importlib.import_module("mock_registration")
+trace_source = importlib.import_module("trace_source")
 
 
 @pytest.mark.parametrize("import_mode", ["prepend", "importlib"])
@@ -88,8 +90,27 @@ def test_standalone_collection_without_test_directory_on_pythonpath(tmp_path, mo
     assert "tests collected" in result.stdout
 
 
-def _inventory(trace=None):
-    return fc.derive_tool_call_inventory(trace or _fixture_atif(), safe_atif_sha256="sha256:synthetic")
+def _safe_trace(tmp_path, atif=None, edit=None):
+    """Load an ATIF source through Compass and scrub it as prepare does; ``edit`` mutates the dumped Trace.
+
+    Edits cover Trace shapes that ATIF cannot express but other source kinds can.
+    """
+    source = tmp_path / "inventory.atif.json"
+    _write_json(source, atif if atif is not None else _fixture_atif())
+    safe, _ = trace_source.scrub(trace_source.load_trace(source, "atif"))
+    if edit is None:
+        return safe
+    payload = safe.model_dump(mode="json")
+    edit(payload)
+    return Trace.model_validate(payload)
+
+
+def _inventory(tmp_path, atif=None, edit=None):
+    return fc.derive_tool_call_inventory(_safe_trace(tmp_path, atif, edit), safe_trace_sha256="sha256:synthetic")
+
+
+def _tool_span(payload, span_id="trajectory/step/2/tool/0"):
+    return _helpers._spans(payload)[span_id]
 
 
 @pytest.mark.parametrize("kind", ["oversized", "symlink", "fifo"])
@@ -97,7 +118,7 @@ def test_inventory_rejects_unsafe_trace_before_open(tmp_path, monkeypatch, kind)
     if kind == "fifo" and not hasattr(os, "mkfifo"):
         pytest.skip("FIFO regression requires POSIX")
     task_dir = _fixture_workspace(tmp_path)
-    safe_path = task_dir / "safe/trace.atif.json"
+    safe_path = task_dir / "safe/trace.json"
     if kind == "oversized":
         with safe_path.open("wb") as stream:
             stream.truncate(te.MAX_CANONICAL_BYTES + 1)
@@ -114,12 +135,12 @@ def test_inventory_rejects_unsafe_trace_before_open(tmp_path, monkeypatch, kind)
         return original_open(path, *args, **kwargs)
 
     monkeypatch.setattr(Path, "open", guarded_open)
-    with pytest.raises(te.ContractError, match="safe ATIF (exceeds|must be a retained regular file)"):
+    with pytest.raises(te.ContractError, match="safe trace (exceeds|must be a retained regular file)"):
         te._current_tool_call_inventory(task_dir)
 
 
-def _overrides(inventory):
-    tool = inventory["tools"][0]
+def _overrides(inventory, tool=None):
+    tool = tool or inventory["tools"][0]
     return {
         "schema": fc.OVERRIDES_SCHEMA,
         "inventory_sha256": fc.json_sha256(inventory),
@@ -133,41 +154,110 @@ def _overrides(inventory):
                     "required": ["account_id"],
                 },
                 "note": "Reviewed the recorded object arguments; this describes the replay interface, not the original software.",
-                "evidence": [
-                    {key: call[key] for key in ("trajectory_path", "step_id", "tool_call_id")} for call in tool["calls"]
-                ],
+                "evidence": [{"span_id": call["span_id"], "call_id": call["call_id"]} for call in tool["calls"]],
             }
         ],
     }
 
 
-def test_root_does_not_borrow_child_definition():
+def _subagent_atif(*, declares_tools):
+    """ATIF source whose embedded subagent repeats the parent's calls, with or without its own definitions."""
     trace = _fixture_atif()
     child = deepcopy(trace)
-    trace["agent"]["tool_definitions"] = []
+    child["trajectory_id"] = "trace-fixture-child"
+    if not declares_tools:
+        del child["agent"]["tool_definitions"]
     trace["subagent_trajectories"] = [child]
-    inventory = _inventory(trace)
+    return trace
+
+
+def test_root_does_not_borrow_child_definition(tmp_path):
+    trace = _subagent_atif(declares_tools=True)
+    del trace["agent"]["tool_definitions"]
+    inventory = _inventory(tmp_path, trace)
     assert len(inventory["tools"]) == 6
     assert [tool["definition_status"] for tool in inventory["tools"]] == ["missing"] * 3 + ["complete"] * 3
+    assert [tool["scope"]["agent_span_id"] for tool in inventory["tools"]] == ["trajectory"] * 3 + [
+        "trajectory/subagent/0"
+    ] * 3
+    assert all(tool["suggested_definition"] is None for tool in inventory["tools"])
     assert len({tool["tool_id"] for tool in inventory["tools"]}) == 6
 
 
-def test_server_scopes_and_aliases_keep_same_name_calls_separate():
+def test_undeclared_subagent_gets_parent_definition_only_as_a_suggestion(tmp_path):
+    inventory = _inventory(tmp_path, _subagent_atif(declares_tools=False))
+    child = [tool for tool in inventory["tools"] if tool["scope"]["agent_span_id"] == "trajectory/subagent/0"]
+    assert [tool["definition_status"] for tool in child] == ["missing"] * 3
+    lookup = next(tool for tool in child if tool["name"] == "account.lookup")
+    assert lookup["definition"] is None and lookup["normalized_definition"] is None
+    assert lookup["suggested_definition"] == {
+        "name": "account.lookup",
+        "description": "Look up a synthetic account.",
+        "inputSchema": _fixture_atif()["agent"]["tool_definitions"][0]["inputSchema"],
+        "annotations": {"readOnlyHint": True},
+    }
+    plan = {tool["tool_id"]: tool for tool in fc.derive_tool_call_plan(inventory)["tools"]}
+    planned = plan[lookup["tool_id"]]
+    assert planned["mock_support"] == "unsupported"
+    assert planned["reason_codes"] == ["tool_definition_missing"]
+    assert planned["suggested_override"] == {
+        "tool_id": lookup["tool_id"],
+        "input_schema": lookup["suggested_definition"]["inputSchema"],
+        "evidence": [{"span_id": "trajectory/subagent/0/step/2/tool/0", "call_id": lookup["calls"][0]["call_id"]}],
+    }
+    assert all(plan[tool["tool_id"]]["suggested_override"] is None for tool in inventory["tools"][:3])
+
+
+def test_suggested_override_is_accepted_through_schema_overrides(tmp_path):
+    task_dir = _fixture_workspace(tmp_path, trace=_subagent_atif(declares_tools=False))
+    _plan_tool_calls(task_dir)
+    inventory = json.loads((task_dir / "private/tool-call-inventory.json").read_text())
+    plan = json.loads((task_dir / "private/tool-call-plan.json").read_text())
+    suggestion = next(
+        tool["suggested_override"]
+        for tool in plan["tools"]
+        if tool["name"] == "account.lookup" and tool["suggested_override"] is not None
+    )
+    overrides = {
+        "schema": fc.OVERRIDES_SCHEMA,
+        "inventory_sha256": fc.json_sha256(inventory),
+        "reviewer_kind": "agent",
+        "entries": [{**suggestion, "note": "Accepted the parent agent's declared schema for the subagent call."}],
+    }
+    requested = tmp_path / "overrides.json"
+    _write_json(requested, overrides)
+    (task_dir / "private/tool-call-plan.json").unlink()
+    code, result = _run("plan-tool-call-access", "--task-dir", str(task_dir), "--schema-overrides", str(requested))
+    assert code == 0, result
+    plan = json.loads((task_dir / "private/tool-call-plan.json").read_text())
+    accepted = next(tool for tool in plan["tools"] if tool["tool_id"] == suggestion["tool_id"])
+    assert accepted["mock_support"] == "exact_replay"
+    assert accepted["definition_provenance"]["kind"] == "reviewed_override"
+    assert accepted["definition"]["inputSchema"] == suggestion["input_schema"]
+    assert accepted["suggested_override"] is None
+
+
+def test_server_scopes_and_aliases_keep_same_name_calls_separate(tmp_path):
     trace = _fixture_atif()
     definitions = []
     calls = []
     results = []
+    agent_step = trace["steps"][1]
     for server in ("first", "second"):
         definition = deepcopy(trace["agent"]["tool_definitions"][0])
         definition["extra"] = {"tool_scope": {"server": server}}
         definitions.append(definition)
-        call = deepcopy(trace["steps"][1]["tool_calls"][0])
+        call = deepcopy(agent_step["tool_calls"][0])
         call.update(tool_call_id=server, extra=definition["extra"])
         calls.append(call)
         results.append({"source_call_id": server, "content": server})
     trace["agent"]["tool_definitions"] = definitions
-    trace["steps"][1].update(tool_calls=calls, observation={"results": results})
-    inventory = _inventory(trace)
+    agent_step.update(tool_calls=calls, observation={"results": results})
+    inventory = _inventory(tmp_path, trace)
+    assert [tool["scope"] for tool in inventory["tools"]] == [
+        {"agent_span_id": "trajectory", "server": "first"},
+        {"agent_span_id": "trajectory", "server": "second"},
+    ]
     plan = fc.derive_tool_call_plan(inventory)
     assert [tool["mock_support"] for tool in plan["tools"]] == ["exact_replay"] * 2
     requested = {
@@ -202,15 +292,15 @@ def test_server_scopes_and_aliases_keep_same_name_calls_separate():
         ({"type": "object", "$schema": "https://example.invalid/dialect"}, "input_schema_dialect_unsupported"),
     ],
 )
-def test_invalid_schema_or_arguments_fail_closed(schema, reason):
+def test_invalid_schema_or_arguments_fail_closed(tmp_path, schema, reason):
     trace = _fixture_atif()
     trace["agent"]["tool_definitions"][0]["inputSchema"] = schema
-    tool = fc.derive_tool_call_plan(_inventory(trace))["tools"][0]
+    tool = fc.derive_tool_call_plan(_inventory(tmp_path, trace))["tools"][0]
     assert tool["mock_support"] == "unsupported"
     assert reason in tool["reason_codes"]
 
 
-def test_local_schema_references_are_validated():
+def test_local_schema_references_are_validated(tmp_path):
     trace = _fixture_atif()
     trace["agent"]["tool_definitions"][0]["inputSchema"] = {
         "type": "object",
@@ -218,7 +308,10 @@ def test_local_schema_references_are_validated():
         "properties": {"account_id": {"$ref": "#/$defs/id"}},
         "required": ["account_id"],
     }
-    assert fc.derive_tool_call_plan(_inventory(trace))["tools"][0]["mock_support"] == "exact_replay"
+    assert fc.derive_tool_call_plan(_inventory(tmp_path, trace))["tools"][0]["mock_support"] == "exact_replay"
+
+
+_IMAGE = {"type": "image", "source": {"media_type": "image/png", "path": "screen.png"}}
 
 
 @pytest.mark.parametrize(
@@ -233,22 +326,23 @@ def test_local_schema_references_are_validated():
         ("duplicate_observation", "observation_pairing_incomplete"),
         ("non_text_result", "non_text_result_unsupported"),
         ("conflicting_results", "conflicting_results_for_identical_arguments"),
-        ("omitted_image_input", "redacted_value_required"),
-        ("omitted_image_output", "redacted_value_required"),
+        ("invalid_error_status", "result_error_status_invalid"),
+        ("conflicting_error_status", "result_error_status_conflicting"),
         ("redacted_description", "redacted_value_required"),
         ("redacted_schema", "redacted_value_required"),
     ],
 )
-def test_each_replay_rejection_reason_blocks_mock_access(case, reason):
+def test_each_replay_rejection_reason_blocks_mock_access(tmp_path, case, reason):
     trace = _fixture_atif()
     definition = trace["agent"]["tool_definitions"][0]
-    step = trace["steps"][1]
-    call = step["tool_calls"][0]
-    result = step["observation"]["results"][0]
+    agent_step = trace["steps"][1]
+    call = agent_step["tool_calls"][0]
+    result = agent_step["observation"]["results"][0]
     # Isolate one surface so each reason must be independently necessary.
     trace["agent"]["tool_definitions"] = [definition]
-    step["tool_calls"] = [call]
-    step["observation"]["results"] = [result]
+    agent_step["tool_calls"] = [call]
+    agent_step["observation"]["results"] = [result]
+    edit = None
     if case == "missing_definition":
         trace["agent"]["tool_definitions"] = []
     elif case == "incomplete_definition":
@@ -256,30 +350,36 @@ def test_each_replay_rejection_reason_blocks_mock_access(case, reason):
     elif case == "ambiguous_definition":
         trace["agent"]["tool_definitions"].append({"name": definition["name"], "inputSchema": {"type": "object"}})
     elif case == "missing_arguments":
-        del call["arguments"]
+        # Valid ATIF always records arguments; other source kinds may not.
+        def edit(payload):
+            del _tool_span(payload)["input"]
     elif case == "string_arguments":
-        call["arguments"] = "not an object"
+
+        def edit(payload):
+            _tool_span(payload)["input"] = "not an object"
     elif case == "no_observation":
-        step["observation"]["results"] = []
+        agent_step["observation"]["results"] = []
     elif case == "duplicate_observation":
-        step["observation"]["results"].append(deepcopy(result))
+        agent_step["observation"]["results"].append(deepcopy(result))
     elif case == "non_text_result":
-        result["content"] = {"status": "active"}
+
+        def edit(payload):
+            _tool_span(payload)["tool_call"]["results"][0]["content"] = {"status": "active"}
     elif case == "conflicting_results":
-        later = deepcopy(step)
+        later = deepcopy(agent_step)
         later["step_id"] = 3
         later["tool_calls"][0]["tool_call_id"] = "different-call"
         later["observation"]["results"][0] = {"source_call_id": "different-call", "content": "different output"}
         trace["steps"].append(later)
-    elif case == "omitted_image_input":
-        call["arguments"]["account_id"] = "<omitted:image>"
-    elif case == "omitted_image_output":
-        result["content"] = "<omitted:image>"
+    elif case == "invalid_error_status":
+        result["extra"] = {"isError": "sometimes"}
+    elif case == "conflicting_error_status":
+        result["extra"] = {"isError": True, "is_error": False}
     elif case == "redacted_description":
         definition["description"] = "<redacted:secret>"
     elif case == "redacted_schema":
         definition["inputSchema"]["description"] = "<redacted:secret>"
-    inventory = _inventory(trace)
+    inventory = _inventory(tmp_path, trace, edit)
     plan = fc.derive_tool_call_plan(inventory)
     assert plan["tools"][0]["reason_codes"] == [reason]
     assert plan["tools"][0]["mock_support"] == "unsupported"
@@ -295,9 +395,54 @@ def test_each_replay_rejection_reason_blocks_mock_access(case, reason):
         fc.resolve_tool_access(inventory, plan, requested, reviewer_kind="human")
 
 
+@pytest.mark.parametrize("location", ["arguments", "result"])
+def test_omitted_images_require_redacted_values(tmp_path, location):
+    trace = _fixture_atif()
+    agent_step = trace["steps"][1]
+    if location == "arguments":
+        agent_step["tool_calls"][0]["arguments"]["attachment"] = deepcopy(_IMAGE)
+    else:
+        agent_step["observation"]["results"][0]["content"] = [deepcopy(_IMAGE)]
+    inventory = _inventory(tmp_path, trace)
+    lookup = inventory["tools"][0]
+    recorded = lookup["calls"][0]["arguments"] if location == "arguments" else lookup["calls"][0]["results"][0]
+    assert "[image omitted]" in json.dumps(recorded)
+    assert "screen.png" not in json.dumps(inventory)
+    assert "redacted_value_required" in lookup["uncertainties"]
+    assert "redacted_value_required" in fc.derive_tool_call_plan(inventory)["tools"][0]["reason_codes"]
+
+
+def test_error_status_comes_from_recorded_result_flags(tmp_path):
+    trace = _fixture_atif()
+    results = trace["steps"][1]["observation"]["results"]
+    results[0]["extra"] = {"isError": True}
+    results[1]["extra"] = {"is_error": False}
+    inventory = _inventory(tmp_path, trace)
+    statuses = {tool["name"]: tool["calls"][0]["results"][0]["error_status"] for tool in inventory["tools"]}
+    assert statuses == {"account.lookup": "error", "account.update": "not_error", "account.inspect": "unrecorded"}
+    plan = fc.derive_tool_call_plan(inventory)
+    requested = {
+        "schema": fc.DECISIONS_SCHEMA,
+        "decisions": [
+            {"name": tool["name"], "tool_id": tool["tool_id"], "access": "mock", "adapter": "mcp", "note": "Replay."}
+            for tool in plan["tools"]
+        ],
+    }
+    access = fc.resolve_tool_access(inventory, plan, requested, reviewer_kind="human")
+    fixtures = {tool["name"]: tool["cases"][0] for tool in fc.build_call_fixtures(inventory, access)["tools"]}
+    assert fixtures["account.lookup"]["is_error"] is True
+    assert fixtures["account.update"]["is_error"] is False
+    assert "is_error" not in fixtures["account.inspect"]
+    assert fixtures["account.lookup"]["evidence_turns"] == ["trajectory/turn/2"]
+    assert fixtures["account.lookup"]["evidence"] == [
+        {"span_id": "trajectory/step/2/tool/0", "call_id": inventory["tools"][0]["calls"][0]["call_id"]}
+    ]
+
+
 def test_generation_refuses_privacy_blockers_after_contextual_review(tmp_path):
     trace = _fixture_atif()
-    trace["steps"][0]["message"] = [{"type": "image", "source": {"media_type": "image/png", "path": "screen.png"}}]
+    trace["steps"][0]["message"] = [deepcopy(_IMAGE)]
+    trace["steps"].append({"step_id": 3, "source": "user", "message": "Inspect the synthetic account."})
     task_dir = _fixture_workspace(tmp_path, trace=trace)
     _plan_tool_calls(task_dir)
     assert (
@@ -308,26 +453,28 @@ def test_generation_refuses_privacy_blockers_after_contextual_review(tmp_path):
     )
     _review_privacy(task_dir)
     summary = json.loads((task_dir / "summary.json").read_text())
-    assert summary["privacy"]["contextual_review_complete"] and summary["privacy"]["blocking_reasons"]
+    assert summary["privacy"]["contextual_review_complete"]
+    assert summary["privacy"]["blocking_reasons"] == ["image_only_user_instruction:trajectory/turn/1"]
     code, result = _run("generate-mock-tool-calls", "--task-dir", str(task_dir))
     assert code == 1 and "blocked by unresolved privacy" in result["error"]
     assert not (task_dir / "task/environment/tool-call-fixtures").exists()
     assert not (task_dir / "private/tool-call-generation.json").exists()
 
 
-def test_reviewed_override_enables_recorded_calls_without_modifying_trace():
+def test_reviewed_override_enables_recorded_calls_without_modifying_trace(tmp_path):
     trace = _fixture_atif()
     trace["agent"]["tool_definitions"] = []
-    original = deepcopy(trace)
-    inventory = _inventory(trace)
+    safe = _safe_trace(tmp_path, trace)
+    original = safe.model_dump(mode="json")
+    inventory = fc.derive_tool_call_inventory(safe, safe_trace_sha256="sha256:synthetic")
     overrides = _overrides(inventory)
     plan = fc.derive_tool_call_plan(inventory, overrides)
     assert plan["tools"][0]["mock_support"] == "exact_replay"
     assert plan["tools"][0]["definition_provenance"]["kind"] == "reviewed_override"
     assert plan["tools"][1]["mock_support"] == "unsupported"
-    assert trace == original
+    assert safe.model_dump(mode="json") == original
     assert inventory["tools"][0]["definition_status"] == "missing"
-    overrides["entries"][0]["evidence"][0]["trajectory_path"] = "$.other"
+    overrides["entries"][0]["evidence"][0]["span_id"] = "trajectory/step/9/tool/0"
     with pytest.raises(ValueError, match="scoped call reference"):
         fc.derive_tool_call_plan(inventory, overrides)
 
@@ -340,10 +487,10 @@ def test_override_cli_retains_provenance_and_detects_tampering(tmp_path):
     inventory = json.loads((task_dir / "private/tool-call-inventory.json").read_text())
     requested = tmp_path / "overrides.json"
     _write_json(requested, _overrides(inventory))
-    before = (task_dir / "safe/trace.atif.json").read_bytes()
+    before = (task_dir / "safe/trace.json").read_bytes()
     code, result = _run("plan-tool-call-access", "--task-dir", str(task_dir), "--schema-overrides", str(requested))
     assert code == 0, result
-    assert (task_dir / "safe/trace.atif.json").read_bytes() == before
+    assert (task_dir / "safe/trace.json").read_bytes() == before
     assert (
         _resolve_tool_access(task_dir, {"account.lookup": "mock", "account.update": "none", "account.inspect": "none"})[
             0
@@ -384,10 +531,19 @@ def test_candidate_requires_decisions_but_pending_and_no_candidate_allow_partial
     assert code == 0, result
 
 
-def test_unresolved_calls_cannot_disappear_from_access_denominator():
-    trace = _fixture_atif()
-    del trace["steps"][1]["tool_calls"][0]["function_name"]
-    inventory = _inventory(trace)
+def test_unresolved_calls_cannot_disappear_from_access_denominator(tmp_path):
+    # Valid ATIF always names a call; other source kinds may record a TOOL span without one.
+    def edit(payload):
+        _tool_span(payload)["tool_name"] = None
+
+    inventory = _inventory(tmp_path, edit=edit)
+    assert inventory["unresolved_calls"] == [
+        {
+            "span_id": "trajectory/step/2/tool/0",
+            "call_id": inventory["unresolved_calls"][0]["call_id"],
+            "reason": "tool_name_missing",
+        }
+    ]
     with pytest.raises(ValueError, match="unresolved"):
         fc.resolve_tool_access(
             inventory,

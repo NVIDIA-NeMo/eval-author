@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Prepare private, text-only ATIF evidence for one generated evaluation environment."""
+"""Prepare private, text-only Compass Trace evidence for one generated evaluation environment."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import argparse
 import hashlib
 import importlib
 import importlib.metadata
-import ipaddress
 import json
 import os
 import re
@@ -30,6 +29,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 import construction  # noqa: E402
 import solution_review  # noqa: E402
+import trace_source  # noqa: E402
 from evidence_audit import audit_evidence  # noqa: E402
 from fixture_compiler import (  # noqa: E402
     DECISIONS_SCHEMA,
@@ -42,39 +42,33 @@ from fixture_compiler import (  # noqa: E402
 from mock_registration import probe_registration  # noqa: E402
 from verifier_lint import uses_submission_capture, verifier_advisories  # noqa: E402
 
-SCHEMA = "nemo.eval_author.trace_environment_summary.v2"
-QUALIFIED_SUMMARY_SCHEMA = "nemo.eval_author.trace_environment_summary.v3"
-CANDIDATE_SCHEMA = "nemo.eval_author.trace_environment_candidate.v2"
+# The unqualified summary exists only for workspaces that predate construction qualification;
+# init always writes the qualified one. Workspaces from older ids are refused, never migrated.
+SCHEMA = "nemo.eval_author.trace_environment_summary.v4"
+QUALIFIED_SUMMARY_SCHEMA = "nemo.eval_author.trace_environment_summary.v5"
+_SUMMARY_SCHEMA_PREFIX = "nemo.eval_author.trace_environment_summary."
+CANDIDATE_SCHEMA = "nemo.eval_author.trace_environment_candidate.v3"
 VALIDATION_SCHEMA = "nemo.eval_author.trace_environment_validation.v6"
 RUN_INPUT_SCHEMA = "nemo.eval_author.trace_environment_run_input.v1"
 QUALIFIED_RUN_INPUT_SCHEMA = "nemo.eval_author.trace_environment_run_input.v2"
 QUALIFIED_VALIDATION_SCHEMA = "nemo.eval_author.trace_environment_validation.v7"
 PROBE_SCHEMA = "nemo.eval_author.trace_environment_probes.v1"
 REPAIR_SCHEMA = "nemo.eval_author.trace_environment_repair.v1"
-PRIVACY_AUDIT_SCHEMA = "nemo.eval_author.trace_environment_privacy_audit.v1"
+PRIVACY_AUDIT_SCHEMA = "nemo.eval_author.trace_environment_privacy_audit.v2"
 PUBLICATION_REVIEW_SCHEMA = "nemo.eval_author.trace_environment_publication_review.v1"
-TOOL_CALL_GENERATION_SCHEMA = "nemo.eval_author.trace_environment_tool_call_generation.v1"
+TOOL_CALL_GENERATION_SCHEMA = "nemo.eval_author.trace_environment_tool_call_generation.v2"
 REPRODUCIBILITY_SCHEMA = "nemo.eval_author.trace_environment_reproducibility.v3"
-EXPORT_SCHEMA = "nemo.eval_author.trace_environment_product.v4"
-BATCH_SCHEMA = "nemo.eval_author.trace_environment_batch.v1"
+EXPORT_SCHEMA = "nemo.eval_author.trace_environment_product.v5"
+BATCH_SCHEMA = "nemo.eval_author.trace_environment_batch.v2"
 TOOL_CALL_AUDIT_LOG = "/tmp/tool-call-fixture-audit.jsonl"  # nosec B108 - isolated task-container scratch data
 MAX_RAW_SOURCE_BYTES = 128 * 1024 * 1024
 MAX_CANONICAL_BYTES = 25 * 1024 * 1024
 TASK_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
-ATIF_VERSION = re.compile(r"ATIF-v1\.[0-7]")
+_OLD_WORKSPACE = "workspace was prepared by an older trace-environment; re-run prepare in a new task directory"
+_SAFE_TRACE_PATH = "safe/trace.json"
+_CANONICAL_TRACE_PATH = "private/canonical.trace.json"
+_INTAKE_SPANS_PATH = "private/source.intake-spans.json"
 
-_EMAIL = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
-_SSN = re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")
-_IPV4 = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])")
-_PHONE = re.compile(r"(?<!\w)(?:\+?\d[\d(). -]{6,}\d)(?!\w)")
-_HOME_PATH = re.compile(r"(?<![\w/])/(?:home|Users)/[^/\s]+")
-_BEARER = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}")
-_PRIVATE_KEY = re.compile(
-    r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
-    re.DOTALL,
-)
-_SECRET_KEY = re.compile(r"(?i)(?:password|passwd|secret|token|api[_-]?key|access[_-]?key|authorization)")
-_INTERNAL_HOST = re.compile(r"(?i)\b[a-z0-9.-]+\.svc\.cluster\.local\b")
 _URL = re.compile(r"https?://[^\s\"'<>]+", re.IGNORECASE)
 _STREET = re.compile(
     r"(?i)\b\d{1,6}\s+[A-Z][A-Za-z.'-]*(?:\s+[A-Z][A-Za-z.'-]*){0,4}\s+"
@@ -107,18 +101,6 @@ _REPAIR_REASON_CODES = frozenset(
 _MAX_REPAIRS = 3
 _MAX_PROBES_PER_REVISION = 2
 _REDACTION_QUOTE = '<redacted>"'
-_IMAGE_OBJECT_START = re.compile(r'\{\s*"type"\s*:\s*"image"')
-_IDENTIFIER_KEYS = frozenset(
-    {
-        "parent_span_id",
-        "session_id",
-        "source_call_id",
-        "span_id",
-        "tool_call_id",
-        "trace_id",
-        "trajectory_id",
-    }
-)
 _SUMMARY_KEYS = frozenset(
     {
         "schema",
@@ -141,17 +123,17 @@ _CANDIDATE_KEYS = frozenset(
         "instruction",
         "requirements",
         "verification_mode",
-        "evidence_steps",
+        "evidence_turns",
         "uncertainties",
         "reason_codes",
         "ground_truth",
         "software_requirements",
     }
 )
-_REQUIREMENT_KEYS = frozenset({"description", "evidence_steps"})
+_REQUIREMENT_KEYS = frozenset({"description", "evidence_turns"})
 _GROUND_TRUTH_KEYS = frozenset({"availability", "use", "artifacts", "absence_reason"})
 _GROUND_TRUTH_ARTIFACT_KEYS = frozenset({"kind", "path", "sha256", "provenance", "notes"})
-_PROVENANCE_KEYS = frozenset({"kind", "step_ids", "uri", "revision", "source_id"})
+_PROVENANCE_KEYS = frozenset({"kind", "turn_ids", "uri", "revision", "source_id"})
 _SOFTWARE_REQUIREMENT_KEYS = frozenset(
     {
         "name",
@@ -168,6 +150,9 @@ _SOFTWARE_REQUIREMENT_KEYS = frozenset(
 _SOURCE_KEYS = frozenset(
     {
         "kind",
+        "loader_version",
+        "trace_schema_version",
+        "loader_options",
         "original_path",
         "original_sha256",
         "original_size_bytes",
@@ -180,6 +165,7 @@ _SOURCE_KEYS = frozenset(
         "normalizations",
     }
 )
+_LOADER_OPTION_KEYS = frozenset({"row", "workspace", "spans_path", "spans_sha256"})
 _PRIVACY_KEYS = frozenset(
     {
         "path",
@@ -218,11 +204,8 @@ _IMAGE_DIGEST = re.compile(r".+@sha256:[0-9a-f]{64}$")
 _PRIVATE_KEY_BYTES = re.compile(rb"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
 _BEARER_BYTES = re.compile(rb"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}")
 _CREDENTIALED_URL_BYTES = re.compile(rb"(?i)https?://[^\s/:@]+:[^\s/@]+@")
-_BATCH_MEMBER_KEYS = frozenset({"task_id", "atif", "source_kind"})
-# Until trace-environment reads Compass Traces, prepare accepts ATIF only. Summaries
-# recorded before that limit keep loading with the kind they recorded.
-_PREPARE_SOURCE_KINDS = ("atif",)
-_RECORDED_SOURCE_KINDS = ("atif", "intake", "mlflow", "otel", "gym")
+_BATCH_MEMBER_KEYS = frozenset({"task_id", "source", "source_kind"})
+_BATCH_MEMBER_OPTION_KEYS = frozenset({"row", "spans", "workspace"})
 _MIN_VALIDATION_RUNS = {"nop": 2, "oracle": 2, "negative": 1, "copy": 0}
 
 
@@ -302,8 +285,52 @@ def _summary_path(task_dir: Path) -> Path:
     return task_dir / "summary.json"
 
 
+def _original_path(kind: str, suffix: str) -> str:
+    return f"private/source.{kind}{suffix}"
+
+
+def _valid_source(source: Any) -> bool:
+    if not isinstance(source, dict) or set(source) != _SOURCE_KEYS:
+        return False
+    kind = source.get("kind")
+    options = source.get("loader_options")
+    return (
+        kind in trace_source.trace_loading().SOURCE_KINDS
+        and source.get("original_path") in (_original_path(kind, ".json"), _original_path(kind, ".jsonl"))
+        and source.get("canonical_path") == _CANONICAL_TRACE_PATH
+        and source.get("safe_path") == _SAFE_TRACE_PATH
+        and all(isinstance(source.get(name), str) for name in ("loader_version", "trace_schema_version"))
+        and all(
+            isinstance(source.get(name), str) and _DIGEST.fullmatch(source[name]) is not None
+            for name in ("original_sha256", "canonical_sha256", "safe_sha256")
+        )
+        and all(
+            type(source.get(name)) is int and source[name] >= 0
+            for name in ("original_size_bytes", "canonical_size_bytes", "safe_size_bytes")
+        )
+        and isinstance(source.get("normalizations"), list)
+        and all(isinstance(item, dict) for item in source["normalizations"])
+        and isinstance(options, dict)
+        and set(options) == _LOADER_OPTION_KEYS
+        and (options["row"] is None or type(options["row"]) is int)
+        and (options["workspace"] is None or isinstance(options["workspace"], str))
+        and (
+            (options["spans_path"], options["spans_sha256"]) == (None, None)
+            or (
+                options["spans_path"] == _INTAKE_SPANS_PATH
+                and isinstance(options["spans_sha256"], str)
+                and _DIGEST.fullmatch(options["spans_sha256"]) is not None
+            )
+        )
+    )
+
+
 def _load_summary(task_dir: Path) -> dict[str, Any]:
     summary = _load_object(_summary_path(task_dir), label="summary")
+    schema = summary.get("schema")
+    if isinstance(schema, str) and schema.startswith(_SUMMARY_SCHEMA_PREFIX):
+        if schema not in (SCHEMA, QUALIFIED_SUMMARY_SCHEMA):
+            raise ContractError(_OLD_WORKSPACE)
     marker = task_dir / "private/workspace.json"
     if marker.exists() or marker.is_symlink():
         if marker.is_symlink() or _load_object(marker, label="workspace marker") != {
@@ -326,24 +353,7 @@ def _load_summary(task_dir: Path) -> dict[str, Any]:
         if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
             raise ContractError(f"summary.{name} must be a list of strings")
     source = summary.get("source")
-    if source is not None and (
-        not isinstance(source, dict)
-        or set(source) != _SOURCE_KEYS
-        or source.get("kind") not in _RECORDED_SOURCE_KINDS
-        or source.get("original_path") != "private/source.atif.json"
-        or source.get("canonical_path") != "private/canonical.atif.json"
-        or source.get("safe_path") != "safe/trace.atif.json"
-        or any(
-            not isinstance(source.get(name), str) or _DIGEST.fullmatch(source[name]) is None
-            for name in ("original_sha256", "canonical_sha256", "safe_sha256")
-        )
-        or any(
-            type(source.get(name)) is not int or source[name] < 0
-            for name in ("original_size_bytes", "canonical_size_bytes", "safe_size_bytes")
-        )
-        or not isinstance(source.get("normalizations"), list)
-        or any(not isinstance(item, dict) for item in source["normalizations"])
-    ):
+    if source is not None and not _valid_source(source):
         raise ContractError("summary source does not match the versioned task workspace contract")
     privacy = summary.get("privacy")
     if privacy is not None and (
@@ -454,173 +464,14 @@ def _init(args: argparse.Namespace) -> dict[str, Any]:
     return {"task_dir": str(task_dir), "status": "pending", "gitignored": True}
 
 
-def _validate_message(message: Any, *, location: str) -> tuple[int, bool]:
-    if isinstance(message, str):
-        return 0, bool(message.strip())
-    if not isinstance(message, list):
-        raise ContractError(f"{location} must be text or a list of ATIF content parts")
-    image_count = 0
-    has_text = False
-    for index, part in enumerate(message):
-        if not isinstance(part, dict):
-            raise ContractError(f"{location}[{index}] must be an object")
-        part_type = part.get("type")
-        text = part.get("text")
-        if part_type == "text" and isinstance(text, str):
-            has_text = has_text or bool(text.strip())
-        elif part_type == "image" and isinstance(part.get("source"), dict):
-            image_count += 1
-        else:
-            raise ContractError(f"{location}[{index}] is not a supported text or image content part")
-    return image_count, has_text
-
-
-def _validate_trajectory(payload: Any, *, location: str = "trajectory", depth: int = 0) -> dict[str, Any]:
-    if depth > 8:
-        raise ContractError("embedded ATIF trajectories exceed the depth limit of 8")
-    if not isinstance(payload, dict):
-        raise ContractError(f"{location} must be an object")
-    version = payload.get("schema_version")
-    if not isinstance(version, str) or ATIF_VERSION.fullmatch(version) is None:
-        raise ContractError(f"{location}.schema_version must identify ATIF v1.x")
-    agent = payload.get("agent")
-    if not isinstance(agent, dict) or not isinstance(agent.get("name"), str) or not agent["name"].strip():
-        raise ContractError(f"{location}.agent.name must be nonempty text")
-    steps = payload.get("steps")
-    if not isinstance(steps, list) or not steps:
-        raise ContractError(f"{location}.steps must be a nonempty list")
-
-    image_count = 0
-    image_only_user_steps: list[int] = []
-    user_step_count = 0
-    for index, step in enumerate(steps, start=1):
-        step_location = f"{location}.steps[{index - 1}]"
-        if not isinstance(step, dict):
-            raise ContractError(f"{step_location} must be an object")
-        if step.get("step_id") != index:
-            raise ContractError(f"{step_location}.step_id must be sequential from 1")
-        source = step.get("source")
-        if source not in {"user", "agent", "system"}:
-            raise ContractError(f"{step_location}.source must be user, agent, or system")
-        if source == "user":
-            user_step_count += 1
-        step_images, has_text = _validate_message(step.get("message", ""), location=f"{step_location}.message")
-        image_count += step_images
-        if source == "user" and step_images and not has_text:
-            image_only_user_steps.append(index)
-
-        calls = step.get("tool_calls") or []
-        if not isinstance(calls, list):
-            raise ContractError(f"{step_location}.tool_calls must be a list")
-        call_ids: set[str] = set()
-        for call_index, call in enumerate(calls):
-            if not isinstance(call, dict):
-                raise ContractError(f"{step_location}.tool_calls[{call_index}] must be an object")
-            call_id = call.get("tool_call_id")
-            if not isinstance(call_id, str) or not call_id or call_id in call_ids:
-                raise ContractError(f"{step_location} has a missing or duplicate tool_call_id")
-            call_ids.add(call_id)
-        observation = step.get("observation")
-        if observation is not None:
-            if not isinstance(observation, dict):
-                raise ContractError(f"{step_location}.observation must be an object")
-            results = observation.get("results", [])
-            if not isinstance(results, list):
-                raise ContractError(f"{step_location}.observation.results must be a list")
-            for result in results:
-                if not isinstance(result, dict):
-                    raise ContractError(f"{step_location}.observation results must be objects")
-                source_call_id = result.get("source_call_id")
-                if source_call_id is not None and source_call_id not in call_ids:
-                    raise ContractError(f"{step_location} observation references unknown tool call {source_call_id!r}")
-                result_images, _ = _validate_message(result.get("content", ""), location="observation content")
-                image_count += result_images
-
-    subagents = payload.get("subagent_trajectories") or []
-    if not isinstance(subagents, list):
-        raise ContractError(f"{location}.subagent_trajectories must be a list")
-    for index, subagent in enumerate(subagents):
-        child = _validate_trajectory(subagent, location=f"{location}.subagent_trajectories[{index}]", depth=depth + 1)
-        image_count += child["image_count"]
-        image_only_user_steps.extend(child["image_only_user_steps"])
-    if depth == 0 and user_step_count == 0:
-        raise ContractError("trajectory must contain at least one root user step")
-    return {"image_count": image_count, "image_only_user_steps": image_only_user_steps}
-
-
-def _replace(pattern: re.Pattern[str], value: str, marker: str, counts: dict[str, int], kind: str) -> str:
-    replaced, count = pattern.subn(marker, value)
-    counts[kind] = counts.get(kind, 0) + count
-    return replaced
-
-
-def _redact_ipv4(value: str, counts: dict[str, int]) -> str:
-    def replace(match: re.Match[str]) -> str:
-        try:
-            ipaddress.ip_address(match.group(0))
-        except ValueError:
-            return match.group(0)
-        counts["ipv4"] = counts.get("ipv4", 0) + 1
-        return "<redacted:ipv4>"
-
-    return _IPV4.sub(replace, value)
-
-
-def _redact_phone(value: str, counts: dict[str, int]) -> str:
-    def replace(match: re.Match[str]) -> str:
-        candidate = match.group(0)
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", candidate):
-            return candidate
-        digits = sum(character.isdigit() for character in candidate)
-        if not 7 <= digits <= 15:
-            return candidate
-        counts["phone"] = counts.get("phone", 0) + 1
-        return "<redacted:phone>"
-
-    return _PHONE.sub(replace, value)
-
-
-def _redact_text(value: str, counts: dict[str, int]) -> str:
-    value = _replace(_PRIVATE_KEY, value, "<redacted:private-key>", counts, "private_key")
-    value = _replace(_BEARER, value, "<redacted:bearer-token>", counts, "bearer_token")
-    value = _replace(_EMAIL, value, "<redacted:email>", counts, "email")
-    value = _replace(_SSN, value, "<redacted:ssn>", counts, "ssn")
-    value = _replace(_HOME_PATH, value, "/home/<redacted:user>", counts, "home_path")
-    value = _replace(_INTERNAL_HOST, value, "<redacted:internal-host>", counts, "internal_host")
-    value = _redact_ipv4(value, counts)
-    return _redact_phone(value, counts)
-
-
-def _scrub(value: Any, counts: dict[str, int], *, key: str | None = None) -> Any:
-    if isinstance(value, dict):
-        if value.get("type") == "image" and isinstance(value.get("source"), dict):
-            counts["image"] = counts.get("image", 0) + 1
-            return {"type": "text", "text": "[image omitted from text-only evidence]"}
-        return {name: _scrub(item, counts, key=name) for name, item in value.items()}
-    if isinstance(value, list):
-        return [_scrub(item, counts, key=key) for item in value]
-    if isinstance(value, str):
-        if key in _IDENTIFIER_KEYS and value:
-            counts["identifier"] = counts.get("identifier", 0) + 1
-            return f"anon-{hashlib.sha256(value.encode()).hexdigest()[:16]}"
-        if key is not None and _SECRET_KEY.search(key):
-            if value:
-                counts["secret_field"] = counts.get("secret_field", 0) + 1
-                return "<redacted:secret>"
-            return value
-        return _redact_text(value, counts)
-    return value
-
-
-def _parse_or_repair(raw: str) -> tuple[dict[str, Any], list[int]]:
+def _parse_or_repair(raw: str) -> tuple[str, list[int]]:
+    """Escape only a quote the JSON parser implicates right after a provider-redaction placeholder."""
     repaired = raw
     inserted_offsets: list[int] = []
     while True:
         try:
-            payload = json.loads(repaired)
-            if not isinstance(payload, dict):
-                raise ContractError("ATIF root must be a JSON object")
-            return payload, inserted_offsets
+            json.loads(repaired)
+            return repaired, inserted_offsets
         except json.JSONDecodeError as error:
             candidates = [
                 index + len(_REDACTION_QUOTE) - 1
@@ -637,176 +488,35 @@ def _parse_or_repair(raw: str) -> tuple[dict[str, Any], list[int]]:
             inserted_offsets.append(original_offset)
 
 
-def _bound_stringified_images(payload: dict[str, Any]) -> dict[str, int]:
-    counts = {
-        "count": 0,
-        "omitted_encoded_characters": 0,
-        "metadata_field_count": 0,
-        "metadata_omitted_characters": 0,
-    }
-
-    def convert(content: str) -> tuple[list[dict[str, Any]] | None, int, int]:
-        decoder = json.JSONDecoder()
-        parts: list[dict[str, Any]] = []
-        search_cursor = 0
-        emitted_cursor = 0
-        converted_count = 0
-        converted_characters = 0
-        while match := _IMAGE_OBJECT_START.search(content, search_cursor):
-            start = match.start()
-            try:
-                part, end = decoder.raw_decode(content, start)
-            except json.JSONDecodeError:
-                search_cursor = match.end()
-                continue
-            source = part.get("source") if isinstance(part, dict) else None
-            if part.get("type") != "image" or not isinstance(source, dict) or not isinstance(source.get("data"), str):
-                search_cursor = end
-                continue
-            if start > emitted_cursor:
-                parts.append({"type": "text", "text": content[emitted_cursor:start]})
-            bounded_source = dict(source)
-            encoded = bounded_source["data"]
-            bounded_source["data"] = ""
-            parts.append({"type": "image", "source": bounded_source})
-            converted_count += 1
-            converted_characters += len(encoded)
-            search_cursor = end
-            emitted_cursor = end
-        if converted_count == 0:
-            return None, 0, 0
-        if emitted_cursor < len(content):
-            parts.append({"type": "text", "text": content[emitted_cursor:]})
-        return parts, converted_count, converted_characters
-
-    def bound_metadata(value: Any, *, image_context: bool = False) -> Any:
-        if isinstance(value, dict):
-            image_like = (
-                image_context
-                or (isinstance(value.get("type"), str) and value["type"] in {"image", "base64"})
-                or (isinstance(value.get("media_type"), str) and value["media_type"].startswith("image/"))
-            )
-            for key, nested in value.items():
-                if (
-                    isinstance(nested, str)
-                    and nested
-                    and ((key in {"base64", "data"} and image_like) or (key == "base64" and len(nested) > 100_000))
-                ):
-                    counts["metadata_field_count"] += 1
-                    counts["metadata_omitted_characters"] += len(nested)
-                    value[key] = ""
-                else:
-                    value[key] = bound_metadata(nested, image_context=image_like)
-        elif isinstance(value, list):
-            for index, nested in enumerate(value):
-                value[index] = bound_metadata(nested, image_context=image_context)
-        elif isinstance(value, str):
-            # Tool observations may repeat image metadata as JSON inside a text
-            # part, not as a structured ATIF image. Preserve surrounding prose
-            # and nonbinary metadata; never decode or execute encoded contents.
-            decoder = json.JSONDecoder()
-            fragments: list[str] = []
-            search_cursor = emitted_cursor = 0
-            while match := _IMAGE_OBJECT_START.search(value, search_cursor):
-                try:
-                    metadata, end = decoder.raw_decode(value, match.start())
-                except json.JSONDecodeError:
-                    search_cursor = match.end()
-                    continue
-                previous_count = counts["metadata_field_count"]
-                bound_metadata(metadata)
-                if counts["metadata_field_count"] != previous_count:
-                    fragments.extend((value[emitted_cursor : match.start()], json.dumps(metadata, ensure_ascii=False)))
-                    emitted_cursor = end
-                search_cursor = end
-            if fragments:
-                fragments.append(value[emitted_cursor:])
-                return "".join(fragments)
-        return value
-
-    def bound_image_parts(value: Any) -> None:
-        if isinstance(value, dict):
-            source = value.get("source")
-            if value.get("type") == "image" and isinstance(source, dict):
-                encoded = source.get("data")
-                if isinstance(encoded, str) and encoded:
-                    counts["count"] += 1
-                    counts["omitted_encoded_characters"] += len(encoded)
-                    source["data"] = ""
-            for nested in value.values():
-                bound_image_parts(nested)
-        elif isinstance(value, list):
-            for nested in value:
-                bound_image_parts(nested)
-
-    def visit(trajectory: dict[str, Any]) -> None:
-        steps = trajectory.get("steps")
-        if isinstance(steps, list):
-            for step in steps:
-                observation = step.get("observation") if isinstance(step, dict) else None
-                results = observation.get("results") if isinstance(observation, dict) else None
-                if not isinstance(results, list):
-                    continue
-                for result in results:
-                    if not isinstance(result, dict):
-                        continue
-                    content = result.get("content")
-                    if isinstance(content, str):
-                        parts, converted_count, converted_characters = convert(content)
-                        if parts is not None:
-                            result["content"] = parts
-                            counts["count"] += converted_count
-                            counts["omitted_encoded_characters"] += converted_characters
-                    bound_metadata(result.get("extra"))
-        subagents = trajectory.get("subagent_trajectories")
-        if isinstance(subagents, list):
-            for subagent in subagents:
-                if isinstance(subagent, dict):
-                    visit(subagent)
-
-    visit(payload)
-    bound_image_parts(payload)
-    bound_metadata(payload)
-    return counts
-
-
-def _record_normalization(
-    payload: dict[str, Any], source_sha256: str, offsets: list[int], image_counts: dict[str, int]
-) -> list[dict[str, Any]]:
-    normalizations: list[dict[str, Any]] = []
+def _normalizations(offsets: list[int], image_counts: dict[str, int]) -> tuple[list[dict[str, Any]], list[dict]]:
+    """Summary records of each bounded normalization, and the Trace losses that disclose them."""
+    operations: list[dict[str, Any]] = []
+    losses: list[dict[str, Any]] = []
     if offsets:
-        normalizations.append(
+        operations.append(
             {
                 "kind": "escape_provider_redaction_placeholder_quote",
                 "count": len(offsets),
                 "source_character_offsets": offsets,
             }
         )
-    if image_counts["count"] or image_counts["metadata_field_count"]:
-        normalizations.append({"kind": "bound_stringified_image_observations", **image_counts})
-    extra = payload.setdefault("extra", {})
-    if not isinstance(extra, dict):
-        raise ContractError("ATIF extra field must be an object when present")
-    normalization = extra.setdefault("normalization", {})
-    if not isinstance(normalization, dict):
-        raise ContractError("ATIF extra.normalization field must be an object when present")
-    uncertainties = normalization.setdefault("uncertainties", [])
-    losses = normalization.setdefault("losses", [])
-    if not isinstance(uncertainties, list) or any(not isinstance(item, str) for item in uncertainties):
-        raise ContractError("ATIF normalization uncertainties must be a string list")
-    if not isinstance(losses, list) or any(not isinstance(item, str) for item in losses):
-        raise ContractError("ATIF normalization losses must be a string list")
-    if offsets:
-        uncertainties.append(
-            "A missing JSON escape immediately after a provider-redaction placeholder was inserted only where the parser implicated that quote."
-        )
-    if image_counts["count"] or image_counts["metadata_field_count"]:
         losses.append(
-            "String-encoded image data was omitted from the bounded canonical ATIF; exact source bytes remain preserved and hashed."
+            {
+                "code": "provider_redaction_quote_escaped",
+                "detail": "A missing JSON escape immediately after a provider-redaction placeholder was inserted "
+                "only where the parser implicated that quote.",
+            }
         )
-    normalization["source_sha256"] = source_sha256
-    normalization["operations"] = normalizations
-    return normalizations
+    if image_counts["count"] or image_counts["metadata_field_count"]:
+        operations.append({"kind": "bound_stringified_image_observations", **image_counts})
+        losses.append(
+            {
+                "code": "image_data_omitted",
+                "detail": "Encoded image data was omitted from the bounded canonical trace; exact source bytes "
+                "remain preserved and hashed.",
+            }
+        )
+    return operations, losses
 
 
 def _walk_strings(value: Any, path: str = "$") -> list[tuple[str, str]]:
@@ -824,6 +534,7 @@ def _walk_strings(value: Any, path: str = "$") -> list[tuple[str, str]]:
 
 
 def _privacy_audit(payload: dict[str, Any], safe_sha256: str) -> dict[str, Any]:
+    """List every safe-trace string by its JSON path into the safe Trace for contextual review."""
     strings = _walk_strings(payload)
     findings: list[dict[str, str]] = []
     url_hosts: set[str] = set()
@@ -848,73 +559,100 @@ def _privacy_audit(payload: dict[str, Any], safe_sha256: str) -> dict[str, Any]:
     }
 
 
-def _check_prepare_source_kind(kind: object, label: str) -> None:
-    if kind not in _PREPARE_SOURCE_KINDS:
-        raise ContractError(
-            f"{label} must be 'atif'; other source kinds return when trace-environment reads Compass Traces"
-        )
+def _read_source(path: Path, label: str) -> tuple[Path, bytes]:
+    if path.is_symlink() or not path.is_file():
+        raise ContractError(f"{label} must be a regular file: {path}")
+    path = path.resolve()
+    data = path.read_bytes()
+    if len(data) > MAX_RAW_SOURCE_BYTES:
+        raise ContractError(f"{label} exceeds the {MAX_RAW_SOURCE_BYTES}-byte raw-source limit")
+    return path, data
 
 
 def _prepare(args: argparse.Namespace) -> dict[str, Any]:
-    _check_prepare_source_kind(args.source_kind, "--source-kind")
+    loading = trace_source.trace_loading()
+    kind = args.source_kind
+    if kind not in loading.SOURCE_KINDS:
+        raise ContractError(f"--source-kind must be one of: {', '.join(loading.SOURCE_KINDS)}")
     task_dir = _ensure_task_dir(args.task_dir)
     summary = _load_summary(task_dir)
     if summary["source"] is not None:
         raise ContractError("this task workspace already has prepared source evidence")
 
-    source_path = args.atif
-    if source_path.is_symlink() or not source_path.is_file():
-        raise ContractError(f"ATIF source must be a regular file: {source_path}")
-    source_path = source_path.resolve()
-    source_bytes = source_path.read_bytes()
-    if len(source_bytes) > MAX_RAW_SOURCE_BYTES:
-        raise ContractError(f"ATIF source exceeds the {MAX_RAW_SOURCE_BYTES}-byte raw-source limit")
-    try:
-        source_text = source_bytes.decode("utf-8")
-    except UnicodeDecodeError as error:
-        raise ContractError(f"could not read ATIF source as UTF-8: {error}") from error
-    payload, repaired_offsets = _parse_or_repair(source_text)
-    image_counts = _bound_stringified_images(payload)
-    normalizations = _record_normalization(payload, _sha256(source_bytes), repaired_offsets, image_counts)
-    validation = _validate_trajectory(payload)
+    source_path, source_bytes = _read_source(args.source, "source")
+    spans_path, spans_bytes = _read_source(args.spans, "Intake spans") if args.spans is not None else (None, None)
+    suffix = ".json" if source_path.suffix.lower() == ".json" else ".jsonl"
+    offsets: list[int] = []
+    with tempfile.TemporaryDirectory(prefix="trace-environment-source-") as staging:
+        load_path = source_path
+        if suffix == ".json":
+            # The byte repair is format-agnostic and applies to whole-document JSON before any loader.
+            try:
+                repaired, offsets = _parse_or_repair(source_bytes.decode("utf-8"))
+            except UnicodeDecodeError as error:
+                raise ContractError(f"could not read the source as UTF-8: {error}") from error
+            if offsets:
+                load_path = Path(staging) / source_path.name
+                load_path.write_text(repaired, encoding="utf-8")
+        try:
+            trace = trace_source.load_trace(load_path, kind, row=args.row, spans=spans_path, workspace=args.workspace)
+            image_only_turns = trace_source.image_only_user_turns(trace, kind)
+            payload = trace.model_dump(mode="json")
+            if load_path != source_path:
+                trace_source.retarget_source_urls(payload, load_path, source_path)
+            normalizations, losses = _normalizations(offsets, trace_source.bound_images(payload))
+            payload["losses"].extend(losses)
+            canonical = trace_source.validate_payload(payload, label="canonical trace")
+            safe, counts = trace_source.scrub(canonical)
+        except trace_source.TraceSourceError as error:
+            raise ContractError(str(error)) from error
 
-    original_path = task_dir / "private" / "source.atif.json"
-    canonical_path = task_dir / "private" / "canonical.atif.json"
-    safe_path = task_dir / "safe" / "trace.atif.json"
+    original_relative = _original_path(kind, suffix)
+    original_path = task_dir / original_relative
+    canonical_path = task_dir / _CANONICAL_TRACE_PATH
+    safe_path = task_dir / _SAFE_TRACE_PATH
     privacy_path = task_dir / "safe" / "privacy.json"
     audit_path = task_dir / "private" / "privacy-audit.json"
-    if any(path.exists() for path in (original_path, canonical_path, safe_path, privacy_path, audit_path)):
+    copies = [(original_path, source_bytes)]
+    if spans_bytes is not None:
+        copies.append((task_dir / _INTAKE_SPANS_PATH, spans_bytes))
+    targets = [path for path, _ in copies] + [canonical_path, safe_path, privacy_path, audit_path]
+    if any(path.exists() for path in targets):
         raise ContractError("refusing to replace an existing prepared artifact")
-    canonical_bytes = (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
+    canonical_bytes = trace_source.canonical_bytes(canonical)
     if len(canonical_bytes) > MAX_CANONICAL_BYTES:
-        raise ContractError(f"canonical ATIF exceeds the {MAX_CANONICAL_BYTES}-byte limit after bounded normalization")
-    counts: dict[str, int] = {}
-    scrubbed = _scrub(payload, counts)
-    _validate_trajectory(scrubbed)
-    safe_bytes = (json.dumps(scrubbed, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
+        raise ContractError(f"canonical trace exceeds the {MAX_CANONICAL_BYTES}-byte limit after bounded normalization")
+    safe_bytes = trace_source.canonical_bytes(safe)
     if len(safe_bytes) > MAX_CANONICAL_BYTES:
-        raise ContractError(f"safe ATIF exceeds the {MAX_CANONICAL_BYTES}-byte limit")
-    blocking_reasons = [
-        f"image_only_user_instruction:step-{step_id}" for step_id in validation["image_only_user_steps"]
-    ]
+        raise ContractError(f"safe trace exceeds the {MAX_CANONICAL_BYTES}-byte limit")
+    # Citations and blocking reasons use safe-copy ids.
+    blocking_reasons = [f"image_only_user_instruction:{trace_source.safe_id(turn_id)}" for turn_id in image_only_turns]
     privacy = {
-        "deterministic_redactions": dict(sorted(counts.items())),
+        "deterministic_redactions": counts,
         "images_omitted": counts.get("image", 0),
         "contextual_review_required": True,
         "contextual_review_complete": False,
         "reviewer_kind": None,
         "blocking_reasons": blocking_reasons,
     }
-    audit = _privacy_audit(scrubbed, _sha256(safe_bytes))
+    audit = _privacy_audit(safe.model_dump(mode="json"), _sha256(safe_bytes))
     summary["source"] = {
-        "kind": args.source_kind,
-        "original_path": "private/source.atif.json",
+        "kind": kind,
+        "loader_version": loading.COMPASS_VERSION,
+        "trace_schema_version": canonical.schema_version,
+        "loader_options": {
+            "row": args.row,
+            "workspace": args.workspace,
+            "spans_path": _INTAKE_SPANS_PATH if spans_bytes is not None else None,
+            "spans_sha256": _sha256(spans_bytes) if spans_bytes is not None else None,
+        },
+        "original_path": original_relative,
         "original_sha256": _sha256(source_bytes),
         "original_size_bytes": len(source_bytes),
-        "canonical_path": "private/canonical.atif.json",
+        "canonical_path": _CANONICAL_TRACE_PATH,
         "canonical_sha256": _sha256(canonical_bytes),
         "canonical_size_bytes": len(canonical_bytes),
-        "safe_path": "safe/trace.atif.json",
+        "safe_path": _SAFE_TRACE_PATH,
         "safe_sha256": _sha256(safe_bytes),
         "safe_size_bytes": len(safe_bytes),
         "normalizations": normalizations,
@@ -928,16 +666,15 @@ def _prepare(args: argparse.Namespace) -> dict[str, Any]:
     audit_bytes = (json.dumps(audit, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
     written: list[Path] = []
     try:
-        _write_bytes_once(original_path, source_bytes)
-        written.append(original_path)
-        _write_bytes_once(canonical_path, canonical_bytes)
-        written.append(canonical_path)
-        _write_bytes_once(safe_path, safe_bytes)
-        written.append(safe_path)
-        _write_bytes_once(privacy_path, privacy_bytes)
-        written.append(privacy_path)
-        _write_bytes_once(audit_path, audit_bytes)
-        written.append(audit_path)
+        for path, data in [
+            *copies,
+            (canonical_path, canonical_bytes),
+            (safe_path, safe_bytes),
+            (privacy_path, privacy_bytes),
+            (audit_path, audit_bytes),
+        ]:
+            _write_bytes_once(path, data)
+            written.append(path)
         _write_json(_summary_path(task_dir), summary)
     except BaseException:
         for path in written:
@@ -968,13 +705,13 @@ def _review_privacy(args: argparse.Namespace) -> dict[str, Any]:
     summary = _load_summary(task_dir)
     privacy = summary.get("privacy")
     if not isinstance(privacy, dict):
-        raise ContractError("prepare ATIF evidence before reviewing privacy")
+        raise ContractError("prepare trace evidence before reviewing privacy")
     safe_path = task_dir / summary["source"]["safe_path"]
     audit_path = task_dir / privacy["audit_path"]
     report_path = task_dir / privacy["path"]
     audit = _load_object(audit_path, label="privacy audit")
     if audit.get("schema") != PRIVACY_AUDIT_SCHEMA or audit.get("safe_sha256") != _sha256(safe_path.read_bytes()):
-        raise ContractError("privacy audit does not match the current safe ATIF")
+        raise ContractError("privacy audit does not match the current safe trace")
     review = audit.get("review")
     if not isinstance(review, dict) or set(review) != {"complete", "reviewer_kind", "note"}:
         raise ContractError("privacy audit review fields do not match the versioned contract")
@@ -999,42 +736,44 @@ def _review_privacy(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def _tool_call_source(task_dir: Path) -> tuple[dict[str, Any], dict[str, Any], str]:
-    summary = _load_summary(task_dir)
-    source = summary.get("source")
-    if not isinstance(source, dict):
-        raise ContractError("prepare safe ATIF evidence before inventorying interactions")
+def _safe_trace(task_dir: Path, source: dict[str, Any]) -> tuple[Any, str]:
+    """Load the retained safe Trace after binding it to the digest and size the summary recorded."""
     safe_path = task_dir / source["safe_path"]
     if safe_path.is_symlink() or not safe_path.is_file():
-        raise ContractError("safe ATIF must be a retained regular file")
+        raise ContractError("safe trace must be a retained regular file")
     if safe_path.stat().st_size > MAX_CANONICAL_BYTES:
-        raise ContractError(f"safe ATIF exceeds the {MAX_CANONICAL_BYTES}-byte limit")
+        raise ContractError(f"safe trace exceeds the {MAX_CANONICAL_BYTES}-byte limit")
     with safe_path.open("rb") as stream:
         safe_bytes = stream.read(MAX_CANONICAL_BYTES + 1)
     if len(safe_bytes) > MAX_CANONICAL_BYTES:
-        raise ContractError(f"safe ATIF exceeds the {MAX_CANONICAL_BYTES}-byte limit")
+        raise ContractError(f"safe trace exceeds the {MAX_CANONICAL_BYTES}-byte limit")
     safe_sha256 = _sha256(safe_bytes)
-    if safe_sha256 != source["safe_sha256"]:
-        raise ContractError("safe ATIF digest does not match the task summary")
+    if safe_sha256 != source["safe_sha256"] or len(safe_bytes) != source["safe_size_bytes"]:
+        raise ContractError("safe trace digest or size changed")
     try:
-        safe = json.loads(safe_bytes.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise ContractError("could not read safe ATIF as UTF-8 JSON") from error
-    if not isinstance(safe, dict):
-        raise ContractError("safe ATIF must contain one JSON object")
-    _validate_trajectory(safe)
+        return trace_source.parse_trace(safe_bytes), safe_sha256
+    except trace_source.TraceSourceError as error:
+        raise ContractError(str(error)) from error
+
+
+def _tool_call_source(task_dir: Path) -> tuple[dict[str, Any], Any, str]:
+    summary = _load_summary(task_dir)
+    source = summary.get("source")
+    if not isinstance(source, dict):
+        raise ContractError("prepare safe trace evidence before inventorying interactions")
+    safe, safe_sha256 = _safe_trace(task_dir, source)
     return summary, safe, safe_sha256
 
 
 def _current_tool_call_inventory(task_dir: Path) -> dict[str, Any]:
     _, safe, safe_sha256 = _tool_call_source(task_dir)
-    return derive_tool_call_inventory(safe, safe_atif_sha256=safe_sha256)
+    return derive_tool_call_inventory(safe, safe_trace_sha256=safe_sha256)
 
 
 def _audit_evidence(args: argparse.Namespace) -> dict[str, Any]:
     task_dir = _ensure_task_dir(args.task_dir)
     _, safe, digest = _tool_call_source(task_dir)
-    report = audit_evidence(safe, safe_atif_sha256=digest)
+    report = audit_evidence(safe, safe_trace_sha256=digest)
     report_bytes = (json.dumps(report, indent=2, sort_keys=True) + "\n").encode()
     if len(report_bytes) > MAX_CANONICAL_BYTES:
         raise ContractError("evidence audit exceeds the bounded artifact size; no partial report was retained")
@@ -1077,7 +816,7 @@ def _inventory_tool_calls(args: argparse.Namespace) -> dict[str, Any]:
 def _current_tool_call_inventory_file(task_dir: Path) -> dict[str, Any]:
     inventory = _load_object(task_dir / "private/tool-call-inventory.json", label="tool-call inventory")
     if inventory != _current_tool_call_inventory(task_dir):
-        raise ContractError("tool-call-inventory.json differs from the current safe ATIF")
+        raise ContractError("tool-call-inventory.json differs from the current safe trace")
     return inventory
 
 
@@ -1269,7 +1008,7 @@ def _generate_mock_tool_calls(args: argparse.Namespace) -> dict[str, Any]:
     files = _generated_fixture_files(fixture_dir, task_dir)
     receipt = {
         "schema": TOOL_CALL_GENERATION_SCHEMA,
-        "safe_atif_sha256": inventory["safe_atif_sha256"],
+        "safe_trace_sha256": inventory["safe_trace_sha256"],
         "inventory_sha256": _sha256_file(task_dir / "private/tool-call-inventory.json"),
         "plan_sha256": _sha256_file(task_dir / "private/tool-call-plan.json"),
         "access_sha256": _sha256_file(task_dir / "private/tool-access.json"),
@@ -1330,7 +1069,7 @@ def _validate_tool_call_pipeline(task_dir: Path, *, require_decisions: bool = Fa
     receipt = _load_object(receipt_path, label="fixture generation receipt")
     expected_keys = {
         "schema",
-        "safe_atif_sha256",
+        "safe_trace_sha256",
         "inventory_sha256",
         "plan_sha256",
         "access_sha256",
@@ -1347,7 +1086,7 @@ def _validate_tool_call_pipeline(task_dir: Path, *, require_decisions: bool = Fa
         raise ContractError("generated MCP scenario differs from the current fixture plan")
     expected = {
         "schema": TOOL_CALL_GENERATION_SCHEMA,
-        "safe_atif_sha256": inventory["safe_atif_sha256"],
+        "safe_trace_sha256": inventory["safe_trace_sha256"],
         "inventory_sha256": _sha256_file(inventory_path),
         "plan_sha256": _sha256_file(plan_path),
         "access_sha256": _sha256_file(access_path),
@@ -1384,32 +1123,32 @@ def _validate_mock_tool_call_integration(task_dir: Path, config: dict[str, Any])
         raise ContractError("trace-tool-call-replay MCP server differs from the generated integration contract")
 
 
-def _evidence_steps(value: Any, step_ids: set[int], *, label: str) -> list[int]:
+def _evidence_turns(value: Any, turn_ids: set[str], *, label: str) -> list[str]:
     if (
         not isinstance(value, list)
         or not value
-        or any(type(item) is not int for item in value)
+        or any(not isinstance(item, str) for item in value)
         or len(value) != len(set(value))
     ):
-        raise ContractError(f"{label} must be a nonempty list of unique integer ATIF step IDs")
-    unknown_steps = sorted(set(value) - step_ids)
-    if unknown_steps:
-        raise ContractError(f"{label} references unknown evidence steps: {unknown_steps}")
+        raise ContractError(f"{label} must be a nonempty list of unique safe-trace turn ids")
+    unknown_turns = sorted(set(value) - turn_ids)
+    if unknown_turns:
+        raise ContractError(f"{label} references unknown evidence turns: {unknown_turns}")
     return value
 
 
-def _validate_provenance(value: Any, step_ids: set[int], *, label: str) -> dict[str, Any]:
+def _validate_provenance(value: Any, turn_ids: set[str], *, label: str) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) != _PROVENANCE_KEYS:
         raise ContractError(f"{label} fields do not match the versioned contract")
     kind = value.get("kind")
-    provenance_steps = value.get("step_ids")
-    if kind == "atif_step":
-        _evidence_steps(provenance_steps, step_ids, label=f"{label}.step_ids")
+    provenance_turns = value.get("turn_ids")
+    if kind == "trace_turn":
+        _evidence_turns(provenance_turns, turn_ids, label=f"{label}.turn_ids")
         if any(value.get(name) is not None for name in ("uri", "revision", "source_id")):
-            raise ContractError(f"{label} ATIF provenance must not include external identifiers")
+            raise ContractError(f"{label} trace provenance must not include external identifiers")
     elif kind == "external":
-        if provenance_steps != []:
-            raise ContractError(f"{label}.step_ids must be empty for external provenance")
+        if provenance_turns != []:
+            raise ContractError(f"{label}.turn_ids must be empty for external provenance")
         for name in ("uri", "revision", "source_id"):
             item = value.get(name)
             if item is not None and (not isinstance(item, str) or not item.strip()):
@@ -1417,11 +1156,11 @@ def _validate_provenance(value: Any, step_ids: set[int], *, label: str) -> dict[
         if not any(value.get(name) for name in ("uri", "revision", "source_id")):
             raise ContractError(f"{label} external provenance needs a URI, revision, or source ID")
     else:
-        raise ContractError(f"{label}.kind must be atif_step or external")
+        raise ContractError(f"{label}.kind must be trace_turn or external")
     return value
 
 
-def _validate_requirements(value: Any, step_ids: set[int]) -> list[dict[str, Any]]:
+def _validate_requirements(value: Any, turn_ids: set[str]) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         raise ContractError("candidate.requirements must be a list")
     for index, requirement in enumerate(value):
@@ -1431,11 +1170,11 @@ def _validate_requirements(value: Any, step_ids: set[int]) -> list[dict[str, Any
         description = requirement.get("description")
         if not isinstance(description, str) or not description.strip():
             raise ContractError(f"{label}.description must be nonempty text")
-        _evidence_steps(requirement.get("evidence_steps"), step_ids, label=f"{label}.evidence_steps")
+        _evidence_turns(requirement.get("evidence_turns"), turn_ids, label=f"{label}.evidence_turns")
     return value
 
 
-def _validate_ground_truth(task_dir: Path, value: Any, step_ids: set[int]) -> dict[str, Any]:
+def _validate_ground_truth(task_dir: Path, value: Any, turn_ids: set[str]) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) != _GROUND_TRUTH_KEYS:
         raise ContractError("candidate.ground_truth fields do not match the versioned contract")
     availability = value.get("availability")
@@ -1495,14 +1234,14 @@ def _validate_ground_truth(task_dir: Path, value: Any, step_ids: set[int]) -> di
             raise ContractError(f"{label}.sha256 does not match the retained artifact")
         if os.name == "posix" and stat.S_IMODE(artifact_path.stat().st_mode) & 0o077:
             raise ContractError(f"{label}.path is not owner-private")
-        _validate_provenance(artifact.get("provenance"), step_ids, label=f"{label}.provenance")
+        _validate_provenance(artifact.get("provenance"), turn_ids, label=f"{label}.provenance")
         notes = artifact.get("notes")
         if not isinstance(notes, str) or not notes.strip():
             raise ContractError(f"{label}.notes must be nonempty text")
     return value
 
 
-def _validate_software_requirements(value: Any, step_ids: set[int]) -> list[dict[str, Any]]:
+def _validate_software_requirements(value: Any, turn_ids: set[str]) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         raise ContractError("candidate.software_requirements must be a list")
     names: set[str] = set()
@@ -1534,14 +1273,20 @@ def _validate_software_requirements(value: Any, step_ids: set[int]) -> list[dict
         redistributable = requirement.get("redistributable")
         if redistributable is not None and type(redistributable) is not bool:
             raise ContractError(f"{label}.redistributable must be true, false, or null")
-        _validate_provenance(requirement.get("provenance"), step_ids, label=f"{label}.provenance")
+        _validate_provenance(requirement.get("provenance"), turn_ids, label=f"{label}.provenance")
         notes = requirement.get("notes")
         if not isinstance(notes, str) or not notes.strip():
             raise ContractError(f"{label}.notes must be nonempty text")
     return value
 
 
-def _validate_candidate(task_dir: Path, status: str, step_ids: set[int]) -> dict[str, Any]:
+def _turn_ids(trace: Any) -> set[str]:
+    from trace_ingest.turns import iter_turns
+
+    return {turn.id for _, turn in iter_turns(trace)}
+
+
+def _validate_candidate(task_dir: Path, status: str, turn_ids: set[str]) -> dict[str, Any]:
     candidate = _load_object(task_dir / "candidate.json", label="candidate")
     if set(candidate) not in (_CANDIDATE_KEYS, _CANDIDATE_KEYS | {"state_basis"}):
         raise ContractError("candidate fields do not match the versioned contract")
@@ -1552,17 +1297,17 @@ def _validate_candidate(task_dir: Path, status: str, step_ids: set[int]) -> dict
         raise ContractError("candidate.state_basis must be 'recorded' or 'reconstructed'")
     if candidate.get("status") != status:
         raise ContractError("candidate status does not match the requested summary status")
-    if candidate.get("decision_basis") != "safe_atif_only":
-        raise ContractError("candidate.decision_basis must be safe_atif_only")
-    _evidence_steps(candidate.get("evidence_steps"), step_ids, label="candidate.evidence_steps")
+    if candidate.get("decision_basis") != "safe_trace_only":
+        raise ContractError("candidate.decision_basis must be safe_trace_only")
+    _evidence_turns(candidate.get("evidence_turns"), turn_ids, label="candidate.evidence_turns")
     _string_list(candidate, "uncertainties")
     _string_list(candidate, "reason_codes", nonempty=status == "no_candidate")
-    _validate_ground_truth(task_dir, candidate.get("ground_truth"), step_ids)
-    software_requirements = _validate_software_requirements(candidate.get("software_requirements"), step_ids)
+    _validate_ground_truth(task_dir, candidate.get("ground_truth"), turn_ids)
+    software_requirements = _validate_software_requirements(candidate.get("software_requirements"), turn_ids)
     if status == "candidate":
         if not isinstance(candidate.get("instruction"), str) or not candidate["instruction"].strip():
             raise ContractError("candidate.instruction must be nonempty text")
-        requirements = _validate_requirements(candidate.get("requirements"), step_ids)
+        requirements = _validate_requirements(candidate.get("requirements"), turn_ids)
         if not requirements:
             raise ContractError("candidate.requirements must not be empty")
         if candidate.get("verification_mode") != "execution":
@@ -1588,21 +1333,12 @@ def _check_candidate(args: argparse.Namespace) -> dict[str, Any]:
     summary = _load_summary(task_dir)
     source = summary["source"]
     if source is None:
-        raise ContractError("prepare ATIF evidence before checking candidate metadata")
-    safe_path = task_dir / source["safe_path"]
-    if safe_path.is_symlink() or not safe_path.is_file():
-        raise ContractError("safe ATIF must be a retained regular file")
-    if safe_path.stat().st_size > MAX_CANONICAL_BYTES:
-        raise ContractError(f"safe ATIF exceeds the {MAX_CANONICAL_BYTES}-byte limit")
-    safe_bytes = safe_path.read_bytes()
-    if _sha256(safe_bytes) != source["safe_sha256"] or len(safe_bytes) != source["safe_size_bytes"]:
-        raise ContractError("safe ATIF digest or size changed")
-    safe_payload = _load_object(safe_path, label="safe ATIF")
-    _validate_trajectory(safe_payload)
+        raise ContractError("prepare trace evidence before checking candidate metadata")
+    safe, _ = _safe_trace(task_dir, source)
     status = _load_object(task_dir / "candidate.json", label="candidate").get("status")
     if status not in ("candidate", "no_candidate"):
         raise ContractError("candidate.status must be candidate or no_candidate")
-    _validate_candidate(task_dir, status, {step["step_id"] for step in safe_payload["steps"]})
+    _validate_candidate(task_dir, status, _turn_ids(safe))
     return {
         "task_dir": str(task_dir),
         "valid": True,
@@ -3117,9 +2853,9 @@ def _summary_markdown(summary: dict[str, Any]) -> str:
         f"# Trace environment: {summary['task_id']}\n\n"
         f"## Status\n\n`{summary['status']}`\n\n"
         f"## Evidence\n\n"
-        f"- Safe ATIF: `{summary['source']['safe_path']}`\n"
+        f"- Safe trace: `{summary['source']['safe_path']}`\n"
         f"- State basis: `{candidate.get('state_basis', 'recorded')}`\n"
-        f"- Evidence steps: {candidate.get('evidence_steps', [])}\n"
+        f"- Evidence turns: {candidate.get('evidence_turns', [])}\n"
         f"- Environment: `{summary['environment']['status']}`\n"
         f"- Technical proof: `{summary['environment']['technical_status']}`\n"
         f"{qualification_line}"
@@ -3159,16 +2895,13 @@ def _finalize(args: argparse.Namespace) -> dict[str, Any]:
     task_dir = _ensure_task_dir(args.task_dir)
     summary = _load_summary(task_dir)
     if summary["source"] is None or summary["privacy"] is None:
-        raise ContractError("prepare canonical ATIF evidence before finalizing")
+        raise ContractError("prepare canonical trace evidence before finalizing")
     if summary["status"] != "pending":
         raise ContractError("this task workspace has already been finalized")
 
-    safe_path = task_dir / summary["source"]["safe_path"]
-    safe_payload = _load_object(safe_path, label="safe ATIF")
-    _validate_trajectory(safe_payload)
+    safe, _ = _safe_trace(task_dir, summary["source"])
     _validate_tool_call_pipeline(task_dir, require_decisions=args.status == "candidate")
-    step_ids = {step["step_id"] for step in safe_payload["steps"]}
-    candidate = _validate_candidate(task_dir, args.status, step_ids)
+    candidate = _validate_candidate(task_dir, args.status, _turn_ids(safe))
 
     privacy = summary["privacy"]
     if args.status == "candidate" and not privacy["contextual_review_complete"]:
@@ -3281,7 +3014,7 @@ def _check(args: argparse.Namespace) -> dict[str, Any]:
                 errors.append("privacy report does not match the summary")
             audit = _load_object(task_dir / privacy["audit_path"], label="privacy audit")
             if audit.get("schema") != PRIVACY_AUDIT_SCHEMA or audit.get("safe_sha256") != source["safe_sha256"]:
-                errors.append("privacy audit does not match the safe ATIF")
+                errors.append("privacy audit does not match the safe trace")
             review = audit.get("review", {})
             if review.get("complete") != privacy["contextual_review_complete"]:
                 errors.append("privacy audit review does not match the summary")
@@ -3292,10 +3025,9 @@ def _check(args: argparse.Namespace) -> dict[str, Any]:
     elif source is not None:
         errors.append("privacy report has not been prepared")
     if summary.get("status") in {"candidate", "no_candidate"} and isinstance(source, dict):
-        safe = _load_object(task_dir / source["safe_path"], label="safe ATIF")
-        step_ids = {step["step_id"] for step in safe.get("steps", []) if isinstance(step, dict) and "step_id" in step}
         try:
-            candidate = _validate_candidate(task_dir, summary["status"], step_ids)
+            safe, _ = _safe_trace(task_dir, source)
+            candidate = _validate_candidate(task_dir, summary["status"], _turn_ids(safe))
             if summary.get("candidate") != {"path": "candidate.json", **candidate}:
                 errors.append("candidate record does not match the summary")
             environment = summary.get("environment", {})
@@ -3384,6 +3116,11 @@ def _check(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _manifest_path(manifest_path: Path, value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else manifest_path.parent / path
+
+
 def _load_batch_manifest(path: Path) -> list[dict[str, Any]]:
     manifest = _load_object(path, label="batch manifest")
     if set(manifest) != {"schema", "members"} or manifest.get("schema") != BATCH_SCHEMA:
@@ -3393,7 +3130,10 @@ def _load_batch_manifest(path: Path) -> list[dict[str, Any]]:
         raise ContractError("batch manifest members must be a nonempty list")
     task_ids: set[str] = set()
     for index, member in enumerate(members):
-        if not isinstance(member, dict) or set(member) != _BATCH_MEMBER_KEYS:
+        if (
+            not isinstance(member, dict)
+            or not _BATCH_MEMBER_KEYS <= set(member) <= _BATCH_MEMBER_KEYS | _BATCH_MEMBER_OPTION_KEYS
+        ):
             raise ContractError(f"batch manifest member {index} fields do not match the versioned contract")
         task_id = member.get("task_id")
         if not isinstance(task_id, str) or len(task_id) > 80 or TASK_ID.fullmatch(task_id) is None:
@@ -3401,10 +3141,16 @@ def _load_batch_manifest(path: Path) -> list[dict[str, Any]]:
         if task_id in task_ids:
             raise ContractError(f"batch manifest contains duplicate task_id {task_id!r}")
         task_ids.add(task_id)
-        atif = member.get("atif")
-        if not isinstance(atif, str) or not atif.strip():
-            raise ContractError(f"batch manifest member {index}.atif must be nonempty text")
-        _check_prepare_source_kind(member.get("source_kind"), f"batch manifest member {index}.source_kind")
+        source = member.get("source")
+        if not isinstance(source, str) or not source.strip():
+            raise ContractError(f"batch manifest member {index}.source must be nonempty text")
+        if member.get("source_kind") not in trace_source.trace_loading().SOURCE_KINDS:
+            raise ContractError(f"batch manifest member {index}.source_kind is not a trace_loading source kind")
+        if "row" in member and type(member["row"]) is not int:
+            raise ContractError(f"batch manifest member {index}.row must be an integer")
+        for name in ("spans", "workspace"):
+            if name in member and (not isinstance(member[name], str) or not member[name].strip()):
+                raise ContractError(f"batch manifest member {index}.{name} must be nonempty text")
     return members
 
 
@@ -3417,9 +3163,8 @@ def _batch_prepare(args: argparse.Namespace) -> dict[str, Any]:
     for member in members:
         task_id = member["task_id"]
         task_dir = root / task_id
-        source_path = Path(member["atif"])
-        if not source_path.is_absolute():
-            source_path = manifest_path.parent / source_path
+        source_path = _manifest_path(manifest_path, member["source"])
+        spans_path = _manifest_path(manifest_path, member["spans"]) if "spans" in member else None
         try:
             if not task_dir.exists():
                 _init(argparse.Namespace(root=root, task_id=task_id))
@@ -3428,8 +3173,11 @@ def _batch_prepare(args: argparse.Namespace) -> dict[str, Any]:
                 _prepare(
                     argparse.Namespace(
                         task_dir=task_dir,
-                        atif=source_path,
+                        source=source_path,
                         source_kind=member["source_kind"],
+                        row=member.get("row"),
+                        spans=spans_path,
+                        workspace=member.get("workspace"),
                     )
                 )
                 outcome = "prepared"
@@ -3595,7 +3343,7 @@ def _write_publication(task_dir: Path, output_dir: Path) -> None:
         "task_id": summary["task_id"],
         "status": summary["status"],
         "reason_codes": candidate["reason_codes"],
-        "candidate_evidence_steps": candidate["evidence_steps"],
+        "candidate_evidence_turns": candidate["evidence_turns"],
         "state_basis": candidate.get("state_basis", "recorded"),
         "repairs": len(_repairs(task_dir)),
         "ground_truth": {
@@ -3773,24 +3521,29 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--task-id", required=True, type=_validate_task_id)
     init.set_defaults(run=_init)
 
-    prepare = subparsers.add_parser("prepare", help="validate and scrub one canonical ATIF trajectory")
+    prepare = subparsers.add_parser("prepare", help="load one trace through Compass, then bound and scrub it")
     prepare.add_argument("--task-dir", required=True, type=Path)
-    prepare.add_argument("--atif", required=True, type=Path)
-    prepare.add_argument("--source-kind", required=True, help="Source format; only 'atif' until Trace input lands")
+    prepare.add_argument("--source", required=True, type=Path)
+    prepare.add_argument(
+        "--source-kind", required=True, help="trace_loading source kind; the trace must record conversation turns"
+    )
+    prepare.add_argument("--row", type=int, help="one-based physical JSONL line, for Gym JSONL sources")
+    prepare.add_argument("--spans", type=Path, help="Intake spans JSON, for Intake sources")
+    prepare.add_argument("--workspace", help="Intake workspace that owns the trace, for Intake sources")
     prepare.set_defaults(run=_prepare)
 
     audit = subparsers.add_parser("audit-evidence", help="report observation coverage without inferring correctness")
     audit.add_argument("--task-dir", required=True, type=Path)
     audit.set_defaults(run=_audit_evidence)
 
-    review = subparsers.add_parser("review-privacy", help="record contextual review of every safe ATIF string")
+    review = subparsers.add_parser("review-privacy", help="record contextual review of every safe trace string")
     review.add_argument("--task-dir", required=True, type=Path)
     review.add_argument("--reviewer-kind", choices=("agent", "human"), required=True)
     review.add_argument("--note", required=True)
     review.set_defaults(run=_review_privacy)
 
     inventory = subparsers.add_parser(
-        "inventory-tool-calls", help="derive a private tool-call input and output inventory from safe ATIF"
+        "inventory-tool-calls", help="derive a private tool-call input and output inventory from the safe trace"
     )
     inventory.add_argument("--task-dir", required=True, type=Path)
     inventory.set_defaults(run=_inventory_tool_calls)
@@ -3800,7 +3553,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     access_plan.add_argument("--task-dir", required=True, type=Path)
     access_plan.add_argument(
-        "--schema-overrides", type=Path, help="reviewed, inventory-bound input schemas; source ATIF stays unchanged"
+        "--schema-overrides", type=Path, help="reviewed, inventory-bound input schemas; the safe trace stays unchanged"
     )
     access_plan.set_defaults(run=_plan_tool_call_access)
 

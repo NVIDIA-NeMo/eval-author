@@ -25,6 +25,7 @@ assert spec is not None and spec.loader is not None
 helpers = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(helpers)
 driver = helpers._TRACE_ENVIRONMENT
+FIRST_TURN = "trajectory/turn/1"
 REVIEW = {"reviewer_kind": "agent", "note": "Reviewed this synthetic fixture against its public requirements."}
 
 
@@ -61,8 +62,8 @@ def workspace(tmp_path):
     helpers._ready_environment(root, record_validation=False)
     candidate = json.loads((root / "candidate.json").read_text())
     candidate["requirements"] = [
-        {"description": "Repair the first record.", "evidence_steps": [1]},
-        {"description": "Preserve the dependent record.", "evidence_steps": [1]},
+        {"description": "Repair the first record.", "evidence_turns": [FIRST_TURN]},
+        {"description": "Preserve the dependent record.", "evidence_turns": [FIRST_TURN]},
     ]
     candidate["state_basis"] = "reconstructed"
     save(root / "candidate.json", candidate)
@@ -106,7 +107,7 @@ def workspace(tmp_path):
     manifest = {
         "schema": contract.SCHEMA,
         "candidate_sha256": contract.file_digest(root, "candidate.json"),
-        "trace_sha256": contract.file_digest(root, "safe/trace.atif.json"),
+        "trace_sha256": contract.file_digest(root, contract.TRACE_PATH),
         "requirements": [
             {"id": "repair", "candidate_index": 0, "checks": ["fixture-repaired"]},
             {"id": "preserve", "candidate_index": 1, "checks": ["dependent-preserved"]},
@@ -117,7 +118,7 @@ def workspace(tmp_path):
             {"id": "repair-needed", "prerequisite": "repair", "dependent": "preserve", "bypass_control": "skip-repair"}
         ],
         "starting_state": {
-            "cutoff_step_id": 1,
+            "cutoff_turn_id": FIRST_TURN,
             "roots": ["task/environment/inputs"],
             "artifacts": [
                 {
@@ -288,7 +289,7 @@ def test_invalid_construction_is_rejected(tmp_path, fault):
     elif fault == "changed-input":
         (root / artifact["path"]).write_text("changed")
     elif fault == "future":
-        artifact.update(basis="observed", source={"step_id": 2, "pointer": "/message"})
+        artifact.update(basis="observed", source={"turn_id": "trajectory/turn/2", "pointer": "/content"})
     elif fault == "recorded-authored":
         candidate = json.loads((root / "candidate.json").read_text())
         candidate["state_basis"] = "recorded"
@@ -303,35 +304,127 @@ def test_invalid_construction_is_rejected(tmp_path, fault):
         contract.validate(root)
 
 
-def test_observation_and_exact_reversal_use_trace_order_not_step_numbers(tmp_path):
-    root, manifest = workspace(tmp_path)
-    trace = {
-        "steps": [
-            {"step_id": 90, "message": "broken\n"},
-            {"step_id": 4, "edit": {"before": "broken", "after": "fixed"}},
-            {"step_id": 2, "message": "fixed\n"},
-        ]
-    }
-    save(root / "safe/trace.atif.json", trace)
-    manifest["trace_sha256"] = contract.file_digest(root, "safe/trace.atif.json")
-    state = manifest["starting_state"]
-    state["cutoff_step_id"] = 90
-    artifact = state["artifacts"][0]
-    artifact.update(basis="observed", source={"step_id": 90, "pointer": "/message"})
-    save(root / contract.PATH, manifest)
-    assert contract.validate(root)["provenance"]["basis_counts"]["observed"] == 1
-    artifact.update(
-        basis="reversed_edit",
-        source={"step_id": 2, "pointer": "/message"},
-        edits=[
-            {"before": {"step_id": 4, "pointer": "/edit/before"}, "after": {"step_id": 4, "pointer": "/edit/after"}}
+def edit_span(span_id, before, after):
+    from trace_ingest import Span, SpanKind, ToolCall, ToolResult
+
+    return Span(
+        id=span_id,
+        kind=SpanKind.TOOL,
+        tool_name="edit",
+        input={"path": "state.txt", "before": before, "after": after, "original": f"{before}\n"},
+        tool_call=ToolCall(call_id=span_id, result_count=1, results=[ToolResult(content=f"{after}\n")]),
+    )
+
+
+FIRST_EDIT = "trajectory/step/7/tool/0"
+SECOND_EDIT = "trajectory/step/5/tool/0"
+
+
+def ordered_trace(root):
+    """A safe trace whose turn ids are not in numeric order: iter_turns order is 90, 7, 5, 2."""
+    from trace_ingest import Span, SpanKind, Trace, TraceAggregate, Turn, TurnRole
+    from trace_source import canonical_bytes
+
+    agent = Span(
+        id="trajectory",
+        kind=SpanKind.AGENT,
+        children=[
+            edit_span(FIRST_EDIT, "broken", "fixed"),
+            edit_span(SECOND_EDIT, "fixed", "final"),
+            Span(id="trajectory/step/9/tool/0", kind=SpanKind.TOOL, tool_name="edit", input={"path": "orphan"}),
+        ],
+        turns=[
+            Turn(id="trajectory/turn/90", index=1, role=TurnRole.USER, content="broken\n"),
+            Turn(id="trajectory/turn/7", index=2, role=TurnRole.AGENT, tool_call_span_ids=[FIRST_EDIT]),
+            Turn(id="trajectory/turn/5", index=3, role=TurnRole.AGENT, tool_call_span_ids=[SECOND_EDIT]),
+            Turn(id="trajectory/turn/2", index=4, role=TurnRole.AGENT, content="final\n"),
         ],
     )
+    trace = Trace(id="anon-0000000000000000", root_spans=[agent], aggregate=TraceAggregate())
+    (root / contract.TRACE_PATH).write_bytes(canonical_bytes(trace))
+    return contract.file_digest(root, contract.TRACE_PATH)
+
+
+def reversal(span_id):
+    return {
+        "before": {"span_id": span_id, "pointer": "/input/before"},
+        "after": {"span_id": span_id, "pointer": "/input/after"},
+    }
+
+
+def test_observation_and_exact_reversal_use_trace_order_not_turn_numbers(tmp_path):
+    root, manifest = workspace(tmp_path)
+    manifest["trace_sha256"] = ordered_trace(root)
+    state = manifest["starting_state"]
+    state["cutoff_turn_id"] = "trajectory/turn/90"
+    artifact = state["artifacts"][0]
+
+    def check(match=None):
+        save(root / contract.PATH, manifest)
+        if match is None:
+            return contract.validate(root)["provenance"]["basis_counts"]
+        with pytest.raises(contract.ConstructionError, match=match):
+            contract.validate(root)
+
+    artifact.update(basis="observed", source={"turn_id": "trajectory/turn/90", "pointer": "/content"})
+    assert check()["observed"] == 1
+    # A span's position is its issuing turn's: turn/7 follows the cutoff although 7 < 90.
+    artifact["source"] = {"span_id": FIRST_EDIT, "pointer": "/input/original"}
+    check("future evidence")
+    state["cutoff_turn_id"] = "trajectory/turn/7"
+    assert check()["observed"] == 1
+    state["cutoff_turn_id"] = "trajectory/turn/90"
+
+    artifact.update(
+        basis="reversed_edit",
+        source={"turn_id": "trajectory/turn/2", "pointer": "/content"},
+        edits=[reversal(SECOND_EDIT), reversal(FIRST_EDIT)],
+    )
+    assert check()["reversed_edit"] == 1
+    # Span pointers reach recorded result content, and the edit chain may start at the source's turn.
+    artifact["source"] = {"span_id": SECOND_EDIT, "pointer": "/tool_call/results/0/content"}
+    assert check()["reversed_edit"] == 1
+    artifact["source"] = {"turn_id": "trajectory/turn/2", "pointer": "/content"}
+    artifact["edits"] = [reversal(SECOND_EDIT), reversal(SECOND_EDIT)]
+    check("descending trace order")  # each edit must come strictly earlier than the one before
+    artifact["edits"] = [reversal(SECOND_EDIT), reversal(FIRST_EDIT)]
+    state["cutoff_turn_id"] = "trajectory/turn/7"  # reversed edits must all follow the cutoff
+    check("descending trace order")
+    state["cutoff_turn_id"] = "trajectory/turn/90"
+    artifact["edits"][0]["after"]["pointer"] = "/input/before"
+    check("exactly once")
+
+
+@pytest.mark.parametrize(
+    ("reference", "message"),
+    [
+        ({"turn_id": "trajectory/turn/404", "pointer": "/content"}, "source turn is not in the trace"),
+        ({"span_id": "trajectory/step/404/tool/0", "pointer": "/input"}, "source span is not in the trace"),
+        ({"span_id": "trajectory/step/9/tool/0", "pointer": "/input/path"}, "source span belongs to no trace turn"),
+        ({"span_id": FIRST_EDIT, "pointer": "/input/missing"}, "source pointer does not resolve"),
+        ({"span_id": FIRST_EDIT, "pointer": "/children"}, "source pointer does not resolve"),
+        ({"span_id": FIRST_EDIT, "pointer": "/input"}, "exact text"),
+        ({"index": 1, "pointer": "/content"}, "source reference: invalid fields"),
+        ({"turn_id": "trajectory/turn/90", "span_id": FIRST_EDIT, "pointer": "/content"}, "invalid fields"),
+    ],
+)
+def test_unresolvable_sources_are_rejected(tmp_path, reference, message):
+    root, manifest = workspace(tmp_path)
+    manifest["trace_sha256"] = ordered_trace(root)
+    state = manifest["starting_state"]
+    state["cutoff_turn_id"] = "trajectory/turn/2"
+    state["artifacts"][0].update(basis="observed", source=reference)
     save(root / contract.PATH, manifest)
-    assert contract.validate(root)["provenance"]["basis_counts"]["reversed_edit"] == 1
-    artifact["edits"][0]["after"]["pointer"] = "/edit/before"
+    with pytest.raises(contract.ConstructionError, match=message):
+        contract.validate(root)
+
+
+@pytest.mark.parametrize("cutoff", ["trajectory/turn/404", "trajectory/step/7/tool/0", 1, None])
+def test_cutoff_must_be_a_trace_turn(tmp_path, cutoff):
+    root, manifest = workspace(tmp_path)
+    manifest["starting_state"]["cutoff_turn_id"] = cutoff
     save(root / contract.PATH, manifest)
-    with pytest.raises(contract.ConstructionError, match="exactly once"):
+    with pytest.raises(contract.ConstructionError, match="cutoff must identify a trace turn"):
         contract.validate(root)
 
 
@@ -389,7 +482,7 @@ def test_complete_lifecycle_and_evidence_tampering(tmp_path):
         batch_file,
         {
             "schema": driver.BATCH_SCHEMA,
-            "members": [{"task_id": root.name, "atif": "source.json", "source_kind": "atif"}],
+            "members": [{"task_id": root.name, "source": "source.json", "source_kind": "atif"}],
         },
     )
     args = argparse.Namespace(root=root.parent, manifest=batch_file)

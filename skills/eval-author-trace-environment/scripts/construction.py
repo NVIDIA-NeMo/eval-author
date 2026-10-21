@@ -12,8 +12,10 @@ from pathlib import Path
 
 from qualification_runtime import MAX_OUTPUT_BYTES, digest, observation, pointer
 from qualification_runtime import SCHEMA as EXECUTION_SCHEMA
+from trace_source import TraceIndex, TraceSourceError, parse_trace
 
-SCHEMA = "nemo.eval_author.construction.v1"
+SCHEMA = "nemo.eval_author.construction.v2"
+TRACE_PATH = "safe/trace.json"
 PATH = "private/construction.json"
 MAX_BYTES = 2 * 1024 * 1024
 ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
@@ -55,7 +57,7 @@ def secure_path(root: Path, relative: str) -> Path:
 
 def read_bytes(root: Path, relative: str) -> bytes:
     path = secure_path(root, relative)
-    limit = 25 * 1024 * 1024 if relative == "safe/trace.atif.json" else MAX_BYTES
+    limit = 25 * 1024 * 1024 if relative == TRACE_PATH else MAX_BYTES
     require(path.is_file() and path.stat().st_size <= limit, "missing or oversized construction evidence")
     with path.open("rb") as stream:
         data = stream.read(limit + 1)
@@ -106,27 +108,32 @@ def review(value: object) -> None:
     )
 
 
-def source_value(trace: dict, reference: object, order: dict) -> tuple[str, int]:
-    reference = fields(reference, "step_id pointer", "source reference")
-    require(type(reference["step_id"]) is int and reference["step_id"] in order, "source step is not in trace")
-    index = order[reference["step_id"]]
+def source_value(trace: TraceIndex, reference: object) -> tuple[str, int]:
+    """Resolve an RFC 6901 pointer into one cited turn's or span's JSON; return text and turn position."""
+    if not isinstance(reference, dict) or set(reference) not in ({"turn_id", "pointer"}, {"span_id", "pointer"}):
+        raise ConstructionError("source reference: invalid fields")
+    key = "turn_id" if "turn_id" in reference else "span_id"
+    require(isinstance(reference[key], str), "source reference must cite a turn or span id")
     try:
-        value = pointer(trace["steps"][index], reference["pointer"])
+        document, position = trace.document(reference)
+        value = pointer(document, reference["pointer"])
+    except TraceSourceError as error:
+        raise ConstructionError(str(error)) from error
     except (KeyError, IndexError, ValueError, TypeError) as error:
         raise ConstructionError("source pointer does not resolve") from error
     if not isinstance(value, str):
         raise ConstructionError("source reference must resolve to exact text")
-    return value, index
+    return value, position
 
 
-def provenance(root: Path, record: dict, trace: dict, candidate: dict) -> dict:
-    fields(record, "cutoff_step_id roots artifacts external_inputs no_files_reason review", "starting state")
+def provenance(root: Path, record: dict, trace: TraceIndex, candidate: dict) -> dict:
+    fields(record, "cutoff_turn_id roots artifacts external_inputs no_files_reason review", "starting state")
     review(record["review"])
-    order = {step["step_id"]: index for index, step in enumerate(trace["steps"])}
     require(
-        type(record["cutoff_step_id"]) is int and record["cutoff_step_id"] in order, "cutoff must identify a trace step"
+        isinstance(record["cutoff_turn_id"], str) and record["cutoff_turn_id"] in trace.position,
+        "cutoff must identify a trace turn",
     )
-    cutoff = order[record["cutoff_step_id"]]
+    cutoff = trace.position[record["cutoff_turn_id"]]
     roots = record["roots"]
     require(
         isinstance(roots, list) and len(roots) <= 64 and all(isinstance(p, str) for p in roots), "invalid input roots"
@@ -180,7 +187,7 @@ def provenance(root: Path, record: dict, trace: dict, candidate: dict) -> dict:
                 artifact["source"] is None and artifact["edits"] == [], "authored input must not claim observed content"
             )
             continue
-        value, index = source_value(trace, artifact["source"], order)
+        value, index = source_value(trace, artifact["source"])
         require(len(value.encode()) <= MAX_BYTES, "source snapshot exceeds reconstruction limit")
         if basis == "observed":
             require(index <= cutoff and artifact["edits"] == [], "observed input uses future evidence or transforms")
@@ -190,8 +197,8 @@ def provenance(root: Path, record: dict, trace: dict, candidate: dict) -> dict:
             previous = index + 1
             for edit in edits:
                 fields(edit, "before after", "reverse edit")
-                before, before_index = source_value(trace, edit["before"], order)
-                after, after_index = source_value(trace, edit["after"], order)
+                before, before_index = source_value(trace, edit["before"])
+                after, after_index = source_value(trace, edit["after"])
                 require(
                     before_index == after_index and cutoff < after_index < previous,
                     "reverse edits must be later mutations in descending trace order",
@@ -235,11 +242,15 @@ def validate(root: Path) -> dict:
     require(
         manifest["candidate_sha256"] == file_digest(root, "candidate.json"), "construction candidate digest changed"
     )
-    require(manifest["trace_sha256"] == file_digest(root, "safe/trace.atif.json"), "construction trace digest changed")
+    trace_bytes = read_bytes(root, TRACE_PATH)
+    require(manifest["trace_sha256"] == hashlib.sha256(trace_bytes).hexdigest(), "construction trace digest changed")
     candidate = load(root, "candidate.json")
-    trace = load(root, "safe/trace.atif.json")
-    if not isinstance(candidate, dict) or not isinstance(trace, dict):
-        raise ConstructionError("candidate and trace must be JSON objects")
+    if not isinstance(candidate, dict):
+        raise ConstructionError("candidate must be a JSON object")
+    try:
+        trace = TraceIndex(parse_trace(trace_bytes))
+    except TraceSourceError as error:
+        raise ConstructionError(str(error)) from error
     review(manifest["review"])
     requirements = manifest["requirements"]
     require(isinstance(requirements, list) and 1 <= len(requirements) <= 256, "construction needs requirements")

@@ -38,7 +38,7 @@ not-for:
   - eval-author-audit (use to generate, validate, measure, or aggregate audit.md coverage)
   - eval-author-task-create (use to propose dataset improvements; when task creation is requested, create and prove an eligible Gym or Harbor task)
   - eval-author-inspect-trace (use after this skill selects the trace sub-flow)
-  - eval-author-trace-environment (experimental; use to derive a Harbor or native Gym task from canonical ATIF evidence)
+  - eval-author-trace-environment (experimental; use to derive a Harbor or native Gym task from a recorded trace loaded through NeMo Compass)
   - eval-author-environment (use after an authoring sub-flow hands over its cases to build and prove their task environment)
   - nemo-intake (use to instrument agents, ingest telemetry, or query Intake outside Eval Author)
   - nemo-experimentalist (use to run insight-driven optimization end to end, which drives the Eval Author agent itself)
@@ -236,7 +236,7 @@ The authority depends on the sub-flow:
   real-agent runs close the selected gap; reference controls do not measure agent ability.
 - For trace inspection, Intake establishes what happened. Local source code can
   explain behavior, but it can't replace recorded trace evidence.
-- For experimental trace-derived environments, canonical ATIF establishes the request.
+- For experimental trace-derived environments, the safe Compass trace establishes the request.
   Harbor's NOP and Oracle runs or Gym's native validation and repeated controls
   establish the generated task's behavior within the reported proof limits.
 
@@ -276,7 +276,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 | `eval-author-audit` | Generate and validate a finite `audit.md` coverage denominator, measure and aggregate trace coverage, and report findings |
 | `eval-author-task-create` | Propose concrete dataset improvements from audit findings; when task creation is requested, create one eligible Gym or Harbor task and prove it with native controls and repeated measured runs |
 | `eval-author-inspect-trace` | Understand one Intake trace without presuming that the trace contains a failure. Not user-invocable; this skill selects it |
-| `eval-author-trace-environment` | **Experimental.** Prepare one ATIF trace, make a privacy-reviewed candidate decision, and build a private Harbor or native Gym task when evidence supports it |
+| `eval-author-trace-environment` | **Experimental.** Prepare one recorded trace through NeMo Compass, make a privacy-reviewed candidate decision, and build a private Harbor or native Gym task when evidence supports it |
 | `eval-author-environment` | Build and prove the environment a Harbor or Gym task runs in: provider fit, how each dependency is provided, starting data and reset, end-state export, and isolation. Not user-invocable; first-eval and task-create hand it their agreed cases |
 
 `eval-author-audit` works one level above tasks: it generates and validates the
