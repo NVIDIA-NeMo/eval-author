@@ -60,7 +60,7 @@
   "measured_kinds": [
     "tool"
   ],
-  "schema": "nemo.eval_author.audit_coverage_report.v1",
+  "schema": "nemo.eval_author.audit_coverage_report.v2",
   "uncovered": [
     "list_items"
   ],

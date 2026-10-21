@@ -13,7 +13,6 @@ dependencies = ["jsonschema>=4.23", "markdown-it-py>=4,<5", "referencing>=0.28.4
 [project.optional-dependencies]
 # Workflow requirements are optional for skill users and included in license scans.
 audit = ["nemo-compass[mlflow]==0.2.0", "pyyaml>=6.0", "pydantic>=2"]
-mlflow = ["mlflow-skinny>=3.6,<4"]
 trace-loaders = [
   "nemo-compass[mlflow]==0.2.0",
 ]

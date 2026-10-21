@@ -54,8 +54,9 @@ your agent's purpose, boundaries, and success criteria. Install the
 
 The discovery helper requires Python 3.11+. Audit generation, validation, and
 aggregation require Python 3.11+, PyYAML, and jsonschema. Measuring coverage from
-ATIF traces requires Python 3.12+ and the
-[audit dependencies](skills/eval-author-audit/requirements.txt), including Harbor.
+ATIF, MLflow, Gym, or normalized Compass traces requires Python 3.12–3.13 and the
+[audit dependencies](skills/eval-author-audit/requirements.txt) (`nemo-compass` 0.2.0);
+Harbor is not needed.
 
 Task execution may need Docker, application access, and model credentials,
 depending on the task and agent. See the

@@ -3615,6 +3615,25 @@ def test_audit_measure_rejects_unloadable_trace_without_writing(tmp_path: Path) 
 
 
 @_needs_harbor
+def test_audit_measure_rejects_trace_changed_while_loading(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    measure_module = _import_audit_measure(monkeypatch)
+    trace = tmp_path / "trajectory.json"
+    _write_atif_trace(trace, tool_calls=["customer.lookup"])
+    monkeypatch.syspath_prepend(str(_SKILLS_DIR / "eval-author/scripts"))
+    trace_loading = importlib.import_module("trace_loading")
+    load_traces = trace_loading.load_traces
+
+    def load_then_change(path: Path, *args: Any, **kwargs: Any) -> Any:
+        loaded = load_traces(path, *args, **kwargs)
+        path.write_bytes(path.read_bytes() + b"\n")
+        return loaded
+
+    monkeypatch.setattr(trace_loading, "load_traces", load_then_change)
+    with pytest.raises(measure_module.AuditTraceError, match="changed while it was being loaded"):
+        measure_module._load_trace(trace, "atif")
+
+
+@_needs_harbor
 def test_audit_measure_rejects_unknown_measurement_method_before_trace_load(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path)
     out_dir = tmp_path / ".eval-author" / "audit-measurements"

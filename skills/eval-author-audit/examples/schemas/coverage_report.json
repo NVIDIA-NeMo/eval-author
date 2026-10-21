@@ -1,5 +1,5 @@
 {
-  "schema": "nemo.eval_author.audit_coverage_report.v1",
+  "schema": "nemo.eval_author.audit_coverage_report.v2",
   "audit": {
     "path": ".eval-author/audit.md",
     "schema": "nemo.eval_author.audit.v1",

@@ -386,12 +386,15 @@ def _load_trace(path: Path, source_kind: str) -> LoadedTrace:
         ) from exc
     try:
         raw = path.read_bytes()
+        traces = trace_loading.load_traces(path, source_kind, max_traces=1)
+        # The loader reads the file itself; a matching reread binds the digest to what it loaded.
+        unchanged = path.read_bytes() == raw
     except OSError as exc:
         raise AuditTraceError(f"could not read trace at {path}: {exc}") from exc
-    try:
-        traces = trace_loading.load_traces(path, source_kind, max_traces=1)
-    except (OSError, ValueError) as exc:
+    except ValueError as exc:
         raise AuditTraceError(f"{path} is not a loadable {source_kind} trace: {exc}") from exc
+    if not unchanged:
+        raise AuditTraceError(f"{path} changed while it was being loaded")
     if len(traces) != 1:
         raise AuditTraceError("trace file must contain exactly one trace")
     return LoadedTrace(trace=traces[0], content_sha256=hashlib.sha256(raw).hexdigest())

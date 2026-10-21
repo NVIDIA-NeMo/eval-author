@@ -190,6 +190,20 @@ def test_command_is_private_idempotent_and_does_not_change_summary(tmp_path):
     assert report.read_text() == "{}"
 
 
+def test_prepare_takes_only_atif_but_recorded_source_kinds_still_load(tmp_path):
+    root = workspace(tmp_path)
+    source = tmp_path / "source.json"
+    code, created = cli("init", "--root", tmp_path / ".eval-author/work", "--task-id", "gym-case")
+    assert code == 0, created
+    code, refused = cli("prepare", "--task-dir", created["task_dir"], "--atif", source, "--source-kind", "gym")
+    assert code == 1 and "--source-kind must be 'atif'" in refused["error"]
+    # Workspaces prepared before the ATIF-only limit recorded their provider kind.
+    summary = json.loads((root / "summary.json").read_text())
+    summary["source"]["kind"] = "gym"
+    (root / "summary.json").write_text(json.dumps(summary))
+    assert cli("audit-evidence", "--task-dir", root)[0] == 0
+
+
 @pytest.mark.parametrize("kind", ["source_changed", "private_symlink", "report_symlink"])
 def test_command_rejects_changed_source_and_linked_output(tmp_path, kind):
     root = workspace(tmp_path)

@@ -67,8 +67,32 @@ def mlflow_record():
     return json.loads(MLFLOW_FIXTURE.read_text())
 
 
-def intake_files(directory: Path) -> tuple[Path, Path]:
-    """Write CLI-shaped `nemo intake traces get` / `spans list` JSON for one trace."""
+def page(records: list[dict], total: int | None = None) -> dict:
+    """One merged `--all-pages` CLI page."""
+    count = len(records)
+    return {
+        "data": records,
+        "pagination": {"current_page_size": count, "total_results": count if total is None else total},
+    }
+
+
+def evaluator_result(**values) -> dict:
+    return {
+        "evaluator_result_id": "er-1",
+        "span_id": "s1",
+        "session_id": "session-1",
+        "workspace": "fixture-ws",
+        "name": "correctness",
+        "value": 1.0,
+        "data_type": "NUMERIC",
+        "created_at": "2026-09-01T00:00:04Z",
+        "ingested_at": "2026-09-01T00:00:05Z",
+        **values,
+    }
+
+
+def intake_files(directory: Path, spans_total: int | None = None) -> tuple[Path, Path]:
+    """Write CLI-shaped `nemo intake traces get` / `spans list --all-pages` JSON for one trace."""
     common = {"session_id": "session-1", "workspace": "fixture-ws", "trace_id": "intake-1"}
     trace = {
         "id": "intake-1",
@@ -113,7 +137,7 @@ def intake_files(directory: Path) -> tuple[Path, Path]:
     trace_path = directory / "intake-trace.json"
     spans_path = directory / "intake-spans.json"
     trace_path.write_text(json.dumps({"data": [trace]}))
-    spans_path.write_text(json.dumps({"data": spans}))
+    spans_path.write_text(json.dumps(page(spans, spans_total)))
     return trace_path, spans_path
 
 
@@ -132,7 +156,9 @@ def sources(kind, directory: Path) -> list[str | Path]:
         rollouts.write_text('{"unrelated":"private"}\n' + json.dumps(gym_record()) + "\n")
         return ["--input", rollouts, "--row", "2"]
     trace, spans = intake_files(directory)
-    return ["--input", trace, "--spans", spans, "--workspace", "fixture-ws"]
+    results = directory / "intake-evaluator-results.json"
+    results.write_text(json.dumps(page([evaluator_result()])))
+    return ["--input", trace, "--spans", spans, "--evaluator-results", results, "--workspace", "fixture-ws"]
 
 
 def normalized(output: Path) -> list[dict]:
@@ -158,12 +184,12 @@ def test_each_kind_loads_with_private_outputs_and_receipt_digests(kind, trace_id
 
     receipt = json.loads((output / "loading.json").read_text())
     copies = {name: output / name for name in receipt["source_sha256"]}
-    inputs = [Path(args[1])] + ([Path(args[3])] if kind == "intake" else [])
+    inputs = [Path(args[1])] + ([Path(args[3]), Path(args[5])] if kind == "intake" else [])
     assert [path.read_bytes() for path in copies.values()] == [path.read_bytes() for path in inputs]
     for name, path in copies.items():
         assert receipt["source_sha256"][name] == "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
     expected_names = (
-        ["source.intake-trace.json", "source.intake-spans.json"]
+        ["source.intake-trace.json", "source.intake-spans.json", "source.intake-evaluator-results.json"]
         if kind == "intake"
         else [f"source.{kind}{Path(args[1]).suffix}"]
     )
@@ -179,7 +205,53 @@ def test_each_kind_loads_with_private_outputs_and_receipt_digests(kind, trace_id
         "normalized_sha256": "sha256:" + digest,
         "trace_count": 1,
         "max_traces": 1000,
+        "row": 2 if kind == "gym" else None,
+        "workspace": "fixture-ws" if kind == "intake" else None,
     }
+
+
+def test_intake_evaluator_results_load_from_the_private_copy(tmp_path):
+    output = tmp_path / "loaded"
+    assert invoke("--source-kind", "intake", *sources("intake", tmp_path), "--output-dir", output).returncode == 0
+    [trace] = normalized(output)
+    assert trace["evaluator_results"]["correctness"]["value"] == 1.0
+
+
+def test_intake_spans_export_without_all_pages_is_rejected(loading, tmp_path):
+    trace, spans = intake_files(tmp_path, spans_total=3)
+    from trace_ingest.loaders.intake import IntakeLoadError
+
+    with pytest.raises(IntakeLoadError, match="export with --all-pages"):
+        loading.load_traces(trace, "intake", spans=spans, workspace="fixture-ws")
+    output = tmp_path / "loaded"
+    result = invoke(
+        "--source-kind",
+        "intake",
+        "--input",
+        trace,
+        "--spans",
+        spans,
+        "--workspace",
+        "fixture-ws",
+        "--output-dir",
+        output,
+    )
+    assert result.returncode == 2
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("flag", ["spans", "evaluator_results"])
+def test_intake_only_flags_are_rejected_for_other_kinds(loading, flag, tmp_path):
+    extra = tmp_path / "extra.json"
+    extra.write_text(json.dumps(page([])))
+    with pytest.raises(loading.TraceLoadError, match="apply only to intake sources"):
+        loading.load_traces(ATIF_FIXTURE, "atif", **{flag: extra})
+    output = tmp_path / "loaded"
+    option = "--" + flag.replace("_", "-")
+    assert (
+        invoke("--source-kind", "atif", "--input", ATIF_FIXTURE, option, extra, "--output-dir", output).returncode == 2
+    )
+    assert not output.exists()
 
 
 def test_gym_row_selects_one_record_and_keeps_missing_results(tmp_path):
@@ -187,6 +259,8 @@ def test_gym_row_selects_one_record_and_keeps_missing_results(tmp_path):
     assert invoke("--source-kind", "gym", *sources("gym", tmp_path), "--output-dir", output).returncode == 0
     [trace] = normalized(output)
     assert trace["attributes"]["gym"] == gym_record()
+    # The trace cites the selected line of the retained copy, not a staging file.
+    assert trace["source_url"] == (output / "source.gym.jsonl").resolve().as_uri() + "#L2"
     assert trace["evaluator_results"] == {"gym.reward": 0}
     spans = trace["root_spans"][0]["children"]
     llm = next(span for span in spans if span["kind"] == "LLM")

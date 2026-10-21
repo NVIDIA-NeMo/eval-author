@@ -23,8 +23,8 @@
       "path": "skills/eval-author-audit/evals/files/.eval-author/coverage.json",
       "source_path": "fixture_inputs/harness-consistency/audited-suite/.eval-author/coverage.json",
       "source_sha256": "31c35e2be0f8ce09e8ec17a8148855e00c2cb8aad9e9048d2784dec9ceabadc5",
-      "sha256": "31c35e2be0f8ce09e8ec17a8148855e00c2cb8aad9e9048d2784dec9ceabadc5",
-      "transformation": "none; byte-for-byte copy"
+      "sha256": "2858eafe2c5bd9b651c5f32ce6e76b6d55b5812b18ffeeed7b7518ed2ade1d43",
+      "transformation": "Migrate to the Compass-trace coverage report: subject trace_format nemo-compass-trace with source_kind atif, and report schema nemo.eval_author.audit_coverage_report.v2."
     },
     {
       "path": "skills/eval-author-discover/evals/files/repo/suite.yaml",

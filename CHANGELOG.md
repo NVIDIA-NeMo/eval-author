@@ -13,13 +13,20 @@ preview: workflows, skills, and saved artifacts may change between releases.
 - **ATIF converters.** The `gym-to-atif` and `mlflow-to-atif` skills and
   `trace_loading.py --emit-atif` are gone; Eval Author loads every trace into a
   NeMo Compass `Trace` and never writes ATIF. The trace loading receipt is now
-  `nemo.eval_author.trace_load.v2`, without `atif_emitted` or `atif`. See
-  [Load local traces](docs/traces.md#load-local-traces).
+  `nemo.eval_author.trace_load.v2`, without `atif_emitted` or `atif`, and records
+  the Gym `row` and Intake `workspace`. The unused `mlflow` optional extra is
+  removed. See [Load local traces](docs/traces.md#load-local-traces).
 
 ### Changed
 
 - **Trace-derived environments read ATIF only for now.** `prepare` and batch
-  manifests accept `source_kind: atif` until the workflow reads Compass Traces.
+  manifests accept `source_kind: atif` until the workflow reads Compass Traces;
+  workspaces already prepared from another source kind keep loading.
+- **Audit coverage reports** are now `nemo.eval_author.audit_coverage_report.v2`:
+  their subjects read Compass traces (`trace_format: nemo-compass-trace`) and
+  record `source_kind`.
+- **Intake loading** takes `--evaluator-results` with the
+  `nemo intake evaluator-results list` export, so loaded traces keep Intake scores.
 - **Gym closure evidence** binds the selected rollout through the
   `trace_load.v2` receipt and its normalized trace instead of a Gym-to-ATIF
   conversion receipt. See

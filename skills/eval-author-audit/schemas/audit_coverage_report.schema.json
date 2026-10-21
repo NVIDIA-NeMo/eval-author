@@ -19,7 +19,7 @@
   "properties": {
     "schema": {
       "description": "Version marker for the aggregate audit coverage report format.",
-      "const": "nemo.eval_author.audit_coverage_report.v1"
+      "const": "nemo.eval_author.audit_coverage_report.v2"
     },
     "audit": {
       "description": "Audit spec metadata for the denominator used by this aggregate report.",

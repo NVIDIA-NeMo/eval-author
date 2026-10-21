@@ -219,8 +219,10 @@ _PRIVATE_KEY_BYTES = re.compile(rb"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
 _BEARER_BYTES = re.compile(rb"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}")
 _CREDENTIALED_URL_BYTES = re.compile(rb"(?i)https?://[^\s/:@]+:[^\s/@]+@")
 _BATCH_MEMBER_KEYS = frozenset({"task_id", "atif", "source_kind"})
-# Until trace-environment reads Compass Traces, prepare accepts ATIF only.
+# Until trace-environment reads Compass Traces, prepare accepts ATIF only. Summaries
+# recorded before that limit keep loading with the kind they recorded.
 _PREPARE_SOURCE_KINDS = ("atif",)
+_RECORDED_SOURCE_KINDS = ("atif", "intake", "mlflow", "otel", "gym")
 _MIN_VALIDATION_RUNS = {"nop": 2, "oracle": 2, "negative": 1, "copy": 0}
 
 
@@ -327,7 +329,7 @@ def _load_summary(task_dir: Path) -> dict[str, Any]:
     if source is not None and (
         not isinstance(source, dict)
         or set(source) != _SOURCE_KEYS
-        or source.get("kind") not in _PREPARE_SOURCE_KINDS
+        or source.get("kind") not in _RECORDED_SOURCE_KINDS
         or source.get("original_path") != "private/source.atif.json"
         or source.get("canonical_path") != "private/canonical.atif.json"
         or source.get("safe_path") != "safe/trace.atif.json"

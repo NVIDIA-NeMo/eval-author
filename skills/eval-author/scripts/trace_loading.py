@@ -62,6 +62,7 @@ def load_traces(
     *,
     max_traces: int = 1000,
     spans: Path | None = None,
+    evaluator_results: Path | None = None,
     workspace: str | None = None,
     row: int | None = None,
 ) -> list[Trace]:
@@ -71,8 +72,8 @@ def load_traces(
         raise TraceLoadError(f"unsupported source kind {source_kind!r}")
     if max_traces < 1:
         raise TraceLoadError("max_traces must be at least 1")
-    if source_kind != "intake" and (spans is not None or workspace is not None):
-        raise TraceLoadError("--spans and --workspace apply only to intake sources")
+    if source_kind != "intake" and (spans is not None or evaluator_results is not None or workspace is not None):
+        raise TraceLoadError("--spans, --evaluator-results and --workspace apply only to intake sources")
     if source_kind != "gym" and row is not None:
         raise TraceLoadError("--row applies only to gym sources")
     check_installation()
@@ -89,7 +90,9 @@ def load_traces(
             raise TraceLoadError("intake sources require spans and workspace")
         from trace_ingest.loaders.intake import IntakeFileTraceConfig, IntakeFileTraceLoader
 
-        config = IntakeFileTraceConfig(trace_path=source, spans_path=spans, workspace=workspace)
+        config = IntakeFileTraceConfig(
+            trace_path=source, spans_path=spans, evaluator_results_path=evaluator_results, workspace=workspace
+        )
         traces = list(IntakeFileTraceLoader(config).load())
     else:
         from trace_ingest.loaders.fs import FSDataLoader
@@ -117,6 +120,7 @@ def _load_mlflow(source: Path, max_traces: int) -> list[Trace]:
 
 def _load_gym(source: Path, row: int | None) -> list[Trace]:
     from trace_ingest.loaders.gym import GymTraceConfig, GymTraceLoader
+    from trace_ingest.source_links import file_source_url
 
     if source.suffix.lower() == ".json":
         if row is not None:
@@ -128,7 +132,11 @@ def _load_gym(source: Path, row: int | None) -> list[Trace]:
     with tempfile.TemporaryDirectory() as staging:
         selected = Path(staging) / "record.json"
         selected.write_bytes(record)
-        return list(GymTraceLoader(GymTraceConfig(path=selected, format="json")).load())
+        traces = list(GymTraceLoader(GymTraceConfig(path=selected, format="json")).load())
+    # Cite the selected line of the source, not the staging file deleted above.
+    for trace in traces:
+        trace.source_url = file_source_url(source, row)
+    return traces
 
 
 def gym_record(source: Path, row: int) -> bytes:
@@ -171,6 +179,8 @@ def write_load(args: argparse.Namespace) -> dict[str, Any]:
         sources = [("source.intake-trace.json", args.input)]
         if args.spans is not None:
             sources.append(("source.intake-spans.json", args.spans))
+        if args.evaluator_results is not None:
+            sources.append(("source.intake-evaluator-results.json", args.evaluator_results))
     copies = [(name, path.read_bytes()) for name, path in sources]
     output: Path = args.output_dir
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
@@ -179,11 +189,14 @@ def write_load(args: argparse.Namespace) -> dict[str, Any]:
         for name, data in copies:
             _write_private(output / name, data)
         copied = {name: output / name for name, _ in copies}
+        intake = kind == "intake"
         traces = load_traces(
             copied[sources[0][0]],
             kind,
             max_traces=args.max_traces,
-            spans=copied.get("source.intake-spans.json"),
+            # Other kinds pass the arguments through so load_traces rejects them.
+            spans=copied.get("source.intake-spans.json") if intake else args.spans,
+            evaluator_results=copied.get("source.intake-evaluator-results.json") if intake else args.evaluator_results,
             workspace=args.workspace,
             row=args.row,
         )
@@ -199,6 +212,8 @@ def write_load(args: argparse.Namespace) -> dict[str, Any]:
             "normalized_sha256": _sha256(normalized),
             "trace_count": len(traces),
             "max_traces": args.max_traces,
+            "row": args.row,
+            "workspace": args.workspace,
         }
         _write_private(output / "loading.json", _json_bytes(receipt))
         return receipt
@@ -212,6 +227,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-kind", required=True, choices=SOURCE_KINDS)
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--spans", type=Path, help="Intake spans JSON from `nemo intake spans list`")
+    parser.add_argument(
+        "--evaluator-results", type=Path, help="Intake evaluator results JSON from `nemo intake evaluator-results list`"
+    )
     parser.add_argument("--workspace", help="Intake workspace that owns the trace")
     parser.add_argument("--row", type=int, help="One-based physical JSONL line, required for Gym JSONL")
     parser.add_argument("--max-traces", type=int, default=1000, help="Reject larger sources instead of truncating")
