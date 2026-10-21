@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_revision": "ASE-1195-shared-entry",
+  "source_revision": "8d91ad5fc77562ca6f8a8905038b919a85406e2e",
   "sources": [
     "skills/eval-author/SKILL.md#choose-the-entry-route",
     "tests/scenarios/entry-routing.md",

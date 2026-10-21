@@ -8,7 +8,6 @@ their recorded trials. Better logging and README links can make those views
 discoverable, but do not provide readable review of native Gym JSONL or standalone
 source traces. Reuse Harbor and scope additional rendering to those gaps.
 
-This assessment supports [ASE-1029](https://linear.app/nvidia/issue/ASE-1029/improve-visibility-and-review-of-generated-test-cases).
 The native-runtime findings below describe the assessment before the additional
 reader. The bundled [local reader](../skills/eval-author/references/local-review.md)
 now covers selected Gym JSONL and standalone ATIF without a server or model
@@ -98,7 +97,7 @@ Report only the status supported by retained evidence.
 
 ## Acceptance criteria assessment
 
-| ASE-1029 criterion | Assessment |
+| Review criterion | Assessment |
 | --- | --- |
 | Cases and associated traces are discoverable without a follow-up question | The README handoff can address this. Its behavior still needs authoring-workflow validation; native viewers do not create the handoff automatically. |
 | Cases and traces are readable without manually formatting JSONL | Harbor supports its native artifacts. The bundled reader presents selected Gym records and standalone ATIF, with missing, malformed, and unsupported evidence identified. |

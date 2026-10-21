@@ -3,10 +3,10 @@
 
 # Creation guidance conversational acceptance scenarios
 
-Use this manual protocol to review ASE-1027 and ASE-1031 behavior. It is not an automated
-harness, an execution record, or a claim of passing evaluation. Use isolated
-synthetic workspaces with the sibling skills available, without customer data,
-production services, provider credentials, or paid model calls. Retain reply
+Use this manual protocol to review evaluation creation and source selection.
+It is not an automated harness, an execution record, or a claim of passing
+evaluation. Use isolated synthetic workspaces with the sibling skills available,
+without customer data, production services, provider credentials, or paid model calls. Retain reply
 channels, user answers, tool and delegation logs, and resulting artifacts. Check
 what the agent did, not only what its final answer says.
 
