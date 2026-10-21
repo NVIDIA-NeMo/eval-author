@@ -130,3 +130,65 @@ clip values or exclude correlation pairs. Incomplete required pairs make
 the subset unavailable. `attempt_policy: latest` selects by attempt number,
 never by reward. Repetitions require a future explicit aggregation policy.
 The prepared subset manifest is unchanged when the experiment run ID changes.
+
+## Compute coverage
+
+```bash
+uv run python labs/metric-benchmark/compute_coverage.py \
+  --results execution-results/results.json --subsets subsets.json \
+  --selection selection.json --config coverage-config.json \
+  --case-description description.json --record-root execution-results \
+  --work-root coverage-evidence --output coverage-scores.json
+```
+
+Library: `invoke_coverage(raw, subsets, selection, coverage_config, description,
+results_root, work_root, cached_only=False)`.
+Each invocation stages the subset's baseline evidence and case description,
+then calls the configured command with `--request request.json --output
+response.json`. Responses contain `value` (finite number), or `value: null` and
+`reason`. The request does not include mutant evidence or outcomes. The command
+is trusted and runs on the host; staging is not a sandbox.
+
+Completed subset requests have file-digest receipts. Resume verifies those files
+and inputs before reuse. `--cached-only` prohibits new invocations. A command
+failure preserves its private diagnostic workspace without a completion receipt.
+On POSIX, timeout cancellation kills the command's process group, including its
+children. Keep all run directories private and outside Git.
+
+### Eval Author adapter
+
+Set `coverage.command` to absolute paths for the Python interpreter and
+`labs/metric-benchmark/eval_author_coverage.py`. Its `settings` contain:
+
+- `eval_author_root`: the absolute Eval Author checkout path;
+- `source_sha256`: `metric_benchmark.eval_author.source_digest(root)`, pinning
+  the audit Python implementation and JSON schemas;
+- `author_command`: the absolute executable and arguments that invoke the
+  system under evaluation's authoring procedure;
+- optional `methods` (default `tool_calls`, `capabilities`, `failure_cases`) and
+  `score_scope` (`overall`, `tool`, `capability`, or `failure_case`).
+
+The author command receives `--request request.json --output-dir authored` and
+produces `authored/audit.md` plus `authored/judgments.json`. The latter maps task
+IDs to optional `capability_judgments` and `failure_case_judgments` file paths,
+relative to `authored/`; use `{}` for purely deterministic tool-call evidence.
+This is the adapter boundary for running a skill or another authoring tool.
+Authoring and semantic judgments can involve a model. They are observations of
+the evaluated system, not instructions for an experiment operator to interpret.
+The benchmark does not accept precomputed coverage as an input.
+
+The adapter invokes Eval Author's actual `measure.py` on every baseline ATIF
+trace and `report.py` on the resulting coverage artifacts. It preserves the audit,
+judgments, measurements and report. The numeric score is covered items divided
+by denominator items for the configured scope. Missing semantic judgments,
+unmeasured denominator kinds and an empty denominator yield unavailable scores.
+Invalid/stale judgment sidecars fail native validation. Legacy non-ATIF traces
+need an explicit conversion before ingestion; the adapter does not reinterpret
+or repair traces. Native directories are required by this adapter.
+
+Native Eval Author reports retain their evidence bindings, including absolute
+workspace paths. Recomputing coverage from the same authored inputs preserves
+scores, but native report bytes and their receipt hashes can differ between
+workspaces. Cached replay preserves the exact saved artifacts. The adapter gives
+each task a stable measurement run ID so multi-task subsets satisfy Eval Author's
+distinct-evidence validation.
