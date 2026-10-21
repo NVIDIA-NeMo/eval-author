@@ -370,8 +370,9 @@ no Ethos file. Trace location is unknown in both variants.
 in `docs/agent.md` and the existing cases are in `evals/cases.jsonl`.” In the
 accepted-Ethos variant, add: “The existing `ETHOS.md` was already reviewed.”
 
-**Inspect the first reply:** Show only the fixed welcome and audit checklist, then
-end the turn. No repository or saved-state reads or prerequisite checks occur.
+**Inspect the first reply:** Show only the fixed welcome, audit checklist, and
+“Ready to get started?”, then end the turn. No repository or saved-state reads
+or prerequisite checks occur.
 
 **Continue:** After the user continues, agent inspection is bounded to the named
 documents and shared state. No runtime probes or trace searches occur.

@@ -22,8 +22,9 @@ repositories. The first orientation has the same three checklist items: confirm
 the agent/setup, confirm Ethos, then the selected build/audit/improve item. If the
 goal is unknown, ask whether to create, audit, or improve; explicit inventory
 remains a scoped option.
-The first turn contains only the fixed welcome and exact checklist for a known
-goal, or the fixed welcome, goal question, and three choices for an unknown goal.
+The first turn contains only the fixed welcome, exact checklist, and “Ready to
+get started?” for a known goal, or the fixed welcome, goal question, and three
+choices for an unknown goal.
 It ends there, even when repository or Ethos paths are supplied. Inspect the
 tool trace: only the invoked skill and shared core may be loaded before this
 reply. Repository/state reads, Ethos validation, prerequisite checks or questions,

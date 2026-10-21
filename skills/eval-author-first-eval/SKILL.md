@@ -1,8 +1,8 @@
 ---
 name: eval-author-first-eval
 description: >-
-  For a fresh start, read eval-author, show its welcome and checklist, and end
-  the turn before repository inspection or prerequisite work.
+  For a fresh start, read eval-author, show its welcome, checklist, and call to
+  action, and end the turn before repository inspection or prerequisite work.
   Establish a required Ethos, plan evaluation cases, and build first evals or
   expand a starter Gym or Harbor suite while explaining
   its parts. No prior traces or coverage reports are required. Missing selected

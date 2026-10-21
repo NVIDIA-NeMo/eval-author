@@ -1,8 +1,8 @@
 ---
 name: eval-author-audit
 description: >-
-  For a fresh full audit, read eval-author, show its welcome and checklist, and
-  end the turn before repository inspection or prerequisite work.
+  For a fresh full audit, read eval-author, show its welcome, checklist, and call
+  to action, and end the turn before repository inspection or prerequisite work.
   Guide coverage audits with milestone check-ins and user-confirmed eval and trace sources.
   Generate, validate, measure, and report on an audit-spec coverage denominator
   for Eval Author. Use when the user wants a hand-editable audit.md file derived
@@ -52,8 +52,9 @@ the findings with the user. It does not generate tasks yet.
 ## Start a guided audit
 
 A full audit enters the core's shared prerequisite flow, including direct
-invocation. For a fresh audit, show only its fixed welcome and three-item checklist
-with **Check what your existing evaluations cover** selected, then end the turn.
+invocation. For a fresh audit, show only its fixed welcome, three-item checklist
+with **Check what your existing evaluations cover** selected, and call to action,
+then end the turn.
 Read only this skill and the core before that response; repository inspection,
 Ethos validation, prerequisite questions, and state writes wait until the user
 continues. Reuse confirmed agent, prerequisites, and Ethos on continuation.

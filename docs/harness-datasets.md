@@ -46,10 +46,10 @@ configuration. No real Intake source is supplied, so these cases cannot prove
 successful service access or trace inspection. Supplied error receipts are
 constructed checkpoint inputs, not observed runtime results.
 
-The entry cases check an opening-only first turn: the fixed welcome and selected
-checklist must appear in the final reply before any repository work. Supplied
-agent documentation and Ethos files remain unread. Only the entry skill and
-shared core may be loaded; prerequisite questions, validation, state writes,
+The entry cases check an opening-only first turn: the fixed welcome, selected
+checklist, and “Ready to get started?” must appear in the final reply before any
+repository work. Supplied agent documentation and Ethos files remain unread. Only
+the entry skill and shared core may be loaded; prerequisite questions, validation, state writes,
 and Ethos delegation wait for the next user turn. These cases do not test
 prerequisite completion, Ethos handoff, or saved-state persistence.
 
