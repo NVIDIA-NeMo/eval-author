@@ -108,7 +108,7 @@ def test_scope_broadening_is_rejected(case, action):
         ("continue-shared-entry", 0),
     ],
 )
-@pytest.mark.parametrize("action", ["read_repository", "validate", "delegate", "write_artifact"])
+@pytest.mark.parametrize("action", ["read_repository", "runtime_probe", "validate", "delegate", "write_artifact"])
 def test_shared_opening_rejects_prerequisite_work(case, turn, action):
     evidence, raw = capture(case)
     writes = [".eval-author/.working/journey-state.json"] if action == "write_artifact" else []
@@ -122,7 +122,7 @@ def test_shared_opening_rejects_prerequisite_work(case, turn, action):
 
 def test_shared_setup_work_is_allowed_after_opening():
     evidence, raw = capture("continue-shared-entry")
-    for action in ("read_repository", "validate", "write_artifact"):
+    for action in ("read_repository", "runtime_probe", "validate", "write_artifact"):
         writes = [".eval-author/.working/journey-state.json"] if action == "write_artifact" else []
         raw = add_call(evidence, raw, action=action, writes=writes, turn=1)
     evidence["turns"][1]["after"]["entries"] = {
@@ -137,6 +137,14 @@ def test_shared_setup_work_is_allowed_after_opening():
     report = scope.check(CONTRACTS, evidence, raw)
     assert report["status"] == "pass"
     assert report["host_acceptance"] == "not_measured"
+
+
+@pytest.mark.parametrize("action", ["install", "execute", "read_trace", "scaffold"])
+def test_prerequisite_inspection_does_not_authorize_downstream_work(action):
+    evidence, raw = capture("continue-shared-entry")
+    raw = add_call(evidence, raw, action=action, turn=1)
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert f"turn[1]: forbidden action {action}" in report["violations"]
 
 
 def test_transient_write_is_rejected_even_if_snapshots_match():

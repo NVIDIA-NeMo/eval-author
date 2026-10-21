@@ -2052,7 +2052,8 @@ def test_shared_prerequisites_replace_duplicate_onboarding() -> None:
     assert "An expansion request does not imply an audit" in core
     assert ".eval-author/.working/journey-state.json" in reference
     assert "sole authority" in reference
-    assert "does not run the runtime locator" in reference
+    assert "runtime-prerequisites.md#runtime-prerequisite-checks" in reference
+    assert "--flow authoring" in reference
     for skill_dir in (_FIRST_EVAL_DIR, _AUDIT_DIR):
         _, body = _frontmatter_and_body(skill_dir)
         assert "shared prerequisite flow" in body

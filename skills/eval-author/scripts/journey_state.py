@@ -2,11 +2,12 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Persist shared prerequisite decisions; never probe runtimes, infer approval, or write ETHOS.md.
+"""Persist shared prerequisite evidence; never probe runtimes, infer approval, or write ETHOS.md.
 
-The assistant records user answers with provenance. These records are not proof
-that a runtime works or an evaluation passed. Show is read-only, including when
-it discovers that a previously reviewed Ethos has changed.
+The assistant records observed checks as verified and user answers as confirmed,
+each with its source. Runtime availability does not establish that an evaluation
+passed, and user confirmation is not runtime evidence. Show is read-only,
+including when it discovers that a previously reviewed Ethos has changed.
 """
 
 from __future__ import annotations
@@ -126,6 +127,7 @@ def validate(state: dict) -> None:
         if key not in PREREQUISITES | DEFERRED or not isinstance(answer, dict):
             raise ValueError(f"Unknown prerequisite: {key}")
         if set(answer) != {"status", "source"} or answer["status"] not in {
+            "verified",
             "confirmed",
             "missing",
             "unknown",
@@ -313,7 +315,8 @@ def checklist(state: dict) -> list[dict]:
     setup_done = (
         bool(state["agent"] and state["setup"])
         and all(
-            state["prerequisites"].get(key, {}).get("status") in ("confirmed", "not_required") for key in PREREQUISITES
+            state["prerequisites"].get(key, {}).get("status") in ("verified", "confirmed", "not_required")
+            for key in PREREQUISITES
         )
         and "setup" not in blocked
     )
@@ -511,7 +514,7 @@ def main() -> int:
     init.add_argument("--journey", choices=JOURNEYS)
     init.add_argument("--setup", choices=("gym", "harbor"))
     commands.add_parser("show", help="Read state and derive checklist without writing")
-    patch = commands.add_parser("update", help="Apply explicit answers from a JSON mapping")
+    patch = commands.add_parser("update", help="Apply observed checks and user answers from a JSON mapping")
     patch.add_argument("--input", type=Path, required=True)
     patch.add_argument("--expected-revision", type=int)
     confirm = commands.add_parser("confirm-ethos", help="Record explicit review of exact saved bytes")

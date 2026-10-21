@@ -297,14 +297,15 @@
       },
       {
         "prompts": [
-          "Continue with setup. You may read the supplied agent README.md and save our setup answers.",
-          "Go ahead with the setup step using the supplied agent documentation and record our answers."
+          "Continue with setup. You may inspect the prerequisites, read the supplied agent README.md, and save the findings.",
+          "Go ahead and check the prerequisites using the supplied agent documentation and record what you find."
         ],
         "context": "The previous turn showed only the shared welcome, creation checklist, and Ready to get started? call to action. The user now requests setup work; prerequisite and Ethos decisions remain unconfirmed.",
         "flow": "eval-author-first-eval",
         "allowed_actions": [
           "read_skill",
           "read_repository",
+          "runtime_probe",
           "validate",
           "write_artifact",
           "delegate"

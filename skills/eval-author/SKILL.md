@@ -88,8 +88,10 @@ Before this response, read only the entry skill and this core skill as needed.
 Do not inspect repository files or saved state, validate Ethos, check prerequisites,
 run helper commands, write files, or delegate work. This also applies to direct
 first-eval and full-audit invocations. Prerequisite questions and findings belong
-to later turns. After the user continues, begin the shared prerequisite flow;
-if they selected a previously unknown goal, show its checklist before that work.
+to later turns. After the user continues, show the prerequisite table from the
+shared procedure, then inspect the accessible prerequisites before asking about
+anything unresolved. If they selected a previously unknown goal, show its checklist
+before that work.
 Continuations and goal switches within an existing shared flow reuse progress
 rather than repeating this pause.
 
@@ -146,7 +148,7 @@ Record user-confirmed prerequisites separately from runtime verification.
 Mark each step complete when its work and required review are finished.
 
 Read [Shared prerequisites and Ethos](references/shared-prerequisites.md) for
-prerequisite confirmation, shared state, resumption, and the exact handoff.
+the prerequisite table and checks, shared state, resumption, and the exact handoff.
 
 Use `ethos-orchestrate` to review, create, or update `ETHOS.md`. Pass along the
 context and answers already collected, then resume the selected evaluation flow
@@ -265,7 +267,7 @@ has the final say and can override the default or request a provider change.
 
 All flows that need a runtime use the shared
 [runtime locator and policy](references/runtime-prerequisites.md#runtime-prerequisite-checks).
-Use `--flow authoring` for first-eval, task-create, environment, and trace-derived
+Use `--flow authoring` for shared prerequisites, first-eval, task-create, environment, and trace-derived
 authoring; `--flow discovery` for readiness; `--flow audit` when audit needs a
 provider runtime. This does not add runtime requirements to file-only inventory,
 planning, or provider-independent audit work. Keep the selected Python/CLI pair

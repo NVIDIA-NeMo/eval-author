@@ -3,7 +3,7 @@
 
 # Runtime prerequisites
 
-Read for readiness validation or the Harbor path of **Get the evaluation runtime ready**. A file-only
+Read for shared prerequisite checks, readiness validation, or the Harbor path of **Get the evaluation runtime ready**. A file-only
 Explore stays in the discovery skill and does not run these probes.
 
 ## Contents
@@ -25,7 +25,7 @@ python3.11 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --prov
 ```
 
 Use Python 3.11+ to run the locator. Select `--flow audit` for audit runtime
-requirements, `discovery` for readiness, and `authoring` for first-eval,
+requirements, `discovery` for readiness, and `authoring` for shared prerequisites, first-eval,
 task-create, environment, or trace-derived authoring. Use `--provider both` only
 when both runtimes are needed. File-only inventory never runs this command.
 Here `<skill_dir>` is the eval-author skill directory. The shared files ship in
@@ -93,7 +93,8 @@ Use that exact Python for Harbor discovery and pass the selected Gym CLI with
 its Harbor validators remain in-process, so launching it with an unrelated
 Python cannot borrow another installation's readiness evidence.
 
-When unresolved, explain the candidates and actual errors first, then ask only
+When unresolved, return the candidates and actual errors to the calling flow.
+Shared prerequisites complete the other accessible checks before asking only
 for the missing location or choice. If no usable installation exists, follow
 [Harbor setup](harbor-setup.md), or the selected project's Gym setup instructions,
 subject to existing setup authorization. Do not reinstall over a broken runtime.

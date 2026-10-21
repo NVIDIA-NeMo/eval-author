@@ -25,9 +25,10 @@ Existing files do not prove that evaluations are runnable or coverage is measure
 
 Every fresh full audit uses the core's three-item shared prerequisite checklist with
 **Check what your existing evaluations cover** selected. Repeat with Gym and
-Harbor, missing Ethos, and unchanged confirmed Ethos. Confirmed prerequisites are
-not runtime-tested.
-No runtime probes, unselected trace reads, or agent execution belong to the shared prerequisite flow.
+Harbor, missing Ethos, and unchanged confirmed Ethos. User-confirmed prerequisites
+remain distinct from observed checks. On continuation, show the fixed prerequisite
+table before bounded checks, finish accessible checks, then ask only about
+unresolved findings. Unselected trace reads and agent execution remain out of scope.
 
 Use `ethos-orchestrate` through the confirmation adapter. Reuse applicable answers
 and unchanged confirmed content. For missing or revised intent, review the draft
@@ -374,8 +375,9 @@ accepted-Ethos variant, add: “The existing `ETHOS.md` was already reviewed.”
 “Ready to get started?”, then end the turn. No repository or saved-state reads
 or prerequisite checks occur.
 
-**Continue:** After the user continues, agent inspection is bounded to the named
-documents and shared state. No runtime probes or trace searches occur.
+**Continue:** Show the fixed prerequisite table before inspecting the named
+documents, shared state, and accessible prerequisites. Use bounded runtime checks;
+finish the accessible checks before asking about unresolved items. No trace searches occur.
 Reuse confirmed Ethos or route missing content through `ethos-orchestrate`.
 Confirm the selected eval set and missing trace source before dependent trace work.
 

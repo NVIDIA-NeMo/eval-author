@@ -11,12 +11,38 @@ For a new flow, begin this procedure only after the core's opening-only response
 has ended and the user continues. Do not load repository context or save state
 in preparation for that opening.
 
-## Confirm the agent and setup
+## Check the agent and setup
+
+After the user continues, show this introduction and table before repository
+inspection or commands. Send it as a visible progress message, then perform the
+checks in the same turn; do not stop for an answer or ask the user to attest to
+installed software.
+
+I’ll check the prerequisites below, then explain anything that’s missing or unclear.
+
+| Prerequisite | Status | Findings |
+|---|---|---|
+| Agent and repository | Checking | — |
+| Evaluation framework | Checking | — |
+| Required skills | Checking | — |
+| File and command access | Checking | — |
+| Python and evaluation runtime | Checking | — |
+| Evaluation environment | Checking | — |
+| Required services and data | Checking | — |
+| Agent connection and credentials | Needed before agent runs | — |
+
+Copy the introduction, column headings, row labels, and row order exactly for
+every goal and for both Gym and Harbor. Change only the status and findings cells.
+Keep every row, including those marked **Not needed now**; do not add, rename,
+reorder, or omit rows. Update the cells as evidence becomes available and repeat
+the table with results in the final reply so it remains visible alongside questions.
+On resume, reuse findings already in context; show the table before loading saved
+state, then update it from applicable records. Do not keep a second progress record.
+Recheck affected facts when the environment changes.
 
 Read the repository's supplied agent files and documentation with bounded reads.
-Reuse known identity, repository paths, runtime choice, and answers. Ask for an
-accessible path or agent identity only if unresolved. When naming the agent or
-setup, make its basis clear: the user's request, repository documentation,
+Reuse known identity, repository paths, runtime choice, and answers. When naming
+the agent or setup, make its basis clear: the user's request, repository documentation,
 the existing suite, or a previously confirmed answer. Describe inferred identity
 and default choices as such; neither is a user confirmation. Reuse explicit
 choices without asking the user to select them again. Do not enumerate or read
@@ -31,17 +57,45 @@ switching the selected runtime.
 Read the shared `scripts/runtime-policy.json` authoring requirements for the
 selected setup and its Python version. Scoped audit checks retain their own
 operation-specific policy; they do not lower the shared authoring requirements.
-Confirm only outstanding prerequisites together: installed skills and
-file/command permissions, the applicable runtime, required environment and
-service/data access. Do not ask for credentials or secret values. Credentials
-are required only for the execution that uses them. Optional assistant skills
-remain optional. Reuse supplied answers and explain what each missing item blocks.
+Inspect each applicable row before asking about unresolved items:
 
-The shared prerequisite flow does not run the runtime locator, install software,
-repair setup, or execute agents. Record answers as **user-confirmed**, never tested or ready.
-Missing setup leaves dependent work pending while independent agent review,
-Ethos work, and planning continue. Runtime verification belongs to the downstream
-operation that needs the runtime and reuses these answers.
+- Find required Eval Author and Ethos skills in the available catalog and supplied
+  skill locations; distinguish files found from skills available to the assistant
+- Establish file and command access from host permissions and actual bounded
+  reads or commands; keep any write probe under `.eval-author/.working/`
+- Use the shared [runtime locator](runtime-prerequisites.md#runtime-prerequisite-checks)
+  with the selected provider and `--flow authoring` to inspect Python, package
+  versions, imports, and CLI availability; retain its exact interpreter, command,
+  versions, and failures under `.eval-author/.working/prerequisites/`
+- Inspect the selected evaluation environment; check Docker's CLI and daemon with
+  bounded, non-mutating version/info commands only when that environment needs
+  Docker, without starting containers or changing the selected backend
+- Identify required services and data from relevant configuration and documentation
+  and inspect permitted access using existing non-mutating checks; do not read
+  secrets or unselected traces, or treat configuration alone as successful access
+- Record whether agent connection and credentials are configured only where that
+  is safely observable without exposing values; their absence blocks actual-agent
+  runs, not this prerequisite review or planning
+
+Check all accessible items even when one fails. A denied command, timeout, or
+inaccessible location is an unknown with its actual reason, not proof that a
+dependency is absent. Optional assistant skills remain optional. Do not install,
+repair setup, execute agents, or run evaluations during these checks.
+
+Then update every table row with its findings and evidence. Use **Verified** for
+observed checks, **Confirmed by you** for user answers without matching execution
+evidence, **Missing** for established unavailable or incompatible prerequisites,
+**Unknown** for unresolved checks, and **Not needed now** where applicable. A
+successful runtime probe does not prove the suite or agent is ready to run.
+
+Ask only for information or decisions that remain unresolved after this pass,
+such as an inaccessible repository location, ambiguous agent, runtime location
+the locator could not find, or permission needed for a blocked check. Group these
+questions with the specific findings they resolve; do not ask the user to confirm
+facts already established by checks. For each blocker, explain the affected work,
+required action, and relevant setup documentation. Preserve progress and continue
+independent agent review, Ethos work, and planning. A saved availability question
+must go through these checks before it is asked again.
 
 ## Confirm Ethos
 
@@ -54,7 +108,7 @@ canonical document before its content is confirmed.
 ## Save and resume
 
 `.eval-author/.working/journey-state.json` is the sole authority for workflow
-stage, prerequisite answers, confirmations, pending questions, and next action.
+stage, prerequisite findings and answers, confirmations, pending questions, and next action.
 Use `scripts/journey_state.py --repo <repository> <command>` for `show`, `init`,
 `update`, `confirm-ethos`, and `import-legacy`; inspect its help for command inputs.
 Its validation and atomic writes are allowed bounded local commands, not runtime
@@ -92,7 +146,7 @@ unavailable, and continue independently possible work.
 
 ## Hand off
 
-Pass the selected journey, repository/agent, setup and prerequisite answers,
+Pass the selected journey, repository/agent, setup and prerequisite evidence and answers,
 confirmed Ethos result, and unresolved dependencies. First-eval continues with
 its source/scope decision; audit continues with selected evals and traces;
 expansion follows the core's explicit expansion handoff. Never repeat shared
@@ -121,9 +175,11 @@ a separate saved checklist.
 
 An update is a partial JSON mapping. Allowed fields are `prerequisites`, `ethos`,
 `scopes`, `journey_status`, `blockers`, `pending_question`, and `next_handoff`.
-Each prerequisite has `status` (`confirmed`, `missing`, `unknown`, or
-`not_required` where applicable) and `source` identifying the actual user answer
-or source. The keys are `code_access`, `file_writes`, `command_execution`,
+Each prerequisite has `status` (`verified`, `confirmed`, `missing`, `unknown`, or
+`not_required` where applicable) and `source` identifying the actual check evidence
+or user answer. Use `verified` only for observed checks and `confirmed` for user
+answers; preserve that distinction on resume. Link retained command results from
+`source`; a status alone is not evidence. The keys are `code_access`, `file_writes`, `command_execution`,
 `skills`, `ethos_skills`, `runtime`, `python`, `environment`, `services`, `data`,
 `agent_connection`, and `model_credentials`. The last two are execution-dependent.
 Never put credential values in state.

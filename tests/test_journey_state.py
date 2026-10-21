@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Exercise persisted user decisions, content binding, and safe legacy resumption."""
+"""Exercise prerequisite evidence, user decisions, content binding, and safe resumption."""
 
 import copy
 import importlib
@@ -77,8 +77,48 @@ def test_resume_and_journey_switch_reuse_shared_confirmations(state, tmp_path):
     assert state.checklist(resumed)[2]["label"] == "Check what your existing evaluations cover"
 
 
+def test_observed_checks_and_user_answers_survive_resume_without_implying_execution(state, tmp_path):
+    setup_ready(state, tmp_path, setup="harbor")
+    checks = {
+        "runtime": {"status": "verified", "source": "harbor --version returned 0.20.0"},
+        "python": {"status": "verified", "source": ".venv/bin/python --version returned Python 3.12.9"},
+        "environment": {"status": "verified", "source": "docker info returned server information"},
+        "services": {"status": "not_required", "source": "Selected task environment uses local fixtures"},
+    }
+    recorded = state.update(tmp_path, {"prerequisites": checks})
+    resumed = state.initialize(tmp_path, agent="assistant", journey="create", setup="harbor")
+    assert resumed["schema_version"] == 1
+    assert resumed["prerequisites"] == recorded["prerequisites"]
+    assert resumed["prerequisites"]["file_writes"] == {"status": "confirmed", "source": "user reply 2"}
+    assert state.load_state(tmp_path) == resumed
+    rows = state.checklist(resumed)
+    assert rows[0]["complete"]
+    assert rows[1]["current"] and not rows[1]["complete"]
+    assert not rows[2]["complete"]
+    assert state.view(resumed)["confirmation_is_runtime_evidence"] is False
+
+
+@pytest.mark.parametrize("evidence", [{}, {"source": None}, {"source": ""}, {"source": "   "}])
+def test_verified_check_requires_source_and_preserves_previous_state(state, tmp_path, evidence):
+    state.initialize(tmp_path, journey="create", setup="harbor")
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="prerequisite answer|runtime.source"):
+        state.update(tmp_path, {"prerequisites": {"runtime": {"status": "verified", **evidence}}})
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
 def test_provider_change_invalidates_only_provider_answers_and_scope_approval(state, tmp_path):
     setup_ready(state, tmp_path)
+    state.update(
+        tmp_path,
+        {
+            "prerequisites": {
+                "runtime": {"status": "verified", "source": "Gym import check succeeded"},
+                "python": {"status": "verified", "source": ".venv/bin/python --version returned Python 3.13.14"},
+                "skills": {"status": "verified", "source": "Required skill instructions were readable"},
+            }
+        },
+    )
     original = ethos_ready(state, tmp_path)
     state.update(
         tmp_path,
@@ -86,8 +126,12 @@ def test_provider_change_invalidates_only_provider_answers_and_scope_approval(st
     )
     changed = state.initialize(tmp_path, setup="harbor")
     assert changed["ethos"] == original["ethos"]
-    assert changed["prerequisites"]["skills"] == original["prerequisites"]["skills"]
-    assert "runtime" not in changed["prerequisites"]
+    assert changed["prerequisites"] == {
+        key: value for key, value in original["prerequisites"].items() if key not in state.PROVIDER_DEPENDENT
+    }
+    assert changed["prerequisites"]["skills"]["status"] == "verified"
+    assert changed["prerequisites"]["file_writes"]["status"] == "confirmed"
+    assert not state.checklist(changed)[0]["complete"]
     assert changed["scopes"]["create"] == {"cases": ["refund"], "confirmed": False, "needs_review": True}
     assert not changed["journey_status"]
 

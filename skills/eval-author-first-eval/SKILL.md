@@ -66,9 +66,10 @@ write another Ethos, or add a separate content review for unchanged approval.
 
 ## 2. Reuse prerequisites and verify when needed
 
-Preserve the selected Gym or Harbor setup and user-confirmed prerequisite
-answers. Planning requires no installed runtime. Before scaffolding or another
-runtime-dependent operation, use the shared runtime locator as described in
+Preserve the selected Gym or Harbor setup and recorded prerequisite evidence
+and answers. Planning requires no installed runtime. Before scaffolding or another
+runtime-dependent operation, reuse applicable checks from shared prerequisites or
+use the shared runtime locator as described in
 [Runtime prerequisite checks](../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks). Record
 actual checks separately from user confirmation and reuse unchanged evidence.
 Missing setup pauses dependent operations and leaves planning available.

@@ -41,8 +41,36 @@ repository findings, prior confirmations, and defaults. Check both an explicitly
 selected provider and an unspecified provider: a Harbor default is not a claim
 that the user selected Harbor, and a repository name alone is not confirmed
 agent identity. Explicit choices do not need to be asked again.
-Do not probe runtimes, install, read unselected traces, or execute agents in
-the shared prerequisite flow. Confirm prerequisites together and label them user-confirmed.
+After continuation, show the fixed prerequisite table before repository/state
+reads or commands and inspect all accessible prerequisites in the same turn.
+Use the existing runtime locator for the selected setup, and check Docker only
+when the chosen environment requires it. Ask only about unresolved findings after
+the pass. Do not install, read unselected traces, or execute agents. Distinguish
+observed checks from user-confirmed answers and from end-to-end suite readiness.
+
+### Prerequisite inspection variants
+
+Use the same table columns, row labels, and order for creation, audit, and
+expansion with Gym and Harbor. Only status and findings cells vary, including
+on resume. Keep inapplicable rows visible as **Not needed now**. Inspect the
+progress message before the first check and the results table in the final reply.
+
+- All required tools are available: complete the accessible checks and report
+  evidence without asking whether Python, the runtime, or Docker is installed
+- Runtime exists outside the default project environment: use the locator's
+  bounded declared/PATH/tool locations before asking for another location
+- Docker is unavailable and the selected environment requires it: finish the
+  other checks, explain what Docker blocks, and preserve independent planning
+- Commands or repository access are denied: record the limitation as unknown,
+  check the remaining accessible rows, then ask for only the unresolved access
+- A saved pending question asks whether Python, Harbor, and Docker are installed:
+  show the table and inspect them before deciding whether a question remains
+- An evaluation environment needs no Docker, services, or live credentials yet:
+  retain every row and explain the applicable or deferred requirements
+
+Retain the command evidence and shared state under `.eval-author/.working/`.
+Check that observed results save as `verified`, user-only answers as `confirmed`,
+and a missing or timed-out check is never promoted to successful execution.
 
 ## 2. Expansion does not imply an audit
 
