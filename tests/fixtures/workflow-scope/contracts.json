@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_revision": "5c087f5",
+  "source_revision": "ASE-1195-shared-entry",
   "sources": [
     "skills/eval-author/SKILL.md#choose-the-entry-route",
     "tests/scenarios/entry-routing.md",
@@ -27,16 +27,22 @@
       {
         "prompts": [
           "Audit my existing evals.",
-          "Walk me through improving the evaluations I already have."
+          "Audit the coverage of the evaluations I already have."
         ],
         "context": "Fresh session; no prior authorization.",
         "flow": "eval-author-audit",
         "allowed_actions": [
-          "read_skill"
+          "read_skill",
+          "read_repository",
+          "validate",
+          "write_artifact",
+          "delegate"
         ],
         "required_actions": [],
-        "write_paths": [],
-        "handoff": "audit_opening"
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "journey_0"
       }
     ],
     "inventory-only": [
@@ -119,11 +125,17 @@
         "context": "Fresh session; no prior authorization.",
         "flow": "eval-author-first-eval",
         "allowed_actions": [
-          "read_skill"
+          "read_skill",
+          "read_repository",
+          "validate",
+          "write_artifact",
+          "delegate"
         ],
         "required_actions": [],
-        "write_paths": [],
-        "handoff": "authoring_opening"
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "journey_0"
       }
     ],
     "recommendations-only": [
@@ -144,7 +156,7 @@
           "propose"
         ],
         "write_paths": [
-          ".eval-author/proposals/dataset-recommendations.md"
+          ".eval-author/dataset-recommendations.md"
         ],
         "handoff": "review_proposals"
       }
@@ -168,7 +180,7 @@
           "scaffold"
         ],
         "write_paths": [
-          ".eval-author/task-drafts/cover-read/",
+          ".eval-author/tasks/cover-read/",
           ".eval-author/proposals/cover-read-instruction.md"
         ],
         "handoff": "review_draft"
@@ -222,11 +234,17 @@
         "context": "Previous turn reported inventory. The user now explicitly requests an audit; no repeat routing question.",
         "flow": "eval-author-audit",
         "allowed_actions": [
-          "read_skill"
+          "read_skill",
+          "read_repository",
+          "validate",
+          "write_artifact",
+          "delegate"
         ],
         "required_actions": [],
-        "write_paths": [],
-        "handoff": "audit_opening"
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "journey_0"
       }
     ],
     "narrow-to-recommendations": [
@@ -235,13 +253,19 @@
           "Help me improve this existing suite."
         ],
         "context": "Fresh session; no prior authorization.",
-        "flow": "eval-author-audit",
+        "flow": "eval-author",
         "allowed_actions": [
-          "read_skill"
+          "read_skill",
+          "read_repository",
+          "validate",
+          "write_artifact",
+          "delegate"
         ],
         "required_actions": [],
-        "write_paths": [],
-        "handoff": "audit_opening"
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "journey_0"
       },
       {
         "prompts": [
@@ -259,9 +283,31 @@
           "propose"
         ],
         "write_paths": [
-          ".eval-author/proposals/dataset-recommendations.md"
+          ".eval-author/dataset-recommendations.md"
         ],
         "handoff": "review_proposals"
+      }
+    ],
+    "explicit-expansion": [
+      {
+        "prompts": [
+          "Help me onboard to expand my evals.",
+          "Walk me through improving the evaluations I already have."
+        ],
+        "context": "Fresh session; existing evals, no audit requested.",
+        "flow": "eval-author",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "validate",
+          "write_artifact",
+          "delegate"
+        ],
+        "required_actions": [],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "journey_0"
       }
     ]
   }

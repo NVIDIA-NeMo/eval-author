@@ -4,11 +4,12 @@
 # Agree on the corpus and coverage
 
 Read this when planning first evals or proposing and creating additional coverage.
-Use the calling flow's existing plan: `.eval-author/first-eval.md` for a starter
-suite and its expansion, or `.eval-author/proposals/dataset-recommendations.md`
-for audit-based proposals. Keep one current agreement there, with links to any
-source manifest and case inventory. A proposal is provisional until the user
-settles its open choices; it is not permission to generate or run evaluations.
+Present scope and case tables in conversation. Save the current agreement,
+source manifest references, and case inventory in the selected journey's `scopes`
+entry in `.eval-author/.working/journey-state.json`. Audit-based recommendations
+remain a deliverable in `.eval-author/dataset-recommendations.md`. Do not create
+another planning document. A proposal stays provisional until the user settles
+its open choices; it does not authorize generating or running evaluations.
 
 ## Select trace evidence before using it
 
@@ -29,7 +30,7 @@ If inspection reveals materially different contents, unavailable inputs, or a
 need for another source, explain the change and settle the affected choice
 before using a substitute. Independent Ethos-based planning can continue.
 
-Record in the plan:
+Record in the selected journey scope:
 
 - Selected source paths or export identifiers, inclusion filters, time window
   or snapshot when relevant, and excluded sources; retain the user's selection.
@@ -156,7 +157,7 @@ the user already chose lower cost, say how the plan reflects that and invite
 changes to the specific remaining tradeoff; do not restart a preference interview
 or imply that cost must take priority. This is the existing scope checkpoint,
 not another approval step after an agreed plan. Put the explanation and feedback
-invitation in the review reply, even when they also appear in the saved plan.
+invitation in the review reply, even when they also appear in the saved scope in journey state.
 
 Wait for unresolved scope choices, incorporate feedback in the saved
 agreement, then generate the agreed cases. Before the first generation or
@@ -188,4 +189,4 @@ counts and attempts. Name omissions, substitutions, blocked work, and remaining
 gaps; a smaller delivered subset does not rewrite the agreement. Verification
 of one tool in repeated trials proves only that limited closure, not the full
 behavior scope. Keep the checklist honest about unfinished work and identify
-the next action from the saved plan.
+the next action from the saved scope in journey state.

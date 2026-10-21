@@ -74,6 +74,24 @@ def minimal():
     }
 
 
+def test_discovery_excludes_internal_configs_and_legacy_copies(tmp_path, monkeypatch):
+    from test_skill_contract import _import_discover
+
+    discover = _import_discover(monkeypatch)
+    current = tmp_path / ".eval-author/tasks/current"
+    _write_task(current)
+    for relative in (".working/trace-environments", "task-drafts", "archives"):
+        root = tmp_path / ".eval-author" / relative
+        _write_task(root / "copy")
+        (root / "run.yaml").write_text("tasks:\n  - path: copy\n")
+    scan = discover.scan_repository(tmp_path)
+    assert scan.configs == []
+    assert {item["path"] for item in scan.task_search["candidates"]} == {".eval-author/tasks/current"}
+    selected = discover.scan_repository(tmp_path / ".eval-author/task-drafts")
+    assert [item.path.name for item in selected.configs] == ["run.yaml"]
+    assert {item["path"] for item in selected.task_search["candidates"]} == {"copy"}
+
+
 def test_normalization_retains_samples_unknown_fields_and_duplicates(tmp_path):
     report = minimal()
     first = capture(tmp_path, report, 0)

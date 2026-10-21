@@ -32,7 +32,7 @@ without implying that this documentation exercise executed a real agent.
 ## Returning to a Harbor starter suite
 
 Prepare two authored tasks, `refund-policy` and `refund-reject`, plus an unrelated
-draft in the same parent. Save `first-eval.yaml` with explicit `tasks` entries for
+draft in the same parent. Save `run.yaml` with explicit `tasks` entries for
 only the two selected cases, a real-agent configuration, nondefault model
 settings, per-task overrides, and two attempts per case. Record fixture setup,
 credential variable names, and result locations in local documents. Map one

@@ -35,10 +35,16 @@ allowed-tools: Bash Read Write Grep Glob
 
 # Eval Author: environment
 
+Consume the caller's shared Journey 0 context and accepted case scope. Do not
+repeat agent, prerequisite, or Ethos onboarding. Real environment verification
+remains required here and is separate from prerequisite confirmation. Save
+workflow stage and pending decisions in shared journey state; the kit documents
+its dependency design and native evidence.
+
 ## Required outputs
 
 First-eval and task-create are not finished with an environment until the kit
-under `.eval-author/environments/<agent-slug>/` holds:
+under `.eval-author/.working/environments/<agent-slug>/` holds:
 
 - `environment-plan.md`, started from [the template](templates/environment-plan.md),
   with fit, inventory, dependency choices, fidelity card, and proof status;
@@ -98,7 +104,7 @@ Carry these from the calling flow instead of asking again:
 Build one environment kit per agent and reuse it for every task of that agent:
 
 ```text
-.eval-author/environments/<agent-slug>/
+.eval-author/.working/environments/<agent-slug>/
   environment-plan.md   fit, inventory, choices, data, export, isolation, fidelity card, proof
   build/                base Dockerfile and docker-compose.yaml, or Gym backend code
   data/                 seed generator, its seed, generated base data, integrity checks
@@ -150,7 +156,7 @@ tool and service the agreed cases exercise:
 
 This is read-only work. Read configuration variable names from examples,
 settings modules, and code; never open `.env` files or print secret values.
-Copy any file the kit needs into `.eval-author/environments/`; never edit, move,
+Copy any file the kit needs into `.eval-author/.working/environments/`; never edit, move,
 or reformat the user's files.
 
 ## Step 3: Choose how to provide each dependency

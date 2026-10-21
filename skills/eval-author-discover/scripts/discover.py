@@ -48,8 +48,8 @@ Usage:
     --compact      Emit single-line JSON.
 
 Prints a JSON report on stdout. Converted Gym tasks and Harbor job output go to
-temporary directories that are removed before exit. The one write into the
-repository is Gym's: ``gym env test`` builds a resources server's venv at
+temporary directories under ``.eval-author/.working/tmp`` that are removed before
+exit. Gym's ``gym env test`` also builds a resources server's venv at
 ``resources_servers/<name>/.venv``. ``SKILL.md`` tells the agent where to save the
 report.
 
@@ -67,7 +67,6 @@ import argparse
 import asyncio
 import json
 import sys
-import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -87,6 +86,7 @@ from providers.gym import _solve as gym_solve  # noqa: E402
 from providers.harbor import _probe  # noqa: E402
 from providers.harbor import _solve as harbor_solve  # noqa: E402
 from providers.harbor._explore import Dataset, RepositoryScan, scan_repository  # noqa: E402
+from working_paths import scratch_directory, working_path  # noqa: E402
 
 _SCHEMA_VERSION = 2
 _MIN_PYTHON = (3, 11)
@@ -174,7 +174,7 @@ def _judge_datasets(datasets: list[Dataset], described: list[dict], repo_root: P
     from providers.harbor import _judge as harbor_judge
 
     backend = harbor_judge.backend_check() if datasets else None
-    with tempfile.TemporaryDirectory(prefix="eval-author-gym-") as scratch_root:
+    with scratch_directory(repo_root, prefix="gym-conversion-") as scratch_root:
         for index, (dataset, entry) in enumerate(zip(datasets, described, strict=True)):
             label = entry["path"]
             tasks: list[harbor_judge.TaskUnderJudgment] = []
@@ -343,7 +343,7 @@ def _solve(
         print("solve {}/{}: {} with {}".format(started, total, label, runner), file=sys.stderr, flush=True)
 
     checks: list[CheckResult] = []
-    with tempfile.TemporaryDirectory(prefix="eval-author-solve-") as jobs_dir:
+    with scratch_directory(repo_root, prefix="discovery-solve-") as jobs_dir:
         for entry, tasks in harbor_plan:
             runs = []
             for task in tasks:
@@ -558,6 +558,8 @@ async def _main(argv: list[str] | None = None) -> int:
 
     # Probe: Harbor or Gym must be installed to go further.
     try:
+        # Settle scratch ancestry before inventory so initial and resumed scans agree.
+        working_path(repo_root, "tmp", "placeholder")
         runtime = {**_probe.probe(repo_root), **gym_probe.probe(repo_root, args.gym_cli)}
     except (OSError, ValueError) as exc:
         return _fail(str(exc), "Resolve runtime declarations with locate_runtime.py before discovery.")

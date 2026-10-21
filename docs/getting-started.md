@@ -241,14 +241,20 @@ Then start your first interaction:
 Use eval-author to help me with the evals for my agent.
 ```
 
-With no goal supplied, Eval Author opens with a short welcome and asks whether
-you want to build your first evals, improve an existing suite, or find out what's
-already here. It waits for your answer before inspecting the repository, then
-shows the guided authoring or audit checklist, or starts discovery if you are
-unsure what exists. Discovery saves `.eval-author/discovery.md` as described
-below and uses its findings to guide the next choice. A known goal or prior
-progress is reused without restarting onboarding. You can also use a
-[more specific starter prompt](../README.md#start-here).
+With no goal supplied, Eval Author asks whether you want to build first evals,
+audit coverage, or improve a suite. Each uses one shared flow for Gym and Harbor:
+
+- Confirm your agent and evaluation setup.
+- Find out what your agent is supposed to do (Ethos).
+- Build your eval suite, audit your coverage, or improve your eval suite.
+
+It reuses known answers and begins useful work without another start question.
+Prerequisites are user-confirmed at entry; runtime checks happen when needed for
+execution. Ethos is confirmed through `ethos-orchestrate`, with unchanged accepted
+content reused. Internal progress lives in `.eval-author/.working/`; reports,
+accepted tasks, and run evidence remain available at their documented paths.
+A narrow request to find evals, check readiness, or validate an audit keeps that
+scope and does not start full onboarding.
 
 ## Find existing evaluations
 

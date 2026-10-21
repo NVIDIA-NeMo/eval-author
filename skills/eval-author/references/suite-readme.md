@@ -9,7 +9,7 @@ Use this shared reporting contract for Harbor and Gym.
 
 `.eval-author/report.html` defines the case/run review content.
 Its Tasks tab lists discovered Harbor tasks and Gym workload definitions by directory,
-including both drafts and finalized tasks, with provider, task name, grading,
+including tasks being authored and accepted tasks at their stable paths, with provider, task name, grading,
 behavior, expected outcome, and actions. Its Runs tab lists one row per native
 Harbor job with date/time, the exact on-disk directory name and project-relative
 path, role, status, aggregate reward, and actions. Its Harbor viewer action opens
@@ -71,12 +71,14 @@ python <eval-author-skill-dir>/scripts/report.py refresh --repo . \
 ```
 
 Roots are project-relative and repeatable. Selected roots are retained in the
-HTML. For authoring and handoff, keep the project root selected (`--task-root .`)
-unless the user selected a narrower scope. Do not narrow the roots to the final
-catalog during promotion: drafts and finalized paths must remain visible, and
-later drafts must appear on refresh. Separate directories remain separate rows,
-even when their contents match. Ordinary nested checkouts are excluded unless
-explicitly selected; source scanner behavior is unchanged.
+internal report state. For authoring and handoff, keep the project root selected
+(`--task-root .`) unless the user selected a narrower scope. New tasks stay at
+`.eval-author/tasks/<slug>` throughout authoring and validation. Default inventory
+excludes `.eval-author/.working`, `.eval-author/archives`, and historical
+`.eval-author/task-drafts` copies; select one of those roots explicitly to inspect
+its retained evidence. Separate selected directories remain separate rows, even
+when their contents match. Ordinary nested checkouts are excluded unless
+explicitly selected.
 
 Refresh after cases are authored, after additions or edits, and after validation
 or actual-agent runs, including failed runs. Refresh again at the final handoff
@@ -95,16 +97,24 @@ A returning refresh reconciles artifacts even if an earlier handoff was interrup
 Outputs are `.eval-author/report.html`, containing the fixed template and validated
 embedded JSON, and the marked report section in `.eval-author/README.md`. Both
 use the same validated records; authored README content is preserved and is not
-reporting state. No companion state/data file, report-specific plan, or per-run
-narrative is generated. Never hand-edit the HTML or rebuild the UI per task.
-The HTML's embedded metadata is read on refresh; task READMEs and native evidence
-take precedence. Refresh repairs a missing or edited generated section while
+reporting state. `.eval-author/.working/report/state.json` is the authoritative
+report metadata and last inventory snapshot. A legacy HTML report is imported
+once when that state is absent; later refreshes use the internal state and repair
+missing or edited HTML. The first import also saves the original validated records
+and metadata as `.eval-author/.working/report/legacy-import.json`. Review this
+snapshot and imported journey notes when resuming an old workflow. A legacy
+`task-drafts` directory may contain the only unfinished task and bound receipts;
+use `--task-root <existing-task-or-directory>` to inspect or continue it at its
+existing path. Default inventory exclusion does not mean that its work is obsolete.
+Never hand-edit the HTML or rebuild the UI per task.
+Task READMEs and native evidence take precedence. Refresh repairs a missing or edited generated section while
 preserving surrounding documentation. Deleted records disappear after a complete
 scan; incomplete inventories retain prior in-scope records as unverified.
-Both outputs are prepared before publication; each file is updated atomically.
-An interruption between updates is repaired by the next refresh. An OS advisory
-lock prevents concurrent refreshes and releases automatically when the process
-exits; the `.report.lock` coordination file remains on disk.
+State and both outputs are prepared before publication; each file is updated
+atomically, with state committed first. An interruption between updates is repaired
+by the next refresh. An OS advisory lock prevents concurrent refreshes and releases
+automatically when the process exits. Locks and temporary writes stay under
+`.eval-author/.working/report/`.
 Exit 0 means complete file inventory, 1 means a published incomplete inventory
 with warnings, and 2 means the refresh failed. None establishes evaluation
 validity or success.
@@ -121,13 +131,13 @@ or oversized READMEs (over 256 KiB) show an explicit unavailable message.
 
 Task/run fields are validated by the schema constants in `scripts/report.py`.
 Use `--metadata <temporary-json-path>` for a bounded reporting-only patch; keep
-this input in a temporary directory, not as another persistent project report.
+this input under `.eval-author/.working/report/` and remove it after refresh.
 For example, using actual discovered paths and a documented reward range and binary pass rule:
 
 ```json
 {
   "tasks": {
-    ".eval-author/task-drafts/refund-policy": {
+    ".eval-author/tasks/refund-policy": {
       "display_id": "refund-01",
       "grading_kind": "deterministic",
       "grading_rule": "All refund-state assertions pass."
@@ -229,7 +239,7 @@ refresh does not start a viewer or claim that an environment or task is valid.
 ## Task documentation
 
 Add these exact sections to every newly authored task's `README.md` for either
-provider. For native Gym scaffolds, use the draft root's README and link its
+provider. For native Gym scaffolds, use the task root's README and link its
 dataset rows and component files:
 
 ```markdown
@@ -301,8 +311,8 @@ entry point. Multi-task suites need a suite guide in addition to individual task
 READMEs.
 
 Use the suite's existing root under `.eval-author/`: for first-eval this is
-`.eval-author/README.md`, beside `first-eval.md`; for a standalone task draft,
-extend `.eval-author/task-drafts/<task-slug>/README.md`. For trace-derived work,
+`.eval-author/README.md`; for a standalone task,
+extend `.eval-author/tasks/<task-slug>/README.md`. For trace-derived work,
 use `<task-dir>/README.md`, beside `task/`; a generated batch also needs a README
 at its collection root. Keep the trace task's required `task/README.md` intact.
 When an existing generated suite has an uppercase `README.md` at the same
@@ -422,7 +432,7 @@ repository root (use the actual runtime and paths in the generated guide):
 
 ```bash
 # Full suite: actual agent evaluation, with a new output directory each time.
-harbor job start -c .eval-author/first-eval.yaml \
+harbor job start -c .eval-author/run.yaml \
   --jobs-dir .eval-author/jobs --job-name "suite-$(date -u +%Y%m%dT%H%M%S)-$$"
 
 # Only the refund-policy case, preserving the same agent and run settings.

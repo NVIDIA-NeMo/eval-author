@@ -21,8 +21,8 @@ import shlex
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
+from contextvars import ContextVar
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent))
@@ -42,6 +42,9 @@ if sys.version_info < (3, 11):
 import tomllib  # noqa: E402
 
 from runtime_policy import load, satisfies  # noqa: E402
+from working_paths import scratch_directory  # noqa: E402
+
+_PROBE_REPO: ContextVar[Path | None] = ContextVar("eval_author_probe_repo", default=None)
 
 MAX_CANDIDATES = 24
 PROVIDER_SECONDS = 390
@@ -141,7 +144,7 @@ def invoke(argv: list[str], deadline: float, timeout: float = PROBE_SECONDS) -> 
     if remaining <= 0:
         return {"ok": False, "error": "total probe budget exhausted", "budget_exhausted": True, "incomplete": True}
     try:
-        with tempfile.TemporaryDirectory(prefix="eval-author-runtime-") as scratch:
+        with scratch_directory(_PROBE_REPO.get(), prefix="runtime-") as scratch:
             result = subprocess.run(
                 argv,
                 cwd=scratch,
@@ -355,6 +358,14 @@ def select(candidates: list[dict], provider: str, incomplete_priorities: list[in
 def locate(
     repo: Path, flow: str = "discovery", explicit: dict | None = None, providers: tuple[str, ...] = ("harbor", "gym")
 ) -> dict:
+    token = _PROBE_REPO.set(repo)
+    try:
+        return _locate(repo, flow, explicit, providers)
+    finally:
+        _PROBE_REPO.reset(token)
+
+
+def _locate(repo: Path, flow: str, explicit: dict | None, providers: tuple[str, ...]) -> dict:
     repo = repo.resolve()
     policy = load()
     report: dict = {

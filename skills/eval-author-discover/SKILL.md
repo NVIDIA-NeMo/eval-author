@@ -71,26 +71,16 @@ skips, and what Solve leaves behind.
 
 ### Prerequisites
 
-Use `eval-author`'s entry routing to distinguish a file-only Explore from
-authoring setup and a full discovery run:
+Use the core's routing to distinguish inventory from readiness. Journey 0 only
+reads setup requirements and records user confirmation; it never calls this
+runtime-probing workflow. A scoped inventory request uses **Explore an uncertain
+starting point** below without probes. A scoped readiness request retains the
+provider-owned validation in Steps 1–6. A downstream authoring call reuses shared
+answers and verifies only the runtime capabilities its operation needs.
 
-- **Uncertain starting point:** use **Explore an uncertain starting point**
-  below before Ethos, runtime probes, or the authoring welcome. This entry uses
-  file inspection only; do not run the four phases in Steps 1–6.
-- **Harbor prerequisites:** when Harbor is selected during **Get the evaluation runtime ready**,
-  use only the runtime checks and optional assistant-skills check below. Return their findings to the
-  caller; do not run `discover.py`, explore eval sources, or ask which evals to
-  use at this stage.
-- **Understand the evaluation starting point:** after the Ethos and selected-runtime stage
-  check-ins, use Steps 1–6 for full discovery and source selection, reusing
-  applicable runtime evidence, only when the starting point remains unsettled.
-  Follow [Milestone check-ins](../eval-author/references/milestone-checkins.md)
-  for authoring transitions and deferred prerequisites.
-
-Requests only to find evals use the first entry and stop with their findings.
-Readiness-only requests and internal config validation use Steps 1–6 without
-adding authoring stages. A readiness-only request returns the report described
-in Step 5.
+Return actual runtime evidence separately from user-confirmed setup. Preserve
+source bounds and the selected provider. Save internal working inputs and scratch
+under `.eval-author/.working/`; discovery reports retain their deliverable paths.
 
 ## Explore an uncertain starting point
 

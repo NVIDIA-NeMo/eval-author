@@ -19,7 +19,7 @@ pytestmark = pytest.mark.skipif(not GYM_PYTHON, reason="set EVAL_AUTHOR_GYM_PYTH
 
 def scaffold_draft(tmp_path):
     assert GYM_PYTHON is not None
-    proposals = tmp_path / ".eval-author/proposals"
+    proposals = tmp_path / ".eval-author/.working/proposals"
     proposals.mkdir(parents=True)
     instruction = proposals / "cover-ledger-total-instruction.md"
     instruction.write_text("Use ledger_total to total the supplied ledger and report the amount.")
@@ -27,7 +27,7 @@ def scaffold_draft(tmp_path):
     from audit_fixtures import bound_gap
 
     bound_gap(tmp_path, report, "ledger_total", source=ROOT)
-    output = tmp_path / ".eval-author/task-drafts/cover-ledger-total"
+    output = tmp_path / ".eval-author/tasks/cover-ledger-total"
     command = [
         sys.executable,
         str(ROOT / "skills/eval-author-task-create/scripts/task_pipeline.py"),
@@ -69,7 +69,7 @@ def scaffold_trace_draft(tmp_path, *, gym_rollouts=None):
         return json.loads(result.stdout)
 
     initialized = trace_command(
-        "init", "--root", tmp_path / ".eval-author/trace-environments", "--task-id", "cover-ledger-total"
+        "init", "--root", tmp_path / ".eval-author/.working/trace-environments", "--task-id", "cover-ledger-total"
     )
     task_dir = Path(initialized["task_dir"])
     instruction_text = "Use ledger_total and report the total for each list: [7, -2, 13] and [0, 6, -10]."

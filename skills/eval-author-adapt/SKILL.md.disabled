@@ -18,7 +18,7 @@ not-for:
   - eval-author-task-create (use to create tasks from actionable audit tool gaps)
   - mlflow-to-atif (use to normalize traces rather than migrate eval cases)
 compatibility: >-
-  Source inspection and local Ethos work need no Harbor or NeMo service.
+  Source inspection and Ethos work need no Harbor or NeMo service.
   Scaffolding and structure validation require the installed Harbor CLI and
   Python environment.
   Live runs need the configured backend, actual agent connection, and any required
@@ -49,7 +49,7 @@ files; they do not replace them. Audit and tool-gap selection are optional.
 
 ## 1. Establish the agent’s Ethos
 
-Follow [Local Ethos](../eval-author/references/local-ethos.md) using the agent's
+Follow [Ethos confirmation](../eval-author/references/ethos-confirmation.md) using the agent's
 documentation and intended behavior, independently of any existing eval source.
 Carry the resulting checked Ethos path and review state into the adaptation
 findings below.

@@ -80,7 +80,7 @@ verified against the installed version. For Harbor 0.20.0, the command shapes ar
 
 ```bash
 # Run from the evaluated repository; substitute its actual artifact paths.
-harbor view .eval-author/task-drafts --tasks --port 8080
+harbor view .eval-author/tasks --tasks --port 8080
 harbor view .eval-author/jobs --jobs --port 8081
 ```
 

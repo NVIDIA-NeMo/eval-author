@@ -26,7 +26,7 @@ arithmetic cases are new controls. Historical harness results remain separate.
 
 | Dataset | Scope |
 | --- | --- |
-| Audit | Opening pause, existing-spec validation, historical coverage interpretation |
+| Audit | Shared entry, existing-spec validation, historical coverage interpretation |
 | Discovery | Inventory, Oracle/grader limitations, blocked-readiness interpretation |
 | Intake inspection | Missing selection, rejected URI, unavailable CLI boundaries |
 | Trace environment | Harbor and Gym proposals, blocked-validation handoff |

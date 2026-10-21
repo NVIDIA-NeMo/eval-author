@@ -12,11 +12,11 @@ or measured gap closure is required.
 
 Use the verified Harbor CLI and Python environment. Read `harbor task init --help`
 and `harbor trial start --help` before using options. Use an unused descriptive slug for
-each planned task under `.eval-author/task-drafts/`. One task may contain several
+each planned task under `.eval-author/tasks/`. One task may contain several
 examples; preserve the agreed mapping of stable example IDs to tasks.
 
 ```bash
-harbor task init <org>/<slug> --tasks-dir .eval-author/task-drafts \
+harbor task init <org>/<slug> --tasks-dir .eval-author/tasks \
   --description "<behavior being tested>" --author "<actual author>"
 ```
 
@@ -61,7 +61,7 @@ its entry point, installed adapter code, registry, and CLI help. If the adapter
 is missing, identify the specific integration requirement. NOP/Oracle validation
 remains available, but performance of the user's agent remains unmeasured.
 
-When supported, write `.eval-author/first-eval.yaml` using the installed Harbor
+When supported, write `.eval-author/run.yaml` using the installed Harbor
 JobConfig schema. Explicitly select the working starter tasks, actual agent and
 model settings, agreed attempts per task, and jobs under `.eval-author/jobs/`.
 Use the parent skill's agreed attempt count and cost; do not include unrelated
@@ -84,9 +84,9 @@ result paths, retaining all trials under `.eval-author/jobs/` with fresh names
 on reruns:
 
 ```bash
-harbor trial start -p .eval-author/task-drafts/<slug> -a nop \
+harbor trial start -p .eval-author/tasks/<slug> -a nop \
   --trials-dir "$PWD/.eval-author/jobs/<slug>-controls" --trial-name nop-1
-harbor trial start -p .eval-author/task-drafts/<slug> -a oracle \
+harbor trial start -p .eval-author/tasks/<slug> -a oracle \
   --trials-dir "$PWD/.eval-author/jobs/<slug>-controls" --trial-name oracle-1
 ```
 
@@ -111,7 +111,7 @@ parent skill's execution checks. With established execution and spend
 authorization, run from the repository root:
 
 ```bash
-harbor job start -c .eval-author/first-eval.yaml
+harbor job start -c .eval-author/run.yaml
 ```
 
 Retain outputs, actions, rewards, exceptions, and exact commands for every

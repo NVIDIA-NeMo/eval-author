@@ -26,8 +26,8 @@ _AGENT_EVIDENCE_CLASS = "agent_under_test"
 _EVIDENCE_CLASSES = frozenset(
     {"agent_under_test", "reference_solution", "nop", "control"},
 )
-_DRAFT_PARTS = (".eval-author", "task-drafts")
-_PROPOSAL_PARTS = (".eval-author", "proposals")
+_DRAFT_PARTS = (".eval-author", "tasks")
+_PROPOSAL_PARTS = (".eval-author", ".working", "proposals")
 _SLUG_PREFIX = "cover-"
 _MIN_VERIFY_REPORTS = 2
 
@@ -86,8 +86,8 @@ def _task_slug_for_target(report: dict[str, Any], target: str) -> str:
 def _artifact_paths(task_slug: str) -> dict[str, str]:
     """Return the canonical ``.eval-author/`` paths for one task slug."""
     return {
-        "proposal": f".eval-author/proposals/{task_slug}-instruction.md",
-        "draft": f".eval-author/task-drafts/{task_slug}",
+        "proposal": f".eval-author/.working/proposals/{task_slug}-instruction.md",
+        "draft": f".eval-author/tasks/{task_slug}",
         "measurements": f".eval-author/task-measurements/{task_slug}",
         "task_id": task_slug,
     }
@@ -206,21 +206,19 @@ def _select(report_path: Path, target: str | None) -> dict[str, Any]:
 
 
 def _require_draft_destination(path: Path) -> None:
-    """Require ``path`` to live under ``.eval-author/task-drafts/``."""
+    """Require new tasks to use their stable catalog path before validation."""
     parts = path.resolve().parts
-    for index in range(len(parts) - 1):
-        if parts[index : index + 2] == _DRAFT_PARTS:
-            return
-    raise PipelineError("draft output must be under .eval-author/task-drafts/")
+    if parts[-3:-1] == _DRAFT_PARTS:
+        return
+    raise PipelineError("task output must be under .eval-author/tasks/")
 
 
 def _require_proposal_destination(path: Path) -> None:
-    """Require ``path`` to live under ``.eval-author/proposals/``."""
+    """Keep new instruction drafts in the shared internal workspace."""
     parts = path.resolve().parts
-    for index in range(len(parts) - 1):
-        if parts[index : index + 2] == _PROPOSAL_PARTS:
-            return
-    raise PipelineError("instruction file must be under .eval-author/proposals/")
+    if parts[-4:-1] == _PROPOSAL_PARTS:
+        return
+    raise PipelineError("instruction file must be under .eval-author/.working/proposals/")
 
 
 def _require_task_slug_paths(*, task_slug: str, output: Path, task_name: str, instruction_file: Path) -> None:

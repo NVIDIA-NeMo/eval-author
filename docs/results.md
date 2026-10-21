@@ -52,7 +52,7 @@ the final handoff links this report. In the report, users may open a task's
 README or use the harbor viewer to review in full. Agents can start at the
 generated suite's root `README.md`.
 
-Standalone drafts use `.eval-author/task-drafts/<task-slug>/README.md`. Trace candidates use
+Standalone drafts use `.eval-author/tasks/<task-slug>/README.md`. Trace candidates use
 `<task-dir>/README.md`, and generated batches also have a collection-root guide.
 The guide is refreshed after runs and linked in the handoff, including when
 execution is blocked.
@@ -80,7 +80,7 @@ item rerun commands, and known execution blockers.
 
 ## First evaluations
 
-The plan in `.eval-author/first-eval.md` records the intended behavior, proposed
+The selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` records the intended behavior, proposed
 cases, and acceptance criteria. Task drafts and run results show which checks
 have actually completed. Use the [generated case review guide](#review-generated-cases)
 to inspect the authored cases and their available evidence.
@@ -122,7 +122,7 @@ The audit uses four artifact names consistently, regardless of review state:
 | **Audit specification** | `.eval-author/audit.md` | Intended checks and evidence requirements |
 | **Audit coverage report** | `.eval-author/audit-coverage-report.md` | Readable scope, test mappings, findings, limits, and next actions |
 | **Coverage measurements (JSON)** | `.eval-author/audit-coverage-report.json` | Generated measured results aggregated over the selected runs, when available |
-| **Audit progress** | `.eval-author/audit-progress.md` | Conversation state, selected paths, pending questions, and next action |
+| **Journey state (internal)** | `.eval-author/.working/journey-state.json` | Shared conversation state, selected paths, pending questions, and next action |
 
 Start with the Audit coverage report. It links the specification and available
 supporting evidence. A mapping to an existing test describes what that test is
@@ -178,7 +178,7 @@ report alone does not start proposal work.
 Accepting the findings and this offer starts the proposal workflow directly,
 reusing the report, specification, selected sources, and prior answers. Its
 recommendations are ranked with expected behavior, verifier design, and evidence,
-and saved in `.eval-author/proposals/dataset-recommendations.md`. Creating or
+and saved in `.eval-author/dataset-recommendations.md`. Creating or
 running the proposed tasks remains separately scoped.
 
 The next-step offer adapts to the findings: with no evaluations, Eval Author
@@ -194,7 +194,7 @@ behavior, issues, recoveries, and uncertainty. Review the cited trace evidence
 before treating an observation as a general pattern.
 
 The **experimental** trace-to-environment workflow writes a workspace under
-`.eval-author/trace-environments/` containing a summary and the evidence for its
+`.eval-author/.working/trace-environments/` containing a summary and the evidence for its
 candidate and validation decisions. A `no_candidate` result means the available
 evidence did not support a task.
 A generated candidate can still have an unproven environment or unresolved
@@ -207,17 +207,20 @@ coverage or validate a runnable evaluation task.
 
 ## Saved output
 
-These are typical paths relative to the repository being evaluated. An existing
-Ethos can be reused from a different location, and workflows may stop before
-producing every artifact when prerequisites are missing.
+Shared internal progress and agreed scope are stored in
+`.eval-author/.working/journey-state.json`; they are not a second report or plan.
+
+These are typical paths relative to the repository being evaluated. Journey 0 uses repository-root `ETHOS.md`; scoped utilities can use an explicit
+alternate path. Workflows may stop before producing every artifact when
+prerequisites are missing.
 
 | Workflow | Main outputs |
 | --- | --- |
-| First evaluations | `ETHOS.md`, `.eval-author/first-eval.md`, `.eval-author/README.md`, `.eval-author/task-drafts/`, and run results under `.eval-author/runs/` for Gym or `.eval-author/jobs/` for Harbor. Harbor suites also get `.eval-author/first-eval.yaml` when the agent integration supports it. |
+| First evaluations | `ETHOS.md`, `.eval-author/README.md`, `.eval-author/tasks/`, and run results under `.eval-author/runs/` for Gym or `.eval-author/jobs/` for Harbor. Harbor suites also get `.eval-author/run.yaml` when the agent integration supports it. |
 | Discovery and readiness | `.eval-author/discovery.md` |
 | Coverage audit | The four artifacts listed under [Coverage audits](#coverage-audits), plus supporting evidence in `.eval-author/audit-measurements/` |
 | Intake trace inspection | `.eval-author/traces/` |
-| Trace-derived environments (**experimental**) | A private, gitignored workspace per task under `.eval-author/trace-environments/`, with a root `README.md` for generated-case review and reruns; generated batches also have a collection-root guide. No-candidate outcomes do not create a suite guide. |
+| Trace-derived environments (**experimental**) | A private, gitignored workspace per task under `.eval-author/.working/trace-environments/`, with a root `README.md` for generated-case review and reruns; generated batches also have a collection-root guide. No-candidate outcomes do not create a suite guide. |
 | MLflow conversion | One `.atif.json` file per trace in the private output directory you select. |
 
 [Choose another workflow](../README.md#start-here) or review

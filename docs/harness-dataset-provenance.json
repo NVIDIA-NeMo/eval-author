@@ -128,9 +128,9 @@
   "cases": [
     {
       "skill": "eval-author-audit",
-      "id": "audit-opening",
+      "id": "audit-shared-entry",
       "source_scenario": "audit",
-      "adaptation": "Opening checkpoint; no later approvals supplied."
+      "adaptation": "ASE-1195 replaces the old opening-pause checkpoint with shared Journey 0 prerequisite and Ethos entry; no trace selection supplied."
     },
     {
       "skill": "eval-author-audit",

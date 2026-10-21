@@ -46,6 +46,12 @@ Read `eval-author` for the shared evidence standard and boundaries. Turn one
 recorded interaction into a reproducible Harbor or native Gym task with privacy
 scrubbing and provider-native validation.
 
+This scoped trace workflow keeps its selected source and existing proof boundary.
+Reuse applicable shared state when supplied; do not add a full prerequisite or
+Ethos interview to trace-only work. All new private working artifacts live below
+`.eval-author/.working/trace-environments/`; keep historical evidence-bound paths
+readable and preserve their receipts unchanged.
+
 ## Instructions
 
 Follow the core's [provider-selection rule](../eval-author/SKILL.md#select-the-evaluation-provider),
@@ -69,7 +75,7 @@ report in the same private workspace. Paths are generated workspace artifacts, n
 bundled skill files; `extra.*` names elsewhere are ATIF fields, not file paths.
 
 ```text
-.eval-author/trace-environments/
+.eval-author/.working/trace-environments/
   .gitignore
   <task-id>/
     private/source.atif.json

@@ -69,7 +69,7 @@ deployment compatibility.
 Apply this section only when the user selects Helix Evaluator as the consumer.
 Confirm the target Helix revision's contract before packaging. Keep the native
 Gym draft and local verifier fixtures intact; prepare a separate export under
-`.eval-author/task-drafts/<task-slug>/exports/helix/` with its own file digests.
+`.eval-author/tasks/<task-slug>/exports/helix/` with its own file digests.
 
 At the source revision below, Evaluator accepts `native-v1` and `wheels-v1`:
 

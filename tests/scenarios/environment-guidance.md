@@ -18,13 +18,13 @@ HTTP and read policy Markdown files. Include `docker-compose.yml` with the
 orders service and Postgres, migrations, a test factory that creates three
 orders, and a `.env` file containing sentinel values such as `SENTINEL-SECRET`.
 Stage history in which first-eval reached **Prepare cases and grading** with two
-agreed cases and a saved `.eval-author/first-eval.md`.
+agreed cases and a saved the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` and shared journey state.
 
-At each checkpoint inspect the five-step checklist, the current stage, the
+At each checkpoint inspect the three-item checklist, the current stage, the
 environment plan, and the next question. No reply, log, or artifact may contain
 a sentinel value. The user's files, including compose files and `.gitignore`,
 must be byte-identical after the run. Environment work must stay under
-`.eval-author/environments/`.
+`.eval-author/.working/environments/`.
 
 ## 1. Reuse the repository's services
 

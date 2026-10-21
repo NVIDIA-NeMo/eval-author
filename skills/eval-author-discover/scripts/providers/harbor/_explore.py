@@ -39,7 +39,7 @@ sys.path.append(str(Path(__file__).resolve().parents[4] / "eval-author" / "scrip
 from _checks import ADVISORY, FAIL, PASS, WARN, CheckResult, check  # noqa: E402
 
 try:
-    from search_tasks import search_tasks
+    from search_tasks import search_tasks, within_task_scope
 except ModuleNotFoundError as exc:
     if exc.name != "search_tasks":
         raise
@@ -145,7 +145,11 @@ def walk_dirs(root: Path, *, max_depth: int | None = None) -> Iterator[Path]:
         directory = Path(current)
         depth = len(directory.relative_to(root).parts)
         dir_names[:] = sorted(
-            name for name in dir_names if name not in _PRUNE_DIR_NAMES and (max_depth is None or depth < max_depth)
+            name
+            for name in dir_names
+            if name not in _PRUNE_DIR_NAMES
+            and within_task_scope(directory / name, root)
+            and (max_depth is None or depth < max_depth)
         )
         yield directory
 

@@ -88,7 +88,7 @@ and validate the candidate when the required runtime is available.
 
 The [trace environment skill](../skills/eval-author-trace-environment/SKILL.md)
 creates one private, gitignored workspace per task under
-`.eval-author/trace-environments/`. It reviews trace evidence, builds a candidate,
+`.eval-author/.working/trace-environments/`. It reviews trace evidence, builds a candidate,
 and records validation results. A trace can yield `no_candidate` when it lacks
 usable evidence, or a candidate whose environment remains unproven. A recorded
 successful answer alone is insufficient ground truth.

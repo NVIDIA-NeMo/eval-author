@@ -14,7 +14,7 @@ Use the Gym Python/CLI pair selected by the
 [shared runtime locator](../../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks)
 with `--provider gym --flow authoring`. Its central policy owns version and
 Python requirements; keep Gym in its separate environment. Inspect its CLI help and native scaffolder before use. Create each
-planned draft in a fresh `.eval-author/task-drafts/<slug>/` directory using
+planned draft in a fresh `.eval-author/tasks/<slug>/` directory using
 Gym's `nemo_gym.environment.scaffold.scaffold_environment(kind="environment",
 name=<module_name>, root=<draft_path>)`. Use a valid Python module name for the
 Gym environment. Do not call the audit-driven `task_pipeline.py scaffold` route:
@@ -48,7 +48,7 @@ seeded session state, and its reset from the environment kit that
 proved at stage 5, following its [Gym environments](../../eval-author-environment/references/gym.md)
 reference, and add each case's own records to its dataset row or session seed.
 Apply the [Gym version and rerun plan](../../eval-author-task-create/references/gym-tasks.md#version-and-rerun-plan)
-to the selected suite, recording it in `.eval-author/first-eval.md` and the drafts'
+to the selected suite, recording it in the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` and the drafts'
 `reproducibility.md`; no dataset recommendation or audit proposal is required.
 Use the component packaging checks linked there for the selected runtime.
 Verify actual application access and component setup. Record missing credential
@@ -64,8 +64,8 @@ output paths. If integration is missing, retain the drafts and verifier work and
 name the specific connection required.
 
 Propose one attempt per selected example for the initial baseline unless the
-agreed purpose requires repeats. Record the count and cost in the plan. A Harbor
-JobConfig or `.eval-author/first-eval.yaml` is not required for Gym.
+agreed purpose requires repeats. Record the count and cost in shared scope. A Harbor
+JobConfig or `.eval-author/run.yaml` is not required for Gym.
 
 ## 8. Validate the evals
 

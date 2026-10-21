@@ -51,7 +51,7 @@ The [`ethos-orchestrate`, `ethos-explore`, and `ethos-write` skills](team-skills
 and maintain an agent's `ETHOS.md` (schema version 1). `ethos-orchestrate` routes requests
 to the other two. They live under `team-skills/ethos/` and install separately from
 the Eval Author skills, which link to them from
-[Local Ethos](skills/eval-author/references/local-ethos.md). The ethos-write
+[Ethos confirmation](skills/eval-author/references/ethos-confirmation.md). The ethos-write
 skill bundles a standard-library validator, `scripts/validate_ethos.py`.
 
 The ethos skills are published to the [NVIDIA/skills](https://github.com/NVIDIA/skills)
@@ -91,7 +91,7 @@ instructions. The individual skill files document each workflow in detail.
 
 | Skill | Purpose |
 | --- | --- |
-| [`ethos-orchestrate`](team-skills/ethos/ethos-orchestrate/SKILL.md), [`ethos-explore`](team-skills/ethos/ethos-explore/SKILL.md), [`ethos-write`](team-skills/ethos/ethos-write/SKILL.md) | Route, explore intended behavior, then write and validate a local ETHOS.md. Installed separately. |
+| [`ethos-orchestrate`](team-skills/ethos/ethos-orchestrate/SKILL.md), [`ethos-explore`](team-skills/ethos/ethos-explore/SKILL.md), [`ethos-write`](team-skills/ethos/ethos-write/SKILL.md) | Route, explore intended behavior, then write and validate an ETHOS.md. Installed separately. |
 | [`eval-author`](skills/eval-author/SKILL.md) | Entry point and shared workflow guidance. |
 | [`eval-author-first-eval`](skills/eval-author-first-eval/SKILL.md) | Plan, build, and validate a small starter evaluation suite. |
 | [`eval-author-discover`](skills/eval-author-discover/SKILL.md) | Inventory evaluations and check Harbor readiness. |

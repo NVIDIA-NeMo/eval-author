@@ -11,7 +11,7 @@ solution is right.
 
 Standard library only. This drives the ``harbor`` CLI the user would run, rather
 than Harbor's Python API, so it proves the same command the report recommends.
-Job output goes to a caller-owned directory outside the repository. Harbor never
+Job output goes to the caller's internal discovery scratch directory. Harbor never
 auto-grants host-environment access here: ``stdin`` is closed and ``-y`` is not
 passed, so a task that asks for access fails with Harbor's own message.
 """

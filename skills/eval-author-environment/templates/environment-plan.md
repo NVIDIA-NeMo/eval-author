@@ -5,7 +5,7 @@
 
 - **Status:** <draft | proven | unproven | blocked | failed> (`proven` only when the Proof table names the smoke task's own jobs)
 - **Provider:** <Harbor or Gym> <installed version>
-- **Kit:** `.eval-author/environments/<agent-slug>/`
+- **Kit:** `.eval-author/.working/environments/<agent-slug>/`
 - **Calling flow and cases:** <first-eval or task-create>, <case IDs>
 - **Repository revision:** <commit, or uncommitted with a note>
 

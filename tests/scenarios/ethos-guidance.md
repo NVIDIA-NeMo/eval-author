@@ -73,44 +73,24 @@ its effect in Open Questions, without treating missing constraints as blanket
 permission to change providers, costs, or implementation. The known behavior
 and safety rules still appear.
 
-## 2. Eval Author delegates Ethos creation
+## 2. Eval Author delegates to the canonical orchestrator
 
-**Start:** Supply explicit history showing a first-eval opening was accepted,
-the account-support agent was selected, and no Ethos file exists. Resume:
-"Continue with the Ethos for this agent."
+**Start:** Supply selected agent context, prior answers with provenance, and
+Journey 0 progress. Request continuation for first-eval, audit, and expansion.
 
-**Inspect:** Eval Author introduces Ethos and hands the selected agent,
-available answers, local path, and review state to the Ethos skills. Follow
-scenario 1's interview and review. The delegation does not add a permission
-questionnaire, and the returned document preserves the shared behavior and
-constraints. The saved content is reviewed before Eval Author uses it.
+**Inspect:** Eval Author calls `ethos-orchestrate` with caller context and the
+existing progress. Only unresolved intent is asked; the canonical workflow owns
+exploration and writing. Confirm draft content before writing. Return the exact
+path, validation, digest, stage, and remaining questions to shared journey state.
+Unchanged confirmed content is reused without another interview or review gate.
+The three-item Journey 0 orientation is not repeated inside Ethos.
 
-**Continue:** Accept the saved content and inspect the return to the next
-unfinished Eval Author milestone. The handoff reports the checked path,
-remaining gaps, and review state. It does not restart the intent interview,
-introduce optimization permissions, or alter application files.
+## 3. Missing canonical Ethos skills
 
-**Audit variant:** Repeat with history showing a guided audit opening was
-accepted and Ethos is its current milestone. Confirm that creation behaves
-the same and returns to the audit's next unfinished milestone.
-
-## 3. Eval Author fallback with Ethos skills unavailable
-
-**Start:** Use scenario 2's first-eval history, but make ethos-explore and
-ethos-write unavailable while keeping Eval Author's Local Ethos procedure
-and the template readable. Resume the Ethos milestone.
-
-**Inspect:** The fallback explains how to install the unavailable skills and
-continues local capture through the documented procedure. It reuses supplied
-answers and asks only for missing intent. Neither a missing skill nor its
-fallback causes an optimization-permission interview. The saved file meets
-the same 14-section contract and preserves all confirmed safety, scope, and
-external constraints before review and handoff.
-
-**Validation variants:** Run once with the bundled validator available and
-once without it. The former retains an actual parser result; the latter
-reports structural inspection honestly. Both check the full document and
-do not require a permission section or infer authorization from its absence.
+Make `ethos-orchestrate` unavailable. Report the dependency and installation
+location, preserve answers in shared state or conversation, and continue useful
+independent planning. Do not fall back to an Eval Author-owned interview or writer.
+A runtime probe or provider installation does not repair missing skill access.
 
 ## 4. Preserve a legacy permission section during a targeted update
 

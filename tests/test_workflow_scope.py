@@ -28,7 +28,7 @@ def capture(case):
         for offset, action in enumerate(contract["required_actions"]):
             call_id = f"{index}-{offset}"
             calls.append({"id": call_id, "tool": "fixture_" + action, "turn": index})
-            writes = [".eval-author/task-drafts/cover-read/task.toml"] if action == "scaffold" else []
+            writes = [".eval-author/tasks/cover-read/task.toml"] if action == "scaffold" else []
             events.append({"call_id": call_id, "action": action, "tool": "fixture_" + action, "write_paths": writes})
         turns.append(
             {
@@ -98,7 +98,7 @@ def test_scope_broadening_is_rejected(case, action):
 
 def test_transient_write_is_rejected_even_if_snapshots_match():
     evidence, raw = capture("recommendations-only")
-    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/task-drafts/unauthorized/task.toml"])
+    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/tasks/unauthorized/task.toml"])
     report = scope.check(CONTRACTS, evidence, raw)
     assert report["status"] == "fail"
     assert any("write attempt" in v for v in report["violations"])
@@ -113,7 +113,7 @@ def test_noncanonical_destinations_are_rejected(path):
 
 
 def test_prefix_does_not_allow_similar_directory():
-    assert not scope.permitted(".eval-author/task-drafts-other/a", [".eval-author/task-drafts/"])
+    assert not scope.permitted(".eval-author/tasks-other/a", [".eval-author/tasks/"])
 
 
 @pytest.mark.parametrize("mutation", ["flow", "handoff", "context", "prompt"])

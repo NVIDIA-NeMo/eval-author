@@ -10,7 +10,7 @@ description: >-
   "what's the state of the eval suite here?", "what happened in this trace?", or
   when you need to pick between bootstrapping evals, auditing existing evals,
   finding out whether evals exist, or proposing improvements from an audit.
-  Establishes local Ethos when the selected flow needs it, without changing the
+  Establishes Ethos when the selected flow needs it, without changing the
   agent's implementation. The selected sub-flow uses the provider's supported
   tools and saves findings under `.eval-author/`.
 triggers:
@@ -46,7 +46,8 @@ not-for:
   - nemo-experimentalist (use to run insight-driven optimization end to end, which drives the Eval Author agent itself)
   - nemo-evaluator (use to run an existing benchmark rather than work on a repository's own suite)
 compatibility: >-
-  The core can save the local Ethos; execution is delegated to sub-flows.
+  The core manages shared state and delegates Ethos to ethos-orchestrate;
+  runtime execution is delegated to sub-flows.
   Discovery, audit, and task creation use the local checkout.
   Task execution requires the selected Gym or Harbor runtime and may require Docker and provider
   credentials. Trace inspection requires the nemo CLI, an explicit workspace,
@@ -54,7 +55,7 @@ compatibility: >-
 maturity: alpha
 license: Apache-2.0
 user-invocable: true
-allowed-tools: Read Write Grep Glob
+allowed-tools: Bash Read Write Grep Glob
 ---
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
@@ -68,150 +69,76 @@ each request to the narrow sub-flow that owns it.
 
 ## Choose the entry route
 
-Choose the route before showing the onboarding checklist, gathering Ethos, or
-checking Harbor. Use the requested outcome, prior answers, and supplied material;
-do not ask the user to repeat a known starting point. These are alternative entry
-routes, not set stages that everyone must complete:
+Use the requested outcome and prior answers before asking a question. Creating,
+auditing, and improving evals share **Journey 0** below for Gym and Harbor,
+including direct invocations of their skills. An explicit goal starts that work;
+there is no separate permission-to-start question.
 
-| Starting situation and request | Route | First action and deliverable |
-|---|---|---|
-| The user asks broadly for eval help without an established goal or flow | Guided welcome below | Ask whether they want to build first evals, improve an existing suite, or find out what exists. End the turn before repository inspection; use the answer to select the guided flow. |
-| The user has no evals and wants to bootstrap them | [First eval](../eval-author-first-eval/SKILL.md) | Use the authoring welcome below, then build a suite at the agreed scope through the shared milestones. The user's statement settles the eval starting point; no discovery pass is required to prove absence. |
-| The user wants guided onboarding to expand or improve existing evals, without a selected addition or existing audit findings | [Audit](../eval-author-audit/SKILL.md), then [dataset proposals](../eval-author-task-create/SKILL.md#step-1-propose-dataset-improvements) | Explain that reviewing coverage will guide which evals to add. Show the guided audit opening immediately, before repository inspection, and preserve the expansion goal through report review and the proposal handoff. |
-| The user wants a coverage audit, with existing evals or a specification to guide future evals | [Audit](../eval-author-audit/SKILL.md) | Show the audit's five-step checklist, including generating and reviewing `audit-coverage-report.md`, and ask whether to begin; wait before Ethos work or repository inspection. Reuse an answered opening and prior progress on return. Explain what the evidence can establish; do not substitute a readiness report for the requested audit. |
-| The user is unsure whether or where evals exist | [Discovery inventory](../eval-author-discover/SKILL.md#explore-an-uncertain-starting-point) | Report what evals exist, what they test, and their documented run instructions before Ethos or runtime setup. Finish discovery, then ask whether the user wants an audit; do not infer that next step from a general request for help. |
-| The user wants new eval recommendations based on an audit | [Dataset proposals](../eval-author-task-create/SKILL.md#step-1-propose-dataset-improvements) | Reuse the audit and its evidence for ranked proposals. A proposal-only request stops before scaffolding or execution. |
-| The user wants a task derived from a recorded interaction | [Trace environment](../eval-author-trace-environment/SKILL.md) | Prepare private trace evidence and assess candidacy, then construct the selected Harbor or native Gym output. No audit gap or Harbor setup is required to start this route. |
+| Request | Route after Journey 0 |
+|---|---|
+| Build first evals | `eval-author-first-eval`, continuing at the first unfinished authoring stage |
+| Audit coverage | `eval-author-audit`, continuing with eval and trace selection |
+| Improve or expand evals | Preserve the expansion goal and use the expansion handoff below; an audit is optional |
 
-Broad requests such as "help me with evals", "help me with my evals", "how do I
-use Eval Author?", or "get me started" in an evaluation context begin with a
-guided welcome. The user does not need to say "onboard". Briefly explain that
-you can help build or improve evals, then ask one focused question, for example:
-"Are you looking to build your first evals, improve an existing suite, or figure
-out what's already here?" End the turn and wait before repository inspection,
-runtime probes, or delegation. Do not replace this opening with an inventory,
-documentation links alone, or a list of internal skill names.
+When the goal is unclear, ask: “Would you like to build your first evaluations,
+audit your existing coverage, or improve your evaluation suite?” Reuse known
+context and ask only for the unresolved goal. A request to find out what exists
+uses discovery inventory and its findings can inform that choice.
 
-Use the answer to enter the selected flow: building first evals shows the
-authoring checklist; improving existing evals shows the audit checklist and
-preserves the goal of proposing additions; uncertainty about whether or where
-evals exist selects discovery inventory. After discovery, present the findings
-and guide the next choice using the handoff below. Do not repeat the starting
-question once answered or infer permission to author or run evals from inventory.
+Explicit inventory, readiness, repair, trace inspection, supported Gym or MLflow
+trace conversion, trace-derived authoring, proposal-only, and audit
+generate/validate/measure/aggregate requests keep their
+scope. Explanation-only requests do not start a workflow. Scoped operations reuse
+applicable shared decisions but do not acquire unrelated onboarding requirements.
+Trace-source selection remains required before searching or reading traces.
+Adaptation is disabled: explain this for evaluation-framework conversion
+requests, preserving the user's existing material rather than treating it as
+absent. Supported trace conversion retains its existing dedicated skills.
 
-Requests to onboard, get started, or be walked through expanding existing evals
-already establish the goal, even when they do not name a skill or say "audit".
-For example, "help me onboard to expand my evals" selects the audit opening:
-explain that we will review existing coverage, then propose additions from the
-findings. Do not substitute generic advice, a workflow menu, or an inventory
-report for that opening. Existing evals are the starting point; their path and
-trace evidence can be confirmed within the audit's input milestone.
+### Journey 0: shared prerequisites and Ethos
 
-Apply this route after honoring a more specific request or established progress:
-reuse supplied audit findings for proposals, resume a starter-suite expansion as
-described below, and preserve an explicitly selected addition or narrow operation.
-Returning users resume the current flow or pending question even when they say
-only "help me with evals"; do not restart the welcome. Reuse a known goal to
-select its route directly. If only the existing material is known but the desired
-outcome is unclear, ask about that outcome rather than whether evals exist.
-An explanation-only request keeps that scope without starting onboarding.
+Show this three-item checklist before starting the shared flow. Use literal
+checkboxes, mark the current item **We're here**, and substitute the selected
+third label below. Reuse completed items and pending questions on return.
 
-For a fresh audit, the next deliverable is its opening checklist with descriptions
-and a question that ends the turn. Load the audit skill and return that opening
-before inspecting the repository, starting Ethos work, or delegating a review.
-The user's audit request establishes permission to work; it does not replace the
-guided conversation's initial handoff. Put it in the final response, rather than
-showing it in commentary and continuing behind an asynchronous question.
+- [ ] **Confirm your agent and evaluation setup** — identify the repository and agent and confirm the prerequisites relevant to your goal.
+- [ ] **Find out what your agent is supposed to do (Ethos)** — agree on its purpose, expected behavior, boundaries, and success criteria.
+- [ ] **Build your eval suite** / **Audit your coverage** / **Improve your eval suite** — continue the selected work using the agreed context.
 
-Adaptation is temporarily disabled. Do not route to `eval-author-adapt` or load
-its archived instructions. For an explicit request to convert existing evals to
-Harbor, explain that conversion is currently unavailable. Do not silently treat
-that request as first-eval authoring or treat existing material as absent.
+Render only the selected third label. Continue authorized inspection after the
+orientation; do not add a “Ready to get started?” gate. Explain results and ask
+only for missing decisions or content confirmation. Do not mark prerequisite
+confirmation as runtime verification or mark downstream work complete at handoff.
 
-An explicit audit or proposal request keeps that purpose even when an input is
-missing: locate the missing source or follow the selected sub-flow's prerequisite
-guidance, then resume that request. For an audit, confirm the trace source and
-location with the user before searching for or reading traces; reuse an explicit
-selection already supplied. A missing report does not mean the user has no
-evals. Broad help starts with the guided welcome above; discovery inventory is
-selected when the user requests it or is unsure whether or where evals exist.
+Read [Journey 0](references/journey-0.md) for prerequisite confirmation, shared
+state, resumption, and the exact handoff. Use [Ethos confirmation](references/ethos-confirmation.md)
+to invoke `ethos-orchestrate`; Eval Author does not maintain a second Ethos
+interview or writer. Journey 0 confirms repository-root `ETHOS.md`. Preserve supplied alternate-path
+documents and resolve the root requirement without silently copying or replacing
+them. Scoped utilities retain their explicit `--ethos` path behavior.
 
-Discovery inventory ends with its findings and run guidance before offering
-another flow. When evals exist, ask whether the user wants them audited and wait;
-“help me with my evals” alone does not select audit. With confirmed absence,
-offer first-eval; with an unresolved location, explain the search limits and ask
-the next source question. An inventory-only request ends with the findings.
+### Expansion handoff
 
-After the user requests or accepts a next step, carry source paths, run guidance,
-search limits, prior answers, and existing intent or setup evidence into that
-route. First-eval starts at its earliest unfinished milestone. Reuse an explicit
-request for discovery followed by audit or another flow: present the discovery
-summary first, then continue the already-requested work without asking again.
+An expansion request does not imply an audit. Carry the selected suite, proposed
+additions, accepted Ethos, prerequisites, and pending decisions into the handoff.
+For a starter suite created by first-eval, resume its scope stage. For supplied
+reviewed audit findings, use `eval-author-task-create` proposals and its existing
+eligibility checks. For other existing suites, inspect the selected definitions
+and agree on the intended additions; save that plan and the next action in shared
+state. Explain any remaining authoring support needed rather than inventing
+measured gaps or routing through an unwanted audit. General expansion execution
+belongs to Journey 3; this entry integration does not implement a new generator.
+An explicitly selected addition or proposal-only request keeps that scope.
 
-Explicit readiness, repair, trace, and other supported narrow requests keep
-their existing sub-flow and scope. On return visits, resume the requested flow
-and reuse its completed work. Never turn an audit or recommendation request into
-the full authoring experience merely because it is the user's first visit.
+### Downstream progress
 
-A request to add examples to a starter suite created by first-eval returns to
-that flow's scope stage, reusing its saved plan and source selection. Review the
-affected behaviors' breadth, difficulty, grading, and cost before expansion;
-do not restart onboarding or require an audit unless coverage measurement is
-requested. Audit-based gap creation still uses `eval-author-task-create`.
-
-## Show the path ahead
-
-Use this opening for a fresh authoring request after selecting first-eval.
-Audit, discovery inventory, and proposal routes use their own entry
-instructions. Once authoring is selected, give the opening immediately; no further
-skill, reference, repository inspection, or Harbor probe is needed to show the
-plan. Load supporting instructions only as the current stage needs them, from
-this same local tree.
-
-Briefly acknowledge the experience, then render this checklist with literal
-`- [ ]` checkboxes. For a fresh start, mark **Understand your agent** as
-**We're here** and leave all five steps unchecked. On a handoff, preserve completed
-internal stages and map the current stage to its visible step using the grouping
-below. Plain bullets are not the checklist. Shorten descriptions as useful, but
-retain the labels:
-
-- [ ] **Understand your agent** — establish its purpose, boundaries, and what success looks like.
-- [ ] **Get the evaluation runtime ready** — explain the evaluation framework and verify the tooling.
-- [ ] **Draft your first evals** — agree on examples, coverage scope, expected outcomes, and grading criteria.
-- [ ] **Get the evals running** — prepare the environment, connect the agent, and validate the setup.
-- [ ] **Run and review** — evaluate the agent, explain results, and show how to rerun.
-
-The five visible steps group the existing ten internal stages:
-
-| Visible step | Internal stages, in their existing order |
-| --- | --- |
-| Understand your agent | 1. Establish the agent’s Ethos |
-| Get the evaluation runtime ready | 2. Get the evaluation runtime ready |
-| Draft your first evals | 3. Understand the evaluation starting point → 4. Define the evaluation scope → 5. Prepare cases and grading |
-| Get the evals running | 6. Prepare the execution environment → 7. Connect the agent → 8. Validate the evals |
-| Run and review | 9. Evaluate the agent → 10. Review results and explain reruns |
-
-Render only the five visible steps in the user checklist. This grouping changes
-presentation only: preserve every internal stage's order, work, check-ins, and
-authorization requirements. Mark a visible step `[x]` only when all its internal
-stages are complete; mark the step containing the current internal stage
-**We're here**. Reuse a starting point already settled by the user or discovery;
-first-eval also settles which traces, if any, to use before completing that
-internal stage. This does not complete **Draft your first evals**.
-
-End with “Ready to get started?” and wait. Do not follow the opening with tool
-calls in the same turn. After acceptance, read
-[Milestone check-ins](references/milestone-checkins.md) for stage transitions,
-progress, and resumption; begin at the earliest unfinished milestone, normally
-Ethos. The opening answer does not complete that stage or waive its check-in.
-
-On return visits, reuse an answered opening and resume the saved stage. Narrow
-inventory, readiness, audit, and trace requests use their scoped sub-flow instead
-of this onboarding experience. If onboarding later finds an existing Harbor suite,
-tailor the remaining work to that suite without restarting the completed stages.
-
-A report that a downstream model trusts has to be right. A plausible report is
-worse than no report when somebody acts on it.
+After Journey 0, [Milestone check-ins](references/milestone-checkins.md) supplies
+first-eval's existing authoring stages. The audit uses its coverage milestones.
+Their completed shared stages are consumed, never repeated. Keep substantive
+scope and evidence reviews, source selection, and execution authorization; remove
+only redundant start and transition questions when the next action is already
+settled. Discovery inventory ends with findings and a next-step choice unless
+that next step was already requested.
 
 ## The standard
 
@@ -271,7 +198,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 
 | Sub-flow | Use it to |
 |---|---|
-| [`ethos-explore`](../../team-skills/ethos/ethos-explore/SKILL.md) and [`ethos-write`](../../team-skills/ethos/ethos-write/SKILL.md) | Explore intended behavior and write or update ETHOS.md through the [Local Ethos](references/local-ethos.md) handoff. Installed separately from Eval Author |
+| [`ethos-orchestrate`](../../team-skills/ethos/ethos-orchestrate/SKILL.md) | Own Ethos exploration, confirmation, validation, and writing through the [Ethos confirmation](references/ethos-confirmation.md) adapter. Installed separately from Eval Author |
 | `eval-author-first-eval` | Establish required Ethos, plan cases without an installed runtime, and build or expand a starter suite at the agreed breadth while teaching the user how to run it |
 | `eval-author-discover` | Establish whether a repository's evaluations run, name the rung that fails, and get the exact command to run them |
 | `eval-author-audit` | Generate and validate a finite `audit.md` coverage denominator, measure and aggregate trace coverage, and report findings |
@@ -314,55 +241,25 @@ does not require Gym output. Use the selected provider's native scaffolding,
 validation, and execution path. Missing setup is a reported prerequisite, not
 permission to silently switch providers.
 
-## Promote accepted tasks at handoff
+## Keep task paths stable
 
-Create and validate tasks in `.eval-author/task-drafts/<task-slug>/` using the
-existing authoring workflow. Keep its scaffolding, controls, acceptance criteria,
-measurement paths, and evidence receipts unchanged.
+Create new tasks directly in `.eval-author/tasks/<task-slug>/`, or the selected
+existing suite's established task directory when that flow permits it. Draft,
+validated, and accepted are statuses of the same directory. Do not copy or move
+a task merely to accept it. Add only accepted tasks to the runnable suite's
+explicit task set, and preserve unfinished cases in shared state and reports.
+Private trace workspaces retain their reviewed export workflow.
 
-When the workflow accepts a task and adds it to a runnable suite, copy the
-accepted task directory into its final catalog. For a new repository evaluation
-environment, use one flat `.eval-author/tasks/<task-slug>/` directory across all
-features and suites. For an existing environment, follow the selected suite's
-existing final task-directory convention; do not reorganize its tasks.
-
-Copy the accepted revision without changing its task ID or contents, and never
-overwrite a different task at the destination. Record the
-draft-to-catalog path mapping in the existing handoff record. Update suite
-configurations and future run/viewer commands to the final paths and verify that
-they resolve the intended tasks using the provider's existing checks. Historical
-results and receipts keep their original paths. Prepare new execution manifests
-for future runs at the final paths under the existing evidence contract.
-
-Refresh the report with the project root selected, preserving both draft and
-finalized task paths; respect a narrower scope only when selected by the user.
-Carry existing task reporting metadata to the final task paths through the
-report's metadata patch, retaining source references.
-Before promotion, report the drafts normally; keep
-unfinished cases visible in the existing handoff record. Reporting itself never
-promotes tasks. Private trace workspaces retain their existing export workflow.
-
-Before marking the final handoff complete, verify these conditions on disk:
-
-- Every accepted task has a final directory whose relative file paths and file
-  contents match the accepted draft. Compare files, not just directory counts.
-- The future suite configuration resolves exactly the accepted task set at the
-  final paths through the provider's native configuration/task loader; loading
-  must not execute a job. Future task-viewer and rerun commands use those paths.
-- The refreshed report includes every accepted final task path once, alongside
-  existing drafts. Do not deduplicate different directories or hide later drafts.
-
-Record the verified final catalog path and task count in the existing handoff
-record and final reply. A report file or a successful agent run alone does not
-complete this handoff. If a condition fails, finish the authorized file-only
-handoff or report the specific blocker; do not mark it complete. Do not rerun
-models or controls merely to copy an unchanged accepted task.
+Before final handoff, verify that the provider configuration resolves exactly
+the accepted task set, that report and rerun links use those stable paths, and
+that validation receipts describe the accepted revision. Keep historical paths
+and receipts intact; do not rerun models merely to update a status.
 
 ## Establish Ethos before authoring
 
 First-eval requires an applicable `ETHOS.md` before case design,
-new scoring decisions, or task authoring. Read [Local Ethos](references/local-ethos.md)
-for the shared locate, reuse, intent, creation, validation, and review procedure.
+new scoring decisions, or task authoring. Read [Ethos confirmation](references/ethos-confirmation.md)
+for the handoff to the canonical Ethos workflow and its confirmed result.
 Agent documentation can inform Ethos before any evaluation inventory. Existing
 evals establish what is currently tested; they do not replace intended behavior.
 
@@ -377,7 +274,7 @@ about missing facts affecting the next work. Never request secret values.
 ## Route after the evaluation starting point
 
 The entry routes above own discovery performed before authoring. Within an
-authoring flow, the shared milestone procedure establishes Ethos and the selected runtime,
+authoring flow, Journey 0 supplies confirmed Ethos and prerequisite answers. The downstream flow verifies its runtime when required and
 then reuses the settled starting point or calls `eval-author-discover` if source
 selection is still needed. Its runtime probes can be used separately during the
 runtime stage. Reuse completed checks and answers when their inputs are unchanged.
@@ -389,8 +286,10 @@ An explicitly supplied source already answers source selection. Once the evaluat
 starting point is settled, carry the established Ethos, runtime invocation, findings,
 and answered check-ins into the selected path:
 
-- **Existing Gym or Harbor suite or tasks:** continue discovery and resolve configuration
-  or readiness failures. Broken evals are not a reason to start over.
+- **Existing Gym or Harbor suite or tasks:** preserve the suite and report any
+  configuration or readiness limitations. Onboarding does not install or repair
+  runtimes. Only an explicitly requested standalone readiness or repair operation
+  uses its existing scoped procedure. Broken evals are not a reason to start over.
 - **Other evaluation material:** report what exists and its documented run
   instructions or missing execution details. Preserve the user's selected source
   and requested outcome. Conversion is currently unavailable; do not enter the
@@ -422,17 +321,21 @@ user, not to you.
   it. Do not edit, move, or reformat any of it, including its `.gitignore`. The
   evaluation artifacts you add belong under `.eval-author/`, which is theirs to
   commit or ignore. The sole additional write scope is the requested local
-  `ETHOS.md`: follow [Local Ethos](references/local-ethos.md) to create or make
+  `ETHOS.md`: invoke [Ethos confirmation](references/ethos-confirmation.md) to create or make
   user-requested edits to it in the repo. Preserve existing Ethos content and
   custom sections; downstream audit measurement does not rewrite it.
-  `eval-author-discover` scripts write nothing; `eval-author-audit` writes only
+  `eval-author-discover` scripts use bounded temporary files only under
+  `.eval-author/.working/`; `eval-author-audit` writes only
   requested audit artifacts; `eval-author-task-create` writes only drafts,
   proposals, job outputs, and measurements there; `eval-author-trace-environment`
   writes only private, gitignored task workspaces there.
   `eval-author-first-eval` writes plans, drafts, configs, and jobs there and uses
-  the narrow local Ethos write exception above. `eval-author-environment` writes
+  the narrow Ethos write exception above. `eval-author-environment` writes
   environment kits, generated data, and smoke tasks under
-  `.eval-author/environments/`, copying any repository file it needs.
+  `.eval-author/.working/environments/`, copying any repository file it needs.
+  All internal state, plans, scratch, locks, and intermediate inputs belong under
+  `.eval-author/.working/`; final tasks, reports, run configs, and evidence retain
+  their documented deliverable paths. Journey state is the sole workflow-state authority.
 - **A missing tool is a finding, not a task.** When the provider is not installed,
   say so and stop short of proving anything. Report what you found regardless, and
   do not install the provider automatically. For Gym, report its separate runtime
@@ -491,7 +394,7 @@ need an issue finding.
 ## Prerequisites
 
 Routing needs the user's desired outcome and any supplied repository or trace
-location, not Harbor or credentials. Authoring needs local Ethos; runtime
+location, not Harbor or credentials. Authoring needs Ethos; runtime
 dependencies belong to the selected flow.
 
 ## Limitations
@@ -503,7 +406,7 @@ environments remain experimental. Existing-eval adaptation is disabled.
 ## Troubleshooting
 
 - Unclear desired outcome: ask one focused question; reuse known starting facts.
-- Missing Ethos: follow [Ethos recovery](references/local-ethos.md#recovery) when the
+- Missing Ethos: follow [Ethos recovery](references/ethos-confirmation.md#recovery) when the
   selected flow requires it; inventory and trace inspection can proceed without it.
 - Missing provider or inaccessible source: report the blocked claim and use the
   selected flow's recovery; an access failure never proves that evals are absent.

@@ -22,6 +22,20 @@ from typing import Any
 EXCLUDED_DIRECTORIES = frozenset(
     {".git", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".tox"}
 )
+INTERNAL_DIRECTORIES = frozenset({".working", "task-drafts", "archives"})
+
+
+def within_task_scope(path: Path, root: Path) -> bool:
+    """Retain internal or historical tasks only when their root was selected explicitly."""
+    if not path.is_relative_to(root):
+        return False
+    return not any(
+        parent.name in INTERNAL_DIRECTORIES
+        and parent.parent.name == ".eval-author"
+        and parent != root
+        and parent.is_relative_to(root)
+        for parent in (path, *path.parents)
+    )
 
 
 def _snapshot(
@@ -93,7 +107,9 @@ def _snapshot(
             ):
                 search["excluded"].append({"path": label, "reason": "reparse-point"})
             elif stat.S_ISDIR(mode):
-                if entry.name in excluded_directory_names:
+                if directory.name == ".eval-author" and entry.name in INTERNAL_DIRECTORIES:
+                    search["excluded"].append({"path": label, "reason": "internal-or-legacy-artifacts"})
+                elif entry.name in excluded_directory_names:
                     search["excluded"].append({"path": label, "reason": "excluded-directory"})
                 elif max_depth is not None and len(path.parts) > max_depth:
                     record_limit(label, "max_depth")

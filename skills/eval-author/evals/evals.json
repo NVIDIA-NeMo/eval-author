@@ -16,10 +16,10 @@
     {
       "id": "router-implicit-first-eval",
       "prompt": "My agent has no evaluation suite and no ETHOS.md. For now, just tell me the appropriate workflow for building my first evals and its first prerequisite. Do not run commands or create files.",
-      "expected_output": "Route to eval-author-first-eval and establish intended behavior through a required local Ethos before constructing a starter suite. Production traces and an existing coverage audit are not prerequisites.",
+      "expected_output": "Route to eval-author-first-eval and establish intended behavior through a required Ethos before constructing a starter suite. Production traces and an existing coverage audit are not prerequisites.",
       "assertions": [
         "Selects eval-author-first-eval.",
-        "Identifies local Ethos as the first prerequisite.",
+        "Identifies Ethos as the first prerequisite.",
         "Does not claim evaluations were built or executed."
       ],
       "expected_skill": "eval-author",

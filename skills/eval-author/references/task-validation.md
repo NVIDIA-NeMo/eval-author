@@ -28,7 +28,7 @@ fail.
 
 Name and describe each task by the behavior it actually tests. When a case
 changes while it is built, for example because the planned failure does not
-occur in the data, rename it and record the change in the plan and case
+occur in the data, rename it and record the change in shared scope and case
 inventory as a scope change. Task-create's slug is fixed by its selected gap, so
 there the draft must keep exercising that gap.
 
@@ -142,7 +142,7 @@ attest a remote service's deployed source.
 
 ```bash
 python <task_create_dir>/scripts/task_evidence.py prepare \
-  --task-dir .eval-author/task-drafts/cover-read \
+  --task-dir .eval-author/tasks/cover-read \
   --contract .eval-author/task-measurements/cover-read/contract.json \
   --out .eval-author/task-measurements/cover-read/revision-1.json
 ```
@@ -165,7 +165,7 @@ python <task_create_dir>/scripts/task_evidence.py run \
   --case reference --run-id reference-1 \
   --result "$TRIALS/reference-1/result.json" \
   --out .eval-author/task-measurements/cover-read/reference-1.json \
-  -- harbor trial start -p .eval-author/task-drafts/cover-read -a oracle \
+  -- harbor trial start -p .eval-author/tasks/cover-read -a oracle \
   --trial-name reference-1 --trials-dir "$TRIALS"
 ```
 

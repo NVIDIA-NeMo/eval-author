@@ -24,7 +24,7 @@ import subprocess
 from collections.abc import Iterator
 from pathlib import Path
 
-from providers.harbor._explore import _PRUNE_DIR_NAMES, walk_dirs
+from providers.harbor._explore import _PRUNE_DIR_NAMES, walk_dirs, within_task_scope
 
 _CODE_SUFFIXES = frozenset({".py", ".ipynb", ".js", ".ts", ".sh"})
 # Data files count only for ATIF, so a package.json that merely lists a tracing SDK is not a lead.
@@ -99,7 +99,11 @@ def _git_files(repo_root: Path) -> list[Path] | None:
         return None
     names = sorted(name for name in completed.stdout.decode("utf-8", "replace").split("\0") if name)
     # Committed generated trees, such as a vendored node_modules, stay out as they do in the directory walk.
-    return [repo_root / name for name in names if not _PRUNE_DIR_NAMES.intersection(Path(name).parts[:-1])]
+    return [
+        repo_root / name
+        for name in names
+        if not _PRUNE_DIR_NAMES.intersection(Path(name).parts[:-1]) and within_task_scope(repo_root / name, repo_root)
+    ]
 
 
 def _entries(directory: Path) -> list[Path]:

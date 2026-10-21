@@ -20,7 +20,7 @@ Show me the plan first, and explain the cases and how they will be graded.
 
 ## Establish what the agent should do
 
-Eval Author first helps you establish an **Ethos**: a local document describing
+After confirming your agent and setup, Eval Author uses the shared Ethos workflow to establish an **Ethos**: a local document describing
 your agent's purpose, boundaries, and success criteria. It can reuse an existing
 `ETHOS.md` or help you create and review one.
 
@@ -99,7 +99,7 @@ or prove that the grader handles every possible response.
 Run artifacts are under `.eval-author/runs/` for Gym or `.eval-author/jobs/` for Harbor.
 Gym keeps the selected composition, dataset rows, agent/model settings, and native commands
 in the plan and suite README. For Harbor, when the agent integration supports it,
-Eval Author creates `.eval-author/first-eval.yaml` with the selected cases and run settings.
+Eval Author creates `.eval-author/run.yaml` with the selected cases and run settings.
 
 
 Start with `.eval-author/report.html` to review your cases and results.

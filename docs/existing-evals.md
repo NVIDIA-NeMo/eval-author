@@ -46,42 +46,20 @@ available traces. Explain what is covered, what is missing, and what the
 evidence cannot establish.
 ```
 
-Eval Author opens a fresh full audit with five literal checkboxes and a brief
-description of each step:
+A full audit uses the same shared entry as creating or improving evals:
 
-- [ ] **Understand your agent** — agree on what your agent should do, what it should avoid, and what a good result looks like.
-- [ ] **Confirm evals and traces** — confirm which evaluations to audit and locate traces (records of agent runs) so we can check what the evaluations actually exercised.
-- [ ] **Define what the evals should cover** — agree on the behaviors, tools, and failure cases to check.
-- [ ] **Measure coverage** — use the run records to see which of those items were exercised.
-- [ ] **Generate and review coverage report** — create or update `audit-coverage-report.md`, then review coverage, gaps, evidence limits, and next steps together.
+- [ ] **Confirm your agent and evaluation setup** — establish the selected agent and confirm relevant prerequisites.
+- [ ] **Find out what your agent is supposed to do (Ethos)** — agree on intended behavior, boundaries, and success criteria.
+- [ ] **Audit your coverage** — select evidence, define intended coverage, measure it, and review the report.
 
-It then asks whether you want to continue and waits. This opening comes before
-the first milestone: no repository inspection, Ethos reading or validation, or
-progress-file reading or writing starts until you accept. An accepted existing
-Ethos or supplied trace location does not skip the opening. After your answer,
-Eval Author begins **Understand your agent** and checks in after each milestone.
-The checklist and opening question appear together in the reply that ends the
-turn. Requesting an audit, including asking to load the skill and audit together,
-does not answer that question.
+Known context and unchanged accepted Ethos are reused. There is no extra
+permission-to-start question. Ethos exploration and writing belong to
+[ethos-orchestrate](../team-skills/ethos/ethos-orchestrate/SKILL.md); Eval Author
+passes existing findings and answers into it. Review proposed new or revised
+content before it is saved. Missing runtime setup does not block provider-independent
+specification work, and confirmation is kept distinct from execution evidence.
 
-After acceptance, Eval Author explains **ETHOS.md**: the document recording what
-your agent should do, its boundaries, and what success means, which gives the
-audit its target. It links the [ethos-explore skill](../team-skills/ethos/ethos-explore/SKILL.md)
-even when a document already exists. An existing ETHOS.md is linked as soon as it is
-found, with a short explanation of its intent and an opportunity to request edits
-before it becomes the audit baseline.
-The first Ethos check-in explains both what the document is and how the audit
-uses it to define expected coverage before comparing with tests and run records.
-That explanation stays in the reply even when the file needs formatting repairs;
-it comes before validation details and the repair question.
-
-Opening, milestone, and source-selection questions hand the conversation back
-to you. Work stops while the answer is pending, including background work and
-delegated reviews. Independent work can finish before a checkpoint or continue
-after you explicitly defer the missing input and agree to that work; asking a
-question while continuing it in the background is not a check-in.
-
-After the Ethos check-in, Eval Author shows the existing evaluations it found,
+After Ethos confirmation, Eval Author shows the existing evaluations it found,
 links their suite and case locations, and explains what they test. It asks you
 to confirm which suites belong in the audit, including any additions or
 exclusions, and waits before moving to traces. Suites you already explicitly
@@ -122,12 +100,12 @@ and failure cases and links directly to the full **Intended coverage** section.
 It asks which intended checks are missing or incorrect and names the next
 milestone. Agreeing to this scope does not approve the final report's findings.
 
-**Audit progress** (`.eval-author/audit-progress.md`) records conversation state:
-selected paths, limitations, answered or pending questions, and the next action.
-It is saved after acceptance. On return to an already-started audit, Eval Author
-reuses the answered opening and resumes unfinished milestones with completed work
-and prior answers intact. Requests only to validate a specification or measure
-or aggregate coverage stay within that scope.
+**Journey state** (`.eval-author/.working/journey-state.json`) records selected
+paths, limitations, confirmations, pending questions, and next action. It is the
+single progress record across journeys. Legacy progress notes are imported once;
+new runs do not write them. On return, Eval Author resumes unfinished work and
+preserves applicable answers. Requests only to validate, measure, or aggregate
+coverage keep their supplied-input scope.
 
 Coverage measurement compares that specification with recorded ATIF traces.
 ATIF is a structured record of an agent's interaction. Measurements are saved
@@ -177,6 +155,16 @@ evidence.
 
 See [Read your results](results.md) for the saved artifacts and their limits.
 
+## Improve your eval suite
+
+Improvement uses shared prerequisite and Ethos confirmation, then preserves the
+requested additions. An audit is optional. Expansion of an existing starter
+suite resumes its scope plan; supplied audit findings can feed the proposal
+workflow below. For another suite, Eval Author identifies the selected cases,
+agrees on additions, and records the handoff and remaining authoring work. It
+does not manufacture audit gaps or claim that the current audit-gap generator
+supports every kind of expansion.
+
 ## Propose new evaluations
 
 ```text
@@ -189,7 +177,7 @@ traces, and existing cases. Recommendations may include a new scenario, a
 stronger check, retaining a failing case as a regression test, or gathering more
 evidence. Each recommendation explains its priority, expected behavior, how a
 verifier would check it, and supporting evidence. They are saved in
-`.eval-author/proposals/dataset-recommendations.md`. You can request this directly
+`.eval-author/dataset-recommendations.md`. You can request this directly
 or accept Eval Author's offer during the audit review; the handoff reuses the
 audit inputs and settled answers.
 

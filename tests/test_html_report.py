@@ -92,7 +92,7 @@ def test_bootstrap_and_documentation_are_deterministic(tmp_path):
     assert report.refresh(tmp_path) == first
     assert output.read_bytes() == before
     assert output.stat().st_mtime_ns == modified
-    assert sorted(p.name for p in output.parent.iterdir()) == [".report.lock", "README.md", "report.html", "tasks"]
+    assert sorted(p.name for p in output.parent.iterdir()) == [".working", "README.md", "report.html", "tasks"]
     write(
         tmp_path,
         path + "/README.md",
@@ -435,23 +435,25 @@ def test_incomplete_search_preserves_old_rows(tmp_path):
     assert data["warnings"]
 
 
-def test_drafts_finalized_tasks_and_later_drafts_remain_visible(tmp_path):
+def test_stable_tasks_visible_and_legacy_copies_require_explicit_selection(tmp_path):
     final = task(tmp_path)
     draft = ".eval-author/task-drafts/refund"
     shutil.copytree(tmp_path / final, tmp_path / draft)
     first = report.refresh(tmp_path)
-    assert {item["path"] for item in first["tasks"]} == {draft, final}
-    later = ".eval-author/task-drafts/cancel"
+    assert {item["path"] for item in first["tasks"]} == {final}
+    later = ".eval-author/tasks/cancel"
     shutil.copytree(tmp_path / final, tmp_path / later)
     updated = report.refresh(tmp_path)
-    assert {item["path"] for item in updated["tasks"]} == {draft, final, later}
+    assert {item["path"] for item in updated["tasks"]} == {final, later}
     assert updated["metadata"]["task_roots"] == ["."]
     assert updated["inventory"]["complete"]
+    explicit = report.refresh(tmp_path, task_roots=[".eval-author/task-drafts"])
+    assert {item["path"] for item in explicit["tasks"]} == {draft}
 
 
 def test_harbor_and_gym_workloads_share_reports_without_harbor_links_for_gym(tmp_path):
     harbor = task(tmp_path)
-    draft = ".eval-author/task-drafts/gym-refund"
+    draft = ".eval-author/tasks/gym-refund"
     readme = draft + "/README.md"
     write(tmp_path, readme, "## Behavior under test\nGym refunds.\n## Expected result\nRefund saved.")
     manifest = draft + "/environments/refund/manifest.yaml"
@@ -470,8 +472,8 @@ def test_harbor_and_gym_workloads_share_reports_without_harbor_links_for_gym(tmp
     assert found[manifest]["readme_path"] == readme
     assert "Refund saved." in found[manifest]["readme_html"]
     raw = (tmp_path / ".eval-author/README.md").read_text()
-    assert "[Gym source](task-drafts/gym-refund/environments/refund/manifest.yaml)" in raw
-    assert "[Task README](task-drafts/gym-refund/README.md)" in raw
+    assert "[Gym source](tasks/gym-refund/environments/refund/manifest.yaml)" in raw
+    assert "[Task README](tasks/gym-refund/README.md)" in raw
     assert "task-definitions/refund" in raw
     assert "task-definitions/row-task" not in raw
     assert report.refresh(tmp_path) == data
@@ -558,8 +560,8 @@ def test_unreadable_run_entry_does_not_hide_readable_siblings(tmp_path, monkeypa
 
 
 def test_report_lock_blocks_concurrent_writer_and_releases_after_process_death(tmp_path):
-    directory = tmp_path / ".eval-author"
-    directory.mkdir()
+    directory = tmp_path / ".eval-author/.working/report"
+    directory.mkdir(parents=True)
     ready = tmp_path / "ready"
     program = """
 import sys
@@ -583,7 +585,7 @@ with report.report_lock(Path(sys.argv[2])):
         assert ready.exists(), "Child process did not acquire the report lock"
         with pytest.raises(report.ReportError, match="already running"):
             report.refresh(tmp_path)
-        assert not (directory / "report.html").exists()
+        assert not (tmp_path / ".eval-author/report.html").exists()
     finally:
         process.kill()
         process.communicate(timeout=10)
@@ -598,7 +600,7 @@ def test_nested_checkout_exclusion_and_explicit_selection(tmp_path):
     write(nested, ".git", "gitdir: elsewhere")
     result = report.refresh(tmp_path)
     assert len(result["tasks"]) == 1
-    assert result["inventory"]["excluded"] == ["nested"]
+    assert result["inventory"]["excluded"] == [".eval-author/.working", "nested"]
     assert len(report.refresh(tmp_path, task_roots=[".", "nested"])["tasks"]) == 2
 
 
@@ -707,7 +709,7 @@ def test_corrupt_existing_report_preserves_output(tmp_path):
 def test_copied_script_and_template_installation(tmp_path):
     installed = tmp_path / "copied-skill/scripts"
     installed.mkdir(parents=True)
-    for name in ["report.py", "report-template.html", "search_tasks.py"]:
+    for name in ["report.py", "report-template.html", "search_tasks.py", "working_paths.py"]:
         shutil.copy2(SCRIPTS / name, installed / name)
     project = tmp_path / "project"
     project.mkdir()
@@ -1042,7 +1044,7 @@ def test_markdown_render_failure_preserves_both_outputs(tmp_path, monkeypatch):
     with pytest.raises(report.ReportError, match="Synthetic"):
         report.refresh(tmp_path)
     assert [p.read_bytes() for p in paths] == before
-    with report.report_lock(tmp_path / ".eval-author/.report.lock"):
+    with report.report_lock(tmp_path / ".eval-author/.working/report/.report.lock"):
         pass
 
 
@@ -1106,3 +1108,82 @@ def test_concurrent_markdown_edit_is_not_overwritten(tmp_path, monkeypatch):
         report.refresh(tmp_path)
     assert markdown.read_text() == "Concurrent edit"
     assert html.read_bytes() == before
+
+
+def test_legacy_html_imports_once_and_rebuilds_from_internal_state(tmp_path):
+    path = task(tmp_path)
+    original = report.refresh(tmp_path, patch={"tasks": {path: {"display_id": "reviewed-id"}}})
+    internal = tmp_path / ".eval-author/.working/report/state.json"
+    internal.unlink()  # A legacy installation has only its HTML projection.
+    assert report.refresh(tmp_path) == original
+    assert json.loads(internal.read_text())["metadata"]["tasks"][path]["display_id"] == "reviewed-id"
+    imported = internal.with_name("legacy-import.json")
+    assert json.loads(imported.read_text()) == original
+    imported_bytes = imported.read_bytes()
+    html = tmp_path / ".eval-author/report.html"
+    html.write_text("An edited projection is not authoritative metadata.")
+    assert report.refresh(tmp_path) == original
+    html.unlink()
+    assert report.refresh(tmp_path) == original
+    assert report.previous_report(html)[0] == original
+    assert imported.read_bytes() == imported_bytes
+
+
+def test_internal_snapshot_retains_incomplete_inventory_without_html(tmp_path):
+    path = task(tmp_path)
+    report.refresh(tmp_path)
+    (tmp_path / ".eval-author/report.html").unlink()
+    shutil.rmtree(tmp_path / path)
+    incomplete = report.refresh(tmp_path, max_entries=1)
+    assert incomplete["tasks"][0]["path"] == path
+    assert incomplete["tasks"][0]["status"] == "unverified"
+    assert not incomplete["inventory"]["complete"]
+    assert report.refresh(tmp_path)["tasks"] == []
+
+
+def test_oversized_html_projection_is_repaired_from_internal_state(tmp_path, monkeypatch):
+    path = task(tmp_path)
+    original = report.refresh(tmp_path, patch={"tasks": {path: {"display_id": "retained"}}})
+    html = tmp_path / ".eval-author/report.html"
+    limit = html.stat().st_size + 100
+    monkeypatch.setattr(report, "MAX_REPORT_BYTES", limit)
+    html.write_bytes(b"x" * (limit + 1))
+    assert report.refresh(tmp_path) == original
+    assert report.previous_report(html)[0] == original
+
+
+def test_internal_run_evidence_requires_explicit_root(tmp_path):
+    path = ".eval-author/.working/trace-environments/case/private/run"
+    trial(tmp_path, path)
+    assert report.refresh(tmp_path, jobs_roots=["."])["standalone_trials"] == []
+    explicit = report.refresh(tmp_path, jobs_roots=[path])
+    assert explicit["standalone_trials"][0]["path"] == path
+    incomplete = report.refresh(tmp_path, jobs_roots=["."], max_entries=1)
+    assert incomplete["standalone_trials"] == []
+
+
+def test_incomplete_scan_does_not_restore_legacy_copies_into_default_scope(tmp_path):
+    original = task(tmp_path, "legacy")
+    path = ".eval-author/task-drafts/legacy"
+    (tmp_path / path).parent.mkdir(parents=True)
+    shutil.move(tmp_path / original, tmp_path / path)
+    retained = report.refresh(tmp_path, task_roots=[".eval-author/task-drafts"])
+    assert retained["tasks"][0]["path"] == path
+    restored = report.refresh(tmp_path, task_roots=["."], max_entries=1)
+    assert not restored["inventory"]["complete"]
+    assert restored["tasks"] == []
+
+
+def test_legacy_import_retains_unfinished_task_and_directs_explicit_resume(tmp_path):
+    original = task(tmp_path, "unfinished")
+    path = ".eval-author/task-drafts/unfinished"
+    (tmp_path / path).parent.mkdir(parents=True)
+    shutil.move(tmp_path / original, tmp_path / path)
+    retained = report.refresh(tmp_path, task_roots=[".eval-author/task-drafts"])
+    state = tmp_path / ".eval-author/.working/report/state.json"
+    state.unlink()
+    refreshed = report.refresh(tmp_path, task_roots=["."])
+    assert refreshed["tasks"] == []
+    assert any("--task-root .eval-author/task-drafts" in warning for warning in refreshed["warnings"])
+    assert json.loads(state.with_name("legacy-import.json").read_text()) == retained
+    assert report.refresh(tmp_path, task_roots=[path])["tasks"][0]["path"] == path

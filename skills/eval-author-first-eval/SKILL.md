@@ -33,20 +33,16 @@ allowed-tools: Bash Read Write Grep Glob
 
 ## Purpose
 
-Read `eval-author` for the shared standard and boundaries. Follow
-[Milestone check-ins](../eval-author/references/milestone-checkins.md) throughout
-these ten internal stages; that procedure owns transitions, progress, and user
-check-ins. Display progress using the core's five-step checklist.
-For a direct invocation, use the core's first-eval entry route and authoring
-opening before repository work. The user's statement that there are no evals is
-enough to select this flow. When routed here from discovery inventory, carry its
-findings and prior answers forward, then start at the earliest unfinished
-milestone; inventory alone does not establish Ethos or selected-runtime readiness. Enter
-stage 4 only when the first three milestones and applicable check-ins are settled.
-Do not repeat completed work or restart an existing intent interview.
+Read `eval-author` for the shared standard and boundaries. Direct invocations
+enter its Journey 0, consuming an applicable saved result on return. Follow
+[Milestone check-ins](../eval-author/references/milestone-checkins.md) for
+downstream stage decisions and use the core's three-item checklist. A statement
+that no evals exist settles the starting point; no discovery is needed to prove
+absence. The stages below retain the existing authoring implementation, but
+shared Ethos and prerequisite decisions are consumed instead of repeated.
 
 When the user asks to expand a starter suite created here, resume at scope
-planning for the affected behaviors. Reuse the saved plan, corpus, Ethos, setup,
+planning for the affected behaviors. Reuse the saved scope in journey state, corpus, Ethos, setup,
 and accepted cases; recheck prerequisites only where the change affects them.
 Do not restart onboarding or require an audit merely to add agreed examples.
 Requested coverage measurement still belongs to `eval-author-audit`.
@@ -59,20 +55,21 @@ repeated agent success, and trace-driven optimization are not prerequisites.
 Include difficult cases when relevant to the agreed behavior and purpose.
 A working suite and strong evaluation quality are separate claims.
 
-## 1. Establish the agent’s Ethos
+## 1. Reuse the confirmed Ethos
 
-Read and follow [Local Ethos](../eval-author/references/local-ethos.md) using the
-agent's documentation and intended behavior; this does not depend on discovering
-existing evals. Carry its result into the later case plan: the applicable checked
-Ethos path, established intent, completed content review when needed, and any
-unresolved prerequisite.
+Consume the path, confirmed digest, validation result, and unresolved intent from
+Journey 0's [Ethos confirmation](../eval-author/references/ethos-confirmation.md)
+handoff. Reopen only changed or unresolved content. Do not restart an interview,
+write another Ethos, or add a separate content review for unchanged approval.
 
-## 2. Get the evaluation runtime ready
+## 2. Reuse prerequisites and verify when needed
 
-Follow the core's [provider-selection rule](../eval-author/SKILL.md#select-the-evaluation-provider),
-as audit-derived and trace-derived creation do. Both Gym and Harbor are supported.
-Follow the shared milestone procedure to explain the selected setup and verify
-the runtimes it uses.
+Preserve the selected Gym or Harbor setup and user-confirmed prerequisite
+answers. Planning requires no installed runtime. Before scaffolding or another
+runtime-dependent operation, use the shared runtime locator as described in
+[Milestone check-ins](../eval-author/references/milestone-checkins.md). Record
+actual checks separately from user confirmation and reuse unchanged evidence.
+Missing setup pauses dependent operations and leaves planning available.
 
 ## 3. Understand the evaluation starting point
 
@@ -89,7 +86,7 @@ confirm the intended source and corpus, or reuse the user's explicit selection.
 Support proceeding without traces. Knowing there are no evals does not settle
 the trace choice. Carry the selected paths, bounds, exclusions, and inspected
 counts into the plan; repository examples must not become the full corpus by
-default. Save this selection and current progress in `.eval-author/first-eval.md`
+default. Save this selection and current progress in `.eval-author/.working/journey-state.json`
 as soon as established, even before the case plan is complete.
 
 Use “starter eval set” for the collection and “eval case” for each scenario.
@@ -119,13 +116,13 @@ and proven at stage 5, before any test. Raise a poor fit for the provider select
 at stage 2 in the scope checkpoint; if the user changes provider, verify that
 runtime as stage 2 describes before preparing cases.
 
-Save `.eval-author/first-eval.md` with the Ethos path and requirement references,
+Save the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` with the Ethos path and requirement references,
 selected corpus (or no-trace choice), per-behavior scope and example counts,
 outcomes and grading, priorities, exclusions, task/attempt mapping, cost
 implications, agent invocation, prerequisites, and unresolved questions.
 Separate proposed choices from the user's agreement and record subsequent feedback.
-This is an **evaluation plan**, not a coverage report
-or runnable evals.
+These are agreed planning decisions, not a coverage report or runnable evals.
+Present the scope table in conversation; do not create a separate plan file.
 
 Use reproducible inputs and variations supported by Ethos and the agreed scope,
 including semantically justified difficult negatives where relevant. Grade an
@@ -174,7 +171,7 @@ the generated data rather than by hand. Hand-typed fixtures of a few rows are
 not starting data.
 
 Create the agreed examples and map their stable IDs to native tasks or dataset
-rows. Keep source provenance and expected-label rationale in the plan or
+rows. Keep source provenance and expected-label rationale in shared scope or
 verifier-only data, outside the agent's starting environment. Start with one
 representative case and check its available parts before reusing the pattern.
 If its live environment or agent connection is pending, continue independent
@@ -213,7 +210,7 @@ selected provider reference to confirm each task's environment builds on that
 kit; rerun the smoke task if the kit changed after it passed. Keep solutions and
 verifier-only data outside the agent's initial environment. This milestone is complete only
 when the kit's `environment-plan.md`, seeded data generator, and smoke results
-exist under `.eval-author/environments/<agent-slug>/`; the tasks' own controls
+exist under `.eval-author/.working/environments/<agent-slug>/`; the tasks' own controls
 never count as environment proof, and without the smoke task's own jobs the
 plan's status stays `unproven`.
 Verify the selected backend and required application access before declaring
@@ -282,18 +279,14 @@ Recording this baseline with the evidence recorder is optional.
 
 ## 10. Review results and explain reruns
 
-For tasks that meet this workflow's working-suite criteria, follow
-[Promote accepted tasks at handoff](../eval-author/SKILL.md#promote-accepted-tasks-at-handoff).
-Use the final catalog for future suite runs. Keep the report scoped to the
-project so both draft and finalized tasks remain visible.
-Complete that handoff's on-disk checks before marking **Run and review** complete.
-For a new Harbor environment, `.eval-author/tasks/` must contain the accepted
-cases, the future suite config must resolve them there, and the report must
-list those final paths once. Include the verified catalog path and count in the
-final reply; do not finish with only a draft inventory and baseline results.
+For accepted tasks, follow [Keep task paths stable](../eval-author/SKILL.md#keep-task-paths-stable).
+Acceptance updates status and suite membership without copying or moving task
+files. Verify the native config resolves exactly the accepted set and report
+links use those same paths. Keep unfinished tasks visible and exclude them from
+runnable suite configs. Include the accepted task count and location in the handoff.
 
-Update `.eval-author/first-eval.md` with exact commands, artifact paths, control
-results, per-task agent rewards and exceptions, and remaining blockers. Show how
+Update `.eval-author/.working/journey-state.json` with artifact references, completion state, and blockers. Keep exact commands in the suite README and control
+results, per-task agent rewards, and exceptions in native evidence. Show how
 to rerun the suite, inspect one result, and add or modify a task. Finish and link
 the suite and task README run instructions for either provider and refresh
 `.eval-author/report.html` and `.eval-author/README.md` following the shared report contract.
@@ -303,9 +296,9 @@ following [Review and rerun guidance](../eval-author/references/suite-readme.md#
 Report refresh must not change the evaluation result or workflow state. When the report
 should be mentioned in a response, link `.eval-author/README.md` and `.eval-author/report.html`
 as the last lines of the response, after all other communication. Do not link
-`.eval-author/first-eval.md` in the run handoff unless asked.
+the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` in the run handoff unless asked.
 
-Continue saving and updating `.eval-author/first-eval.md`
+Continue saving agreed scope and current progress in `.eval-author/.working/journey-state.json`
 through the existing workflow, including when HTML generation fails.
 Refresh the case inventory with links to control and actual-agent results and
 available execution traces, keeping source evidence and missing traces distinct.
@@ -328,7 +321,7 @@ Reconcile agreed versus delivered examples per behavior using
 [Expand and reconcile](../eval-author/references/coverage-planning.md#expand-and-reconcile).
 Separate generated, validated, and executed counts and name omissions, changed
 fixtures, and remaining gaps. Repeated attempts never increase example totals.
-Render the final five-step checklist, checking every completed step and leaving
+Render the final three-item checklist, checking every completed step and leaving
 blocked or partial steps open with their next action.
 
 The working-suite deliverable is reached when the selected starter tasks execute
@@ -368,7 +361,7 @@ hand the established Ethos and actual ATIF to `eval-author-audit`, then use
 
 ## Prerequisites
 
-Establish local Ethos before case design. Planning needs agent documentation and
+Establish Ethos before case design. Planning needs agent documentation and
 intended behavior, not prior traces, coverage reports, or an evaluation runtime.
 Scaffolding and validation require the selected Gym or Harbor installation. Execution
 needs the chosen backend, agent connection, and any configured provider access.
@@ -383,7 +376,7 @@ plans and drafts complete while execution remains unproven.
 
 ## Troubleshooting
 
-- Missing Ethos: resume the shared Local Ethos procedure before case design.
+- Missing Ethos: resume the shared Ethos confirmation adapter before case design.
 - Selected runtime unavailable: retain the case plan and identify the Gym setup
   requirement or follow discovery's Harbor setup guidance. Install only when
   authorized, following the user's selected setup.

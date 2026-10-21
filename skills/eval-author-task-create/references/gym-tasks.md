@@ -12,7 +12,7 @@ and existing suite.
 ## Version and rerun plan
 
 During proposal work, include this plan in the Gym recommendation in
-`.eval-author/proposals/dataset-recommendations.md`. Use the repository's existing
+`.eval-author/dataset-recommendations.md`. Use the repository's existing
 versions and lockfiles when available. Record the intended consumer: native
 Gym, Helix Evaluator, or another explicitly selected runner. For each item, give the exact pin or
 artifact identity, its evidence source, and whether it is observed, proposed, or
@@ -54,16 +54,16 @@ with `--provider gym --flow authoring`. Its central policy owns version and
 Python requirements; keep Gym in its separate environment. Obtain its Python and CLI paths from the existing installation;
 use the installed CLI's `--help` before invoking it. If the runtime is missing,
 report the prerequisite and retain the proposal without scaffolding.
-Keep each draft in a fresh `.eval-author/task-drafts/<task-slug>/` directory.
+Keep each draft in a fresh `.eval-author/tasks/<task-slug>/` directory.
 For an actionable uncovered tool, the existing selector chooses the same gap:
 
 ```bash
 uv run scripts/task_pipeline.py scaffold --provider gym \
   --gym-python /path/to/Gym/.venv/bin/python \
   --report <aggregate-coverage.json> --target <tool-name> \
-  --out .eval-author/task-drafts/<task-slug> \
+  --out .eval-author/tasks/<task-slug> \
   --task-name <org>/<task-slug> --description '<scenario>' --author '<actual-author>' \
-  --instruction-file .eval-author/proposals/<task-slug>-instruction.md
+  --instruction-file .eval-author/.working/proposals/<task-slug>-instruction.md
 ```
 
 The wrapper uses Gym's native `scaffold_environment`, puts the proposed

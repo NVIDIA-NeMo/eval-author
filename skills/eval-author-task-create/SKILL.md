@@ -45,15 +45,21 @@ allowed-tools: Bash Read Write Grep Glob
 Read `eval-author` for the shared evidence standard and boundaries. Read
 `eval-author-audit` for measurement and aggregation. Start with the proposal step
 to turn audit evidence into prioritized dataset improvements across tools,
-capabilities, and failure cases. For proposal-only requests, stop after Step 1.
+capabilities, and failure cases. For proposal-only requests, stop after Step 1. Shared lifecycle decisions and
+pending work belong only in `.eval-author/.working/journey-state.json`; recommendations
+remain a user-facing deliverable and native evidence remains immutable.
 Enter that step directly from the core's proposal route, carrying existing audit
 findings and prior answers. Accepting the audit's offer to propose tasks also
 enters Step 1 directly; reuse the reviewed Audit coverage report and agreed priorities.
 When handing off from a guided audit, wait for an explicit answer accepting that
 offer; report acceptance alone is not permission to begin proposals.
-If required audit inputs are missing, obtain those
-inputs through the audit flow and return to proposals; do not restart first-eval
-onboarding or infer permission to create or run tasks.
+For task creation, consume the core's Journey 0 result, including direct
+invocation. Proposal-only requests keep their supplied-input scope. Reuse the
+confirmed Ethos and prerequisites without another interview or start gate.
+A general expansion request without audit findings follows the core's expansion
+handoff; this tool-gap generator does not invent measurement inputs or require
+an unsolicited audit. Explain missing inputs for explicitly requested audit-gap
+creation and offer the required audit work as a choice.
 For task-creation requests, continue with an eligible tool gap through the
 existing execution path:
 
@@ -69,8 +75,8 @@ Create and prove one tool gap at a time. Keep every generated artifact under
 `.eval-author/`; do not edit existing tasks or customer source.
 
 For an existing suite without sufficient audit findings, preserve the requested outcome:
-audit or proposal work obtains its missing coverage inputs through
-`eval-author-audit`; readiness work belongs in `eval-author-discover`. A missing
+explicitly requested audit-gap work identifies the missing coverage inputs;
+new audit work is a separate choice. Readiness work belongs in `eval-author-discover`. A missing
 report alone is not a first-eval request. A reviewed specification and Markdown
 report can support proposal-only work without measurement JSON: label such ideas
 as unmeasured candidates and carry the measurement limitation forward. Do not
@@ -144,7 +150,7 @@ measurement limitation, not proof of a dataset deficiency. Failure-case coverage
 skill's `failure_cases` measurement; manual observations alone do not change
 measurement status. Failure cases remain ineligible for automatic tool-gap generation.
 
-Write recommendations to `.eval-author/proposals/dataset-recommendations.md` as
+Write recommendations to `.eval-author/dataset-recommendations.md` as
 skill-authored analysis; keep the generated coverage JSON unchanged. Rank by
 expected value and strength of evidence, explaining why the first action comes
 first. Apply established user priorities, including cost when relevant, and
@@ -212,7 +218,7 @@ if that choice remains open.
 Present the proposed priorities and breadth for review, including an option to
 start with a minimal pilot and expand. Reuse already agreed scope rather than
 asking again. Save the agreement in
-`.eval-author/proposals/dataset-recommendations.md`: selected corpus and exclusions,
+`.eval-author/dataset-recommendations.md`: selected corpus and exclusions,
 priorities and cost constraints, distinct input-example counts per behavior,
 variations and difficulty, positive and negative scenarios, expected outcomes,
 and pilot or expansion status. Keep this planning record out of the agent-facing
@@ -260,11 +266,11 @@ For **Harbor**, use the following native scaffold:
 uv run <skill_dir>/scripts/task_pipeline.py scaffold \
   --report .eval-author/audit-coverage-report.json \
   --target <tool-name> \
-  --out .eval-author/task-drafts/<task-slug> \
+  --out .eval-author/tasks/<task-slug> \
   --task-name <org>/<task-slug> \
   --description "<one-line description>" \
   --author "<author>" \
-  --instruction-file .eval-author/proposals/<task-slug>-instruction.md
+  --instruction-file .eval-author/.working/proposals/<task-slug>-instruction.md
 ```
 
 Use the Step 2 `task_slug` for `<task-slug>` in every path above. `scaffold`
@@ -333,7 +339,7 @@ TRIALS="$PWD/.eval-author/jobs/<task-slug>"
   --case reference --run-id reference-1 \
   --result "$TRIALS/reference-1/result.json" \
   --out .eval-author/task-measurements/<task-slug>/reference-1.json \
-  -- harbor trial start -p .eval-author/task-drafts/<task-slug> -a oracle \
+  -- harbor trial start -p .eval-author/tasks/<task-slug> -a oracle \
   --trial-name reference-1 --trials-dir "$TRIALS"
 ```
 
@@ -359,7 +365,7 @@ under `.eval-author/`:
   --result "$TRIALS/repeat-1/result.json" \
   --trace "$TRIALS/repeat-1/agent/trajectory.json" \
   --out .eval-author/task-measurements/<task-slug>/agent-1.json \
-  -- harbor trial start -p .eval-author/task-drafts/<task-slug> \
+  -- harbor trial start -p .eval-author/tasks/<task-slug> \
   -a <agent> -m <model> --trial-name repeat-1 --trials-dir "$TRIALS"
 ```
 
@@ -436,14 +442,15 @@ Accept the draft only when `accepted` is `true`. Report native control rewards, 
 real-agent rewards, both run/trace paths, and the verify JSON. If either repeat
 misses the tool, revise the task and rerun both attempts.
 After acceptance, follow
-[Promote accepted tasks at handoff](../eval-author/SKILL.md#promote-accepted-tasks-at-handoff)
-when adding the task to the runnable suite.
+[Keep task paths stable](../eval-author/SKILL.md#keep-task-paths-stable)
+when adding the task to the runnable suite. Acceptance changes status and explicit
+suite membership at the existing task path; it does not copy or move the task.
 Finish and link the suite's review and rerun guide at handoff, including when
 execution is blocked. Preserve the actual agent settings in the full-suite and selected-item
 commands; link measured coverage reports separately from run instructions.
 
 At the handoff, reconcile agreed scope with delivered examples in
-`.eval-author/proposals/dataset-recommendations.md`, including partial or blocked
+`.eval-author/dataset-recommendations.md`, including partial or blocked
 work. Show planned and delivered distinct input counts per behavior, links to
 their tasks, and generated, validated, and actually executed examples separately.
 Include completed checks and run evidence, remaining variations or outcomes,

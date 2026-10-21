@@ -21,19 +21,19 @@ candidates in a named README: `traces/recent/`, `traces/archive/`, and a small
 scores. Counts in the README are claims to verify after selection, not evidence
 that every record is available or usable.
 
-For fresh starts, request first evals and follow the normal opening and milestone
+For fresh starts, request first evals and follow the shared entry and milestone
 check-ins. For staged tests, supply explicit conversation history showing the
-opening accepted, Ethos reviewed, selected-runtime readiness checked or explicitly deferred,
+shared prerequisites confirmed, Ethos reviewed, selected-runtime readiness checked or explicitly deferred,
 and the user's statement that no evals exist. State which milestone transition
 was answered and which source or scope choice remains open. File presence alone
 does not establish this history or runtime readiness. Reuse applicable history
 without restarting onboarding.
 
-At each checkpoint inspect the five-step checklist, current stage, unfinished
+At each checkpoint inspect the three-item checklist, current stage, unfinished
 work, and next question. Unanswered scope choices must stop fixture, instruction,
 and grader generation, including delegated work. Save decisions and progress in
-`.eval-author/first-eval.md`; audit-based proposals use
-`.eval-author/proposals/dataset-recommendations.md`. Keep plans, task validation,
+the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json`; audit-based proposals use
+`.eval-author/dataset-recommendations.md`. Keep plans, task validation,
 actual agent performance, and measured coverage as separate claims. If execution
 is unavailable, exercise the partial-completion path; do not invent run evidence.
 
@@ -206,7 +206,7 @@ Observed checkpoints and artifact changes:
    labeled 200 as unverified, and stopped without opening either export.
 2. The user selected all records actually present in the selected file and
    excluded every other source. The agent inspected eight records, saved IDs
-   and the source hash in `first-eval.md`, and reported eight rather than 200.
+   and the source hash in the shared journey state, and reported eight rather than 200.
    It proposed seven labeled examples and kept s8 pending; no tasks existed.
 3. The user chose s1/s4 as a two-example pilot, with one task and one attempt per
    example, and made cost a budget priority rather than a score. The agent

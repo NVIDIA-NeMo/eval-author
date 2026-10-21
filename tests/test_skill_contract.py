@@ -755,8 +755,8 @@ def _allowed_tools(frontmatter: dict) -> set[str]:
     return tools
 
 
-def test_the_core_can_save_ethos_and_the_sub_flow_executes() -> None:
-    """Ethos can be saved before routing; executable work belongs to sub-flows."""
+def test_the_core_can_manage_state_and_the_sub_flow_executes() -> None:
+    """The core runs bounded state helpers; runtime execution belongs to sub-flows."""
     core_tools = _allowed_tools(_frontmatter_and_body(_CORE_DIR)[0])
     discover_tools = _allowed_tools(_frontmatter_and_body(_DISCOVER_DIR)[0])
     audit_tools = _allowed_tools(_frontmatter_and_body(_AUDIT_DIR)[0])
@@ -765,8 +765,8 @@ def test_the_core_can_save_ethos_and_the_sub_flow_executes() -> None:
     trace_environment_tools = _allowed_tools(_frontmatter_and_body(_TRACE_ENVIRONMENT_DIR)[0])
     environment_tools = _allowed_tools(_frontmatter_and_body(_ENVIRONMENT_DIR)[0])
 
-    assert "Write" in core_tools, "the core must be able to save Ethos before selecting an authoring flow"
-    assert "Bash" not in core_tools, "the core delegates executable work to a sub-flow"
+    assert "Write" in core_tools, "the core must be able to persist shared journey state"
+    assert "Bash" in core_tools, "the core needs bounded state-helper commands"
     assert {"Bash", "Write"} <= discover_tools, (
         f"{_DISCOVER_DIR.name} runs a script and saves a report; it has {sorted(discover_tools)}"
     )
@@ -2024,28 +2024,37 @@ def test_ethos_skills_are_named_for_their_directories_and_links_resolve() -> Non
             assert (skill_dir / link).resolve().is_file(), f"{skill_dir.name} links to missing {link}"
 
 
-def test_local_ethos_handoff_resources_resolve() -> None:
-    """Eval Author's ETHOS.md handoff must reach the ethos skills and their template."""
-    reference = _CORE_DIR / "references" / "local-ethos.md"
+def test_ethos_confirmation_handoff_resources_resolve() -> None:
+    """Eval Author delegates to the canonical orchestrator without a second writer."""
+    reference = _CORE_DIR / "references" / "ethos-confirmation.md"
     checkins = reference.parent / "milestone-checkins.md"
     assert checkins.is_file()
-    for skill_dir in (_CORE_DIR, _FIRST_EVAL_DIR):
-        _, body = _frontmatter_and_body(skill_dir)
-        links = re.findall(r"\]\(([^)]+milestone-checkins\.md)\)", body)
-        assert links, f"{skill_dir.name} has no shared milestone handoff"
-        assert all((skill_dir / link).resolve() == checkins.resolve() for link in links)
     for skill_dir in (_CORE_DIR, _FIRST_EVAL_DIR, _AUDIT_DIR):
         _, body = _frontmatter_and_body(skill_dir)
-        links = re.findall(r"\[Local Ethos\]\(([^)]+)\)", body)
-        assert links, f"{skill_dir.name} has no local Ethos handoff"
+        links = re.findall(r"\[Ethos confirmation\]\(([^)]+)\)", body)
+        assert links, f"{skill_dir.name} has no shared Ethos handoff"
         assert all((skill_dir / link).resolve() == reference.resolve() for link in links)
     text = reference.read_text()
     targets = {(reference.parent / link).resolve() for link in re.findall(r"\]\((\.\./[^)]+)\)", text)}
-    assert targets == {
-        (_ETHOS_EXPLORE_DIR / "SKILL.md").resolve(),
-        (_ETHOS_DIR / "SKILL.md").resolve(),
-        _ETHOS_TEMPLATE.resolve(),
-    }
+    assert targets == {(_ETHOS_SKILLS_DIR / "ethos-orchestrate" / "SKILL.md").resolve()}
+    assert "caller=eval-author" in text
+    assert "confirmed_digest" in text
+
+
+def test_shared_journey_replaces_duplicate_onboarding() -> None:
+    """The shared entry must retain scoped operations and one state authority."""
+    _, core = _frontmatter_and_body(_CORE_DIR)
+    reference = (_CORE_DIR / "references" / "journey-0.md").read_text()
+    assert "Confirm your agent and evaluation setup" in core
+    assert "Find out what your agent is supposed to do (Ethos)" in core
+    assert "An expansion request does not imply an audit" in core
+    assert ".eval-author/.working/journey-state.json" in reference
+    assert "sole authority" in reference
+    assert "does not run the runtime locator" in reference
+    for skill_dir in (_FIRST_EVAL_DIR, _AUDIT_DIR):
+        _, body = _frontmatter_and_body(skill_dir)
+        assert "Journey 0" in body
+        assert "Ready to get started?" not in body
 
 
 def _filled_ethos_template() -> str:
@@ -5106,13 +5115,17 @@ def test_discover_finds_configs_without_pyyaml(suite: Path, tmp_path_factory: py
     assert "harbor-job.yaml" in parse["message"]
 
 
-def test_discovery_writes_no_files(suite: Path) -> None:
-    """The scripts report and the agent saves, which is what makes the skill safe to run."""
+def test_discovery_preserves_source_and_retains_only_empty_scratch_directories(suite: Path) -> None:
+    """Discovery leaves customer inputs intact and confines temporary work to .working."""
     before = _tree_state(suite)
 
     _run_discover(suite)
 
-    assert _tree_state(suite) == before
+    after = _tree_state(suite)
+    for path in (".eval-author", ".eval-author/.working", ".eval-author/.working/tmp"):
+        if path not in before:
+            assert after.pop(path, None) is None
+    assert after == before
 
 
 def test_discover_reports_a_config_pyyaml_cannot_parse(suite: Path) -> None:

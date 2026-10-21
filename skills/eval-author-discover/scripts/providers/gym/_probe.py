@@ -21,7 +21,7 @@ from _checks import ADVISORY, PASS, WARN, CheckResult, check  # noqa: E402
 try:
     from locate_runtime import locate
 except ModuleNotFoundError as exc:
-    if exc.name not in {"locate_runtime", "runtime_policy"}:
+    if exc.name not in {"locate_runtime", "runtime_policy", "working_paths"}:
         raise
     raise SystemExit(
         "Incomplete skill installation: install the sibling eval-author skill alongside eval-author-discover."
