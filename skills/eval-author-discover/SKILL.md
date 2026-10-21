@@ -119,7 +119,7 @@ Explain the candidates before asking a focused question to settle their use or a
 missing location. Reuse the user's explicit source selection or statement that
 they have no evals. An empty search or access failure alone does not prove absence;
 when no candidates are found, state the search limits and resolve whether the user
-keeps evals elsewhere or wants to start from scratch.
+keeps evals elsewhere or has none.
 
 Finish discovery with a user-facing summary: whether evals were found, their paths
 and purposes, how to run them, and what remains unverified or unresolved. A report
@@ -278,10 +278,11 @@ basis of the final assistant reply:
 <python> <skill_dir>/scripts/render_report.py --summary <discovery-json-path>
 ```
 
-For onboarding, compose the reply using the shared milestone procedure's **Progress
-and resumption** rules. Use the formatter for evidence and the examples below for
-source-selection wording, not as a complete reply. When another sub-flow called
-discovery to validate a created config, return that config's checks to the caller.
+When discovery supports a selected evaluation flow, follow the core's
+[downstream progress](../eval-author/SKILL.md#downstream-progress) guidance. Use the
+formatter for evidence and the examples below for source-selection wording, not
+as a complete reply. When another sub-flow called discovery to validate a created
+config, return that config's checks to the caller.
 
 Include the optional Harbor-skills finding from **Before you start** alongside
 the summary; the formatter reports runtime readiness and does not perform this
@@ -363,12 +364,15 @@ extraction, or task creation; candidate files alone do not settle that choice.
 Reuse an explicitly supplied source or earlier selection.
 
 Save discovery before handing off, even when Harbor is unavailable. Return the
-selected source, confirmed absence, or unresolved location to the core's **Route
-after the evaluation starting point** section, carrying any established Ethos
-and prior setup findings. The shared milestone
-procedure owns the next conversation. The summary formatter supplies the default
-question for when Explore finds nothing; adapt it to the selected source while retaining the saved
-report's original diagnostics and JSON.
+selected source, confirmed absence, or unresolved location to the selected flow,
+carrying established Ethos, prior setup findings, and pending decisions. Resume
+its first unfinished stage, including any unresolved source selection. Missing
+evals do not change the user's goal; existing suites remain existing suites when
+they fail checks or lack a config. If the goal is still unclear, use the core's
+[entry choices](../eval-author/SKILL.md#choose-the-entry-route). A discovery-only
+request remains inventory or readiness work and does not authorize task creation
+or an actual-agent run. Adapt any follow-up question to the selected source while
+retaining the saved report's original diagnostics and JSON.
 
 For example, when Judge's Docker preflight fails and host access has not been verified:
 

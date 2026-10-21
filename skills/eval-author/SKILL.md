@@ -270,43 +270,6 @@ It defines the requirements to gather, their source and verification status,
 and where to record unknowns. Reuse documentation and prior answers; ask only
 about missing facts affecting the next work. Never request secret values.
 
-## Route after the evaluation starting point
-
-The entry routes above own discovery performed before authoring. Within an
-authoring flow, the shared prerequisite flow supplies confirmed Ethos and
-prerequisite answers. The downstream flow verifies its runtime when required
-and then reuses the settled starting point or calls `eval-author-discover` if
-source selection is still needed. Its runtime probes can be used separately
-during the runtime stage. Reuse completed checks and answers when their inputs
-are unchanged.
-
-When a discovery scan found no Harbor evals, follow its **When no Harbor evals
-were found** conversation before routing candidate material; an empty Harbor
-scan does not establish that no evals exist.
-An explicitly supplied source already answers source selection. Once the evaluation
-starting point is settled, carry the established Ethos, runtime invocation, findings,
-and answered check-ins into the selected path:
-
-- **Existing Gym or Harbor suite or tasks:** preserve the suite and report any
-  configuration or readiness limitations. Onboarding does not install or repair
-  runtimes. Only an explicitly requested standalone readiness or repair operation
-  uses its existing scoped procedure. Broken evals are not a reason to start over.
-- **Other evaluation material:** report what exists and its documented run
-  instructions or missing execution details. Preserve the user's selected source
-  and requested outcome. Conversion is currently unavailable; do not enter the
-  disabled adaptation flow. If the desired outcome is unclear, ask one focused
-  question before continuing with a supported flow.
-- **Confirmed absence of evals:** read
-  [`eval-author-first-eval`](../eval-author-first-eval/SKILL.md) and continue at
-  **Define the evaluation scope** once the authoring prerequisites above are
-  complete. A missing config does not block this starter flow; do not substitute
-  audit-gap task creation.
-- **Unknown or inaccessible evals:** ask for the location or an accessible
-  representative case and its scoring. An access failure does not prove absence.
-
-An inventory-only request ends with findings and an offered next step. Discovery
-alone does not authorize creating or running evals.
-
 ## Boundaries
 
 These hold for every sub-flow. They exist because the repository belongs to the
