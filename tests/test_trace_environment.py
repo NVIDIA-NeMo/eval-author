@@ -4,6 +4,7 @@
 """Tests for the standalone trace-environment boundary helper."""
 
 import hashlib
+import importlib
 import json
 import os
 import shutil
@@ -15,18 +16,20 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import trace_ingest
 from harbor.models.task.task import Task
 
 _PLUGIN = Path(__file__).resolve().parents[1]
 _SCRIPT = _PLUGIN / "skills" / "eval-author-trace-environment" / "scripts" / "trace_environment.py"
-_SUMMARY_SCHEMA = "nemo.eval_author.trace_environment_summary.v2"
-_CANDIDATE_SCHEMA = "nemo.eval_author.trace_environment_candidate.v2"
-_VALIDATION_SCHEMA = "nemo.eval_author.trace_environment_validation.v6"
+_CANDIDATE_SCHEMA = "nemo.eval_author.trace_environment_candidate.v3"
 _TOOL_ACCESS_DECISIONS_SCHEMA = "nemo.eval_author.trace_environment_tool_access_decisions.v1"
 _SPEC = spec_from_file_location("trace_environment_for_tests", _SCRIPT)
 assert _SPEC is not None and _SPEC.loader is not None
 _TRACE_ENVIRONMENT = module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_TRACE_ENVIRONMENT)
+# Importable once the helper has put its scripts directory on sys.path.
+_QUALIFICATION_RUNTIME = importlib.import_module("qualification_runtime")
+_REVIEW = {"reviewer_kind": "agent", "note": "Reviewed this synthetic fixture against its public requirements."}
 
 
 def _run(*args: str) -> tuple[int, dict[str, Any]]:
@@ -36,32 +39,47 @@ def _run(*args: str) -> tuple[int, dict[str, Any]]:
 
 
 def _atif(*, image_only: bool = False) -> dict[str, Any]:
-    message: str | list[dict[str, Any]]
+    """A Harbor-valid ATIF source document; prepare loads it through Compass."""
+    steps: list[dict[str, Any]] = []
     if image_only:
-        message = [{"type": "image", "source": {"media_type": "image/png", "path": "screen.png"}}]
+        steps.append(
+            {
+                "step_id": 1,
+                "source": "user",
+                "message": [{"type": "image", "source": {"media_type": "image/png", "path": "screen.png"}}],
+            }
+        )
     else:
-        message = "Repair the fixture for jane@example.com from /home/jane/project."
+        steps.append(
+            {
+                "step_id": 1,
+                "source": "user",
+                "message": "Repair the fixture for jane@example.com from /home/jane/project.",
+            }
+        )
+    steps.append(
+        {
+            "step_id": 2,
+            "source": "agent",
+            "message": "Calling 10.2.3.4 for the fixture.",
+            "tool_calls": [
+                {
+                    "tool_call_id": "call-1",
+                    "function_name": "fixture.read",
+                    "arguments": {"phone": "+1 (303) 555-0119"},
+                }
+            ],
+            "observation": {"results": [{"source_call_id": "call-1", "content": "Result for 123-45-6789"}]},
+        }
+    )
+    if image_only:
+        steps.append({"step_id": 3, "source": "user", "message": "Repair the fixture shown in the screenshot."})
     return {
         "schema_version": "ATIF-v1.7",
         "session_id": "session-1",
         "trajectory_id": "trace-1",
         "agent": {"name": "coding-agent", "version": "1.0"},
-        "steps": [
-            {"step_id": 1, "source": "user", "message": message},
-            {
-                "step_id": 2,
-                "source": "agent",
-                "message": "Calling 10.2.3.4 for the fixture.",
-                "tool_calls": [
-                    {
-                        "tool_call_id": "call-1",
-                        "function_name": "fixture.read",
-                        "arguments": {"phone": "+1 (303) 555-0119"},
-                    }
-                ],
-                "observation": {"results": [{"source_call_id": "call-1", "content": "Result for 123-45-6789"}]},
-            },
-        ],
+        "steps": steps,
     }
 
 
@@ -75,29 +93,42 @@ def _workspace(tmp_path: Path, *, image_only: bool = False) -> tuple[Path, Path]
     code, result = _run("init", "--root", str(root), "--task-id", "repair-fixture")
     assert code == 0, result
     task_dir = Path(result["task_dir"])
-    _historical_workspace(task_dir)
     source = tmp_path / "source.atif.json"
     _write_json(source, _atif(image_only=image_only))
-    code, result = _run(
-        "prepare",
-        "--task-dir",
-        str(task_dir),
-        "--atif",
-        str(source),
-        "--source-kind",
-        "atif",
-    )
+    code, result = _prepare(task_dir, source)
     assert code == 0, result
     return task_dir, source
 
 
-def _historical_workspace(task_dir: Path) -> None:
-    """Retain v2/v6 compatibility coverage; new contracts have skill-local tests."""
-    (task_dir / "private/workspace.json").unlink(missing_ok=True)
-    summary = json.loads((task_dir / "summary.json").read_text())
-    summary["schema"] = _SUMMARY_SCHEMA
-    summary["environment"].pop("qualification", None)
-    _write_json(task_dir / "summary.json", summary)
+def _prepare(task_dir: Path, source: Path, kind: str = "atif") -> tuple[int, dict[str, Any]]:
+    return _run("prepare", "--task-dir", str(task_dir), "--source", str(source), "--source-kind", kind)
+
+
+def _safe_trace(task_dir: Path) -> dict[str, Any]:
+    return json.loads((task_dir / "safe/trace.json").read_text(encoding="utf-8"))
+
+
+def _turns(trace: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Every turn of a dumped Compass Trace, keyed by turn id."""
+    turns: dict[str, dict[str, Any]] = {}
+    pending = list(trace["root_spans"])
+    while pending:
+        span = pending.pop()
+        pending.extend(span.get("children", []))
+        for turn in span.get("turns") or []:
+            turns[turn["id"]] = turn
+    return turns
+
+
+def _spans(trace: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Every span of a dumped Compass Trace, keyed by span id."""
+    spans: dict[str, dict[str, Any]] = {}
+    pending = list(trace["root_spans"])
+    while pending:
+        span = pending.pop()
+        pending.extend(span.get("children", []))
+        spans[span["id"]] = span
+    return spans
 
 
 def _fixture_atif() -> dict[str, Any]:
@@ -172,15 +203,7 @@ def _fixture_workspace(tmp_path: Path, *, trace: dict[str, Any] | None = None) -
     task_dir = Path(result["task_dir"])
     source = tmp_path / "fixture.atif.json"
     _write_json(source, trace if trace is not None else _fixture_atif())
-    code, result = _run(
-        "prepare",
-        "--task-dir",
-        str(task_dir),
-        "--atif",
-        str(source),
-        "--source-kind",
-        "atif",
-    )
+    code, result = _prepare(task_dir, source)
     assert code == 0, result
     return task_dir
 
@@ -233,13 +256,16 @@ def test_tool_call_inventory_records_inputs_outputs_and_is_immutable(tmp_path: P
     assert lookup["definition_status"] == "complete"
     assert lookup["read_only"] is True
     assert lookup["read_only_evidence"] == "mcp_annotation"
-    assert lookup["calls"][0]["arguments"] == {"account_id": "synthetic-001"}
-    assert lookup["calls"][0]["matching_observations"] == [
-        {
-            "source_call_id": lookup["calls"][0]["tool_call_id"],
-            "content": '{"status":"active"}',
-        }
-    ]
+    assert lookup["scope"] == {"agent_span_id": "trajectory", "server": None}
+    call = lookup["calls"][0]
+    assert call["span_id"] == "trajectory/step/2/tool/0"
+    assert call["turn_id"] == "trajectory/turn/2"
+    assert call["call_id"].startswith("anon-") and "lookup-1" not in json.dumps(inventory)
+    assert call["arguments"] == {"account_id": "synthetic-001"}
+    assert call["arguments_status"] == "object"
+    assert call["results"] == [{"content": '{"status":"active"}', "error_status": "unrecorded"}]
+    safe_sha256 = hashlib.sha256((task_dir / "safe/trace.json").read_bytes()).hexdigest()
+    assert inventory["safe_trace_sha256"] == f"sha256:{safe_sha256}"
     if os.name == "posix":
         assert stat.S_IMODE(inventory_path.stat().st_mode) == 0o600
 
@@ -256,7 +282,8 @@ def test_tool_call_inventory_includes_embedded_subagent_calls(tmp_path: Path) ->
     payload["subagent_trajectories"] = [
         {
             "schema_version": "ATIF-v1.7",
-            "agent": {"name": "subagent", "tool_definitions": [definition]},
+            "trajectory_id": "trace-fixture-child",
+            "agent": {"name": "subagent", "version": "1.0", "tool_definitions": [definition]},
             "steps": [
                 {
                     "step_id": 1,
@@ -274,53 +301,42 @@ def test_tool_call_inventory_includes_embedded_subagent_calls(tmp_path: Path) ->
             ],
         }
     ]
-    root = tmp_path / ".eval-author" / "trace-environments"
-    code, result = _run("init", "--root", str(root), "--task-id", "subagent-fixture")
-    assert code == 0, result
-    task_dir = Path(result["task_dir"])
-    source = tmp_path / "subagent.atif.json"
-    _write_json(source, payload)
-    code, result = _run("prepare", "--task-dir", str(task_dir), "--atif", str(source), "--source-kind", "atif")
-    assert code == 0, result
+    task_dir = _fixture_workspace(tmp_path, trace=payload)
 
     code, result = _run("inventory-tool-calls", "--task-dir", str(task_dir))
 
     assert code == 0, result
     inventory = json.loads((task_dir / "private/tool-call-inventory.json").read_text(encoding="utf-8"))
     assert inventory["call_count"] == 1
-    assert inventory["tools"][0]["definition_status"] == "complete"
-    assert inventory["tools"][0]["calls"][0]["trajectory_path"] == "$.subagent_trajectories[0]"
+    tool = inventory["tools"][0]
+    assert tool["definition_status"] == "complete"
+    assert tool["scope"] == {"agent_span_id": "trajectory/subagent/0", "server": None}
+    assert tool["calls"][0]["span_id"] == "trajectory/subagent/0/step/1/tool/0"
+    assert tool["calls"][0]["turn_id"] == "trajectory/subagent/0/turn/1"
 
 
-def test_tool_call_inventory_deduplicates_equivalent_definition_shapes() -> None:
+def test_tool_call_inventory_deduplicates_equivalent_definition_shapes(tmp_path: Path) -> None:
     payload = _fixture_atif()
     mcp_definition = payload["agent"]["tool_definitions"][0]
-    payload["subagent_trajectories"] = [
+    payload["agent"]["tool_definitions"].append(
         {
-            "schema_version": "ATIF-v1.7",
-            "agent": {
-                "name": "subagent",
-                "tool_definitions": [
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": mcp_definition["name"],
-                            "description": mcp_definition["description"],
-                            "parameters": mcp_definition["inputSchema"],
-                            "annotations": mcp_definition["annotations"],
-                        },
-                    }
-                ],
+            "type": "function",
+            "function": {
+                "name": mcp_definition["name"],
+                "description": mcp_definition["description"],
+                "parameters": mcp_definition["inputSchema"],
+                "annotations": mcp_definition["annotations"],
             },
-            "steps": [],
         }
-    ]
-
-    inventory = _TRACE_ENVIRONMENT.derive_tool_call_inventory(payload, safe_atif_sha256="sha256:safe")
+    )
+    task_dir = _fixture_workspace(tmp_path, trace=payload)
+    code, result = _run("inventory-tool-calls", "--task-dir", str(task_dir))
+    assert code == 0, result
+    inventory = json.loads((task_dir / "private/tool-call-inventory.json").read_text(encoding="utf-8"))
 
     lookup = next(tool for tool in inventory["tools"] if tool["name"] == "account.lookup")
     assert lookup["definition_status"] == "complete"
-    assert lookup["definition"] == mcp_definition
+    assert lookup["definition"]["raw"] == mcp_definition
     assert lookup["normalized_definition"] == {
         "name": "account.lookup",
         "description": "Look up a synthetic account.",
@@ -346,6 +362,13 @@ def test_tool_call_plan_reports_replay_support_and_side_effect_warnings(tmp_path
     assert tools["account.update"]["warnings"] == ["tool_declared_mutating"]
     assert tools["account.inspect"]["mock_support"] == "exact_replay"
     assert tools["account.inspect"]["warnings"] == ["side_effects_unproven"]
+    inventory = json.loads((task_dir / "private/tool-call-inventory.json").read_text(encoding="utf-8"))
+    lookup_call = inventory["tools"][0]["calls"][0]
+    assert tools["account.lookup"]["evidence_turns"] == ["trajectory/turn/2"]
+    assert tools["account.lookup"]["evidence"] == [
+        {"span_id": lookup_call["span_id"], "call_id": lookup_call["call_id"]}
+    ]
+    assert tools["account.lookup"]["suggested_override"] is None
 
 
 def test_tool_access_requires_complete_explicit_real_mock_or_none_decisions(tmp_path: Path) -> None:
@@ -405,6 +428,12 @@ def test_generate_mock_tool_calls_requires_privacy_review_and_serves_strict_mcp(
     assert [tool["name"] for tool in call_fixtures["tools"]] == ["account.lookup"]
     assert call_fixtures["tools"][0]["cases"][0]["input"] == {"account_id": "synthetic-001"}
     assert call_fixtures["tools"][0]["cases"][0]["output"] == '{"status":"active"}'
+    assert call_fixtures["tools"][0]["cases"][0]["evidence_turns"] == ["trajectory/turn/2"]
+    assert call_fixtures["tools"][0]["cases"][0]["evidence"][0]["span_id"] == "trajectory/step/2/tool/0"
+    assert "is_error" not in call_fixtures["tools"][0]["cases"][0]
+    generation = json.loads((task_dir / "private/tool-call-generation.json").read_text(encoding="utf-8"))
+    safe_sha256 = hashlib.sha256((task_dir / "safe/trace.json").read_bytes()).hexdigest()
+    assert generation["safe_trace_sha256"] == f"sha256:{safe_sha256}"
     scenario = json.loads((fixture_dir / "mcp-scenario.json").read_text(encoding="utf-8"))
     assert [tool["definition"]["name"] for tool in scenario["tools"]] == ["account.lookup"]
     assert "account.update" not in (fixture_dir / "mcp-scenario.json").read_text(encoding="utf-8")
@@ -495,14 +524,7 @@ def test_redacted_values_are_not_materialized_as_replay_cases(tmp_path: Path) ->
             "annotations": {"readOnlyHint": True},
         }
     ]
-    root = tmp_path / ".eval-author" / "trace-environments"
-    code, result = _run("init", "--root", str(root), "--task-id", "redacted-fixture")
-    assert code == 0, result
-    task_dir = Path(result["task_dir"])
-    source = tmp_path / "redacted.atif.json"
-    _write_json(source, payload)
-    code, result = _run("prepare", "--task-dir", str(task_dir), "--atif", str(source), "--source-kind", "atif")
-    assert code == 0, result
+    task_dir = _fixture_workspace(tmp_path, trace=payload)
     code, result = _run("inventory-tool-calls", "--task-dir", str(task_dir))
     assert code == 0, result
     code, result = _run("plan-tool-call-access", "--task-dir", str(task_dir))
@@ -534,7 +556,7 @@ def _candidate(
     if software_requirements is None:
         software_requirements = []
     if status == "candidate":
-        if (task_dir / "safe/trace.atif.json").exists() and not (task_dir / "private/tool-access.json").exists():
+        if (task_dir / "safe/trace.json").exists() and not (task_dir / "private/tool-access.json").exists():
             _plan_tool_calls(task_dir)
             inventory = json.loads((task_dir / "private/tool-call-inventory.json").read_text())
             code, result = _resolve_tool_access(task_dir, {tool["name"]: "none" for tool in inventory["tools"]})
@@ -542,11 +564,16 @@ def _candidate(
         payload = {
             "schema": _CANDIDATE_SCHEMA,
             "status": "candidate",
-            "decision_basis": "safe_atif_only",
+            "decision_basis": "safe_trace_only",
             "instruction": "Repair the local fixture.",
-            "requirements": [{"description": "The fixture check passes.", "evidence_steps": [1, 2]}],
+            "requirements": [
+                {
+                    "description": "The fixture check passes.",
+                    "evidence_turns": ["trajectory/turn/1", "trajectory/turn/2"],
+                }
+            ],
             "verification_mode": "execution",
-            "evidence_steps": [1, 2],
+            "evidence_turns": ["trajectory/turn/1", "trajectory/turn/2"],
             "uncertainties": [],
             "reason_codes": [],
             "ground_truth": ground_truth,
@@ -556,11 +583,11 @@ def _candidate(
         payload = {
             "schema": _CANDIDATE_SCHEMA,
             "status": "no_candidate",
-            "decision_basis": "safe_atif_only",
+            "decision_basis": "safe_trace_only",
             "instruction": None,
             "requirements": [],
             "verification_mode": None,
-            "evidence_steps": [1],
+            "evidence_turns": ["trajectory/turn/1"],
             "uncertainties": ["The expected outcome is absent."],
             "reason_codes": ["missing_outcome"],
             "ground_truth": ground_truth,
@@ -634,32 +661,84 @@ def test_check_candidate_rejects_invalid_ground_truth_enum(tmp_path: Path, field
     assert f"ground_truth.{field} is not recognized" in result["error"]
 
 
-def test_check_candidate_rejects_unknown_evidence_step(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "field,value,error",
+    [
+        ("evidence_turns", ["trajectory/turn/99"], "references unknown evidence turns"),
+        ("evidence_turns", [1, 2], "must be a nonempty list of unique safe-trace turn ids"),
+        ("evidence_turns", [], "must be a nonempty list of unique safe-trace turn ids"),
+        ("evidence_turns", ["trajectory/turn/1", "trajectory/turn/1"], "nonempty list of unique"),
+        ("requirements", [{"description": "Passes.", "evidence_turns": ["missing"]}], "unknown evidence turns"),
+    ],
+)
+def test_check_candidate_rejects_unknown_evidence_turn(tmp_path: Path, field: str, value: Any, error: str) -> None:
     task_dir, _ = _workspace(tmp_path)
     _candidate(task_dir)
     path = task_dir / "candidate.json"
     candidate = json.loads(path.read_text())
-    candidate["evidence_steps"] = [999]
+    candidate[field] = value
     _write_json(path, candidate)
 
     code, result = _run("check-candidate", "--task-dir", str(task_dir))
 
     assert code == 1
-    assert "evidence_steps" in result["error"]
+    assert error in result["error"]
+
+
+def test_check_candidate_rejects_unknown_provenance_kind(tmp_path: Path) -> None:
+    task_dir, _ = _workspace(tmp_path)
+    software = _software(required=False, availability="unknown")
+    software["provenance"]["kind"] = "trace_step"
+    _candidate(task_dir, software_requirements=[software])
+    code, result = _run("check-candidate", "--task-dir", str(task_dir))
+    assert code == 1
+    assert "kind must be trace_turn or external" in result["error"]
+    software["provenance"].update(kind="trace_turn", turn_ids=["trajectory/turn/7"])
+    _candidate(task_dir, software_requirements=[software])
+    code, result = _run("check-candidate", "--task-dir", str(task_dir))
+    assert code == 1
+    assert "unknown evidence turns" in result["error"]
 
 
 def test_check_candidate_rejects_changed_safe_trace(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
     _candidate(task_dir)
-    path = task_dir / "safe/trace.atif.json"
-    safe = json.loads(path.read_text())
-    safe["steps"][0]["message"] = "Changed evidence"
+    path = task_dir / "safe/trace.json"
+    safe = _safe_trace(task_dir)
+    safe["root_spans"][0]["turns"][0]["content"] = "Changed evidence"
     _write_json(path, safe)
 
     code, result = _run("check-candidate", "--task-dir", str(task_dir))
 
     assert code == 1
-    assert "safe ATIF digest or size changed" in result["error"]
+    assert "safe trace digest or size changed" in result["error"]
+
+
+@pytest.mark.parametrize("schema", ["summary.v2", "summary.v3", "summary.v4"])
+def test_workspace_from_older_trace_environment_is_refused(tmp_path: Path, schema: str) -> None:
+    task_dir, _ = _workspace(tmp_path)
+    _candidate(task_dir, status="no_candidate")
+    summary = json.loads((task_dir / "summary.json").read_text())
+    summary["schema"] = f"nemo.eval_author.trace_environment_{schema}"
+    _write_json(task_dir / "summary.json", summary)
+
+    code, result = _run("check-candidate", "--task-dir", str(task_dir))
+
+    assert code == 1
+    assert (
+        result["error"]
+        == "workspace was prepared by an older trace-environment; re-run prepare in a new task directory"
+    )
+
+
+def test_workspace_with_unknown_summary_schema_is_refused(tmp_path: Path) -> None:
+    task_dir, _ = _workspace(tmp_path)
+    summary = json.loads((task_dir / "summary.json").read_text())
+    summary["schema"] = "nemo.eval_author.other.v1"
+    _write_json(task_dir / "summary.json", summary)
+
+    with pytest.raises(_TRACE_ENVIRONMENT.ContractError, match="summary.schema must be .*trace_environment_summary.v5"):
+        _TRACE_ENVIRONMENT._load_summary(task_dir)
 
 
 @pytest.mark.parametrize("status", ["pending", [], None])
@@ -683,7 +762,7 @@ def test_check_candidate_requires_prepared_evidence(tmp_path: Path) -> None:
     _candidate(task_dir)
     code, result = _run("check-candidate", "--task-dir", str(task_dir))
     assert code == 1
-    assert "prepare ATIF evidence" in result["error"]
+    assert "prepare trace evidence before checking candidate metadata" in result["error"]
 
 
 def test_check_candidate_rejects_summary_fields_without_moving_them(tmp_path: Path) -> None:
@@ -705,23 +784,23 @@ def test_check_candidate_rejects_summary_fields_without_moving_them(tmp_path: Pa
 def test_check_candidate_rejects_oversized_safe_trace_before_loading(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
     _candidate(task_dir)
-    path = task_dir / "safe/trace.atif.json"
+    path = task_dir / "safe/trace.json"
     with path.open("wb") as stream:
         stream.truncate(25 * 1024 * 1024 + 1)
     code, result = _run("check-candidate", "--task-dir", str(task_dir))
     assert code == 1
-    assert "safe ATIF exceeds" in result["error"]
+    assert "safe trace exceeds the 26214400-byte limit" in result["error"]
 
 
 def test_check_candidate_rejects_symlinked_safe_trace(tmp_path: Path) -> None:
     task_dir, source = _workspace(tmp_path)
     _candidate(task_dir)
-    path = task_dir / "safe/trace.atif.json"
+    path = task_dir / "safe/trace.json"
     path.unlink()
     path.symlink_to(source)
     code, result = _run("check-candidate", "--task-dir", str(task_dir))
     assert code == 1
-    assert "safe ATIF must be a retained regular file" in result["error"]
+    assert "safe trace must be a retained regular file" in result["error"]
 
 
 def _review_privacy(task_dir: Path, *, reviewer_kind: str = "agent") -> None:
@@ -732,7 +811,7 @@ def _review_privacy(task_dir: Path, *, reviewer_kind: str = "agent") -> None:
         "--reviewer-kind",
         reviewer_kind,
         "--note",
-        "Reviewed every safe ATIF string and all contextual audit findings.",
+        "Reviewed every safe trace string and all contextual audit findings.",
     )
     assert code == 0, result
 
@@ -763,6 +842,111 @@ def _review_publication(task_dir: Path, *, reviewer_kind: str = "agent") -> dict
     return preview
 
 
+def _probe(key: str, kind: str, argv: list[str], task_dir: Path) -> dict[str, Any]:
+    return {
+        "id": key,
+        "kind": kind,
+        "argv": argv,
+        "cwd": str(task_dir),
+        "timeout_seconds": 2,
+        "json_pointer": "/reached",
+        "equals": True,
+        "assertion_path": "task/tests/test.sh",
+    }
+
+
+def _control(
+    key: str, arm: str, requirements: list[str], fails: list[str], dependency: str | None = None
+) -> dict[str, Any]:
+    return {
+        "id": key,
+        "arm": arm,
+        "requirements": requirements,
+        "fails": fails,
+        "reaches": ["interface"],
+        "dependency": dependency,
+        "rationale": f"Synthetic {key} control.",
+        "review": _REVIEW,
+    }
+
+
+def _default_controls() -> list[dict[str, Any]]:
+    return [
+        _control("incomplete", "negative", ["repair"], ["fixture-repaired"]),
+        _control("equivalent", "alternative", ["repair"], []),
+    ]
+
+
+def _construction(
+    task_dir: Path,
+    *,
+    requirements: list[dict[str, Any]] | None = None,
+    controls: list[dict[str, Any]] | None = None,
+    dependencies: list[dict[str, Any]] | None = None,
+    starting_state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Write the private construction contract every workspace needs before its proof jobs.
+
+    The reach probe reads private/runtime-observation.json, which _qualification_receipt sets per trial.
+    """
+    construction = _TRACE_ENVIRONMENT.construction
+    tests = task_dir / "task/tests"
+    shutil.copy(_SCRIPT.with_name("qualification_runtime.py"), tests / "qualification_runtime.py")
+    probes = [
+        _probe("setup", "setup", ["/bin/echo", '{"reached": true}'], task_dir),
+        _probe("interface", "reach", ["/bin/cat", "private/runtime-observation.json"], task_dir),
+    ]
+    (tests / "qualification-probes.json").write_text(json.dumps(probes), encoding="utf-8")
+    manifest = {
+        "schema": construction.SCHEMA,
+        "candidate_sha256": construction.file_digest(task_dir, "candidate.json"),
+        "trace_sha256": construction.file_digest(task_dir, construction.TRACE_PATH),
+        "requirements": requirements or [{"id": "repair", "candidate_index": 0, "checks": ["fixture-repaired"]}],
+        "probes": probes,
+        "controls": controls or _default_controls(),
+        "dependencies": dependencies or [],
+        "starting_state": starting_state
+        or {
+            "cutoff_turn_id": "trajectory/turn/1",
+            "roots": [],
+            "artifacts": [],
+            "external_inputs": [],
+            "no_files_reason": "The synthetic fixture starts from its image without input files.",
+            "review": _REVIEW,
+        },
+        "review": _REVIEW,
+    }
+    _write_json(task_dir / construction.PATH, manifest)
+    return manifest
+
+
+def _qualification_receipt(task_dir: Path, trial: Path, *, reached: bool) -> None:
+    """Execute the declared probes for one synthetic trial, as the verifier would."""
+    _write_json(task_dir / "private/runtime-observation.json", {"reached": reached})
+    probes = json.loads((task_dir / "task/tests/qualification-probes.json").read_text(encoding="utf-8"))
+    (trial / "verifier").mkdir(parents=True, exist_ok=True)
+    _QUALIFICATION_RUNTIME.run_probes(probes, trial / "verifier/qualification.json")
+
+
+# arm: (control ID, agent, source, source text, run rationale)
+_PROOF_CONTROLS = {
+    "negative": (
+        "incomplete",
+        "negative_agent:IncompleteRepair",
+        "private/negative_agent.py",
+        "# Synthetic incomplete repair implementation.\n",
+        "Repair only one of the required fixture records.",
+    ),
+    "alternative": (
+        "equivalent",
+        "alternative_agent:EquivalentRepair",
+        "private/alternative_agent.py",
+        "# Synthetic equivalent repair implementation.\n",
+        "Repair the fixture through a different valid procedure.",
+    ),
+}
+
+
 def _ready_environment(
     task_dir: Path,
     *,
@@ -773,10 +957,10 @@ def _ready_environment(
     record_validation: bool = True,
     run_suffix: str = "",
     check_rows: bool = True,
-    allow_aggregate: bool = False,
     setup_only: bool = False,
+    requirements: list[dict[str, Any]] | None = None,
+    controls: list[dict[str, Any]] | None = None,
 ) -> None:
-    _historical_workspace(task_dir)
     task = task_dir / "task"
     (task / "environment").mkdir(parents=True, exist_ok=True)
     (task / "tests").mkdir(exist_ok=True)
@@ -836,32 +1020,38 @@ The human reviewer confirmed that this fixture accurately represents the recorde
     (task / "solution" / "solve.sh").write_text("#!/usr/bin/env bash\ntouch repaired\n", encoding="utf-8")
     if setup_only:
         return
+    if not (task_dir / "candidate.json").exists():
+        _candidate(task_dir)
+    _construction(task_dir, requirements=requirements, controls=controls)
     checksum = Task(task).checksum
     if mode == "separate":
         _record_reproducibility(task_dir)
-    control_source = task_dir / "private" / "negative_agent.py"
-    control_source.write_text("# Synthetic incomplete repair implementation.\n", encoding="utf-8")
+    for _, _, source, text, _ in _PROOF_CONTROLS.values():
+        (task_dir / source).write_text(text, encoding="utf-8")
     for job_number, arm, reward, exception in (
         (1, f"nop-1{run_suffix}", nop_reward, None),
         (2, f"nop-2{run_suffix}", nop_reward, None),
         (3, f"oracle-1{run_suffix}", oracle_reward, oracle_exception),
         (4, f"oracle-2{run_suffix}", oracle_reward, oracle_exception),
         (5, f"negative-1{run_suffix}", 0.0, None),
+        (6, f"alternative-1{run_suffix}", 1.0, None),
     ):
         proof_arm = arm.rsplit("-", 1)[0]
+        control = _PROOF_CONTROLS.get(proof_arm)
         if mode == "separate":
-            extra = (
-                [
-                    "--negative-agent",
-                    "negative_agent:IncompleteRepair",
-                    "--negative-source",
-                    "private/negative_agent.py",
-                    "--negative-rationale",
-                    "Repair only one of the required fixture records.",
+            extra = []
+            if control is not None:
+                control_id, agent, source, _, rationale = control
+                extra = [
+                    "--control-id",
+                    control_id,
+                    "--control-agent",
+                    agent,
+                    "--control-source",
+                    source,
+                    "--control-rationale",
+                    rationale,
                 ]
-                if proof_arm == "negative"
-                else []
-            )
             code, result = _run(
                 "record-run-inputs",
                 "--task-dir",
@@ -875,9 +1065,9 @@ The human reviewer confirmed that this fixture accurately represents the recorde
             assert code == 0, result
         trial = task_dir / "private" / "jobs" / arm / "task__trial"
         trial.mkdir(parents=True)
-        check_status = "PASS" if reward == 1.0 and proof_arm == "oracle" else "FAIL"
+        check_status = "PASS" if reward == 1.0 and proof_arm in ("oracle", "alternative") else "FAIL"
+        _qualification_receipt(task_dir, trial, reached=proof_arm != "nop")
         if check_rows:
-            (trial / "verifier").mkdir()
             (trial / "verifier" / "results").write_text(f"fixture-repaired\t{check_status}\n", encoding="utf-8")
         _write_json(
             trial / "result.json",
@@ -888,7 +1078,7 @@ The human reviewer confirmed that this fixture accurately represents the recorde
                 "exception_info": exception,
                 "config": {
                     "job_id": f"job-{job_number}{run_suffix}",
-                    "agent": {"name": proof_arm if proof_arm != "negative" else "negative_agent:IncompleteRepair"},
+                    "agent": {"name": proof_arm if control is None else control[1]},
                 },
             },
         )
@@ -907,9 +1097,10 @@ The human reviewer confirmed that this fixture accurately represents the recorde
             f"private/jobs/oracle-2{run_suffix}",
             "--negative-job-dir",
             f"private/jobs/negative-1{run_suffix}",
+            "--alternative-job-dir",
+            f"private/jobs/alternative-1{run_suffix}",
             "--harbor-version",
             "0.21.0",
-            *(["--allow-aggregate-only"] if allow_aggregate else []),
         )
         assert code == 0, result
 
@@ -961,61 +1152,130 @@ def test_init_refuses_to_write_outside_eval_author(tmp_path: Path) -> None:
     assert not (tmp_path / "elsewhere").exists()
 
 
-def test_prepare_preserves_original_and_writes_text_only_redacted_atif(tmp_path: Path) -> None:
+def test_prepare_preserves_original_and_writes_text_only_redacted_trace(tmp_path: Path) -> None:
     task_dir, source = _workspace(tmp_path)
 
     private = task_dir / "private" / "source.atif.json"
-    safe = task_dir / "safe" / "trace.atif.json"
+    canonical = task_dir / "private" / "canonical.trace.json"
+    safe = task_dir / "safe" / "trace.json"
     privacy = json.loads((task_dir / "safe" / "privacy.json").read_text(encoding="utf-8"))
     safe_text = safe.read_text(encoding="utf-8")
     summary = json.loads((task_dir / "summary.json").read_text(encoding="utf-8"))
 
     assert private.read_bytes() == source.read_bytes()
-    assert "jane@example.com" not in safe_text
-    assert "/home/jane" not in safe_text
-    assert "10.2.3.4" not in safe_text
-    assert "+1 (303) 555-0119" not in safe_text
-    assert "123-45-6789" not in safe_text
-    assert "session-1" not in safe_text
-    assert "call-1" not in safe_text
+    for value in ("jane@example.com", "/home/jane", "10.2.3.4", "+1 (303) 555-0119", "123-45-6789"):
+        assert value not in safe_text
+    for identifier in ("session-1", "trace-1", "call-1", str(tmp_path)):
+        assert identifier not in safe_text
     assert privacy["contextual_review_required"] is True
     assert privacy["contextual_review_complete"] is False
-    assert set(privacy["deterministic_redactions"]) >= {
-        "email",
-        "home_path",
-        "identifier",
-        "ipv4",
-        "phone",
-        "ssn",
-    }
-    assert summary["source"]["original_sha256"] == f"sha256:{hashlib.sha256(private.read_bytes()).hexdigest()}"
-    assert summary["source"]["safe_sha256"] == f"sha256:{hashlib.sha256(safe.read_bytes()).hexdigest()}"
-    assert (task_dir / "private" / "canonical.atif.json").is_file()
-    assert (task_dir / "private" / "privacy-audit.json").is_file()
+    assert privacy["blocking_reasons"] == []
+    redactions = privacy["deterministic_redactions"]
+    assert all(redactions[kind] > 0 for kind in ("email", "home_path", "identifier", "ipv4", "phone", "ssn"))
+
+    payload = json.loads(safe_text)
+    trace = trace_ingest.Trace.model_validate(payload)
+    assert safe.read_bytes() == _TRACE_ENVIRONMENT.trace_source.canonical_bytes(trace)
+    assert payload["schema_version"] == "3"
+    assert payload["id"].startswith("anon-")
+    assert payload["source_url"].startswith("file:///anon-")
+    assert set(payload["attributes"]) <= {"logical_case_id"}
+    assert all(span["attributes"] == {} for span in _spans(payload).values())
+    root = payload["root_spans"][0]
+    assert root["run"]["session_id"].startswith("anon-") and root["run"]["trajectory_id"].startswith("anon-")
+    # Positional span and turn ids carry no source data and stay readable.
+    assert set(_spans(payload)) == {"trajectory", "trajectory/step/2", "trajectory/step/2/tool/0"}
+    turns = _turns(payload)
+    assert set(turns) == {"trajectory/turn/1", "trajectory/turn/2"}
+    assert (
+        turns["trajectory/turn/1"]["content"]
+        == "Repair the fixture for <redacted:email> from /home/<redacted:user>/project."
+    )
+    tool = _spans(payload)["trajectory/step/2/tool/0"]
+    assert tool["input"] == {"phone": "<redacted:phone>"}
+    assert tool["tool_call"]["call_id"].startswith("anon-")
+    assert tool["tool_call"]["results"][0]["content"] == "Result for <redacted:ssn>"
+
+    trace_ingest.Trace.model_validate_json(canonical.read_bytes())
+    assert "jane@example.com" in canonical.read_text(encoding="utf-8")
+    source_record = summary["source"]
+    assert source_record["kind"] == "atif"
+    assert source_record["trace_schema_version"] == "3"
+    assert source_record["original_path"] == "private/source.atif.json"
+    assert source_record["canonical_path"] == "private/canonical.trace.json"
+    assert source_record["safe_path"] == "safe/trace.json"
+    assert source_record["original_sha256"] == f"sha256:{hashlib.sha256(private.read_bytes()).hexdigest()}"
+    assert source_record["canonical_sha256"] == f"sha256:{hashlib.sha256(canonical.read_bytes()).hexdigest()}"
+    assert source_record["safe_sha256"] == f"sha256:{hashlib.sha256(safe.read_bytes()).hexdigest()}"
+    assert source_record["safe_size_bytes"] == safe.stat().st_size
+    assert source_record["normalizations"] == []
+    audit = json.loads((task_dir / "private" / "privacy-audit.json").read_text(encoding="utf-8"))
+    assert audit["schema"] == "nemo.eval_author.trace_environment_privacy_audit.v2"
+    assert audit["safe_sha256"] == source_record["safe_sha256"]
 
 
-def test_prepare_reports_non_object_observation(tmp_path: Path) -> None:
+def test_scrub_drops_attributes_and_pseudonymizes_source_identifiers(tmp_path: Path) -> None:
+    source = tmp_path / "source.atif.json"
+    _write_json(source, _atif())
+    trace_source = _TRACE_ENVIRONMENT.trace_source
+    payload = trace_source.load_trace(source, "atif").model_dump(mode="json")
+    payload["attributes"] = {"logical_case_id": "case-7", "owner": "jane@example.com"}
+    for span in _spans(payload).values():
+        span["attributes"] = {"host": "build-7.corp.example.com"}
+
+    safe, _ = trace_source.scrub(trace_ingest.Trace.model_validate(payload))
+
+    dumped = safe.model_dump(mode="json")
+    assert dumped["attributes"] == {"logical_case_id": f"anon-{hashlib.sha256(b'case-7').hexdigest()[:16]}"}
+    assert all(span["attributes"] == {} for span in _spans(dumped).values())
+    assert "build-7" not in json.dumps(dumped) and "jane" not in json.dumps(dumped)
+    assert trace_source.safe_id("trajectory/subagent/0/turn/3") == "trajectory/subagent/0/turn/3"
+    assert trace_source.safe_id("span-from-source") == f"anon-{hashlib.sha256(b'span-from-source').hexdigest()[:16]}"
+
+
+def test_prepare_rejects_invalid_atif(tmp_path: Path) -> None:
     root = tmp_path / ".eval-author" / "trace-environments"
     code, result = _run("init", "--root", str(root), "--task-id", "repair-fixture")
     assert code == 0, result
     task_dir = Path(result["task_dir"])
     source = tmp_path / "source.atif.json"
     payload = _atif()
-    payload["steps"][1]["observation"] = "not-an-object"
+    del payload["agent"]["version"]
     _write_json(source, payload)
 
-    code, result = _run(
-        "prepare",
-        "--task-dir",
-        str(task_dir),
-        "--atif",
-        str(source),
-        "--source-kind",
-        "atif",
-    )
+    code, result = _prepare(task_dir, source)
 
     assert code == 1
-    assert result["error"] == "trajectory.steps[1].observation must be an object"
+    assert result["error"].startswith("could not load the source as atif")
+    assert "jane@example.com" not in result["error"]
+    assert not (task_dir / "safe").exists() or not any((task_dir / "safe").iterdir())
+
+
+def test_prepare_rejects_sources_without_recorded_turns(tmp_path: Path) -> None:
+    root = tmp_path / ".eval-author" / "trace-environments"
+    code, result = _run("init", "--root", str(root), "--task-id", "mlflow-trace")
+    assert code == 0, result
+    source = _PLUGIN / "skills" / "eval-author-trace-environment" / "evals" / "files" / "traces" / "mlflow.json"
+
+    code, result = _prepare(Path(result["task_dir"]), source, "mlflow")
+
+    assert code == 1
+    assert result["error"] == "source kind mlflow does not record turns yet"
+
+
+def test_prepare_requires_a_user_instruction_with_text(tmp_path: Path) -> None:
+    root = tmp_path / ".eval-author" / "trace-environments"
+    code, result = _run("init", "--root", str(root), "--task-id", "image-only")
+    assert code == 0, result
+    payload = _atif(image_only=True)
+    payload["steps"].pop()
+    source = tmp_path / "source.atif.json"
+    _write_json(source, payload)
+
+    code, result = _prepare(Path(result["task_dir"]), source)
+
+    assert code == 1
+    assert result["error"] == "trace must contain at least one root-agent user turn with text"
 
 
 def test_image_only_instruction_blocks_candidate_but_can_be_no_candidate(tmp_path: Path) -> None:
@@ -1035,6 +1295,11 @@ def test_image_only_instruction_blocks_candidate_but_can_be_no_candidate(tmp_pat
     assert "unresolved non-text evidence" in result["error"]
     privacy = json.loads((task_dir / "safe" / "privacy.json").read_text(encoding="utf-8"))
     assert privacy["contextual_review_complete"] is True
+    assert privacy["blocking_reasons"] == ["image_only_user_instruction:trajectory/turn/1"]
+    assert privacy["images_omitted"] == 1
+    assert _turns(_safe_trace(task_dir))["trajectory/turn/1"]["content"] == [
+        {"type": "text", "text": "[image omitted]"}
+    ]
 
     _candidate(task_dir, status="no_candidate")
     code, result = _run("finalize", "--task-dir", str(task_dir), "--status", "no_candidate")
@@ -1063,7 +1328,10 @@ def test_no_candidate_summary_records_reasons_and_lessons(tmp_path: Path) -> Non
     assert summary["reasons"] == ["missing_outcome"]
     assert summary["worked_well"] == ["The instruction was recoverable."]
     assert summary["did_not_work"] == ["The expected outcome was absent."]
-    assert "`no_candidate`" in (task_dir / "summary.md").read_text(encoding="utf-8")
+    markdown = (task_dir / "summary.md").read_text(encoding="utf-8")
+    assert "`no_candidate`" in markdown
+    assert "- Safe trace:" in markdown
+    assert "- Evidence turns:" in markdown and "trajectory/turn/1" in markdown
     code, check = _run("check", "--task-dir", str(task_dir))
     assert code == 0, check
     assert check["valid"] is True
@@ -1087,7 +1355,7 @@ def test_summary_captures_ground_truth_and_proprietary_software(tmp_path: Path) 
                     "sha256": f"sha256:{hashlib.sha256(expected.read_bytes()).hexdigest()}",
                     "provenance": {
                         "kind": "external",
-                        "step_ids": [],
+                        "turn_ids": [],
                         "uri": "https://example.test/fixtures/expected.json",
                         "revision": "abc123",
                         "source_id": None,
@@ -1107,8 +1375,8 @@ def test_summary_captures_ground_truth_and_proprietary_software(tmp_path: Path) 
                 "availability": "unavailable",
                 "redistributable": False,
                 "provenance": {
-                    "kind": "atif_step",
-                    "step_ids": [1, 2],
+                    "kind": "trace_turn",
+                    "turn_ids": ["trajectory/turn/1", "trajectory/turn/2"],
                     "uri": None,
                     "revision": None,
                     "source_id": None,
@@ -1148,8 +1416,8 @@ def test_candidate_rejects_required_unavailable_software(tmp_path: Path, state_b
                 "availability": "unavailable",
                 "redistributable": False,
                 "provenance": {
-                    "kind": "atif_step",
-                    "step_ids": [1],
+                    "kind": "trace_turn",
+                    "turn_ids": ["trajectory/turn/1"],
                     "uri": None,
                     "revision": None,
                     "source_id": None,
@@ -1180,7 +1448,13 @@ def _software(*, required: bool, availability: str) -> dict[str, Any]:
         "license": "open_source",
         "availability": availability,
         "redistributable": True,
-        "provenance": {"kind": "atif_step", "step_ids": [1], "uri": None, "revision": None, "source_id": None},
+        "provenance": {
+            "kind": "trace_turn",
+            "turn_ids": ["trajectory/turn/1"],
+            "uri": None,
+            "revision": None,
+            "source_id": None,
+        },
         "notes": "Runtime availability recorded from the task evidence.",
     }
 
@@ -1253,8 +1527,8 @@ def test_ground_truth_digest_must_match_retained_artifact(tmp_path: Path) -> Non
                     "path": "private/ground-truth/expected.json",
                     "sha256": f"sha256:{'0' * 64}",
                     "provenance": {
-                        "kind": "atif_step",
-                        "step_ids": [2],
+                        "kind": "trace_turn",
+                        "turn_ids": ["trajectory/turn/2"],
                         "uri": None,
                         "revision": None,
                         "source_id": None,
@@ -1289,8 +1563,8 @@ def test_ground_truth_path_cannot_escape_private_directory(tmp_path: Path) -> No
                     "path": "private/ground-truth/../outside.json",
                     "sha256": f"sha256:{hashlib.sha256(outside.read_bytes()).hexdigest()}",
                     "provenance": {
-                        "kind": "atif_step",
-                        "step_ids": [2],
+                        "kind": "trace_turn",
+                        "turn_ids": ["trajectory/turn/2"],
                         "uri": None,
                         "revision": None,
                         "source_id": None,
@@ -1346,6 +1620,7 @@ def test_ready_candidate_requires_privacy_review_and_both_harbor_arms(tmp_path: 
         "validation": "validation.json",
         "verifier_environment_mode": "separate",
         "isolation_status": "isolated",
+        "qualification": "passed",
     }
     assert summary["privacy"]["contextual_review_complete"] is True
     code, check = _run("check", "--task-dir", str(task_dir))
@@ -1427,7 +1702,7 @@ def test_reproducibility_records_complete_task_tree_and_portability(tmp_path: Pa
 
     assert report["schema"] == "nemo.eval_author.trace_environment_reproducibility.v3"
     assert report["task_tree_sha256"].startswith("sha256:")
-    assert report["file_count"] == 7
+    assert report["file_count"] == 9
     assert report["portability"]["state"] == "image_pinned_recipe"
     assert report["portability"]["dependency_closure"] == "unverified"
     assert report["network"] == {"agent": "no-network", "verifier": "no-network"}
@@ -1534,23 +1809,7 @@ def test_validation_requires_distinct_harbor_job_ids(tmp_path: Path) -> None:
     payload["config"]["job_id"] = "job-1"
     _write_json(duplicate, payload)
 
-    code, result = _run(
-        "record-validation",
-        "--task-dir",
-        str(task_dir),
-        "--nop-job-dir",
-        "private/jobs/nop-1",
-        "--nop-job-dir",
-        "private/jobs/nop-2",
-        "--oracle-job-dir",
-        "private/jobs/oracle-1",
-        "--oracle-job-dir",
-        "private/jobs/oracle-2",
-        "--negative-job-dir",
-        "private/jobs/negative-1",
-        "--harbor-version",
-        "0.21.0",
-    )
+    code, result = _record_existing_jobs(task_dir)
 
     assert code == 1
     assert "config.job_id values must be distinct" in result["error"]
@@ -1561,7 +1820,7 @@ def test_check_detects_changed_safe_evidence(tmp_path: Path) -> None:
     _candidate(task_dir, status="no_candidate")
     code, result = _run("finalize", "--task-dir", str(task_dir), "--status", "no_candidate")
     assert code == 0, result
-    with (task_dir / "safe" / "trace.atif.json").open("a", encoding="utf-8") as stream:
+    with (task_dir / "safe" / "trace.json").open("a", encoding="utf-8") as stream:
         stream.write("\n")
 
     code, result = _run("check", "--task-dir", str(task_dir))
@@ -1577,26 +1836,23 @@ def test_prepare_narrowly_repairs_provider_redaction_quote(tmp_path: Path) -> No
     assert code == 0, result
     source = tmp_path / "broken.atif.json"
     source.write_text(
-        '{"schema_version":"ATIF-v1.7","agent":{"name":"agent"},"steps":'
+        '{"schema_version":"ATIF-v1.7","agent":{"name":"agent","version":"1.0"},"steps":'
         '[{"step_id":1,"source":"user","message":"prefix \\"PASSWORD=<redacted>" suffix"}]}',
         encoding="utf-8",
     )
 
-    code, result = _run(
-        "prepare",
-        "--task-dir",
-        result["task_dir"],
-        "--atif",
-        str(source),
-        "--source-kind",
-        "atif",
-    )
+    code, result = _prepare(Path(result["task_dir"]), source)
 
     assert code == 0, result
     assert result["normalization_count"] == 1
-    summary = json.loads((root / "repair-quote" / "summary.json").read_text(encoding="utf-8"))
+    task_dir = root / "repair-quote"
+    summary = json.loads((task_dir / "summary.json").read_text(encoding="utf-8"))
     assert summary["source"]["normalizations"][0]["kind"] == "escape_provider_redaction_placeholder_quote"
-    assert (root / "repair-quote" / "private" / "source.atif.json").read_bytes() == source.read_bytes()
+    assert (task_dir / "private" / "source.atif.json").read_bytes() == source.read_bytes()
+    canonical = json.loads((task_dir / "private" / "canonical.trace.json").read_text(encoding="utf-8"))
+    assert [loss["code"] for loss in canonical["losses"]] == ["provider_redaction_quote_escaped"]
+    assert _turns(canonical)["trajectory/turn/1"]["content"] == 'prefix "PASSWORD=<redacted>" suffix'
+    assert str(tmp_path) not in json.dumps(_safe_trace(task_dir))
 
 
 def test_prepare_bounds_string_encoded_images_and_audits_context(tmp_path: Path) -> None:
@@ -1611,33 +1867,43 @@ def test_prepare_bounds_string_encoded_images_and_audits_context(tmp_path: Path)
             "type": "text",
             "text": "Use https://api.example.test/path for Example Labs at 123 Main Street and John Smith.",
         },
-        {
-            "type": "image",
-            "source": {"type": "base64", "media_type": "image/png", "data": "A" * 100_001},
-        },
+        {"type": "image", "source": {"media_type": "image/png", "path": "screen.png"}},
     ]
+    # Encoded image bytes are not valid in ATIF image sources, but can hide in free-form strings.
     payload["steps"][1]["observation"]["results"][0]["content"] = (
         'before {"type":"image","source":{"type":"base64","media_type":"image/png","data":"DATA"}} after'
     )
     payload["steps"][1]["message"] = "Call service.default.svc.cluster.local"
     _write_json(source, payload)
 
-    code, result = _run(
-        "prepare",
-        "--task-dir",
-        str(task_dir),
-        "--atif",
-        str(source),
-        "--source-kind",
-        "atif",
-    )
+    code, result = _prepare(task_dir, source)
 
     assert code == 0, result
-    canonical = json.loads((task_dir / "private" / "canonical.atif.json").read_text(encoding="utf-8"))
-    assert canonical["steps"][0]["message"][1]["source"]["data"] == ""
-    assert canonical["steps"][1]["observation"]["results"][0]["content"][1]["source"]["data"] == ""
-    safe_text = (task_dir / "safe" / "trace.atif.json").read_text(encoding="utf-8")
+    assert result["images_omitted"] == 2
+    canonical = json.loads((task_dir / "private" / "canonical.trace.json").read_text(encoding="utf-8"))
+    tool = "trajectory/step/2/tool/0"
+    assert _spans(canonical)[tool]["tool_call"]["results"][0]["content"] == [
+        {"type": "text", "text": "before "},
+        {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": ""}},
+        {"type": "text", "text": " after"},
+    ]
+    assert "image_data_omitted" in [loss["code"] for loss in canonical["losses"]]
+    summary = json.loads((task_dir / "summary.json").read_text(encoding="utf-8"))
+    assert summary["source"]["normalizations"] == [
+        {
+            "kind": "bound_stringified_image_observations",
+            "count": 1,
+            "omitted_encoded_characters": 4,
+            "metadata_field_count": 0,
+            "metadata_omitted_characters": 0,
+        }
+    ]
+    safe = _safe_trace(task_dir)
+    assert _turns(safe)["trajectory/turn/1"]["content"][1] == {"type": "text", "text": "[image omitted]"}
+    assert _spans(safe)[tool]["tool_call"]["results"][0]["content"][1] == {"type": "text", "text": "[image omitted]"}
+    safe_text = (task_dir / "safe" / "trace.json").read_text(encoding="utf-8")
     assert "svc.cluster.local" not in safe_text
+    assert "screen.png" not in safe_text
     audit = json.loads((task_dir / "private" / "privacy-audit.json").read_text(encoding="utf-8"))
     assert audit["url_hosts"] == ["api.example.test"]
     assert {finding["kind"] for finding in audit["candidate_findings"]} >= {
@@ -1670,16 +1936,15 @@ def test_prepare_omits_repeated_image_metadata_without_losing_prose(
         step["message"] = embedded
     source = tmp_path / "source.atif.json"
     _write_json(source, payload)
-    code, report = _run("prepare", "--task-dir", str(task_dir), "--atif", str(source), "--source-kind", "atif")
+    code, report = _prepare(task_dir, source)
     assert code == 0, report
     assert (task_dir / "private/source.atif.json").read_bytes() == source.read_bytes()
-    for artifact in ("private/canonical.atif.json", "safe/trace.atif.json"):
+    for artifact in ("private/canonical.trace.json", "safe/trace.json"):
         text = (task_dir / artifact).read_text()
         assert "A" * encoded_size not in text
         assert "synthetic diagram" in text
         if location != "extra":
             assert "before [metadata]" in text and " after" in text
-    (task_dir / "private/workspace.json").unlink(missing_ok=True)
     summary = json.loads((task_dir / "summary.json").read_text())
     operation = summary["source"]["normalizations"][0]
     assert operation["metadata_field_count"] == 1
@@ -1706,18 +1971,19 @@ def test_prepare_handles_non_string_metadata_type(
     source = tmp_path / "source.atif.json"
     _write_json(source, payload)
 
-    code, result = _run("prepare", "--task-dir", str(task_dir), "--atif", str(source), "--source-kind", "atif")
+    code, result = _prepare(task_dir, source)
 
     assert code == 0, result
     assert (task_dir / "private/source.atif.json").read_bytes() == source.read_bytes()
-    for relative in ("private/canonical.atif.json", "safe/trace.atif.json"):
-        actual = json.loads((task_dir / relative).read_text())["extra"]["nested"][0]
+    for relative in ("private/canonical.trace.json", "safe/trace.json"):
+        # ATIF trajectory extra is carried on the root AGENT span's run record.
+        actual = json.loads((task_dir / relative).read_text())["root_spans"][0]["run"]["extra"]["nested"][0]
         assert actual["type"] == metadata_type
         assert actual["data"] == ("" if image_media_type else "synthetic payload")
-        if relative == "private/canonical.atif.json":
+        if relative == "private/canonical.trace.json":
             assert actual["children"][0]["source"]["data"] == ""
         else:
-            assert actual["children"][0]["type"] == "text"
+            assert actual["children"][0] == {"type": "text", "text": "[image omitted]"}
             assert "ENCODED" not in json.dumps(actual)
 
 
@@ -1902,9 +2168,19 @@ def test_export_uses_a_strict_publication_whitelist(tmp_path: Path) -> None:
     assert not (output / "safe").exists()
     assert not (output / "private").exists()
     product = json.loads((output / "result.json").read_text(encoding="utf-8"))
-    assert product["schema"] == "nemo.eval_author.trace_environment_product.v4"
+    assert product["schema"] == _TRACE_ENVIRONMENT.EXPORT_SCHEMA == "nemo.eval_author.trace_environment_product.v5"
+    assert product["candidate_evidence_turns"] == ["trajectory/turn/1", "trajectory/turn/2"]
+    exported_candidate = json.loads((output / "candidate.json").read_text(encoding="utf-8"))
+    assert exported_candidate["decision_basis"] == "safe_trace_only"
     assert product["reproducibility"]["contamination_passed"] is True
-    assert product["technical_validation"]["minimum_runs"] == {"negative": 1, "nop": 2, "oracle": 2, "copy": 0}
+    assert product["technical_validation"]["minimum_runs"] == {
+        "negative": 1,
+        "nop": 2,
+        "oracle": 2,
+        "copy": 0,
+        "alternative": 1,
+        "bypass": 0,
+    }
     assert product["technical_validation"]["distinct_jobs"] is True
     assert product["technical_validation"]["container_freshness"] == "unverified"
     assert "fresh_jobs" not in product["technical_validation"]
@@ -2021,6 +2297,8 @@ def test_publication_review_is_invalidated_by_changed_export(tmp_path: Path, cha
         path = task_dir / ("candidate.json" if change == "candidate" else "reproducibility.json")
         # Equivalent JSON still changes the exact bytes approved for publication.
         path.write_text(path.read_text() + "\n")
+        if change == "candidate":
+            _construction(task_dir)  # rebind the construction contract to the edited candidate
     elif change == "task":
         path = task_dir / "task/instruction.md"
         path.write_text(path.read_text() + "Keep the repair local.\n")
@@ -2242,10 +2520,10 @@ def test_batch_prepare_is_resumable_and_reports_full_denominator(tmp_path: Path)
     _write_json(
         manifest,
         {
-            "schema": "nemo.eval_author.trace_environment_batch.v1",
+            "schema": _TRACE_ENVIRONMENT.BATCH_SCHEMA,
             "members": [
-                {"task_id": "task-one", "atif": "one.json", "source_kind": "atif"},
-                {"task_id": "task-two", "atif": "two.json", "source_kind": "atif"},
+                {"task_id": "task-one", "source": "one.json", "source_kind": "atif"},
+                {"task_id": "task-two", "source": "two.json", "source_kind": "atif"},
             ],
         },
     )
@@ -2271,10 +2549,10 @@ def test_batch_status_reports_malformed_workspace_without_aborting(tmp_path: Pat
     _write_json(source_two, _atif())
     manifest = tmp_path / "manifest.json"
     manifest_payload = {
-        "schema": "nemo.eval_author.trace_environment_batch.v1",
+        "schema": _TRACE_ENVIRONMENT.BATCH_SCHEMA,
         "members": [
-            {"task_id": "task-one", "atif": "one.json", "source_kind": "atif"},
-            {"task_id": "task-two", "atif": "two.json", "source_kind": "atif"},
+            {"task_id": "task-one", "source": "one.json", "source_kind": "atif"},
+            {"task_id": "task-two", "source": "two.json", "source_kind": "atif"},
         ],
     }
     _write_json(manifest, manifest_payload)
@@ -2285,7 +2563,7 @@ def test_batch_status_reports_malformed_workspace_without_aborting(tmp_path: Pat
     summary = json.loads(malformed_summary.read_text(encoding="utf-8"))
     summary["unexpected"] = True
     _write_json(malformed_summary, summary)
-    manifest_payload["members"].append({"task_id": "task-three", "atif": "missing.json", "source_kind": "atif"})
+    manifest_payload["members"].append({"task_id": "task-three", "source": "missing.json", "source_kind": "atif"})
     _write_json(manifest, manifest_payload)
 
     code, status = _run("batch-status", "--root", str(root), "--manifest", str(manifest))
@@ -2336,9 +2614,9 @@ def test_batch_status_contains_invalid_enum_types(tmp_path: Path, field: str, ba
     _write_json(
         manifest,
         {
-            "schema": "nemo.eval_author.trace_environment_batch.v1",
+            "schema": _TRACE_ENVIRONMENT.BATCH_SCHEMA,
             "members": [
-                {"task_id": name, "atif": str(source), "source_kind": "atif"}
+                {"task_id": name, "source": str(source), "source_kind": "atif"}
                 for name in (task_dir.name, "healthy", "missing")
             ],
         },
@@ -2353,7 +2631,7 @@ def test_batch_status_contains_invalid_enum_types(tmp_path: Path, field: str, ba
 
 def _record_existing_jobs(task_dir: Path, *extra: str) -> tuple[int, dict[str, Any]]:
     args = []
-    for arm, count in (("nop", 2), ("oracle", 2), ("negative", 1)):
+    for arm, count in (("nop", 2), ("oracle", 2), ("negative", 1), ("alternative", 1)):
         for index in range(1, count + 1):
             args.extend([f"--{arm}-job-dir", f"private/jobs/{arm}-{index}"])
     return _run("record-validation", "--task-dir", str(task_dir), *args, *extra, "--harbor-version", "0.21.0")
@@ -2403,7 +2681,7 @@ def test_run_inputs_cannot_be_attached_after_a_job_exists(tmp_path: Path) -> Non
     assert "before Harbor creates" in result["error"]
 
 
-def test_missing_pre_run_inputs_rejects_historical_proof(tmp_path: Path) -> None:
+def test_missing_pre_run_inputs_rejects_proof(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
     _ready_environment(task_dir, record_validation=False)
     for path in (task_dir / "private/run-inputs").glob("*.json"):
@@ -2446,6 +2724,7 @@ def test_import_path_agent_identity_is_supported(tmp_path: Path) -> None:
         "nop": "harbor.agents.nop:NopAgent",
         "oracle": "harbor.agents.oracle:OracleAgent",
         "negative": "negative_agent:IncompleteRepair",
+        "alternative": "alternative_agent:EquivalentRepair",
     }
     for path in (task_dir / "private/jobs").glob("*/task__*/result.json"):
         arm = path.parents[1].name.rsplit("-", 1)[0]
@@ -2470,7 +2749,7 @@ def test_negative_source_mutation_invalidates_proof(tmp_path: Path) -> None:
 @pytest.mark.parametrize("arm", ["negative", "copy"])
 def test_builtin_agent_cannot_be_declared_control(tmp_path: Path, agent: str, arm: str) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_environment(task_dir, record_validation=False, controls=_copy_controls(["fixture-repaired"]))
     code, result = _run(
         "record-run-inputs",
         "--task-dir",
@@ -2479,6 +2758,8 @@ def test_builtin_agent_cannot_be_declared_control(tmp_path: Path, agent: str, ar
         f"private/jobs/new-{arm}",
         "--arm",
         arm,
+        "--control-id",
+        {"negative": "incomplete", "copy": "copy-only"}[arm],
         "--negative-agent",
         agent,
         "--negative-source",
@@ -2755,41 +3036,10 @@ def test_record_validation_requires_per_check_rows_by_default(tmp_path: Path) ->
     _candidate(task_dir)
     _ready_environment(task_dir, check_rows=False, record_validation=False)
 
-    code, result = _run(
-        "record-validation",
-        "--task-dir",
-        str(task_dir),
-        "--nop-job-dir",
-        "private/jobs/nop-1",
-        "--nop-job-dir",
-        "private/jobs/nop-2",
-        "--oracle-job-dir",
-        "private/jobs/oracle-1",
-        "--oracle-job-dir",
-        "private/jobs/oracle-2",
-        "--negative-job-dir",
-        "private/jobs/negative-1",
-        "--harbor-version",
-        "0.21.0",
-    )
+    code, result = _record_existing_jobs(task_dir)
 
     assert code == 1
     assert "missing_check_evidence" in result["error"]
-
-
-def test_record_validation_allows_historical_aggregate_only_proof(tmp_path: Path) -> None:
-    task_dir, _ = _workspace(tmp_path)
-    _candidate(task_dir)
-    _ready_environment(task_dir, check_rows=False, allow_aggregate=True)
-    _review_privacy(task_dir, reviewer_kind="human")
-
-    code, result = _run("finalize", "--task-dir", str(task_dir), "--status", "candidate", "--human-reviewed")
-
-    assert code == 0, result
-    validation = json.loads((task_dir / "validation.json").read_text(encoding="utf-8"))
-    assert validation["check_evidence"] == "aggregate_only"
-    code, check = _run("check", "--task-dir", str(task_dir))
-    assert code == 0, check
 
 
 def test_record_validation_rejects_mixed_check_evidence(tmp_path: Path) -> None:
@@ -2798,26 +3048,10 @@ def test_record_validation_rejects_mixed_check_evidence(tmp_path: Path) -> None:
     _ready_environment(task_dir, record_validation=False)
     (task_dir / "private" / "jobs" / "oracle-1" / "task__trial" / "verifier" / "results").unlink()
 
-    code, result = _run(
-        "record-validation",
-        "--task-dir",
-        str(task_dir),
-        "--nop-job-dir",
-        "private/jobs/nop-1",
-        "--nop-job-dir",
-        "private/jobs/nop-2",
-        "--oracle-job-dir",
-        "private/jobs/oracle-1",
-        "--oracle-job-dir",
-        "private/jobs/oracle-2",
-        "--negative-job-dir",
-        "private/jobs/negative-1",
-        "--harbor-version",
-        "0.21.0",
-    )
+    code, result = _record_existing_jobs(task_dir)
 
     assert code == 1
-    assert "every proof job or none" in result["error"]
+    assert "missing_check_evidence" in result["error"]
 
 
 def test_record_validation_rejects_nop_passing_a_scored_check(tmp_path: Path) -> None:
@@ -2828,23 +3062,7 @@ def test_record_validation_rejects_nop_passing_a_scored_check(tmp_path: Path) ->
         "fixture-repaired\tPASS\n", encoding="utf-8"
     )
 
-    code, result = _run(
-        "record-validation",
-        "--task-dir",
-        str(task_dir),
-        "--nop-job-dir",
-        "private/jobs/nop-1",
-        "--nop-job-dir",
-        "private/jobs/nop-2",
-        "--oracle-job-dir",
-        "private/jobs/oracle-1",
-        "--oracle-job-dir",
-        "private/jobs/oracle-2",
-        "--negative-job-dir",
-        "private/jobs/negative-1",
-        "--harbor-version",
-        "0.21.0",
-    )
+    code, result = _record_existing_jobs(task_dir)
 
     assert code == 1
     assert "untouched environment passes scored checks" in result["error"]
@@ -3002,7 +3220,7 @@ def test_reconstructed_state_basis_flows_to_the_public_product(tmp_path: Path) -
     assert code == 0, result
 
     product = json.loads((output / "result.json").read_text(encoding="utf-8"))
-    assert product["schema"] == "nemo.eval_author.trace_environment_product.v4"
+    assert product["schema"] == "nemo.eval_author.trace_environment_product.v5"
     assert product["state_basis"] == "reconstructed"
     assert product["repairs"] == 0
     assert product["technical_validation"]["check_evidence"] == "per_check"
@@ -3020,7 +3238,6 @@ def test_reconstruction_without_historical_truth_or_proof_stays_unproven(tmp_pat
 
     assert code == 0, result
     assert result["environment_status"] == "unproven"
-    (task_dir / "private/workspace.json").unlink(missing_ok=True)
     summary = json.loads((task_dir / "summary.json").read_text())
     assert summary["candidate"]["ground_truth"]["availability"] == "absent"
     assert summary["environment"]["technical_status"] == "not_run"
@@ -3058,8 +3275,8 @@ def test_batch_status_surfaces_repair_counts(tmp_path: Path) -> None:
     _write_json(
         manifest,
         {
-            "schema": "nemo.eval_author.trace_environment_batch.v1",
-            "members": [{"task_id": task_dir.name, "atif": str(source), "source_kind": "atif"}],
+            "schema": _TRACE_ENVIRONMENT.BATCH_SCHEMA,
+            "members": [{"task_id": task_dir.name, "source": str(source), "source_kind": "atif"}],
         },
     )
 
@@ -3067,6 +3284,11 @@ def test_batch_status_surfaces_repair_counts(tmp_path: Path) -> None:
 
     assert code == 0, result
     assert result["members"][0]["repairs"] == 1
+
+
+def _copy_controls(fails: list[str]) -> list[dict[str, Any]]:
+    """The default controls plus one declared copy probe expected to fail `fails`."""
+    return [*_default_controls(), _control("copy-only", "copy", ["repair"], fails)]
 
 
 def _copy_job(task_dir: Path, *, rows: str = "fixture-repaired\tFAIL\n", reward: float = 0) -> Path:
@@ -3080,6 +3302,8 @@ def _copy_job(task_dir: Path, *, rows: str = "fixture-repaired\tFAIL\n", reward:
         "copy",
         "--job-dir",
         "private/jobs/copy-1",
+        "--control-id",
+        "copy-only",
         "--control-agent",
         "copy_agent:CopyOnly",
         "--control-source",
@@ -3094,7 +3318,7 @@ def _copy_job(task_dir: Path, *, rows: str = "fixture-repaired\tFAIL\n", reward:
     baseline["config"] = {"job_id": "copy-job", "agent": {"import_path": "copy_agent:CopyOnly"}}
     baseline["verifier_result"]["rewards"]["reward"] = reward
     _write_json(trial / "result.json", baseline)
-    (trial / "verifier").mkdir()
+    _qualification_receipt(task_dir, trial, reached=True)
     (trial / "verifier/results").write_text(rows)
     return trial
 
@@ -3102,7 +3326,7 @@ def _copy_job(task_dir: Path, *, rows: str = "fixture-repaired\tFAIL\n", reward:
 @pytest.mark.parametrize("reward,status,passed", [(0, "FAIL", True), (1, "PASS", False)])
 def test_copy_probe_retains_evidence_and_detects_full_escape(tmp_path, reward, status, passed):
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_environment(task_dir, record_validation=False, controls=_copy_controls(["fixture-repaired"]))
     _copy_job(task_dir, rows=f"fixture-repaired\t{status}\n", reward=reward)
     code, report = _record_existing_jobs(task_dir, "--copy-job-dir", "private/jobs/copy-1")
     assert code == 0, report
@@ -3131,7 +3355,7 @@ def test_copy_probe_retains_evidence_and_detects_full_escape(tmp_path, reward, s
 )
 def test_copy_probe_rejects_invalid_scoring_evidence(tmp_path, rows, reward, error):
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_environment(task_dir, record_validation=False, controls=_copy_controls(["fixture-repaired"]))
     _copy_job(task_dir, rows=rows, reward=reward)
     code, report = _record_existing_jobs(task_dir, "--copy-job-dir", "private/jobs/copy-1")
     assert code == 1, report
@@ -3141,9 +3365,14 @@ def test_copy_probe_rejects_invalid_scoring_evidence(tmp_path, rows, reward, err
 
 def test_copy_partial_passes_are_retained_for_outcome_review(tmp_path):
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_environment(
+        task_dir,
+        record_validation=False,
+        requirements=[{"id": "repair", "candidate_index": 0, "checks": ["fixture-repaired", "second-outcome"]}],
+        controls=_copy_controls(["second-outcome"]),
+    )
     for path in (task_dir / "private/jobs").glob("*/task__trial/verifier/results"):
-        status = "PASS" if "oracle" in str(path) else "FAIL"
+        status = "PASS" if "oracle" in str(path) or "alternative" in str(path) else "FAIL"
         path.write_text(path.read_text() + f"second-outcome\t{status}\n")
     _copy_job(task_dir, rows="fixture-repaired\tPASS\nsecond-outcome\tFAIL\n")
     code, report = _record_existing_jobs(task_dir, "--copy-job-dir", "private/jobs/copy-1")
@@ -3153,19 +3382,9 @@ def test_copy_partial_passes_are_retained_for_outcome_review(tmp_path):
     _TRACE_ENVIRONMENT._validate_validation(task_dir)
 
 
-def test_copy_probe_cannot_use_aggregate_only_escape_hatch(tmp_path):
-    task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False, check_rows=False)
-    trial = _copy_job(task_dir)
-    (trial / "verifier/results").unlink()
-    code, report = _record_existing_jobs(task_dir, "--copy-job-dir", "private/jobs/copy-1", "--allow-aggregate-only")
-    assert code == 1, report
-    assert "copy probes require per-check rows" in report["error"]
-
-
 def test_copy_exception_is_failed_evidence_and_no_copy_is_not_run(tmp_path):
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_environment(task_dir, record_validation=False, controls=_copy_controls(["fixture-repaired"]))
     trial = _copy_job(task_dir)
     result = json.loads((trial / "result.json").read_text())
     result["exception_info"] = {"exception_type": "RuntimeError"}
@@ -3175,16 +3394,3 @@ def test_copy_exception_is_failed_evidence_and_no_copy_is_not_run(tmp_path):
     assert report["passed"] is False
     assert report["copy_probes"]["runs"][0]["exception_present"] is True
     assert _TRACE_ENVIRONMENT._copy_probe_summary({"runs": {"copy": []}}) == {"status": "not_run", "runs": []}
-
-
-def test_current_init_full_qualification_lifecycle(tmp_path, monkeypatch):
-    spec = spec_from_file_location("current_lifecycle_helpers", _SCRIPT.parents[1] / "evals/tests/test_construction.py")
-    assert spec is not None and spec.loader is not None
-    qualified = module_from_spec(spec)
-    spec.loader.exec_module(qualified)
-
-    monkeypatch.setattr(qualified.helpers, "_historical_workspace", lambda root: None)
-    monkeypatch.setattr(qualified, "legacy", lambda root: None)
-    ready = qualified.helpers._ready_environment
-    monkeypatch.setattr(qualified.helpers, "_ready_environment", lambda root, **kw: ready(root, **kw, setup_only=True))
-    qualified.test_complete_lifecycle_and_evidence_tampering(tmp_path)

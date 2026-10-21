@@ -15,7 +15,7 @@ python <skill_dir>/scripts/trace_environment.py check-candidate --task-dir <task
 ```
 
 This read-only check validates the existing record, prepared safe-trace digest,
-evidence step references and retained ground-truth artifacts. It does not edit
+evidence turn references and retained ground-truth artifacts. It does not edit
 values, finalize the workspace, attest privacy review or prove the environment.
 Finalization still enforces its full contract.
 
@@ -32,13 +32,13 @@ synonyms. Put those details in `name`, `version` or `notes` instead.
 | Software `category` | `library`, `cli`, `desktop_application`, `service`, `hardware`, `other` |
 | Software `license` | `open_source`, `proprietary`, `commercial`, `unknown`, `not_applicable` |
 | Software `availability` | `available`, `installable`, `unavailable`, `unknown` |
-| Provenance `kind` | `atif_step`, `external` |
+| Provenance `kind` | `trace_turn`, `external` |
 | `state_basis` | `recorded`, `reconstructed` |
 
 Software `required` is a boolean; `redistributable` is a boolean or null.
 `version` is nonempty text or null. Software names must be unique ignoring case.
 Every software item and ground-truth artifact needs nonempty `notes` and complete
-provenance; use the skill's ATIF-versus-external evidence rules.
+provenance; use the skill's trace-versus-external evidence rules.
 
 Available or partial ground truth must retain at least one hashed artifact and
 declare comparison or verification use. Partial ground truth needs an
@@ -47,10 +47,11 @@ ground truth needs an empty artifact list, `use: "none"`, and a nonempty reason.
 
 The helper also enforces:
 
-- Every `evidence_steps` list cites real, distinct ATIF `step_id` values from
-  the safe trajectory; unknown steps are rejected.
-- Provenance is exactly one of `atif_step` (nonempty step IDs, no external
-  identifiers) or `external` (empty step IDs, at least one immutable URI,
+- Every `evidence_turns` list is a nonempty list of unique turn ids from
+  `safe/trace.json` (any agent, including subagents, e.g.
+  `trajectory/turn/1`); unknown turns are rejected.
+- Provenance is exactly one of `trace_turn` (nonempty `turn_ids`, no external
+  identifiers) or `external` (empty `turn_ids`, at least one immutable URI,
   revision, or source ID).
 - A required software entry with `availability: "unavailable"` blocks
   candidacy.
@@ -63,15 +64,15 @@ belong to `finalize` arguments, not the candidate record.
 
 ```json
 {
-  "schema": "nemo.eval_author.trace_environment_candidate.v2",
+  "schema": "nemo.eval_author.trace_environment_candidate.v3",
   "status": "candidate",
-  "decision_basis": "safe_atif_only",
+  "decision_basis": "safe_trace_only",
   "instruction": "Observable task instruction without private values",
   "requirements": [
-    {"description": "Objectively testable requirement", "evidence_steps": [1, 2]}
+    {"description": "Objectively testable requirement", "evidence_turns": ["trajectory/turn/1", "trajectory/turn/2"]}
   ],
   "verification_mode": "execution",
-  "evidence_steps": [1, 2],
+  "evidence_turns": ["trajectory/turn/1", "trajectory/turn/2"],
   "uncertainties": [],
   "reason_codes": [],
   "ground_truth": {
@@ -84,7 +85,7 @@ belong to `finalize` arguments, not the candidate record.
         "sha256": "sha256:<64-hex-digest>",
         "provenance": {
           "kind": "external",
-          "step_ids": [],
+          "turn_ids": [],
           "uri": "https://example.test/fixture.json",
           "revision": "<immutable-revision>",
           "source_id": null
@@ -104,8 +105,8 @@ belong to `finalize` arguments, not the candidate record.
       "availability": "unknown",
       "redistributable": false,
       "provenance": {
-        "kind": "atif_step",
-        "step_ids": [1, 2],
+        "kind": "trace_turn",
+        "turn_ids": ["trajectory/turn/1", "trajectory/turn/2"],
         "uri": null,
         "revision": null,
         "source_id": null
@@ -130,7 +131,7 @@ A reconstructed candidate is a *new task inspired by recorded behavior*, never
 a replay claim. Requirements:
 
 - Every capability-defining fact — the request, constraints, correction
-  turns, expected outcome — still cites real `step_id` values. Invented state
+  turns, expected outcome — still cites real safe-trace turn ids. Invented state
   never becomes "evidence"; it must be privacy-safe (no real people,
   organizations, identifiers, or file contents from the trace), internally
   consistent, and discoverable by the agent inside the environment.

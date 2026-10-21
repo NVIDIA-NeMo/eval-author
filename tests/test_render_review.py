@@ -278,20 +278,36 @@ def test_atif_trace_renders_spans_depth_first_with_tool_results_and_error_flags(
     summary, report = read_report(invoke(source, output, format="atif", rows=None, role="source"), output)
     spans = report.section("spans")
     order = [
-        "SYNTHETIC_ATIF_PROMPT",
-        "SYNTHETIC_RECORDED_MESSAGE",
-        "read_fixture",
+        "TOOL · read_fixture",
         "SYNTHETIC_TOOL_ARGUMENT",
+        "Tool result 1 · error_status: error",
         "<script>SYNTHETIC_TOOL_OBSERVATION</script>",
-        "SYNTHETIC_FINAL_OUTPUT",
     ]
     positions = [spans.index(value) for value in order]
     assert positions == sorted(positions)
     assert "synthetic-model" in spans
-    assert "is_error: True" in spans
     assert "ATIF tool result reported is_error" in spans
     assert summary["status"] == "attention"
+    # Each AGENT span renders its turns, in turn order, before its child spans.
+    turns = [
+        spans.index(text) for text in ("SYNTHETIC_ATIF_PROMPT", "SYNTHETIC_RECORDED_MESSAGE", "SYNTHETIC_FINAL_OUTPUT")
+    ]
+    assert turns == sorted(turns)
+    assert turns[-1] < spans.index("TOOL · read_fixture")
     assert not any(tag in {"script", "img"} for tag, _attrs in report.elements)
+
+
+def test_trace_turns_show_authorship_and_keep_other_turn_fields(tmp_path):
+    record = atif_record()
+    record["steps"][0]["extra"] = {"SYNTHETIC_TURN_EXTRA": "kept"}
+    source = write_json(tmp_path / "source.atif.json", record)
+    output = tmp_path / "review"
+    _summary, report = read_report(invoke(source, output, format="atif", rows=None, role="source"), output)
+    spans = report.section("spans")
+    # Turn authorship separates the recorded user instruction from model-written turns.
+    assert "Turn 1 · user · unknown" in spans
+    assert "Turn 2 · agent · model" in spans
+    assert "SYNTHETIC_TURN_EXTRA" in spans.split("Additional recorded fields", 1)[1]
 
 
 def test_mlflow_export_renders_instruction_and_tool_name(tmp_path):
@@ -301,7 +317,7 @@ def test_mlflow_export_renders_instruction_and_tool_name(tmp_path):
     spans = report.section("spans")
     assert "Where is Paris?" in spans
     assert "TOOL · lookup" in spans
-    assert "is_error: False" in spans
+    assert "Tool result 1 · error_status:" in spans
 
 
 @pytest.mark.parametrize("format", ["gym-jsonl", "atif", "mlflow"])

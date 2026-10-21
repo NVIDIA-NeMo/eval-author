@@ -4,8 +4,8 @@
 # Produce a native Gym task from trace evidence
 
 **Experimental.** Use this extension when Gym is the selected output provider.
-Any source that `prepare` accepts can produce a Gym task; until trace-environment
-reads NeMo Compass Traces that means ATIF only (see [sources](sources.md)). Follow shared Steps 1-5 in
+Any source that `prepare` accepts can produce a Gym task; today that means a
+source whose Compass trace records turns, which is ATIF (see [sources](sources.md)). Follow shared Steps 1-5 in
 [the skill](../SKILL.md), including privacy review, tool-access decisions,
 ground-truth and software inventories, and `check-candidate`. A proposal may
 provide context, but an audit report or uncovered tool is not a prerequisite.
@@ -26,17 +26,17 @@ Preserve authored suite and task documentation outside generated markers.
 
 ## Start from a Gym rollout
 
-`prepare` reads ATIF only until trace-environment reads NeMo Compass Traces.
-A Gym run enters this workflow through its retained original Harbor ATIF:
+`prepare` needs a trace that records turns. Until Compass records turns for
+Gym, a Gym run enters this workflow through its retained original Harbor ATIF:
 
 ```bash
 python <skill_dir>/scripts/trace_environment.py prepare \
-  --task-dir <task-dir> --atif <private-harbor-job/agent/trajectory.json> \
+  --task-dir <task-dir> --source <private-harbor-job/agent/trajectory.json> \
   --source-kind atif
 ```
 
-Gym-native Responses records and `ng_trajectory` attachments cannot enter
-`prepare` yet. To retain normalized evidence for the same rollout, run the
+Gym-native Responses records and `ng_trajectory` attachments are rejected with
+`source kind gym does not record turns yet`. To retain normalized evidence for the same rollout, run the
 sibling eval-author
 [NeMo Compass trace loader](../../eval-author/references/trace-loading.md) with
 `--source-kind gym` on the selected row and keep its output under
@@ -103,7 +103,7 @@ without changing its intended capability** in the
 Use this workspace's `gym/` in place of that guide's audit draft directory.
 Replace every example grader, expected answer, and verifier case. Map each
 candidate requirement to an observable verifier assertion and a negative
-control. Retain the trace step IDs and reconstruction assumptions in the report.
+control. Retain the trace turn ids and reconstruction assumptions in the report.
 
 For observed tools, preserve the reviewed `real`, `mock`, or `none` decisions:
 
@@ -208,4 +208,4 @@ report, and exact rerun instructions. The optional Helix packaging guide can
 prepare a separate private package when selected, but it does not authorize
 publication or upload. Never export the entire trace workspace.
 
-When adapting call-fixture v2 cases, preserve optional boolean `is_error`: `true` must replay an error outcome, `false` an explicitly successful outcome, and absence means unrecorded rather than success.
+When adapting call-fixture cases, preserve optional boolean `is_error`: `true` must replay an error outcome, `false` an explicitly successful outcome, and absence means unrecorded rather than success.

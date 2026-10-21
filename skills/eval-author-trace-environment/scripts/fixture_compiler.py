@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Pure derivation helpers for trace-backed tool-call fixtures."""
+"""Pure derivation helpers for tool-call fixtures backed by a safe Compass Trace."""
 
 from __future__ import annotations
 
@@ -11,31 +11,39 @@ import re
 import warnings
 from collections import Counter
 from copy import deepcopy
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-INVENTORY_SCHEMA = "nemo.eval_author.trace_environment_tool_calls.v2"
-PLAN_SCHEMA = "nemo.eval_author.trace_environment_tool_call_plan.v2"
+from trace_source import TraceIndex, tool_spans
+
+if TYPE_CHECKING:
+    from trace_ingest import ToolDefinition, ToolResult, Trace
+
+INVENTORY_SCHEMA = "nemo.eval_author.trace_environment_tool_calls.v3"
+PLAN_SCHEMA = "nemo.eval_author.trace_environment_tool_call_plan.v3"
 DECISIONS_SCHEMA = "nemo.eval_author.trace_environment_tool_access_decisions.v1"
-ACCESS_SCHEMA = "nemo.eval_author.trace_environment_tool_access.v2"
-CALL_FIXTURES_SCHEMA = "nemo.eval_author.trace_environment_call_fixtures.v2"
-MCP_SCENARIO_SCHEMA = "nemo.eval_author.trace_environment_mcp_scenario.v1"
-_UNUSABLE_MARKERS = ("<redacted:", "<omitted:image")
+ACCESS_SCHEMA = "nemo.eval_author.trace_environment_tool_access.v3"
+CALL_FIXTURES_SCHEMA = "nemo.eval_author.trace_environment_call_fixtures.v3"
+MCP_SCENARIO_SCHEMA = "nemo.eval_author.trace_environment_mcp_scenario.v2"
+_UNUSABLE_MARKERS = ("<redacted:", "[image omitted]")
 _ACCESS_STATES = frozenset({"real", "mock", "none"})
 _MOCK_ADAPTERS = frozenset({"mcp"})
-OVERRIDES_SCHEMA = "nemo.eval_author.trace_environment_schema_overrides.v1"
+OVERRIDES_SCHEMA = "nemo.eval_author.trace_environment_schema_overrides.v2"
+_EVIDENCE_KEYS = ("span_id", "call_id")
 
 
-def _server_scope(value: dict[str, Any]) -> str | None:
-    """Only use explicit server identity; never infer shared scope from a name."""
-    extra = value.get("extra")
-    scope = extra.get("tool_scope") if isinstance(extra, dict) else None
-    server = scope.get("server") if isinstance(scope, dict) else None
-    return server if isinstance(server, str) and server else None
-
-
-def _tool_id(trajectory_path: str, server: str | None, name: str) -> str:
-    digest = hashlib.sha256(canonical_json([trajectory_path, server, name]).encode()).hexdigest()
+def _tool_id(agent_span_id: str | None, server: str | None, name: str) -> str:
+    digest = hashlib.sha256(canonical_json([agent_span_id, server, name]).encode()).hexdigest()
     return f"tool-{digest[:24]}"
+
+
+def evidence(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Content-free references to the cited TOOL spans and their recorded call ids."""
+    return [{key: call[key] for key in _EVIDENCE_KEYS} for call in calls]
+
+
+def evidence_turns(calls: list[dict[str, Any]]) -> list[str]:
+    """Turn ids that issued the calls, in trace order without repeats."""
+    return list(dict.fromkeys(call["turn_id"] for call in calls if call["turn_id"] is not None))
 
 
 def _schema_problem(schema: dict[str, Any], calls: list[dict[str, Any]]) -> str | None:
@@ -78,23 +86,18 @@ def canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
 
-def result_error_status(result: dict[str, Any]) -> str:
-    """Read explicit transport flags only; text and agent claims are not status."""
-    flags = []
-    for container in (result, result.get("extra")):
-        if isinstance(container, dict):
-            flags.extend(container[key] for key in ("isError", "is_error") if key in container)
-    if not flags:
-        return "unrecorded"
-    if any(type(flag) is not bool for flag in flags):
-        return "invalid"
-    if len(set(flags)) != 1:
-        return "conflicting"
-    return "error" if flags[0] else "not_error"
+def result_entry(result: ToolResult) -> dict[str, Any]:
+    """A recorded result: its content (null when absent) and Compass's explicit error status."""
+    from trace_ingest import UNSET
+
+    return {
+        "content": None if result.content is UNSET else result.content,
+        "error_status": result.error_status.value,
+    }
 
 
 def result_signature(result: dict[str, Any]) -> str:
-    return canonical_json([result.get("content"), result_error_status(result)])
+    return canonical_json([result["content"], result["error_status"]])
 
 
 def json_sha256(value: Any) -> str:
@@ -115,187 +118,119 @@ def _contains_unusable_marker(value: Any) -> bool:
 def _unusable_replay_values(tool: dict[str, Any]) -> bool:
     return _contains_unusable_marker(tool["normalized_definition"]) or any(
         _contains_unusable_marker(call["arguments"])
-        or any(_contains_unusable_marker(result.get("content")) for result in call["matching_observations"])
+        or any(_contains_unusable_marker(result["content"]) for result in call["results"])
         for call in tool["calls"]
     )
 
 
-def _definition_name(definition: dict[str, Any]) -> str | None:
-    name = definition.get("name")
-    if isinstance(name, str) and name.strip():
-        return name.strip()
-    function = definition.get("function")
-    if isinstance(function, dict):
-        name = function.get("name")
-        if isinstance(name, str) and name.strip():
-            return name.strip()
-    return None
-
-
-def _definition_schema(definition: dict[str, Any]) -> dict[str, Any] | None:
-    for key in ("inputSchema", "input_schema", "parameters"):
-        value = definition.get(key)
-        if isinstance(value, dict):
-            return value
-    function = definition.get("function")
-    if isinstance(function, dict) and isinstance(function.get("parameters"), dict):
-        return function["parameters"]
-    return None
-
-
-def _definition_description(definition: dict[str, Any]) -> str | None:
-    description = definition.get("description")
-    if isinstance(description, str) and description.strip():
-        return description.strip()
-    function = definition.get("function")
-    if isinstance(function, dict):
-        description = function.get("description")
-        if isinstance(description, str) and description.strip():
-            return description.strip()
-    return None
-
-
-def _definition_annotations(definition: dict[str, Any]) -> dict[str, Any]:
-    annotations = definition.get("annotations")
+def _definition_annotations(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {}
+    annotations = raw.get("annotations")
     if isinstance(annotations, dict):
         return annotations
-    function = definition.get("function")
+    function = raw.get("function")
     if isinstance(function, dict) and isinstance(function.get("annotations"), dict):
         return function["annotations"]
     return {}
 
 
-def _normalized_definition(definition: dict[str, Any]) -> dict[str, Any] | None:
-    name = _definition_name(definition)
-    input_schema = _definition_schema(definition)
-    if name is None or input_schema is None:
+def _normalized_definition(definition: ToolDefinition) -> dict[str, Any] | None:
+    name = definition.name.strip()
+    if not name or not isinstance(definition.input_schema, dict):
         return None
-    normalized: dict[str, Any] = {"name": name, "inputSchema": input_schema}
-    if description := _definition_description(definition):
-        normalized["description"] = description
-    annotations = _definition_annotations(definition)
+    normalized: dict[str, Any] = {"name": name, "inputSchema": definition.input_schema}
+    if definition.description and definition.description.strip():
+        normalized["description"] = definition.description.strip()
+    annotations = _definition_annotations(definition.raw)
     if annotations:
         normalized["annotations"] = annotations
     return normalized
 
 
-def _definitions_equivalent(first: dict[str, Any], second: dict[str, Any]) -> bool:
-    """Compare complete definitions by meaning and incomplete definitions by raw shape."""
-    first_normalized = _normalized_definition(first)
-    second_normalized = _normalized_definition(second)
-    if first_normalized is not None and second_normalized is not None:
-        return canonical_json(first_normalized) == canonical_json(second_normalized)
-    return canonical_json(first) == canonical_json(second)
+def _distinct(definitions: list[ToolDefinition]) -> list[ToolDefinition]:
+    """Keep one of each definition: complete ones by meaning, incomplete ones by recorded shape."""
+    distinct: dict[str, ToolDefinition] = {}
+    for definition in definitions:
+        normalized = _normalized_definition(definition)
+        key = canonical_json(normalized if normalized is not None else definition.model_dump(mode="json"))
+        distinct.setdefault(key, definition)
+    return list(distinct.values())
 
 
-def _trajectories(trajectory: dict[str, Any], *, trajectory_path: str = "$") -> list[tuple[str, dict[str, Any]]]:
-    trajectories = [(trajectory_path, trajectory)]
-    for index, child in enumerate(trajectory.get("subagent_trajectories") or []):
-        if isinstance(child, dict):
-            trajectories.extend(
-                _trajectories(child, trajectory_path=f"{trajectory_path}.subagent_trajectories[{index}]")
-            )
-    return trajectories
+def _matching(definitions: list[ToolDefinition], server: str | None, name: str) -> list[ToolDefinition]:
+    return _distinct([item for item in definitions if item.name.strip() == name and (item.server or None) == server])
 
 
-def derive_tool_call_inventory(trajectory: dict[str, Any], *, safe_atif_sha256: str) -> dict[str, Any]:
-    definitions_by_scope: dict[tuple[str, str | None, str], list[dict[str, Any]]] = {}
-    trajectories = _trajectories(trajectory)
-    for trajectory_path, current in trajectories:
-        agent = current.get("agent")
-        raw_definitions = agent.get("tool_definitions") if isinstance(agent, dict) else None
-        for definition in raw_definitions or []:
-            if not isinstance(definition, dict) or not (name := _definition_name(definition)):
-                continue
-            known = definitions_by_scope.setdefault((trajectory_path, _server_scope(definition), name), [])
-            if all(not _definitions_equivalent(existing, definition) for existing in known):
-                known.append(definition)
+def derive_tool_call_inventory(trace: Trace, *, safe_trace_sha256: str) -> dict[str, Any]:
+    """Inventory every TOOL span, scoped to its owning AGENT span and explicit server."""
+    from trace_ingest import UNSET
+    from trace_ingest.catalog import definitions_in_scope, suggested_definitions
 
+    scoped = definitions_in_scope(trace)
+    suggested = suggested_definitions(trace)
+    span_turn = TraceIndex(trace).span_turn
     tools: dict[str, dict[str, Any]] = {}
-    order: list[str] = []
     unresolved_calls: list[dict[str, Any]] = []
-    for trajectory_path, current in trajectories:
-        for step in current.get("steps") or []:
-            if not isinstance(step, dict):
-                continue
-            step_id = step.get("step_id")
-            observation = step.get("observation")
-            raw_results = observation.get("results") if isinstance(observation, dict) else None
-            results = [item for item in raw_results or [] if isinstance(item, dict)]
-            for call in step.get("tool_calls") or []:
-                if not isinstance(call, dict):
-                    continue
-                name = call.get("function_name")
-                if not isinstance(name, str) or not name.strip():
-                    unresolved_calls.append(
-                        {
-                            "trajectory_path": trajectory_path,
-                            "step_id": step_id,
-                            "tool_call_id": call.get("tool_call_id"),
-                            "reason": "function_name_missing",
-                        }
-                    )
-                    continue
-                name = name.strip()
-                server = _server_scope(call)
-                tool_id = _tool_id(trajectory_path, server, name)
-                if tool_id not in tools:
-                    order.append(tool_id)
-                    matches = definitions_by_scope.get((trajectory_path, server, name), [])
-                    normalized = [_normalized_definition(item) for item in matches]
-                    complete = [item for item in normalized if item is not None]
-                    if not matches:
-                        definition_status = "missing"
-                        selected_definition = None
-                        normalized_definition = None
-                    elif len(matches) == 1 and len(complete) == 1:
-                        definition_status = "complete"
-                        selected_definition = matches[0]
-                        normalized_definition = complete[0]
-                    elif len(matches) == 1:
-                        definition_status = "incomplete"
-                        selected_definition = matches[0]
-                        normalized_definition = None
-                    else:
-                        definition_status = "ambiguous"
-                        selected_definition = None
-                        normalized_definition = None
-                    annotations = normalized_definition.get("annotations", {}) if normalized_definition else {}
-                    read_only = annotations.get("readOnlyHint")
-                    tools[tool_id] = {
-                        "tool_id": tool_id,
-                        "scope": {"trajectory_path": trajectory_path, "server": server},
-                        "name": name,
-                        "definition_status": definition_status,
-                        "definition": selected_definition,
-                        "normalized_definition": normalized_definition,
-                        "read_only": read_only if type(read_only) is bool else None,
-                        "read_only_evidence": "mcp_annotation" if type(read_only) is bool else None,
-                        "calls": [],
-                        "uncertainties": [],
-                    }
-                call_id = call.get("tool_call_id")
-                arguments = call.get("arguments")
-                tools[tool_id]["calls"].append(
-                    {
-                        "trajectory_path": trajectory_path,
-                        "step_id": step_id,
-                        "tool_call_id": call_id,
-                        "arguments": arguments,
-                        "arguments_status": "object" if isinstance(arguments, dict) else "missing_or_non_object",
-                        "matching_observations": [item for item in results if item.get("source_call_id") == call_id],
-                    }
-                )
+    for agent_span_id, span in tool_spans(trace):
+        call = span.tool_call
+        call_id = call.call_id if call is not None else None
+        name = span.tool_name.strip() if isinstance(span.tool_name, str) else ""
+        if not name:
+            unresolved_calls.append({"span_id": span.id, "call_id": call_id, "reason": "tool_name_missing"})
+            continue
+        # Only explicit server identity scopes a tool; never infer shared scope from a name.
+        server = call.server if call is not None and call.server else None
+        tool_id = _tool_id(agent_span_id, server, name)
+        if tool_id not in tools:
+            matches = _matching(scoped.get(span.id, []), server, name)
+            complete = [item for item in map(_normalized_definition, matches) if item is not None]
+            if not matches:
+                definition_status = "missing"
+            elif len(matches) == 1:
+                definition_status = "complete" if complete else "incomplete"
+            else:
+                definition_status = "ambiguous"
+            normalized_definition = complete[0] if definition_status == "complete" else None
+            # A definition declared beyond the agent boundary is only ever a suggestion.
+            outer = _matching(suggested.get(span.id, []), server, name) if not matches else []
+            suggestion = _normalized_definition(outer[0]) if len(outer) == 1 else None
+            annotations = normalized_definition.get("annotations", {}) if normalized_definition else {}
+            read_only = annotations.get("readOnlyHint")
+            tools[tool_id] = {
+                "tool_id": tool_id,
+                "scope": {"agent_span_id": agent_span_id, "server": server},
+                "name": name,
+                "definition_status": definition_status,
+                "definition": matches[0].model_dump(mode="json") if len(matches) == 1 else None,
+                "normalized_definition": normalized_definition,
+                "suggested_definition": suggestion,
+                "read_only": read_only if type(read_only) is bool else None,
+                "read_only_evidence": "mcp_annotation" if type(read_only) is bool else None,
+                "calls": [],
+                "uncertainties": [],
+            }
+        arguments = None if span.input is UNSET else span.input
+        tools[tool_id]["calls"].append(
+            {
+                "span_id": span.id,
+                "turn_id": span_turn.get(span.id),
+                "call_id": call_id,
+                "initiator": call.initiator.value if call is not None and call.initiator is not None else None,
+                "arguments": arguments,
+                "arguments_status": "object" if isinstance(arguments, dict) else "missing_or_non_object",
+                "results": [result_entry(result) for result in (call.results if call is not None else [])],
+            }
+        )
 
     inventory_tools: list[dict[str, Any]] = []
-    for tool_id in order:
-        tool = tools[tool_id]
+    for tool in tools.values():
         uncertainties = tool["uncertainties"]
         if tool["definition_status"] != "complete":
             uncertainties.append(f"tool_definition_{tool['definition_status']}")
         if any(call["arguments_status"] != "object" for call in tool["calls"]):
             uncertainties.append("arguments_missing_or_non_object")
-        if any(len(call["matching_observations"]) != 1 for call in tool["calls"]):
+        if any(len(call["results"]) != 1 for call in tool["calls"]):
             uncertainties.append("observation_pairing_incomplete")
         if _unusable_replay_values(tool):
             uncertainties.append("redacted_value_required")
@@ -303,7 +238,7 @@ def derive_tool_call_inventory(trajectory: dict[str, Any], *, safe_atif_sha256: 
 
     return {
         "schema": INVENTORY_SCHEMA,
-        "safe_atif_sha256": safe_atif_sha256,
+        "safe_trace_sha256": safe_trace_sha256,
         "tool_count": len(inventory_tools),
         "call_count": sum(len(tool["calls"]) for tool in inventory_tools) + len(unresolved_calls),
         "unresolved_call_count": len(unresolved_calls),
@@ -322,16 +257,13 @@ def _plan_tool(tool: dict[str, Any]) -> dict[str, Any]:
         reason_codes.append(problem)
     if any(call["arguments_status"] != "object" for call in calls):
         reason_codes.append("arguments_missing_or_non_object")
-    if any(len(call["matching_observations"]) != 1 for call in calls):
+    if any(len(call["results"]) != 1 for call in calls):
         reason_codes.append("observation_pairing_incomplete")
-    if any(
-        len(call["matching_observations"]) == 1 and not isinstance(call["matching_observations"][0].get("content"), str)
-        for call in calls
-    ):
+    if any(len(call["results"]) == 1 and not isinstance(call["results"][0]["content"], str) for call in calls):
         reason_codes.append("non_text_result_unsupported")
     if _unusable_replay_values(tool):
         reason_codes.append("redacted_value_required")
-    statuses = {result_error_status(result) for call in calls for result in call["matching_observations"]}
+    statuses = {result["error_status"] for call in calls for result in call["results"]}
     if "invalid" in statuses:
         reason_codes.append("result_error_status_invalid")
     if "conflicting" in statuses:
@@ -339,13 +271,12 @@ def _plan_tool(tool: dict[str, Any]) -> dict[str, Any]:
 
     responses_by_arguments: dict[str, set[str]] = {}
     for call in calls:
-        if call["arguments_status"] != "object" or len(call["matching_observations"]) != 1:
+        if call["arguments_status"] != "object" or len(call["results"]) != 1:
             continue
-        content = call["matching_observations"][0].get("content")
-        if not isinstance(content, str):
+        if not isinstance(call["results"][0]["content"], str):
             continue
         key = canonical_json(call["arguments"])
-        responses_by_arguments.setdefault(key, set()).add(result_signature(call["matching_observations"][0]))
+        responses_by_arguments.setdefault(key, set()).add(result_signature(call["results"][0]))
     if any(len(responses) > 1 for responses in responses_by_arguments.values()):
         reason_codes.append("conflicting_results_for_identical_arguments")
 
@@ -354,17 +285,25 @@ def _plan_tool(tool: dict[str, Any]) -> dict[str, Any]:
     elif tool["read_only"] is None:
         warnings.append("side_effects_unproven")
 
+    suggestion = tool["suggested_definition"] if tool["definition_status"] != "complete" else None
     return {
         "tool_id": tool["tool_id"],
         "scope": tool["scope"],
         "name": tool["name"],
         "definition": tool["normalized_definition"],
         "definition_provenance": tool.get("definition_provenance", {"kind": "trace"}),
+        # A definition declared beyond the agent boundary, offered as an override entry
+        # the reviewer may accept by adding a note; it is never applied automatically.
+        "suggested_override": (
+            {"tool_id": tool["tool_id"], "input_schema": suggestion["inputSchema"], "evidence": evidence(calls)}
+            if suggestion is not None
+            else None
+        ),
         "mock_support": "exact_replay" if not reason_codes else "unsupported",
         "reason_codes": reason_codes,
         "warnings": warnings,
-        "evidence_steps": sorted({call["step_id"] for call in calls}),
-        "evidence": [{key: call[key] for key in ("trajectory_path", "step_id", "tool_call_id")} for call in calls],
+        "evidence_turns": evidence_turns(calls),
+        "evidence": evidence(calls),
         "call_count": len(calls),
         "case_count": len(responses_by_arguments),
     }
@@ -391,10 +330,11 @@ def derive_tool_call_plan(inventory: dict[str, Any], overrides: dict[str, Any] |
                 raise ValueError("schema override has an unknown or duplicate tool_id")
             seen.add(tool_id)
             tool = by_id[tool_id]
-            evidence = [
-                {key: call[key] for key in ("trajectory_path", "step_id", "tool_call_id")} for call in tool["calls"]
-            ]
-            if entry["evidence"] != evidence or not isinstance(entry["note"], str) or not entry["note"].strip():
+            if (
+                entry["evidence"] != evidence(tool["calls"])
+                or not isinstance(entry["note"], str)
+                or not entry["note"].strip()
+            ):
                 raise ValueError("schema override requires a review note and every scoped call reference")
             schema = entry["input_schema"]
             if not isinstance(schema, dict) or _contains_unusable_marker(entry):
@@ -498,7 +438,7 @@ def resolve_tool_access(
                 key: plan_by_name[tool_id][key]
                 for key in (
                     "warnings",
-                    "evidence_steps",
+                    "evidence_turns",
                     "evidence",
                     "scope",
                     "definition",
@@ -536,18 +476,19 @@ def build_call_fixtures(inventory: dict[str, Any], access: dict[str, Any]) -> di
         cases_by_input: dict[str, dict[str, Any]] = {}
         for call in tool["calls"]:
             key = canonical_json(call["arguments"])
-            result = call["matching_observations"][0]
+            result = call["results"][0]
             case = cases_by_input.setdefault(
                 key,
-                {"input": call["arguments"], "output": result["content"], "evidence_steps": [], "evidence": []},
+                {"input": call["arguments"], "output": result["content"], "evidence_turns": [], "evidence": []},
             )
-            status = result_error_status(result)
+            status = result["error_status"]
             if status in {"invalid", "conflicting"}:
                 raise ValueError("cannot generate fixtures with ambiguous result error status")
             if status != "unrecorded":
                 case["is_error"] = status == "error"
-            case["evidence_steps"].append(call["step_id"])
-            case["evidence"].append({key: call[key] for key in ("trajectory_path", "step_id", "tool_call_id")})
+            if call["turn_id"] is not None and call["turn_id"] not in case["evidence_turns"]:
+                case["evidence_turns"].append(call["turn_id"])
+            case["evidence"].extend(evidence([call]))
         fixture_tools.append(
             {
                 "name": tool["name"],
@@ -585,7 +526,7 @@ def build_mcp_scenario(call_fixtures: dict[str, Any]) -> dict[str, Any]:
                             "content": [{"type": "text", "text": case["output"]}],
                             "isError": case.get("is_error", False),
                         },
-                        "evidence_steps": case["evidence_steps"],
+                        "evidence_turns": case["evidence_turns"],
                         "evidence": case["evidence"],
                     }
                     for case in fixture["cases"]

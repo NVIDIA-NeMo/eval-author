@@ -79,14 +79,10 @@ job as `task__*/verifier/`. `record-validation` parses every proof job's
 - an Oracle job with reward 1 reports PASS for every check;
 - a reward-0 negative control reports at least one FAIL;
 - supplied copy probes have the same check IDs as Oracle and a binary reward
-  consistent with their rows. Aggregate-only proof cannot include copy probes.
+  consistent with their rows.
 
-Jobs without rows fail with `missing_check_evidence`. Historical proofs
-recorded before this contract can be re-recorded once with
-`record-validation --allow-aggregate-only`; the report and the exported
-product then carry `check_evidence: "aggregate_only"` instead of
-`"per_check"`. Mixed evidence (some jobs with rows, some without) is always
-rejected: rerun the missing arms so the proof set is uniform.
+Any job without rows fails with `missing_check_evidence`, including when only
+some jobs lack them: rerun the missing arms so every proof job retains rows.
 
 ## Python verifier diagnostics
 

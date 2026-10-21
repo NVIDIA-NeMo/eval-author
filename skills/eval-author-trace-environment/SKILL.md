@@ -2,13 +2,12 @@
 name: eval-author-trace-environment
 version: 1.7.0
 description: >-
-  Experimental workflow. Use ATIF trace evidence, including a Gym run's retained
-  Harbor ATIF, to derive a private, reproducible Harbor or native NeMo Gym task
-  candidate. MLflow, Gym-native and Intake traces cannot be prepared until the
-  workflow reads NeMo Compass Traces.
+  Experimental workflow. Load one recorded trace through NeMo Compass (Trace v3)
+  to derive a private, reproducible Harbor or native NeMo Gym task candidate.
+  Sources that record turns (ATIF today) can be prepared.
 triggers:
   - create an evaluation environment from a trace
-  - turn ATIF into a Harbor task environment
+  - turn a recorded trace into a Harbor task environment
   - turn a trace into a native Gym task
   - derive an eval task from Gym MLflow or Intake data
 not-for:
@@ -17,8 +16,8 @@ not-for:
   - eval-author-inspect-trace (use to explain an Intake trace without creating an environment)
   - eval-author-environment (use when first-eval or task-create needs a reusable environment for its agreed cases)
 compatibility: >-
-  Python 3.11+, jsonschema 4.23+, referencing 0.28.4+; Python 3.12–3.13 and nemo-compass 0.2.0
-  (requirements.txt) with the sibling eval-author trace loader for Compass loading; Harbor and
+  Python 3.12–3.13, jsonschema 4.23+, referencing 0.28.4+ and nemo-compass 0.2.0
+  (requirements.txt) with the sibling eval-author trace loader; Harbor and
   Docker for Harbor proof. Gym output uses the sibling eval-author-task-create
   scaffolder. Verify authoring runtimes using eval-author’s shared locator
   and runtime-policy.json.
@@ -67,21 +66,22 @@ is a verifier defect to investigate, not a reason to weaken that control.
 Use one workspace per task. The tree below describes Harbor output; the
 [Gym extension](references/gym-output.md) adds a native `gym/` draft and its own
 report in the same private workspace. Paths are generated workspace artifacts, not
-bundled skill files; `extra.*` names elsewhere are ATIF fields, not file paths.
+bundled skill files. `safe/trace.json` and `private/canonical.trace.json` are
+Compass Traces (schema version 3).
 
 ```text
 .eval-author/trace-environments/
   .gitignore
   <task-id>/
-    private/source.atif.json
-    private/canonical.atif.json
+    private/source.<kind>.json         # verbatim source bytes (.jsonl for JSONL)
+    private/canonical.trace.json       # bounded Compass Trace
     private/privacy-audit.json
     private/{tool-call-inventory,tool-call-plan,tool-access,tool-call-generation}.json
     private/publications/<digest>/
     private/publication-review.json
     private/ground-truth/
     private/construction.json
-    safe/trace.atif.json
+    safe/trace.json                    # scrubbed Compass Trace
     safe/privacy.json
     candidate.json
     task/
@@ -105,36 +105,44 @@ value in it. Run `init --task-id <task-id>`, then keep every source export and
 intermediate conversion under the returned task directory, using `umask 077`
 before redirecting provider output there.
 
-## Step 2: select exactly one ATIF source
+## Step 2: select exactly one trace source
 
 Read and follow `references/sources.md`. One task per trace; never merge
 unrelated traces, and never invent an instruction, tool result, file, or final
-answer. `prepare` reads ATIF only until trace-environment reads NeMo Compass
-Traces: existing ATIF, including a Gym run's retained Harbor ATIF, is used
-as-is. MLflow, Gym-native, Intake and OpenTelemetry traces cannot enter
-`prepare` yet; record no_candidate with that reason rather than hand-writing
-ATIF. Record every missing or lossy field under
-`extra.normalization.uncertainties` or `extra.normalization.losses`. If no
-complete human instruction exists, record no_candidate instead of guessing.
+answer. `prepare` loads the source through the eval-author trace loader and
+accepts any loader kind whose trace records turns: today that is ATIF,
+including a Gym run's retained Harbor ATIF. Gym, MLflow and Intake follow once
+Compass records turns for them; until then record no_candidate with that reason
+rather than hand-writing ATIF. Compass records lossy conversion in
+`Trace.losses`, which the summary reports. If no complete human instruction
+exists, record no_candidate instead of guessing.
 
 ## Step 3: make a text-only safe copy
 
 ```bash
 python <skill_dir>/scripts/trace_environment.py prepare \
   --task-dir <task-dir> \
-  --atif <canonical-atif-file> \
+  --source <trace-file> \
   --source-kind atif
 ```
 
+Add `--row N` for a Gym JSONL source and `--spans <file> --workspace <name>`
+for Intake. An ATIF JSONL source must contain exactly one trajectory.
+
 The helper retains an exact owner-private original, writes the bounded canonical
-ATIF and a scrubbed safe copy, replaces image parts with omission markers, and
-records only redaction counts in the safe report. It recognizes common secret
-fields, bearer tokens, private keys, and personal data classes (emails, phones,
-SSNs, IP addresses, cluster-local hostnames, home paths). It also writes
+Trace and a scrubbed safe Trace, replaces every image with `[image omitted]`,
+drops attributes, pseudonymizes every field Compass marks as an identifier and
+source URLs (positional ids such as `trajectory/turn/3` are kept because they
+carry no source data), gives the ids inside loss details the same pseudonyms,
+drops opaque loss details (skipped tool definitions, subagent reference
+extensions), and records only redaction counts in the safe report. It
+recognizes common secret fields, bearer tokens, private keys, and personal data
+classes (emails, phones, SSNs, IP addresses, cluster-local hostnames, home
+paths). It also writes
 `private/privacy-audit.json`: a complete string-field and character denominator,
 URL hosts, and candidate name, organization, and street-address findings —
 contextual leads, not automatic claims. Review every text field in
-`safe/trace.atif.json`, every audit finding and host, then record who performed
+`safe/trace.json`, every audit finding and host, then record who performed
 this trace review with `review-privacy`. Generated task files do not exist yet;
 review the complete publication separately after finalization.
 
@@ -142,8 +150,9 @@ Use the audit's field and character denominator to plan bounded reads; a
 truncated display does not establish missing trace evidence. If review cannot
 finish, retain that limitation without issuing a complete review attestation.
 
-Never copy a redacted value into a verifier. An image-only user instruction
-blocks candidacy. The scanner cannot establish that proprietary code is safe;
+Never copy a redacted value into a verifier. The trace needs a root-agent user
+turn with text; an image-only user instruction blocks candidacy
+(`image_only_user_instruction:<turn id>`). The scanner cannot establish that proprietary code is safe;
 the contextual reviewer owns that judgment.
 
 Run `audit-evidence --task-dir <task-dir>` before deciding candidacy for either
@@ -183,7 +192,7 @@ agent's observed answer:
 
 An agent answer is not ground truth merely because the trace succeeded. Record
 it as `available`, `partial`, `absent`, or `unknown`; retain artifacts under
-`private/ground-truth/` (owner-only, SHA-256 digests, `atif_step` or `external`
+`private/ground-truth/` (owner-only, SHA-256 digests, `trace_turn` or `external`
 provenance) and its use as `comparison_only`, `verification`, or `none`. Never
 copy private ground-truth values into the generated task; generalize only what
 the verifier needs. `references/candidate-record.md` defines the provenance and
@@ -193,8 +202,8 @@ Also inventory software needed to reproduce the work or verify the outcome:
 libraries, CLIs, desktop applications such as CAD tools, services, hardware,
 and proprietary or commercially licensed software. For each item record whether
 it is actually required, its version when known, license class, local
-availability, redistributability, evidence steps, and a short note, with the
-same explicit ATIF-or-external provenance object. Inventory the complete build,
+availability, redistributability, evidence turns, and a short note, with the
+same explicit trace-or-external provenance object. Inventory the complete build,
 runtime, solution, and verifier dependency closure, pinning images, packages,
 repositories, and tools where reproducibility depends on them. The grading path
 must not download dependencies or contact a live service. A dependency needed
@@ -210,11 +219,13 @@ binaries into the task.
 
 ## Step 5: decide candidate or no_candidate
 
-Use `safe/trace.atif.json` as the trace evidence for this decision. Proposal or
+Use `safe/trace.json` as the trace evidence for this decision. Proposal or
 audit conclusions are context, not additional facts or automatic vetoes. Later
 user corrections outrank earlier turns.
-Every decision must cite real ATIF `step_id` values. Distinguish human intent
+Every decision must cite real safe-trace turn ids in `evidence_turns`. Distinguish human intent
 from harness-authored turns; a transport role alone does not settle authorship.
+`Turn.authorship` (`copied_context`, `harness`, `model`, `unknown`) is evidence
+for that judgement, not a verdict.
 Read
 [references/candidate-record.md](references/candidate-record.md) for the
 `candidate.json` shape before writing the decision.
@@ -225,7 +236,7 @@ Read [references/construction-boundary.md](references/construction-boundary.md)
 when a proposal precedes construction or missing state, ground truth, or runtime
 access could change the decision. Apply the same construction criteria with and
 without proposals. Explain any disagreement with a recommendation in the
-candidate's existing `uncertainties` field, citing the relevant trace steps and
+candidate's existing `uncertainties` field, citing the relevant trace turns and
 specific blocker or permitted reconstruction; do not optimize for candidate yield.
 
 Most traces do not record the agent's starting workspace. When the capability,
@@ -389,9 +400,9 @@ source paths. This makes the denominator explicit and reruns idempotent:
 
 ```json
 {
-  "schema": "nemo.eval_author.trace_environment_batch.v1",
+  "schema": "nemo.eval_author.trace_environment_batch.v2",
   "members": [
-    {"task_id": "stable-id", "atif": "private-source.atif.json", "source_kind": "atif"}
+    {"task_id": "stable-id", "source": "private-source.atif.json", "source_kind": "atif"}
   ]
 }
 ```
@@ -418,7 +429,7 @@ Report the task ID, `candidate` or `no_candidate`, state basis, ground-truth
 availability and artifact count, required software and licensing constraints,
 environment status, technical status, check evidence mode, repair count,
 review status, verifier isolation, privacy review status, NOP and Oracle
-rewards when run, construction qualification (historical proof is `unmeasured`),
+rewards when run, construction qualification,
 and paths to `summary.md` and the generated task. A
 `valid: true` check proves the recorded files are internally consistent;
 Harbor is the authority for whether the task actually runs.
@@ -436,22 +447,25 @@ for transcription controls, use
 Invoke the helper as `python <skill_dir>/scripts/trace_environment.py
 <command>`; there is no `run_script()` wrapper. Every command prints one JSON
 object and exits nonzero on contract errors. `prepare` and `batch-prepare`
-accept `source_kind` `atif` only; other kinds return when trace-environment
-reads NeMo Compass Traces.
+accept any loader `source_kind`, but reject a trace without turns with
+`source kind <kind> does not record turns yet` (today every kind except
+`atif`). Batch members may add `row`, `spans` and `workspace`. Workspaces from
+an older trace-environment are refused; re-run `prepare` in a new task
+directory.
 
 | Command | Purpose | Key arguments |
 |---|---|---|
 | `init` | Create the private, gitignored task workspace | `--task-id` |
-| `prepare` | Validate, bound, and scrub one canonical ATIF | `--task-dir --atif --source-kind` |
+| `prepare` | Load, bound, and scrub one trace into a Compass Trace | `--task-dir --source --source-kind [--row] [--spans --workspace]` |
 | `audit-evidence` | Inspect recorded observation coverage without inferring success | `--task-dir` |
-| `review-privacy` | Record the contextual safe-ATIF review | `--reviewer-kind --note` |
+| `review-privacy` | Record the contextual safe-trace review | `--reviewer-kind --note` |
 | `inventory-tool-calls` / `plan-tool-call-access` / `resolve-tool-call-access` / `generate-mock-tool-calls` | Trace-derived tool-call fixtures | `--task-dir [--decisions --reviewer-kind]` |
 | `check-candidate` | Read-only candidate metadata check before construction | `--task-dir` |
 | `validate-task` | Lint the authored task tree with remediation hints | `--task-dir` |
 | `probe` | Diagnostic NOP/Oracle run or adoption; never proof | `--task-dir --arm --results-from` |
 | `record-reproducibility` | Hash the task tree and integrity scan | `--task-dir` |
 | `record-run-inputs` | Bind one future Harbor job to arm and task digest | `--task-dir --arm --job-dir` |
-| `record-validation` | Derive proof from retained Harbor jobs | `--task-dir --*-job-dir --harbor-version [--copy-job-dir] [--allow-aggregate-only]` |
+| `record-validation` | Derive proof from retained Harbor jobs | `--task-dir --*-job-dir --harbor-version [--copy-job-dir]` |
 | `record-repair` | Archive superseded proof and record one bounded repair | `--task-dir --reason-code --note` |
 | `finalize` | Write the candidate decision and summary | `--task-dir --status [--human-reviewed]` |
 | `check` | Verify digests, artifacts, proof, and repair ledger | `--task-dir` |
@@ -461,15 +475,16 @@ reads NeMo Compass Traces.
 
 ## Prerequisites
 
-Python 3.11+ with jsonschema 4.23+ and referencing 0.28.4+ for the helper; an
-existing Harbor installation plus Docker for Harbor probes and proof.
+Python 3.12–3.13 with jsonschema 4.23+, referencing 0.28.4+ and
+`requirements.txt` (nemo-compass) for the helper; an existing
+Harbor installation plus Docker for Harbor probes and proof.
 For Gym output, use the existing separate Gym runtime and sibling
 `eval-author-task-create` resources described in the Gym extension; Harbor and
 Docker are not required unless the selected Gym components need them.
 
 ## Limitations
 
-- `prepare` reads ATIF only; MLflow, Gym-native, Intake and OpenTelemetry traces wait until trace-environment reads NeMo Compass Traces.
+- `prepare` needs a trace that records turns: ATIF today; Gym, MLflow and Intake wait until Compass records turns for them.
 - Text-only evidence; image-only instructions block candidacy.
 - Execution verification with binary rewards only: no model judge, rubric, or graded scoring.
 - One bounded trace per task; no merging, deduplication, or corpus triage.
@@ -486,6 +501,6 @@ Docker are not required unless the selected Gym components need them.
 - `validate-task` exits 1: fix each listed issue; hints name the contract. Rerun after every edit.
 - `probe` reports `not_run`: Harbor is missing; probing is optional, proof is not.
 - `record-validation` fails with `missing_check_evidence`: apply
-  `references/check-grammar.md` and rerun the jobs (`--allow-aggregate-only` only for historical proof).
+  `references/check-grammar.md` and rerun the jobs.
 - `record-validation` fails on NOP PASS rows: the untouched environment passes a scored check; tighten it and repair.
 - `check` reports stale or missing proof after a repair: re-record `record-reproducibility` and re-prove.

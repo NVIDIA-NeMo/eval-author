@@ -7,7 +7,6 @@ import argparse
 import copy
 import importlib.util
 import json
-import shutil
 import sys
 from pathlib import Path
 
@@ -25,20 +24,13 @@ assert spec is not None and spec.loader is not None
 helpers = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(helpers)
 driver = helpers._TRACE_ENVIRONMENT
-REVIEW = {"reviewer_kind": "agent", "note": "Reviewed this synthetic fixture against its public requirements."}
+FIRST_TURN = "trajectory/turn/1"
+REVIEW = helpers._REVIEW
 
 
 def save(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value))
-
-
-def legacy(root):
-    (root / "private/workspace.json").unlink(missing_ok=True)
-    summary = json.loads((root / "summary.json").read_text())
-    summary["schema"] = driver.SCHEMA
-    summary["environment"].pop("qualification", None)
-    save(root / "summary.json", summary)
 
 
 def probe(key, kind, script, root):
@@ -55,69 +47,36 @@ def probe(key, kind, script, root):
 
 
 def workspace(tmp_path):
+    """A v5 workspace with two dependent requirements, a bypass control and an authored starting input."""
     root, _ = helpers._workspace(tmp_path)
-    legacy(root)
     helpers._candidate(root)
-    helpers._ready_environment(root, record_validation=False)
+    helpers._ready_environment(root, setup_only=True)
     candidate = json.loads((root / "candidate.json").read_text())
     candidate["requirements"] = [
-        {"description": "Repair the first record.", "evidence_steps": [1]},
-        {"description": "Preserve the dependent record.", "evidence_steps": [1]},
+        {"description": "Repair the first record.", "evidence_turns": [FIRST_TURN]},
+        {"description": "Preserve the dependent record.", "evidence_turns": [FIRST_TURN]},
     ]
     candidate["state_basis"] = "reconstructed"
     save(root / "candidate.json", candidate)
-    summary = json.loads((root / "summary.json").read_text())
-    summary["schema"] = driver.QUALIFIED_SUMMARY_SCHEMA
-    summary["environment"]["qualification"] = "not_run"
-    save(root / "summary.json", summary)
-    tests = root / "task/tests"
-    shutil.copy(SKILL / "scripts/qualification_runtime.py", tests / "qualification_runtime.py")
-    probes = [
-        probe("setup", "setup", "import json; print(json.dumps({'reached': True}))", root),
-        probe(
-            "interface",
-            "reach",
-            "import json; print(json.dumps(json.load(open('private/runtime-observation.json'))))",
-            root,
-        ),
-    ]
-    save(tests / "qualification-probes.json", probes)
     starter = root / "task/environment/inputs/state.txt"
     starter.parent.mkdir()
     starter.write_text("broken\n")
-    controls = []
-    for key, arm, requirements, fails, dependency in (
-        ("incomplete", "negative", ["repair"], ["fixture-repaired"], None),
-        ("equivalent", "alternative", ["repair", "preserve"], [], None),
-        ("skip-repair", "bypass", ["preserve"], ["dependent-preserved"], "repair-needed"),
-    ):
-        controls.append(
-            {
-                "id": key,
-                "arm": arm,
-                "requirements": requirements,
-                "fails": fails,
-                "reaches": ["interface"],
-                "dependency": dependency,
-                "rationale": f"Synthetic {key} control.",
-                "review": REVIEW,
-            }
-        )
-    manifest = {
-        "schema": contract.SCHEMA,
-        "candidate_sha256": contract.file_digest(root, "candidate.json"),
-        "trace_sha256": contract.file_digest(root, "safe/trace.atif.json"),
-        "requirements": [
+    manifest = helpers._construction(
+        root,
+        requirements=[
             {"id": "repair", "candidate_index": 0, "checks": ["fixture-repaired"]},
             {"id": "preserve", "candidate_index": 1, "checks": ["dependent-preserved"]},
         ],
-        "probes": probes,
-        "controls": controls,
-        "dependencies": [
+        controls=[
+            helpers._control("incomplete", "negative", ["repair"], ["fixture-repaired"]),
+            helpers._control("equivalent", "alternative", ["repair", "preserve"], []),
+            helpers._control("skip-repair", "bypass", ["preserve"], ["dependent-preserved"], "repair-needed"),
+        ],
+        dependencies=[
             {"id": "repair-needed", "prerequisite": "repair", "dependent": "preserve", "bypass_control": "skip-repair"}
         ],
-        "starting_state": {
-            "cutoff_step_id": 1,
+        starting_state={
+            "cutoff_turn_id": FIRST_TURN,
             "roots": ["task/environment/inputs"],
             "artifacts": [
                 {
@@ -133,9 +92,7 @@ def workspace(tmp_path):
             "no_files_reason": None,
             "review": REVIEW,
         },
-        "review": REVIEW,
-    }
-    save(root / contract.PATH, manifest)
+    )
     helpers._record_reproducibility(root)
     return root, manifest
 
@@ -288,7 +245,7 @@ def test_invalid_construction_is_rejected(tmp_path, fault):
     elif fault == "changed-input":
         (root / artifact["path"]).write_text("changed")
     elif fault == "future":
-        artifact.update(basis="observed", source={"step_id": 2, "pointer": "/message"})
+        artifact.update(basis="observed", source={"turn_id": "trajectory/turn/2", "pointer": "/content"})
     elif fault == "recorded-authored":
         candidate = json.loads((root / "candidate.json").read_text())
         candidate["state_basis"] = "recorded"
@@ -303,35 +260,127 @@ def test_invalid_construction_is_rejected(tmp_path, fault):
         contract.validate(root)
 
 
-def test_observation_and_exact_reversal_use_trace_order_not_step_numbers(tmp_path):
-    root, manifest = workspace(tmp_path)
-    trace = {
-        "steps": [
-            {"step_id": 90, "message": "broken\n"},
-            {"step_id": 4, "edit": {"before": "broken", "after": "fixed"}},
-            {"step_id": 2, "message": "fixed\n"},
-        ]
-    }
-    save(root / "safe/trace.atif.json", trace)
-    manifest["trace_sha256"] = contract.file_digest(root, "safe/trace.atif.json")
-    state = manifest["starting_state"]
-    state["cutoff_step_id"] = 90
-    artifact = state["artifacts"][0]
-    artifact.update(basis="observed", source={"step_id": 90, "pointer": "/message"})
-    save(root / contract.PATH, manifest)
-    assert contract.validate(root)["provenance"]["basis_counts"]["observed"] == 1
-    artifact.update(
-        basis="reversed_edit",
-        source={"step_id": 2, "pointer": "/message"},
-        edits=[
-            {"before": {"step_id": 4, "pointer": "/edit/before"}, "after": {"step_id": 4, "pointer": "/edit/after"}}
+def edit_span(span_id, before, after):
+    from trace_ingest import Span, SpanKind, ToolCall, ToolResult
+
+    return Span(
+        id=span_id,
+        kind=SpanKind.TOOL,
+        tool_name="edit",
+        input={"path": "state.txt", "before": before, "after": after, "original": f"{before}\n"},
+        tool_call=ToolCall(call_id=span_id, result_count=1, results=[ToolResult(content=f"{after}\n")]),
+    )
+
+
+FIRST_EDIT = "trajectory/step/7/tool/0"
+SECOND_EDIT = "trajectory/step/5/tool/0"
+
+
+def ordered_trace(root):
+    """A safe trace whose turn ids are not in numeric order: iter_turns order is 90, 7, 5, 2."""
+    from trace_ingest import Span, SpanKind, Trace, TraceAggregate, Turn, TurnRole
+    from trace_source import canonical_bytes
+
+    agent = Span(
+        id="trajectory",
+        kind=SpanKind.AGENT,
+        children=[
+            edit_span(FIRST_EDIT, "broken", "fixed"),
+            edit_span(SECOND_EDIT, "fixed", "final"),
+            Span(id="trajectory/step/9/tool/0", kind=SpanKind.TOOL, tool_name="edit", input={"path": "orphan"}),
+        ],
+        turns=[
+            Turn(id="trajectory/turn/90", index=1, role=TurnRole.USER, content="broken\n"),
+            Turn(id="trajectory/turn/7", index=2, role=TurnRole.AGENT, tool_call_span_ids=[FIRST_EDIT]),
+            Turn(id="trajectory/turn/5", index=3, role=TurnRole.AGENT, tool_call_span_ids=[SECOND_EDIT]),
+            Turn(id="trajectory/turn/2", index=4, role=TurnRole.AGENT, content="final\n"),
         ],
     )
+    trace = Trace(id="anon-0000000000000000", root_spans=[agent], aggregate=TraceAggregate())
+    (root / contract.TRACE_PATH).write_bytes(canonical_bytes(trace))
+    return contract.file_digest(root, contract.TRACE_PATH)
+
+
+def reversal(span_id):
+    return {
+        "before": {"span_id": span_id, "pointer": "/input/before"},
+        "after": {"span_id": span_id, "pointer": "/input/after"},
+    }
+
+
+def test_observation_and_exact_reversal_use_trace_order_not_turn_numbers(tmp_path):
+    root, manifest = workspace(tmp_path)
+    manifest["trace_sha256"] = ordered_trace(root)
+    state = manifest["starting_state"]
+    state["cutoff_turn_id"] = "trajectory/turn/90"
+    artifact = state["artifacts"][0]
+
+    def check(match=None):
+        save(root / contract.PATH, manifest)
+        if match is None:
+            return contract.validate(root)["provenance"]["basis_counts"]
+        with pytest.raises(contract.ConstructionError, match=match):
+            contract.validate(root)
+
+    artifact.update(basis="observed", source={"turn_id": "trajectory/turn/90", "pointer": "/content"})
+    assert check()["observed"] == 1
+    # A span's position is its issuing turn's: turn/7 follows the cutoff although 7 < 90.
+    artifact["source"] = {"span_id": FIRST_EDIT, "pointer": "/input/original"}
+    check("future evidence")
+    state["cutoff_turn_id"] = "trajectory/turn/7"
+    assert check()["observed"] == 1
+    state["cutoff_turn_id"] = "trajectory/turn/90"
+
+    artifact.update(
+        basis="reversed_edit",
+        source={"turn_id": "trajectory/turn/2", "pointer": "/content"},
+        edits=[reversal(SECOND_EDIT), reversal(FIRST_EDIT)],
+    )
+    assert check()["reversed_edit"] == 1
+    # Span pointers reach recorded result content, and the edit chain may start at the source's turn.
+    artifact["source"] = {"span_id": SECOND_EDIT, "pointer": "/tool_call/results/0/content"}
+    assert check()["reversed_edit"] == 1
+    artifact["source"] = {"turn_id": "trajectory/turn/2", "pointer": "/content"}
+    artifact["edits"] = [reversal(SECOND_EDIT), reversal(SECOND_EDIT)]
+    check("descending trace order")  # each edit must come strictly earlier than the one before
+    artifact["edits"] = [reversal(SECOND_EDIT), reversal(FIRST_EDIT)]
+    state["cutoff_turn_id"] = "trajectory/turn/7"  # reversed edits must all follow the cutoff
+    check("descending trace order")
+    state["cutoff_turn_id"] = "trajectory/turn/90"
+    artifact["edits"][0]["after"]["pointer"] = "/input/before"
+    check("exactly once")
+
+
+@pytest.mark.parametrize(
+    ("reference", "message"),
+    [
+        ({"turn_id": "trajectory/turn/404", "pointer": "/content"}, "source turn is not in the trace"),
+        ({"span_id": "trajectory/step/404/tool/0", "pointer": "/input"}, "source span is not in the trace"),
+        ({"span_id": "trajectory/step/9/tool/0", "pointer": "/input/path"}, "source span belongs to no trace turn"),
+        ({"span_id": FIRST_EDIT, "pointer": "/input/missing"}, "source pointer does not resolve"),
+        ({"span_id": FIRST_EDIT, "pointer": "/children"}, "source pointer does not resolve"),
+        ({"span_id": FIRST_EDIT, "pointer": "/input"}, "exact text"),
+        ({"index": 1, "pointer": "/content"}, "source reference: invalid fields"),
+        ({"turn_id": "trajectory/turn/90", "span_id": FIRST_EDIT, "pointer": "/content"}, "invalid fields"),
+    ],
+)
+def test_unresolvable_sources_are_rejected(tmp_path, reference, message):
+    root, manifest = workspace(tmp_path)
+    manifest["trace_sha256"] = ordered_trace(root)
+    state = manifest["starting_state"]
+    state["cutoff_turn_id"] = "trajectory/turn/2"
+    state["artifacts"][0].update(basis="observed", source=reference)
     save(root / contract.PATH, manifest)
-    assert contract.validate(root)["provenance"]["basis_counts"]["reversed_edit"] == 1
-    artifact["edits"][0]["after"]["pointer"] = "/edit/before"
+    with pytest.raises(contract.ConstructionError, match=message):
+        contract.validate(root)
+
+
+@pytest.mark.parametrize("cutoff", ["trajectory/turn/404", "trajectory/step/7/tool/0", 1, None])
+def test_cutoff_must_be_a_trace_turn(tmp_path, cutoff):
+    root, manifest = workspace(tmp_path)
+    manifest["starting_state"]["cutoff_turn_id"] = cutoff
     save(root / contract.PATH, manifest)
-    with pytest.raises(contract.ConstructionError, match="exactly once"):
+    with pytest.raises(contract.ConstructionError, match="cutoff must identify a trace turn"):
         contract.validate(root)
 
 
@@ -389,7 +438,7 @@ def test_complete_lifecycle_and_evidence_tampering(tmp_path):
         batch_file,
         {
             "schema": driver.BATCH_SCHEMA,
-            "members": [{"task_id": root.name, "atif": "source.json", "source_kind": "atif"}],
+            "members": [{"task_id": root.name, "source": "source.json", "source_kind": "atif"}],
         },
     )
     args = argparse.Namespace(root=root.parent, manifest=batch_file)
@@ -423,21 +472,10 @@ def test_unrun_candidate_does_not_claim_qualification(tmp_path):
 
 def test_no_candidate_has_no_construction_requirement(tmp_path):
     root, _ = helpers._workspace(tmp_path)
-    summary = json.loads((root / "summary.json").read_text())
-    summary["schema"] = driver.QUALIFIED_SUMMARY_SCHEMA
-    summary["environment"]["qualification"] = "not_run"
-    save(root / "summary.json", summary)
     helpers._candidate(root, status="no_candidate")
     code, result = helpers._run("finalize", "--task-dir", str(root), "--status", "no_candidate")
     assert code == 0 and result["qualification"] == "not_applicable", result
     assert helpers._run("check", "--task-dir", str(root))[0] == 0
-
-
-def test_historical_workspace_rejects_partial_in_place_upgrade(tmp_path):
-    root, _ = workspace(tmp_path)
-    legacy(root)
-    with pytest.raises(driver.ContractError, match="initialize a new workspace"):
-        driver._construction_context(root)
 
 
 def test_runtime_exercises_real_component_and_detects_broken_setup(tmp_path):
@@ -489,18 +527,6 @@ def test_probe_numeric_type_mismatch_rejected_before_execution(tmp_path):
         contract.validate(root)
 
 
-def test_new_init_marker_rejects_summary_downgrade(tmp_path):
-    code, result = helpers._run("init", "--root", str(tmp_path / ".eval-author"), "--task-id", "new")
-    assert code == 0
-    root = Path(result["task_dir"])
-    summary = json.loads((root / "summary.json").read_text())
-    summary["schema"] = driver.SCHEMA
-    summary["environment"].pop("qualification")
-    save(root / "summary.json", summary)
-    with pytest.raises(driver.ContractError, match="forbids summary schema downgrade"):
-        driver._load_summary(root)
-
-
 def test_alternative_cannot_duplicate_oracle(tmp_path):
     root, _ = workspace(tmp_path)
     source = root / "private/alternative.py"
@@ -528,3 +554,69 @@ def test_repair_preserves_contract_and_detects_archive_mutation(tmp_path):
     archive.write_text("{}")
     with pytest.raises(driver.ContractError, match="archive of construction.json is missing or changed"):
         driver._repairs(root)
+
+
+DISPATCH = "trajectory/step/2/tool/0"
+SUBAGENT = "trajectory/subagent/0"
+SUBAGENT_EDIT = "trajectory/subagent/0/step/2/tool/0"
+
+
+def dispatched_trace(root):
+    """Root turn 2 runs a subagent; execution order is turn/1, turn/2, sub turn/1, sub turn/2, turn/3, turn/4."""
+    from trace_ingest import Span, SpanKind, Trace, TraceAggregate, Turn, TurnRole
+    from trace_source import canonical_bytes
+
+    subagent = Span(
+        id=SUBAGENT,
+        kind=SpanKind.AGENT,
+        children=[edit_span(SUBAGENT_EDIT, "broken", "fixed")],
+        turns=[
+            Turn(id=f"{SUBAGENT}/turn/1", index=1, role=TurnRole.USER, content="broken\n"),
+            Turn(id=f"{SUBAGENT}/turn/2", index=2, role=TurnRole.AGENT, tool_call_span_ids=[SUBAGENT_EDIT]),
+        ],
+    )
+    agent = Span(
+        id="trajectory",
+        kind=SpanKind.AGENT,
+        children=[Span(id=DISPATCH, kind=SpanKind.TOOL, tool_name="task", children=[subagent])],
+        turns=[
+            Turn(id="trajectory/turn/1", index=1, role=TurnRole.USER, content="Repair the state.\n"),
+            Turn(id="trajectory/turn/2", index=2, role=TurnRole.AGENT, tool_call_span_ids=[DISPATCH]),
+            Turn(id="trajectory/turn/3", index=3, role=TurnRole.AGENT, content="broken\n"),
+            Turn(id="trajectory/turn/4", index=4, role=TurnRole.AGENT, content="fixed\n"),
+        ],
+    )
+    trace = Trace(id="anon-0000000000000000", root_spans=[agent], aggregate=TraceAggregate())
+    (root / contract.TRACE_PATH).write_bytes(canonical_bytes(trace))
+    return contract.file_digest(root, contract.TRACE_PATH)
+
+
+def test_cutoff_and_reversal_follow_execution_order_across_agents(tmp_path):
+    root, manifest = workspace(tmp_path)
+    manifest["trace_sha256"] = dispatched_trace(root)
+    state = manifest["starting_state"]
+    artifact = state["artifacts"][0]
+
+    def check(cutoff, match=None):
+        state["cutoff_turn_id"] = cutoff
+        save(root / contract.PATH, manifest)
+        if match is None:
+            return contract.validate(root)["provenance"]["basis_counts"]
+        with pytest.raises(contract.ConstructionError, match=match):
+            contract.validate(root)
+
+    # The root agent's later turn ran after the subagent, so it is future evidence for a subagent cutoff.
+    artifact.update(basis="observed", source={"turn_id": "trajectory/turn/3", "pointer": "/content"}, edits=[])
+    check(f"{SUBAGENT}/turn/1", "future evidence")
+    # The subagent ran inside root turn 2: observed by root turn 3, not yet by turn 2.
+    artifact["source"] = {"turn_id": f"{SUBAGENT}/turn/1", "pointer": "/content"}
+    assert check("trajectory/turn/3")["observed"] == 1
+    check("trajectory/turn/2", "future evidence")
+    # The subagent's edit precedes the root agent's final turn, so the reversal is in descending order.
+    artifact.update(
+        basis="reversed_edit",
+        source={"turn_id": "trajectory/turn/4", "pointer": "/content"},
+        edits=[reversal(SUBAGENT_EDIT)],
+    )
+    assert check("trajectory/turn/1")["reversed_edit"] == 1
+    check(f"{SUBAGENT}/turn/2", "descending trace order")

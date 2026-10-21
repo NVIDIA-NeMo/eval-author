@@ -98,7 +98,7 @@ def scaffold_trace_draft(tmp_path):
             }
         )
     )
-    trace_command("prepare", "--task-dir", task_dir, "--atif", source, "--source-kind", "atif")
+    trace_command("prepare", "--task-dir", task_dir, "--source", source, "--source-kind", "atif")
     trace_command(
         "review-privacy", "--task-dir", task_dir, "--reviewer-kind", "agent", "--note", "Synthetic test data reviewed."
     )
@@ -124,13 +124,18 @@ def scaffold_trace_draft(tmp_path):
         "resolve-tool-call-access", "--task-dir", task_dir, "--decisions", decisions, "--reviewer-kind", "agent"
     )
     candidate = {
-        "schema": "nemo.eval_author.trace_environment_candidate.v2",
+        "schema": "nemo.eval_author.trace_environment_candidate.v3",
         "status": "candidate",
-        "decision_basis": "safe_atif_only",
+        "decision_basis": "safe_trace_only",
         "instruction": instruction_text,
-        "requirements": [{"description": "Call ledger_total and return the integer sum.", "evidence_steps": [1, 2]}],
+        "requirements": [
+            {
+                "description": "Call ledger_total and return the integer sum.",
+                "evidence_turns": ["trajectory/turn/1", "trajectory/turn/2"],
+            }
+        ],
         "verification_mode": "execution",
-        "evidence_steps": [1, 2],
+        "evidence_turns": ["trajectory/turn/1", "trajectory/turn/2"],
         "state_basis": "reconstructed",
         "uncertainties": ["Starting application state was not captured; construct a stateless summation tool."],
         "reason_codes": [],
@@ -169,6 +174,7 @@ def scaffold_trace_draft(tmp_path):
     summary = json.loads((task_dir / "summary.json").read_text())
     assert summary["status"] == "pending"
     assert summary["source"]["kind"] == "atif"
+    assert summary["source"]["safe_path"] == "safe/trace.json"
     assert summary["environment"]["technical_status"] == "not_run"
     assert not (task_dir / "validation.json").exists()
     assert not (tmp_path / "coverage.json").exists()

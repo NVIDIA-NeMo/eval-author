@@ -83,9 +83,12 @@ successful run.
 
 For trace formats, the reader shows the loaded NeMo Compass trace: every span
 depth-first, indented by depth, with its kind, tool or span name, model, start
-and end times, input and output, recorded error, and each tool result with its
-`is_error` flag (`None` when the source recorded no usable flag). Span
-attributes, tool definitions, and token counts stay under expandable fields. It
+and end times, input and output, recorded error, each AGENT span's conversation
+turns (index, role, authorship, content, reasoning, and unlinked tool results),
+and each tool result with its `error_status` (`unrecorded` when the source
+recorded no usable flag or status). Span attributes, tool definitions, token
+counts, and the remaining turn fields (ids, timestamps, extensions) stay under
+expandable fields. It
 is not a provider schema validator: a file the pinned loader rejects is reported
 as a malformed or unsupported record without its content. Images and external
 attachments are never fetched or displayed, and continuation or source paths are

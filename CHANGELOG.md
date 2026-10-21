@@ -19,9 +19,31 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Changed
 
-- **Trace-derived environments read ATIF only for now.** `prepare` and batch
-  manifests accept `source_kind: atif` until the workflow reads Compass Traces;
-  workspaces already prepared from another source kind keep loading.
+- **Breaking: trace-derived environments read NeMo Compass `Trace` v3 instead
+  of ATIF.** `prepare --source FILE --source-kind KIND` (plus `--row`, `--spans`,
+  `--workspace`) replaces `--atif` and loads through the shared trace loader;
+  batch members use `source`. Any kind whose trace records turns is accepted
+  (ATIF today); others fail with `source kind <kind> does not record turns yet`.
+  Workspaces now hold `private/source.<kind>.json`,
+  `private/canonical.trace.json` and `safe/trace.json`. Citations name turns
+  and spans: `evidence_turns`, `trace_turn` provenance with `turn_ids`,
+  `decision_basis: safe_trace_only`, tool evidence `{span_id, call_id}`,
+  construction `cutoff_turn_id` and `{turn_id|span_id, pointer}` sources, and
+  `safe_trace_sha256`. Tool scope is strict per agent, with reviewable
+  `suggested_definition`/`suggested_override`; results carry Compass
+  `error_status`. The safe trace pseudonymizes every field Compass marks as an
+  identifier, and the ids inside loss details alike. Construction cutoffs and
+  reversed edits compare turns in execution order, across agents. A source that
+  needs a JSON escape repair and names subagent trajectory files by path is
+  refused. Schema ids are bumped, and workspaces from the older
+  workflow are refused; re-run `prepare` in a new task directory. Every
+  workspace is qualified (summary v5, validation v7), so
+  `record-validation --allow-aggregate-only` and the workspace creation marker
+  are removed. See
+  [Trace sources](skills/eval-author-trace-environment/references/sources.md).
+- **Generated case review** (`render_review.py`) shows each agent's
+  conversation turns with their authorship, and each tool result's
+  `error_status`.
 - **Audit coverage reports** are now `nemo.eval_author.audit_coverage_report.v2`:
   their subjects read Compass traces (`trace_format: nemo-compass-trace`) and
   record `source_kind`.
