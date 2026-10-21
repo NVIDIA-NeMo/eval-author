@@ -78,10 +78,14 @@ and safety rules still appear.
 **Start:** Supply selected agent context, prior answers with provenance, and
 Journey 0 progress. Request continuation for first-eval, audit, and expansion.
 
-**Inspect:** Eval Author calls `ethos-orchestrate` with caller context and the
-existing progress. Only unresolved intent is asked; the canonical workflow owns
-exploration and writing. Confirm draft content before writing. Return the exact
-path, validation, digest, stage, and remaining questions to shared journey state.
+**Inspect:** Eval Author maps its state into ordinary Ethos conversation context:
+repository, agent, selected document path, findings, prior answers with provenance,
+exact draft and confirmation, and unfinished Ethos work. Journey names, checklist
+rules, hashes, and the shared state layout remain inside Eval Author. Only
+unresolved intent is asked; the canonical workflow owns exploration and writing.
+Confirm draft content before writing. Eval Author maps the reported path,
+validation, outstanding work, and user confirmations back to shared journey state
+and computes the saved content digest itself.
 Unchanged confirmed content is reused without another interview or review gate.
 The three-item Journey 0 orientation is not repeated inside Ethos.
 

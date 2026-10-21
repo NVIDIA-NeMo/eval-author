@@ -19,15 +19,22 @@ Resolve ambiguous identity or conflicting intent before accepting it.
 ## Call and return
 
 Load shared journey state before each call, including a fresh chat or a switch
-between create, audit, and expand. Pass `caller=eval-author`, selected `journey`,
-`repository`, `agent`, `ethos_path`, `orientation_shown=true`, and:
+between create, audit, and expand. Eval Author owns the selected journey,
+checklist, state layout, and return routing; Ethos needs none of those details.
+Pass the selected `repository`, `agent`, root `ethos_path`, and only the Ethos
+context needed to continue:
 
 - `source_findings` from `ethos.source_findings`: records with `path` and `summary`.
 - `prior_answers` from `ethos.prior_answers`: records with `topic`, `question`,
   `answer`, and `source` identifying the actual reply or other provenance.
-- `progress` from the saved Ethos fields: `stage`, `draft_confirmed`,
-  `confirmed_digest`, and `remaining_questions`. Include the recovered draft
-  contents and its `draft_source` confirmation provenance in the handoff context.
+- Describe the unfinished Ethos step and remaining questions from saved state.
+  Include prior user confirmation only for the exact content it established.
+- Recover the exact draft contents and any `draft_source` confirmation
+  provenance. Map the stored reference into ordinary conversation context; the
+  Ethos skills do not need to read or understand Eval Author's state file.
+
+The supplied context establishes an ongoing Ethos session. Continue its earliest
+unfinished stage rather than requesting another standalone opening.
 
 A `draft` is null or a reference with `path` relative to the repository under
 `.eval-author/.working/` and `digest` for its exact bytes as 64 lowercase SHA-256
@@ -50,16 +57,21 @@ requires that confirmation; inferred intent or a checksum alone does not supply
 approval. If the draft changes or disappears, retain findings and answers but
 reopen draft review. Reuse them rather than restarting the interview.
 
-The completion result carries `path`, `validation`, `remaining_questions`,
-`confirmed_digest`, and `stage`. The continuation context carries source
-findings, user replies with provenance, and the updated draft content and
-confirmation state; the caller maps those into the shared fields above. The
-digest is the SHA-256 of the exact saved bytes as 64 lowercase hexadecimal
-characters without a prefix. Check that
-`path` resolves to this repository's root `ETHOS.md`. Persist unfinished stages
-and answers through `journey_state.py update`. For completion, require a
-successful returned validation and explicit saved-content confirmation, then
-use `confirm-ethos` with that digest, the user's confirmation reference as
+Ask Ethos to report the document path, actual validation outcome, unresolved
+questions, and what was confirmed or remains unfinished. Retain new findings,
+user replies with provenance, and draft contents from that conversation. Eval
+Author maps these facts into its own `stage`, `validation`, `remaining_questions`,
+and confirmation fields; Ethos does not implement that state schema.
+
+Check that the document path resolves to this repository's root `ETHOS.md`.
+Eval Author computes `confirmed_digest` as SHA-256 over the exact saved bytes,
+encoded as 64 lowercase hexadecimal characters without a prefix. Before reusing
+a saved confirmation, compare the current bytes with that digest and retain its
+user-reply provenance. Changed contents reopen only the affected review or
+intent step. Persist unfinished stages and answers through
+`journey_state.py update`. For completion, require successful returned validation
+and explicit saved-content confirmation, then use `confirm-ethos` with the
+computed digest, the user's confirmation reference as
 `--source`, and the validator result's provenance as `--validation`. Preserve
 the validation details in a linked working artifact or the conversation; do
 not pass a structured validation object as if it were the helper's provenance

@@ -2037,7 +2037,8 @@ def test_ethos_confirmation_handoff_resources_resolve() -> None:
     text = reference.read_text()
     targets = {(reference.parent / link).resolve() for link in re.findall(r"\]\((\.\./[^)]+)\)", text)}
     assert targets == {(_ETHOS_SKILLS_DIR / "ethos-orchestrate" / "SKILL.md").resolve()}
-    assert "caller=eval-author" in text
+    assert "caller=eval-author" not in text
+    assert "orientation_shown" not in text
     assert "confirmed_digest" in text
 
 
