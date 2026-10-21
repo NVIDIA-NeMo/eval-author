@@ -64,3 +64,48 @@ Store the validation report outside the results root.
 
 These checks establish artifact consistency, not mutation activation, verifier
 correctness, or scientific validity. Such qualification belongs to prepared cases.
+
+## Execute the eval tasks
+
+```bash
+uv run python labs/metric-benchmark/run_evals.py \
+  --benchmark benchmark.yaml --run-id trial-1 --output private-run
+```
+
+Library: `execute_benchmark(loaded_benchmark, run_id, output)`.
+The loop follows case order, then baseline and mutant order. Each job runs the
+whole task inventory once, with retries disabled and configured task concurrency.
+Outputs are indexed by case ID in `execution.json`:
+
+```text
+private-run/
+  execution-inputs.json
+  execution.json
+  cases/case-0000/execution-results/
+    results.json
+    agents/agent-0000/
+      request.json
+      receipt.json
+      run-0001/                 # Intact native Harbor job
+        result.json
+        config.json
+        lock.json
+        task-name__suffix/      # Native trial, indexed using metadata
+          result.json
+          agent/
+          verifier/
+```
+
+Numeric folder aliases are stable within a definition. The index carries actual
+case, agent, task and run identities. No model or private service is involved in
+the orchestration itself. Prepared agents may call models when executed.
+
+Rerunning the command verifies completed job receipts and skips those jobs.
+Changed inputs or evidence require a new output directory. An interrupted native
+job is preserved and must be explicitly completed with Harbor's own resume
+mechanism before this runner can collect it; the runner never silently retries
+partial observations. Do not run two writers against the same output directory.
+
+The optional `METRIC_BENCHMARK_DOCKER_TEST=1` execution test runs six local
+Oracle/NOP trials and checks CLI-to-library resume. It requires Docker and the
+`python:3.12-slim` image; it does not call a model or a benchmark service.
