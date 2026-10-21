@@ -116,10 +116,13 @@ Record user-confirmed prerequisites separately from runtime verification.
 Mark each step complete when its work and required review are finished.
 
 Read [Shared prerequisites and Ethos](references/shared-prerequisites.md) for
-prerequisite confirmation, shared state, resumption, and the exact handoff. Use
-[Ethos confirmation](references/ethos-confirmation.md) to invoke `ethos-orchestrate`;
-Eval Author does not maintain a second Ethos interview or writer. The shared
-prerequisite flow confirms repository-root `ETHOS.md`. Preserve supplied
+prerequisite confirmation, shared state, resumption, and the exact handoff.
+
+Use `ethos-orchestrate` to review, create, or update `ETHOS.md`. Pass along the
+context and answers already collected, then resume the selected evaluation flow
+when [Ethos confirmation](references/ethos-confirmation.md) is complete.
+
+The shared prerequisite flow confirms repository-root `ETHOS.md`. Preserve supplied
 alternate-path documents and resolve the root requirement without silently copying
 or replacing them. Scoped utilities retain their explicit `--ethos` path behavior.
 
