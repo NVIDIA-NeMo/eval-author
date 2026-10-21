@@ -27,11 +27,11 @@ the shared prerequisite flow. Confirm prerequisites together and label them user
 ## 2. Expansion does not imply an audit
 
 Request “help me onboard to expand my evals” with no audit findings. Preserve the
-expansion goal, run the shared entry, and inspect only the selected existing
-cases to agree on additions. Do not route automatically to audit or fabricate a
-coverage report. Starter-suite expansion resumes first-eval scope planning;
-provided audit findings support proposals through task-create. Other expansion
-records the agreed handoff and remaining implementation support honestly.
+expansion goal and run the shared entry. Do not route automatically to audit or
+fabricate a coverage report. Starter-suite expansion resumes first-eval scope
+planning; provided audit findings support proposals through task-create. When no
+supported authoring flow matches the supplied suite, save the pending handoff
+and explain the missing capability.
 
 ## 3. Narrow operations keep their scope
 

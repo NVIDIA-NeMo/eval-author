@@ -56,10 +56,11 @@ offer; report acceptance alone is not permission to begin proposals.
 For task creation, consume the core's shared prerequisite result, including direct
 invocation. Proposal-only requests keep their supplied-input scope. Reuse the
 confirmed Ethos and prerequisites.
-A general expansion request without audit findings follows the core's expansion
-handoff; this tool-gap generator does not invent measurement inputs or require
-an unsolicited audit. Explain missing inputs for explicitly requested audit-gap
-creation and offer the required audit work as a choice.
+A general expansion request follows the core's expansion handoff; this skill
+creates tasks from actionable audit tool gaps.
+If required audit inputs are missing, obtain those
+inputs through the audit flow and return to proposals; do not restart first-eval
+onboarding or infer permission to create or run tasks.
 For task-creation requests, continue with an eligible tool gap through the
 existing execution path:
 
@@ -75,8 +76,8 @@ Create and prove one tool gap at a time. Keep every generated artifact under
 `.eval-author/`; do not edit existing tasks or customer source.
 
 For an existing suite without sufficient audit findings, preserve the requested outcome:
-explicitly requested audit-gap work identifies the missing coverage inputs;
-new audit work is a separate choice. Readiness work belongs in `eval-author-discover`. A missing
+audit or proposal work obtains its missing coverage inputs through
+`eval-author-audit`; readiness work belongs in `eval-author-discover`. A missing
 report alone is not a first-eval request. A reviewed specification and Markdown
 report can support proposal-only work without measurement JSON: label such ideas
 as unmeasured candidates and carry the measurement limitation forward. Do not
@@ -218,10 +219,11 @@ if that choice remains open.
 Present the proposed priorities and breadth for review, including an option to
 start with a minimal pilot and expand. Reuse already agreed scope rather than
 asking again. Save the agreement in
-`.eval-author/proposals/dataset-recommendations.md`: selected corpus and exclusions,
+`.eval-author/.working/journey-state.json`: selected corpus and exclusions,
 priorities and cost constraints, distinct input-example counts per behavior,
 variations and difficulty, positive and negative scenarios, expected outcomes,
-and pilot or expansion status. Keep this planning record out of the agent-facing
+and pilot or expansion status. Reflect the agreed scope in
+`.eval-author/proposals/dataset-recommendations.md`. Keep this planning record out of the agent-facing
 instruction file. Answer questions or complete scoped detours, then resume this
 checkpoint with the existing decisions intact.
 

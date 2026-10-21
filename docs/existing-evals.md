@@ -157,13 +157,9 @@ See [Read your results](results.md) for the saved artifacts and their limits.
 
 ## Improve your existing evaluations
 
-Improvement uses shared prerequisite and Ethos confirmation, then preserves the
-requested additions. An audit is optional. Expansion of an existing starter
-suite resumes its scope plan; supplied audit findings can feed the proposal
-workflow below. For another suite, Eval Author identifies the selected cases,
-agrees on additions, and records the handoff and remaining authoring work. It
-does not manufacture audit gaps or claim that the current audit-gap generator
-supports every kind of expansion.
+Improvement uses the same shared prerequisite and Ethos confirmation. An audit
+is optional. After confirmation, continue with the existing supported authoring
+flow and preserve the supplied context and any unfinished handoff in shared state.
 
 ## Propose new evaluations
 

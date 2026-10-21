@@ -117,7 +117,7 @@ specification” or “test mappings.” Wait for the answer before proceeding.
 Complete this milestone when the user has confirmed the eval suite set (or that
 none exist) and trace selection or confirmed unavailability is understood.
 Explain the selected scope, what its evidence can establish, and any missing
-inputs; resolve remaining source or scope decisions before dependent work.
+inputs; check in before defining coverage.
 An inaccessible eval directory or a missing report does not establish no evals.
 Keep an unresolved eval location open and ask for an accessible source; offer
 independent specification work if useful, carrying that limitation forward.
@@ -209,7 +209,7 @@ successfully, even when coverage is low. If some inputs fail, report only the
 successful subset with explicit exclusions and keep the agreed milestone partial.
 Refresh `audit-coverage-report.md` with the measured subset, methods, and any
 excluded inputs. Explain the result and limits, link the updated report, refresh
-the checklist, and continue to **Generate and review coverage report** when already requested.
+the checklist, and check in before **Generate and review coverage report**.
 Reuse existing measurements only when their inputs still apply.
 
 If traces are absent, inaccessible, invalid, or unavailable in a supported format,
@@ -220,8 +220,8 @@ and explain that limitation beside the current coverage stage until resolved.
 Do not report 0% coverage, fabricate
 measurement files, or treat the lack of traces as uncovered behavior. The
 specification and its review can still finish. Record the limitation in the
-Markdown report. Continue the requested **Generate and review coverage report**
-work with measurement explicitly unmeasured. Do not run evals or
+Markdown report. At that check-in, offer **Generate and review coverage report**
+as the next independent milestone and wait for the answer. Do not run evals or
 install dependencies just to fill the gap without the
 authorization required by the core.
 
@@ -265,9 +265,10 @@ expected safe response. Would you like me to prepare those proposals?” This
 offer can be included in the report-review question. Make the handoff explicit:
 ask whether to start proposing tasks, end the turn, and wait for the user's
 answer. Do not start proposal analysis, write proposals, or leave proposal
-subagents running while the answer is pending. If proposals were already requested, proceed after the findings review without
-asking permission again. For audit-only work, accepting findings alone does not
-request proposals; a reply accepting both settles the handoff.
+subagents running while the answer is pending. A broad request to audit and
+suggest improvements does not skip this checkpoint. Accepting the findings
+alone does not accept the proposal offer; a reply accepting both settles the
+handoff without a second permission question.
 
 Once accepted, enter `eval-author-task-create` at **Step 1: propose dataset
 improvements**. Carry the Audit coverage report, reviewed Audit specification,

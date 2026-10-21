@@ -148,8 +148,8 @@ explanations, not just the final question.
 **Reply when asked:** “Use only `runs/selected/` for these evaluations.”
 
 **Inspect:** Subsequent trace operations stay within that selection. The agent
-explains what it found and resolves any missing scope or content decision before
-dependent work.
+explains what it found and waits at the next milestone check-in before drafting,
+measuring, or aggregating work belonging to a later milestone.
 
 ## 2. Supplied trace location is reused
 
@@ -162,8 +162,8 @@ reused. Preserve the supplied suite and trace selections.
 **Inspect:** The agent records and uses the explicitly selected evaluation suite
 and supplied trace location without asking the user to select either again. It
 does not add discovered suites to that scope or widen the trace search to
-`runs/other/`. The supplied path does not approve later proposed coverage or prove that a
-trace is usable. Review proposed coverage before measurement.
+`runs/other/`. Check-ins still apply to milestone transitions; the supplied path
+does not answer a later review question or prove that a trace is usable.
 
 ## 3. No traces versus an inaccessible source
 
@@ -221,10 +221,12 @@ prove absence, ask where nonexistent traces live, or start first-eval creation.
 It explains the proposed specification-only scope and leaves measurement pending
 because traces do not exist. Scope review must precede specification drafting.
 
-**Bounded follow-ups:** Reuse the supplied absence and registry to draft the
-specification. Inspect the resulting specification and validation evidence: tools,
-capabilities, and failure cases follow the accepted Ethos and registry without
-invented execution evidence. At the specification review, reply: “That specification captures the intended
+**Bounded follow-ups:** The agent explains the specification-only scope and stops
+at its check-in before drafting. Reply: “Use that scope and the tool registry
+to draft the coverage specification.” Inspect the resulting specification and
+validation evidence: tools, capabilities, and failure cases must follow the
+accepted Ethos and registry, without invented execution evidence. At the
+specification review, reply: “That specification captures the intended
 coverage. Finalize the specification-only findings with measurement pending.”
 
 **Final review:** The agent links and explains the validated specification,

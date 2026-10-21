@@ -1162,6 +1162,17 @@ def test_internal_run_evidence_requires_explicit_root(tmp_path):
     assert incomplete["standalone_trials"] == []
 
 
+@pytest.mark.parametrize("directory", ["archives", "task-drafts"])
+def test_historical_run_evidence_remains_in_selected_scope(tmp_path, directory):
+    path = f".eval-author/{directory}/case/run"
+    trial(tmp_path, path)
+    complete = report.refresh(tmp_path, jobs_roots=["."])
+    assert [item["path"] for item in complete["standalone_trials"]] == [path]
+    incomplete = report.refresh(tmp_path, jobs_roots=["."], max_entries=1)
+    assert [item["path"] for item in incomplete["standalone_trials"]] == [path]
+    assert incomplete["standalone_trials"][0]["status"] == "unverified"
+
+
 def test_incomplete_scan_does_not_restore_legacy_copies_into_default_scope(tmp_path):
     original = task(tmp_path, "legacy")
     path = ".eval-author/task-drafts/legacy"

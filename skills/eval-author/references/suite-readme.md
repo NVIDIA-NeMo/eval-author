@@ -73,7 +73,7 @@ python <eval-author-skill-dir>/scripts/report.py refresh --repo . \
 Roots are project-relative and repeatable. Selected roots are retained in the
 internal report state. For authoring and handoff, keep the project root selected
 (`--task-root .`) unless the user selected a narrower scope. New tasks stay at
-`.eval-author/tasks/<slug>` throughout authoring and validation. Default inventory
+`.eval-author/tasks/<slug>` throughout authoring and validation. Default task inventory
 excludes `.eval-author/.working`, `.eval-author/archives`, and historical
 `.eval-author/task-drafts` copies; select one of those roots explicitly to inspect
 its retained evidence. Separate selected directories remain separate rows, even

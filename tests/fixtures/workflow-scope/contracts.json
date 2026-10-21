@@ -181,7 +181,7 @@
         ],
         "write_paths": [
           ".eval-author/tasks/cover-read/",
-          ".eval-author/proposals/cover-read-instruction.md"
+          ".eval-author/.working/proposals/cover-read-instruction.md"
         ],
         "handoff": "review_draft"
       }

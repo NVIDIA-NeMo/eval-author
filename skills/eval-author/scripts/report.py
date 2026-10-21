@@ -435,6 +435,19 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
     )
 
 
+def within_run_scope(path: Path, root: Path) -> bool:
+    """Exclude private working evidence unless selected, retaining historical runs."""
+    if not path.is_relative_to(root):
+        return False
+    return not any(
+        parent.name == ".working"
+        and parent.parent.name == ".eval-author"
+        and parent != root
+        and parent.is_relative_to(root)
+        for parent in (path, *path.parents)
+    )
+
+
 def run_files(repo: Path, roots: list[str], max_depth: int, max_entries: int) -> tuple[list[Path], bool]:
     """Bounded result/config inventory; do not follow links or nested checkouts."""
     files: set[Path] = set()
@@ -469,7 +482,7 @@ def run_files(repo: Path, roots: list[str], max_depth: int, max_entries: int) ->
                         continue
                     path = Path(entry.path)
                     if stat.S_ISDIR(info.st_mode) and entry.name not in excluded:
-                        if (path / ".git").exists() or not within_task_scope(path, root):
+                        if (path / ".git").exists() or not within_run_scope(path, root):
                             continue
                         rel = path.relative_to(root)
                         if len(rel.parts) > max_depth:
@@ -973,10 +986,11 @@ def refresh(
                     warnings.append(f"{label} inventory is incomplete; retained entries may be unverified.")
                 current = {r["path"] for r in records}
                 roots = metadata["task_roots" if key == "tasks" else "jobs_roots"]
+                within_scope = within_task_scope if key == "tasks" else within_run_scope
                 for old in (previous or {}).get(key, []):
                     if key == "standalone_trials" and old["path"] in owned_trials:
                         continue
-                    in_scope = any(within_task_scope(Path(old["path"]), Path(root)) for root in roots)
+                    in_scope = any(within_scope(Path(old["path"]), Path(root)) for root in roots)
                     if old["path"] not in current and in_scope and not complete:
                         issues = sorted(set(old["issues"] + ["Source artifacts were not found in this scan."]))
                         records.append({**old, "status": "unverified", "issues": issues})

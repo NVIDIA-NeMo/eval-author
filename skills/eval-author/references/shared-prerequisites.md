@@ -54,8 +54,8 @@ Its validation and atomic writes are allowed bounded local commands, not runtime
 probes. State identifies the repository, agent, goal, selected setup, answer
 provenance, Ethos path/digest, and journey-specific progress. Never store secrets.
 
-Present scope tables in conversation and save agreed decisions in the selected
-journey's `scopes` entry. Put final task behavior in task READMEs and audit checks
+Save agreed decisions in the selected journey's `scopes` entry.
+Put final task behavior in task READMEs and audit checks
 in the audit report. Do not create a separate first-eval or expansion plan file.
 Retire `first-eval.md`, `audit-progress.md`, and intent notes as active writers.
 Import legacy records once as unreviewed snapshots with provenance. Review the

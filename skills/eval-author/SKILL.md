@@ -128,14 +128,13 @@ or replacing them. Scoped utilities retain their explicit `--ethos` path behavio
 
 ### Expansion handoff
 
-An expansion request does not imply an audit. Carry the selected suite, proposed
-additions, accepted Ethos, prerequisites, and pending decisions into the handoff.
+An expansion request does not imply an audit. Carry supplied suite context,
+requested additions, confirmed Ethos, prerequisites, and pending decisions into
+the selected authoring flow.
 For a starter suite created by first-eval, resume its scope stage. For supplied
 reviewed audit findings, use `eval-author-task-create` proposals and its existing
-eligibility checks. For other existing suites, inspect the selected definitions
-and agree on the intended additions; save that plan and the next action in shared
-state. Explain any remaining authoring support needed rather than inventing
-measured gaps or routing through an unwanted audit.
+eligibility checks. If no supported authoring flow matches the supplied suite,
+save the pending handoff in shared state and explain the missing capability.
 An explicitly selected addition or proposal-only request keeps that scope.
 
 ### Downstream progress

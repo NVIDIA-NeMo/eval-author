@@ -120,7 +120,6 @@ outcomes and grading, priorities, exclusions, task/attempt mapping, cost
 implications, agent invocation, prerequisites, and unresolved questions.
 Separate proposed choices from the user's agreement and record subsequent feedback.
 These are agreed planning decisions, not a coverage report or runnable evals.
-Present the scope table in conversation; do not create a separate plan file.
 
 Use reproducible inputs and variations supported by Ethos and the agreed scope,
 including semantically justified difficult negatives where relevant. Grade an
