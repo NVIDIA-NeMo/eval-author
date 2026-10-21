@@ -4,9 +4,9 @@
     {
       "id": "audit-shared-entry",
       "prompt": "Audit coverage of my existing evaluations against /workspace/input/ETHOS.md. I have not selected traces. Start the shared prerequisite and Ethos flow; do not search or read traces.",
-      "expected_output": "Shows the shared three-item checklist with Audit your coverage selected. Reuses the supplied agent context and performs bounded prerequisite and Ethos work without a separate start-approval gate. Uses ethos-orchestrate for Ethos confirmation. Keeps runtime probes, trace searches, and measurement out of the shared prerequisite flow; records any working state under .eval-author/.working/.",
+      "expected_output": "Shows the shared three-item checklist with Check what your evaluations cover selected. Reuses the supplied agent context and performs bounded prerequisite and Ethos work without a separate start-approval gate. Uses ethos-orchestrate for Ethos confirmation. Keeps runtime probes, trace searches, and measurement out of the shared prerequisite flow; records any working state under .eval-author/.working/.",
       "assertions": [
-        "Shows Confirm your agent and evaluation setup, Find out what your agent is supposed to do (Ethos), and Audit your coverage.",
+        "Shows Check how your agent runs and how you’ll test it, Agree on what your agent should do, and Check what your evaluations cover.",
         "Does not ask Ready to get started or require an audit-opening acceptance.",
         "Uses the supplied Ethos through the shared orchestrator without rewriting unconfirmed content.",
         "Does not probe runtimes, search or read unselected traces, measure coverage, or create working files outside .eval-author/.working/."

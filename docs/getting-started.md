@@ -241,12 +241,16 @@ Then start your first interaction:
 Use eval-author to help me with the evals for my agent.
 ```
 
-With no goal supplied, Eval Author asks whether you want to build first evals,
-audit coverage, or improve a suite. Each uses one shared flow for Gym and Harbor:
+With no goal supplied, Eval Author asks whether you want to create evaluations,
+check existing coverage, or improve a suite. For first evaluations, it shows:
 
-- Confirm your agent and evaluation setup.
-- Find out what your agent is supposed to do (Ethos).
-- Build your eval suite, audit your coverage, or improve your eval suite.
+- [ ] **Check how your agent runs and how you’ll test it**
+- [ ] **Agree on what your agent should do**
+- [ ] **Create your first evaluations**
+
+For an audit, the third item is **Check what your evaluations cover**. For
+improvements, it is **Improve your existing evaluations**. The first two steps
+are shared across all three goals and work with Gym and Harbor.
 
 It reuses known answers and begins useful work without another start question.
 Prerequisites are user-confirmed at entry; runtime checks happen when needed for

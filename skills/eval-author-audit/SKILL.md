@@ -51,7 +51,7 @@ the findings with the user. It does not generate tasks yet.
 
 A full audit enters the core's shared prerequisite flow, including direct
 invocation. Show its
-three-item checklist with **Audit your coverage** selected. Reuse confirmed
+three-item checklist with **Check what your evaluations cover** selected. Reuse confirmed
 agent, prerequisites, and Ethos. Continue authorized work without a separate
 opening acceptance or repeated Ethos milestone.
 

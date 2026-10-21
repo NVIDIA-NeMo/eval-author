@@ -24,7 +24,7 @@ needs them. Use synthetic canonical ATIF only when exercising measurement.
 Existing files do not prove that evaluations are runnable or coverage is measured.
 
 Every fresh full audit uses the core's three-item shared prerequisite checklist with
-**Audit your coverage** selected. It starts bounded agent/setup and Ethos work
+**Check what your evaluations cover** selected. It starts bounded agent/setup and Ethos work
 without a separate opening approval. Repeat with Gym and Harbor, missing Ethos,
 and unchanged confirmed Ethos. Confirmed prerequisites are not runtime-tested.
 No runtime probes, unselected trace reads, or agent execution belong to the shared prerequisite flow.
@@ -35,7 +35,7 @@ before canonical writes. Missing skills are a dependency limitation, not a reaso
 to create another fallback interview. Preserve custom sections and creation
 metadata. A substantive format mismatch stays explicit for the canonical workflow.
 
-Afterward, keep **Audit your coverage** current while naming the present coverage
+Afterward, keep **Check what your evaluations cover** current while naming the present coverage
 stage. Ask about missing suite, source, or content decisions and wait before the
 dependent operation; reuse decisions already supplied. Do not add generic stage
 transition approval when the next work is authorized. Independent source-safe
@@ -103,7 +103,7 @@ Every turn that creates or updates this
 report must explicitly say so and link it in the final reply, including an
 intermediate checkpoint or a turn that cannot complete measurement. Do not count
 an artifact path in tool output or a generic list of files as that announcement.
-Generating the report does not complete its user review: the Audit your coverage checkbox
+Generating the report does not complete its user review: the Check what your evaluations cover checkbox
 remains pending until the user has reviewed the findings and any corrections
 have been addressed. Progress records that review state; it does not replace the
 report.

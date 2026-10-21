@@ -97,15 +97,17 @@ absent. Supported trace conversion retains its existing dedicated skills.
 
 ### Shared prerequisites and Ethos
 
-Show this three-item checklist before starting the shared flow. Use literal
-checkboxes, mark the current item **We're here**, and substitute the selected
-third label below. Reuse completed items and pending questions on return.
+Show a three-item checklist before starting the shared flow. Use literal
+checkboxes and mark the current item **We're here**. For first evaluations:
 
-- [ ] **Confirm your agent and evaluation setup** — identify the repository and agent and confirm the prerequisites relevant to your goal.
-- [ ] **Find out what your agent is supposed to do (Ethos)** — agree on its purpose, expected behavior, boundaries, and success criteria.
-- [ ] **Build your eval suite** / **Audit your coverage** / **Improve your eval suite** — continue the selected work using the agreed context.
+- [ ] **Check how your agent runs and how you’ll test it** — identify the repository and agent and confirm the prerequisites relevant to your goal.
+- [ ] **Agree on what your agent should do** — agree on its purpose, expected behavior, boundaries, and success criteria.
+- [ ] **Create your first evaluations** — build and validate evaluations using the agreed scope.
 
-Render only the selected third label. Continue authorized inspection after the
+For an audit, replace the third item with **Check what your evaluations cover**.
+For improvements, use **Improve your existing evaluations**. Show only the
+selected third item and reuse completed items and pending questions on return.
+Continue authorized inspection after the
 orientation; do not add a “Ready to get started?” gate. Explain results and ask
 only for missing decisions or content confirmation. Do not mark prerequisite
 confirmation as runtime verification or mark downstream work complete at handoff.

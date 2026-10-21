@@ -125,7 +125,7 @@ If you know more about your scenario, try one of these:
 | --- | --- |
 | "Find the evals in this repository and explain how to run them." | [Discover existing evaluations](docs/getting-started.md#find-existing-evaluations) |
 | "I don't have evals yet. Help me build my first ones." | [Build your first evaluations](docs/first-evals.md) |
-| "Help me onboard to expand my evals." | [Improve your eval suite](docs/existing-evals.md#improve-your-eval-suite); an audit is optional |
+| "Help me onboard to expand my evals." | [Improve your existing evaluations](docs/existing-evals.md#improve-your-existing-evaluations); an audit is optional |
 | "Check whether my Gym or Harbor evals are ready to run." | [Check readiness](docs/existing-evals.md#check-readiness) |
 | "Audit my evals against my agent's intended behavior using these traces." | [Audit coverage](docs/existing-evals.md#audit-coverage) |
 | "Create a Gym evaluation from this audit gap." | [Author and prove a Gym task](skills/eval-author-task-create/references/gym-tasks.md) |

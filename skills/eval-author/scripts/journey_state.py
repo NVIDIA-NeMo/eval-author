@@ -30,7 +30,11 @@ from working_paths import (  # noqa: E402
     working_path,
 )
 
-JOURNEYS = {"create": "Build your eval suite", "audit": "Audit your coverage", "expand": "Improve your eval suite"}
+JOURNEYS = {
+    "create": "Create your first evaluations",
+    "audit": "Check what your evaluations cover",
+    "expand": "Improve your existing evaluations",
+}
 STAGES = {"explore", "interview", "draft", "write", "review", "complete"}
 PREREQUISITES = {
     "code_access",
@@ -317,9 +321,13 @@ def checklist(state: dict) -> list[dict]:
     journey = state["journey"]
     completed = state["journey_status"].get(journey) == "complete" and journey not in blocked
     rows = [
-        {"label": "Confirm your agent and evaluation setup", "complete": setup_done, "blocked": "setup" in blocked},
         {
-            "label": "Find out what your agent is supposed to do (Ethos)",
+            "label": "Check how your agent runs and how you’ll test it",
+            "complete": setup_done,
+            "blocked": "setup" in blocked,
+        },
+        {
+            "label": "Agree on what your agent should do",
             "complete": ethos_done,
             "blocked": "ethos" in blocked,
         },

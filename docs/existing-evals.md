@@ -48,9 +48,9 @@ evidence cannot establish.
 
 A full audit uses the same shared entry as creating or improving evals:
 
-- [ ] **Confirm your agent and evaluation setup** — establish the selected agent and confirm relevant prerequisites.
-- [ ] **Find out what your agent is supposed to do (Ethos)** — agree on intended behavior, boundaries, and success criteria.
-- [ ] **Audit your coverage** — select evidence, define intended coverage, measure it, and review the report.
+- [ ] **Check how your agent runs and how you’ll test it** — establish the selected agent and confirm relevant prerequisites.
+- [ ] **Agree on what your agent should do** — agree on intended behavior, boundaries, and success criteria.
+- [ ] **Check what your evaluations cover** — select evidence, define intended coverage, measure it, and review the report.
 
 Known context and unchanged accepted Ethos are reused. There is no extra
 permission-to-start question. Ethos exploration and writing belong to
@@ -155,7 +155,7 @@ evidence.
 
 See [Read your results](results.md) for the saved artifacts and their limits.
 
-## Improve your eval suite
+## Improve your existing evaluations
 
 Improvement uses shared prerequisite and Ethos confirmation, then preserves the
 requested additions. An audit is optional. Expansion of an existing starter

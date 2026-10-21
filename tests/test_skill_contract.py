@@ -2046,8 +2046,8 @@ def test_shared_prerequisites_replace_duplicate_onboarding() -> None:
     """The shared entry must retain scoped operations and one state authority."""
     _, core = _frontmatter_and_body(_CORE_DIR)
     reference = (_CORE_DIR / "references" / "shared-prerequisites.md").read_text()
-    assert "Confirm your agent and evaluation setup" in core
-    assert "Find out what your agent is supposed to do (Ethos)" in core
+    assert "Check how your agent runs and how you’ll test it" in core
+    assert "Agree on what your agent should do" in core
     assert "An expansion request does not imply an audit" in core
     assert ".eval-author/.working/journey-state.json" in reference
     assert "sole authority" in reference

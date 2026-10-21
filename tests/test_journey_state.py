@@ -41,7 +41,11 @@ def ethos_ready(state, repo):
 @pytest.mark.parametrize("provider", ["gym", "harbor"])
 @pytest.mark.parametrize(
     "journey,label",
-    [("create", "Build your eval suite"), ("audit", "Audit your coverage"), ("expand", "Improve your eval suite")],
+    [
+        ("create", "Create your first evaluations"),
+        ("audit", "Check what your evaluations cover"),
+        ("expand", "Improve your existing evaluations"),
+    ],
 )
 def test_same_three_step_flow_and_execution_credentials_deferred(state, tmp_path, provider, journey, label):
     initial = state.initialize(tmp_path, journey=journey, setup=provider)
@@ -70,7 +74,7 @@ def test_resume_and_journey_switch_reuse_shared_confirmations(state, tmp_path):
     assert resumed["ethos"] == original["ethos"]
     assert resumed["scopes"]["create"]["cases"] == ["refund"]
     assert resumed["pending_question"] is None
-    assert state.checklist(resumed)[2]["label"] == "Audit your coverage"
+    assert state.checklist(resumed)[2]["label"] == "Check what your evaluations cover"
 
 
 def test_provider_change_invalidates_only_provider_answers_and_scope_approval(state, tmp_path):
