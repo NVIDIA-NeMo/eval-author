@@ -13,10 +13,6 @@ Create a branch in this repository and open a pull request against `main`.
 Use a Git worktree when practical. Do not commit or push directly to `main`.
 Fork contributions are not supported during this restricted phase.
 
-Keep skill instructions and supporting guidance independent of work-tracking
-tickets. Describe the behavior directly; put ticket IDs and links in pull
-requests or issue discussions instead.
-
 Use Python 3.12 or 3.13 and uv (CI uses uv 0.12.3). Before handing off or
 committing changes, run the same checks as CI, plus Git's whitespace check:
 
