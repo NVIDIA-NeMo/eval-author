@@ -88,8 +88,7 @@ options as a bulleted list:
 - Audit your existing coverage.
 - Improve your evaluation suite.
 
-Reuse known context and ask only for the unresolved goal. A request to find out
-what exists uses discovery inventory and its findings can inform that choice.
+Reuse known context and ask only for the unresolved goal.
 
 Explicit inventory, readiness, repair, trace inspection, supported Gym or MLflow
 trace conversion, trace-derived authoring, proposal-only, and audit
