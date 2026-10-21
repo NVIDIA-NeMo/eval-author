@@ -64,7 +64,7 @@ ingest OpenTelemetry traces into Intake first.
 
 Eval Author loads provider traces through one shared module,
 `skills/eval-author/scripts/trace_loading.py`, backed by NeMo Compass's pinned
-`nemo-compass-trace-ingest` distribution. It normalizes ATIF, MLflow, Gym, and
+`nemo-compass` distribution. It normalizes ATIF, MLflow, Gym, and
 Intake evidence into Compass `Trace` objects and can export each trace as ATIF.
 See the [trace loading guide](../skills/eval-author/references/trace-loading.md).
 Loading needs Python 3.12 or 3.13 and the skill's `requirements.txt`; it makes

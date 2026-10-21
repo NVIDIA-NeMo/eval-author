@@ -16,7 +16,7 @@ not-for:
   - eval-author-trace-environment (experimental; use after this skill emits ATIF to build a Harbor or native Gym task)
   - mlflow-to-atif (use only to normalize MLflow traces into ATIF)
 compatibility: >-
-  Python 3.12–3.13 and nemo-compass-trace-ingest 0.2.0 (requirements.txt), plus
+  Python 3.12–3.13 and nemo-compass 0.2.0 (requirements.txt), plus
   the sibling eval-author skill's shared trace loader. Optional reference
   validation happens downstream in the experimental
   eval-author-trace-environment workflow with Harbor. Output keeps the ATIF
@@ -194,7 +194,7 @@ is required for conversion.
 ## Prerequisites
 
 Use Python 3.12–3.13 with this skill's `requirements.txt`
-(`nemo-compass-trace-ingest` 0.2.0) and the sibling eval-author skill installed
+(`nemo-compass` 0.2.0) and the sibling eval-author skill installed
 alongside. Supply one local rollout record, with a physical line number for
 JSONL. Choose a new owner-private output directory and retain the source record.
 
@@ -225,7 +225,7 @@ uv run --with-requirements requirements.txt ../eval-author/scripts/trace_loading
   guess which items were generated.
 - Unsupported item kind: supply original ATIF or add a tested Compass mapping.
   Do not flatten unknown content to pass conversion.
-- `install nemo-compass-trace-ingest==0.2.0` or an incomplete-installation
+- `install nemo-compass==0.2.0` or an incomplete-installation
   error: run through `uv run --with-requirements requirements.txt` with the
   sibling eval-author skill installed.
 - Output already exists: use a fresh private directory; the converter never

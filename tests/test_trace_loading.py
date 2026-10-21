@@ -172,7 +172,7 @@ def test_each_kind_loads_with_private_outputs_and_receipt_digests(kind, trace_id
     assert receipt == {
         "schema": "nemo.eval_author.trace_load.v1",
         "source_kind": kind,
-        "loader_distribution": "nemo-compass-trace-ingest",
+        "loader_distribution": "nemo-compass",
         "loader_version": "0.2.0",
         "trace_schema_version": "2",
         "source_sha256": receipt["source_sha256"],
@@ -334,30 +334,26 @@ def test_more_than_max_traces_is_rejected_not_truncated(loading, tmp_path):
 @pytest.mark.parametrize(
     ("installed", "message"),
     [
-        ({}, "install nemo-compass-trace-ingest==0.2.0"),
-        ({"nemo-compass-trace-ingest": ("0.1.0", {})}, "install nemo-compass-trace-ingest==0.2.0"),
+        ({}, "install nemo-compass==0.2.0"),
+        ({"nemo-compass": ("0.1.0", {})}, "install nemo-compass==0.2.0"),
         (
-            {"nemo-compass-trace-ingest": ("0.2.0", {"vcs_info": {"commit_id": "other"}})},
-            "install nemo-compass-trace-ingest==0.2.0",
+            {"nemo-compass": ("0.2.0", {"vcs_info": {"commit_id": "other"}})},
+            "install nemo-compass==0.2.0",
         ),
         (
-            {"nemo-compass-trace-ingest": ("0.2.0", {"dir_info": {"editable": True}})},
-            "install nemo-compass-trace-ingest==0.2.0",
+            {"nemo-compass": ("0.2.0", {"dir_info": {"editable": True}})},
+            "install nemo-compass==0.2.0",
         ),
         (
-            {"nemo-compass-trace-ingest": ("0.2.0", {}), "trace-ingest": ("0.1.0", {})},
-            "remove trace-ingest and reinstall nemo-compass-trace-ingest==0.2.0",
+            {"nemo-compass": ("0.2.0", {}), "trace-ingest": ("0.1.0", {})},
+            "remove trace-ingest and reinstall nemo-compass==0.2.0",
         ),
         (
-            {"nemo-compass-trace-ingest": ("0.2.0", {}), "insight-agent": ("0.1.0", {})},
-            "remove insight-agent and reinstall nemo-compass-trace-ingest==0.2.0",
-        ),
-        (
-            {"nemo-compass-trace-ingest": ("0.2.0", {}), "nemo-compass": ("0.1.0", {})},
-            "remove nemo-compass and reinstall nemo-compass-trace-ingest==0.2.0",
+            {"nemo-compass": ("0.2.0", {}), "insight-agent": ("0.1.0", {})},
+            "remove insight-agent and reinstall nemo-compass==0.2.0",
         ),
     ],
-    ids=["missing", "version", "vcs", "editable", "trace-ingest", "insight-agent", "old-nemo-compass"],
+    ids=["missing", "version", "vcs", "editable", "trace-ingest", "insight-agent"],
 )
 def test_unpinned_or_shadowing_install_is_rejected_before_writing(loading, installed, message, tmp_path, monkeypatch):
     metadata = loading.importlib.metadata
@@ -381,7 +377,7 @@ def test_release_wheel_install_is_accepted(loading, monkeypatch):
     original = metadata.distribution
 
     def distribution(name):
-        if name != "nemo-compass-trace-ingest":
+        if name != "nemo-compass":
             return original(name)
         provenance = {"archive_info": {"hashes": {"sha256": "fixture"}}}
         return SimpleNamespace(version="0.2.0", read_text=lambda _: json.dumps(provenance))

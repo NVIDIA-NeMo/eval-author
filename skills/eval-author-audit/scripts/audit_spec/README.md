@@ -17,7 +17,7 @@ Current assumptions:
 - Loading is delegated to NeMo Compass through the sibling eval-author skill's
   `scripts/trace_loading.py`; methods read the resulting `trace_ingest.Trace`.
   The scripts do not maintain a separate trace parser or schema mirror.
-- `nemo-compass-trace-ingest` is a required dependency for measurement. Use
+- `nemo-compass` is a required dependency for measurement. Use
   `requirements.txt` (Python 3.12–3.13) when running `measure.py` outside a
   repository environment that already provides it.
 - Capability measurement may also consume a local skill-authored judgment

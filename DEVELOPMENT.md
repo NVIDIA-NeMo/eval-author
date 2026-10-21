@@ -69,20 +69,18 @@ required, so core-skill pull requests can merge without one.
 
 ## Public NeMo Compass dependency
 
-The trace loaders and development environment use
-`nemo-compass-trace-ingest[mlflow]==0.2.0` from PyPI, the slim NeMo Compass
-distribution that ships the `trace_ingest` models, loaders, and ATIF exporter.
-No Git checkout is needed. `uv sync --locked` installs the pinned release and its
-dependencies; skills that load traces list the same pin in their
-`requirements.txt`.
+The trace loaders and development environment use `nemo-compass[mlflow]==0.2.0`
+from PyPI, which ships the `trace_ingest` models, loaders, and ATIF exporter
+alongside Compass analysis. No Git checkout is needed. `uv sync --locked`
+installs the pinned release and its dependencies; skills that load traces list
+the same pin in their `requirements.txt`.
 
-`skills/eval-author/scripts/trace_loading.py` defines `TRACE_INGEST_VERSION`, and
+`skills/eval-author/scripts/trace_loading.py` defines `COMPASS_VERSION`, and
 its receipts record the distribution and version. It accepts the pinned release
-from PyPI or a release wheel and rejects Git or editable source installs, the
-older `trace-ingest` and `insight-agent` distributions, and any `nemo-compass`
-other than 0.2.0, since those share Python import paths. When updating the
-dependency, change `TRACE_INGEST_VERSION`, `pyproject.toml`, and every
-`skills/*/requirements.txt` together;
+from PyPI or a release wheel and rejects Git or editable source installs and the
+older `trace-ingest` and `insight-agent` distributions, since those share Python
+import paths. When updating the dependency, change `COMPASS_VERSION`,
+`pyproject.toml`, and every `skills/*/requirements.txt` together;
 `tools/check_runtime_policy.py` rejects a mismatch.
 
 For a stacked PR whose base is not `main`, run the same test matrix manually

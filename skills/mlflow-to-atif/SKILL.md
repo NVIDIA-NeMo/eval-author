@@ -14,7 +14,7 @@ not-for:
   - eval-author-inspect-trace (use to explain one trace that is already in Intake)
   - eval-author-audit (use after this skill emits ATIF to measure audit coverage)
 compatibility: >-
-  Python 3.12–3.13 and nemo-compass-trace-ingest 0.2.0 (requirements.txt,
+  Python 3.12–3.13 and nemo-compass 0.2.0 (requirements.txt,
   which includes MLflow for live queries), plus the sibling eval-author skill's
   shared trace loader. Optional reference validation requires Harbor. Output is
   ATIF v1.7 from the Compass exporter.
@@ -138,7 +138,7 @@ supplied experiment and time range and do not change authentication.
 - Incomplete export or `next_page_token`: collect the remaining export pages before conversion.
 - Unresolved parents or cycles: obtain a consistent trace export rather than
   deleting spans to make it parse.
-- Pinned-dependency error: install exactly `nemo-compass-trace-ingest==0.2.0`
+- Pinned-dependency error: install exactly `nemo-compass==0.2.0`
   from `requirements.txt`, in a fresh environment if `trace-ingest` or
   `insight-agent` is installed.
 - TLS or redirect rejection: use the authorized HTTPS endpoint with verification

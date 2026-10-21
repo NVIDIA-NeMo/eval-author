@@ -239,7 +239,7 @@ def project(source: Path) -> tuple[dict[str, Any], list[str], str]:
             raise ConversionError(f"NeMo Compass rejected the Gym record: {reason}") from None
         raise ConversionError("NeMo Compass could not load or export the Gym record") from None
     losses = payload["extra"]["compass"]["loss_codes"]
-    return payload, list(losses), trace_loading.TRACE_INGEST_VERSION
+    return payload, list(losses), trace_loading.COMPASS_VERSION
 
 
 def normalize(

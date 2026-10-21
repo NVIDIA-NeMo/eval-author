@@ -17,7 +17,7 @@ not-for:
   - eval-author-inspect-trace (use to explain an Intake trace without creating an environment)
   - eval-author-environment (use when first-eval or task-create needs a reusable environment for its agreed cases)
 compatibility: >-
-  Python 3.11+, jsonschema 4.23+, referencing 0.28.4+; Python 3.12–3.13 and nemo-compass-trace-ingest 0.2.0
+  Python 3.11+, jsonschema 4.23+, referencing 0.28.4+; Python 3.12–3.13 and nemo-compass 0.2.0
   (requirements.txt) with the sibling eval-author trace loader for Compass loading; mlflow-to-atif for MLflow;
   gym-to-atif for Gym; nemo CLI for Intake; Harbor and
   Docker for Harbor proof. Gym output uses the sibling eval-author-task-create

@@ -5,14 +5,14 @@
 
 `scripts/trace_loading.py` is Eval Author's only trace-loading boundary. Provider
 parsing, normalization into NeMo Compass `Trace` objects, and ATIF export belong
-to the pinned [`nemo-compass-trace-ingest`](https://github.com/NVIDIA-NeMo/nemo-compass)
+to the pinned [`nemo-compass`](https://github.com/NVIDIA-NeMo/nemo-compass)
 distribution; sibling skills import this module instead of carrying their own
 loaders. Loading makes no model calls or live queries.
 
 ## Environment and command
 
 Use Python 3.12 or 3.13. The script never installs dependencies; `uv` resolves
-this skill's `requirements.txt` (`nemo-compass-trace-ingest[mlflow]==0.2.0`)
+this skill's `requirements.txt` (`nemo-compass[mlflow]==0.2.0`)
 into an ephemeral environment:
 
 ```bash
@@ -21,11 +21,10 @@ uv run --with-requirements <eval-author>/requirements.txt \
   --input <private-source> --output-dir <new-private-dir>
 ```
 
-The loader accepts only the PyPI release `nemo-compass-trace-ingest==0.2.0`. It
-rejects other versions, Git or local-directory installs, the older `trace-ingest`
-and `insight-agent` distributions, and a `nemo-compass` release other than 0.2.0,
-because each of those can shadow the `trace_ingest` package. Use a fresh
-environment when migrating.
+The loader accepts only the PyPI release `nemo-compass==0.2.0`. It rejects other
+versions, Git or local-directory installs, and the older `trace-ingest` and
+`insight-agent` distributions, because each of those can shadow the
+`trace_ingest` package. Use a fresh environment when migrating.
 
 ## Source kinds
 

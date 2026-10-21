@@ -5,7 +5,7 @@
 """Load provider traces into NeMo Compass ``Trace`` objects, optionally exporting ATIF.
 
 This is eval-author's only trace-loading boundary. Provider parsing, normalization, and
-ATIF export belong to the pinned ``nemo-compass-trace-ingest`` distribution.
+ATIF export belong to the pinned ``nemo-compass`` distribution.
 """
 
 from __future__ import annotations
@@ -25,8 +25,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from trace_ingest import Trace
 
-TRACE_INGEST_DISTRIBUTION = "nemo-compass-trace-ingest"
-TRACE_INGEST_VERSION = "0.2.0"
+COMPASS_DISTRIBUTION = "nemo-compass"
+COMPASS_VERSION = "0.2.0"
 RECEIPT_SCHEMA = "nemo.eval_author.trace_load.v1"
 SOURCE_KINDS = ("atif", "mlflow", "gym", "intake", "trace")
 MAX_GYM_RECORD_BYTES = 128 * 1024 * 1024
@@ -39,15 +39,15 @@ class TraceLoadError(ValueError):
 
 
 def check_installation() -> None:
-    """Require the pinned PyPI release of the slim Compass trace distribution."""
+    """Require the pinned PyPI release of NeMo Compass."""
 
-    pinned = f"{TRACE_INGEST_DISTRIBUTION}=={TRACE_INGEST_VERSION}"
+    pinned = f"{COMPASS_DISTRIBUTION}=={COMPASS_VERSION}"
     try:
-        distribution = importlib.metadata.distribution(TRACE_INGEST_DISTRIBUTION)
+        distribution = importlib.metadata.distribution(COMPASS_DISTRIBUTION)
     except importlib.metadata.PackageNotFoundError:
         raise TraceLoadError(f"install {pinned}") from None
     provenance = json.loads(distribution.read_text("direct_url.json") or "{}")
-    if distribution.version != TRACE_INGEST_VERSION or "vcs_info" in provenance or "dir_info" in provenance:
+    if distribution.version != COMPASS_VERSION or "vcs_info" in provenance or "dir_info" in provenance:
         raise TraceLoadError(f"install {pinned}")
     for name in _SHADOWING:
         try:
@@ -55,13 +55,6 @@ def check_installation() -> None:
         except importlib.metadata.PackageNotFoundError:
             continue
         raise TraceLoadError(f"remove {name} and reinstall {pinned}")
-    try:
-        compass = importlib.metadata.distribution("nemo-compass")
-    except importlib.metadata.PackageNotFoundError:
-        return
-    if compass.version != TRACE_INGEST_VERSION:
-        # nemo-compass releases before 0.2.0 bundle their own trace_ingest package.
-        raise TraceLoadError(f"remove nemo-compass and reinstall {pinned}")
 
 
 def load_traces(
@@ -225,8 +218,8 @@ def write_load(args: argparse.Namespace) -> dict[str, Any]:
         receipt = {
             "schema": RECEIPT_SCHEMA,
             "source_kind": kind,
-            "loader_distribution": TRACE_INGEST_DISTRIBUTION,
-            "loader_version": TRACE_INGEST_VERSION,
+            "loader_distribution": COMPASS_DISTRIBUTION,
+            "loader_version": COMPASS_VERSION,
             "trace_schema_version": traces[0].schema_version,
             "source_sha256": {name: _sha256(data) for name, data in copies},
             "normalized_sha256": _sha256(normalized),

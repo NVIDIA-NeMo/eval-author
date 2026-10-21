@@ -7,7 +7,7 @@ This is a reader, not a provider validator, converter, or case-to-run matcher.
 Only the named input is read. All recorded content is escaped text, including
 URLs, Markdown, tool arguments, and image references. The ``gym-jsonl`` reader
 requires only Python 3.11+; every other format loads through the sibling
-``trace_loading.py`` and needs its pinned ``nemo-compass-trace-ingest``.
+``trace_loading.py`` and needs its pinned ``nemo-compass``.
 """
 
 from __future__ import annotations
