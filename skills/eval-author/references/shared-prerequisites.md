@@ -88,14 +88,54 @@ evidence, **Missing** for established unavailable or incompatible prerequisites,
 **Unknown** for unresolved checks, and **Not needed now** where applicable. A
 successful runtime probe does not prove the suite or agent is ready to run.
 
-Ask only for information or decisions that remain unresolved after this pass,
-such as an inaccessible repository location, ambiguous agent, runtime location
-the locator could not find, or permission needed for a blocked check. Group these
-questions with the specific findings they resolve; do not ask the user to confirm
-facts already established by checks. For each blocker, explain the affected work,
-required action, and relevant setup documentation. Preserve progress and continue
-independent agent review, Ethos work, and planning. A saved availability question
-must go through these checks before it is asked again.
+After this pass, ask only for unresolved information or decisions needed for the
+next Ethos action, such as an inaccessible repository location, ambiguous agent,
+or access required for that action. Keep later execution requirements in the
+table, with the work they block and when they must be resolved. Do not label them
+optional or hold up Ethos for them. Do not ask the user to confirm facts already
+established by checks. Preserve progress; a saved availability question must go
+through these checks before it is asked again.
+
+## Present results and the next step
+
+After the results table, use the following template in order, with these exact
+headings and introductory sentences. Replace the bracketed content with findings
+or the next action; do not display the placeholders.
+
+- Include **Recommendations** only when there are optional suggestions, such as
+  Harbor assistant skills; these do not prevent continuing
+- Include **Blockers** only when an unresolved issue prevents the next Ethos
+  action; explain the affected action and the answer or change needed, with
+  relevant setup documentation
+- When a blocker prevents proceeding, ask its focused question under **Blockers**
+  and omit the Ethos section until it is resolved
+- Otherwise, include **Agree on how your agent behaves** before any Ethos
+  explanation, review, or interview question; continue through `ethos-orchestrate`
+
+```markdown
+### Recommendations
+
+These suggestions are optional and are not required to continue.
+
+- [Suggestion, benefit, and relevant link]
+
+### Blockers
+
+These items prevent us from continuing with Ethos.
+
+- [Blocked action, reason, and the action or answer needed]
+
+### Agree on how your agent behaves
+
+[ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md) records what your agent should do, what it should avoid, and what a good result looks like.
+
+[Review, explanation, or next question from ethos-orchestrate]
+```
+
+Omit empty Recommendations and Blockers sections. Required runtime setup or
+credentials for later evaluation runs stay in the table as later requirements,
+not optional recommendations or blockers to Ethos. Missing Ethos skills can block
+this step; missing `ETHOS.md` alone does not, because the Ethos skills can create it.
 
 ## Confirm Ethos
 

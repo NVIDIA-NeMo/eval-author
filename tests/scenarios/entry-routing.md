@@ -72,6 +72,28 @@ Retain the command evidence and shared state under `.eval-author/.working/`.
 Check that observed results save as `verified`, user-only answers as `confirmed`,
 and a missing or timed-out check is never promoted to successful execution.
 
+### Results and the transition to Ethos
+
+Check the response after the results table against the shared reference's exact
+headings and introductory sentences. Keep the section order across goals, Gym,
+and Harbor; omit sections only under the template's stated conditions.
+
+- Optional assistant skills are absent: show **Recommendations**, explicitly say
+  suggestions are optional and not required to continue, then show **Agree on how
+  your agent behaves** before the Ethos explanation or question
+- Runtime, Docker, or execution credentials are missing but Ethos can proceed:
+  keep their later requirements in the table, without classifying them as
+  optional or adding them to **Blockers**; continue under the Ethos heading
+- Required Ethos skills or access needed for the next Ethos action are missing:
+  show **Blockers** with the affected action and required answer or remedy; do not
+  start an Ethos interview or show its transition heading before resolution
+- No suggestions or blockers remain: omit those empty sections and go directly
+  from the table to **Agree on how your agent behaves**
+- `ETHOS.md` is missing but the Ethos skills are available: proceed under the
+  Ethos heading; the absent document is not a blocker
+- Resume an Ethos question: retain the same Ethos heading without restarting
+  onboarding or imposing prerequisite tables on scoped utilities
+
 ## 2. Expansion does not imply an audit
 
 Request “help me onboard to expand my evals” with no audit findings. Preserve the
