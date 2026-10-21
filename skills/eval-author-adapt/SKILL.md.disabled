@@ -33,15 +33,12 @@ allowed-tools: [Bash, Read, Write, Grep, Glob]
 
 # Eval Author: adapt existing evals
 
-Read `eval-author` for the shared standard, checklist, and boundaries. Apply
-[Milestone check-ins](../eval-author/references/milestone-checkins.md) for the ten
-internal stages below; it owns stage order and handoff. Display progress using
-the core's five-step checklist. For a direct invocation, use the core's opening
-before repository work. When routed here after
-evaluation discovery, carry forward the established Ethos, Harbor status,
-confirmed source, and answered check-ins into stage 4 once the first three stage
-transitions are settled. These sections describe that shared onboarding; do not
-restart completed work or repeat the intent interview when entering adaptation.
+Read `eval-author` for the shared standard, checklist, and boundaries. Follow
+[Shared prerequisites and Ethos](../eval-author/references/shared-prerequisites.md)
+for setup and resumption. The sections below define the adaptation stages.
+Carry forward the established Ethos, Harbor status, confirmed source, and prior
+answers, and resume at the earliest incomplete stage. Do not restart completed
+work or repeat the intent interview when entering adaptation.
 
 **The conversion deliverable is actual Harbor task files under
 `.eval-author/adapted-tasks/`.** Extracted specifications and notes support those
@@ -114,7 +111,7 @@ Save `.eval-author/adaptation.md` with source paths and case IDs, selected scope
 source-to-task mapping, retained criteria, resolved changes, missing inputs, and
 per-case status. Keep provider discovery JSON unchanged. The stage's result is a
 traceable conversion scope, including any limits on reproducing old scores.
-Use the shared [Scope checkpoint](../eval-author/references/milestone-checkins.md#scope-checkpoint)
+Use the shared [scope review](../eval-author/references/coverage-planning.md#explain-ongoing-cost-and-settle-the-plan)
 before preparing cases and grading.
 
 ## 5. Prepare cases and grading

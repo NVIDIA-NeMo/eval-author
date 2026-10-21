@@ -35,11 +35,9 @@ allowed-tools: Bash Read Write Grep Glob
 
 Read `eval-author` for the shared standard and boundaries. Direct invocations
 enter its shared prerequisite flow, consuming an applicable saved result on
-return. Follow [Milestone check-ins](../eval-author/references/milestone-checkins.md) for
-downstream stage decisions and use the core's three-item checklist. A statement
-that no evals exist settles the starting point; no discovery is needed to prove
-absence. The stages below retain the existing authoring implementation, but
-shared Ethos and prerequisite decisions are consumed instead of repeated.
+return. Follow the stages below and use the core's three-item checklist.
+A statement that no evals exist settles the starting point; no discovery is
+needed to prove absence. Reuse confirmed Ethos and prerequisite decisions.
 
 When the user asks to expand a starter suite created here, resume at scope
 planning for the affected behaviors. Reuse the saved scope in journey state, corpus, Ethos, setup,
@@ -67,7 +65,7 @@ write another Ethos, or add a separate content review for unchanged approval.
 Preserve the selected Gym or Harbor setup and user-confirmed prerequisite
 answers. Planning requires no installed runtime. Before scaffolding or another
 runtime-dependent operation, use the shared runtime locator as described in
-[Milestone check-ins](../eval-author/references/milestone-checkins.md). Record
+[Runtime prerequisite checks](../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks). Record
 actual checks separately from user confirmation and reuse unchanged evidence.
 Missing setup pauses dependent operations and leaves planning available.
 
@@ -137,7 +135,7 @@ and record it as a scope change rather than completion of the original case.
 Without the selected runtime, the deliverable at this point is the evaluation
 plan; native task creation remains blocked on that runtime's setup.
 
-Present the plan using the shared [scope checkpoint](../eval-author/references/milestone-checkins.md#scope-checkpoint).
+Present the plan using the shared [scope review](../eval-author/references/coverage-planning.md#explain-ongoing-cost-and-settle-the-plan).
 Settle unresolved scope choices and incorporate changes before preparing cases.
 When expanding, record retained and added examples and the new unique totals;
 the pilot's size does not determine the expansion's scope.

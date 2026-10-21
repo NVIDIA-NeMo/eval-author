@@ -140,11 +140,14 @@ An explicitly selected addition or proposal-only request keeps that scope.
 
 ### Downstream progress
 
-Once prerequisites and Ethos are confirmed,
-[Milestone check-ins](references/milestone-checkins.md) supplies first-eval's
-existing authoring stages. The audit uses its coverage milestones.
-Their completed shared stages are consumed, never repeated. Keep substantive
-scope and evidence reviews, source selection, and execution authorization.
+Once prerequisites and Ethos are confirmed, follow the selected skill's stages.
+Keep the selected third checklist item current and name the current stage in
+plain language. Reuse completed shared steps. Keep scope and evidence reviews,
+source selection, and execution authorization.
+
+When the user asks a side question, answer it, then resume the pending decision
+or unfinished work. A side question does not confirm pending content.
+
 Discovery inventory ends with findings and a next-step choice unless
 that next step was already requested.
 

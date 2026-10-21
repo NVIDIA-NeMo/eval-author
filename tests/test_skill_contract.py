@@ -2027,8 +2027,6 @@ def test_ethos_skills_are_named_for_their_directories_and_links_resolve() -> Non
 def test_ethos_confirmation_handoff_resources_resolve() -> None:
     """Eval Author delegates to the canonical orchestrator without a second writer."""
     reference = _CORE_DIR / "references" / "ethos-confirmation.md"
-    checkins = reference.parent / "milestone-checkins.md"
-    assert checkins.is_file()
     for skill_dir in (_CORE_DIR, _FIRST_EVAL_DIR, _AUDIT_DIR):
         _, body = _frontmatter_and_body(skill_dir)
         links = re.findall(r"\[Ethos confirmation\]\(([^)]+)\)", body)

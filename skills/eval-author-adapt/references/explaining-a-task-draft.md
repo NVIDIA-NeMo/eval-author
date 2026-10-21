@@ -4,7 +4,7 @@
 # Explaining a task draft
 
 Use this at the first task-creation milestone, especially for a user new to
-Harbor. Apply [Milestone check-ins](../../eval-author/references/milestone-checkins.md)
+Harbor. Apply the [core progress guidance](../../eval-author/SKILL.md#downstream-progress)
 for stage transitions and the core's evidence standard for readiness claims.
 This reference owns the case and grading explanation, not another checklist.
 
@@ -127,4 +127,4 @@ supported checks. If the actual artifacts support it, the explanation can be:
 > Would you like to defer the missing grading inputs and prepare that environment?
 
 Adapt the example to the actual criteria and evidence. Link the real artifacts,
-and use the shared milestone procedure for the accompanying checklist and reply.
+and use the core progress guidance for the accompanying checklist and reply.
