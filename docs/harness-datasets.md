@@ -1,11 +1,14 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Harness-derived SkillEvaluator datasets
+# SkillEvaluator checkpoint datasets
 
 The five datasets added for audit, discovery, Intake inspection, trace environment
 derivation, and Gym conversion each contain three scoped cases and one unrelated
 negative case. CI discovers them through each skill's `evals/evals.json`.
+Repository-authored cases also cover shared entry for first evaluations and
+expansion in Gym and Harbor. The core and first-eval datasets each contain six
+cases, retaining their existing routing, recovery, and negative controls.
 
 ## Conversation coverage
 
@@ -15,17 +18,22 @@ not replay subsequent user messages. These are independent checkpoints: opening
 and review gates, narrow operations, or supplied-state handoffs. Passing them
 does not establish that a complete interactive workflow passed.
 
-The source is the `portable-synthetic-v1` harness comparison corpus in
+The five imported datasets use the `portable-synthetic-v1` harness comparison corpus in
 `NVIDIA-dev/nemo-eval-author-fixtures`, pinned to commit
 `ac5ad11ca4806a3e97ba0d5cc4a2be9eb519742b`. The
 [provenance manifest](harness-dataset-provenance.json) maps cases to source
 scenarios and records source paths, byte hashes, and transformations. Negative
 arithmetic cases are new controls. Historical harness results remain separate.
+The manifest's separate `repository_authored` section records the new first-eval
+and expansion cases and synthetic agent documentation; they do not come from
+the imported corpus.
 
 ## What these cases establish
 
 | Dataset | Scope |
 | --- | --- |
+| First evaluations | Direct shared entry for Gym and Harbor; no existing suite or traces |
+| Core expansion | Shared entry for Gym and Harbor; user-created suite, no prior audit or traces |
 | Audit | Shared entry, existing-spec validation, historical coverage interpretation |
 | Discovery | Inventory, Oracle/grader limitations, blocked-readiness interpretation |
 | Intake inspection | Missing selection, rejected URI, unavailable CLI boundaries |
@@ -37,6 +45,19 @@ model execution. The discovery fixture retains its weak grader and Oracle-only
 configuration. No real Intake source is supplied, so these cases cannot prove
 successful service access or trace inspection. Supplied error receipts are
 constructed checkpoint inputs, not observed runtime results.
+
+The new entry cases stop at the first unanswered prerequisite or Ethos question,
+before case design or execution. They check the selected checklist, preservation
+of the user's setup, and the Ethos handoff. Missing Gym setup and unverified
+Harbor setup remain distinct from execution evidence; absent model credentials
+do not block this discussion. The cases permit reads but no file writes, so they
+do not test saved-state persistence.
+
+Isolated staging may omit the shared core or Ethos skills. The direct first-eval
+cases require loading the core when available, or an explicit dependency handoff
+when it is missing. Both entries require `ethos-orchestrate` for Ethos work and
+an honest blocker if unavailable. Passing a dependency handoff does not establish
+successful integrated onboarding, Ethos confirmation, or later-turn resumption.
 
 Each case explicitly selects its input files. SkillEvaluator stages these under
 `/workspace/input`; output artifacts go under `/workspace/output`. The dataset

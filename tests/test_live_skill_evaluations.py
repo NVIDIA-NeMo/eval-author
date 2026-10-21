@@ -573,12 +573,27 @@ def test_seed_datasets_are_bounded_and_have_negative_cases(live):
         "team-skills/ethos/ethos-write",
     ):
         skill = ROOT / path
-        assert live.dataset_cases(skill) == 4
+        expected_count = 6 if skill.name in ("eval-author", "eval-author-first-eval") else 4
+        assert live.dataset_cases(skill) == expected_count
         cases = json.loads((skill / "evals/evals.json").read_text())["evals"]
         assert sum(c["expected_skill"] is None for c in cases) == 1
         for case in cases:
             for filename in case["files"]:
                 assert (skill / "evals" / filename).is_file()
+
+
+@pytest.mark.parametrize("count", [0, 1, 4, 6, 7])
+def test_dataset_case_limit(live, repo, count):
+    skill = repo / "skills/eval-author"
+    path = skill / "evals/evals.json"
+    data = json.loads(path.read_text())
+    data["evals"] = [{"id": str(i), "prompt": "Task", "expected_output": "Answer"} for i in range(count)]
+    path.write_text(json.dumps(data))
+    if 1 <= count <= 6:
+        assert live.dataset_cases(skill) == count
+    else:
+        with pytest.raises(ValueError, match="expected one to six authored cases"):
+            live.dataset_cases(skill)
 
 
 @pytest.mark.parametrize("failure", ["findings", "nested_execution", "timeout", "validation", "missing_report"])

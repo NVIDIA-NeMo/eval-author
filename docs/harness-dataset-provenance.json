@@ -216,5 +216,62 @@
       "source_scenario": "gym-conversion",
       "adaptation": "Derived multi-record selection boundary from two copies of the synthetic source."
     }
-  ]
+  ],
+  "repository_authored": {
+    "origin": "Authored in this repository; not imported from the source_repository or source_cohort above",
+    "cases": [
+      {
+        "skill": "eval-author-first-eval",
+        "id": "first-eval-shared-entry-gym",
+        "basis": [
+          "skills/eval-author/SKILL.md",
+          "skills/eval-author/references/shared-prerequisites.md",
+          "tests/scenarios/entry-routing.md"
+        ],
+        "scope": "Gym shared-entry checkpoint for first evaluations through the direct skill entry"
+      },
+      {
+        "skill": "eval-author-first-eval",
+        "id": "first-eval-shared-entry-harbor",
+        "basis": [
+          "skills/eval-author/SKILL.md",
+          "skills/eval-author/references/shared-prerequisites.md",
+          "tests/scenarios/entry-routing.md"
+        ],
+        "scope": "Harbor shared-entry checkpoint for first evaluations through the direct skill entry"
+      },
+      {
+        "skill": "eval-author",
+        "id": "expansion-shared-entry-gym",
+        "basis": [
+          "skills/eval-author/SKILL.md",
+          "skills/eval-author/references/shared-prerequisites.md",
+          "tests/scenarios/entry-routing.md"
+        ],
+        "scope": "Gym shared-entry checkpoint for expansion through the core skill entry"
+      },
+      {
+        "skill": "eval-author",
+        "id": "expansion-shared-entry-harbor",
+        "basis": [
+          "skills/eval-author/SKILL.md",
+          "skills/eval-author/references/shared-prerequisites.md",
+          "tests/scenarios/entry-routing.md"
+        ],
+        "scope": "Harbor shared-entry checkpoint for expansion through the core skill entry"
+      }
+    ],
+    "fixtures": [
+      {
+        "path": "skills/eval-author/evals/files/README.md",
+        "sha256": "8c5794d710fadab7b78242b6aac298dbeda3073d0dfdd09d616f11e60bc5d04e",
+        "description": "Synthetic agent documentation; no runtime evidence or confirmed Ethos"
+      },
+      {
+        "path": "skills/eval-author-first-eval/evals/files/README.md",
+        "sha256": "8c5794d710fadab7b78242b6aac298dbeda3073d0dfdd09d616f11e60bc5d04e",
+        "description": "Synthetic agent documentation; no runtime evidence or confirmed Ethos"
+      }
+    ]
+  }
 }
