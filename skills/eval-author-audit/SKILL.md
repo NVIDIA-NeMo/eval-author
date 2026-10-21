@@ -60,6 +60,8 @@ Ethos validation, prerequisite questions, and state writes wait until the user
 continues. Reuse confirmed agent, prerequisites, and Ethos on continuation.
 Apply the shared flow's audit checks: local audit tooling and source access,
 without evaluation runner, Docker, live agent service, or credential probes.
+Confirm that traces from completed evaluations exist before continuing to Ethos;
+unknown or missing availability pauses onboarding under **Blockers**.
 Check conversion and trajectory-parser dependencies only after evidence selection.
 
 After shared onboarding's completion pause and the user's continuation, follow

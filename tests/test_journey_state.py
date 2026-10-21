@@ -104,9 +104,13 @@ def audit_ready(state, repo, *, setup="gym"):
                     "status": "verified",
                     "source": "Python 3.11 with PyYAML 6.0 and jsonschema 4.0 for audit generation and validation",
                 },
+                "data": {
+                    "status": "confirmed",
+                    "source": "User confirms traces from completed evaluation runs are available",
+                },
                 **{
                     key: {"status": "not_required", "source": "Local audit reads definitions and saved evidence"}
-                    for key in {"runtime", "environment", "services", "data", *state.DEFERRED}
+                    for key in {"runtime", "environment", "services", *state.DEFERRED}
                 },
             }
         },
@@ -125,6 +129,98 @@ def test_audit_ready_without_runners_containers_or_execution_credentials(state, 
         "packages": {"PyYAML": ">=6.0", "jsonschema": ">=4.0"},
     }
     assert state.load_state(tmp_path) == ready
+
+
+@pytest.mark.parametrize("status", [None, "unknown", "missing", "not_required"])
+def test_unresolved_or_legacy_exempt_traces_cannot_establish_audit_readiness(state, tmp_path, status):
+    audit_ready(state, tmp_path)
+    ethos_ready(state, tmp_path)
+    legacy = state.update(tmp_path, {"journey_status": {"audit": "complete"}})
+    if status is None:
+        del legacy["prerequisites"]["data"]
+    else:
+        legacy["prerequisites"]["data"] = {"status": status, "source": "Prior audit prerequisite record"}
+    state.save(tmp_path, legacy)
+    before = state.state_path(tmp_path).read_bytes()
+    loaded = state.load_state(tmp_path)
+    assert loaded["schema_version"] == 1
+    assert loaded["prerequisites"] == legacy["prerequisites"]
+    assert not state.checklist(loaded)[0]["complete"]
+    assert not state.checklist(loaded)[2]["complete"]
+    assert state.checklist(loaded)[0]["current"]
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("status", ["confirmed", "verified"])
+def test_trace_availability_completes_audit_prerequisites_without_selecting_scope_or_completing_audit(
+    state, tmp_path, status
+):
+    audit_ready(state, tmp_path)
+    ethos_ready(state, tmp_path)
+    state.update(
+        tmp_path,
+        {
+            "prerequisites": {"data": {"status": "unknown", "source": "Trace availability unresolved"}},
+            "blockers": [{"id": "data", "phase": "setup", "message": "Completed-run traces are needed"}],
+            "pending_question": "Are traces from completed evaluation runs available?",
+            "scopes": {"audit": {"confirmed": False}},
+        },
+    )
+    resolved = state.update(
+        tmp_path,
+        {
+            "prerequisites": {"data": {"status": status, "source": "Completed-run traces are available"}},
+            "blockers": [],
+            "pending_question": None,
+        },
+    )
+    assert state.checklist(resolved)[0]["complete"]
+    assert resolved["scopes"] == {"audit": {"confirmed": False}}
+    assert not resolved["journey_status"]
+    assert not state.checklist(resolved)[2]["complete"]
+
+
+@pytest.mark.parametrize("journey", ["create", "expand"])
+def test_trace_availability_blocker_survives_audit_resume_and_is_scoped_when_switching(state, tmp_path, journey):
+    audit_ready(state, tmp_path)
+    blocked = state.update(
+        tmp_path,
+        {
+            "prerequisites": {"data": {"status": "unknown", "source": "Trace availability unresolved"}},
+            "blockers": [{"id": "data", "phase": "setup", "message": "Completed-run traces are needed"}],
+            "pending_question": "Are traces from completed evaluation runs available?",
+            "next_handoff": "eval-author",
+        },
+    )
+    resumed = state.initialize(tmp_path, journey="audit")
+    assert resumed["prerequisites"] == blocked["prerequisites"]
+    assert resumed["blockers"] == blocked["blockers"]
+    assert resumed["pending_question"] == blocked["pending_question"]
+    assert resumed["next_handoff"] == blocked["next_handoff"]
+    assert not state.checklist(resumed)[0]["complete"]
+    assert state.checklist(resumed)[0]["blocked"]
+    changed = state.initialize(tmp_path, journey=journey)
+    assert changed["blockers"] == [{**blocked["blockers"][0], "phase": "audit"}]
+    assert changed["prerequisites"]["data"]["source"] == blocked["prerequisites"]["data"]["source"]
+    assert changed["pending_question"] is None
+    assert not state.checklist(changed)[0]["blocked"]
+    returned = state.initialize(tmp_path, journey="audit")
+    assert returned["prerequisites"]["data"]["status"] == "unknown"
+    assert not state.checklist(returned)[0]["complete"]
+    assert state.checklist(returned)[2]["blocked"]
+
+
+@pytest.mark.parametrize("journey", ["create", "expand"])
+def test_authoring_can_complete_prerequisites_without_prior_traces(state, tmp_path, journey):
+    setup_ready(state, tmp_path, journey=journey)
+    ready = state.update(
+        tmp_path,
+        {"prerequisites": {"data": {"status": "not_required", "source": "No prior traces are needed for authoring"}}},
+    )
+    assert state.checklist(ready)[0]["complete"]
+    resumed = state.initialize(tmp_path, journey=journey)
+    assert state.checklist(resumed)[0]["complete"]
+    assert resumed["prerequisites"] == ready["prerequisites"]
 
 
 @pytest.mark.parametrize(

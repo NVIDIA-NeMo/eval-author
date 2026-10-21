@@ -171,7 +171,8 @@ Mark each step complete when its work and required review are finished.
 Read [Shared prerequisites and Ethos](references/shared-prerequisites.md) for
 the prerequisite table and checks, shared state, resumption, and the exact handoff.
 Keep its table fixed while selecting checks for the goal: audits need source
-access and audit tooling; authoring also checks the selected evaluation runtime
+access, audit tooling, and confirmed availability of completed-evaluation traces
+before Ethos; authoring also checks the selected evaluation runtime
 and applicable task environment. Reassess requirements when the goal changes.
 
 Use `ethos-orchestrate` to review, create, or update `ETHOS.md`. Pass along the

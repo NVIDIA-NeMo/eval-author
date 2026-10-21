@@ -18,7 +18,10 @@ Its synthetic tests are not a record of passing conversational replay.
 ## 1. Shared entry for each journey and runtime
 
 Request first evals, an audit, and expansion in separate synthetic Gym and Harbor
-repositories. The first orientation has the same three checklist items: confirm
+repositories. For full audits, unless testing unknown or missing traces, include
+the user's explicit statement that traces from completed evaluation runs exist;
+leave their source and location unselected. The first orientation has the same
+three checklist items: confirm
 the agent/setup, confirm Ethos, then the selected build/audit/improve item. If the
 goal is unknown, ask whether to create, audit, or improve; explicit inventory
 remains a scoped option.
@@ -59,7 +62,9 @@ For creation and expansion, use the existing runtime locator for the selected
 setup and check Docker only when the chosen environment requires it. For audit,
 identify the existing suite format and check Python 3.11 or newer with PyYAML and
 jsonschema for audit tooling; skip evaluation runner, Docker, live service, and
-agent credential probes. Check trace conversion and parser requirements only
+agent credential probes. Confirm that traces from completed evaluation runs exist
+before proceeding to Ethos. Unknown or missing availability leaves setup incomplete.
+Check trace conversion and parser requirements only
 after the audit selects its evidence. Ask only about unresolved findings after
 the pass. Do not install, read unselected traces, or execute agents. Distinguish
 observed checks from user-confirmed answers and from end-to-end suite readiness.
@@ -89,8 +94,8 @@ progress message before the first check and the results table in the final reply
   credentials yet: retain its eight rows and explain the applicable or deferred requirements
 - Audit local Gym or Harbor definitions with Python 3.11 or newer, PyYAML, and
   jsonschema available, but neither evaluation runner, Docker, nor agent
-  credentials: identify the suite format without probing those execution
-  dependencies and continue to Ethos confirmation
+  credentials, and with confirmed trace availability: identify the suite format
+  without probing those execution dependencies and continue to Ethos confirmation
 - In that audit, **Audit tooling** reports Python and the audit-library checks;
   **Evaluation environment**, **Required services and data**, and **Agent
   connection and credentials** do not appear in the initial or results table
@@ -98,14 +103,24 @@ progress message before the first check and the results table in the final reply
   explaining that measurement requires traces from evaluations that have already
   run; unknown availability stays **Unknown**, an explicit user statement that
   traces exist is **Confirmed by you**, and confirmed absence is **Missing**
-- Missing traces keep coverage measurement pending while Ethos can continue;
-  do not label traces optional or **Not needed now**, ask for trace selection
-  during shared prerequisites, search unselected sources, or run evaluations
-  to produce traces
+- Unknown or missing trace availability blocks full audit onboarding: finish
+  accessible checks and show **Blockers**; when availability is unknown, ask
+  whether traces from completed evaluation runs exist. Omit Next Steps, the
+  checklist, and Ethos guidance
+- A user reply that traces exist records **Confirmed by you** and allows Ethos
+  to proceed when other prerequisites pass; it does not select sources or locations
+- Confirmed absence stays **Missing** and keeps setup incomplete; do not claim
+  prerequisites passed, label traces optional or **Not needed now**, ask for
+  source selection during onboarding, search unselected sources, or run evaluations
+  to produce traces. Reuse the absence answer instead of asking it again
 - Resume an older audit whose saved Python verification came from an authoring
   runtime probe: unless its evidence also establishes the current audit tooling,
   reopen and check PyYAML/jsonschema availability before marking setup complete;
   obsolete runner or Docker failures must not block this audit
+- Resume an older audit with `data: not_required` or trace availability recorded
+  only as unknown in scope: this does not establish readiness. Reassess applicable
+  trace-availability evidence, preserve provenance, and keep setup blocked until
+  availability is confirmed
 - After the audit selects local ATIF evidence, check the Harbor trajectory
   parser for measurement, including when the evidence was converted from Gym;
   do not check a Gym runner or launch Harbor jobs
@@ -133,6 +148,8 @@ and Harbor; omit sections only under the template's stated conditions.
 - Required Ethos skills or access needed for the next Ethos action are missing:
   show **Blockers** with the affected action, remedy, and focused question; omit
   Next Steps, the checklist, and all Ethos guidance, even if Recommendations are present
+- Audit trace availability is unknown or missing: show the same blocked response
+  and keep prerequisites incomplete, even when every tooling and access check passed
 - No suggestions or blockers remain: omit those empty sections and go directly
   from the table to **Next Steps** and the checklist
 - An existing `ETHOS.md` needs current confirmation: show the complete review
@@ -184,6 +201,8 @@ Request only inventory, readiness, audit validation, recommendations from a
 supplied report, or trace inspection. Use the existing scoped operation without
 unrelated prerequisite interviews or a full checklist. Readiness retains real
 runtime verification; schema validation does not claim measured coverage.
+An explicit specification-only request can use confirmed Ethos without completed-run
+traces; it does not complete full audit onboarding or establish measured coverage.
 Explanation-only requests do not start work. A trace source must still be selected
 before searches or reads. Explicit source selections are reused.
 
@@ -227,8 +246,9 @@ readiness. On a switch to creation or expansion, check newly applicable runtime,
 environment, and service requirements, and defer agent credentials until actual
 agent runs. On a switch to audit, skip execution probes and clear their blocking
 effect on audit work while preserving prior results as evidence. Recheck audit
-tooling if it has not been established. Neither direction loses the accepted
-Ethos, saved scope decisions, or evidence references, and a switch does not
+tooling and trace availability if they have not been established. Creation's
+data exemptions do not satisfy audit trace availability. Neither direction loses
+the accepted Ethos, saved scope decisions, or evidence references, and a switch does not
 authorize unrelated trace reads or agent execution.
 
 ## 5. Legacy state is imported once

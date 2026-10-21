@@ -42,7 +42,7 @@ For audit:
 |---|---|---|
 | Agent and repository | Checking | — |
 | Evaluation framework | Checking | — |
-| Traces from completed evaluation runs | Unknown | Coverage measurement requires traces from evaluations that have already run. We’ll select them after confirming ETHOS.md |
+| Traces from completed evaluation runs | Unknown | This audit requires saved traces from evaluations that have already run. Their availability must be confirmed before we continue |
 | Required skills | Checking | — |
 | File and command access | Checking | — |
 | Audit tooling | Checking | — |
@@ -99,24 +99,32 @@ Reassess old audit state the same way: replace obsolete execution requirements
 with explained exemptions and remove their blocking effect on this audit,
 retaining the earlier evidence.
 
-Select suites and traces within the audit after Ethos confirmation. Once evidence
-is selected, check only the dependencies for its preparation and measurement.
 Keep the **Traces from completed evaluation runs** prerequisite visible in both
 the initial and results tables. Reuse any supplied availability answer: use
 **Confirmed by you** when the user says those traces exist, **Missing** when they
-say none exist, and **Unknown** otherwise. Verify usable traces and their suite/run
-mapping only after source selection. Evaluation definitions and pass/fail scores
-alone do not satisfy this prerequisite. Missing traces block coverage measurement,
-not Ethos confirmation or independently requested specification work. Do not mark
-them **Not needed now**, make them optional recommendations, or run evaluations
-to create them during the audit.
+say none exist, and **Unknown** otherwise. Evaluation definitions and pass/fail
+scores alone do not satisfy this prerequisite.
+
+Unknown or missing trace availability blocks full audit onboarding. Finish the
+other accessible checks, then show **Blockers** and pause before Ethos. For unknown
+availability, ask: “Do you have saved traces from evaluations that have already run
+for this agent?” For confirmed absence, explain that the audit needs those traces
+and ask the user to provide them or choose a different scope. Do not report that
+the prerequisites passed, mark setup complete, or show Next Steps while this is
+unresolved. Never mark traces **Not needed now** or run evaluations to create them.
+An explicitly requested specification-only operation retains its scoped entry.
+
+Availability confirmation does not select a trace source or prove usable evidence.
+Select suites and traces within the audit after Ethos confirmation, then verify
+their usability, suite/run mapping, and preparation/measurement dependencies.
 ATIF measurement needs the Harbor trajectory parser, including for converted Gym
 traces; use the existing locator with `--provider harbor --flow audit` then.
 It does not need a Gym runner, Docker, or agent credentials. Local Gym and MLflow
 export conversion uses the selected converter's requirements; access to a live
-source is relevant only when the user explicitly selects it. A missing parser,
-converter, or trace source blocks dependent measurement, not Ethos or independent
-specification work. Preserve the user's evaluation framework when choosing a
+source is relevant only when the user explicitly selects it. A parser, converter,
+or selected-source access failure discovered at this later stage blocks dependent
+measurement; preserve completed Ethos and independently authorized specification
+work. Preserve the user's evaluation framework when choosing a
 parser dependency. Refer to the audit skill for those operations; do not move
 trace selection or measurement into shared prerequisites.
 
@@ -149,10 +157,11 @@ evidence, **Missing** for established unavailable or incompatible prerequisites,
 **Unknown** for unresolved checks, and **Not needed now** where applicable. A
 successful runtime probe does not prove the suite or agent is ready to run.
 
-After this pass, ask only for unresolved information or decisions needed for the
-next Ethos action, such as an inaccessible repository location, ambiguous agent,
-or access required for that action. For creation and improvements, keep later
-execution requirements in the table, with the work they block and when they must
+After this pass, ask only for unresolved information or decisions needed to
+continue, such as audit trace availability, an inaccessible repository location,
+an ambiguous agent, or access required for the next Ethos action. For creation
+and improvements, keep later execution requirements in the table, with the work
+they block and when they must
 be resolved. Do not label them optional or hold up Ethos for them. Do not ask the
 user to confirm facts already
 established by checks. Preserve progress; a saved availability question must go
@@ -166,9 +175,9 @@ or the next action; do not display the placeholders.
 
 - Include **Recommendations** only when there are optional suggestions, such as
   Harbor assistant skills; these do not prevent continuing
-- Include **Blockers** only when an unresolved issue prevents the next Ethos
-  action; explain the affected action and the answer or change needed, with
-  relevant setup documentation
+- Include **Blockers** when an audit's required trace availability is unknown or
+  missing, or another unresolved issue prevents the next Ethos action; explain
+  the affected action and the answer or change needed, with relevant documentation
 - If **Blockers** is present, end with the required action or focused question
   in that section; omit Next Steps, the checklist, and all Ethos guidance
 - Include **Next Steps** only when no Blockers remain, after the table and any
@@ -188,7 +197,7 @@ These suggestions are optional and are not required to continue.
 
 ### Blockers
 
-These items prevent us from continuing with Ethos.
+These items need to be resolved before we can continue.
 
 - [Blocked action, reason, and the action or answer needed]
 
@@ -202,10 +211,11 @@ These items prevent us from continuing with Ethos.
 ```
 
 Omit empty Recommendations and Blockers sections. Creation and improvement tables
-retain runtime setup and credentials needed for later evaluation runs; the audit
-table retains traces needed for coverage measurement. These later requirements
-are not optional recommendations or blockers to Ethos. Missing Ethos skills can
-block this step; missing `ETHOS.md` alone does not, because the Ethos skills can create it.
+retain runtime setup and credentials needed for later evaluation runs; those
+later requirements are not optional recommendations or blockers to Ethos.
+Audit trace availability is a prerequisite for continuing shared onboarding.
+Missing Ethos skills can block this step; missing `ETHOS.md` alone does not,
+because the Ethos skills can create it.
 For an existing document, use the complete **Next Steps** section from the
 [existing Ethos review](ethos-confirmation.md#review-an-existing-document), including
 its heading and checklist once. For a missing document, explain that `ETHOS.md` records what
@@ -352,10 +362,16 @@ Never put credential values in state.
 For audit, record `runtime` as `not_required` with the reason that no evaluation
 runner is used. Record the checked audit Python environment and its required
 imports under `python`; use `not_required` for the environment, live services,
-execution credentials, and data not needed at shared entry. Save trace availability
-and its provenance in the audit scope alongside source-selection decisions;
-shared data exemptions do not satisfy the trace prerequisite. Selected evidence
-access and later parser/conversion results belong to that scope and findings.
+and execution credentials. Record completed-evaluation trace availability under
+`data`, with the actual answer or evidence as its `source`. Unknown or missing
+availability requires a `data` blocker with phase `setup`, the pending availability
+question, and `eval-author` as the next handoff. On confirmation, clear that blocker
+and record `data` as `confirmed`; use `verified` only for inspected evidence.
+On resume, reassess legacy `data: not_required` and unrelated data checks; reuse
+applicable trace-availability answers or leave this prerequisite unknown.
+Keep suite/trace selection, selected evidence access, and later parser/conversion
+results in the audit scope and findings. Availability alone does not approve a
+source, complete the audit, or establish measured coverage.
 Do not mark the audit interpreter as proof of the agent's runtime requirements.
 The helper's audit `runtime_requirements` describe audit tooling independently
 of the selected Gym or Harbor source format.

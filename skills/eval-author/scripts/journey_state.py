@@ -314,16 +314,19 @@ def load_state(repo: Path) -> dict:
 
 def checklist(state: dict) -> list[dict]:
     blocked = {item["phase"] for item in state["blockers"]}
+    journey = state["journey"]
     setup_done = (
         bool(state["agent"] and state["setup"])
         and all(
             state["prerequisites"].get(key, {}).get("status") in ("verified", "confirmed", "not_required")
             for key in PREREQUISITES
         )
+        # Full audit onboarding needs traces from completed evaluation runs.
+        # Legacy exemptions remain readable, but cannot establish readiness.
+        and (journey != "audit" or state["prerequisites"].get("data", {}).get("status") in ("verified", "confirmed"))
         and "setup" not in blocked
     )
     ethos_done = state["ethos"]["stage"] == "complete" and "ethos" not in blocked
-    journey = state["journey"]
     completed = state["journey_status"].get(journey) == "complete" and journey not in blocked
     rows = [
         {
