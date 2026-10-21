@@ -84,9 +84,9 @@ explicit goal starts that work; there is no separate permission-to-start questio
 When the goal is unclear, ask “What would you like to do?” and present these
 options as a bulleted list:
 
-- Build your first evaluations.
-- Audit your existing coverage.
-- Improve your evaluation suite.
+- Build your first evaluations
+- Audit your existing coverage
+- Improve your evaluation suite
 
 Reuse known context and ask only for the unresolved goal.
 
