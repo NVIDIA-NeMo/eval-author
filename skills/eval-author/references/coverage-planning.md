@@ -137,13 +137,8 @@ unless it satisfies the agreed behavior and grading criteria.
 
 Present the concrete proposed plan before creating fixtures, instructions, or
 graders. Summarize cases, outcomes, grading, priorities, breadth and difficulty,
-exclusions, and execution cost. Explain one representative case, grouping cases
-with the same needs and calling out material differences. Show what the grader
-checks and how that establishes the expected outcome. Preserve existing scoring
-and explain its limits; agree on any changes.
-
-Use the calling flow's scope check-in to ask explicitly what the user wants to
-change or prioritize. Name relevant choices
+exclusions, and execution cost. Use the calling flow's scope check-in to ask
+explicitly what the user wants to change or prioritize. Name relevant choices
 and their tradeoffs, such as lower ongoing cost with fewer examples or repeats,
 measuring the agent's cost or latency, broader behavior coverage, more difficult
 cases, or another user priority. Keep the cost of running evaluations distinct
