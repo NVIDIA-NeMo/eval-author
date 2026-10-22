@@ -156,17 +156,6 @@ The suite is in [path/to/evals].
 Current authoring routes extend Eval Author starter suites or propose additions
 from reviewed audit findings. Broader suite expansion is still in development.
 
-### Not sure which to choose?
-
-```text
-Use eval-author to help me with the evals for my agent.
-```
-
-Eval Author welcomes you and asks which of the three journeys you want. It reuses
-a known goal or prior progress without repeating that question.
-If the assistant cannot find
-`eval-author`, follow the [availability check](docs/getting-started.md#verify-your-assistant-can-use-eval-author).
-
 ### Other requests
 
 You can also ask for a specific operation:
