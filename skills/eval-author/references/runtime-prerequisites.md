@@ -3,7 +3,8 @@
 
 # Runtime prerequisites
 
-Read for shared prerequisite checks, readiness validation, or the Harbor path of **Get the evaluation runtime ready**. A file-only
+Read for the [shared authoring prerequisite checks](shared-prerequisites.md#authoring-checks)
+or readiness validation. A file-only
 Explore stays in the discovery skill and does not run these probes.
 
 ## Contents

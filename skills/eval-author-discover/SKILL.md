@@ -147,7 +147,7 @@ or repair without substituting an audit.
 
 ## Runtime prerequisite checks
 
-For Harbor readiness or the Harbor path of **Get the evaluation runtime ready**,
+For readiness or the [shared authoring prerequisite checks](../eval-author/references/shared-prerequisites.md#authoring-checks),
 read and follow [Runtime prerequisites](../eval-author/references/runtime-prerequisites.md) before
 probing tools. It contains the interpreter selection commands, verification
 criteria, setup recovery, and optional Harbor-skills check. Reuse still-current
