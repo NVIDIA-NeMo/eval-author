@@ -141,7 +141,7 @@ Welcome to Eval Author! I’ll help you evaluate your agent against the behavior
 
 - [ ] **Check how your agent runs and how you’ll test it** — **We're here**
 - [ ] **Agree on how your agent behaves using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)**
-- [ ] **Create your first evaluations**
+- [ ] **Build, run, and review your first evaluations**
 
 Ready to get started?
 
@@ -154,7 +154,7 @@ After goal clarification, use exactly one of these sentences above the checklist
 | Improvements | We’ll improve your existing evaluations. Here’s what we’ll work through: |
 
 For an audit, replace the third item with **Check what your existing evaluations cover**.
-For improvements, use **Improve your existing evaluations**. These exact third-item
+For improvements, use **Improve, run, and review your existing evaluations**. These exact third-item
 labels, completed checkboxes, and the position of **We're here** are the only
 variations. Keep the welcome, checklist wording, order, and Ethos link unchanged.
 Keep scope limits and other explanations outside the checklist items. For
@@ -204,6 +204,9 @@ Once prerequisites and Ethos are confirmed, present the completion pause and wai
 for the user to continue before following the selected skill's stages.
 Keep the selected third checklist item current. Reuse completed shared steps.
 Keep scope and evidence reviews, source selection, and execution authorization.
+For creation and improvement, that item covers building the agreed cases or
+changes, running them, and reviewing results. Leave it incomplete while required
+execution or review remains blocked or unfinished.
 
 When the user asks a side question, answer it, then resume the pending decision
 or unfinished work. A side question does not confirm pending content.

@@ -34,9 +34,9 @@ from working_paths import (  # noqa: E402
 )
 
 JOURNEYS = {
-    "create": "Create your first evaluations",
+    "create": "Build, run, and review your first evaluations",
     "audit": "Check what your existing evaluations cover",
-    "expand": "Improve your existing evaluations",
+    "expand": "Improve, run, and review your existing evaluations",
 }
 STAGES = {"explore", "interview", "draft", "write", "review", "complete"}
 PREREQUISITES = {

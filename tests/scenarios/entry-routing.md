@@ -50,6 +50,9 @@ results response, the selected checklist
 appears under **Next Steps**, after the table and any Recommendations, only when
 no Blockers remain. A blocked response ends at Blockers without a checklist or Ethos guidance.
 Only the selected third-item label, checkmarks, and current-step marker vary.
+Creation and improvement explicitly include running and reviewing in their
+third item; audit keeps its coverage wording. The third item remains incomplete
+after case files are built if required runs or result review are still pending.
 On resume, keep the same wording with saved progress. When naming the agent
 and setup on subsequent turns, distinguish explicit requests,
 repository findings, prior confirmations, and defaults. Check both an explicitly

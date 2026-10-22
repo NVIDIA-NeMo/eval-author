@@ -42,9 +42,9 @@ def ethos_ready(state, repo):
 @pytest.mark.parametrize(
     "journey,label",
     [
-        ("create", "Create your first evaluations"),
+        ("create", "Build, run, and review your first evaluations"),
         ("audit", "Check what your existing evaluations cover"),
-        ("expand", "Improve your existing evaluations"),
+        ("expand", "Improve, run, and review your existing evaluations"),
     ],
 )
 def test_same_three_step_flow_and_execution_credentials_deferred(state, tmp_path, provider, journey, label):
