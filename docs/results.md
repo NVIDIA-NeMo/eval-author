@@ -224,5 +224,5 @@ prerequisites are missing.
 | Trace-derived environments (**experimental**) | A private, gitignored workspace per task under `.eval-author/.working/trace-environments/`, with a root `README.md` for generated-case review and reruns; generated batches also have a collection-root guide. No-candidate outcomes do not create a suite guide. |
 | MLflow conversion | One `.atif.json` file per trace in the private output directory you select. |
 
-[Choose another workflow](../README.md#start-here) or review
+[Choose another workflow](../README.md#choose-your-journey) or review
 [runtime requirements](getting-started.md#requirements).

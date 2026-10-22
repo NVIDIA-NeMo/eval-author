@@ -209,7 +209,7 @@ discovery in the assistant.
    and references.
 
 3. Start your request with this text, replacing `<entry-skill-path>` with the
-   path printed above. Add your goal from one of the [workflow guides](../README.md#start-here):
+   path printed above. Add your goal from one of the [workflow guides](../README.md#choose-your-journey):
 
    ```text
    Use Eval Author at <entry-skill-path> in this repository.
@@ -245,7 +245,7 @@ Use eval-author to help me with the evals for my agent.
 Eval Author helps you build your first evaluations, audit existing coverage, or
 improve a suite. It first confirms your setup and your agent's intended behavior
 in `ETHOS.md`, then continues with your selected goal. You can also use a
-[more specific starter prompt](../README.md#start-here).
+[more specific starter prompt](../README.md#choose-your-journey).
 
 Full creation and improvement onboarding pauses before Ethos if the selected
 runtime is missing, incompatible, or cannot yet be verified. Progress is saved
