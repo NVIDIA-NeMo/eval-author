@@ -288,6 +288,17 @@ at each Ethos pause; reload them before resuming or switching journeys. Existing
 downstream evidence is retained and marked stale when
 appropriate, never rewritten to match new decisions.
 
+Changing the agent retains cases, traces, Ethos findings, answers, draft references,
+and unresolved blockers while reopening the affected approvals. Agent-dependent
+prerequisite evidence keeps its source with status `unknown` for reassessment.
+For a change from a previously named agent, the helper retains the prior state in
+a content-hashed snapshot under `.eval-author/.working/history/agents/`, referenced
+by `ethos.source_findings`. This preserves the former agent identity, approval
+provenance, completion records, and pending work as historical evidence;
+`journey-state.json` remains the authoritative resume record. Review applicability
+before using that context for the new agent. Reuse the same agent identifier on
+resume; different spellings do not establish that two agents are equivalent.
+
 All new working files, intermediate inputs, and temporary files live under
 `.eval-author/.working/`. Historical evidence with bound paths remains readable.
 Review imported snapshots before choosing how to continue interrupted legacy

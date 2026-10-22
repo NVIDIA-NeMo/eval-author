@@ -763,7 +763,165 @@ def test_agent_change_cannot_reuse_other_agents_ethos(state, tmp_path):
     changed = state.initialize(tmp_path, agent="other-agent")
     assert changed["ethos"]["confirmed_digest"] is None
     assert changed["prerequisites"]["runtime"]["status"] == "confirmed"
-    assert "services" not in changed["prerequisites"]
+    assert changed["prerequisites"]["services"] == {
+        "status": "unknown",
+        "source": "user reply 2",
+    }
+
+
+@pytest.mark.parametrize("new_agent", ["account-support", "other-agent"])
+@pytest.mark.parametrize("stage", ["complete", "write"])
+def test_agent_change_preserves_historical_context_without_reusing_approval(state, tmp_path, new_agent, stage):
+    state.initialize(tmp_path, agent="Account Support", journey="create", setup="gym")
+    state.update(
+        tmp_path,
+        {
+            "prerequisites": {
+                key: {"status": "confirmed", "source": "Original agent setup reply"}
+                for key in state.PREREQUISITES | state.DEFERRED
+            }
+        },
+    )
+    legacy = tmp_path / ".eval-author/first-eval.md"
+    legacy.write_text("Prior scope needs review\n")
+    imported = state.import_legacy(tmp_path)
+    draft = tmp_path / ".eval-author/.working/draft.md"
+    draft.write_text("# Intended refund behavior\n")
+    findings = [{"path": "agent.py:12", "summary": "Original agent reads refund requests"}]
+    answers = [{"topic": "Purpose", "question": "What outcome?", "answer": "Resolve refunds", "source": "reply 3"}]
+    state.update(
+        tmp_path,
+        {
+            "ethos": {
+                "stage": "write",
+                "draft": {"path": draft.relative_to(tmp_path).as_posix(), "digest": state.digest(draft.read_bytes())},
+                "draft_confirmed": True,
+                "draft_source": "Original agent draft approval in reply 4",
+                "source_findings": findings,
+                "prior_answers": answers,
+                "remaining_questions": ["Which refund regions apply?"],
+            }
+        },
+    )
+    if stage == "complete":
+        ethos_ready(state, tmp_path)
+    original = state.update(
+        tmp_path,
+        {
+            "scopes": {
+                "create": {"cases": ["refund"], "priorities": ["accuracy"], "confirmed": True},
+                "audit": {"traces": ["selected.json"], "confirmed": True},
+            },
+            "journey_status": {"create": "complete", "audit": "in_progress"},
+            "blockers": imported["blockers"]
+            + [
+                {"id": "code_access", "phase": "setup", "message": "An intent source is inaccessible"},
+                {"id": "review-intent", "phase": "ethos", "message": "Review a remaining boundary"},
+                {"id": "select-traces", "phase": "audit", "message": "A selection remains unresolved"},
+            ],
+            "pending_question": "Which selected trace should be used?",
+            "next_handoff": "eval-author-audit",
+        },
+    )
+    before = state.state_path(tmp_path).read_bytes()
+    changed = state.initialize(tmp_path, agent=new_agent)
+    assert changed["agent"] == new_agent
+    assert changed["ethos"]["stage"] == "review"
+    for field in ("confirmed_digest", "confirmation_source", "validation", "draft_source"):
+        assert changed["ethos"][field] is None
+    assert not changed["ethos"]["draft_confirmed"]
+    assert changed["ethos"]["draft"] == original["ethos"]["draft"]
+    assert draft.read_text() == "# Intended refund behavior\n"
+    assert changed["ethos"]["source_findings"][:-1] == findings
+    assert changed["ethos"]["prior_answers"] == answers
+    assert changed["ethos"]["remaining_questions"] == original["ethos"]["remaining_questions"]
+    for journey, scope in original["scopes"].items():
+        assert changed["scopes"][journey] == {**scope, "confirmed": False, "needs_review": True}
+    assert not changed["journey_status"]
+    assert changed["blockers"] == original["blockers"]
+    assert changed["legacy_imports"] == original["legacy_imports"]
+    for key, answer in original["prerequisites"].items():
+        assert changed["prerequisites"][key] == {
+            **answer,
+            "status": "unknown" if key in state.AGENT_DEPENDENT else answer["status"],
+        }
+    history = changed["ethos"]["source_findings"][-1]
+    assert Path(history["path"]).is_relative_to(".eval-author/.working")
+    archive = tmp_path / history["path"]
+    assert archive.read_bytes() == before
+    assert archive.stem == state.digest(before)
+    assert json.loads(archive.read_text())["agent"] == "Account Support"
+    assert "Account Support" in history["summary"]
+    assert new_agent in changed["pending_question"] and "Account Support" in changed["pending_question"]
+    assert changed["next_handoff"] == "eval-author"
+    assert not state.checklist(changed)[1]["complete"]
+    assert state.load_state(tmp_path) == changed
+    resumed = state.initialize(tmp_path, agent=new_agent)
+    assert resumed["ethos"] == changed["ethos"]
+    assert resumed["scopes"] == changed["scopes"]
+    assert resumed["pending_question"] == changed["pending_question"]
+    assert list(archive.parent.iterdir()) == [archive]
+    persisted = state.state_path(tmp_path).read_bytes()
+    assert state.import_legacy(tmp_path) == resumed
+    assert state.state_path(tmp_path).read_bytes() == persisted
+    with pytest.raises(ValueError, match="write stage requires confirmed draft"):
+        state.update(tmp_path, {"ethos": {"stage": "write"}})
+    assert state.state_path(tmp_path).read_bytes() == persisted
+
+
+@pytest.mark.parametrize("old_agent", [None, "previous-agent"])
+@pytest.mark.parametrize("resolved", [False, True])
+def test_agent_assignment_preserves_only_unresolved_legacy_review(state, tmp_path, old_agent, resolved):
+    state.initialize(tmp_path, agent=old_agent, journey="audit")
+    legacy = tmp_path / ".eval-author/audit-progress.md"
+    legacy.write_text("[x] Historical review\n")
+    original = state.import_legacy(tmp_path)
+    if resolved:
+        original = state.update(tmp_path, {"blockers": [], "pending_question": None})
+    changed = state.initialize(tmp_path, agent="new-agent")
+    assert changed["legacy_imports"] == original["legacy_imports"]
+    assert changed["blockers"] == original["blockers"]
+    assert any(item["id"] == "legacy-review" for item in changed["blockers"]) is not resolved
+    before = state.state_path(tmp_path).read_bytes()
+    assert state.import_legacy(tmp_path) == changed
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+def test_combined_identity_setup_and_flow_change_keeps_context_review_handoff(state, tmp_path):
+    setup_ready(state, tmp_path)
+    original = ethos_ready(state, tmp_path)
+    before = state.state_path(tmp_path).read_bytes()
+    changed = state.initialize(tmp_path, agent="new-agent", journey="audit", setup="harbor")
+    assert changed["agent"] == "new-agent" and changed["journey"] == "audit" and changed["setup"] == "harbor"
+    assert changed["ethos"]["stage"] == "review"
+    assert changed["ethos"]["confirmed_digest"] is None
+    assert "assistant" in changed["pending_question"] and "new-agent" in changed["pending_question"]
+    assert changed["next_handoff"] == "eval-author"
+    archive = tmp_path / changed["ethos"]["source_findings"][-1]["path"]
+    assert archive.read_bytes() == before
+    assert json.loads(archive.read_text()) == original
+
+
+@pytest.mark.parametrize("failure_stage", ["archive", "state"])
+def test_agent_context_persistence_failure_leaves_current_state_intact(state, tmp_path, monkeypatch, failure_stage):
+    setup_ready(state, tmp_path)
+    original = ethos_ready(state, tmp_path)
+    before = state.state_path(tmp_path).read_bytes()
+
+    def failed_write(*args, **kwargs):
+        raise OSError("Storage unavailable")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(state, "atomic_write" if failure_stage == "archive" else "atomic_write_json", failed_write)
+        with pytest.raises(OSError, match="Storage unavailable"):
+            state.initialize(tmp_path, agent="other-agent")
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert state.load_state(tmp_path) == original
+    retried = state.initialize(tmp_path, agent="other-agent")
+    archive = tmp_path / retried["ethos"]["source_findings"][-1]["path"]
+    assert archive.read_bytes() == before
+    assert list(archive.parent.iterdir()) == [archive]
+    assert retried["agent"] == "other-agent" and retried["ethos"]["confirmed_digest"] is None
 
 
 @pytest.mark.parametrize("change", ["edit", "delete", "symlink"])

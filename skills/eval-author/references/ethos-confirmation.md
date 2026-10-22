@@ -70,6 +70,12 @@ conversation does not start a new shared flow or reopen this review; retain its
 accepted scope, pending question, and handoff. Do not reopen review on every state
 read or repeat the interview. Changes to the agent or document reopen the affected review.
 
+After an agent change, retained findings, answers, and draft content are historical
+context for reassessment. Use the referenced agent-history snapshot to distinguish
+the previous identity and approvals; pass only relevant Ethos context to the
+orchestrator. Confirm applicability to the selected agent before reusing it, and
+do not treat the former agent's document or draft approval as current permission.
+
 ## Call and return
 
 Load shared journey state before each call, including a fresh chat or a switch

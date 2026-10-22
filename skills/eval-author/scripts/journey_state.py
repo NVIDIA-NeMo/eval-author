@@ -540,15 +540,23 @@ def save(repo: Path, state: dict) -> None:
 def initialize(repo: Path, *, agent: str | None = None, journey: str | None = None, setup: str | None = None) -> dict:
     with working_lock(working_path(repo, "journey-state.lock")):
         state = load_state(repo) if state_path(repo).exists() else new_state(repo)
-        if agent is not None and agent != state["agent"]:
+        previous_agent = state["agent"]
+        previous_context = None
+        if agent is not None and agent != previous_agent:
+            if previous_agent is not None:
+                previous_context = state_path(repo).read_bytes()
             state["agent"] = agent
-            state["ethos"] = empty_ethos()
-            state["scopes"] = {}
-            state["journey_status"] = {}
-            state["prerequisites"] = {k: v for k, v in state["prerequisites"].items() if k not in AGENT_DEPENDENT}
-            state["blockers"] = [item for item in state["blockers"] if item["phase"] == "setup"]
-            state["pending_question"] = None
-            state["next_handoff"] = None
+            state["ethos"].update(
+                stage="review" if previous_agent is not None else "explore",
+                draft_confirmed=False,
+                draft_source=None,
+                confirmed_digest=None,
+                confirmation_source=None,
+                validation=None,
+            )
+            invalidate_scopes(state)
+            for key in AGENT_DEPENDENT & state["prerequisites"].keys():
+                state["prerequisites"][key]["status"] = "unknown"
         if setup is not None and setup != state["setup"]:
             state["setup"] = setup
             state["prerequisites"] = {k: v for k, v in state["prerequisites"].items() if k not in PROVIDER_DEPENDENT}
@@ -571,6 +579,22 @@ def initialize(repo: Path, *, agent: str | None = None, journey: str | None = No
             state["journey"] = journey
             state["pending_question"] = None
             state["next_handoff"] = None
+        if previous_context is not None:
+            # Preserve the old identity, approvals, and pending work as evidence,
+            # without treating them as approval for the newly selected agent.
+            name = f"{digest(previous_context)}.json"
+            state["ethos"]["source_findings"].append(
+                {
+                    "path": f".eval-author/.working/history/agents/{name}",
+                    "summary": f"Historical context for agent {previous_agent!r}; reassess for the selected agent.",
+                }
+            )
+            state["pending_question"] = (
+                f"Agent changed from {previous_agent!r} to {agent!r}; review which saved context and decisions still apply."
+            )
+            state["next_handoff"] = "eval-author"
+            validate(state)
+            atomic_write(working_path(repo, "history", "agents", name), previous_context)
         save(repo, state)
         return state
 
