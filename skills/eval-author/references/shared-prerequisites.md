@@ -73,10 +73,15 @@ Select checks by the requested work. The common checks are:
   directory. Check all three Ethos skills:
   `ethos-orchestrate`, `ethos-explore`, and `ethos-write`. A catalog entry or symlink
   alone does not establish usability; do not start the Ethos interview during checks
+- Verify that the installed Ethos skills meet the
+  [required handoff capabilities](ethos-confirmation.md#required-handoff-capabilities),
+  including preserving the explicit repository-root `ETHOS.md` destination. A
+  version that renames it to lowercase or overrides that path is incompatible;
+  record the conflicting resource as an `ethos_skills` blocker before delegation
 - Establish file and command access from host permissions and actual bounded
   reads or commands; keep any write probe under `.eval-author/.working/`
 
-If a required skill or resource is missing, broken, or inaccessible, finish the
+If a required skill or resource is missing, broken, incompatible, or inaccessible, finish the
 other accessible checks, then show **Blockers** before Ethos. Record the actual
 reason under `skills` or `ethos_skills`, keep setup incomplete, and preserve
 answers and confirmations. Save the blocker in phase `setup`, its repair action

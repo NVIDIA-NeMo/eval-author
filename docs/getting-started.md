@@ -22,6 +22,14 @@ skills catalog. Use the [installation command](../README.md#prerequisites) for
 your assistant and scope; see the
 [ETHOS.md guide](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md#how-to-use).
 
+Eval Author uses only repository-root `ETHOS.md`. The linked catalog guide
+describes lowercase `ethos.md` and renaming uppercase files; those published
+instructions conflict with Eval Author's required destination. Use a catalog
+version that preserves an explicitly supplied uppercase path, and verify the
+installed skills before starting Ethos. Incompatible instructions block the
+handoff; reinstalling the same version does not resolve the mismatch. See the
+[required handoff capabilities](../skills/eval-author/references/ethos-confirmation.md#required-handoff-capabilities).
+
 Neither installation path installs Harbor, Python dependencies, a coding
 assistant, or NeMo services. Those have [workflow-specific requirements](#requirements).
 

@@ -4,9 +4,27 @@
 # Ethos confirmation adapter
 
 This adapter connects Eval Author to
-[`ethos-orchestrate`](../../../team-skills/ethos/ethos-orchestrate/SKILL.md), the
+[`ethos-orchestrate`](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/SKILL.md), the
 single owner of Ethos exploration, draft confirmation, validation, and writing.
 Do not implement another interview or local authoring fallback in Eval Author.
+
+## Required handoff capabilities
+
+Pass the absolute repository-root `ETHOS.md` path as the explicit destination
+to `ethos-orchestrate`. The installed skills must preserve that exact path and
+uppercase filename, including in repositories with several agents. They must
+not rename it to `ethos.md` or choose the agent's package root instead.
+
+Check the installed skills' location and writing instructions before delegation.
+If they rename the file, choose a package-level path, or otherwise override the
+supplied destination, that version is incompatible with this contract.
+Report the actual conflicting skill and instructions under
+**Blockers**, preserving existing documents and progress. Resolve the dependency
+with a catalog version that honors the supplied path; verify its installed
+instructions before clearing the blocker. Reinstalling the same incompatible
+version does not resolve it.
+
+## Enter the Ethos step
 
 Enter or resume Ethos in the shared flow only when no Blockers remain. Use **Next Steps** and the
 shared progress checklist from [Present results and the next step](shared-prerequisites.md#present-results-and-the-next-step)
