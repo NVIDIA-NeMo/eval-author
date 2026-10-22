@@ -11,7 +11,7 @@ description: >-
   none of the user's source, and saves audit artifacts under `.eval-author/`.
 triggers:
   - audit my existing evals
-  - generate audit.md from ethos.md
+  - generate audit.md from ETHOS.md
   - validate audit.md coverage schema
   - measure audit.md coverage against a harbor trace
   - aggregate audit.md coverage reports
@@ -123,7 +123,7 @@ established Ethos to define what the audit should cover. An explicit
 `--ethos <path>` overrides any prior handoff path; otherwise pass the established
 path supplied by first-eval when available.
 
-For a full audit, explain what `ethos.md` is and how this audit uses it before
+For a full audit, explain what `ETHOS.md` is and how this audit uses it before
 checking or creating it. Include that explanation in the first Ethos check-in,
 even when requesting format repairs. Follow [Understand your agent](references/guided-audit.md#1-understand-your-agent)
 to link the document and documentation, summarize its intent, and offer edits.
@@ -153,7 +153,7 @@ valid tool name, including tools the agent must never call and therefore should
 not declare as allowed tools.
 
 Write audit artifacts under `.eval-author/`. Audit operations do not edit the
-customer's source, existing evals, source-of-truth documents, or `ethos.md`;
+customer's source, existing evals, source-of-truth documents, or `ETHOS.md`;
 prerequisite Ethos work belongs to the shared procedure in the pre-flight above.
 
 ## Audit outputs
@@ -187,7 +187,7 @@ ATIF input, Harbor trajectory parsing, v1 `tool_calls`, `capabilities`, and
 
 | Script | Use it to |
 |---|---|
-| `scripts/audit_spec/generate.py` | Create, reconcile, replace, or preview `.eval-author/audit.md` from `ethos.md` and reviewed item proposals |
+| `scripts/audit_spec/generate.py` | Create, reconcile, replace, or preview `.eval-author/audit.md` from `ETHOS.md` and reviewed item proposals |
 | `scripts/audit_spec/measure.py` | Measure one ATIF trace or Harbor trial directory against `audit.md` and write coverage/details files for each selected method |
 | `scripts/audit_spec/report.py` | Aggregate per-trace `coverage.json` files into one coverage report with uncovered audit items |
 | `scripts/audit_spec/validate.py` | Validate the marked audit-spec block in `audit.md` |
@@ -308,7 +308,7 @@ demoted to `status: draft` unless the user passes `--status approved`.
 
 The generator adds an optional `sources` entry for Ethos with `name: ethos`, a
 path relative to `audit.md`, and a real `sha256` digest. It uses the frontmatter
-`name` from `ethos.md` when `--agent` is omitted. If that inferred name differs
+`name` from `ETHOS.md` when `--agent` is omitted. If that inferred name differs
 from the existing audit's `agent`, reconcile preserves the reviewed audit name
 and reports `agent_change` unless the user passes `--agent` explicitly.
 `source_refs` are advisory provenance notes in v1; the validator preserves them
@@ -340,6 +340,12 @@ audit's unavailable-evidence guidance; do not search elsewhere without the
 user selecting another location. Use `--measure` to select one or more
 comma-separated measurement methods; the default is `tool_calls`.
 
+Prefer `--trial-dir` for Harbor trials so `measure.py` stamps `subject.evidence_class`
+from `result.json`. Measure the **agent under test** only—no Oracle/NOP trials,
+synthetic control ATIF, or control runs in audit artifacts (see
+[coverage report guidance](references/coverage-report.md)). With `--trace`, pass
+`--evidence-class agent_under_test` or `--skip-evidence-class` for legacy inputs only.
+
 ```bash
 uv run --with-requirements <skill_dir>/requirements.txt \
   <skill_dir>/scripts/audit_spec/measure.py \
@@ -349,10 +355,8 @@ uv run --with-requirements <skill_dir>/requirements.txt \
   --out-dir .eval-author/audit-measurements
 ```
 
-The current `--trial-dir` reader supports Harbor-style trial directories that
-normally contain `agent/trajectory.json`; agents that do not emit ATIF may not
-have that file. When the trace file is already known, pass it directly and stamp
-the task explicitly:
+Harbor trial dirs normally contain `agent/trajectory.json`; pass `--evidence-class`
+to override stamping. `--trace` does not infer runner role from ATIF bytes alone.
 
 ```bash
 uv run --with-requirements <skill_dir>/requirements.txt \
@@ -361,6 +365,7 @@ uv run --with-requirements <skill_dir>/requirements.txt \
   --trace <path-to>/trajectory.json \
   --task-id <task-id> \
   --run-id <run-id> \
+  --evidence-class agent_under_test \
   --measure tool_calls \
   --out-dir .eval-author/audit-measurements
 ```
@@ -456,7 +461,7 @@ For current method semantics and details schemas, see
 
 The script validates `coverage.json` against `schemas/audit_coverage.schema.json`
 and validates `details.json` against the selected method's details schema before
-writing. Use the next step to union coverage across tasks and runs.
+writing. Use the next step to aggregate coverage across tasks and runs.
 
 ## Step 5: Aggregate Coverage Reports
 
@@ -482,18 +487,11 @@ longer matches the current `audit.md`. A status-only mismatch, such as
 measurements produced while the audit was `draft` and aggregated after it became
 `approved`, is reported as a warning instead of forcing a re-measure.
 
-The aggregate report uses `schemas/audit_coverage_report.schema.json`. It
-contains overall and per-kind count summaries, the union of covered item names,
-warnings, the measured item kinds, and `uncovered_items`. Each uncovered item
-includes the original audit item plus generation-oriented context: a stable
-`reason`, a one-sentence `focus`, likely `needed_tools`, and the item's
-`evidence_required`.
-Use `reason: not_measured_by_any_method` to distinguish gaps that no included
-measurement method could close from `reason: not_covered_by_any_input_report`,
-which means the item kind was measured but no input report covered that item.
-Treat that list as evidence for the proposal step in `eval-author-task-create`.
-The aggregate report unions coverage; it does not establish why an item is
-uncovered or whether an existing task already exposes an agent failure.
+Aggregate JSON shape, `coverage_by_evidence_class`, headline fields, and
+`uncovered_items` reasons are defined in
+[`scripts/audit_spec/README.md`](scripts/audit_spec/README.md). Hand labeled
+gaps to [`eval-author-task-create`](../eval-author-task-create/SKILL.md) using
+`coverage_by_evidence_class.agent_under_test` when present.
 
 ## Next Steps
 

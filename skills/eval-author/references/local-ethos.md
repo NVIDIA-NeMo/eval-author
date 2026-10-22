@@ -1,10 +1,10 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Local ethos.md for Eval Author
+# Local ETHOS.md for Eval Author
 
 This procedure owns locating, checking, creating, and reviewing the repository's
-`ethos.md`. Read and write the document locally. The caller owns when this
+`ETHOS.md`. Read and write the document locally. The caller owns when this
 prerequisite is required.
 When called from a fresh guided audit, begin only after its opening has ended
 and the user has replied to continue. Loading this procedure alongside the audit
@@ -21,10 +21,10 @@ existing answers, chosen local path, and review state. The procedure below suppl
 Eval Author's introduction, write boundaries, and milestone checkpoints; use
 one interview and preserve those caller-specific requirements. Return with the
 saved path, gaps, checks, and review state before continuing Eval Author.
-An already suitable ethos.md can go directly through the locate-and-reuse checks.
+An already suitable ETHOS.md can go directly through the locate-and-reuse checks.
 
 When those skills are not available, follow this procedure directly with the
-[ethos.md template](../../../team-skills/ethos/ethos-write/references/templates/ethos.md)
+[ETHOS.md template](../../../team-skills/ethos/ethos-write/references/templates/ETHOS.md)
 when it is readable, and tell the user how to install the skills.
 
 For both delegated creation and this fallback, capture purpose, desired behavior,
@@ -38,10 +38,10 @@ boundaries, and approvals the agent needs for its own actions. Also retain
 already-confirmed organizational safety and review policies and their known
 owners without opening a change-permission interview.
 
-## Introduce ethos.md
+## Introduce ETHOS.md
 
 Before checking or creating the document, explain in ordinary language that
-ethos.md records what the agent should do, what it should avoid, and what a good
+ETHOS.md records what the agent should do, what it should avoid, and what a good
 result looks like. Evals and audits use this as their target. Link the
 [ethos-explore skill](../../../team-skills/ethos/ethos-explore/SKILL.md)
 and make the explanation concrete for the selected agent. This introduction also
@@ -50,22 +50,22 @@ Reuse an introduction already given in the current flow.
 
 ## Locate and reuse
 
-Use the caller's explicit path when supplied; otherwise use root `ethos.md`, or
-an `ETHOS.md` written by Eval Author 0.1.0. Read the file and apply the checks
+Use the caller's explicit path when supplied; otherwise use root `ETHOS.md`.
+Read the file and apply the checks
 below. Resolve ambiguous agent identity with the user. A suitable unchanged
 document can be returned without another interview or content approval; still
 honor the caller's introduction and milestone check-in, including a guided
 audit's linked summary and opportunity to edit it. File presence, empty
 placeholders, README content, code, traces, and intent notes do not substitute
-for a substantive ethos.md.
+for a substantive ETHOS.md.
 
 When onboarding has not yet identified the agent, use the user's description and
 a bounded look at the root README and directly named agent documentation or entry
 point. Ask which agent is intended if ambiguous. Do not scan eval reports, extract
 conversations, or run Harbor to establish the agent's identity and purpose.
 
-For a new document, default to `<repo-root>/ethos.md` or the user's chosen in-repo
-location under the core's narrow ethos.md write exception. Preserve existing content,
+For a new document, default to `<repo-root>/ETHOS.md` or the user's chosen in-repo
+location under the core's narrow ETHOS.md write exception. Preserve existing content,
 custom sections, and edits. Reuse prior interview answers, including saved
 `.eval-author/intent-notes.md`.
 Do not commit automatically.
@@ -91,7 +91,7 @@ old tests. Surface conflicts with existing scoring for the user's resolution.
 A limited first eval set need not wait for unrelated details, but explain any gaps
 instead of presenting a partial Ethos as a complete account of the agent.
 
-Use the [ethos.md template](../../../team-skills/ethos/ethos-write/references/templates/ethos.md). A concrete Role and Purpose &
+Use the [ETHOS.md template](../../../team-skills/ethos/ethos-write/references/templates/ETHOS.md). A concrete Role and Purpose &
 Outcomes are required; other sections contain actual answers or an honest
 `_(none)_`, with uncertainties recorded in Open Questions. Do not invent metrics
 or leave template placeholders. Treat demo policies as fixtures when that is the
@@ -105,8 +105,6 @@ author, and an ISO 8601 creation timestamp. On edits, retain creation metadata,
 add `updated_timestamp`, preserve unknown frontmatter keys and custom sections,
 and make targeted changes instead of replacing an existing file with the template.
 This includes legacy Tools sections; preserve them unless the user requests removal.
-When editing an Eval Author 0.1.0 `ETHOS.md`, the ethos-write skill renames it to
-`ethos.md`; its contents already match the schema.
 
 Read back the exact file and check:
 
@@ -135,12 +133,12 @@ traces** unless that milestone and its check-in are already complete, then defin
 the coverage specification. A scoped audit-generation request proceeds to its
 requested drafting step. For example during onboarding:
 
-> I've generated your `ethos.md` for review. It describes the
+> I've generated your `ETHOS.md` for review. It describes the
 > agent's intended baggage-policy behavior and limits it to the demo policies.
 > Once you confirm it, I'll introduce Harbor, the framework we'll use for the
 > evals, and check its setup.
 >
-> Does ethos.md look right, or would you like to change anything before we move on?
+> Does ETHOS.md look right, or would you like to change anything before we move on?
 
 Wait for review of the saved content before using it for cases or an audit;
 interview answers alone are not document review. Apply requested revisions,

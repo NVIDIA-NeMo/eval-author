@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["pyyaml>=6.0", "jsonschema>=4.23"]
+# [tool.ty.environment]
+# extra-paths = ["."]
+# ///
 
 """Select actionable audit gaps, scaffold Gym or Harbor drafts, and verify closure."""
 
@@ -11,10 +17,15 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 _ACTIONABLE_REASON = "not_covered_by_any_input_report"
+_AGENT_EVIDENCE_CLASS = "agent_under_test"
+_EVIDENCE_CLASSES = frozenset(
+    {"agent_under_test", "reference_solution", "nop", "control"},
+)
 _DRAFT_PARTS = (".eval-author", "task-drafts")
 _PROPOSAL_PARTS = (".eval-author", "proposals")
 _SLUG_PREFIX = "cover-"
@@ -96,16 +107,86 @@ def _gap_from_uncovered_item(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _subject_evidence_class(subject: dict[str, Any]) -> str | None:
+    value = subject.get("evidence_class")
+    if isinstance(value, str) and value in _EVIDENCE_CLASSES:
+        return value
+    return None
+
+
+def _agent_under_test_bucket(report: dict[str, Any]) -> dict[str, Any] | None:
+    by_class = report.get("coverage_by_evidence_class")
+    if not isinstance(by_class, dict):
+        return None
+    agent = by_class.get(_AGENT_EVIDENCE_CLASS)
+    return agent if isinstance(agent, dict) else None
+
+
+def _uncovered_items_for_task_gaps(report: dict[str, Any]) -> list[dict[str, Any]]:
+    """Prefer agent-under-test gaps when the aggregate report split runner coverage."""
+    agent = _agent_under_test_bucket(report)
+    if agent is not None:
+        items = agent.get("uncovered_items")
+        if isinstance(items, list):
+            return [item for item in items if isinstance(item, dict)]
+    legacy = report.get("uncovered_items")
+    if isinstance(legacy, list):
+        return [item for item in legacy if isinstance(item, dict)]
+    return []
+
+
 def _actionable_tools(report: dict[str, Any]) -> list[dict[str, Any]]:
     """Return uncovered tool items that are eligible for task generation."""
     gaps: list[dict[str, Any]] = []
-    for item in report.get("uncovered_items") or []:
-        if not isinstance(item, dict):
-            continue
+    for item in _uncovered_items_for_task_gaps(report):
         if item.get("kind") != "tool" or item.get("reason") != _ACTIONABLE_REASON:
             continue
         gaps.append(_gap_from_uncovered_item(item))
     return _assign_unique_task_slugs(gaps)
+
+
+def _agent_input_reports(report: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return input reports that may support agent-under-test gap closure."""
+    entries = report.get("input_reports")
+    if not isinstance(entries, list):
+        return []
+    if _agent_under_test_bucket(report) is None:
+        return [entry for entry in entries if isinstance(entry, dict)]
+    agent_entries: list[dict[str, Any]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        subject = entry.get("subject")
+        if not isinstance(subject, dict):
+            continue
+        labeled = _subject_evidence_class(subject)
+        if labeled is None or labeled == _AGENT_EVIDENCE_CLASS:
+            agent_entries.append(entry)
+    return agent_entries
+
+
+def _agent_covered_names(report: dict[str, Any]) -> set[str]:
+    """Return item names covered by the agent-under-test bucket when available."""
+    agent = _agent_under_test_bucket(report)
+    if agent is None:
+        covered = report.get("covered")
+    else:
+        covered = agent.get("covered")
+    if not isinstance(covered, list):
+        return set()
+    return {name for name in covered if isinstance(name, str)}
+
+
+def _agent_uncovered_names(report: dict[str, Any]) -> set[str]:
+    """Return item names not covered by the agent-under-test bucket when available."""
+    agent = _agent_under_test_bucket(report)
+    if agent is None:
+        uncovered = report.get("uncovered")
+    else:
+        uncovered = agent.get("uncovered")
+    if not isinstance(uncovered, list):
+        return set()
+    return {name for name in uncovered if isinstance(name, str)}
 
 
 def _select(report_path: Path, target: str | None) -> dict[str, Any]:
@@ -154,6 +235,36 @@ def _require_task_slug_paths(*, task_slug: str, output: Path, task_name: str, in
     _require_proposal_destination(instruction_file)
 
 
+def _write_lineage(task: Path, report: Path, proposal: Path, target: str) -> None:
+    from task_evidence import digest, write_new
+
+    write_new(
+        task / ".eval-author-lineage.json",
+        {
+            "target_tool": target,
+            "report": {"path": str(report.resolve()), "sha256": digest(report)},
+            "proposal": {"path": str(proposal.resolve()), "sha256": digest(proposal)},
+        },
+    )
+
+
+def _verify_lineage(agents: dict, before: Path, target: str) -> None:
+    from task_evidence import EvidenceError, digest, manifest_at, read
+
+    for agent in agents.values():
+        manifest = manifest_at(Path(agent["manifest"]))
+        task = Path(manifest["task_dir"])
+        path = task / ".eval-author-lineage.json"
+        if not path.is_file():
+            raise EvidenceError("task lacks proposal and source coverage lineage; recreate a bound draft")
+        lineage = read(path)
+        if lineage["target_tool"] != target or lineage["report"]["sha256"] != digest(before):
+            raise EvidenceError("task lineage differs from the selected gap report")
+        for key in ("report", "proposal"):
+            if digest(Path(lineage[key]["path"])) != lineage[key]["sha256"]:
+                raise EvidenceError(f"{key} content changed since draft creation")
+
+
 def _scaffold(
     *,
     report_path: Path,
@@ -184,6 +295,7 @@ def _scaffold(
         raise PipelineError(f"cannot read instruction {instruction_file}: {exc}") from exc
     if not instruction.strip():
         raise PipelineError("instruction file is empty")
+    _verify_coverage_binding(report_path)
     if provider == "gym":
         if not gym_python:
             raise PipelineError("--gym-python must select an existing Gym runtime")
@@ -208,6 +320,7 @@ def _scaffold(
             raise PipelineError("Gym scaffolder unavailable or returned no report") from exc
         if result.returncode or not isinstance(payload, dict) or not payload.get("written"):
             raise PipelineError("Gym scaffolding failed; inspect the selected runtime and destination")
+        _write_lineage(output, report_path, instruction_file, target)
         return {**payload, "target_tool": target, "task_slug": task_slug, "paths": _artifact_paths(task_slug)}
     harbor = shutil.which("harbor")
     if harbor is None:
@@ -236,6 +349,7 @@ def _scaffold(
     if not output.is_dir():
         raise PipelineError(f"harbor did not create the expected draft: {output}")
     (output / "instruction.md").write_text(instruction, encoding="utf-8")
+    _write_lineage(output, report_path, instruction_file, target)
     return {
         "schema": "nemo.eval_author.harbor_task_draft.v1",
         "target_tool": target,
@@ -251,8 +365,8 @@ def _scaffold(
 
 def _run_ids_from_report(report: dict[str, Any], *, report_path: Path, task_id: str) -> list[str]:
     """Return ATIF ``subject.run_id`` values recorded in one aggregate coverage report."""
-    input_reports = report.get("input_reports")
-    if not isinstance(input_reports, list) or not input_reports:
+    input_reports = _agent_input_reports(report)
+    if not input_reports:
         raise PipelineError(f"after report must include input_reports with subject.run_id: {report_path}")
     run_ids: list[str] = []
     for index, entry in enumerate(input_reports):
@@ -270,6 +384,19 @@ def _run_ids_from_report(report: dict[str, Any], *, report_path: Path, task_id: 
             )
         run_ids.append(run_id)
     return run_ids
+
+
+def _verify_coverage_binding(path: Path) -> dict:
+    """Rebuild coverage in the sibling audit skill, with its own import boundary."""
+    script = Path(__file__).resolve().parents[2] / "eval-author-audit/scripts/audit_spec/report.py"
+    if not script.is_file():
+        raise PipelineError("install the sibling eval-author-audit skill to verify coverage evidence")
+    run = subprocess.run(
+        [sys.executable, str(script), "--verify-existing", str(path)], capture_output=True, text=True, timeout=60
+    )
+    if run.returncode:
+        raise PipelineError(f"coverage binding verification failed: {run.stdout.strip()} {run.stderr.strip()}")
+    return json.loads(run.stdout)["binding"]
 
 
 def _verify(
@@ -295,8 +422,8 @@ def _verify(
         # A report may contain several measurement methods for the same run.
         report_run_ids = sorted(set(report_run_ids))
         run_ids.extend(report_run_ids)
-        covered = target in set(report.get("covered") or [])
-        still_uncovered = target in set(report.get("uncovered") or [])
+        covered = target in _agent_covered_names(report)
+        still_uncovered = target in _agent_uncovered_names(report)
         passed = covered and not still_uncovered
         all_covered = all_covered and passed
         runs.append(
@@ -318,23 +445,39 @@ def _verify(
         if set(agents) != set(run_ids):
             raise EvidenceError("coverage report run IDs must match all supplied agent receipts")
         for report in reports:
-            for entry in report["input_reports"]:
+            for entry in _agent_input_reports(report):
                 subject = entry["subject"]
                 trace = subject.get("trace")
                 if not isinstance(trace, str) or Path(trace).resolve() != Path(agents[subject["run_id"]]["trace"]):
                     raise EvidenceError(
                         "coverage subject.trace must identify the recorded agent trace (use absolute paths)"
                     )
-            if target in report.get("covered", []) and not any(
+            if target in _agent_covered_names(report) and not any(
                 entry.get("item_kind") == "tool" and target in entry.get("covered", [])
-                for entry in report["input_reports"]
+                for entry in _agent_input_reports(report)
             ):
                 raise EvidenceError("aggregate tool coverage lacks supporting input evidence")
     except (ValueError, OSError, KeyError, TypeError) as exc:
         raise PipelineError(f"task execution evidence: {exc}") from exc
 
+    try:
+        _verify_lineage(agents, before_path, target)
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        raise PipelineError(f"task lineage: {exc}") from exc
+    bindings = [_verify_coverage_binding(path) for path in [before_path, *after_paths]]
+    if len({binding["audit_sha256"] for binding in bindings}) != 1:
+        raise PipelineError("before and after coverage must use the same denominator")
+    from task_evidence import digest
+
     payload = {
         "schema": "nemo.eval_author.task_gap_verification.v2",
+        "binding": {
+            "inputs": [
+                {"path": str(path.resolve()), "sha256": digest(path)}
+                for path in [before_path, *after_paths, *(evidence_paths or [])]
+            ],
+            "audit_sha256": bindings[0]["audit_sha256"],
+        },
         "task_id": task_id,
         "task_validation": "passed",
         "agent_execution": "passed",
@@ -348,6 +491,22 @@ def _verify(
         "valid": True,
     }
     return (0 if all_covered else 1), payload
+
+
+def _check_acceptance(path: Path) -> tuple[int, dict]:
+    saved = _read_json(path)
+    try:
+        code, current = _verify(
+            Path(saved["before"]),
+            [Path(run["report"]) for run in saved["runs"]],
+            saved["target_tool"],
+            [Path(value) for value in saved["evidence"]],
+        )
+    except (KeyError, TypeError) as exc:
+        raise PipelineError(f"invalid saved acceptance: {exc}") from exc
+    if saved != current:
+        raise PipelineError("saved acceptance changed or is stale")
+    return code, current
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -377,6 +536,8 @@ def _parser() -> argparse.ArgumentParser:
     verify.add_argument(
         "--evidence", type=Path, action="append", help="execution receipt; repeat for all controls and agents"
     )
+    recheck = subparsers.add_parser("check-acceptance", help="Revalidate every input of a saved acceptance")
+    recheck.add_argument("--report", type=Path, required=True)
     return parser
 
 
@@ -400,9 +561,11 @@ def main(argv: list[str] | None = None) -> int:
                 gym_python=args.gym_python,
             )
             exit_code = 0
+        elif args.command == "check-acceptance":
+            exit_code, payload = _check_acceptance(args.report)
         else:
             exit_code, payload = _verify(args.before, args.after, args.target, args.evidence)
-    except PipelineError as exc:
+    except (PipelineError, OSError, subprocess.TimeoutExpired) as exc:
         payload = {"valid": False, "error": str(exc)}
         exit_code = 1
     print(json.dumps(payload, indent=2, sort_keys=True))

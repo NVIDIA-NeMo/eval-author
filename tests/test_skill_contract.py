@@ -69,7 +69,7 @@ _ENVIRONMENT_DIR = _SKILLS_DIR / "eval-author-environment"
 _ETHOS_SKILLS_DIR = _SKILLS_DIR.parent / "team-skills" / "ethos"
 _ETHOS_DIR = _ETHOS_SKILLS_DIR / "ethos-write"
 _ETHOS_EXPLORE_DIR = _ETHOS_SKILLS_DIR / "ethos-explore"
-_ETHOS_TEMPLATE = _ETHOS_DIR / "references" / "templates" / "ethos.md"
+_ETHOS_TEMPLATE = _ETHOS_DIR / "references" / "templates" / "ETHOS.md"
 _ETHOS_VALIDATE = _ETHOS_DIR / "scripts" / "validate_ethos.py"
 _ETHOS_REQUIRED_SECTIONS = (
     "Role",
@@ -182,8 +182,10 @@ _needs_unreadable_files = pytest.mark.skipif(
 # Bundled scripts may name only these third-party roots. Anything else would
 # become a hidden dependency for repositories that copy the skill.
 # referencing is the declared offline registry dependency of trace schema validation.
-# trace_ingest is the pinned standalone library used by the optional provider loaders.
-_PERMITTED_THIRD_PARTY = frozenset({"harbor", "jsonschema", "pydantic", "referencing", "trace_ingest", "yaml"})
+# trace_ingest is bundled in pinned nemo-compass for the optional provider loaders.
+_PERMITTED_THIRD_PARTY = frozenset(
+    {"harbor", "jsonschema", "markdown_it", "pydantic", "referencing", "trace_ingest", "yaml"}
+)
 
 
 def _not_for_names(frontmatter: dict) -> set[str]:
@@ -425,6 +427,7 @@ def _write_coverage(
     method: str = "tool_calls",
     task_id: str = "account-recovery",
     run_id: str = "trial-001",
+    evidence_class: str | None = None,
 ) -> dict:
     audit_payload = _audit_payload(audit)
     item_counts = _audit_item_counts(audit_payload)
@@ -448,6 +451,8 @@ def _write_coverage(
         "item_kind_count": item_counts[item_kind],
         "covered": covered,
     }
+    if evidence_class is not None:
+        payload["subject"]["evidence_class"] = evidence_class
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload), encoding="utf-8")
     return payload
@@ -471,7 +476,7 @@ def _ticket_tool_item() -> dict:
 
 
 def _write_audit(tmp_path: Path, transform: Callable[[str], str] | None = None) -> Path:
-    ethos = tmp_path / "ethos.md"
+    ethos = tmp_path / "ETHOS.md"
     ethos.write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n", encoding="utf-8")
 
     audit_dir = tmp_path / ".eval-author"
@@ -821,7 +826,9 @@ def test_inspect_flow_is_reached_only_through_eval_author() -> None:
 def test_inspect_flow_is_only_a_cli_driven_skill() -> None:
     _, body = _frontmatter_and_body(_INSPECT_DIR)
 
-    assert {path.name for path in _INSPECT_DIR.iterdir()} == {"SKILL.md"}
+    # Evaluation inputs are separate from the CLI-only runtime implementation.
+    assert {path.name for path in _INSPECT_DIR.iterdir()} == {"SKILL.md", "evals"}
+    assert (_INSPECT_DIR / "evals").is_dir()
     for command in (
         "nemo intake traces",
         "nemo intake spans",
@@ -2017,7 +2024,7 @@ def test_ethos_skills_are_named_for_their_directories_and_links_resolve() -> Non
 
 
 def test_local_ethos_handoff_resources_resolve() -> None:
-    """Eval Author's ethos.md handoff must reach the ethos skills and their template."""
+    """Eval Author's ETHOS.md handoff must reach the ethos skills and their template."""
     reference = _CORE_DIR / "references" / "local-ethos.md"
     checkins = reference.parent / "milestone-checkins.md"
     assert checkins.is_file()
@@ -2053,7 +2060,7 @@ def test_filled_ethos_template_passes_the_bundled_validator(tmp_path: Path) -> N
     """New Ethos files require intended behavior without a tool inventory or change-permission section."""
     markdown = _filled_ethos_template()
     assert re.findall(r"^## (.+)$", markdown, flags=re.MULTILINE) == list(_ETHOS_REQUIRED_SECTIONS)
-    path = tmp_path / "ethos.md"
+    path = tmp_path / "ETHOS.md"
     path.write_text(markdown, encoding="utf-8")
     result = _run_script(_ETHOS_VALIDATE, str(path))
     assert result.returncode == 0, result.stderr
@@ -2071,7 +2078,7 @@ def test_filled_ethos_template_passes_the_bundled_validator(tmp_path: Path) -> N
 )
 def test_ethos_validator_accepts_and_preserves_extra_sections(tmp_path: Path, extra_section: str) -> None:
     """Legacy inventories and permissions remain valid extra content without migration or deletion."""
-    path = tmp_path / "ethos.md"
+    path = tmp_path / "ETHOS.md"
     original = (_filled_ethos_template() + "\n" + extra_section).encode("utf-8")
     path.write_bytes(original)
     result = _run_script(_ETHOS_VALIDATE, str(path))
@@ -2083,7 +2090,7 @@ def test_ethos_validator_accepts_and_preserves_extra_sections(tmp_path: Path, ex
 @pytest.mark.parametrize("section", _ETHOS_REQUIRED_SECTIONS)
 def test_ethos_validator_still_requires_behavior_and_safety_sections(tmp_path: Path, section: str) -> None:
     """Every current section remains required, including behavior and safety boundaries."""
-    path = tmp_path / "ethos.md"
+    path = tmp_path / "ETHOS.md"
     path.write_text(_filled_ethos_template().replace(f"## {section}\n", ""), encoding="utf-8")
     result = _run_script(_ETHOS_VALIDATE, str(path))
     assert result.returncode == 1
@@ -2099,7 +2106,7 @@ def test_ethos_validator_still_requires_behavior_and_safety_sections(tmp_path: P
     ids=["duplicate-section", "unknown-version"],
 )
 def test_ethos_validator_rejects_malformed_files(tmp_path: Path, transform: Callable[[str], str], error: str) -> None:
-    path = tmp_path / "ethos.md"
+    path = tmp_path / "ETHOS.md"
     path.write_text(transform(_filled_ethos_template()), encoding="utf-8")
     result = _run_script(_ETHOS_VALIDATE, str(path))
     assert result.returncode == 1
@@ -2107,7 +2114,7 @@ def test_ethos_validator_rejects_malformed_files(tmp_path: Path, transform: Call
 
 
 def test_ethos_validator_warns_when_schema_version_is_missing(tmp_path: Path) -> None:
-    path = tmp_path / "ethos.md"
+    path = tmp_path / "ETHOS.md"
     path.write_text(_filled_ethos_template().replace("schema_version: 1\n", ""), encoding="utf-8")
     result = _run_script(_ETHOS_VALIDATE, str(path))
     assert result.returncode == 0, result.stderr
@@ -2312,7 +2319,7 @@ def test_audit_file_without_sources_allows_source_refs_as_notes(tmp_path: Path) 
     audit = _write_audit(
         tmp_path,
         lambda text: re.sub(
-            r"sources:\n  - name: ethos\n    path: ../ethos.md\n    sha256: sha256:[0-9a-f]{64}\n",
+            r"sources:\n  - name: ethos\n    path: ../ETHOS.md\n    sha256: sha256:[0-9a-f]{64}\n",
             "",
             text,
         ),
@@ -2328,7 +2335,7 @@ def test_audit_file_with_empty_sources_validates(tmp_path: Path) -> None:
     audit = _write_audit(
         tmp_path,
         lambda text: re.sub(
-            r"sources:\n  - name: ethos\n    path: ../ethos.md\n    sha256: sha256:[0-9a-f]{64}\n",
+            r"sources:\n  - name: ethos\n    path: ../ETHOS.md\n    sha256: sha256:[0-9a-f]{64}\n",
             "sources: []\n",
             text,
         ),
@@ -2454,7 +2461,7 @@ def test_audit_validation_rejects_stale_source_digest(tmp_path: Path) -> None:
 def test_audit_validation_rejects_source_digest_without_path(tmp_path: Path) -> None:
     audit = _write_audit(
         tmp_path,
-        lambda text: text.replace("    path: ../ethos.md\n", ""),
+        lambda text: text.replace("    path: ../ETHOS.md\n", ""),
     )
 
     code, report, _ = _run_json_script(_AUDIT_VALIDATE, "--audit", str(audit))
@@ -2468,7 +2475,7 @@ def test_audit_validation_rejects_duplicate_source_names(tmp_path: Path) -> None
     audit = _write_audit(
         tmp_path,
         lambda text: re.sub(
-            r"(sources:\n  - name: ethos\n    path: ../ethos.md\n    sha256: sha256:[0-9a-f]{64}\n)",
+            r"(sources:\n  - name: ethos\n    path: ../ETHOS.md\n    sha256: sha256:[0-9a-f]{64}\n)",
             "\\1  - name: ethos\n    description: duplicate\n",
             text,
         ),
@@ -2631,7 +2638,7 @@ def test_audit_validation_rejects_prefixed_yaml_fence(tmp_path: Path) -> None:
 
 
 def test_audit_generate_renders_valid_audit_from_items(tmp_path: Path) -> None:
-    ethos = tmp_path / "ethos.md"
+    ethos = tmp_path / "ETHOS.md"
     ethos.write_text(
         re.sub(r"^name: .*$", "name: support-agent", _filled_ethos_template(), flags=re.MULTILINE),
         encoding="utf-8",
@@ -2661,7 +2668,7 @@ def test_audit_generate_renders_valid_audit_from_items(tmp_path: Path) -> None:
     assert summary["conflicting_items"] == []
     assert summary["conflicting_items_applied"] is True
     assert report["agent"] == "support-agent"
-    assert payload["sources"] == [{"name": "ethos", "path": "../ethos.md", "sha256": _digest(ethos)}]
+    assert payload["sources"] == [{"name": "ethos", "path": "../ETHOS.md", "sha256": _digest(ethos)}]
     assert "source_ethos" not in payload
     assert "source_ethos_sha256" not in payload
     _assert_literal_block_scalar(text, "description", "Looks up customer profile, plan, account status")
@@ -2680,7 +2687,7 @@ def test_generated_audit_measures_explicit_items_independently_of_ethos_tools(
     tmp_path: Path, legacy_tools: bool, observed_tool: str
 ) -> None:
     """Runtime tool gates come from audit items, whether Ethos omits Tools or retains a stale inventory."""
-    ethos = tmp_path / "ethos.md"
+    ethos = tmp_path / "ETHOS.md"
     markdown = _filled_ethos_template()
     assert "## Tools\n" not in markdown
     if legacy_tools:
@@ -2712,6 +2719,8 @@ def test_generated_audit_measures_explicit_items_independently_of_ethos_tools(
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -2734,7 +2743,7 @@ def test_generated_audit_measures_explicit_items_independently_of_ethos_tools(
 
 
 def test_audit_generate_rejects_outputs_outside_eval_author(tmp_path: Path) -> None:
-    ethos = tmp_path / "ethos.md"
+    ethos = tmp_path / "ETHOS.md"
     ethos.write_text("# Ethos\n", encoding="utf-8")
     items = tmp_path / "items.yaml"
     _write_audit_items(items, _template_payload()["items"])
@@ -2767,7 +2776,7 @@ def test_audit_generate_explains_missing_ethos_with_bundled_skill_path(tmp_path:
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -2783,7 +2792,7 @@ def test_audit_generate_explains_missing_ethos_with_bundled_skill_path(tmp_path:
 
 @pytest.mark.skipif(os.name == "nt", reason="chmod-based unreadable-file check is POSIX-specific")
 def test_audit_generate_explains_unreadable_ethos_with_bundled_skill_path(tmp_path: Path) -> None:
-    ethos = tmp_path / "ethos.md"
+    ethos = tmp_path / "ETHOS.md"
     ethos.write_text("# Ethos\n", encoding="utf-8")
     items = tmp_path / "items.yaml"
     _write_audit_items(items, _template_payload()["items"])
@@ -2821,7 +2830,7 @@ def test_audit_generate_rejects_missing_candidate_name_before_reconcile(tmp_path
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -2847,7 +2856,7 @@ def test_audit_generate_rejects_duplicate_candidate_names_before_reconcile(tmp_p
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -2873,7 +2882,7 @@ def test_audit_generate_reconciles_existing_audit_by_default(tmp_path: Path) -> 
             + "\nManual footer must stay too.\n"
         ),
     )
-    (tmp_path / "ethos.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
+    (tmp_path / "ETHOS.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
     items_payload = _template_payload()["items"]
     items_payload.append(_ticket_tool_item())
     items = tmp_path / "items.yaml"
@@ -2882,7 +2891,7 @@ def test_audit_generate_reconciles_existing_audit_by_default(tmp_path: Path) -> 
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -2903,7 +2912,7 @@ def test_audit_generate_reconciles_existing_audit_by_default(tmp_path: Path) -> 
     assert summary["conflicting_items"] == ["customer.lookup"]
     assert summary["conflicting_items_applied"] is False
     assert summary["possibly_stale_items"] == []
-    assert payload["sources"][0]["sha256"] == _digest(tmp_path / "ethos.md")
+    assert payload["sources"][0]["sha256"] == _digest(tmp_path / "ETHOS.md")
     assert items_by_name["customer.lookup"]["description"] == "Hand reviewed lookup tool description.\n"
     assert items_by_name["ticket.create"]["kind"] == "tool"
     assert "Manual reviewer notes must stay outside the block." in text
@@ -2922,7 +2931,7 @@ def test_audit_generate_suggests_without_writing(tmp_path: Path) -> None:
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -2945,14 +2954,14 @@ def test_audit_generate_suggests_without_writing(tmp_path: Path) -> None:
 
 def test_audit_generate_partial_update_does_not_report_stale_items(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path)
-    (tmp_path / "ethos.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
+    (tmp_path / "ETHOS.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
     items = tmp_path / "items.yaml"
     _write_audit_items(items, [_ticket_tool_item()])
 
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -2978,14 +2987,14 @@ def test_audit_generate_partial_update_does_not_report_stale_items(tmp_path: Pat
 
 def test_audit_generate_full_items_mode_reports_stale_items(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path)
-    (tmp_path / "ethos.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
+    (tmp_path / "ETHOS.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
     items = tmp_path / "items.yaml"
     _write_audit_items(items, [_ticket_tool_item()])
 
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -3010,14 +3019,14 @@ def test_audit_generate_full_items_mode_reports_stale_items(tmp_path: Path) -> N
 
 def test_audit_generate_demotes_approved_audit_when_reconcile_adds_items(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path, lambda text: text.replace("status: draft\n", "status: approved\n", 1))
-    (tmp_path / "ethos.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
+    (tmp_path / "ETHOS.md").write_text("# Ethos\n\n## Tools\n\n- customer.lookup\n- ticket.create\n", encoding="utf-8")
     items = tmp_path / "items.yaml"
     _write_audit_items(items, [_ticket_tool_item()])
 
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -3036,14 +3045,14 @@ def test_audit_generate_demotes_approved_audit_when_reconcile_adds_items(tmp_pat
 
 def test_audit_generate_preserves_existing_agent_unless_explicit(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path)
-    (tmp_path / "ethos.md").write_text("---\nname: other-agent\n---\n# Ethos\n", encoding="utf-8")
+    (tmp_path / "ETHOS.md").write_text("---\nname: other-agent\n---\n# Ethos\n", encoding="utf-8")
     items = tmp_path / "items.yaml"
     _write_audit_items(items, _template_payload()["items"])
 
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -3077,7 +3086,7 @@ def test_audit_generate_replace_mode_overwrites_existing_audit(tmp_path: Path) -
     result = _run_script(
         _AUDIT_GENERATE,
         "--ethos",
-        str(tmp_path / "ethos.md"),
+        str(tmp_path / "ETHOS.md"),
         "--items",
         str(items),
         "--out",
@@ -3100,6 +3109,55 @@ def test_audit_generate_replace_mode_overwrites_existing_audit(tmp_path: Path) -
     assert items_by_name["customer.lookup"]["description"].startswith("Looks up customer profile")
 
 
+def test_audit_measure_requires_evidence_class_choice_for_trace(tmp_path: Path) -> None:
+    audit = _write_audit(tmp_path)
+    trace = tmp_path / "trajectory.json"
+    trace.write_text("{}", encoding="utf-8")
+    out_dir = tmp_path / ".eval-author" / "audit-measurements"
+
+    code, report, _ = _run_json_script(
+        _AUDIT_MEASURE,
+        "--audit",
+        str(audit),
+        "--trace",
+        str(trace),
+        "--task-id",
+        "account-recovery",
+        "--out-dir",
+        str(out_dir),
+    )
+
+    assert code == 1
+    assert report["error_type"] == "measurement"
+    assert "--trace requires --evidence-class or --skip-evidence-class" in report["error"]
+
+
+def test_audit_measure_rejects_both_evidence_class_flags(tmp_path: Path) -> None:
+    audit = _write_audit(tmp_path)
+    trace = tmp_path / "trajectory.json"
+    trace.write_text("{}", encoding="utf-8")
+    out_dir = tmp_path / ".eval-author" / "audit-measurements"
+
+    code, report, _ = _run_json_script(
+        _AUDIT_MEASURE,
+        "--audit",
+        str(audit),
+        "--trace",
+        str(trace),
+        "--evidence-class",
+        "agent_under_test",
+        "--skip-evidence-class",
+        "--task-id",
+        "account-recovery",
+        "--out-dir",
+        str(out_dir),
+    )
+
+    assert code == 1
+    assert report["error_type"] == "measurement"
+    assert "pass only one of --evidence-class and --skip-evidence-class" in report["error"]
+
+
 @_needs_harbor
 def test_audit_measure_reports_tool_call_coverage_from_atif_trace(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path)
@@ -3113,6 +3171,8 @@ def test_audit_measure_reports_tool_call_coverage_from_atif_trace(tmp_path: Path
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3142,6 +3202,10 @@ def test_audit_measure_reports_tool_call_coverage_from_atif_trace(tmp_path: Path
         }
     ]
     assert coverage == {
+        "binding": {
+            "audit_sha256": hashlib.sha256(json.dumps(_audit_payload(audit), sort_keys=True).encode()).hexdigest(),
+            "trace_sha256": hashlib.sha256(trace.read_bytes()).hexdigest(),
+        },
         "schema": "nemo.eval_author.audit_coverage.v1",
         "audit": {
             "path": str(audit),
@@ -3155,6 +3219,7 @@ def test_audit_measure_reports_tool_call_coverage_from_atif_trace(tmp_path: Path
             "trace_format": "atif",
             "task_id": "account-recovery",
             "run_id": "root-trajectory",
+            "evidence_class": "agent_under_test",
         },
         "method": {"name": "tool_calls"},
         "item_kind": "tool",
@@ -3191,6 +3256,8 @@ def test_audit_measure_reports_missing_tool_calls_as_not_covered(tmp_path: Path)
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--out-dir",
@@ -3244,6 +3311,8 @@ def test_audit_measure_omits_whitespace_only_optional_trace_identifiers(tmp_path
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--out-dir",
@@ -3278,6 +3347,8 @@ def test_audit_measure_reports_capability_coverage_from_tool_call_evidence(tmp_p
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3355,6 +3426,8 @@ def test_audit_measure_reports_capability_missing_required_tool(tmp_path: Path) 
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3400,6 +3473,8 @@ def test_audit_measure_dedupes_capability_required_tools(tmp_path: Path) -> None
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3431,6 +3506,8 @@ def test_audit_measure_reports_capability_unjudged_evidence_without_covering(tmp
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3479,6 +3556,8 @@ def test_audit_measure_uses_capability_judgments_for_non_tool_evidence(tmp_path:
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3537,6 +3616,8 @@ def test_audit_measure_capability_judgment_does_not_override_missing_tool_eviden
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3579,6 +3660,8 @@ def test_audit_measure_rejects_stale_capability_judgments_without_writing(tmp_pa
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3614,6 +3697,8 @@ def test_audit_measure_rejects_capability_judgments_from_another_trace(tmp_path:
         str(audit),
         "--trace",
         str(measured_trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3645,6 +3730,8 @@ def test_audit_measure_reports_failure_case_unjudged_evidence_without_covering(t
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery-unverified-identity",
         "--measure",
@@ -3692,6 +3779,8 @@ def test_audit_measure_uses_failure_case_judgments_for_non_tool_evidence(tmp_pat
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery-unverified-identity",
         "--measure",
@@ -3756,6 +3845,8 @@ def test_audit_measure_failure_case_judgment_does_not_override_missing_tool_evid
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery-unverified-identity",
         "--measure",
@@ -3800,6 +3891,8 @@ def test_audit_measure_prohibited_tool_overrides_failure_case_judgments(tmp_path
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery-unverified-identity",
         "--measure",
@@ -3843,6 +3936,8 @@ def test_audit_measure_rejects_stale_failure_case_judgments_without_writing(tmp_
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery-unverified-identity",
         "--measure",
@@ -3878,6 +3973,8 @@ def test_audit_measure_rejects_failure_case_judgments_from_another_trace(tmp_pat
         str(audit),
         "--trace",
         str(measured_trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery-unverified-identity",
         "--measure",
@@ -3909,6 +4006,8 @@ def test_audit_measure_batches_all_methods(tmp_path: Path) -> None:
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -3968,6 +4067,41 @@ def test_audit_measure_reads_harbor_trial_metadata(tmp_path: Path) -> None:
 
 
 @_needs_harbor
+def test_audit_measure_stamps_oracle_evidence_class_from_harbor_trial(tmp_path: Path) -> None:
+    audit = _write_audit(tmp_path)
+    trial_dir = tmp_path / "job" / "oracle-trial"
+    _write_atif_trace(trial_dir / "agent" / "trajectory.json", tool_calls=["customer.lookup"])
+    (trial_dir / "result.json").write_text(
+        json.dumps(
+            {
+                "task_name": "account-recovery",
+                "trial_name": "oracle-trial",
+                "config": {"agent": {"import_path": "harbor.agents.oracle:OracleAgent"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / ".eval-author" / "audit-measurements"
+
+    code, summary, stderr = _run_json_script(
+        _AUDIT_MEASURE,
+        "--audit",
+        str(audit),
+        "--trial-dir",
+        str(trial_dir),
+        "--out-dir",
+        str(out_dir),
+    )
+
+    assert code == 0, stderr or summary
+    assert summary["evidence_class"] == "reference_solution"
+    coverage = json.loads(
+        (_measurement_dir(out_dir, "account-recovery", "oracle-trial") / "coverage.json").read_text(encoding="utf-8")
+    )
+    assert coverage["subject"]["evidence_class"] == "reference_solution"
+
+
+@_needs_harbor
 def test_audit_measure_encodes_task_and_run_path_components(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path)
     trace = tmp_path / "trajectory.json"
@@ -3980,6 +4114,8 @@ def test_audit_measure_encodes_task_and_run_path_components(tmp_path: Path) -> N
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "smoke/generated",
         "--run-id",
@@ -4014,6 +4150,8 @@ def test_audit_measure_keeps_distinct_runs_separate(tmp_path: Path) -> None:
             str(audit),
             "--trace",
             str(trace),
+            "--evidence-class",
+            "agent_under_test",
             "--task-id",
             "account-recovery",
             "--run-id",
@@ -4048,6 +4186,8 @@ def test_audit_measure_derives_run_id_from_trace_digest_when_trace_has_no_identi
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--out-dir",
@@ -4076,6 +4216,8 @@ def test_audit_measure_rejects_non_atif_trace_without_writing(tmp_path: Path) ->
         str(audit),
         "--trace",
         str(trace),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--out-dir",
@@ -4101,6 +4243,8 @@ def test_audit_measure_rejects_unknown_measurement_method_before_trace_load(tmp_
         str(audit),
         "--trace",
         str(tmp_path / "missing.json"),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--measure",
@@ -4128,6 +4272,8 @@ def test_audit_measure_rejects_capability_judgments_without_capability_method(tm
         str(tmp_path / "missing-audit.md"),
         "--trace",
         str(tmp_path / "missing-trace.json"),
+        "--evidence-class",
+        "agent_under_test",
         "--measure",
         "tool_calls",
         "--capability-judgments",
@@ -4155,6 +4301,8 @@ def test_audit_measure_rejects_failure_case_judgments_without_failure_case_metho
         str(tmp_path / "missing-audit.md"),
         "--trace",
         str(tmp_path / "missing-trace.json"),
+        "--evidence-class",
+        "agent_under_test",
         "--measure",
         "tool_calls",
         "--failure-case-judgments",
@@ -4187,6 +4335,8 @@ def test_audit_measure_rejects_tool_call_capability_judgments_before_trace_load(
         str(tmp_path / "missing-audit.md"),
         "--trace",
         str(tmp_path / "missing-trace.json"),
+        "--evidence-class",
+        "agent_under_test",
         "--measure",
         "capabilities",
         "--capability-judgments",
@@ -4214,6 +4364,8 @@ def test_audit_measure_rejects_empty_measure_selection_before_trace_load(tmp_pat
         str(tmp_path / "missing-audit.md"),
         "--trace",
         str(tmp_path / "missing-trace.json"),
+        "--evidence-class",
+        "agent_under_test",
         "--measure",
         measure_value,
         "--out-dir",
@@ -4267,6 +4419,8 @@ def test_audit_measure_reports_write_failures_as_environment_json(
             str(tmp_path / "audit.md"),
             "--trace",
             str(tmp_path / "trajectory.json"),
+            "--evidence-class",
+            "agent_under_test",
             "--task-id",
             "account-recovery",
             "--run-id",
@@ -4314,6 +4468,8 @@ def test_audit_measure_reports_unknown_method_item_kind_as_measurement_json(
             str(tmp_path / "audit.md"),
             "--trace",
             str(tmp_path / "trajectory.json"),
+            "--evidence-class",
+            "agent_under_test",
             "--task-id",
             "account-recovery",
             "--run-id",
@@ -4347,6 +4503,8 @@ def test_audit_measure_marks_missing_harbor_as_environment_error(tmp_path: Path)
         str(audit),
         "--trace",
         str(tmp_path / "missing-trace.json"),
+        "--evidence-class",
+        "agent_under_test",
         "--task-id",
         "account-recovery",
         "--out-dir",
@@ -4386,14 +4544,23 @@ def test_audit_report_aggregates_coverage_and_formats_generation_gaps(tmp_path: 
     assert code == 0, stderr or summary
     assert summary["written"] is True
     assert summary["coverage_input_count"] == 1
-    assert summary["warning_count"] == 0
-    assert summary["warnings"] == []
+    assert summary["warning_count"] == 1
+    assert summary["warnings"] == [
+        {
+            "kind": "missing_evidence_class",
+            "coverage": str(coverage_path),
+            "message": (
+                "subject.evidence_class is missing; this input is included in legacy union totals only. "
+                "Re-measure with a current measure.py (or pass --evidence-class) to enable per-runner summaries."
+            ),
+        }
+    ]
     assert summary["measured_kinds"] == ["tool"]
     assert summary["covered_count"] == 1
     assert summary["uncovered_count"] == 2
     assert summary["uncovered"] == ["account_recovery", "account_recovery_unverified_identity"]
     assert report["measured_kinds"] == ["tool"]
-    assert report["warnings"] == []
+    assert report["warnings"][0]["kind"] == "missing_evidence_class"
     assert report["audit"]["item_counts"] == {"capability": 1, "failure_case": 1, "tool": 1}
     assert report["coverage"]["overall"] == {"item_count": 3, "covered_count": 1, "uncovered_count": 2}
     assert report["coverage"]["by_kind"] == {
@@ -4428,6 +4595,70 @@ def test_audit_report_aggregates_coverage_and_formats_generation_gaps(tmp_path: 
     assert (
         "identity is not verified" in gaps_by_name["account_recovery_unverified_identity"]["audit_item"]["description"]
     )
+
+
+def test_audit_report_splits_coverage_by_evidence_class_when_labeled(tmp_path: Path) -> None:
+    audit = _write_audit(tmp_path)
+    coverage_dir = tmp_path / ".eval-author" / "audit-measurements"
+    agent_path = _measurement_dir(coverage_dir, "account-recovery", "agent-1") / "coverage.json"
+    reference_path = _measurement_dir(coverage_dir, "account-recovery", "oracle-1") / "coverage.json"
+    _write_coverage(agent_path, audit=audit, covered=[], run_id="agent-1", evidence_class="agent_under_test")
+    _write_coverage(
+        reference_path,
+        audit=audit,
+        covered=["customer.lookup"],
+        run_id="oracle-1",
+        evidence_class="reference_solution",
+    )
+    out = tmp_path / ".eval-author" / "audit-coverage-report.json"
+
+    code, summary, stderr = _run_json_script(
+        _AUDIT_REPORT,
+        "--audit",
+        str(audit),
+        "--coverage",
+        str(agent_path),
+        "--coverage",
+        str(reference_path),
+        "--out",
+        str(out),
+    )
+
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert code == 0, stderr or summary
+    assert report["covered"] == []
+    assert len(report["input_reports"]) == 1
+    assert report["input_reports"][0]["path"].endswith("agent-1/tool_calls/coverage.json")
+    assert report["input_reports"][0]["subject"]["evidence_class"] == "agent_under_test"
+    by_class = report["coverage_by_evidence_class"]
+    assert by_class["reference_solution"]["coverage"]["overall"]["covered_count"] == 1
+    assert by_class["agent_under_test"]["coverage"]["overall"]["covered_count"] == 0
+    assert by_class["agent_under_test"]["input_count"] == 1
+    assert "customer.lookup" in by_class["agent_under_test"]["uncovered"]
+    assert "missing_evidence_class" not in {warning["kind"] for warning in report["warnings"]}
+
+
+def test_audit_report_warns_on_missing_evidence_class_without_runner_summary(tmp_path: Path) -> None:
+    audit = _write_audit(tmp_path)
+    coverage_dir = tmp_path / ".eval-author" / "audit-measurements"
+    coverage_path = _measurement_dir(coverage_dir, "account-recovery", "trial-001") / "coverage.json"
+    _write_coverage(coverage_path, audit=audit, covered=["customer.lookup"])
+    out = tmp_path / ".eval-author" / "audit-coverage-report.json"
+
+    code, summary, stderr = _run_json_script(
+        _AUDIT_REPORT,
+        "--audit",
+        str(audit),
+        "--coverage",
+        str(coverage_path),
+        "--out",
+        str(out),
+    )
+
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert code == 0, stderr or summary
+    assert "coverage_by_evidence_class" not in report
+    assert any(warning["kind"] == "missing_evidence_class" for warning in report["warnings"])
 
 
 def test_audit_report_aggregates_capability_coverage(tmp_path: Path) -> None:
@@ -4665,9 +4896,10 @@ def test_audit_report_warns_on_mismatched_audit_status(tmp_path: Path) -> None:
     assert code == 0
     assert report["valid"] is True
     assert report["written"] is True
-    assert report["warning_count"] == 1
-    assert report["warnings"] == [expected_warning]
-    assert aggregate["warnings"] == [expected_warning]
+    assert report["warning_count"] == 2
+    assert expected_warning in report["warnings"]
+    assert any(warning["kind"] == "missing_evidence_class" for warning in report["warnings"])
+    assert expected_warning in aggregate["warnings"]
 
 
 def test_audit_report_rejects_unknown_covered_item_without_writing(tmp_path: Path) -> None:
@@ -4981,8 +5213,8 @@ def test_discover_ignores_a_yaml_file_that_declares_no_harbor_work(suite: Path) 
 
 @pytest.mark.parametrize(
     ("names", "expected"),
-    [(("ethos.md",), "ethos.md"), (("ETHOS.md",), "ETHOS.md"), ((), None)],
-    ids=["current", "eval-author-0.1.0", "absent"],
+    [(("ETHOS.md",), "ETHOS.md"), (("ethos.md",), "ethos.md"), ((), None)],
+    ids=["canonical", "lowercase", "absent"],
 )
 def test_discover_records_the_root_ethos_file_by_its_actual_name(
     suite: Path, names: tuple[str, ...], expected: str | None
@@ -4994,10 +5226,28 @@ def test_discover_records_the_root_ethos_file_by_its_actual_name(
     assert _named(report, "ethos")["status"] == ("pass" if expected else "warn")
 
 
+def test_discover_prefers_uppercase_ethos_when_both_names_exist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.syspath_prepend(str(_DISCOVER_DIR / "scripts"))
+    explore = importlib.import_module("providers.harbor._explore")
+
+    # Model a case-sensitive directory even when the test host is case-insensitive.
+    class Entry:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def is_file(self) -> bool:
+            return True
+
+    monkeypatch.setattr(Path, "iterdir", lambda self: iter([Entry("ethos.md"), Entry("ETHOS.md")]))
+    assert explore._ethos_file(tmp_path) == tmp_path / "ETHOS.md"
+
+
 @_needs_unreadable_files
 def test_discover_reports_an_unreadable_ethos(suite: Path) -> None:
-    """ethos.md is advisory, so failing to read it must not cost the whole report."""
-    ethos = suite / "ethos.md"
+    """ETHOS.md is advisory, so failing to read it must not cost the whole report."""
+    ethos = suite / "ETHOS.md"
     ethos.write_text("# doctrine\n", encoding="utf-8")
     ethos.chmod(0o000)
     try:

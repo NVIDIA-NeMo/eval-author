@@ -2,13 +2,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Validate an ethos.md file against schema version 1.
+"""Validate an ETHOS.md file against schema version 1.
 
 Checks front matter, schema version, required fields, and the thirteen required
 ``##`` sections, and rejects duplicate sections. Extra sections and extra
 front-matter keys are allowed. Standard library only.
 
-Usage: python validate_ethos.py path/to/ethos.md
+Usage: python validate_ethos.py path/to/ETHOS.md
 Exit status 0 means valid; warnings print to stdout. Errors print to stderr.
 """
 

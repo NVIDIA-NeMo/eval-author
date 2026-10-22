@@ -7,7 +7,7 @@ Standard library only, and safe to import when Harbor is absent, so an inventory
 survives to orient in a repository that Judge cannot run on.
 
 Everything is read from the local checkout: no client, no workspace, no trace
-probe, and the agent doctrine comes from a local ``ethos.md``.
+probe, and the agent doctrine comes from a local ``ETHOS.md``.
 
 Everything here observes rather than proves. Finding a config file says nothing
 about whether Harbor accepts it, which is why Judge, in ``_judge.py``, runs next
@@ -260,9 +260,9 @@ def scan_repository(
             _check(
                 "ethos",
                 WARN,
-                "ethos.md does not exist at the repository root.",
+                "ETHOS.md does not exist at the repository root.",
                 severity=ADVISORY,
-                hint="Add ethos.md to define the agent doctrine.",
+                hint="Add ETHOS.md to define the agent doctrine.",
             )
         )
 
@@ -473,8 +473,8 @@ def _fingerprint(
     return digest.hexdigest(), counted + (ethos is not None)
 
 
-# Eval Author 0.1.0 wrote ``ETHOS.md``; prefer the current name when both exist.
-_ETHOS_NAMES = ("ethos.md", "ETHOS.md")
+# Prefer the canonical name while continuing to accept lowercase files.
+_ETHOS_NAMES = ("ETHOS.md", "ethos.md")
 
 
 def _ethos_file(repo_root: Path) -> Path | None:

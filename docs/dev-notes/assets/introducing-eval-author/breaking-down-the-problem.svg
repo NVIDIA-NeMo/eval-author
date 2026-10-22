@@ -1,0 +1,87 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Adapted from the October 6, 2026 Eval Author presentation, slide 4.
+     Keep labels as editable text. Coordinates and styles are self-contained. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 780" role="img" aria-labelledby="title desc">
+  <title id="title">Breaking down eval authoring: measurement and generation</title>
+  <desc id="desc">A working approach with two connected sides. Measurement takes specifications, traces, bugs, and domain expertise, defines coverage goals, and measures existing evaluations to identify gaps. Generation uses those gaps to define task inputs, build environments, and create verifiers. Candidates are reviewed and run. Accepted tasks return to measurement to check whether coverage improved. Each stage can use different techniques.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#53616b"/>
+    </marker>
+    <marker id="green-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#527d00"/>
+    </marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #20292e; }
+      .heading { font-size: 28px; font-weight: 700; }
+      .label { font-size: 21px; font-weight: 700; }
+      .detail { font-size: 18px; fill: #4c5961; }
+      .eyebrow { font-size: 15px; font-weight: 700; letter-spacing: 1.5px; }
+      .node { fill: #fff; stroke: #ccd5d9; stroke-width: 1.5; }
+      .flow { fill: none; stroke: #53616b; stroke-width: 2; marker-end: url(#arrow); }
+      .feedback { fill: none; stroke: #527d00; stroke-width: 2.5; marker-end: url(#green-arrow); }
+    </style>
+  </defs>
+  <rect width="1100" height="780" rx="16" fill="#fff"/>
+  <text x="40" y="40" class="eyebrow" fill="#527d00">A WORKING APPROACH</text>
+
+  <!-- Two research areas; each node can support alternative techniques. -->
+  <rect x="30" y="65" width="465" height="605" rx="14" fill="#f1f7f9"/>
+  <rect x="605" y="65" width="465" height="605" rx="14" fill="#f5f8ed"/>
+  <text x="60" y="111" class="heading">Measurement</text>
+  <text x="60" y="140" class="detail">What should our evals cover?</text>
+  <text x="635" y="111" class="heading">Generation</text>
+  <text x="635" y="140" class="detail">How do we fill the gaps?</text>
+
+  <g id="information-sources">
+    <rect x="60" y="170" width="405" height="96" rx="8" class="node"/>
+    <text x="80" y="200" class="label">Information about the agent</text>
+    <text x="80" y="227" class="detail">Specifications · Traces · Bug reports</text>
+    <text x="80" y="251" class="detail">Domain expertise · Other sources</text>
+  </g>
+  <path d="M262 266 V295" class="flow"/>
+  <g id="define-coverage">
+    <rect x="60" y="298" width="405" height="83" rx="8" class="node"/>
+    <text x="80" y="332" class="label">Define coverage goals</text>
+    <text x="80" y="359" class="detail">Which behaviors matter?</text>
+  </g>
+  <path d="M262 381 V422" class="flow"/>
+  <g id="measure-coverage">
+    <rect x="60" y="425" width="405" height="110" rx="8" class="node"/>
+    <text x="80" y="461" class="label">Measure existing evals</text>
+    <text x="80" y="490" class="detail">Use execution evidence to see</text>
+    <text x="80" y="515" class="detail">which goals are exercised.</text>
+  </g>
+  <path d="M262 535 V565" class="flow"/>
+  <rect x="60" y="568" width="405" height="62" rx="8" fill="#deedf2"/>
+  <text x="262" y="606" text-anchor="middle" class="label">Identify coverage gaps</text>
+
+  <!-- Gaps cross the boundary and become generation targets. -->
+  <path d="M465 599 H550 V206 H632" class="flow"/>
+  <rect x="635" y="175" width="405" height="62" rx="8" fill="#e6efcc"/>
+  <text x="837" y="213" text-anchor="middle" class="label">Target the gaps</text>
+  <path d="M837 237 V267" class="flow"/>
+  <g id="generation-subproblems">
+    <rect x="635" y="270" width="405" height="231" rx="8" class="node"/>
+    <text x="660" y="305" class="label">Create candidate tasks</text>
+    <rect x="655" y="326" width="365" height="43" rx="5" fill="#f1f5e6"/>
+    <text x="675" y="354" class="detail">Define task inputs</text>
+    <rect x="655" y="380" width="365" height="43" rx="5" fill="#f1f5e6"/>
+    <text x="675" y="408" class="detail">Build environments</text>
+    <rect x="655" y="434" width="365" height="43" rx="5" fill="#f1f5e6"/>
+    <text x="675" y="462" class="detail">Create verifiers</text>
+  </g>
+  <path d="M837 501 V550" class="flow"/>
+  <g id="accept-tasks">
+    <rect x="635" y="553" width="405" height="77" rx="8" class="node"/>
+    <text x="660" y="585" class="label">Review and run</text>
+    <text x="660" y="613" class="detail">Decide which tasks to accept.</text>
+  </g>
+
+  <!-- Acceptance does not imply gap closure; measure the outcome again. -->
+  <path d="M837 630 V708 H45 Q15 708 15 678 V493 Q15 480 30 480 H57" class="feedback"/>
+  <rect x="274" y="688" width="512" height="37" fill="#fff"/>
+  <text x="530" y="713" text-anchor="middle" class="detail" style="fill:#527d00;font-weight:700">Accepted tasks → remeasure what improved</text>
+  <text x="550" y="758" text-anchor="middle" class="detail">Develop and compare techniques for each part; evaluate them together.</text>
+</svg>

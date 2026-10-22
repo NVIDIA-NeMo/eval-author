@@ -90,7 +90,7 @@ After the user accepts the opening, introduce Ethos before validation or authori
 including when an existing document can be reused. Explain what it is and why the
 audit needs it, with a link to the
 [ethos-explore skill](../../../team-skills/ethos/ethos-explore/SKILL.md).
-For example: “`ethos.md` describes what your agent should do, what it should
+For example: “`ETHOS.md` describes what your agent should do, what it should
 avoid, and what a good result looks like. For this audit, we'll turn that intent
 into the behaviors, tools, and failure cases your evaluations should cover,
 then compare them with the existing tests and any selected run records.” Tie

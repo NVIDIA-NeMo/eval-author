@@ -290,6 +290,10 @@ def test_workflow_main_only_credentials_and_no_calibration():
     assert "secrets." not in json.dumps(workflow["jobs"]["plan"])
     upload = live["steps"][-1]
     assert upload["if"] == "always()" and "semantic-publish" in upload["with"]["path"]
+    assert upload["with"]["if-no-files-found"] == "error"
+    stage = next(step for step in live["steps"] if step.get("name") == "Stage aggregate report even after failure")
+    assert stage["if"] == "always()"
+    assert "semantic-fallback" in stage["run"] and "semantic-live" in stage["run"]
 
 
 def test_private_bundle_parts_round_trip_and_reject_gaps(monkeypatch):
@@ -415,6 +419,14 @@ def test_real_ratchet_calibrate_review_compare_and_damage(tmp_path):
     assert failed["observations"][0]["status"] == "regression"
     assert failed["observations"][0]["metrics"]["retention"] == 0
     assert failed["observations"][0]["metrics"]["presence_passed"] is False
+    from check_semantic_batches import check
+
+    summaries = [tmp_path / name / "semantic-regression-summary.json" for name in ("healthy", "damaged")]
+    if passed["inputs_clean"]:
+        assert check(path, summaries)["status"] == "regression"
+    else:
+        with pytest.raises(ValueError, match="clean source"):
+            check(path, summaries)
 
     omitted = semantic.run(path, runtime, tmp_path / "omitted", "check", ScriptedModel(omit_native=True))
     assert omitted["observations"][0]["status"] == "regression"

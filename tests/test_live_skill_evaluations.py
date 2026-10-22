@@ -3,6 +3,7 @@
 
 """Check credential isolation, incomplete evidence, and paired live metrics without APIs."""
 
+import copy
 import importlib
 import json
 import subprocess
@@ -102,6 +103,196 @@ def test_tier2_distinguishes_duplicate_findings_from_missing_provider_evidence(l
     row["findings"] = []
     row["summary"]["high_count"] = 0
     assert live.summarize_tier2(report, 1, "Context Deduplication")["status"] == "incomplete"
+
+
+@pytest.fixture
+def license_report(live, tmp_path):
+    from license_duplication_policy import HEADER
+
+    skill = tmp_path / "skill"
+    skill.mkdir()
+    header = "\n".join(HEADER) + "\n\n"
+    (skill / "SKILL.md").write_text("---\nname: example\n---\n" + header + "# Instructions\n")
+    (skill / "reference.md").write_text(header + "# Reference\n")
+    report = tier2()
+    row = report["results"][0]
+    row.update(
+        passed=False,
+        status="failed",
+        findings=[
+            {
+                "severity": "high",
+                "check_name": "duplicate",
+                "file_path": "SKILL.md",
+                "line_number": 4,
+                "message": "Duplicate content found across SKILL.md and reference.md:\n"
+                '  "(preamble)" in SKILL.md (lines 4-6)\n'
+                '  vs "(preamble)" in reference.md (lines 1-3)',
+            }
+        ],
+    )
+    row["summary"].update(high_count=1, errors=1)
+    return skill, report
+
+
+def test_license_only_duplicate_passes_without_changing_raw_report(live, license_report):
+    skill, report = license_report
+    original = copy.deepcopy(report)
+    result = live.summarize_tier2(report, 1, "Context Deduplication", skill)
+    assert result["status"] == "passed"
+    assert result["severity_counts"] == dict(critical=0, high=0, medium=0, low=0)
+    assert result["raw_severity_counts"]["high"] == 1
+    assert result["excluded_license_findings"] == 1
+    assert "1 expected license-header" in result["reason"]
+    assert report == original
+
+
+@pytest.mark.parametrize("severity", ["high", "critical"])
+def test_license_exception_preserves_substantive_failures(live, license_report, severity):
+    skill, report = license_report
+    row = report["results"][0]
+    row["findings"].append({"severity": severity, "check_name": "duplicate", "message": "Real duplication"})
+    row["summary"][severity + "_count"] += 1
+    row["summary"]["errors"] += 1
+    original = copy.deepcopy(report)
+    result = live.summarize_tier2(report, 1, "Context Deduplication", skill)
+    assert result["status"] == "failed"
+    assert result["severity_counts"][severity] == 1
+    assert result["excluded_license_findings"] == 1
+    assert report == original
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "substantive_span",
+        "changed_license",
+        "missing_file",
+        "symlink",
+        "traversal",
+        "alias",
+        "wrong_span",
+        "out_of_bounds",
+        "wrong_location",
+        "unknown_message",
+        "trailing_text",
+        "non_preamble",
+        "header_after_content",
+    ],
+)
+def test_license_exception_fails_closed_on_unverified_evidence(live, license_report, mutation):
+    skill, report = license_report
+    finding = report["results"][0]["findings"][0]
+    path = skill / "reference.md"
+    if mutation == "substantive_span":
+        path.write_text(path.read_text().replace("\n\n", "\nDo the task.\n"))
+    elif mutation == "changed_license":
+        path.write_text(path.read_text().replace("Apache-2.0", "MIT"))
+    elif mutation == "missing_file":
+        path.unlink()
+    elif mutation == "symlink":
+        external = skill.parent / "external.md"
+        path.rename(external)
+        path.symlink_to(external)
+    elif mutation in ("traversal", "alias"):
+        name = "../skill/reference.md" if mutation == "traversal" else "./reference.md"
+        finding["message"] = finding["message"].replace("reference.md", name)
+    elif mutation in ("wrong_span", "out_of_bounds"):
+        finding["message"] = finding["message"].replace("1-3", "2-3" if mutation == "wrong_span" else "1-99")
+    elif mutation == "wrong_location":
+        finding["line_number"] = 5
+    elif mutation == "unknown_message":
+        finding["message"] = "Duplicate license preambles"
+    elif mutation == "trailing_text":
+        finding["message"] += "\nAdditional duplicated instructions"
+    elif mutation == "non_preamble":
+        finding["message"] = finding["message"].replace("(preamble)", "Instructions")
+    elif mutation == "header_after_content":
+        path.write_text("# Instructions\n" + path.read_text())
+        finding["message"] = finding["message"].replace("1-3", "2-4")
+    result = live.summarize_tier2(report, 1, "Context Deduplication", skill)
+    assert result["status"] == "failed"
+    assert result["severity_counts"]["high"] == 1
+    assert "excluded_license_findings" not in result
+
+
+@pytest.mark.parametrize("mutation", ["incomplete", "error", "counts", "exit", "negative", "unknown_check"])
+def test_license_exception_never_promotes_incomplete_or_malformed_reports(live, license_report, mutation):
+    skill, report = license_report
+    row = report["results"][0]
+    code = 1
+    if mutation == "incomplete":
+        row["incomplete_scans"] = ["provider unavailable"]
+    elif mutation == "error":
+        row["summary"]["errors"] = 2
+    elif mutation == "counts":
+        row["summary"].update(high_count=2, errors=2)
+    elif mutation == "exit":
+        code = 0
+    elif mutation == "negative":
+        row["summary"]["high_count"] = -1
+    elif mutation == "unknown_check":
+        row["findings"][0]["check_name"] = "llm_error"
+    if mutation in ("exit", "negative"):
+        with pytest.raises(ValueError):
+            live.summarize_tier2(report, code, "Context Deduplication", skill)
+    else:
+        result = live.summarize_tier2(report, code, "Context Deduplication", skill)
+        assert result["status"] == ("failed" if mutation == "counts" else "incomplete")
+        assert "excluded_license_findings" not in result
+
+
+def test_license_exception_requires_context_check_and_source(live, license_report):
+    skill, report = license_report
+    assert live.summarize_tier2(report, 1, "Context Deduplication")["status"] == "failed"
+    report["results"][0]["validator"] = "Similarity Check"
+    assert live.summarize_tier2(report, 1, "Similarity Check", skill)["status"] == "failed"
+
+
+@pytest.mark.parametrize("source_changes", [False, True])
+def test_collector_retains_excluded_findings_and_invalidates_changed_source(
+    live, repo, tmp_path, monkeypatch, license_report, source_changes
+):
+    skill, raw = license_report
+    for path in skill.iterdir():
+        (repo / "skills/eval-author" / path.name).write_text(path.read_text())
+    subprocess.run(["git", "add", "skills"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "headers"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    monkeypatch.setenv("INFERENCE_HUB_API_KEY", "test-credential")
+
+    def execute(argv, cwd, env, log, timeout):
+        data = raw if argv[1] == "context-optimization-check" else tier2("Similarity Check")
+        path = Path(argv[-1]) / "result.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(data))
+        if source_changes and data is raw:
+            source = repo / "skills/eval-author/reference.md"
+            source.write_text(source.read_text() + "\nChanged during evaluation.\n")
+        return (1 if data is raw else 0), None
+
+    monkeypatch.setattr(live, "execute", execute)
+    output = tmp_path / "collected"
+    report = live.collect(repo, output, run=True, tier="2", skill_name="eval-author")
+    row = next(row for row in report["observations"] if row["skill"] == "eval-author" and row["tier"] == 2)
+    if source_changes:
+        assert row["status"] == "incomplete"
+        assert row["reason"] == "skill_changed_during_run"
+        for key in ("severity_counts", "raw_severity_counts", "excluded_license_findings", "diagnostics"):
+            assert key not in row
+    else:
+        assert row["status"] == "passed"
+        assert row["excluded_license_findings"] == 1
+        assert "Duplicate content found" in row["diagnostics"]
+        assert "PRIVATE-SENTINEL" not in row["diagnostics"]
+        markdown = (output / "live-skillevaluator-summary.md").read_text()
+        assert "expected license-header" in markdown and "Duplicate content found" in markdown
+        native = output / f"check-{report['observations'].index(row)}/reports/result.json"
+        assert json.loads(native.read_text()) == raw
 
 
 def test_negative_lift_is_a_completed_experiment_not_an_execution_failure(live):
@@ -330,31 +521,30 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
         assert workflow[True][event] == ci[True][event]
     assert workflow[True]["workflow_dispatch"]["inputs"]["run_live"]["default"] is False
     assert workflow[True]["workflow_dispatch"]["inputs"]["tier"]["default"] == "both"
-    assert workflow["concurrency"]["cancel-in-progress"] is True
+    assert workflow["concurrency"]["cancel-in-progress"] is False
     assert workflow["concurrency"]["group"] == (
         "${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"
     )
-    for job in workflow["jobs"].values():
-        assert job["continue-on-error"] is True
     plan = workflow["jobs"]["plan"]
     assert "github.event.pull_request.head.repo.full_name == github.repository" in plan["if"]
     assert "environment" not in plan and "secrets." not in json.dumps(plan)
-    job = workflow["jobs"]["live"]
+    authorization = workflow["jobs"]["authorize"]
+    job = workflow["jobs"]["evaluate"]
     assert all(
-        guard in job["if"]
+        guard in authorization["if"]
         for guard in ("refs/heads/main", "SKILL_EVALUATION_LIVE_ENABLED", "inputs.run_live", "workflow_dispatch")
     )
     assert job["environment"] == "skill-evaluator" and job["continue-on-error"]
-    assert "pull_request" not in job["if"]
-    assert "github.ref == 'refs/heads/main' &&" in job["if"]
+    assert "pull_request" not in authorization["if"]
+    assert "github.ref == 'refs/heads/main' &&" in authorization["if"]
     assert not ci["jobs"]["test"].get("needs")
-    upload = job["steps"][-1]
+    upload = workflow["jobs"]["aggregate"]["steps"][-1]
     assert upload["if"] == "always()" and upload["with"]["path"].endswith("live-skillevaluator-summary.*")
     assert workflow["permissions"] == {"contents": "read"}
     assert "provider" not in workflow[True]["workflow_dispatch"]["inputs"]
-    evaluation = next(step for step in job["steps"] if step.get("name") == "Run advisory evaluations")
+    evaluation = next(step for step in job["steps"] if step.get("name") == "Run exactly one assigned check")
     # Installation/checksum failures must prevent secret-bearing execution.
-    assert "if" not in evaluation  # GitHub's default success() gate.
+    assert evaluation["if"] == "matrix.id != 'none'"  # Implicit success() gate remains.
     assert evaluation["env"]["INFERENCE_HUB_API_KEY"] == "${{ secrets.INFERENCE_HUB_API_KEY }}"
     assert workflow["env"]["EVALUATION_TIER"] == (
         "${{ github.event_name == 'pull_request' && '2' || inputs.tier || 'both' }}"
@@ -366,8 +556,8 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
         for step in configured_job["steps"]:
             assert "EVALUATION_TIER" not in step.get("env", {})
     compose = next(step for step in job["steps"] if step.get("name") == "Install verified Docker Compose runtime")
-    assert compose["if"] == "env.EVALUATION_TIER != '2'"
-    assert evaluation["env"]["EVALUATION_SKILL"] == "${{ inputs.skill || 'all' }}"
+    assert compose["if"] == "matrix.check == 'live' && matrix.id != 'none'"
+    assert workflow["env"]["EVALUATION_SKILL"] == "${{ inputs.skill || 'all' }}"
     assert not {"OPENAI_API_KEY", "NVIDIA_API_KEY", "HUB_METADATA_API_KEY"}.intersection(evaluation["env"])
 
 

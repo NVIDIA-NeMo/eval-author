@@ -45,10 +45,10 @@ The experimental trace-environment skill documents its
 For standalone Gym trace conversion, see
 [`gym-to-atif`](skills/gym-to-atif/SKILL.md).
 
-## ethos.md authoring
+## ETHOS.md authoring
 
-The [`ethos-orchestrate`, `ethos-explore`, and `ethos-write` skills](team-skills/ethos/README.md) create
-and maintain an agent's `ethos.md` (schema version 1). `ethos-orchestrate` routes requests
+The [`ethos-orchestrate`, `ethos-explore`, and `ethos-write` skills](team-skills/ethos/ethos-orchestrate/README.md) create
+and maintain an agent's `ETHOS.md` (schema version 1). `ethos-orchestrate` routes requests
 to the other two. They live under `team-skills/ethos/` and install separately from
 the Eval Author skills, which link to them from
 [Local Ethos](skills/eval-author/references/local-ethos.md). The ethos-write
@@ -69,12 +69,17 @@ required, so core-skill pull requests can merge without one.
 
 ## Public NeMo Compass dependency
 
-The development dependencies include `trace-ingest[mlflow]` pinned to an exact
-commit in the public [NVIDIA-NeMo/labs-nemo-compass](https://github.com/NVIDIA-NeMo/labs-nemo-compass)
-repository. Local development and GitHub Actions fetch it over HTTPS with
-`uv sync --locked`; no GitHub login, token, deploy key, or separate checkout is
-required. Keep the Git revision in `pyproject.toml` and `uv.lock` synchronized
-when deliberately updating the dependency.
+The optional loaders and development environment use `nemo-compass[mlflow]==0.1.0`
+from PyPI. Compass includes the `trace_ingest` models and loaders; no separate
+trace-ingest package or Git checkout is needed. `uv sync --locked` installs the
+pinned release and its dependencies.
+
+Loader receipts record the distribution and version with a null Git revision.
+The loaders accept the pinned release from PyPI or a release wheel and reject
+Git or editable source installs. Keep their version checks and installation
+guides synchronized with dependency updates. Use a fresh environment when
+migrating from `trace-ingest` or `insight-agent`, since those distributions
+share Python import paths with Compass.
 
 For a stacked PR whose base is not `main`, run the same test matrix manually
 with `gh workflow run ci.yml --repo NVIDIA-NeMo/eval-author --ref BRANCH`.
@@ -86,7 +91,7 @@ instructions. The individual skill files document each workflow in detail.
 
 | Skill | Purpose |
 | --- | --- |
-| [`ethos-orchestrate`](team-skills/ethos/ethos-orchestrate/SKILL.md), [`ethos-explore`](team-skills/ethos/ethos-explore/SKILL.md), [`ethos-write`](team-skills/ethos/ethos-write/SKILL.md) | Route, explore intended behavior, then write and validate a local ethos.md. Installed separately. |
+| [`ethos-orchestrate`](team-skills/ethos/ethos-orchestrate/SKILL.md), [`ethos-explore`](team-skills/ethos/ethos-explore/SKILL.md), [`ethos-write`](team-skills/ethos/ethos-write/SKILL.md) | Route, explore intended behavior, then write and validate a local ETHOS.md. Installed separately. |
 | [`eval-author`](skills/eval-author/SKILL.md) | Entry point and shared workflow guidance. |
 | [`eval-author-first-eval`](skills/eval-author-first-eval/SKILL.md) | Plan, build, and validate a small starter evaluation suite. |
 | [`eval-author-discover`](skills/eval-author-discover/SKILL.md) | Inventory evaluations and check Harbor readiness. |
@@ -251,3 +256,18 @@ source under test while keeping this checkout's tests, fixtures and dependencies
 fixed. The fixtures repository's `automation/gym-benchmark/run.py` freezes both
 revisions and runs interleaved repeats. This measures compatibility only; it does
 not establish live model performance, generated-task validity or defect sensitivity.
+
+## Workflow scope regression checks
+
+The [workflow scope checker](docs/determinism-checks.md#workflow-scope) compares normalized
+tool evidence and file manifests against frozen request/turn contracts.
+Run its mutation and disposable-inventory tests with:
+
+```bash
+uv run --locked pytest tests/test_workflow_scope.py -q
+```
+
+These checks do not claim live routing acceptance.
+
+See [determinism checks](docs/determinism-checks.md) for discovery comparisons,
+bound audit/task evidence, factual ledgers, and advisory host/semantic accounting.

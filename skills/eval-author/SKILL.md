@@ -271,7 +271,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 
 | Sub-flow | Use it to |
 |---|---|
-| [`ethos-explore`](../../team-skills/ethos/ethos-explore/SKILL.md) and [`ethos-write`](../../team-skills/ethos/ethos-write/SKILL.md) | Explore intended behavior and write or update ethos.md through the [Local Ethos](references/local-ethos.md) handoff. Installed separately from Eval Author |
+| [`ethos-explore`](../../team-skills/ethos/ethos-explore/SKILL.md) and [`ethos-write`](../../team-skills/ethos/ethos-write/SKILL.md) | Explore intended behavior and write or update ETHOS.md through the [Local Ethos](references/local-ethos.md) handoff. Installed separately from Eval Author |
 | `eval-author-first-eval` | Establish required Ethos, plan cases without an installed runtime, and build or expand a starter suite at the agreed breadth while teaching the user how to run it |
 | `eval-author-discover` | Establish whether a repository's evaluations run, name the rung that fails, and get the exact command to run them |
 | `eval-author-audit` | Generate and validate a finite `audit.md` coverage denominator, measure and aggregate trace coverage, and report findings |
@@ -314,9 +314,53 @@ does not require Gym output. Use the selected provider's native scaffolding,
 validation, and execution path. Missing setup is a reported prerequisite, not
 permission to silently switch providers.
 
+## Promote accepted tasks at handoff
+
+Create and validate tasks in `.eval-author/task-drafts/<task-slug>/` using the
+existing authoring workflow. Keep its scaffolding, controls, acceptance criteria,
+measurement paths, and evidence receipts unchanged.
+
+When the workflow accepts a task and adds it to a runnable suite, copy the
+accepted task directory into its final catalog. For a new repository evaluation
+environment, use one flat `.eval-author/tasks/<task-slug>/` directory across all
+features and suites. For an existing environment, follow the selected suite's
+existing final task-directory convention; do not reorganize its tasks.
+
+Copy the accepted revision without changing its task ID or contents, and never
+overwrite a different task at the destination. Record the
+draft-to-catalog path mapping in the existing handoff record. Update suite
+configurations and future run/viewer commands to the final paths and verify that
+they resolve the intended tasks using the provider's existing checks. Historical
+results and receipts keep their original paths. Prepare new execution manifests
+for future runs at the final paths under the existing evidence contract.
+
+Refresh the report with the project root selected, preserving both draft and
+finalized task paths; respect a narrower scope only when selected by the user.
+Carry existing task reporting metadata to the final task paths through the
+report's metadata patch, retaining source references.
+Before promotion, report the drafts normally; keep
+unfinished cases visible in the existing handoff record. Reporting itself never
+promotes tasks. Private trace workspaces retain their existing export workflow.
+
+Before marking the final handoff complete, verify these conditions on disk:
+
+- Every accepted task has a final directory whose relative file paths and file
+  contents match the accepted draft. Compare files, not just directory counts.
+- The future suite configuration resolves exactly the accepted task set at the
+  final paths through the provider's native configuration/task loader; loading
+  must not execute a job. Future task-viewer and rerun commands use those paths.
+- The refreshed report includes every accepted final task path once, alongside
+  existing drafts. Do not deduplicate different directories or hide later drafts.
+
+Record the verified final catalog path and task count in the existing handoff
+record and final reply. A report file or a successful agent run alone does not
+complete this handoff. If a condition fails, finish the authorized file-only
+handoff or report the specific blocker; do not mark it complete. Do not rerun
+models or controls merely to copy an unchanged accepted task.
+
 ## Establish Ethos before authoring
 
-First-eval requires an applicable `ethos.md` before case design,
+First-eval requires an applicable `ETHOS.md` before case design,
 new scoring decisions, or task authoring. Read [Local Ethos](references/local-ethos.md)
 for the shared locate, reuse, intent, creation, validation, and review procedure.
 Agent documentation can inform Ethos before any evaluation inventory. Existing
@@ -368,11 +412,17 @@ alone does not authorize creating or running evals.
 These hold for every sub-flow. They exist because the repository belongs to the
 user, not to you.
 
+- **Treat recorded evidence as read-only.** Never edit, delete, rename, or
+  hand-regenerate measurements, receipts, gate results, summaries, or attempt
+  ledgers to change a verdict. If a result looks wrong, rerun to produce new
+  evidence, keep the old evidence, and report the discrepancy instead of
+  reconciling it by hand. Archiving unchanged evidence is fine; preserve its
+  linked artifacts and relative layout.
 - **Propose, never mutate customer source.** Read the user's source and report on
   it. Do not edit, move, or reformat any of it, including its `.gitignore`. The
   evaluation artifacts you add belong under `.eval-author/`, which is theirs to
   commit or ignore. The sole additional write scope is the requested local
-  `ethos.md`: follow [Local Ethos](references/local-ethos.md) to create or make
+  `ETHOS.md`: follow [Local Ethos](references/local-ethos.md) to create or make
   user-requested edits to it in the repo. Preserve existing Ethos content and
   custom sections; downstream audit measurement does not rewrite it.
   `eval-author-discover` scripts write nothing; `eval-author-audit` writes only
@@ -461,7 +511,7 @@ environments remain experimental. Existing-eval adaptation is disabled.
 ## Examples
 
 ```text
-Request: "Audit the evals in ./evals; the agent Ethos is ./ethos.md."
+Request: "Audit the evals in ./evals; the agent Ethos is ./ETHOS.md."
 Route: eval-author-audit, carrying both paths into its pre-flight.
 Deliverable: coverage findings and their evidence, not a readiness-only report.
 

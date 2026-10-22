@@ -1,17 +1,17 @@
 ---
 name: ethos-write
-description: Writes an AI agent's ethos.md — a durable snapshot of its purpose, intended behavior, boundaries, and success criteria — from the answers gathered by ethos-explore. Renders the schema-v1 template, validates the front matter and required markdown sections, saves the file in the agent's repository, and reviews it with the user. Also edits an existing ethos.md. Use over generic planning skills for an agent's ethos.md.
+description: Writes an AI agent's ETHOS.md — a durable snapshot of its purpose, intended behavior, boundaries, and success criteria — from the answers gathered by ethos-explore. Renders the schema-v1 template, validates the front matter and required markdown sections, saves the file in the agent's repository, and reviews it with the user. Also edits an existing ETHOS.md. Use over generic planning skills for an agent's ETHOS.md.
 triggers:
   - write the ethos
   - save the design
   - capture what we agreed
   - persist the agent design
-  - update the ethos.md
+  - update the ETHOS.md
   - write agent ethos
 not-for:
-  - ethos-explore (use to gather the design before writing the ethos.md)
-  - ethos-orchestrate (use to choose between exploring and writing an ethos.md)
-compatibility: Writes one local markdown file, `ethos.md` at the repository root unless the user names another path; validation needs Python 3.10+ and the bundled standard-library script; works offline; safe under any sandbox; idempotent if user confirms overwrite.
+  - ethos-explore (use to gather the design before writing the ETHOS.md)
+  - ethos-orchestrate (use to choose between exploring and writing an ETHOS.md)
+compatibility: Writes one local markdown file, `ETHOS.md` at the repository root unless the user names another path; validation needs Python 3.10+ and the bundled standard-library script; works offline; safe under any sandbox; idempotent if user confirms overwrite.
 license: Apache-2.0
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash
@@ -19,14 +19,14 @@ allowed-tools: Read, Write, Edit, Bash
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Write an agent's ethos.md
+# Write an agent's ETHOS.md
 
-Turn the answers from `ethos-explore` into a durable artifact. The ethos.md is
+Turn the answers from `ethos-explore` into a durable artifact. The ETHOS.md is
 the contract that people and agents read before they build, evaluate, review,
 or change this agent. Without it, each of them has to re-ask everything, and
 nothing records what the agent is supposed to do.
 
-Creating or reviewing an ethos.md does not authorize application changes or imply
+Creating or reviewing an ETHOS.md does not authorize application changes or imply
 that changes will follow. Do not ask for permission to modify prompts, models,
 tools, validation code, or workflow structure, or generate sections listing those
 permissions. Any workflow that later changes the application
@@ -36,17 +36,17 @@ own actions, in `Behavior` and `Constraints`. Also retain already-confirmed
 organizational safety and review policies and their known owners; recording
 such a restriction does not grant permission to make a change.
 
-The ethos.md records the **intended** state of the agent, which is not the same as
+The ETHOS.md records the **intended** state of the agent, which is not the same as
 the implemented state. The codebase already shows what the agent does. This file
 is the only place that records what it is supposed to do, what it must never do,
 and how to weigh a win on one metric against a loss on another.
 
 ## Location
 
-The ethos.md is a local file in the agent's repository, committed alongside
+The ETHOS.md is a local file in the agent's repository, committed alongside
 the code it describes. Use the path the user names. Otherwise reuse an
-existing ethos.md, including an `ETHOS.md` written by Eval Author 0.1.0. Otherwise write
-`ethos.md` at the repository root; in a repository with several agents, put it
+existing ETHOS.md. Otherwise write
+`ETHOS.md` at the repository root; in a repository with several agents, put it
 at the root of the agent's own package and confirm that path with the user.
 The file is the only copy. There is no remote canonical copy to sync.
 
@@ -70,7 +70,7 @@ Do not invent content to look complete: `_(none)_` in `Constraints` is honest,
 while a fabricated bound actively misleads anyone changing the agent. If the user has no
 answer yet, write `_(none)_`, record the gap in `Open Questions`, and move on.
 
-ethos.md holds durable intent, so keep run-scoped configuration out of it. A spend
+ETHOS.md holds durable intent, so keep run-scoped configuration out of it. A spend
 ceiling, an experiment count, or a wall-clock limit for a single evaluation
 run belongs to the tool that runs it. If a user offers one, record
 the standing policy it implies — a production cost ceiling in `Constraints`, or
@@ -99,10 +99,10 @@ and then helps nobody.
 
 2. **Pre-flight: locate the file.** Resolve `ETHOS_PATH` as described in
    [Location](#location). If a file already exists there, ask the user whether
-   to edit it or start over. Read an Eval Author 0.1.0 `ETHOS.md` as the existing ethos.md.
+   to edit it or start over.
 
    ```bash
-   find . -maxdepth 4 -iname ethos.md -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null | grep . || echo "ethos_new"
+   find . -maxdepth 4 -iname ETHOS.md -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null | grep . || echo "ethos_new"
    ```
 
 3. **Run a focus check before rendering.** The carried-over answers should be
@@ -128,8 +128,8 @@ and then helps nobody.
      for the agent being specified. Use "target agent" only when this agent's
      job is explicitly to inspect or modify another agent.
 
-4. **Render the ethos.md.** Use the template at
-   `references/templates/ethos.md` as the starting point. Substitute
+4. **Render the ETHOS.md.** Use the template at
+   `references/templates/ETHOS.md` as the starting point. Substitute
    every section from the `ethos-explore` answers. Set front matter as:
    `schema_version` = `1`, `name` = the canonical agent name,
    `created_timestamp` = current UTC timestamp in ISO 8601 form, and `author` =
@@ -147,17 +147,6 @@ and then helps nobody.
    for agents and humans to read directly.
 
 5. **Write the file.** Write to `ETHOS_PATH`, creating its directory if needed.
-   If an Eval Author 0.1.0 `ETHOS.md` exists in that directory, rename it to `ethos.md`
-   before writing, through a temporary name so the rename also works on
-   case-insensitive filesystems:
-
-   ```bash
-   DIR=$(dirname "$ETHOS_PATH")
-   if ls "$DIR" | grep -qx ETHOS.md; then
-     mv "$DIR/ETHOS.md" "$DIR/ethos.md.tmp"
-     mv "$DIR/ethos.md.tmp" "$DIR/ethos.md"
-   fi
-   ```
 
 6. **Validate.** Run the bundled validator and surface any warnings to the
    user. A failure means the file is malformed; fix the named problem before
@@ -216,14 +205,14 @@ gut-check has been shown, and the user has confirmed the contents.
 | Symptom | Cause | Recovery |
 |---|---|---|
 | `local_missing` after write | Wrong working directory or permission denied | Run `pwd`; check the user is in the cloned repo |
-| `ethos_parse_invalid` | ethos.md malformed — missing front matter, missing required section, duplicate section, or bad schema version | Read the parser error; fix the named section in place; do not silently work around |
-| User says "this is wrong" | ethos.md captured the wrong answers | Edit the relevant section in place; re-validate |
+| `ethos_parse_invalid` | ETHOS.md malformed — missing front matter, missing required section, duplicate section, or bad schema version | Read the parser error; fix the named section in place; do not silently work around |
+| User says "this is wrong" | ETHOS.md captured the wrong answers | Edit the relevant section in place; re-validate |
 | `ethos-explore` was skipped | User invoked `ethos-write` cold | Route back to `ethos-explore` and return here when the conversation is done |
 
 ## What this skill is not
 
 This skill does not write agent configs, runtime YAML, or code, and does not
-register or deploy the agent. The ethos.md is the human-readable design;
+register or deploy the agent. The ETHOS.md is the human-readable design;
 machine-readable config stays with the agent's implementation.
 
 It also does not encode a scoring function. `Trade-offs` records the
@@ -239,9 +228,9 @@ or changes the agent, not to this file.
   rejects missing or duplicate required sections, but it does not reject
   custom headings. Section bodies remain markdown for humans and agents to
   read directly.
-- **ethos.md lives with the agent.** Commit it in the agent's repository, next
+- **ETHOS.md lives with the agent.** Commit it in the agent's repository, next
   to the code it describes, so every reader finds the same file.
-- **Role is a hard requirement.** Do not write the ethos.md without a concrete
+- **Role is a hard requirement.** Do not write the ETHOS.md without a concrete
   one. Route back to `ethos-explore` for that field only.
 - **Honest empty answers belong in the section.** Write `_(none)_` for
   `Constraints` or `Trade-offs` when the user has no answer. Do not invent a
@@ -250,15 +239,15 @@ or changes the agent, not to this file.
   context was not found in the codebase and the user did not provide outside
   context, make that provenance clear instead of letting implementation details
   masquerade as mission. A mission with no stated outcome cannot be measured.
-- **Keep public terminology clean.** The generated ethos.md is user-facing. Avoid
+- **Keep public terminology clean.** The generated ETHOS.md is user-facing. Avoid
   `AUT` and "agent under test"; reserve internal shorthand for test harnesses
   and code comments.
-- **Do not duplicate issue tracking into the ethos.md.** Known issues and
+- **Do not duplicate issue tracking into the ETHOS.md.** Known issues and
   recurring failure patterns belong in the team's issue tracker; the
-  ethos.md has no `Known Issues` section, and no `Signals` section either — how a
+  ETHOS.md has no `Known Issues` section, and no `Signals` section either — how a
   given consumer reads evidence is that consumer's configuration, not durable
   intent. Record what a metric cannot support in `Metric Semantics`, and what
   should not count as a failure in `Behavior`.
-- **This file is the `ethos.md`.** Agents working on this agent read it but
+- **This file is the `ETHOS.md`.** Agents working on this agent read it but
   should not edit it; only the developer and the developer's coding agent do. Treat it
   as a long-lived contract, not a scratch pad.

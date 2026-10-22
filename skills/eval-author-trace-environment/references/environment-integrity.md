@@ -253,6 +253,10 @@ Run every arm as an independent Harbor invocation with new task containers.
 Require at least two NOP runs, two
 Oracle runs, and one negative control. NOP must receive reward `0`, Oracle must
 receive reward `1`, and every run must finish without an exception.
+New workspaces also require the
+[construction qualification](construction-qualification.md) contract, an
+alternative control, and one executed bypass per declared dependency. Its
+setup/reach evidence prevents a setup failure from qualifying a negative control.
 
 The negative control must be a deliberately incomplete or subtly incorrect,
 non-crashing solution relevant to the task and must receive reward `0`. Do not
@@ -277,6 +281,7 @@ For the negative control, retain the custom agent source and supply its exact
 ```bash
 python <skill_dir>/scripts/trace_environment.py record-run-inputs \
   --task-dir <task-dir> --arm negative --job-dir private/jobs/negative-1 \
+  --control-id incomplete \
   --negative-agent negative_agent:IncompleteSolution \
   --negative-source private/negative_agent.py \
   --negative-rationale "<specific incomplete behavior this control exercises>"
@@ -303,8 +308,14 @@ python <skill_dir>/scripts/trace_environment.py record-validation \
   --oracle-job-dir private/jobs/oracle-1 \
   --oracle-job-dir private/jobs/oracle-2 \
   --negative-job-dir private/jobs/negative-1 \
+  --alternative-job-dir private/jobs/alternative-1 \
   --harbor-version "$(harbor --version)"
 ```
+
+Use the actual manifest control ID rather than the illustrative `incomplete`.
+Include `--bypass-job-dir` for each dependency control and `--copy-job-dir` for
+declared copy controls. For retained historical workspaces only, omit the new
+control ID and additional arms; construction qualification remains unmeasured.
 
 The helper requires unique Harbor job IDs, each result's task checksum matching
 the current task and its pre-run receipt, separate verifier mode in every

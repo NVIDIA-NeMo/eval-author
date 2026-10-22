@@ -8,14 +8,14 @@ description = "Skills that help coding assistants build agent evaluations, check
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_LICENSES.md", "third_party/licenses.jsonl", "third_party/NOTICES.txt", "third_party/license_texts/*.txt"]
 requires-python = ">=3.12,<3.14"
-dependencies = ["jsonschema>=4.23", "referencing>=0.28.4"]
+dependencies = ["jsonschema>=4.23", "markdown-it-py>=4,<5", "referencing>=0.28.4"]
 
 [project.optional-dependencies]
 # Workflow requirements are optional for skill users and included in license scans.
 audit = ["harbor>=0.16.1", "pyyaml>=6.0", "pydantic>=2"]
 mlflow = ["mlflow-skinny>=3.6,<4"]
 trace-loaders = [
-  "trace-ingest[mlflow] @ git+https://github.com/NVIDIA-NeMo/labs-nemo-compass.git@692d1bf57b6a9372f628b7c2004852aec7a9a83e#subdirectory=packages/trace-ingest",
+  "nemo-compass[mlflow]==0.1.0",
 ]
 
 [dependency-groups]
@@ -28,7 +28,7 @@ dev = [
   "pyyaml>=6.0",
   "ruff>=0.14",
   "ty>=0.0.80",
-  "trace-ingest[mlflow] @ git+https://github.com/NVIDIA-NeMo/labs-nemo-compass.git@692d1bf57b6a9372f628b7c2004852aec7a9a83e#subdirectory=packages/trace-ingest",
+  "nemo-compass[mlflow]==0.1.0",
 ]
 
 [tool.uv]
@@ -42,7 +42,7 @@ package = false
 override-dependencies = ["protobuf>=7.36.0"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "skills/eval-author-trace-environment/evals/tests"]
 
 [tool.ruff]
 line-length = 120

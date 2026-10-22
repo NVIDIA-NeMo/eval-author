@@ -47,9 +47,9 @@ CLI and supported Python environment. See the [first-eval guide](docs/first-eval
 and [Harbor setup guide](skills/eval-author/references/harbor-setup.md).
 Repository inventory and case planning can start without either runtime.
 
-First-evaluation design and coverage audits require a local **ethos.md file** describing
+First-evaluation design and coverage audits require a local **ETHOS.md file** describing
 your agent's purpose, boundaries, and success criteria. Install the
-[ethos skills](team-skills/ethos/README.md) to create one:
+[ethos skills](team-skills/ethos/ethos-orchestrate/README.md) to create one:
 `npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/team-skills/ethos --agent claude-code`.
 
 The discovery helper requires Python 3.11+. Audit generation, validation, and

@@ -1,6 +1,6 @@
 ---
 name: ethos-explore
-description: Captures what an AI agent is supposed to do — its purpose, boundaries, and success criteria — as a durable snapshot for anyone building, evaluating, reviewing, or changing it. Explores the user's codebase and docs first, then asks one intent question at a time for what source cannot supply. Hands its answers to ethos-write, which writes ethos.md. Use over generic brainstorming when the goal is an agent's ethos.md.
+description: Captures what an AI agent is supposed to do — its purpose, boundaries, and success criteria — as a durable snapshot for anyone building, evaluating, reviewing, or changing it. Explores the user's codebase and docs first, then asks one intent question at a time for what source cannot supply. Hands its answers to ethos-write, which writes ETHOS.md. Use over generic brainstorming when the goal is an agent's ETHOS.md.
 triggers:
   - design my agent
   - what should my agent do
@@ -9,11 +9,11 @@ triggers:
   - agent design
   - explore the agent
   - figure out what my agent needs
-  - write an ethos.md for my agent
+  - write an ETHOS.md for my agent
   - onboard my existing agent
 not-for:
-  - ethos-write (use to write or edit the ethos.md file once explore is done)
-  - ethos-orchestrate (use to choose between exploring and writing an ethos.md)
+  - ethos-write (use to write or edit the ETHOS.md file once explore is done)
+  - ethos-orchestrate (use to choose between exploring and writing an ETHOS.md)
   - superpowers:brainstorming (use for design work that is not about an agent's intended behavior)
 compatibility: Dialogue-driven with read-only pre-flight (`ls`, `find`, `Read`); one intent question per message after the codebase scan; at least three questions covering Purpose & Outcomes, Principles, and Vision; safe under any sandbox; works offline; output is a structured conversation handed to ethos-write.
 license: Apache-2.0
@@ -27,7 +27,7 @@ allowed-tools: Read, Glob, Grep, Bash
 
 Capture what the agent should do. Product mission and user goals matter more
 than implementation inventory. The output of this skill is the data that
-`ethos-write` writes into `ethos.md` — the durable contract that people and agents
+`ethos-write` writes into `ETHOS.md` — the durable contract that people and agents
 read before they build, evaluate, review, or change this agent. Underspecified
 input here leads every one of them to guess at intent from code and traces.
 
@@ -35,7 +35,7 @@ This skill is **explore first, then a mandatory intent interview.** Scan the
 codebase and docs, infer implementation-shaped fields, then ask the user for
 intent source cannot own. Do not skip the interview because the scan looked
 complete, and do not skip a question because you think you already know the
-answer. Do not dump the draft ethos.md until that interview has asked at least
+answer. Do not dump the draft ETHOS.md until that interview has asked at least
 three questions and received a reply to each.
 
 The division of labor is: **infer implementation, ask for intent.** Almost
@@ -44,11 +44,11 @@ the developer *wants* can be. Constraints, trade-offs, principles, mission, and
 vision live in the user's head, so they are the questions worth spending
 attention on.
 
-Creating an ethos.md captures intent and authorizes no changes to the agent's
+Creating an ETHOS.md captures intent and authorizes no changes to the agent's
 application. Do not ask for optimization or change permissions, whether as a
 separate topic or inside another section. Permission to change code, prompts,
 models, tools, or evals belongs to the workflow performing that work if the user
-requests it. Creating an ethos.md implies no such follow-up. Preserve already
+requests it. Creating an ETHOS.md implies no such follow-up. Preserve already
 confirmed organizational safety policies and their known owners, including
 required security review before shipping a tool with write access. Recording
 an existing restriction does not grant permission or require a new permission
@@ -56,7 +56,7 @@ interview.
 
 ## The schema you are filling
 
-The ethos.md has five base front-matter fields, plus optional `updated_timestamp`,
+The ETHOS.md has five base front-matter fields, plus optional `updated_timestamp`,
 and thirteen body sections. Every body section is required. One field is a
 quality gate for handoff: `ethos-write` is blocked until `Role` is concrete.
 For any other canonical section with nothing to say, write `_(none)_` rather
@@ -72,8 +72,8 @@ strip custom sections to make the file look "strict."
 | :---- | :---- | :---- |
 | `schema_version` | yes | Always `1` for new files. `ethos-write` fills this at write time. |
 | `name` | yes | Canonical agent name. Use the directory or workflow name if obvious; ask if not. |
-| `created_timestamp` | yes | ISO 8601 timestamp for when the ethos.md is created. `ethos-write` fills this at write time. |
-| `author` | yes | Human or agent that created the ethos.md. `ethos-write` fills this from the current author context when known; ask only if ambiguous. |
+| `created_timestamp` | yes | ISO 8601 timestamp for when the ETHOS.md is created. `ethos-write` fills this at write time. |
+| `author` | yes | Human or agent that created the ETHOS.md. `ethos-write` fills this from the current author context when known; ask only if ambiguous. |
 | `owner` | optional | Accountable human or team for runtime action approvals named in `Behavior` or `Constraints`; ask only when such an approval needs an owner. Also retain a known owner of an already-confirmed organizational safety policy, without opening a change-permission interview. |
 | `updated_timestamp` | conditional | Set on edits. Omit on first write. `ethos-write` fills this. |
 
@@ -95,19 +95,18 @@ strip custom sections to make the file look "strict."
 | 12 | Vision | Where the agent is headed: an intention beyond today's job, plus one or two concrete use cases it should grow into but does not serve yet. That last part marks what `Scope` excludes *for now* rather than on principle. Write `_(none)_` rather than pasting a dated backlog. |
 | 13 | Open Questions | Open facts that affect safe use or evaluation of the agent. Write `_(none)_` when there are none. Remove items once answered. Missing application-change permissions are not an Ethos gap. |
 
-The ethos.md records durable intent, not a running list of observed failures.
+The ETHOS.md records durable intent, not a running list of observed failures.
 Track known issues and recurring failure patterns where the team tracks bugs.
 
 ## Pre-flight
 
-Check whether an ethos.md already exists for this agent. Look for `ethos.md`,
-including an `ETHOS.md` written by Eval Author 0.1.0, at the repository root and next to
-the agent's package. If one is present, ask the user whether they want to edit
-the existing ethos.md or start over. If they want to edit, route to `ethos-write`
+Check whether an ETHOS.md already exists for this agent. Look for `ETHOS.md`
+at the repository root and next to the agent's package. If one is present, ask the user whether they want to edit
+the existing ETHOS.md or start over. If they want to edit, route to `ethos-write`
 directly.
 
 ```bash
-find . -maxdepth 4 -iname ethos.md -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null | grep . || echo "no ethos.md yet"
+find . -maxdepth 4 -iname ETHOS.md -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null | grep . || echo "no ETHOS.md yet"
 ```
 
 If the repository has an earlier agent spec or design doc, read it as prior
@@ -133,7 +132,7 @@ interview and ask for Role first.
    Then use `Glob` / `Grep` to find `langgraph`, `StateGraph`,
    `create_react_agent`, `system_prompt`, skills, MCP servers, and tool
    definitions. Treat any harness or framework name you find as a clue about
-   how the agent runs, not as a value the ethos.md must pick.
+   how the agent runs, not as a value the ETHOS.md must pick.
 
 2. **Find design context.** Look for `README.md`, `AGENTS.md`,
    product/design/planning docs, launch notes, and anything in `docs/`. Read
@@ -144,9 +143,9 @@ interview and ask for Role first.
    table of what you can fill from the code/docs. Be honest about confidence:
    "inferred from system prompt" is different from "confirmed by the user."
 
-4. **Note the model only as a constraint.** The ethos.md has no `Model`
+4. **Note the model only as a constraint.** The ETHOS.md has no `Model`
    section. The agent's config already carries the model in use, and it
-   changes without touching the ethos.md. If the scan shows a provider
+   changes without touching the ETHOS.md. If the scan shows a provider
    allowlist or pinned model family, carry it into `Constraints` as a draft to
    confirm.
 
@@ -195,7 +194,7 @@ interview and ask for Role first.
 ## Step 2 — Ask intent questions
 
 The scan told you what the agent is. It cannot tell you what the developer
-wants. Run a real interview for that intent before you show a draft ethos.md.
+wants. Run a real interview for that intent before you show a draft ETHOS.md.
 
 This step is a hard gate. Do not present the full draft, and do not hand off
 to `ethos-write`, until you have asked at least three questions and received a
@@ -314,7 +313,7 @@ draft before the next question.
 
 These mean you skipped the interview:
 
-- You are about to paste the full ethos.md and have asked fewer than three
+- You are about to paste the full ETHOS.md and have asked fewer than three
   questions
 - You filled `Purpose & Outcomes`, `Principles`, or `Vision` from the scan
   without a user reply
@@ -331,16 +330,16 @@ These mean you skipped the interview:
 | The draft review can collect intent | Review is for corrections. Ask intent first. |
 | The user looks busy | One short multiple-choice question is enough to start. |
 
-## Step 3 — Present the draft ethos.md
+## Step 3 — Present the draft ETHOS.md
 
-After the interview, present the entire ethos.md at once — every field, with
+After the interview, present the entire ETHOS.md at once — every field, with
 inferred values shown inline and remaining gaps as `_(none)_`. Then ask
 one question:
 
-> "Here's the full ethos.md I'd write. Tell me what to change, and I need a
+> "Here's the full ETHOS.md I'd write. Tell me what to change, and I need a
 > concrete Role before I can hand off to `ethos-write`."
 
-Show the rendered ethos.md inline in markdown (one `##` section per field,
+Show the rendered ETHOS.md inline in markdown (one `##` section per field,
 same shape as the on-disk file). For fields you defaulted, note the
 default in parentheses so the user knows they can override:
 
@@ -356,7 +355,7 @@ Do not walk the schema field by field in this review. Do not restart the
 intent interview here unless the reply surfaces a contradiction.
 
 Do not use public-facing shorthand like `AUT` or "agent under test" in the
-rendered ethos.md. Use "this agent" for the agent being specified. Use
+rendered ETHOS.md. Use "this agent" for the agent being specified. Use
 "target agent" only where the agent's purpose is explicitly to inspect or
 modify another agent.
 
@@ -384,7 +383,7 @@ for honest gaps, and note them in `Open Questions` when they affect safe use
 or evaluation. Do not drop a heading.
 
 If the Role quality gate is satisfied, announce the handoff in one line
-("Handing off to `ethos-write` to write `ethos.md`") and trigger it.
+("Handing off to `ethos-write` to write `ETHOS.md`") and trigger it.
 
 ## If the user pushes back
 
@@ -407,7 +406,7 @@ If the Role quality gate is satisfied, announce the handoff in one line
 
 ## Gotchas
 
-- **Mission before mechanics.** An ethos.md that only says how the current code is
+- **Mission before mechanics.** An ETHOS.md that only says how the current code is
   wired is not good enough. If goal context cannot be found in the codebase or
   docs, say the mission is inferred from implementation and still ask the user
   to confirm `Purpose & Outcomes`. A guessed business objective is worse than
@@ -438,4 +437,4 @@ If the Role quality gate is satisfied, announce the handoff in one line
   and artifacts without asking the user to design a raw runtime config. Config
   files stay with the agent's implementation.
 - **Do not invent Known Issues fields.** Known issues and recurring failure
-  patterns belong in the team's issue tracker, not in the ethos.md.
+  patterns belong in the team's issue tracker, not in the ETHOS.md.

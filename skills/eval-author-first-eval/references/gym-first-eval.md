@@ -34,7 +34,10 @@ Document each case's reward contract and expected positive and negative control
 results before testing. Include a known-correct response or interaction and a
 no-action case; when inaction is correct, also include an explicitly incorrect
 response or action. Explain the grader's assertion and a limitation to the user.
-Maintain each task README and the shared `.eval-author/README.md`.
+Maintain each task README and the authored suite guidance in `.eval-author/README.md`.
+Use [Report generation](../../eval-author/references/suite-readme.md#report-generation)
+for the shared HTML report and marked README section after authoring and runs;
+preserve existing documentation outside the generated markers.
 
 ## 6. Prepare the execution environment
 

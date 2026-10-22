@@ -58,7 +58,7 @@ Keep each draft in a fresh `.eval-author/task-drafts/<task-slug>/` directory.
 For an actionable uncovered tool, the existing selector chooses the same gap:
 
 ```bash
-python scripts/task_pipeline.py scaffold --provider gym \
+uv run scripts/task_pipeline.py scaffold --provider gym \
   --gym-python /path/to/Gym/.venv/bin/python \
   --report <aggregate-coverage.json> --target <tool-name> \
   --out .eval-author/task-drafts/<task-slug> \
@@ -101,8 +101,13 @@ applies. Stateful tasks need controls against the same stateful tools and reset
 behavior, not just fabricated final responses fed to a stateless verifier.
 
 Maintain the draft root's task-level `README.md` using
-[Suite review and rerun instructions](../../eval-author/references/suite-readme.md).
+[Review and rerun guidance](../../eval-author/references/suite-readme.md#review-and-rerun-guidance).
 Preserve its existing filename and content when adding review and rerun sections.
+Refresh the shared HTML report and marked `.eval-author/README.md` section after
+authoring and native controls or agent runs using
+[Report generation](../../eval-author/references/suite-readme.md#report-generation).
+Preserve authored suite and task documentation outside generated markers.
+
 Present and link its case inventory when the cases are authored, before execution.
 Link `reproducibility.md` for pinned inputs and setup; include concrete full-data
 and individual-item commands with the actual dataset selection, composition,

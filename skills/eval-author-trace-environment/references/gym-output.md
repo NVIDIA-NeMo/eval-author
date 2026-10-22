@@ -18,6 +18,11 @@ requirements, recorded or explicitly reconstructed state, and objective binary
 execution verification. A source rollout's reward or final answer is not an
 independent oracle. Do not change these rules to fit a Gym template.
 
+Refresh the shared HTML report and marked `.eval-author/README.md` section after
+authoring and native controls or agent runs using
+[Report generation](../../eval-author/references/suite-readme.md#report-generation).
+Preserve authored suite and task documentation outside generated markers.
+
 ## Start from a rollout with ng_trajectory
 
 Select one physical JSONL line from a private Gym rollout file. A record with
@@ -131,7 +136,7 @@ service communication is not Harbor's separate no-network verifier container;
 describe and test the actual trust boundary without claiming Harbor isolation.
 
 Create and link `<task-dir>/README.md` when presenting the authored cases, using
-[Suite review and rerun instructions](../../eval-author/references/suite-readme.md).
+[Review and rerun guidance](../../eval-author/references/suite-readme.md#review-and-rerun-guidance).
 Include the native dataset rows, their readable inputs and grading explanations,
 and the reviewed source trace as provenance. Refresh the inventory after native
 validation or actual-agent runs, with links to their separate evidence and any
@@ -205,3 +210,5 @@ with every selected trace in the denominator. Hand off the private task path,
 report, and exact rerun instructions. The optional Helix packaging guide can
 prepare a separate private package when selected, but it does not authorize
 publication or upload. Never export the entire trace workspace.
+
+When adapting call-fixture v2 cases, preserve optional boolean `is_error`: `true` must replay an error outcome, `false` an explicitly successful outcome, and absence means unrecorded rather than success.

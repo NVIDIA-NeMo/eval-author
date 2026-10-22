@@ -104,6 +104,62 @@ def test_task_slug_for_tool_is_deterministic() -> None:
     assert task_slug_for_tool("customer.lookup") == "cover-customer-lookup"
 
 
+def test_select_uses_agent_under_test_bucket_when_present(tmp_path: Path) -> None:
+    """Reference-only union coverage must not hide an agent-under-test tool gap."""
+    report = tmp_path / "report.json"
+    tool_gap = {
+        "name": "read",
+        "kind": "tool",
+        "reason": "not_covered_by_any_input_report",
+        "description": "Use read.",
+        "generation": {
+            "focus": "Exercise read.",
+            "needed_tools": ["read"],
+            "evidence_required": [{"kind": "tool_call", "tool": "read"}],
+        },
+    }
+    report.write_text(
+        json.dumps(
+            {
+                "covered": ["read"],
+                "uncovered": [],
+                "uncovered_items": [],
+                "coverage_by_evidence_class": {
+                    "agent_under_test": {
+                        "input_count": 1,
+                        "coverage": {
+                            "overall": {"item_count": 1, "covered_count": 0, "uncovered_count": 1},
+                            "by_kind": {
+                                "tool": {"item_count": 1, "covered_count": 0, "uncovered_count": 1},
+                            },
+                        },
+                        "covered": [],
+                        "uncovered": ["read"],
+                        "uncovered_items": [tool_gap],
+                    },
+                    "reference_solution": {
+                        "input_count": 1,
+                        "coverage": {
+                            "overall": {"item_count": 1, "covered_count": 1, "uncovered_count": 0},
+                            "by_kind": {
+                                "tool": {"item_count": 1, "covered_count": 1, "uncovered_count": 0},
+                            },
+                        },
+                        "covered": ["read"],
+                        "uncovered": [],
+                        "uncovered_items": [],
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    payload = json.loads(_run("select", "--report", str(report)).stdout)
+    assert payload["valid"] is True
+    assert payload["actionable_count"] == 1
+    assert payload["actionable_tools"][0]["name"] == "read"
+
+
 def test_select_returns_task_slug_and_paths(tmp_path: Path) -> None:
     """Select attaches canonical artifact paths for one actionable tool gap."""
     report = tmp_path / "report.json"
@@ -156,7 +212,9 @@ def test_select_assigns_deduped_slugs_for_colliding_tool_names(tmp_path: Path) -
 def test_scaffold_uses_harbor_native_task_layout(tmp_path: Path) -> None:
     """Scaffold installs the proposal into a Harbor-native task draft layout."""
     report = tmp_path / "report.json"
-    _write_report(report, covered=["write"], uncovered=["read"])
+    from audit_fixtures import bound_gap
+
+    bound_gap(tmp_path, report, "read")
     proposals = tmp_path / ".eval-author" / "proposals"
     proposals.mkdir(parents=True)
     instruction = proposals / "cover-read-instruction.md"
@@ -224,6 +282,38 @@ def test_scaffold_rejects_mismatched_proposal_filename(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert payload["valid"] is False
     assert "cover-read-instruction.md" in payload["error"]
+
+
+@pytest.mark.parametrize("provider", ["harbor", "gym"])
+def test_scaffold_rejects_unbound_report_before_creating_a_draft(tmp_path, provider):
+    report = tmp_path / "report.json"
+    _write_report(report, covered=[], uncovered=["read"])
+    instruction = tmp_path / ".eval-author/proposals/cover-read-instruction.md"
+    instruction.parent.mkdir(parents=True)
+    instruction.write_text("Read the record.")
+    draft = tmp_path / ".eval-author/task-drafts/cover-read"
+    result = _run(
+        "scaffold",
+        "--report",
+        str(report),
+        "--target",
+        "read",
+        "--out",
+        str(draft),
+        "--task-name",
+        "example/cover-read",
+        "--description",
+        "Read fixture",
+        "--author",
+        "Test",
+        "--instruction-file",
+        str(instruction),
+        "--provider",
+        provider,
+    )
+    assert result.returncode == 1
+    assert "unbound legacy coverage" in json.loads(result.stdout)["error"]
+    assert not draft.exists()
 
 
 def test_verify_rejects_single_after_report(tmp_path: Path) -> None:

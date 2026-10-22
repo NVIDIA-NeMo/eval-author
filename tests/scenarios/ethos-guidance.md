@@ -50,7 +50,7 @@ Run the bundled validator when available and retain its actual result.
 
 ## 1. Standalone Ethos creation
 
-**Request:** "Create an ethos.md for this account-support agent from its source
+**Request:** "Create an ETHOS.md for this account-support agent from its source
 and my answers."
 
 **Inspect:** The exploration reads the source, collects unresolved intent,
