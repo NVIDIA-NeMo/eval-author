@@ -12,9 +12,9 @@ cases can still leave important behavior untested.
 NeMo Eval Author is a set of tools that guides your coding assistant to help you create evaluations
 and investigate gaps in behavior coverage for your custom evals. It provides skills that work with
 your agent's repository, its intended behavior, and any available execution traces
-(records of the steps your agent took). You can start without traces: build a
-first evaluation suite, audit existing evaluations, or plan new eval cases with your
-coding assistant.
+(records of the steps your agent took). You can build a first evaluation suite,
+plan new cases, or define an audit specification without traces. A full coverage
+audit requires saved traces from completed evaluation runs.
 
 For example, the results of an audit might report:
 
