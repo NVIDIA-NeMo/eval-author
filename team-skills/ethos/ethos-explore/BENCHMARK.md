@@ -9,11 +9,11 @@ Recommended for publication based on the completed evaluation evidence in this r
 ## Evaluation Metadata
 
 - Skill: `ethos-explore`
-- Evaluation date: 2026-10-15
+- Evaluation date: 2026-10-22
 - Evaluator version: `1.5.6`
-- Agents: Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`), Codex (`openai/openai/gpt-5.5`)
+- Agents: Claude Code (`aws/anthropic/bedrock-claude-sonnet-5-5`), Codex (`openai/openai/gpt-5.5`)
 - Tasks: 4 evaluation tasks (3 positive, 1 negative)
-- Dataset digest: `sha256:2f53f8c3e9248b6d7379a877a3fb1ed310c3f5642a339a1c9f49a8e74136db71` (skill-evaluator-dataset-snapshot/1)
+- Dataset digest: `sha256:2f707317c8ad468d3ea94c4746f7147de581dc4104d46a953ff7d58d742b1ab8` (skill-evaluator-dataset-snapshot/1)
 - Attempts per task: 1
 - Environment: `k8s-sandbox`
 - Tier 2 evidence: required for publication
@@ -35,12 +35,12 @@ The three-tier evaluation checks whether the skill:
 
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 91.3% — baseline ran, but no comparable score was available; uplift unavailable | 88.2% — baseline ran, but no comparable score was available; uplift unavailable |
+| Overall | 88.3% — baseline ran, but no comparable score was available; uplift unavailable | 85.8% — baseline ran, but no comparable score was available; uplift unavailable |
 | Security | 100.0% → 100.0% (±0.0 points) | 100.0% → 100.0% (±0.0 points) |
-| Correctness | 65.0% → 90.0% (+25.0 points) | 70.0% → 85.0% (+15.0 points) |
-| Discoverability | 100.0% — baseline ran, but no comparable score was available; uplift unavailable | 90.0% — baseline ran, but no comparable score was available; uplift unavailable |
-| Effectiveness | 55.4% → 75.0% (+19.6 points) | 46.7% → 68.1% (+21.4 points) |
-| Efficiency | 91.4% — baseline ran, but no comparable score was available; uplift unavailable | 98.0% — baseline ran, but no comparable score was available; uplift unavailable |
+| Correctness | 55.0% → 80.0% (+25.0 points) | 65.0% → 75.0% (+10.0 points) |
+| Discoverability | 100.0% — baseline ran, but no comparable score was available; uplift unavailable | 95.0% — baseline ran, but no comparable score was available; uplift unavailable |
+| Effectiveness | 55.4% → 73.1% (+17.7 points) | 43.3% → 66.0% (+22.7 points) |
+| Efficiency | 88.5% — baseline ran, but no comparable score was available; uplift unavailable | 93.0% — baseline ran, but no comparable score was available; uplift unavailable |
 
 **How to read this table:** baseline is the same task attempted without the target skill. Scores are rounded to one decimal; threshold-adjacent values use additional precision so their displayed band matches the verdict. Uplift is derived from those displayed scores and shown in percentage points.
 
@@ -54,17 +54,17 @@ Actual Tier 3 execution usage is reported for every observed agent/case pair and
 
 | Agent | Dataset case | With skill | Without skill | Delta | Change | Coverage |
 |---|---|---:|---:|---:|---:|---|
-| claude-code | All cases | 718,371 | 459,467 | +258,904 | +56.35% | skill 4/4; base 4/4 |
-| claude-code | explore-explicit-first-question | 147,621 | 218,489 | -70,868 | -32.44% | skill 1/1; base 1/1 |
-| claude-code | explore-greenfield-role-first | 226,557 | 59,684 | +166,873 | +279.59% | skill 1/1; base 1/1 |
-| claude-code | explore-implicit-just-write-it | 315,061 | 152,312 | +162,749 | +106.85% | skill 1/1; base 1/1 |
-| claude-code | explore-negative | 29,132 | 28,982 | +150 | +0.52% | skill 1/1; base 1/1 |
-| codex | All cases | 284,629 | 138,965 | +145,664 | +104.82% | skill 4/4; base 4/4 |
-| codex | explore-explicit-first-question | 46,840 | 55,257 | -8,417 | -15.23% | skill 1/1; base 1/1 |
-| codex | explore-greenfield-role-first | 63,355 | 13,857 | +49,498 | +357.21% | skill 1/1; base 1/1 |
-| codex | explore-implicit-just-write-it | 161,104 | 56,634 | +104,470 | +184.47% | skill 1/1; base 1/1 |
-| codex | explore-negative | 13,330 | 13,217 | +113 | +0.85% | skill 1/1; base 1/1 |
-| ALL AGENTS | Dataset aggregate | 1,003,000 | 598,432 | +404,568 | +67.60% | skill 8/8; base 8/8 |
+| claude-code | All cases | 552,352 | 306,725 | +245,627 | +80.08% | skill 4/4; base 4/4 |
+| claude-code | explore-explicit-first-question | 146,501 | 93,303 | +53,198 | +57.02% | skill 1/1; base 1/1 |
+| claude-code | explore-greenfield-role-first | 107,306 | 60,796 | +46,510 | +76.50% | skill 1/1; base 1/1 |
+| claude-code | explore-implicit-just-write-it | 269,446 | 123,681 | +145,765 | +117.86% | skill 1/1; base 1/1 |
+| claude-code | explore-negative | 29,099 | 28,945 | +154 | +0.53% | skill 1/1; base 1/1 |
+| codex | All cases | 330,350 | 142,046 | +188,304 | +132.57% | skill 4/4; base 4/4 |
+| codex | explore-explicit-first-question | 46,874 | 41,336 | +5,538 | +13.40% | skill 1/1; base 1/1 |
+| codex | explore-greenfield-role-first | 46,609 | 13,711 | +32,898 | +239.94% | skill 1/1; base 1/1 |
+| codex | explore-implicit-just-write-it | 223,535 | 73,782 | +149,753 | +202.97% | skill 1/1; base 1/1 |
+| codex | explore-negative | 13,332 | 13,217 | +115 | +0.87% | skill 1/1; base 1/1 |
+| ALL AGENTS | Dataset aggregate | 882,702 | 448,771 | +433,931 | +96.69% | skill 8/8; base 8/8 |
 
 Prompt tokens include cached reads, so total tokens are `prompt + completion` (cached is not added twice). The Efficiency score uses `(prompt - cached) + completion`. N/A means the relevant trajectory counters were not available; coverage is never estimated.
 
@@ -72,7 +72,7 @@ Prompt tokens include cached reads, so total tokens are `prompt + completion` (c
 
 | Tier | Purpose | Status | Evidence |
 |---|---|---|---|
-| Tier 1 | Static validation | **PASSED WITH OBSERVATIONS** | 11 validator(s); 16 finding(s) |
+| Tier 1 | Static validation | **PASSED WITH OBSERVATIONS** | 11 validator(s); 15 finding(s) |
 | Tier 2 | Semantic deduplication | **PASSED** | 2 validator(s); 0 finding(s) |
 | Tier 3 | Live agent evaluation | **PASS** | 2 agent(s); 4 task(s) |
 
@@ -84,9 +84,9 @@ Prompt tokens include cached reads, so total tokens are `prompt + completion` (c
 - **MEDIUM** QUALITY/quality_correctness: SKILL_SPEC recommended field missing: 'metadata.author' (`team-skills/ethos/ethos-explore/SKILL.md`)
 - **MEDIUM** QUALITY/quality_correctness: SKILL_SPEC recommended field missing: 'metadata.tags' (`team-skills/ethos/ethos-explore/SKILL.md`)
 - **MEDIUM** QUALITY/quality_reliability: MCP skill lacks connection/error guidance (`team-skills/ethos/ethos-explore/SKILL.md`)
-- **MEDIUM** QUALITY/quality_efficiency: Large skill (6775 tokens, recommended max <5000). Per agentskills.io, SKILL.md should be concise (~500 lines) — large skill bodies increase token cost after invocation; long or unfocused top-level descriptions can degrade agent routing accuracy (`team-skills/ethos/ethos-explore/SKILL.md`)
+- **MEDIUM** QUALITY/quality_efficiency: Large skill (6448 tokens, recommended max <5000). Per agentskills.io, SKILL.md should be concise (~500 lines) — large skill bodies increase token cost after invocation; long or unfocused top-level descriptions can degrade agent routing accuracy (`team-skills/ethos/ethos-explore/SKILL.md`)
 - **MEDIUM** SCHEMA/body_recommended_section: Missing recommended section: '## Instructions' (`team-skills/ethos/ethos-explore/SKILL.md`)
-- 11 additional finding(s) are available in the full evaluation artifacts.
+- 10 additional finding(s) are available in the full evaluation artifacts.
 
 </details>
 

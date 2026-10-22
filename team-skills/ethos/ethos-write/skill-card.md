@@ -1,5 +1,5 @@
 ## Description: <br>
-Writes an AI agent's ETHOS.md — a durable snapshot of its purpose, intended behavior, boundaries, and success criteria — from the answers gathered by ethos-explore, rendering the schema-v1 template, validating the front matter and required markdown sections, saving the file in the agent's repository, and reviewing it with the user (it also edits an existing ETHOS.md). <br>
+Writes an AI agent's ETHOS.md — a durable snapshot of its purpose, intended behavior, boundaries, and success criteria — from the answers gathered by ethos-explore, and can also edit an existing ETHOS.md. <br>
 
 This skill is for research and development only. <br>
 
@@ -9,7 +9,7 @@ NVIDIA <br>
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers and engineers building, evaluating, reviewing, or changing an AI agent use this skill to turn the design answers gathered by ethos-explore into a validated ETHOS.md committed in the agent's repository, or to edit an existing ETHOS.md in place. <br>
+Developers and engineers building AI agents use this skill to turn the design answers gathered by ethos-explore into a durable, validated ETHOS.md contract committed alongside the agent's code, or to edit an existing one. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
@@ -29,48 +29,48 @@ Mitigation: Review and scan skill before deployment. <br>
 
 
 ## Skill Output: <br>
-**Output Type(s):** [Files, Shell commands, Analysis] <br>
-**Output Format:** [Markdown (ETHOS.md with YAML front matter and fourteen canonical ## sections), plus a gut-check summary paragraph] <br>
+**Output Type(s):** [Files] <br>
+**Output Format:** [Markdown (ETHOS.md with YAML front matter)] <br>
 **Output Parameters:** [1D] <br>
-**Other Properties Related to Output:** [Writes one local file (ETHOS.md at the repository root unless the user names another path); validated offline by the bundled standard-library script scripts/validate_ethos.py (Python 3.10+); overwrites only after user confirmation.] <br>
+**Other Properties Related to Output:** [One local file written at the resolved ETHOS path; validated by the bundled validator] <br>
 
 ## Evaluation Agents Used: <br>
-- Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`) <br>
+- Claude Code (`aws/anthropic/bedrock-claude-sonnet-5-5`) <br>
 - Codex (`openai/openai/gpt-5.5`) <br>
 
 
 
 ## Evaluation Tasks: <br>
-4 evaluation tasks (3 positive, 1 negative), 1 attempt per task, each run in an isolated sandbox pod and compared against a no-skill baseline. <br>
+4 evaluation tasks (3 positive, 1 negative), each attempt run once in its own isolated sandbox pod on the skill-evaluator-dataset-snapshot/1 dataset. <br>
 
 ## Evaluation Metrics Used: <br>
 Reported benchmark dimensions: <br>
-- Security: Is it safe to use? <br>
-- Correctness: Is the answer correct? <br>
-- Discoverability: Was the right skill loaded when needed? <br>
-- Effectiveness: Did the skill help complete the task? (equal-weight goal completion and expected workflow adherence) <br>
-- Efficiency: Did it avoid wasted tool calls and token usage? (equal-weight tool-call productivity and token efficiency) <br>
+- Security: Whether the skill is safe to use (unsafe operations, secret leakage, unauthorized access). <br>
+- Correctness: Whether the final answer is correct against the reference answer. <br>
+- Discoverability: Whether the right skill was loaded when needed. <br>
+- Effectiveness: Whether the skill helped complete the user's goal and expected workflow. <br>
+- Efficiency: Whether the skill avoided wasted tool calls and token usage. <br>
 
 Underlying evaluation signals used in this run: <br>
 - `security`: Unsafe operations, secret leakage, and unauthorized access. <br>
 - `skill_execution`: Whether the expected skill was selected, decoys were avoided, and the workflow executed. <br>
-- `skill_efficiency`: Tool-call productivity. <br>
 - `accuracy`: Final-answer correctness against the reference answer. <br>
 - `goal_accuracy`: Whether the user's goal was achieved. <br>
 - `behavior_check`: Whether the expected workflow behavior was followed. <br>
-- `token_efficiency`: Actual uncached prompt plus completion usage. <br>
+- `skill_efficiency`: Tool-call productivity. <br>
+- `token_efficiency`: Actual uncached prompt plus completion token usage. <br>
 
 
 
 ## Evaluation Results: <br>
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 89.6% (uplift unavailable) | 93.1% (uplift unavailable) |
+| Overall | 95.8% (uplift unavailable) | 87.3% (uplift unavailable) |
 | Security | 100.0% → 100.0% (±0.0 points) | 100.0% → 100.0% (±0.0 points) |
-| Correctness | 50.0% → 85.0% (+35.0 points) | 55.0% → 95.0% (+40.0 points) |
-| Discoverability | 100.0% (uplift unavailable) | 88.3% (uplift unavailable) |
-| Effectiveness | 38.3% → 79.2% (+40.9 points) | 36.3% → 85.0% (+48.7 points) |
-| Efficiency | 83.9% (uplift unavailable) | 97.2% (uplift unavailable) |
+| Correctness | 55.0% → 100.0% (+45.0 points) | 45.0% → 85.0% (+40.0 points) |
+| Discoverability | 100.0% (uplift unavailable) | 90.0% (uplift unavailable) |
+| Effectiveness | 35.8% → 98.3% (+62.5 points) | 34.0% → 63.8% (+29.8 points) |
+| Efficiency | 80.7% (uplift unavailable) | 97.9% (uplift unavailable) |
 
 ## Skill Version(s): <br>
 0.1.0 (source: pyproject.toml) <br>
