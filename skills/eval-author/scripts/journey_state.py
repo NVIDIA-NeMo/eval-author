@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import first_eval_state  # noqa: E402
 from runtime_policy import load as runtime_policy  # noqa: E402
 from working_paths import (  # noqa: E402
     atomic_write,
@@ -197,6 +198,9 @@ def validate(state: dict) -> None:
     for field in ("scopes", "journey_status"):
         if not isinstance(state[field], dict) or set(state[field]) - set(JOURNEYS):
             raise ValueError(f"Invalid {field}")
+    create_scope = state["scopes"].get("create", {})
+    if isinstance(create_scope, dict) and "first_eval" in create_scope:
+        first_eval_state.validate(create_scope["first_eval"])
     if any(value not in ("pending", "in_progress", "complete") for value in state["journey_status"].values()):
         raise ValueError("Invalid journey completion status")
     if not isinstance(state["blockers"], list):
@@ -309,6 +313,10 @@ def load_state(repo: Path) -> dict:
             state["ethos"].update(stage="draft", draft_confirmed=False, draft_source=None)
             state["next_handoff"] = "ethos-orchestrate"
             state["pending_question"] = "The agreed draft changed or is unavailable; review the draft before writing."
+    if state["journey_status"].get("create") == "complete":
+        creation = first_eval_state.progress(repo, state)
+        if creation is None or not creation["complete"]:
+            state["journey_status"]["create"] = "in_progress"
     return state
 
 
@@ -328,6 +336,9 @@ def checklist(state: dict) -> list[dict]:
     )
     ethos_done = state["ethos"]["stage"] == "complete" and "ethos" not in blocked
     completed = state["journey_status"].get(journey) == "complete" and journey not in blocked
+    if journey == "create":
+        creation = first_eval_state.progress(Path(state["repository"]), state)
+        completed = bool(completed and creation and creation["complete"])
     rows = [
         {
             "label": "Check how your agent runs and how you’ll test it",
@@ -372,6 +383,7 @@ def view(state: dict) -> dict:
         "checklist": checklist(state) if state["journey"] else [],
         "runtime_requirements": requirements,
         "confirmation_is_runtime_evidence": False,
+        "first_eval": first_eval_state.progress(Path(state["repository"]), state),
     }
 
 
@@ -442,6 +454,22 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None) -> 
             raise ValueError("Use confirm-ethos to record approval of the exact saved content")
     with working_lock(working_path(repo, "journey-state.lock")):
         state = load_state(repo)
+        previous = copy.deepcopy(state)
+        create_patch = patch.get("scopes", {}).get("create") if isinstance(patch.get("scopes", {}), dict) else None
+        prior_create = state["scopes"].get("create", {})
+        if (
+            isinstance(patch.get("scopes"), dict)
+            and "create" in patch["scopes"]
+            and isinstance(prior_create, dict)
+            and "first_eval" in prior_create
+            and not isinstance(create_patch, dict)
+        ):
+            raise ValueError("Retain the structured first-eval scope when updating its decisions")
+        typed_create = isinstance(create_patch, dict) and (
+            "first_eval" in create_patch or isinstance(prior_create, dict) and "first_eval" in prior_create
+        )
+        if typed_create and expected_revision is None:
+            raise ValueError("First-eval scope updates require --expected-revision from the latest show")
         if expected_revision is not None and expected_revision != state["revision"]:
             raise ValueError("State changed; reload before updating")
         prior_draft = copy.deepcopy(state["ethos"]["draft"])
@@ -449,7 +477,10 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None) -> 
             if field in {"prerequisites", "ethos", "scopes", "journey_status"}:
                 if not isinstance(value, dict):
                     raise ValueError(f"{field} must be a mapping")
-                state[field].update(copy.deepcopy(value))
+                changes = copy.deepcopy(value)
+                if field == "scopes" and typed_create:
+                    changes["create"] = {**copy.deepcopy(prior_create), **changes["create"]}
+                state[field].update(changes)
             else:
                 state[field] = copy.deepcopy(value)
         if state["ethos"]["draft"] != prior_draft:
@@ -462,6 +493,10 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None) -> 
             state["ethos"]["validation"] = None
             invalidate_scopes(state)
         validate(state)
+        first_eval_state.transition(repo, previous, state)
+        creation = first_eval_state.progress(repo, state)
+        if patch.get("journey_status", {}).get("create") == "complete" and creation and not creation["complete"]:
+            raise ValueError("First-eval completion requires the current selected agent run and its exact review")
         if state["ethos"]["draft_confirmed"] and state["ethos"]["stage"] != "complete":
             draft = state["ethos"]["draft"]
             if draft["digest"] != draft_digest(repo, draft):

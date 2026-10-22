@@ -955,7 +955,7 @@ def test_environment_kit_records_digests_for_preservation_checks() -> None:
 def test_first_eval_builds_and_proves_the_kit_before_tests() -> None:
     """Bench sessions did the stage 5 work but skipped stage 6, so the smoke proof moved into stage 5."""
     _, body = _frontmatter_and_body(_FIRST_EVAL_DIR)
-    stage5 = body.split("## 5. Prepare cases and grading", 1)[1].split("\n## ", 1)[0]
+    stage5 = body.split("## 5. Prepare tasks and grading", 1)[1].split("\n## ", 1)[0]
     stage6 = body.split("## 6. Prepare the execution environment", 1)[1].split("\n## ", 1)[0]
     assert "Build and prove the kit before the tests" in stage5
     assert "smoke task" in stage5
@@ -2029,7 +2029,7 @@ def test_ethos_confirmation_handoff_resources_resolve() -> None:
     reference = _CORE_DIR / "references" / "ethos-confirmation.md"
     for skill_dir in (_CORE_DIR, _FIRST_EVAL_DIR, _AUDIT_DIR):
         _, body = _frontmatter_and_body(skill_dir)
-        links = re.findall(r"\[Ethos confirmation\]\(([^)]+)\)", body)
+        links = re.findall(r"\[(?:Ethos|ETHOS\.md) confirmation\]\(([^)]+)\)", body)
         assert links, f"{skill_dir.name} has no shared Ethos handoff"
         assert all((skill_dir / link).resolve() == reference.resolve() for link in links)
     text = reference.read_text()

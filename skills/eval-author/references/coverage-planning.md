@@ -10,6 +10,13 @@ remain in `.eval-author/proposals/dataset-recommendations.md`.
 A proposal is provisional until the user settles its open choices; it is not
 permission to generate or run evaluations.
 
+For first evaluations, use the [first-eval conversation renderer](first-eval-conversation.md)
+for the proposal table, six settings bullets, exact feedback question, and first-task
+review. Its fixed wording and ordering take precedence over the illustrative
+questions below. Refer to `ETHOS.md`, evaluation tasks, input examples, and attempts;
+describe the limited first build as the **first task**, not a pilot. Save the
+proposal and agreement in shared journey state, not a separate planning document.
+
 ## Select trace evidence before using it
 
 Traces are optional for first evals. The absence of evals does not establish the
@@ -166,7 +173,11 @@ current values or label them as history; an approval recorded only in the
 conversation while the plan still says "pending" is not a saved agreement.
 Reuse decisions and authorization
 already established; do not ask again merely because a new stage starts. Scope
-agreement does not authorize paid execution. Proposal-only work ends with its
+agreement does not authorize paid execution. When the target agent/model, validation
+work, attempts, and limits are settled, the first-evaluation workflow may explicitly
+offer approval for both building and running within those displayed limits. Record the actual
+execution authorization separately; a design-only approval remains design-only.
+Proposal-only work ends with its
 recommendations and open decisions, without demanding approval or scaffolding.
 
 ## Expand and reconcile

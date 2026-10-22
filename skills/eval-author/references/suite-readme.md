@@ -7,6 +7,14 @@
 
 Use this shared reporting contract for Harbor and NeMo Gym.
 
+For first evaluations, create both report outputs for the first-task review before
+building the remaining tasks. Refresh after revisions, authoring, validation,
+and actual-agent execution. Keep review, validation, and execution status
+separate in the authored suite inventory, including agreed tasks not yet created.
+Do not invent unsupported report metadata fields: lifecycle columns, exact-attempt
+presentation, and native Gym Runs entries remain dependencies of the shared
+report implementation. Missing presentation never changes the recorded result.
+
 `.eval-author/report.html` defines the case/run review content.
 Its Tasks tab lists discovered Harbor tasks and NeMo Gym workload definitions by directory,
 including tasks being authored and accepted tasks at their stable paths, with provider, task name, grading,
@@ -80,11 +88,11 @@ its retained evidence. Separate selected directories remain separate rows, even
 when their contents match. Ordinary nested checkouts are excluded unless
 explicitly selected.
 
-Refresh after cases are authored, after additions or edits, and after validation
+Refresh after tasks are authored, after additions or edits, and after validation
 or actual-agent runs, including failed runs. Refresh again at the final handoff
 and link the report. When the report needs to be mentioned, always link
 `.eval-author/README.md` and `.eval-author/report.html` as the last lines of the
-response, after all other communication with a note like: Reivew (test cases|runs)
+response, after all other communication with a note like: Review (tasks|runs)
 created in this session in the `.eval-author/report.html` or `.eval-author/README.md`.
 
 Present evaluation findings and report links to the user; describe generation internals
@@ -300,6 +308,25 @@ existing suite README, and refresh the shared HTML report and marked Markdown
 section for both Harbor and NeMo Gym. Keep authored setup, rerun commands, pending
 case descriptions, and evidence links outside the generated markers. Neither
 provider's reporting workflow replaces those sections.
+
+First-evaluation conversations use the deterministic
+[conversation renderer](first-eval-conversation.md). Use `ETHOS.md` when naming
+the intended-behavior document, **tasks** for proposed or created evaluations,
+**examples** for distinct inputs, and **attempts** for repeated executions.
+For new first-eval suite guides, use an authored `## Rerun evaluations` section
+outside the report markers. Include full-suite and single-task commands with
+the saved agent settings, explicit selection, and fresh output paths. Preserve
+an existing equivalent section rather than duplicating it. In the handoff,
+make **saved run instructions** a direct Markdown link to that section's verified
+heading anchor; never substitute a bare path or unlinked phrase. The renderer
+checks local file and anchor existence, but the author must verify the commands
+resolve to the intended selection through the installed provider.
+
+When creation is complete, place the optional audit invitation after the results,
+rerun guidance, and completed checklist, followed only by the report links. Reuse
+the exact run and attempt reviewed here in saved state and later recaps; do not
+silently switch to the newest job. If creation is incomplete, show unfinished
+tasks and any **Blockers** instead of the completion invitation.
 
 Create the review and rerun guide as soon as the first cases are authored, using
 `README.md` at the top level of each generated evaluation suite and preserving

@@ -3,85 +3,97 @@
 
 # Harbor first evals
 
-Use this reference for the Harbor-specific work in first-eval stages 5–9. Keep
-the parent skill's stage boundaries, scope, check-ins, and shared deliverables.
-Harbor is compatible with NeMo Gym; follow the user's selected setup. No audit report
-or measured gap closure is required.
+Use this reference for Harbor-specific work in first-eval stages 5–9. Preserve
+the parent skill's conversational approval gates, state, and selected setup.
+No audit report or measured gap closure is required. A configured NeMo Gym–Harbor
+integration uses its verified supported commands and retained native evidence;
+conversion alone does not establish that the bridge executed. If the integration
+is missing, report **Blockers** with the cause, blocked step, and setup action.
+Do not add an adapter or silently replace the selected execution path.
 
-## 5. Prepare cases and grading
+## 5. Prepare tasks and grading
 
 Use the verified Harbor CLI and Python environment. Read `harbor task init --help`
-and `harbor trial start --help` before using options. Use an unused descriptive slug for
-each planned task under `.eval-author/tasks/`. One task may contain several
-examples; preserve the agreed mapping of stable example IDs to tasks.
+and `harbor trial start --help` before using options. Create only the approved
+**first task**, at an unused descriptive `.eval-author/tasks/<slug>/` path:
 
 ```bash
 harbor task init <org>/<slug> --tasks-dir .eval-author/tasks \
   --description "<behavior being tested>" --author "<actual author>"
 ```
 
-Verify that the expected directory was created. Build its `environment/` first,
-from the environment kit proven at stage 5: copy the kit's build files and its
-generated data, which passed the kit's smoke task, into the task and add the
-case's own records, so the task builds on its own rather than `FROM` a local
-kit image. Then
-complete the generated `instruction.md`, `task.toml`, `tests/test.sh`, and
-`solution/solve.sh` using the installed schema, deriving expected values with an
-independent reference query over that data. Set executable permissions,
-realistic timeouts, and deterministic rewards; leave no scaffold placeholders.
-Introduce the Oracle as the prepared reference solution.
+Verify the resulting path. Build its `environment/` from the kit proven through
+`eval-author-environment` before authoring the grader or reference solution:
+copy the kit's build files and generated data, then layer the task's records.
+The task must build on its own rather than `FROM` a local kit image. Derive
+expected values with an independent reference query over the generated data.
 
-Write the task README following the shared
-[Task documentation](../../eval-author/references/suite-readme.md#task-documentation)
-requirements. Generate and refresh the suite report following the
-[Report generation](../../eval-author/references/suite-readme.md#report-generation).
+Complete `instruction.md`, `task.toml`, `tests/test.sh`, and `solution/solve.sh`
+using the installed schema, executable permissions, realistic timeouts, and
+deterministic rewards. Remove all scaffold placeholders. Explain the task's
+[reference solution](https://docs.harborframework.com/tasks/solution) and
+[grader](https://docs.harborframework.com/tasks/verifier), linking both at their
+introduction. Oracle executes the prepared reference; it is not the actual agent.
 
-Before testing, document each case's expected NOP and Oracle acceptance criteria
-in its README. For a binary completion metric, NOP should score 0 and Oracle 1.
-For named or graded metrics, specify the expected values or thresholds for each
-relevant metric instead of imposing a universal 0/1 pair. Apply the parent skill's
-explicit incorrect-behavior control when inaction itself is correct.
+Write the actual task `README.md` following [Task documentation](../../eval-author/references/suite-readme.md#task-documentation).
+Describe the input, `ETHOS.md` behavior, expected result, environment, reference,
+grader, limitations, controls, and setup/rerun instructions. Before controls,
+document reward names/ranges and expected outcomes: for binary action completion,
+NOP should score 0 and Oracle 1; named or graded rewards use their declared
+thresholds. Correct inaction requires a separate explicitly incorrect action.
+
+Record whether formal grading controls have run; they may remain pending at this
+review. Proven environment and the actual task files are required. Refresh [the report and Markdown counterpart](../../eval-author/references/suite-readme.md#report-generation),
+and link them plus the actual task README for the first-task review. Follow the
+parent's deterministic review message and save the approved revision before
+scaffolding any remaining task. Requested changes revise this directory in place,
+retain older evidence, invalidate affected checks, refresh review outputs, and
+require review again. Rerun affected controls when applicable.
+A blocked first task must not cause other tasks to be built ahead of approval.
+After approval, build the remaining tasks and apply stage 8 to all tasks. Reuse
+current checks and existing bounded execution authorization; do not add a separate
+human approval gate for validation or for every remaining task.
 
 ## 6. Prepare the execution environment
 
-Confirm each task's `environment/` builds on the kit that
+Confirm every task's `environment/` builds from the kit that
 [`eval-author-environment`](../../eval-author-environment/SKILL.md) built and
-proved at stage 5, following its [Harbor environments](../../eval-author-environment/references/harbor.md)
-reference, and rerun its smoke task if the kit changed after it passed. Check documented
-access requirements, credential variable names, and reset behavior. Keep
-solutions and verifier-only data outside the agent's initial environment. For
-Docker-backed execution, check `docker info` first.
-Verify the selected backend and required application access; record unavailable
-access and the cases it blocks.
+proved, following its [Harbor reference](../../eval-author-environment/references/harbor.md).
+Rerun smoke proof after changes. Keep solutions and verifier-only data outside the
+agent's initial environment. For Docker execution, check `docker info` first.
+Verify backend access, application access, credential variable names, isolation,
+and reset. Show unavailable access under **Blockers**, naming the affected step
+and action needed; finding configuration requirements does not prove access.
 
 ## 7. Connect the agent
 
-Establish a supported Harbor integration for the actual repository agent from
-its entry point, installed adapter code, registry, and CLI help. If the adapter
-is missing, identify the specific integration requirement. NOP/Oracle validation
-remains available, but performance of the user's agent remains unmeasured.
+Establish a supported integration for the actual repository agent from its entry
+point, installed adapter code, registry, and CLI help. Missing integration blocks
+actual-agent evaluation; available NOP/Oracle controls remain task checks. Do not
+substitute a built-in agent or a reference solution for the requested agent.
 
-When supported, write `.eval-author/run.yaml` using the installed Harbor
-JobConfig schema. Explicitly select the working starter tasks, actual agent and
-model settings, agreed attempts per task, and jobs under `.eval-author/jobs/`.
-Use the parent skill's agreed attempt count and cost; do not include unrelated
-drafts merely because they share a parent directory. Resolve paths from the
-repository root and reference credential environment variables rather than
-embedding secrets. Configure request delivery, conversation state, and output
-collection through supported interfaces. Configuration is not proof of a working
-agent connection.
+Write `.eval-author/run.yaml` using the installed Harbor JobConfig schema.
+Explicit `tasks` entries must select exactly the approved, validated tasks,
+with actual agent/model settings, attempts, task-specific settings, and jobs
+under `.eval-author/jobs/`. Do not select the whole tasks directory or include
+unrelated drafts. Save and resolve paths from the repository root. Retain reset,
+request delivery, conversation state, and output/action collection requirements.
+Reference credential environment variables rather than secret values.
+
+Use `run.yaml` for newly authored suites. If a legacy `first-eval.yaml` already
+exists, inspect it, preserve its settings and evidence references, and migrate
+the intended selection to `run.yaml` without overwriting unrelated user work.
+Configuration presence does not prove a working agent connection.
 
 ## 8. Validate the evals
 
-Use Harbor's installed validators to check task validity. Confirm the current
-environment kit's smoke proof passed first; a smoke failure is an environment
-defect to fix, not a task or agent result, and NOP and Oracle never stand in for
-that proof. Before the first control, remove any locally built kit image
+After first-task approval, apply native structural checks and controls to all
+agreed tasks, reusing any current checks completed earlier. Formal grading checks
+may have been pending at first-task review. Confirm the kit's
+smoke proof passed first; NOP and Oracle never stand in for environment proof.
+Before the first control, remove any locally built kit image
 (`docker image rm <kit-tag>`), so each task proves it builds from its own
-`environment/`. Exercise the environment and grading with NOP and Oracle. Run each
-control as a single trial so the parent skill's evidence recorder gets fixed
-result paths, retaining all trials under `.eval-author/jobs/` with fresh names
-on reruns:
+`environment/`. Run controls as individual trials, retaining fresh output paths:
 
 ```bash
 harbor trial start -p .eval-author/tasks/<slug> -a nop \
@@ -90,32 +102,45 @@ harbor trial start -p .eval-author/tasks/<slug> -a oracle \
   --trials-dir "$PWD/.eval-author/jobs/<slug>-controls" --trial-name oracle-1
 ```
 
-Record each as its own run, with `--result` set to that trial's `result.json`.
+Use fresh names on reruns. Record each command through the shared evidence
+recorder with that trial's `result.json` as `--result`. Run every other declared
+control too, including a realistic incorrect result distinct from NOP, valid
+alternatives and preservation/side-effect checks where applicable. Inspect native
+exceptions and reward shape as well as values. A broken environment is not a
+successful rejection. Keep failed and superseded evidence when repairing tasks.
 
-For each task, inspect trial results and recorded rewards. Both runs must
-complete without exceptions and meet the predeclared criteria, including reward
-shape. The reference solution should satisfy the intended outcome; doing nothing
-should not earn completion credit when an answer or action is required. If
-inaction is correct, exercise an explicit incorrect response or action as well.
-Follow the parent skill's limits on validation claims, repairs, and blocked cases.
-
-When the agent config is available, follow `eval-author-discover` to validate it
-and report its per-config verdict if other configs exist. Keep unfinished config
-validation visible separately from successful control runs. Do not claim a
-config is runnable from YAML presence.
+Follow `eval-author-discover` to validate the selected config and inspect its
+resolved task set; report that config's verdict if others exist. Keep unresolved
+integration/config checks separate from successful controls under **Blockers**.
+Do not claim runnable status from YAML presence or controls alone. Save the exact
+validated selection and revision through the parent's state contract.
 
 ## 9. Evaluate the agent
 
-Confirm the resolved task set, actual agent, model, and agreed attempts using the
-parent skill's execution checks. With established execution and spend
-authorization, run from the repository root:
+Confirm resolved tasks, actual agent/model, attempts, and execution bounds. Use
+the parent's required deterministic checkpoint messages, and run only under
+explicit execution/spend authorization covering this selection. From the
+repository root, use the validated config and a fresh job name/output path:
 
 ```bash
-harbor job start -c .eval-author/run.yaml
+harbor job start -c .eval-author/run.yaml \
+  --jobs-dir .eval-author/jobs --job-name "suite-$(date -u +%Y%m%dT%H%M%S)-$$"
 ```
 
-Retain outputs, actions, rewards, exceptions, and exact commands for every
-selected task under fresh job paths. Low agent scores do not invalidate a working
-suite. Return to stage 10 to reconcile delivered cases and explain full-suite and
-single-case reruns. Label NOP/Oracle commands as task validation and the actual
-agent command as evaluation; use new trial and job names so reruns preserve prior evidence.
+For a selected supported Gym–Harbor integration, use its verified equivalent
+and retain evidence of that integration actually executing. A direct Harbor run
+or converted directory cannot replace it. Missing bridge support is a blocker.
+
+Inspect every selected task's native job/trial results, including scores and
+exceptions. Low actual-agent scores do not invalidate a working suite. Label
+controls separately and link the actual job, named task/trial, recorded reward,
+grading/log evidence, and available trajectory. Missing ATIF remains an explicit
+limitation, not invented evidence. Refresh the report and Markdown with these
+same informative references and limitations.
+
+Return to stage 10 for reconciliation and the final handoff. Save full-suite and
+needed single-task rerun commands preserving agent/model, task overrides, and
+attempts. Verify the actual README section anchor and link **Run instructions**
+to it. Commands must use fresh output paths and resolve exactly the intended
+tasks. Supply the verified viewer launch/open instructions and an actual saved
+job/trial to inspect; distinguish a planned localhost URL from a running viewer.

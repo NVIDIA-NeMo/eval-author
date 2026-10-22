@@ -3,78 +3,100 @@
 
 # Native NeMo Gym first evals
 
-Use this reference for the NeMo Gym-specific work in first-eval stages 5–9. Keep the
-parent skill's stage boundaries and shared deliverables. NeMo Gym is compatible with
-Harbor; follow the user's selected setup. No audit report, actionable tool gap,
-or measured gap closure is required.
+Use this reference for native NeMo Gym stages 5–9. Preserve the parent skill's
+conversation, first-task approval, state, and completion requirements. No audit
+report, measured gap, or closure attempt count is required. A selected combined
+Gym–Harbor setup must use its configured supported integration; this native path
+is not a substitute. Report missing integration under **Blockers**, naming the
+cause, blocked step, and required action, without adding a new adapter.
 
-## 5. Prepare cases and grading
+## 5. Prepare tasks and grading
 
-Use the NeMo Gym Python/CLI pair selected by the
-[shared runtime locator](../../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks)
-with `--provider gym --flow authoring`. Its central policy owns version and
-Python requirements; keep NeMo Gym in its separate environment. Inspect its CLI help and native scaffolder before use. Create each
-planned draft in a fresh `.eval-author/tasks/<slug>/` directory using
-NeMo Gym's `nemo_gym.environment.scaffold.scaffold_environment(kind="environment",
-name=<module_name>, root=<draft_path>)`. Use a valid Python module name for the
-NeMo Gym environment. Do not call the audit-driven `task_pipeline.py scaffold` route:
-first-eval has no coverage report or uncovered-tool selector.
+Use the Python/CLI pair from the [shared runtime locator](../../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks)
+with `--provider gym --flow authoring`. Keep Gym in its separate environment and
+inspect installed help. Scaffold only the approved first task in a fresh
+`.eval-author/tasks/<slug>/` using
+`nemo_gym.environment.scaffold.scaffold_environment(kind="environment",
+name=<module_name>, root=<draft_path>)`, with a valid Python module name.
+Do not use audit-driven `task_pipeline.py scaffold`: no coverage gap is required.
 
-Follow [Complete the task without changing its intended capability](../../eval-author-task-create/references/gym-tasks.md#complete-the-task-without-changing-its-intended-capability)
-for the generated manifest, component configuration, resources server, dataset
-rows, and verifier fixtures. Replace template tools, rewards, and fixtures with
-the agreed cases. Seed the resources server from the environment kit's generated
-data and pass the kit's persistence and reset cases before writing verifier
-fixtures, then derive expected rewards and end states with an independent
-reference over that data. Map stable case IDs to selected
-dataset rows; keep expected answers and provenance outside model inputs. Start
-with one representative case before extending the pattern to the agreed breadth.
+The first task is one reviewed scenario, normally one selected dataset row. If
+that scenario needs several rows, preserve the agreed mapping explicitly; do
+not silently include an entire draft/dataset. Count task directories, distinct
+examples/rows, and repeated rollouts separately. Do not create remaining tasks
+or their rows before the user approves the first task's reviewed revision.
 
-Document each case's reward contract and expected positive and negative control
-results before testing. Include a known-correct response or interaction and a
-no-action case; when inaction is correct, also include an explicitly incorrect
-response or action. Explain the grader's assertion and a limitation to the user.
-Maintain each task README and the authored suite guidance in `.eval-author/README.md`.
-Use [Report generation](../../eval-author/references/suite-readme.md#report-generation)
-for the shared HTML report and marked README section after authoring and runs;
-preserve existing documentation outside the generated markers.
+Follow [Native task files](../../eval-author-task-create/references/gym-tasks.md#complete-the-task-without-changing-its-intended-capability)
+for the manifest, component configuration, resources server, dataset, and verifier
+fixtures. Replace template behavior. Seed the resources server from the proven
+kit and pass its persistence/reset checks before writing the task's grader or
+known-correct reference interaction. Derive rewards and expected end state with
+an independent reference over generated data. Keep answers and provenance outside
+model inputs, while retaining verifier fields in the full dataset rows.
+
+Document reward contracts and expected controls before testing. Include the
+known-correct reference, empty/no-action, and realistic incorrect interactions,
+plus valid alternatives and side effects where applicable. Explain the concrete
+assertion and a limitation. Native Gym uses known-correct fixtures/interactions;
+do not impose Harbor's `solve.sh`, NOP, or Oracle protocol.
+
+Write the actual task-root `README.md` with input, `ETHOS.md` behavior, expected
+result, grading/reference links, environment limits, controls, and known commands.
+Show whether native grading checks have run; they may remain pending at this
+review after environment proof and task construction. Refresh the existing report and Markdown counterpart following
+[Report generation](../../eval-author/references/suite-readme.md#report-generation).
+Present all three review artifacts using the parent's deterministic review
+checkpoint, with readable input, verifier, and control evidence. Preserve authored
+README content outside generated markers. Missing required review output is a
+blocker; do not build the remaining tasks before first-task approval.
+
+Revise the same first-task directory on feedback, retain previous evidence,
+invalidate affected controls, refresh review outputs, and request approval of the
+new revision. Rerun affected controls when applicable. After approval, prepare
+the agreed remaining tasks/rows and apply stage 8 to all tasks. Reuse current
+checks and matching bounded authorization; do not require individual approval
+of each remaining task or another validation approval. A shared dataset or
+component edit changes the task revision: refresh manifests and controls for
+every affected task rather than carrying forward stale validation or approval.
 
 ## 6. Prepare the execution environment
 
-Prepare the generated resources, agent, and model components, dependency inputs,
-fixtures, and state reset. Build the backends the resources server wraps, their
-seeded session state, and its reset from the environment kit that
-[`eval-author-environment`](../../eval-author-environment/SKILL.md) built and
-proved at stage 5, following its [NeMo Gym environments](../../eval-author-environment/references/gym.md)
-reference, and add each case's own records to its dataset row or session seed.
-Apply the [NeMo Gym version and rerun plan](../../eval-author-task-create/references/gym-tasks.md#version-and-rerun-plan)
-to the selected suite, recording it in the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` and the drafts'
-`reproducibility.md`; no dataset recommendation or audit proposal is required.
-Use the component packaging checks linked there for the selected runtime.
-Verify actual application access and component setup. Record missing credential
-variable names and blocked cases without recording secret values.
+Confirm generated resources, agent, model components, dependencies, state reset,
+and application access build on the kit proven by
+[`eval-author-environment`](../../eval-author-environment/SKILL.md), following its
+[Gym reference](../../eval-author-environment/references/gym.md). Layer task-specific
+records over the kit. Follow the [version and rerun plan](../../eval-author-task-create/references/gym-tasks.md#version-and-rerun-plan)
+and packaging checks, keeping exact source/runtime/configuration identities in
+`reproducibility.md` and references in journey state. No separate user-facing
+planning document or audit proposal is required. Show missing access under
+**Blockers** with the affected step and action; name credential variables only.
 
 ## 7. Connect the agent
 
-Use the actual repository agent through a supported NeMo Gym integration. Inspect
-its entry point and the installed NeMo Gym interfaces; do not substitute NeMo Gym's example
-agent to claim the user's agent ran. Record the resolved composition, configured
-agent instance, model settings, selected dataset rows, reset procedure, and
-output paths. If integration is missing, retain the drafts and verifier work and
-name the specific connection required.
+Use the actual repository agent through an existing supported Gym integration.
+Inspect its entry point and installed interfaces; do not substitute Gym's example
+agent to claim the user's agent ran.
 
-Propose one attempt per selected example for the initial baseline unless the
-agreed purpose requires repeats. Record the count and cost in shared scope. A Harbor
-JobConfig or `.eval-author/run.yaml` is not required for NeMo Gym.
+Preserve provider-native configuration: `environments/<name>/config.yaml`, model
+settings, configured agent instance, exact selected dataset rows and order,
+reset, attempts, and output paths. A Harbor JobConfig or `.eval-author/run.yaml`
+is not required for native Gym. For subsets, retain complete original rows,
+including verifier fields, in a selected JSONL and map physical rows back to
+stable example IDs. Exclude unapproved/blocked rows and unrelated drafts.
+
+Propose one attempt per selected example unless the agreed purpose needs repeats.
+Record attempts and total rollouts separately from examples and controls. Verify
+resolved composition and selected implementations, not just file presence.
+Keep missing integration/configuration visible under **Blockers** with a concrete
+next action; do not label model performance measured when only controls ran.
 
 ## 8. Validate the evals
 
-Confirm the environment kit's proof passed first; a proof failure is an
-environment defect to fix, not a task or agent result. Its persistence and reset
-verifier cases run with the commands below and are recorded in the kit's plan,
-not declared as task controls.
-
-From each draft root, use the verified NeMo Gym CLI:
+After first-task approval, apply native validation to the first and remaining
+tasks, reusing current checks already completed. Formal grading checks may have
+been pending at first-task review. Confirm the environment kit's persistence/reset
+proof passed first and is recorded in its plan separately from task controls.
+From the task root, use the verified CLI:
 
 ```bash
 /path/to/Gym/.venv/bin/gym env validate --manifest environments/<name>/manifest.yaml --json
@@ -82,33 +104,54 @@ From each draft root, use the verified NeMo Gym CLI:
 ```
 
 Apply [Task validation and execution evidence](../../eval-author/references/task-validation.md)
-to retain the task revision and native control results. Include the declared
-incorrect, valid-alternative, and side-effect cases, with explicit reasons for
-non-applicability. Record the verifier controls with the shared recorder and the
-maintained [native NeMo Gym adapter](../../eval-author-task-create/references/gym-evidence.md);
-this does not require an audit report or agent baselines.
-Retain validation and verifier-control output under fresh run paths. Require the
-controls to complete without exceptions and meet their predeclared reward
-criteria, exercising real tools and reset behavior for stateful cases. Repair
-broken cases without weakening assertions. Report blocked cases separately.
-NeMo Gym has no Harbor `-a nop` or `-a oracle` requirement. Passing verifier fixtures
-does not establish actual agent performance or broad coverage.
+and the maintained [native Gym evidence adapter](../../eval-author-task-create/references/gym-evidence.md).
+Run every declared realistic incorrect, no-action, known-correct, applicable
+alternative, and side-effect control; record concrete non-applicability reasons.
+Use actual tools and reset for stateful checks. Retain the task revision, full
+native reports, observed rewards, exceptions, and fresh output paths. A fixture
+success is not actual-agent performance or proof of broad coverage.
+
+Each evidence manifest binds one physical dataset row and the full dataset,
+configuration, runtime, reset, and task revision. Preserve that binding when
+selecting rows and repeats. When any shared input changes, prepare a new manifest
+and rerun affected controls. Missing/malformed output is infrastructure failure,
+not a negative-control success. Repair without weakening intended behavior.
+
+Resolve and validate the exact approved dataset selection, native composition,
+model/agent, and attempts. Report failures under **Blockers**; do not silently
+replace the native path, enlarge the selection, or claim configuration readiness
+from passing verifier fixtures alone.
 
 ## 9. Evaluate the agent
 
-Follow the native service startup and execution instructions in
-[Validate, run, and retain evidence](../../eval-author-task-create/references/gym-tasks.md#validate-run-and-retain-evidence),
-using the actual agent, selected rows, and agreed attempts. Its two recorded
-attempts and measured-gap-closure requirements belong to audit task creation;
-first-eval uses the agreed baseline count and does not require coverage measurement.
-Check installed help before using options. Preserve the distinction between
-explicit-file execution against running services (`--no-serve --input`) and
-managed execution using prepared splits.
+Use the parent's deterministic checkpoints and explicit bounded execution/spend
+authorization. Follow [Native startup and execution](../../eval-author-task-create/references/gym-tasks.md#validate-run-and-retain-evidence)
+with the actual agent, selected rows, and agreed attempts. Its two successful
+attempts and measured-gap-closure rules apply to audit task creation, not this
+baseline. Check installed help and preserve the distinction between:
 
-Run only with the established execution and spend authorization. Retain fresh
-outputs, rewards, errors, resolved settings, and exact commands for every selected
-case under `.eval-author/runs/`. Link these from the plan and suite README using
-paths resolved from the documented working directory. A working suite requires
-native execution of the actual agent and recorded rewards, even when scores are
-low. Return to stage 10 for reconciliation and rerun instructions. Report NeMo Gym
-control results in their own terms, without labeling them Harbor NOP/Oracle jobs.
+- Explicit-file execution against started services: `gym eval run --no-serve
+  --agent <configured-instance> --input <selected.jsonl> --num-repeats <N>`.
+- Managed execution using prepared splits and repeats in dataset configuration;
+  do not combine unsupported `--input` or example-split flags with this mode.
+
+Verify actual row selection, repeat count, service startup, reset, and fresh
+output paths before launching. Retain every selected rollout's replies/actions,
+reward, failure reason, native identity, and health evidence under fresh
+`.eval-author/runs/` paths. Keep the resolved configuration, execution inputs,
+version identities, and exact commands. Do not disable health checks or remove
+failed rows to make a run look complete.
+
+Recording baseline receipts is optional; when used, choose `--purpose baseline`.
+Neither ATIF nor repeated successful agent attempts is required. Keep unobserved
+model health explicitly unobserved. Low agent rewards are valid results; missing
+rollouts or infrastructure failures remain unfinished work under **Blockers**.
+
+Link specific saved rollout/attempt evidence and readable selected-row input,
+reward, and grading details in both the final reply and report/Markdown. Preserve
+actual traces when emitted; do not promise an ATIF trajectory that does not exist.
+Return to stage 10 for reconciliation and completion. Save full-suite and needed
+single-task/row reruns preserving composition, model, verifier metadata, row
+order, attempts, reset, and fresh paths. Verify the task/suite README section
+anchor and link **Run instructions** directly to it. Do not label native fixtures
+Harbor NOP/Oracle jobs or substitute those commands for native agent execution.

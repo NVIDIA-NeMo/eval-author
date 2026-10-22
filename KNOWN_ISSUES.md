@@ -21,8 +21,8 @@ actual-agent runs for shortcuts or instructions that reveal the answer. Use
 those results to revise the cases and rerun validation after edits. Keep task
 controls and actual-agent results separate when interpreting scores.
 
-See [planning case breadth and difficulty](docs/first-evals.md#establish-what-the-agent-should-do)
-and [checking cases and evaluating the agent](docs/first-evals.md#check-the-cases-and-evaluate-the-agent).
+See [planning task breadth and difficulty](docs/first-evals.md#agree-on-what-to-test)
+and [validating tasks and evaluating the agent](docs/first-evals.md#run-the-agreed-suite).
 
 ## Authoring prompts may need iteration
 

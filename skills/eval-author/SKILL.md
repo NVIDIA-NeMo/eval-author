@@ -110,6 +110,16 @@ rather than repeating this pause.
 | Audit coverage | `eval-author-audit`, continuing with eval and trace selection |
 | Improve or expand evals | Preserve the expansion goal and use the expansion handoff below; an audit is optional |
 
+An explicit acceptance of the first-evaluation workflow's closing audit invitation
+is a goal switch within the existing flow. Reuse the confirmed `ETHOS.md`, task locations, provider,
+selected run identities, available traces, and limitations. Do not repeat the
+welcome or unchanged document review. Apply audit-specific prerequisite checks
+and source selection before measurement; missing audit evidence blocks the audit
+without undoing completed creation. Offering the invitation or a declined reply
+does not start audit work. Audit acceptance does not authorize expansion or new
+paid runs. Follow [first-eval state](references/first-eval-state.md) for the saved
+invitation decision and handoff.
+
 When the goal is unclear, ask “What would you like to do?” and present these
 options as a bulleted list:
 
