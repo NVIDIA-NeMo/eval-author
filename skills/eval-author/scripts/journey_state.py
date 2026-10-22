@@ -324,7 +324,11 @@ def load_state(repo: Path) -> dict:
     validate(state)
     state.setdefault("tasks", {})
     if state["repository"] != str(repo):
-        raise ValueError("Journey state belongs to another repository; do not reuse its approvals")
+        raise ValueError(
+            f"Journey state belongs to another repository: {state['repository']!r} (revision {state['revision']}). "
+            f"For an intentional relocation to {str(repo)!r}, use rebind --from-repository "
+            f"{state['repository']!r} --expected-revision {state['revision']}; this reopens saved approvals."
+        )
     confirmed = state["ethos"]["confirmed_digest"]
     if confirmed:
         try:
@@ -599,6 +603,57 @@ def initialize(repo: Path, *, agent: str | None = None, journey: str | None = No
         return state
 
 
+def rebind(repo: Path, *, previous_repository: str, expected_revision: int) -> dict:
+    """Explicitly recover relocated state, retaining its prior approvals only as history."""
+    with working_lock(working_path(repo, "journey-state.lock")):
+        state = read_json(state_path(repo))
+        validate(state)
+        if state["repository"] == str(repo):
+            raise ValueError("Journey state is already bound to this repository; use show or init to resume")
+        if previous_repository != state["repository"]:
+            raise ValueError("Saved repository differs from --from-repository; use the path reported by show")
+        if expected_revision != state["revision"]:
+            raise ValueError("State changed; reload before rebinding")
+        previous_context = state_path(repo).read_bytes()
+        name = f"{digest(previous_context)}.json"
+        history_path = f".eval-author/.working/history/repositories/{name}"
+        state.setdefault("tasks", {})
+        state["repository"] = str(repo)
+        for answer in state["prerequisites"].values():
+            answer["status"] = "unknown"
+        state["ethos"].update(
+            stage="review",
+            draft_confirmed=False,
+            draft_source=None,
+            confirmed_digest=None,
+            confirmation_source=None,
+            validation=None,
+        )
+        state["ethos"]["source_findings"].append(
+            {
+                "path": history_path,
+                "summary": f"Historical context from repository {previous_repository!r}; reassess after relocation.",
+            }
+        )
+        invalidate_scopes(state)
+        for record in state["tasks"].values():
+            if record["status"] == "accepted":
+                record.update(
+                    status="draft",
+                    source=f"Repository relocated; reassess acceptance. Prior decision and provenance: {history_path}",
+                    updated_at=now(),
+                )
+        state["pending_question"] = (
+            f"Repository changed from {previous_repository!r} to {str(repo)!r}; "
+            "recheck prerequisites and review which saved context and decisions still apply."
+        )
+        state["next_handoff"] = "eval-author"
+        validate(state)
+        atomic_write(working_path(repo, "history", "repositories", name), previous_context)
+        save(repo, state)
+        return state
+
+
 def update(repo: Path, patch: dict, *, expected_revision: int | None = None) -> dict:
     allowed = {"prerequisites", "ethos", "scopes", "journey_status", "blockers", "pending_question", "next_handoff"}
     if not isinstance(patch, dict) or set(patch) - allowed:
@@ -726,6 +781,11 @@ def main() -> int:
     init.add_argument("--journey", choices=JOURNEYS)
     init.add_argument("--setup", choices=("gym", "harbor"))
     commands.add_parser("show", help="Read state and derive checklist without writing")
+    relocation = commands.add_parser(
+        "rebind", help="Recover relocated state and reopen approvals; preserve prior context"
+    )
+    relocation.add_argument("--from-repository", required=True, help="Exact saved repository path reported by show")
+    relocation.add_argument("--expected-revision", required=True, type=int)
     patch = commands.add_parser("update", help="Apply observed checks and user answers from a JSON mapping")
     patch.add_argument("--input", type=Path, required=True)
     patch.add_argument("--expected-revision", type=int)
@@ -744,6 +804,8 @@ def main() -> int:
         repo = repository_root(args.repo)
         if args.command == "init":
             state = initialize(repo, agent=args.agent, journey=args.journey, setup=args.setup)
+        elif args.command == "rebind":
+            state = rebind(repo, previous_repository=args.from_repository, expected_revision=args.expected_revision)
         elif args.command == "update":
             state = update(repo, read_json(args.input), expected_revision=args.expected_revision)
         elif args.command == "confirm-ethos":

@@ -6,6 +6,7 @@
 import copy
 import importlib
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -989,6 +990,170 @@ def test_invalid_and_foreign_state_never_establish_approval(state, tmp_path):
     path.write_text('{"schema_version": 1, "schema_version": 2}')
     with pytest.raises(ValueError, match="Duplicate"):
         state.load_state(tmp_path)
+
+
+@pytest.mark.parametrize("relocation", ["move", "copy"])
+def test_repository_rebind_preserves_context_and_reopens_readiness(state, tmp_path, relocation):
+    original_repo = tmp_path / "original"
+    original_repo.mkdir()
+    task, evidence = task_fixture(state, original_repo)
+    setup_ready(state, original_repo)
+    ethos_ready(state, original_repo)
+    state.record_task(original_repo, task=task, status="accepted", source="Original acceptance", evidence=[evidence])
+    draft = original_repo / ".eval-author/.working/draft.md"
+    draft.write_text("# Original intent\n")
+    findings = [{"path": "agent.py", "summary": "Original agent source"}]
+    answers = [{"topic": "purpose", "question": "Which goal?", "answer": "Refunds", "source": "reply 2"}]
+    original = state.update(
+        original_repo,
+        {
+            "ethos": {
+                "draft": {
+                    "path": draft.relative_to(original_repo).as_posix(),
+                    "digest": state.digest(draft.read_bytes()),
+                },
+                "source_findings": findings,
+                "prior_answers": answers,
+                "remaining_questions": ["Which refunds?"],
+            },
+            "scopes": {"create": {"cases": ["refund"], "confirmed": True, "priorities": ["accuracy"]}},
+            "journey_status": {"create": "complete"},
+            "blockers": [{"id": "review-case", "phase": "create", "message": "Review an unresolved case"}],
+            "pending_question": "Which case should continue?",
+            "next_handoff": "eval-author-first-eval",
+        },
+    )
+    before = state.state_path(original_repo).read_bytes()
+    relocated = tmp_path / "relocated"
+    if relocation == "move":
+        original_repo.rename(relocated)
+    else:
+        shutil.copytree(original_repo, relocated)
+    for command in (state.load_state, state.initialize):
+        with pytest.raises(ValueError, match=r"rebind.*--from-repository.*--expected-revision"):
+            command(relocated)
+        assert state.state_path(relocated).read_bytes() == before
+
+    rebound = state.rebind(relocated, previous_repository=str(original_repo), expected_revision=original["revision"])
+    assert rebound["repository"] == str(relocated)
+    assert rebound["revision"] == original["revision"] + 1
+    for field in ("agent", "journey", "setup", "blockers", "legacy_imports"):
+        assert rebound[field] == original[field]
+    for key, answer in original["prerequisites"].items():
+        assert rebound["prerequisites"][key] == {**answer, "status": "unknown"}
+    assert rebound["ethos"]["stage"] == "review"
+    assert rebound["ethos"]["draft"] == original["ethos"]["draft"]
+    assert rebound["ethos"]["prior_answers"] == answers
+    assert rebound["ethos"]["remaining_questions"] == ["Which refunds?"]
+    for field in ("confirmed_digest", "confirmation_source", "validation", "draft_source"):
+        assert rebound["ethos"][field] is None
+    assert not rebound["ethos"]["draft_confirmed"]
+    assert rebound["ethos"]["source_findings"][:-1] == findings
+    history = rebound["ethos"]["source_findings"][-1]
+    archive = relocated / history["path"]
+    assert archive.is_relative_to(relocated / ".eval-author/.working/history/repositories")
+    assert archive.stem == state.digest(before)
+    assert archive.read_bytes() == before
+    assert str(original_repo) in history["summary"]
+    assert rebound["scopes"]["create"] == {**original["scopes"]["create"], "confirmed": False, "needs_review": True}
+    assert not rebound["journey_status"]
+    assert rebound["tasks"][task]["evidence"] == original["tasks"][task]["evidence"]
+    assert rebound["tasks"][task]["task_digest"] == original["tasks"][task]["task_digest"]
+    assert state.task_lifecycle(relocated, rebound, task)["status"] == "draft"
+    assert history["path"] in rebound["tasks"][task]["source"]
+    assert str(original_repo) in rebound["pending_question"]
+    assert str(relocated) in rebound["pending_question"]
+    assert rebound["next_handoff"] == "eval-author"
+    assert not any(row["complete"] for row in state.checklist(rebound))
+    assert state.load_state(relocated) == rebound
+    resumed = state.initialize(relocated)
+    assert resumed["ethos"] == rebound["ethos"]
+    assert resumed["tasks"] == rebound["tasks"]
+    assert list(archive.parent.iterdir()) == [archive]
+    if relocation == "copy":
+        assert state.state_path(original_repo).read_bytes() == before
+        assert state.load_state(original_repo) == original
+
+
+@pytest.mark.parametrize("invalid", ["source", "revision", "already-bound", "schema"])
+def test_repository_rebind_rejects_unreviewed_or_invalid_state(state, tmp_path, invalid):
+    original = state.initialize(tmp_path, agent="assistant", journey="audit")
+    previous_repository = "/prior/repository"
+    original["repository"] = previous_repository if invalid != "already-bound" else str(tmp_path)
+    if invalid == "schema":
+        original["schema_version"] = 2
+    state.state_path(tmp_path).write_text(json.dumps(original))
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError):
+        state.rebind(
+            tmp_path,
+            previous_repository="/wrong/repository" if invalid == "source" else previous_repository,
+            expected_revision=original["revision"] - (invalid == "revision"),
+        )
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert not (tmp_path / ".eval-author/.working/history").exists()
+
+
+@pytest.mark.parametrize("failure_stage", ["archive", "state"])
+def test_repository_rebind_failure_preserves_prior_state(state, tmp_path, monkeypatch, failure_stage):
+    original = state.initialize(tmp_path, agent="assistant", journey="audit")
+    original["repository"] = "/prior/repository"
+    state.state_path(tmp_path).write_text(json.dumps(original))
+    before = state.state_path(tmp_path).read_bytes()
+
+    def failed_write(*args, **kwargs):
+        raise OSError("Storage unavailable")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(state, "atomic_write" if failure_stage == "archive" else "atomic_write_json", failed_write)
+        with pytest.raises(OSError, match="Storage unavailable"):
+            state.rebind(tmp_path, previous_repository=original["repository"], expected_revision=original["revision"])
+    assert state.state_path(tmp_path).read_bytes() == before
+    rebound = state.rebind(tmp_path, previous_repository=original["repository"], expected_revision=original["revision"])
+    archive = tmp_path / rebound["ethos"]["source_findings"][-1]["path"]
+    assert archive.read_bytes() == before
+    assert list(archive.parent.iterdir()) == [archive]
+
+
+def test_rebind_and_agent_changes_preserve_each_others_history(state, tmp_path):
+    state.initialize(tmp_path, agent="first-agent", journey="audit")
+    original = state.initialize(tmp_path, agent="second-agent")
+    previous_history = original["ethos"]["source_findings"][0]
+    original["repository"] = "/prior/repository"
+    state.state_path(tmp_path).write_text(json.dumps(original))
+    rebound = state.rebind(tmp_path, previous_repository=original["repository"], expected_revision=original["revision"])
+    assert rebound["ethos"]["source_findings"][0] == previous_history
+    changed = state.initialize(tmp_path, agent="third-agent")
+    assert changed["ethos"]["source_findings"][:-1] == rebound["ethos"]["source_findings"]
+    archive = tmp_path / changed["ethos"]["source_findings"][-1]["path"]
+    assert json.loads(archive.read_text()) == rebound
+    for finding in changed["ethos"]["source_findings"]:
+        assert (tmp_path / finding["path"]).is_file()
+
+
+def test_repository_rebind_cli_requires_reviewed_source_and_revision(state, tmp_path):
+    original = state.initialize(tmp_path, agent="assistant", journey="audit")
+    original["repository"] = "/prior/repository"
+    state.state_path(tmp_path).write_text(json.dumps(original))
+    command = [sys.executable, str(SCRIPTS / "journey_state.py"), "--repo", str(tmp_path)]
+    rejected = subprocess.run([*command, "show"], capture_output=True, text=True)
+    assert rejected.returncode == 2
+    assert "rebind" in json.loads(rejected.stderr)["error"]
+    assert "/prior/repository" in rejected.stderr
+    result = subprocess.run(
+        [
+            *command,
+            "rebind",
+            "--from-repository",
+            original["repository"],
+            "--expected-revision",
+            str(original["revision"]),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["state"] == state.load_state(tmp_path)
 
 
 def test_interrupted_atomic_write_preserves_last_state_and_cleans_staging(state, tmp_path, monkeypatch):

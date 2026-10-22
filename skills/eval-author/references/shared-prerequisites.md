@@ -259,7 +259,7 @@ only the work they actually block.
 `.eval-author/.working/journey-state.json` is the sole authority for workflow
 stage, prerequisite findings and answers, confirmations, task status, pending questions, and next action.
 Use `scripts/journey_state.py --repo <repository> <command>` for `show`, `init`,
-`update`, `confirm-ethos`, `record-task`, and `import-legacy`; inspect its help for command inputs.
+`update`, `confirm-ethos`, `record-task`, `import-legacy`, and `rebind`; inspect its help for command inputs.
 Its validation and atomic writes are allowed bounded local commands, not runtime
 probes. State identifies the repository, agent, goal, selected setup, answer
 provenance, Ethos path/digest, and journey-specific progress. Never store secrets.
@@ -392,6 +392,38 @@ clear a blocker only when the new evidence resolves it or establishes that it
 does not apply. Review legacy blockers without these IDs explicitly rather
 than treating them as current requirements automatically. Pending question and next handoff
 are strings or null. Reopening a dependency must not silently erase old evidence.
+
+### Recover after moving or copying a repository
+
+The saved absolute repository path prevents another checkout from silently
+reusing this checkout's approvals. After a rename, move, new worktree, or clone
+that includes `.eval-author/`, run `show` in the destination. Its mismatch error
+reports the saved path and revision. For an intentional relocation, use those
+exact values to recover without deleting or hand-editing state:
+
+```bash
+python3 <skill_dir>/scripts/journey_state.py --repo /new/absolute/repository rebind \
+  --from-repository /previous/absolute/repository --expected-revision 12
+python3 <skill_dir>/scripts/journey_state.py --repo /new/absolute/repository show
+```
+
+`rebind` retains the exact previous state in a content-hashed snapshot under
+`.eval-author/.working/history/repositories/`, referenced by
+`ethos.source_findings`; `journey-state.json` remains the authoritative resume
+record. Existing agent history, findings, answers, draft and evidence references,
+scope choices, priorities, legacy imports, and unresolved blockers survive.
+Historical artifacts and paths inside them are not rewritten. Inspect any
+absolute references and recheck access in the destination before reusing them.
+
+All prerequisite statuses become `unknown` with their sources retained. Ethos
+and draft approval reopen, scopes require review, and journey completion resets.
+Accepted tasks become `draft`, keeping task and evidence hashes; their previous
+acceptance provenance remains in the snapshot. Recheck applicable prerequisites,
+review the saved intent and scope, and complete the existing acceptance workflow
+before recording acceptance again. A rebind does not establish that the agent,
+environment, or task still works. `init` resumes normally after recovery; use its
+agent selection if the intended agent also changed. A stale revision or a
+different saved path is rejected without replacing state.
 
 ### Task status
 
