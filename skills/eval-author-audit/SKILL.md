@@ -204,20 +204,21 @@ worked example and the JSON Schema descriptions as the field definitions. Do not
 use validation as the primary way to discover the format; validation is the
 enforcement and repair step after drafting.
 
-Read `<ethos_path>` for intended behaviors, boundaries, and success criteria;
-use these to draft high-level capabilities and material failure cases. Keep the
-list finite. Do not create separate items for prompt paraphrases, fixture
+Read `<ethos_path>` and draft audit items at the level between Ethos and runnable
+tasks: canonical tools, high-level capabilities, and material failure cases. Keep
+the list finite. Do not create separate items for prompt paraphrases, fixture
 variants, or ordinary happy-path permutations.
 
-For `tool` items, obtain runtime names and semantics from an authoritative tool
-registry, agent configuration, code or documentation, or user-selected traces.
-Use names from the measurement surface, including eval-specific tools: a generic
-`sqlite` reference may map to `execute_sql` and `submit_sql`. Connect capabilities
-or failure cases to those runtime names. Record implementation sources for tool
-metadata and Ethos sections for behavioral requirements in `source_refs`.
-Read traces only after user confirmation of their source and location. Keep
-unresolved names or semantics as open questions rather than inventing tool items.
-Explain any resulting specification limits.
+For `tool` items, use the names that appear in the actual runtime traces or tool
+registry, including eval-specific tools that may be more precise than product
+tools named in Ethos prose. If Ethos describes a generic tool such as `sqlite`
+but measurement traces expose `execute_sql` and `submit_sql`, declare the
+runtime tool names and connect capabilities or failure cases to those names.
+Do not invent tool names that will not appear in the measurement surface.
+Read traces for this purpose only after user confirmation of their source and
+location. Without usable traces, use an authoritative tool registry or agent
+configuration; keep unresolved names as open questions rather than inventing
+tool items. Explain any resulting limits on the proposed specification.
 
 Save the reviewed item proposals as `.eval-author/audit-items.yaml`. The items
 file may be either a mapping with an `items` key or the item list itself. It

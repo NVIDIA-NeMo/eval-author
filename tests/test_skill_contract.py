@@ -2127,12 +2127,9 @@ def test_audit_skill_anchors_tool_names_to_runtime_measurement_surface() -> None
     step_one = body.split("## Step 2:", 1)[0]
     normalized_step = re.sub(r"\s+", " ", step_one)
 
-    assert (
-        "authoritative tool registry, agent configuration, code or documentation, or user-selected traces"
-        in normalized_step
-    )
+    assert "actual runtime traces or tool registry" in normalized_step
     assert "eval-specific tools" in normalized_step
-    assert "unresolved names or semantics as open questions rather than inventing tool items" in normalized_step
+    assert "Do not invent tool names that will not appear in the measurement surface" in normalized_step
 
 
 def test_audit_skill_runs_audit_scripts_through_uv() -> None:

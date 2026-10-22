@@ -8,10 +8,6 @@ example records `ETHOS.md` as an optional source; generated and hand-edited
 content is allowed outside the marked block, and scripts validate only the block
 between the markers.
 
-The `implementation:` references below are illustrative: replace them with the
-registry, configuration, code, documentation, or selected trace references used
-for the actual agent.
-
 <!-- BEGIN:nemo-eval-author-audit:v1 -->
 ```yaml
 schema: nemo.eval_author.audit.v1
@@ -26,7 +22,7 @@ items:
   - kind: tool
     name: customer.lookup
     source_refs:
-      - implementation:src/tools/customer.py#lookup
+      - ethos:Tools
       - ethos:Behavior
     description: >
       Looks up customer profile, plan, account status, and contact details.
@@ -45,7 +41,7 @@ items:
     source_refs:
       - ethos:Purpose
       - ethos:Scope
-      - implementation:src/tools/customer.py#lookup
+      - ethos:Tools
       - ethos:Behavior
       - ethos:Success Criteria
     description: >
