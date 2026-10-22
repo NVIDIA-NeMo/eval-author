@@ -772,6 +772,266 @@ def test_cli_roundtrip_matches_helpers_and_updates_no_domain_artifacts(state, tm
     assert not (tmp_path / "ETHOS.md").exists()
 
 
+def task_fixture(state, repo):
+    state.initialize(repo, agent="assistant", journey="create", setup="gym")
+    task = repo / ".eval-author/tasks/refund"
+    task.mkdir(parents=True)
+    (task / "README.md").write_text("# Refund\n")
+    (task / "grader.py").write_text("assert result == expected\n")
+    evidence = repo / ".eval-author/.working/control-result.json"
+    evidence.write_text('{"result": "passed"}\n')
+    return task.relative_to(repo).as_posix(), evidence.relative_to(repo).as_posix()
+
+
+def test_legacy_state_and_successful_run_do_not_infer_task_acceptance(state, tmp_path):
+    task, _ = task_fixture(state, tmp_path)
+    legacy = state.load_state(tmp_path)
+    legacy.pop("tasks")
+    state.state_path(tmp_path).write_text(json.dumps(legacy))
+    before = state.state_path(tmp_path).read_bytes()
+    loaded = state.load_state(tmp_path)
+    assert loaded["schema_version"] == 1 and loaded["tasks"] == {}
+    assert state.task_lifecycle(tmp_path, loaded, task) == {
+        "status": "unknown",
+        "reason": "No task acceptance decision is recorded",
+    }
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+def test_task_decision_is_explicit_and_read_only_resolution_preserves_provenance(state, tmp_path):
+    task, evidence = task_fixture(state, tmp_path)
+    drafted = state.record_task(tmp_path, task=task, status="draft", source="Case authoring started")
+    assert state.task_lifecycle(tmp_path, drafted, task)["status"] == "draft"
+    accepted = state.record_task(
+        tmp_path, task=task, status="accepted", source="First-eval review, reply 9", evidence=[evidence]
+    )
+    before = state.state_path(tmp_path).read_bytes()
+    assert state.task_lifecycle(tmp_path, accepted, task) == {
+        "status": "accepted",
+        "reason": "First-eval review, reply 9",
+    }
+    assert accepted["tasks"][task]["evidence"] == [
+        {"path": evidence, "digest": state.digest((tmp_path / evidence).read_bytes())}
+    ]
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+def test_native_manifest_uses_nearest_registered_task_root(state, tmp_path):
+    task, evidence = task_fixture(state, tmp_path)
+    manifest = tmp_path / task / "environments/refund/manifest.yaml"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("name: refund\n")
+    accepted = state.record_task(tmp_path, task=task, status="accepted", source="Reviewed", evidence=[evidence])
+    assert state.task_lifecycle(tmp_path, accepted, manifest.relative_to(tmp_path).as_posix())["status"] == "accepted"
+    inner = manifest.parent.relative_to(tmp_path).as_posix()
+    state.record_task(tmp_path, task=inner, status="draft", source="Nested task under revision")
+    latest = state.load_state(tmp_path)
+    assert state.task_lifecycle(tmp_path, latest, manifest.relative_to(tmp_path).as_posix())["status"] == "draft"
+    assert state.task_lifecycle(tmp_path, latest, task)["status"] == "accepted"
+    assert state.task_lifecycle(tmp_path, latest, task + "-other")["status"] == "unknown"
+
+
+@pytest.mark.parametrize("change", ["edit", "add", "remove", "mode", "readme", "evidence", "missing_evidence"])
+def test_changed_content_or_evidence_reopens_task_readiness(state, tmp_path, change):
+    task, evidence = task_fixture(state, tmp_path)
+    accepted = state.record_task(tmp_path, task=task, status="accepted", source="Reviewed", evidence=[evidence])
+    original_record = copy.deepcopy(accepted["tasks"][task])
+    target = tmp_path / task / "grader.py"
+    if change == "edit":
+        target.write_text("assert True\n")
+    elif change == "add":
+        (target.parent / "fixture.json").write_text("{}")
+    elif change == "remove":
+        target.unlink()
+    elif change == "mode":
+        target.chmod(0o700)
+    elif change == "readme":
+        (target.parent / "README.md").write_text("Changed task instructions")
+    elif change == "evidence":
+        (tmp_path / evidence).write_text('{"result": "failed"}')
+    else:
+        (tmp_path / evidence).unlink()
+    before = state.state_path(tmp_path).read_bytes()
+    result = state.task_lifecycle(tmp_path, state.load_state(tmp_path), task)
+    assert result["status"] == "draft"
+    assert "changed" in result["reason"] or "unavailable" in result["reason"]
+    assert state.load_state(tmp_path)["tasks"][task] == original_record
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+def test_ignored_runtime_caches_do_not_invalidate_task_acceptance(state, tmp_path):
+    task, evidence = task_fixture(state, tmp_path)
+    accepted = state.record_task(tmp_path, task=task, status="accepted", source="Reviewed", evidence=[evidence])
+    cache = tmp_path / task / "__pycache__"
+    cache.mkdir()
+    (cache / "grader.pyc").write_bytes(b"compiled")
+    assert state.task_lifecycle(tmp_path, accepted, task)["status"] == "accepted"
+
+
+@pytest.mark.parametrize("task_path", [".", "", "../task", "/tmp/task", "tasks/../task", "./tasks/task"])
+def test_task_paths_are_bounded_to_repository_and_canonical(state, tmp_path, task_path):
+    task_fixture(state, tmp_path)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError):
+        state.record_task(tmp_path, task=task_path, status="draft", source="Started")
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "bad", ["empty_source", "long_source", "no_evidence", "duplicate", "unknown", "traversal", "self_state"]
+)
+def test_invalid_task_decision_preserves_saved_state(state, tmp_path, bad):
+    task, evidence = task_fixture(state, tmp_path)
+    kwargs = {"task": task, "status": "accepted", "source": "Reviewed", "evidence": [evidence]}
+    if bad == "empty_source":
+        kwargs["source"] = ""
+    elif bad == "long_source":
+        kwargs["source"] = "x" * 2001
+    elif bad == "no_evidence":
+        kwargs["evidence"] = []
+    elif bad == "duplicate":
+        kwargs["evidence"] = [evidence, evidence]
+    elif bad == "unknown":
+        kwargs["status"] = "unknown"
+    elif bad == "traversal":
+        kwargs["evidence"] = ["../outside.json"]
+    else:
+        kwargs["task"] = ".eval-author"
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError):
+        state.record_task(tmp_path, **kwargs)
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("target", ["task", "parent", "content", "evidence"])
+def test_task_lifecycle_rejects_symlinks_without_overwriting_state(state, tmp_path, target):
+    task, evidence = task_fixture(state, tmp_path)
+    accepted = state.record_task(tmp_path, task=task, status="accepted", source="Reviewed", evidence=[evidence])
+    before = state.state_path(tmp_path).read_bytes()
+    if target in {"task", "parent"}:
+        original = tmp_path / task if target == "task" else (tmp_path / task).parent
+        relocated = tmp_path / "relocated"
+        original.rename(relocated)
+        original.symlink_to(relocated, target_is_directory=True)
+    elif target == "content":
+        (tmp_path / task / "linked").symlink_to(tmp_path / evidence)
+    else:
+        original = tmp_path / evidence
+        original.unlink()
+        original.symlink_to(tmp_path / task / "README.md")
+    assert state.task_lifecycle(tmp_path, accepted, task)["status"] == "draft"
+    with pytest.raises(ValueError):
+        state.record_task(tmp_path, task=task, status="accepted", source="Reviewed", evidence=[evidence])
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("limit", ["MAX_TASK_ENTRIES", "MAX_TASK_BYTES", "MAX_BYTES"])
+def test_task_content_and_evidence_reads_are_bounded(state, tmp_path, monkeypatch, limit):
+    task, evidence = task_fixture(state, tmp_path)
+    before = state.state_path(tmp_path).read_bytes()
+    if limit == "MAX_BYTES":
+        # Keep the state readable while making the selected evidence oversized.
+        (tmp_path / evidence).write_bytes(b"x" * (state.MAX_BYTES + 1))
+    else:
+        monkeypatch.setattr(state, limit, 1)
+    with pytest.raises(ValueError):
+        state.record_task(tmp_path, task=task, status="accepted", source="Reviewed", evidence=[evidence])
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+def test_task_lifecycle_cli_records_decision_without_changing_task_or_evidence(state, tmp_path):
+    task, evidence = task_fixture(state, tmp_path)
+    before_task = state.task_digest(tmp_path, task)
+    before_evidence = (tmp_path / evidence).read_bytes()
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS / "journey_state.py"),
+            "--repo",
+            str(tmp_path),
+            "record-task",
+            "--task",
+            task,
+            "--status",
+            "accepted",
+            "--source",
+            "First-eval review",
+            "--evidence",
+            evidence,
+        ],
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stderr
+    recorded = json.loads(result.stdout)["state"]
+    assert state.task_lifecycle(tmp_path, recorded, task)["status"] == "accepted"
+    assert state.task_digest(tmp_path, task) == before_task
+    assert (tmp_path / evidence).read_bytes() == before_evidence
+
+
+def test_show_exposes_current_readiness_separately_from_prior_acceptance(state, tmp_path):
+    task, evidence = task_fixture(state, tmp_path)
+    state.record_task(tmp_path, task=task, status="accepted", source="Reviewed", evidence=[evidence])
+    (tmp_path / task / "grader.py").write_text("changed")
+    before = state.state_path(tmp_path).read_bytes()
+    result = subprocess.run(
+        [sys.executable, str(SCRIPTS / "journey_state.py"), "--repo", str(tmp_path), "show"],
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stderr
+    output = json.loads(result.stdout)
+    assert output["state"]["tasks"][task]["status"] == "accepted"
+    assert output["task_readiness"][task]["status"] == "draft"
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("bad", ["unknown", "path", "digest", "fields", "evidence"])
+def test_invalid_task_records_cannot_establish_readiness(state, tmp_path, bad):
+    task, evidence = task_fixture(state, tmp_path)
+    saved = state.record_task(tmp_path, task=task, status="accepted", source="Reviewed", evidence=[evidence])
+    if bad == "unknown":
+        saved["tasks"][task]["status"] = "unknown"
+    elif bad == "path":
+        saved["tasks"]["../escape"] = saved["tasks"].pop(task)
+    elif bad == "digest":
+        saved["tasks"][task]["task_digest"] = "not-a-hash"
+    elif bad == "fields":
+        saved["tasks"][task]["extra"] = "unexpected"
+    else:
+        saved["tasks"][task]["evidence"] = []
+    state.state_path(tmp_path).write_text(json.dumps(saved))
+    with pytest.raises(ValueError):
+        state.load_state(tmp_path)
+
+
+def test_interrupted_acceptance_write_keeps_prior_draft(state, tmp_path, monkeypatch):
+    task, evidence = task_fixture(state, tmp_path)
+    state.record_task(tmp_path, task=task, status="draft", source="Started")
+    before = state.state_path(tmp_path).read_bytes()
+    paths = importlib.import_module("working_paths")
+
+    def failed_replace(*_):
+        raise OSError("disk unavailable")
+
+    monkeypatch.setattr(paths.os, "replace", failed_replace)
+    with pytest.raises(OSError, match="disk unavailable"):
+        state.record_task(tmp_path, task=task, status="accepted", source="Reviewed", evidence=[evidence])
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert state.task_lifecycle(tmp_path, state.load_state(tmp_path), task)["status"] == "draft"
+
+
+def test_scoped_task_creation_records_status_without_full_onboarding(state, tmp_path):
+    task = tmp_path / "existing-suite/refund"
+    task.mkdir(parents=True)
+    (task / "instruction.md").write_text("Check refunds")
+    saved = state.record_task(tmp_path, task="existing-suite/refund", status="draft", source="Scoped creation")
+    assert saved["journey"] is None and saved["agent"] is None and saved["setup"] is None
+    assert saved["ethos"]["stage"] == "explore"
+    assert state.view(saved)["checklist"] == []
+    assert state.task_lifecycle(tmp_path, saved, "existing-suite/refund")["status"] == "draft"
+
+
 def test_fresh_session_recovers_interview_and_agreed_draft_across_goal_switch(state, tmp_path):
     setup_ready(state, tmp_path)
     answers = [{"topic": "Purpose", "question": "What outcome?", "answer": "Resolve refunds", "source": "reply 3"}]

@@ -319,6 +319,13 @@ Create new tasks directly in `.eval-author/tasks/<task-slug>/`, or the selected
 existing suite's established task directory when that flow permits it.
 Keep task files at the same path as their status changes. Include only accepted
 tasks in the saved suite configuration.
+Record new tasks as **Draft** in shared state after scaffolding. Record
+**Accepted** only after the calling flow's existing validation, execution, and
+review requirements are satisfied, with its evidence and decision provenance.
+Use [Task status](references/shared-prerequisites.md#task-status) to record and
+recheck that status; directory presence and run scores do not establish acceptance.
+The generated suite README and report display the current status without changing
+task files or introducing a separate progress record.
 
 For tasks derived from traces, follow the trace-environment skill's
 [workspace and publication rules](../eval-author-trace-environment/SKILL.md).

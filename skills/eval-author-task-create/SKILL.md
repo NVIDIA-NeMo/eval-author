@@ -277,6 +277,9 @@ uv run <skill_dir>/scripts/task_pipeline.py scaffold \
 
 Use the Step 2 `task_slug` for `<task-slug>` in every path above. `scaffold`
 rejects mismatched draft, task-name, or proposal filenames.
+For either provider, record the scaffold as **Draft** using
+[Task status](../eval-author/references/shared-prerequisites.md#task-status)
+before refreshing the report.
 
 Then complete Harbor's generated files:
 
@@ -440,7 +443,11 @@ verification rejects stale revisions, missing controls, unrelated tasks,
 reused native runs, and traces unrelated to the execution receipts. Task
 validation, successful agent execution, and coverage closure are separate fields.
 
-Accept the draft only when `accepted` is `true`. Report native control rewards, both
+Accept the draft only when `accepted` is `true`. Save that verification JSON and
+run the existing [acceptance recheck](../eval-author/references/task-validation.md#revalidate-saved-acceptance).
+Then record **Accepted** through [Task status](../eval-author/references/shared-prerequisites.md#task-status),
+referencing the verification and its retained evidence. Otherwise keep **Draft**.
+Report native control rewards, both
 real-agent rewards, both run/trace paths, and the verify JSON. If either repeat
 misses the tool, revise the task and rerun both attempts.
 After acceptance, follow

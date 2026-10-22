@@ -9,7 +9,7 @@ Use this shared reporting contract for Harbor and NeMo Gym.
 
 `.eval-author/report.html` defines the case/run review content.
 Its Tasks tab lists discovered Harbor tasks and NeMo Gym workload definitions by directory,
-including tasks being authored and accepted tasks at their stable paths, with provider, task name, grading,
+including tasks being authored and accepted tasks at their stable paths, with provider, task name, task status, grading,
 behavior, expected outcome, and actions. Its Runs tab lists one row per native
 Harbor job with date/time, the exact on-disk directory name and project-relative
 path, role, status, aggregate reward, and actions. Its Harbor viewer action opens
@@ -34,6 +34,15 @@ record diagnostics, and missing-data labels. Edit task documentation, native
 artifacts, or supported reporting metadata to update generated content, then
 refresh. Maintain operational and rerun guidance outside the marked section for
 both providers.
+
+Display **Draft**, **Accepted**, or **Unknown** and any status reason in the Tasks
+table in both outputs, using [Task status](shared-prerequisites.md#task-status).
+Shared journey state owns these decisions; reporting metadata and native run
+scores cannot override them. **Draft** means acceptance is pending or its task
+revision or evidence changed; **Unknown** means no valid task status is available.
+Keep inventory findings such as `found` or `unverified` separate from acceptance.
+Refresh after status changes without editing task-local READMEs, which belong
+to the revision checked by execution receipts.
 
 Task README actions become relative links to the source documentation (or the
 HTML's saved snapshot when the source is unverified). NeMo Gym source actions link
@@ -98,7 +107,8 @@ Outputs are `.eval-author/report.html`, containing the fixed template and valida
 embedded JSON, and the marked report section in `.eval-author/README.md`. Both
 use the same validated records; authored README content is preserved and is not
 reporting state. `.eval-author/.working/report/state.json` is the authoritative
-report metadata and last inventory snapshot. A legacy HTML report is imported
+report metadata and last inventory snapshot; task status is projected from
+`.eval-author/.working/journey-state.json`. A legacy HTML report is imported
 once when that state is absent; later refreshes use the internal state and repair
 missing or edited HTML. The first import also saves the original validated records
 and metadata as `.eval-author/.working/report/legacy-import.json`. Review this

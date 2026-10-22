@@ -155,6 +155,10 @@ the pilot's size does not determine the expansion's scope.
 
 ## 5. Prepare cases and grading
 
+After each native scaffold is created, record it as **Draft** using the shared
+[Task status](../eval-author/references/shared-prerequisites.md#task-status)
+procedure. Keep that status while completing and validating the task.
+
 Apply [Task validation and execution evidence](../eval-author/references/task-validation.md)
 for requirement-to-check review, declared verifier controls, and revision-bound
 run receipts. Include a realistic incorrect result and applicable valid-alternative
@@ -290,6 +294,11 @@ Recording this baseline with the evidence recorder is optional.
 
 ## 10. Review results and explain reruns
 
+Record **Accepted** through [Task status](../eval-author/references/shared-prerequisites.md#task-status)
+after the existing workflow's controls, configuration validation, actual-agent
+baseline, and result review are complete. Link the retained evidence; low agent
+scores do not prevent acceptance of a functioning evaluation. Keep incomplete
+tasks **Draft**.
 For accepted tasks, follow [Keep task paths stable](../eval-author/SKILL.md#keep-task-paths-stable).
 Acceptance updates status and suite membership without copying or moving task
 files. Verify the native config resolves exactly the accepted set and report

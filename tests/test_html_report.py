@@ -531,6 +531,74 @@ assert.equal(ids['no-cases'].hidden,true);
     assert result.returncode == 0, result.stderr
 
 
+def test_browser_task_status_is_separate_from_inventory_status(tmp_path):
+    import journey_state
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node is needed to exercise task rendering")
+    draft, accepted, unknown = [task(tmp_path, name=name) for name in ("alpha", "beta", "gamma")]
+    evidence = ".eval-author/jobs/reviewed-baseline.json"
+    write(tmp_path, evidence, {"reward": 0, "validation": "passed"})
+    journey_state.record_task(tmp_path, task=draft, status="draft", source="Authoring is underway")
+    journey_state.record_task(
+        tmp_path, task=accepted, status="accepted", source="Workflow review complete", evidence=[evidence]
+    )
+    report.refresh(tmp_path)
+    data = report.refresh(tmp_path, max_entries=1)
+    assert not data["inventory"]["complete"]
+    assert all(item["status"] == "unverified" for item in data["tasks"])
+    expected = {
+        "harbor:" + path: status for path, status in ((draft, "Draft"), (accepted, "Accepted"), (unknown, "Unknown"))
+    }
+    source = (SCRIPTS / "report-template.html").read_text()
+    helper = source[source.index("function drawCases()") : source.index("function runRow(")]
+    program = r"""
+const assert=require('node:assert/strict'),vm=require('node:vm');
+const input=JSON.parse(require('node:fs').readFileSync(0,'utf8'));
+class Element {
+  constructor(tag,text){this.tag=tag;this.textContent=text;this.children=[];this.dataset={};}
+  append(...children){this.children.push(...children);}
+  replaceChildren(...children){this.children=children;}
+}
+const ids={'case-tables':new Element('div'),search:{value:''},'no-cases':{}};
+const context={data:input.data,byId:id=>ids[id],
+  element:(tag,text)=>new Element(tag,text),
+  parent:path=>path.includes('/')?path.slice(0,path.lastIndexOf('/')):'.',
+  displayTaskPath:path=>path.replace(/^\.eval-author\//,''),
+  viewerAction:()=>new Element('button'),readmeAction:()=>new Element('button')
+};
+function descendants(node){return [node,...node.children.flatMap(descendants)];}
+function taskRows(){return descendants(ids['case-tables']).filter(node=>node.dataset.task);}
+vm.createContext(context);vm.runInContext(input.helper+'drawCases();',context);
+const headers=descendants(ids['case-tables']).filter(node=>node.tag==='th');
+assert.deepEqual(headers.map(node=>node.textContent),['Test case / grading','Status','Behavior','Expected outcome','Actions']);
+assert.equal(taskRows().length,3);
+for(const row of taskRows()){
+  assert.equal(row.children.length,5);
+  const inventory=descendants(row.children[0]);
+  assert(inventory.some(node=>node.textContent==='Inventory unverified'));
+  const status=row.children[1];
+  assert.equal(status.children[0].tag,'strong');
+  assert.equal(status.children[0].textContent,input.expected[row.dataset.task]);
+  assert(status.children[1].textContent.length>0);
+  assert(!descendants(status).some(node=>node.textContent==='Inventory unverified'));
+}
+ids.search.value='draft';vm.runInContext('drawCases();',context);
+assert.equal(taskRows().length,1);
+assert.equal(input.expected[taskRows()[0].dataset.task],'Draft');
+assert.equal(ids['no-cases'].hidden,true);
+"""
+    result = subprocess.run(
+        [node, "-e", program],
+        input=json.dumps({"helper": helper, "data": data, "expected": expected}),
+        text=True,
+        capture_output=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_unreadable_run_entry_does_not_hide_readable_siblings(tmp_path, monkeypatch):
     write(tmp_path, "results/bad/config.json", {})
     write(tmp_path, "results/config.json", {"job_name": "readable"})
@@ -709,7 +777,15 @@ def test_corrupt_existing_report_preserves_output(tmp_path):
 def test_copied_script_and_template_installation(tmp_path):
     installed = tmp_path / "copied-skill/scripts"
     installed.mkdir(parents=True)
-    for name in ["report.py", "report-template.html", "search_tasks.py", "working_paths.py"]:
+    for name in [
+        "report.py",
+        "report-template.html",
+        "search_tasks.py",
+        "working_paths.py",
+        "journey_state.py",
+        "runtime_policy.py",
+        "runtime-policy.json",
+    ]:
         shutil.copy2(SCRIPTS / name, installed / name)
     project = tmp_path / "project"
     project.mkdir()
@@ -724,6 +800,159 @@ def test_copied_script_and_template_installation(tmp_path):
     assert (project / ".eval-author/report.html").is_file()
     assert json.loads(result.stdout)["readme"] == ".eval-author/README.md"
     assert (project / ".eval-author/README.md").is_file()
+
+
+def test_task_readiness_is_projected_without_changing_tasks_or_suite_selection(tmp_path):
+    import journey_state
+
+    path = task(tmp_path, readme="# Reviewed task\n")
+    configured = write(tmp_path, ".eval-author/run.yaml", "tasks: []\n")
+    journey_state.initialize(tmp_path, agent="assistant", journey="create", setup="harbor")
+    journey_state.record_task(tmp_path, task=path, status="draft", source="Case creation in progress")
+    draft = report.refresh(tmp_path)
+    assert draft["tasks"][0]["readiness"] == "draft"
+    assert draft["tasks"][0]["status"] == "found"
+    before_task = (tmp_path / path / "README.md").read_bytes()
+    evidence = ".eval-author/jobs/reviewed-baseline.json"
+    write(tmp_path, evidence, {"reward": 0, "validation": "passed", "review": "complete"})
+    journey_state.record_task(
+        tmp_path, task=path, status="accepted", source="Existing workflow review completed", evidence=[evidence]
+    )
+    before_state = journey_state.state_path(tmp_path).read_bytes()
+    accepted = report.refresh(tmp_path)
+    row = accepted["tasks"][0]
+    assert row["readiness"] == "accepted"
+    assert row["path"] == path
+    markdown = (tmp_path / ".eval-author/README.md").read_text()
+    assert "| Status |" in markdown
+    assert "Accepted<br>Existing workflow review completed" in markdown
+    assert report.previous_report(tmp_path / ".eval-author/report.html")[0]["tasks"] == accepted["tasks"]
+    assert (tmp_path / path / "README.md").read_bytes() == before_task
+    assert configured.read_text() == "tasks: []\n"
+    assert journey_state.state_path(tmp_path).read_bytes() == before_state
+    assert report.refresh(tmp_path) == accepted
+
+
+@pytest.mark.parametrize("change", ["task", "evidence", "missing-evidence"])
+def test_report_reopens_changed_acceptance_without_rewriting_provenance(tmp_path, change):
+    import journey_state
+
+    path = task(tmp_path)
+    evidence = ".eval-author/jobs/acceptance.json"
+    write(tmp_path, evidence, {"accepted": True})
+    journey_state.initialize(tmp_path)
+    journey_state.record_task(tmp_path, task=path, status="accepted", source="Reviewed result", evidence=[evidence])
+    assert report.refresh(tmp_path)["tasks"][0]["readiness"] == "accepted"
+    before_state = journey_state.state_path(tmp_path).read_bytes()
+    if change == "task":
+        write(tmp_path, path + "/instruction.md", "Changed scenario")
+    elif change == "evidence":
+        write(tmp_path, evidence, {"accepted": False})
+    else:
+        (tmp_path / evidence).unlink()
+    row = report.refresh(tmp_path)["tasks"][0]
+    assert row["readiness"] == "draft"
+    assert row["status"] == "found"
+    assert row["readiness_reason"] != "Reviewed result"
+    assert journey_state.state_path(tmp_path).read_bytes() == before_state
+
+
+@pytest.mark.parametrize("change", ["changed-evidence", "missing-evidence"])
+def test_incomplete_inventory_recomputes_retained_task_readiness(tmp_path, change):
+    import journey_state
+
+    path = task(tmp_path)
+    evidence = write(tmp_path, ".eval-author/jobs/acceptance.json", {"accepted": True})
+    journey_state.record_task(
+        tmp_path,
+        task=path,
+        status="accepted",
+        source="Workflow review complete",
+        evidence=[evidence.relative_to(tmp_path).as_posix()],
+    )
+    assert report.refresh(tmp_path)["tasks"][0]["readiness"] == "accepted"
+    before_state = journey_state.state_path(tmp_path).read_bytes()
+    if change == "changed-evidence":
+        evidence.write_text('{"accepted": false}')
+    else:
+        evidence.unlink()
+    data = report.refresh(tmp_path, max_entries=1)
+    assert not data["inventory"]["complete"]
+    assert len(data["tasks"]) == 1
+    row = data["tasks"][0]
+    assert row["path"] == path
+    assert row["status"] == "unverified"
+    assert row["readiness"] == "draft"
+    assert row["readiness_reason"] != "Workflow review complete"
+    assert report.previous_report(tmp_path / ".eval-author/report.html")[0]["tasks"] == data["tasks"]
+    markdown = (tmp_path / ".eval-author/README.md").read_text()
+    assert "Inventory unverified" in markdown
+    assert "Draft<br>" in markdown
+    assert "Accepted<br>" not in markdown
+    assert journey_state.state_path(tmp_path).read_bytes() == before_state
+
+
+def test_native_gym_manifest_uses_explicit_task_root_not_readme_parent(tmp_path):
+    import journey_state
+
+    root = ".eval-author/tasks/gym-case"
+    manifest = root + "/environments/case/manifest.yaml"
+    write(tmp_path, manifest, "name: case\n")
+    write(tmp_path, root + "/README.md", "# Root documentation\n")
+    write(tmp_path, root + "/environments/README.md", "# Nested documentation\n")
+    journey_state.initialize(tmp_path, setup="gym")
+    journey_state.record_task(tmp_path, task=root, status="draft", source="Native case not yet validated")
+    row = report.refresh(tmp_path)["tasks"][0]
+    assert row["path"] == manifest
+    assert row["readiness"] == "draft"
+    assert row["readiness_reason"] == "Native case not yet validated"
+
+
+def test_run_results_and_legacy_report_cannot_infer_task_acceptance(tmp_path):
+    path = task(tmp_path)
+    run = job(tmp_path, total=1)
+    trial(tmp_path, run + "/pass", reward=1)
+    data = report.refresh(tmp_path)
+    assert data["tasks"][0]["readiness"] == "unknown"
+    # Simulate a report generated before task status fields existed.
+    del data["tasks"][0]["readiness"]
+    del data["tasks"][0]["readiness_reason"]
+    internal = tmp_path / ".eval-author/.working/report/state.json"
+    write(tmp_path, internal.relative_to(tmp_path), data)
+    assert report.refresh(tmp_path)["tasks"][0]["readiness"] == "unknown"
+    # Even an imported snapshot claiming acceptance is not workflow authority.
+    data["tasks"][0].update(readiness="accepted", readiness_reason="Legacy display label")
+    write(tmp_path, internal.relative_to(tmp_path), data)
+    refreshed = report.refresh(tmp_path)
+    assert refreshed["tasks"][0]["readiness"] == "unknown"
+    assert refreshed["tasks"][0]["path"] == path
+    assert not (tmp_path / ".eval-author/.working/journey-state.json").exists()
+    with pytest.raises(report.ReportError):
+        report.refresh(tmp_path, patch={"tasks": {path: {"readiness": "accepted"}}})
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_invalid_or_missing_workflow_state_cannot_reuse_report_acceptance(tmp_path, missing):
+    import journey_state
+
+    path = task(tmp_path)
+    evidence = ".eval-author/jobs/acceptance.json"
+    write(tmp_path, evidence, {"accepted": True})
+    journey_state.initialize(tmp_path)
+    journey_state.record_task(tmp_path, task=path, status="accepted", source="Reviewed result", evidence=[evidence])
+    assert report.refresh(tmp_path)["tasks"][0]["readiness"] == "accepted"
+    state_path = journey_state.state_path(tmp_path)
+    if missing:
+        state_path.unlink()
+    else:
+        state_path.write_text('{"invalid": true}')
+    refreshed = report.refresh(tmp_path)
+    assert refreshed["tasks"][0]["readiness"] == "unknown"
+    if missing:
+        assert not state_path.exists()
+    else:
+        assert "workflow state" in " ".join(refreshed["warnings"])
+        assert state_path.read_text() == '{"invalid": true}'
 
 
 def test_runtime_paths_are_portable(tmp_path):

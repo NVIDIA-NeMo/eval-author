@@ -236,9 +236,9 @@ only the work they actually block.
 ## Save and resume
 
 `.eval-author/.working/journey-state.json` is the sole authority for workflow
-stage, prerequisite findings and answers, confirmations, pending questions, and next action.
+stage, prerequisite findings and answers, confirmations, task status, pending questions, and next action.
 Use `scripts/journey_state.py --repo <repository> <command>` for `show`, `init`,
-`update`, `confirm-ethos`, and `import-legacy`; inspect its help for command inputs.
+`update`, `confirm-ethos`, `record-task`, and `import-legacy`; inspect its help for command inputs.
 Its validation and atomic writes are allowed bounded local commands, not runtime
 probes. State identifies the repository, agent, goal, selected setup, answer
 provenance, Ethos path/digest, and journey-specific progress. Never store secrets.
@@ -351,6 +351,47 @@ clear a blocker only when the new evidence resolves it or establishes that it
 does not apply. Review legacy blockers without these IDs explicitly rather
 than treating them as current requirements automatically. Pending question and next handoff
 are strings or null. Reopening a dependency must not silently erase old evidence.
+
+### Task status
+
+Record each newly scaffolded task as `draft` before refreshing the report. Use
+the repository-relative task root: the Harbor directory containing `task.toml`,
+or the NeMo Gym scaffold root containing `environments/<name>/manifest.yaml`.
+The optional top-level `tasks` mapping holds these records, keyed by task root.
+Use `record-task`, rather than an arbitrary state update or report metadata patch:
+
+```bash
+python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository record-task \
+  --task .eval-author/tasks/<slug> --status draft --source "<authoring decision>"
+python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository record-task \
+  --task .eval-author/tasks/<slug> --status accepted --source "<completed workflow review>" \
+  --evidence .eval-author/<retained-validation-result> \
+  --evidence .eval-author/<retained-agent-result>
+```
+
+`accepted` records the calling flow's completed acceptance decision; it does not
+run or replace that flow's checks. Supply its retained evidence files with
+repeatable `--evidence` arguments. Paths are repository-relative. For first
+evaluations, retain the passed controls, validated configuration, and actual-agent
+baseline required by that flow; a low agent score can still be a valid baseline.
+Audit-gap creation requires its saved `accepted: true` verification and a passing
+`check-acceptance` before recording or reusing acceptance.
+
+The helper binds acceptance to the current task revision and evidence hashes.
+Changed or missing task content or evidence derives **Draft** with a reason,
+while preserving the recorded decision for review. An unrecorded task is
+**Unknown**; discovery, a task path, or a successful run cannot infer acceptance.
+The report reads this state for both the Harbor task directory and a NeMo Gym
+manifest under the nearest explicitly recorded task root. Report refresh and
+`show` do not accept tasks or rerun checks. Use `show`'s `task_readiness` for
+current status; `state.tasks` retains the original decision and provenance.
+
+Keep status labels out of task-local READMEs: those files are part of the task
+revision used by execution receipts. Display status in the generated suite
+README and report, derived from shared state. A status change does not move task
+files, change suite membership automatically, or create another status document.
+
+### Ethos state
 
 During Ethos work, the `ethos` update accepts:
 

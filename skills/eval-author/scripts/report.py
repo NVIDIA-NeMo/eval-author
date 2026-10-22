@@ -37,6 +37,8 @@ from urllib.parse import quote
 
 # Isolated Python invocations must resolve the bundled sibling, never cwd code.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from journey_state import load_state, task_lifecycle  # noqa: E402
+from journey_state import state_path as journey_state_path
 from search_tasks import search_tasks, within_task_scope  # noqa: E402
 from working_paths import working_path  # noqa: E402
 
@@ -112,6 +114,12 @@ TASK_SCHEMA = obj(
         "status": {"enum": ["found", "unverified"]},
         "issues": array(TEXT),
     }
+)
+# Older v1 snapshots lack readiness. Refresh always derives it from journey state;
+# retained HTML, report metadata, and inventory status cannot establish acceptance.
+TASK_SCHEMA["properties"].update(
+    readiness={"enum": ["draft", "accepted", "unknown"]},
+    readiness_reason=TEXT,
 )
 ATTEMPT_SCHEMA = obj(
     {
@@ -433,6 +441,29 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
         complete,
         sorted(excluded),
     )
+
+
+def apply_task_readiness(repo: Path, tasks: list[dict]) -> list[str]:
+    """Project workflow acceptance without modifying task files or saved decisions."""
+    if not tasks:
+        return []
+    state = None
+    reason = "No task acceptance has been recorded."
+    warnings = []
+    try:
+        path = journey_state_path(repo)
+        if path.exists():
+            state = load_state(repo)
+    except (OSError, ValueError, TypeError, KeyError):
+        reason = "Shared workflow state is unavailable or invalid; task readiness is unknown."
+        warnings.append(reason)
+    for task in tasks:
+        result = (
+            task_lifecycle(repo, state, task["path"]) if state is not None else {"status": "unknown", "reason": reason}
+        )
+        task["readiness"] = result["status"]
+        task["readiness_reason"] = result["reason"]
+    return warnings
 
 
 def within_run_scope(path: Path, root: Path) -> bool:
@@ -811,8 +842,8 @@ def render_markdown(data: dict) -> str:
                 [
                     "### " + markdown_text(parent.removeprefix(".eval-author/")),
                     "",
-                    "| Test case / grading | Behavior | Expected outcome | Actions |",
-                    "| --- | --- | --- | --- |",
+                    "| Test case / grading | Status | Behavior | Expected outcome | Actions |",
+                    "| --- | --- | --- | --- | --- |",
                 ]
             )
         grading = "Verifier not documented" if task["grading_kind"] == "unknown" else task["grading_kind"]
@@ -835,6 +866,9 @@ def render_markdown(data: dict) -> str:
             actions.append(artifact_link("Task README", task["readme_path"]))
         cells = [
             "<br>".join(markdown_text(part) for part in name),
+            markdown_text(task.get("readiness", "unknown").capitalize())
+            + "<br>"
+            + markdown_text(task.get("readiness_reason", "No task acceptance has been recorded.")),
             markdown_text(task["behavior"] or "Not documented"),
             markdown_text(task["expected_outcome"] or "Not documented"),
             "<br>".join(actions),
@@ -994,6 +1028,7 @@ def refresh(
                     if old["path"] not in current and in_scope and not complete:
                         issues = sorted(set(old["issues"] + ["Source artifacts were not found in this scan."]))
                         records.append({**old, "status": "unverified", "issues": issues})
+            warnings.extend(apply_task_readiness(repo, tasks))
             tasks.sort(key=task_sort)
             runs.sort(key=run_sort)
             standalone_trials.sort(key=run_sort)

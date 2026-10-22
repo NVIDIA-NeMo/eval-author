@@ -16,7 +16,9 @@ import argparse
 import copy
 import hashlib
 import json
+import os
 import re
+import stat
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,6 +58,10 @@ AUDIT_DEPENDENT = PROVIDER_DEPENDENT | {"skills"}
 LEGACY_NAMES = ("audit-progress.md", "first-eval.md", "intent-notes.md")
 MAX_BYTES = 2 * 1024 * 1024
 DIGEST = re.compile(r"[0-9a-f]{64}")
+TASK_IGNORED = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache"}
+MAX_TASK_ENTRIES = 10000
+MAX_TASK_BYTES = 64 * 1024 * 1024
+MAX_TASK_EVIDENCE = 32
 
 
 def now() -> str:
@@ -93,6 +99,7 @@ def new_state(repo: Path) -> dict:
         "prerequisites": {},
         "ethos": empty_ethos(),
         "scopes": {},
+        "tasks": {},
         "journey_status": {},
         "blockers": [],
         "pending_question": None,
@@ -109,8 +116,51 @@ def _text(value: object, field: str, *, nullable: bool = False) -> None:
         raise ValueError(f"{field} must be a nonempty string")
 
 
+def _relative_task_path(value: object) -> Path:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("Task or evidence path must be a nonempty string")
+    path = Path(value)
+    if path.is_absolute() or not path.parts or ".." in path.parts or path.as_posix() != value:
+        raise ValueError("Task and evidence paths must be canonical repository-relative paths, not the root")
+    return path
+
+
+def _validate_tasks(tasks: object) -> None:
+    if not isinstance(tasks, dict):
+        raise ValueError("Task lifecycle records must be a mapping")
+    for root, record in tasks.items():
+        _relative_task_path(root)
+        if not isinstance(record, dict) or set(record) != {"status", "source", "task_digest", "evidence", "updated_at"}:
+            raise ValueError("Invalid task lifecycle record")
+        if record["status"] not in ("draft", "accepted"):
+            raise ValueError("Task lifecycle status must be draft or accepted; absent records are unknown")
+        for key in ("source", "updated_at"):
+            _text(record[key], f"task.{key}")
+        if len(record["source"]) > 2000:
+            raise ValueError("Task decision provenance exceeds the 2000-character limit")
+        if not isinstance(record["task_digest"], str) or not DIGEST.fullmatch(record["task_digest"]):
+            raise ValueError("Invalid task content digest")
+        evidence = record["evidence"]
+        if not isinstance(evidence, list) or len(evidence) > MAX_TASK_EVIDENCE:
+            raise ValueError("Task evidence must be a bounded list")
+        if record["status"] == "accepted" and not evidence:
+            raise ValueError("Accepted tasks require retained workflow evidence")
+        paths = set()
+        for item in evidence:
+            if not isinstance(item, dict) or set(item) != {"path", "digest"}:
+                raise ValueError("Task evidence requires a path and digest")
+            _relative_task_path(item["path"])
+            if item["path"] in paths:
+                raise ValueError("Duplicate task evidence path")
+            paths.add(item["path"])
+            if not isinstance(item["digest"], str) or not DIGEST.fullmatch(item["digest"]):
+                raise ValueError("Invalid task evidence digest")
+
+
 def validate(state: dict) -> None:
-    if not isinstance(state, dict) or set(state) != set(new_state(Path("/"))):
+    fields = set(new_state(Path("/")))
+    # Older v1 records predate task lifecycle tracking; their readiness is unknown.
+    if not isinstance(state, dict) or set(state) not in (fields, fields - {"tasks"}):
         raise ValueError("Invalid journey state fields; preserve the file and resolve its schema")
     if type(state["schema_version"]) is not int or state["schema_version"] != 1:
         raise ValueError("Unsupported journey state schema")
@@ -199,6 +249,7 @@ def validate(state: dict) -> None:
             raise ValueError(f"Invalid {field}")
     if any(value not in ("pending", "in_progress", "complete") for value in state["journey_status"].values()):
         raise ValueError("Invalid journey completion status")
+    _validate_tasks(state.get("tasks", {}))
     if not isinstance(state["blockers"], list):
         raise ValueError("Blockers must be a list")
     for item in state["blockers"]:
@@ -279,6 +330,7 @@ def invalidate_scopes(state: dict) -> None:
 def load_state(repo: Path) -> dict:
     state = read_json(state_path(repo))
     validate(state)
+    state.setdefault("tasks", {})
     if state["repository"] != str(repo):
         raise ValueError("Journey state belongs to another repository; do not reuse its approvals")
     confirmed = state["ethos"]["confirmed_digest"]
@@ -310,6 +362,112 @@ def load_state(repo: Path) -> dict:
             state["next_handoff"] = "ethos-orchestrate"
             state["pending_question"] = "The agreed draft changed or is unavailable; review the draft before writing."
     return state
+
+
+def _task_local_path(repo: Path, relative: str) -> Path:
+    path = repo
+    for part in _relative_task_path(relative).parts:
+        path /= part
+        if path.is_symlink():
+            raise ValueError("Task content and evidence must not traverse symlinks")
+    return path
+
+
+def _file_digest(path: Path, remaining: int) -> tuple[str, int]:
+    """Read bounded regular files only; never follow a final-component symlink."""
+    if not stat.S_ISREG(path.lstat().st_mode):
+        raise ValueError("Task content or evidence must be a regular file")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    with os.fdopen(os.open(path, flags), "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size > remaining:
+            raise ValueError("Task content or evidence is not a bounded regular file")
+        payload = stream.read(remaining + 1)
+        if len(payload) > remaining:
+            raise ValueError("Task content or evidence exceeds the byte limit")
+        return digest(payload), len(payload)
+
+
+def task_digest(repo: Path, task: str) -> str:
+    """Hash the selected task tree, including README and modes, without executing it."""
+    root = _task_local_path(repo, task)
+    if not root.is_dir():
+        raise ValueError("Task content must be an existing directory")
+    if state_path(repo).is_relative_to(root):
+        raise ValueError("Task content must not contain its own journey state")
+    entries = []
+    remaining = MAX_TASK_BYTES
+    pending = [root]
+    while pending:
+        directory = pending.pop()
+        with os.scandir(directory) as children:
+            for child in children:
+                if child.name in TASK_IGNORED:
+                    continue
+                if len(entries) >= MAX_TASK_ENTRIES:
+                    raise ValueError("Task content exceeds the entry limit")
+                info = child.stat(follow_symlinks=False)
+                path = Path(child.path)
+                relative = path.relative_to(root).as_posix()
+                if stat.S_ISDIR(info.st_mode):
+                    pending.append(path)
+                    checksum = None
+                elif stat.S_ISREG(info.st_mode):
+                    checksum, size = _file_digest(path, remaining)
+                    remaining -= size
+                else:
+                    raise ValueError("Task content must contain only regular files and directories, no symlinks")
+                entries.append([relative, info.st_mode & 0o777, checksum])
+    return digest(json.dumps(sorted(entries)).encode())
+
+
+def record_task(repo: Path, *, task: str, status: str, source: str, evidence: list[str] | None = None) -> dict:
+    """Record the calling flow's decision; its existing validation still owns acceptance."""
+    references = evidence or []
+    _relative_task_path(task)
+    _text(source, "task.source")
+    if status not in ("draft", "accepted"):
+        raise ValueError("Task lifecycle status must be draft or accepted")
+    if len(references) > MAX_TASK_EVIDENCE or (status == "accepted" and not references):
+        raise ValueError("Accepted tasks require a bounded list of retained workflow evidence")
+    with working_lock(working_path(repo, "journey-state.lock")):
+        state = load_state(repo) if state_path(repo).exists() else new_state(repo)
+        bound = [
+            {"path": path, "digest": _file_digest(_task_local_path(repo, path), MAX_BYTES)[0]} for path in references
+        ]
+        state["tasks"][task] = {
+            "status": status,
+            "source": source,
+            "task_digest": task_digest(repo, task),
+            "evidence": bound,
+            "updated_at": now(),
+        }
+        save(repo, state)
+        return state
+
+
+def task_lifecycle(repo: Path, state: dict, task_path: str) -> dict:
+    """Resolve readiness independently of inventory; native manifests inherit their task root."""
+    path = _relative_task_path(task_path)
+    _validate_tasks(state.get("tasks", {}))
+    for candidate in (path, *path.parents):
+        root = candidate.as_posix()
+        record = state.get("tasks", {}).get(root)
+        if record is None:
+            continue
+        if record["status"] == "draft":
+            return {"status": "draft", "reason": record["source"]}
+        try:
+            if task_digest(repo, root) != record["task_digest"]:
+                return {"status": "draft", "reason": "Task content changed since acceptance; review the changes"}
+            for item in record["evidence"]:
+                current, _ = _file_digest(_task_local_path(repo, item["path"]), MAX_BYTES)
+                if current != item["digest"]:
+                    return {"status": "draft", "reason": "Acceptance evidence changed; review the evidence"}
+        except (OSError, ValueError):
+            return {"status": "draft", "reason": "Task content or acceptance evidence is unavailable or unsafe"}
+        return {"status": "accepted", "reason": record["source"]}
+    return {"status": "unknown", "reason": "No task acceptance decision is recorded"}
 
 
 def checklist(state: dict) -> list[dict]:
@@ -369,6 +527,9 @@ def view(state: dict) -> dict:
         requirements = None
     return {
         "state": state,
+        "task_readiness": {
+            task: task_lifecycle(Path(state["repository"]), state, task) for task in state.get("tasks", {})
+        },
         "checklist": checklist(state) if state["journey"] else [],
         "runtime_requirements": requirements,
         "confirmation_is_runtime_evidence": False,
@@ -547,6 +708,11 @@ def main() -> int:
     confirm.add_argument("--digest", required=True)
     confirm.add_argument("--source", required=True, help="Source of the user's saved-content confirmation")
     confirm.add_argument("--validation", required=True, help="Validation result and provenance from ethos-write")
+    task = commands.add_parser("record-task", help="Record the calling flow's task status and evidence")
+    task.add_argument("--task", required=True, help="Repository-relative task directory")
+    task.add_argument("--status", required=True, choices=("draft", "accepted"))
+    task.add_argument("--source", required=True, help="Decision provenance from the existing authoring flow")
+    task.add_argument("--evidence", action="append", default=[], help="Repository-relative retained evidence file")
     commands.add_parser("import-legacy", help="Import old notes without assuming their approvals")
     args = parser.parse_args()
     try:
@@ -557,6 +723,8 @@ def main() -> int:
             state = update(repo, read_json(args.input), expected_revision=args.expected_revision)
         elif args.command == "confirm-ethos":
             state = confirm_ethos(repo, reviewed_digest=args.digest, source=args.source, validation=args.validation)
+        elif args.command == "record-task":
+            state = record_task(repo, task=args.task, status=args.status, source=args.source, evidence=args.evidence)
         elif args.command == "import-legacy":
             state = import_legacy(repo)
         else:
