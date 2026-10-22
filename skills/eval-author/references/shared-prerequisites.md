@@ -426,7 +426,12 @@ During Ethos work, the `ethos` update accepts:
 These shared Ethos fields survive journey switches. Lists replace prior lists
 on update; preserve earlier findings and answers when recording new ones. Save
 returned findings, answers, and the current draft at each pause. Load them on
-resume instead of reconstructing intent or repeating answered questions. The
+resume instead of reconstructing intent or repeating answered questions.
+Only `complete` establishes current Ethos confirmation. During `review`, the prior
+digest and provenance remain as history so file changes can still be detected.
+Opening review preserves agreed scopes and completed flows; reconfirming unchanged
+content retains them. Changed content or an intent-revision stage invalidates
+those agreements while preserving their source material. The
 `write` stage requires confirmed draft content. `show` invalidates approval of
 a changed or missing draft while retaining prior answers. Changed canonical
 Ethos similarly reopens its review without discarding the intent history.

@@ -36,7 +36,9 @@ Reuse the content, source findings, and prior answers to make the review brief.
 Before displaying the results checklist, use `journey_state.py update` to set
 `ethos.stage` to `review`, save the question as `pending_question`, and set
 `next_handoff` to `ethos-orchestrate`. Keep the Ethos item unchecked and current
-when prerequisites are complete. Pass the orchestrator the existing content and
+when prerequisites are complete. This pending review retains the previous content
+binding and provenance as history, along with agreed scope and completed flows.
+Pass the orchestrator the existing content and
 ask it to confirm both document identity and current intended behavior. Use this
 complete **Next Steps** section after the results table and any Recommendations:
 
@@ -54,9 +56,11 @@ Is this the right ETHOS.md for [agent], and does it accurately describe how the 
 
 Replace placeholders with the actual file link, agent, and a summary grounded in
 the document. Wait for the user's answer before marking Ethos complete or
-offering to continue with evaluations. A wrong document, requested changes, or
-uncertainty stays in review and returns to the orchestrator for clarification or
-revision. Do not describe an old confirmation as reusable approval.
+offering to continue with evaluations. Keep uncertainty in `review` and return to
+the orchestrator for clarification. A wrong document or confirmed change in intent
+starts the appropriate `explore`, `interview`, or `draft` stage, invalidating the
+affected agreements before dependent work resumes. Do not describe an old
+confirmation as approval for the current flow.
 
 Within the current flow, resume an unanswered review instead of starting
 it again. Once the user has explicitly confirmed the correct saved document and

@@ -399,7 +399,7 @@ def test_ethos_completion_pause_survives_resume_and_continuation(state, tmp_path
 
 
 @pytest.mark.parametrize("journey", ["create", "audit", "expand"])
-def test_existing_ethos_review_replaces_historical_confirmation(state, tmp_path, journey):
+def test_existing_ethos_review_requires_current_confirmation(state, tmp_path, journey):
     setup_ready(state, tmp_path, journey=journey)
     previous = ethos_ready(state, tmp_path)
     source_findings = [{"path": "README.md", "summary": "Account support agent"}]
@@ -415,8 +415,9 @@ def test_existing_ethos_review_replaces_historical_confirmation(state, tmp_path,
         {"ethos": {"stage": "review"}, "pending_question": question, "next_handoff": "ethos-orchestrate"},
     )
     pending = state.initialize(tmp_path, agent="assistant", journey=journey, setup="gym")
-    assert pending["ethos"]["confirmed_digest"] is None
-    assert pending["ethos"]["confirmation_source"] is None
+    for field in ("confirmed_digest", "confirmation_source", "validation"):
+        assert pending["ethos"][field] == previous["ethos"][field]
+    assert pending["ethos"]["stage"] == "review"
     assert pending["ethos"]["source_findings"] == source_findings
     assert pending["ethos"]["prior_answers"] == prior_answers
     assert pending["prerequisites"] == previous["prerequisites"]
@@ -435,6 +436,146 @@ def test_existing_ethos_review_replaces_historical_confirmation(state, tmp_path,
     assert confirmed["ethos"]["confirmation_source"] != previous["ethos"]["confirmation_source"]
     assert [row["complete"] for row in state.checklist(confirmed)] == [True, True, False]
     assert state.load_state(tmp_path)["ethos"] == confirmed["ethos"]
+
+
+@pytest.mark.parametrize("provider", ["gym", "harbor"])
+def test_fresh_ethos_review_preserves_completed_scope_after_goal_switch(state, tmp_path, provider):
+    setup_ready(state, tmp_path, setup=provider)
+    previous = ethos_ready(state, tmp_path)
+    scope = {"cases": ["refund"], "confirmed": True, "needs_review": False}
+    completed = state.update(tmp_path, {"scopes": {"create": scope}, "journey_status": {"create": "complete"}})
+    state.initialize(tmp_path, journey="expand")
+    question = "Is this still the right ETHOS.md and intended behavior?"
+    pending = state.update(
+        tmp_path,
+        {"ethos": {"stage": "review"}, "pending_question": question, "next_handoff": "ethos-orchestrate"},
+    )
+    resumed = state.initialize(tmp_path, journey="expand")
+    assert state.load_state(tmp_path) == resumed
+    assert resumed["ethos"] == pending["ethos"]
+    assert resumed["scopes"] == completed["scopes"]
+    assert resumed["journey_status"] == completed["journey_status"]
+    assert resumed["ethos"]["confirmed_digest"] == previous["ethos"]["confirmed_digest"]
+    assert [row["complete"] for row in state.checklist(resumed)] == [True, False, False]
+    assert state.checklist(resumed)[1]["current"]
+    assert resumed["pending_question"] == question
+    assert resumed["next_handoff"] == "ethos-orchestrate"
+
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path),
+        source="Current reply confirms unchanged content",
+        validation="Current saved-file validation passed",
+    )
+    assert confirmed["scopes"] == completed["scopes"]
+    assert confirmed["journey_status"] == completed["journey_status"]
+    assert confirmed["ethos"]["confirmation_source"] != previous["ethos"]["confirmation_source"]
+    assert state.checklist(confirmed)[2]["current"]
+    returned = state.initialize(tmp_path, journey="create")
+    assert all(row["complete"] for row in state.checklist(returned))
+
+
+@pytest.mark.parametrize("change", ["edit", "delete"])
+@pytest.mark.parametrize("revision_stage", [None, "explore", "interview", "draft"])
+def test_saved_ethos_review_does_not_require_its_old_authoring_draft(state, tmp_path, change, revision_stage):
+    setup_ready(state, tmp_path)
+    draft = tmp_path / ".eval-author/.working/draft.md"
+    draft.write_text("# Confirmed agent intent\n")
+    state.update(
+        tmp_path,
+        {
+            "ethos": {
+                "stage": "write",
+                "draft": {"path": draft.relative_to(tmp_path).as_posix(), "digest": state.digest(draft.read_bytes())},
+                "draft_confirmed": True,
+                "draft_source": "Approved authoring draft",
+            }
+        },
+    )
+    previous = ethos_ready(state, tmp_path)
+    completed = state.update(
+        tmp_path,
+        {"scopes": {"create": {"cases": ["refund"], "confirmed": True}}, "journey_status": {"create": "complete"}},
+    )
+    if change == "edit":
+        draft.write_text("Obsolete working copy")
+    else:
+        draft.unlink()
+
+    state.update(tmp_path, {"ethos": {"stage": "review"}})
+    resumed = state.initialize(tmp_path, journey="expand")
+    assert resumed["ethos"]["stage"] == "review"
+    assert resumed["ethos"]["confirmed_digest"] == previous["ethos"]["confirmed_digest"]
+    assert resumed["scopes"] == completed["scopes"]
+    assert resumed["journey_status"] == completed["journey_status"]
+    assert state.load_state(tmp_path) == resumed
+    if revision_stage:
+        rejected = state.update(tmp_path, {"ethos": {"stage": revision_stage}})
+        assert rejected["ethos"]["confirmed_digest"] is None
+        assert not rejected["ethos"]["draft_confirmed"]
+        assert rejected["ethos"]["draft_source"] is None
+        assert rejected["scopes"]["create"] == {"cases": ["refund"], "confirmed": False, "needs_review": True}
+        assert not rejected["journey_status"]
+        assert state.load_state(tmp_path) == rejected
+        return
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path),
+        source="Reviewed unchanged saved document",
+        validation="Saved document validation passed",
+    )
+    assert confirmed["scopes"] == completed["scopes"]
+    assert confirmed["journey_status"] == completed["journey_status"]
+    assert state.load_state(tmp_path) == confirmed
+
+
+def test_revised_ethos_requires_and_retains_current_draft_approval(state, tmp_path):
+    setup_ready(state, tmp_path)
+    ethos_ready(state, tmp_path)
+    state.update(
+        tmp_path,
+        {"scopes": {"create": {"cases": ["refund"], "confirmed": True}}, "journey_status": {"create": "complete"}},
+    )
+    state.update(tmp_path, {"ethos": {"stage": "review"}})
+    draft = tmp_path / ".eval-author/.working/revised.md"
+    draft.write_text("Revised intended behavior")
+    reference = {"path": draft.relative_to(tmp_path).as_posix(), "digest": state.digest(draft.read_bytes())}
+    revised = state.update(
+        tmp_path,
+        {"ethos": {"stage": "write", "draft": reference, "draft_confirmed": True, "draft_source": "Current reply"}},
+    )
+    assert revised["ethos"]["confirmed_digest"] is None
+    assert revised["ethos"]["draft"] == reference
+    assert revised["ethos"]["draft_confirmed"]
+    assert revised["ethos"]["draft_source"] == "Current reply"
+    assert not revised["scopes"]["create"]["confirmed"]
+    assert not revised["journey_status"]
+    assert state.load_state(tmp_path) == revised
+    draft.write_text("Changed after approval")
+    assert not state.load_state(tmp_path)["ethos"]["draft_confirmed"]
+
+
+@pytest.mark.parametrize("stage", ["explore", "interview", "draft"])
+def test_rejected_ethos_intent_invalidates_scope_without_file_changes(state, tmp_path, stage):
+    setup_ready(state, tmp_path)
+    original = ethos_ready(state, tmp_path)
+    state.update(
+        tmp_path,
+        {
+            "scopes": {"create": {"cases": ["refund"], "confirmed": True}},
+            "journey_status": {"create": "complete"},
+        },
+    )
+    state.update(tmp_path, {"ethos": {"stage": "review"}})
+    rejected = state.update(tmp_path, {"ethos": {"stage": stage}, "pending_question": "Clarify changed intent"})
+    assert state.ethos_digest(tmp_path) == original["ethos"]["confirmed_digest"]
+    assert rejected["ethos"]["confirmed_digest"] is None
+    assert rejected["ethos"]["confirmation_source"] is None
+    assert rejected["ethos"]["validation"] is None
+    assert rejected["scopes"]["create"] == {"cases": ["refund"], "confirmed": False, "needs_review": True}
+    assert not rejected["journey_status"]
+    assert not state.checklist(rejected)[1]["complete"]
+    assert state.load_state(tmp_path) == rejected
 
 
 def test_observed_checks_and_user_answers_survive_resume_without_implying_execution(state, tmp_path):
@@ -506,10 +647,19 @@ def test_agent_change_cannot_reuse_other_agents_ethos(state, tmp_path):
 
 
 @pytest.mark.parametrize("change", ["edit", "delete", "symlink"])
-def test_changed_ethos_loses_approval_without_mutating_on_show(state, tmp_path, change):
+@pytest.mark.parametrize("review_pending", [False, True])
+def test_changed_ethos_loses_approval_without_mutating_on_show(state, tmp_path, change, review_pending):
     setup_ready(state, tmp_path)
     ethos_ready(state, tmp_path)
-    state.update(tmp_path, {"scopes": {"audit": {"traces": ["selected.json"], "confirmed": True}}})
+    state.update(
+        tmp_path,
+        {
+            "scopes": {"audit": {"traces": ["selected.json"], "confirmed": True}},
+            "journey_status": {"audit": "complete"},
+        },
+    )
+    if review_pending:
+        state.update(tmp_path, {"ethos": {"stage": "review"}})
     before = state.state_path(tmp_path).read_bytes()
     ethos = tmp_path / "ETHOS.md"
     if change == "edit":
@@ -525,6 +675,7 @@ def test_changed_ethos_loses_approval_without_mutating_on_show(state, tmp_path, 
     assert not state.checklist(result)[1]["complete"]
     assert result["scopes"]["audit"]["traces"] == ["selected.json"]
     assert result["scopes"]["audit"]["needs_review"]
+    assert not result["journey_status"]
     assert state.state_path(tmp_path).read_bytes() == before
 
 
@@ -548,6 +699,8 @@ def test_invalid_and_foreign_state_never_establish_approval(state, tmp_path):
         lambda x: x.update(schema_version=2),
         lambda x: x.update(repository="/other/repository"),
         lambda x: x["ethos"].update(confirmation_source=None),
+        lambda x: x["ethos"].update(confirmed_digest=None),
+        lambda x: x["ethos"].update(stage="review", validation=None),
         lambda x: x["prerequisites"].update(runtime={"status": "confirmed"}),
     ):
         bad = copy.deepcopy(good)

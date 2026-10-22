@@ -240,8 +240,10 @@ def validate(state: dict) -> None:
     confirmed = ethos["confirmed_digest"]
     if confirmed is not None and (not isinstance(confirmed, str) or not DIGEST.fullmatch(confirmed)):
         raise ValueError("Invalid Ethos content digest")
-    if (ethos["stage"] == "complete") != (confirmed is not None):
+    if ethos["stage"] == "complete" and confirmed is None:
         raise ValueError("Complete Ethos requires a reviewed content digest")
+    if confirmed is not None and ethos["stage"] not in {"complete", "review"}:
+        raise ValueError("Historical Ethos confirmation is retained only during review")
     if confirmed and (not ethos["confirmation_source"] or not ethos["validation"]):
         raise ValueError("Ethos confirmation requires review and validation provenance")
     for field in ("scopes", "journey_status"):
@@ -351,7 +353,11 @@ def load_state(repo: Path) -> dict:
             invalidate_scopes(state)
             state["next_handoff"] = "ethos-orchestrate"
             state["pending_question"] = "ETHOS.md changed or is unavailable; review its intended behavior again."
-    if state["ethos"]["draft_confirmed"] and state["ethos"]["stage"] != "complete":
+    if (
+        state["ethos"]["draft_confirmed"]
+        and state["ethos"]["stage"] != "complete"
+        and state["ethos"]["confirmed_digest"] is None
+    ):
         draft = state["ethos"]["draft"]
         try:
             current = draft_digest(repo, draft)
@@ -613,17 +619,24 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None) -> 
                 state[field].update(copy.deepcopy(value))
             else:
                 state[field] = copy.deepcopy(value)
-        if state["ethos"]["draft"] != prior_draft:
-            proposed = patch.get("ethos", {})
+        proposed = patch.get("ethos", {})
+        revising_intent = proposed.get("stage", "complete") not in {"complete", "review"}
+        if state["ethos"]["draft"] != prior_draft or (revising_intent and state["ethos"]["confirmed_digest"]):
             if not (proposed.get("draft_confirmed") is True and proposed.get("draft_source")):
                 state["ethos"].update(draft_confirmed=False, draft_source=None)
-        if "ethos" in patch and patch["ethos"].get("stage", "complete") != "complete":
+        # A fresh review pauses confirmation without discarding its historical
+        # content binding or completed work. load_state still detects file changes.
+        if revising_intent:
             state["ethos"]["confirmed_digest"] = None
             state["ethos"]["confirmation_source"] = None
             state["ethos"]["validation"] = None
             invalidate_scopes(state)
         validate(state)
-        if state["ethos"]["draft_confirmed"] and state["ethos"]["stage"] != "complete":
+        if (
+            state["ethos"]["draft_confirmed"]
+            and state["ethos"]["stage"] != "complete"
+            and state["ethos"]["confirmed_digest"] is None
+        ):
             draft = state["ethos"]["draft"]
             if draft["digest"] != draft_digest(repo, draft):
                 raise ValueError("Draft differs from the agreed content; review before writing")

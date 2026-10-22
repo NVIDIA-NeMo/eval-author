@@ -89,6 +89,9 @@ and computes the saved content digest itself.
 An existing document is linked and summarized for the user's confirmation that
 it is correct and current on shared entry, even when an earlier flow confirmed unchanged
 content. After that reply, continuations reuse it without another interview.
+Start a fresh flow after completed creation and confirm the unchanged saved
+document again. Its prior scope and completion survive the pending review and
+reconfirmation. Changed content or rejected intent reopens affected agreements.
 The three-item shared prerequisite orientation is not repeated inside Ethos.
 
 ## 3. Unusable canonical Ethos skills and recovery
