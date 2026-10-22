@@ -58,7 +58,8 @@ final text. Do not append execution details, run blockers, execution consent or
 approval footers, policy citations, or skill quotations. If a genuine design
 blocker prevents a meaningful proposal, render `blockers` instead.
 
-After the user approves the design, save the execution display separately in
+When concrete agent runs or paid grading are ready after first-task review
+approval, save the execution display separately in
 `scopes.create.first_eval.execution_settings`:
 
 ```json
@@ -78,13 +79,24 @@ fields for the remaining labels. Legacy records can use their existing
 `plan.presentation` execution fields as fallback; do not rewrite that historical
 plan merely to move the fields.
 
-Render `execution_settings` only after design approval. Show relevant **Blockers**
-with this message, distinguishing blocked authoring from run-only limitations.
+Design approval proceeds directly to first-task preparation and authoring; its
+next substantive checkpoint is the built task’s artifact review. Ask only about
+unresolved environment or design choices required for current work. Keep run-only
+settings and blockers deferred, without adding a new environment approval stage.
+
+Render `execution_settings` after first-task review approval when concrete agent
+runs or paid grading are ready. It says “Here are the settings for running the
+approved tasks.” and ends its settings text with “Agent runs and paid grading
+require authorization within these limits.” Show relevant **Blockers** affecting
+that execution; do not append a first-task-pause footer to this later message.
 After actually sending it, record `execution_settings_presented` with the current
 `settings_digest` and delivery `source`. This is a display receipt, never user
-approval or execution consent. Continue independent authoring without another
-generic settings-approval gate. Request missing bounded paid-work authorization
-only when the concrete work is ready, reusing applicable prior consent.
+approval or execution consent. Neither settings nor this receipt gate first-task
+generation or review. Reuse current previously displayed settings and legacy
+progress. There is no generic settings-approval gate. Request missing bounded
+paid-work authorization only when concrete work is ready, reusing applicable
+prior consent. Display settings before paid validation when needed; otherwise
+the automatic resume sequence reaches them after local task validation.
 
 ## Stages and inspected facts
 
@@ -92,19 +104,22 @@ only when the concrete work is ready, reusing applicable prior consent.
 |---|---|
 | `traces` | Requires confirmed `ETHOS.md`; can run before a proposal exists. Fixed optional-trace question and choices are omitted when `scopes.create.trace_choice` (or `plan.trace_choice`) is saved. Save `none` or an object containing selected locations, run IDs, and exclusions. Select sources before inspection. |
 | `proposal` | Renders the introduction, five-column table, coverage explanation, first-task choice, and fixed feedback question as the final text. Run-only blockers and execution settings remain deferred. No task generation before the design approval is saved. |
-| `execution_settings` | Requires saved design approval. Renders the six execution-settings bullets and relevant blockers. Save the settings-bound delivery receipt after sending; this is not another user approval gate or spending authorization. |
-| `prepare_first` | Requires saved design approval and, for a not-yet-created first task, the current execution-settings delivery receipt. Provider selects fixed Harbor documentation links or native Gym wording. Author one task at its permanent path, then prove its environment before tests. |
+| `execution_settings` | Requires current first-task review approval. Renders the six execution-settings bullets when concrete runs or paid checks are ready, with relevant blockers. It can precede paid validation after that approval; automatic resume reaches it after local validation. Save actual display without adding user approval or spending consent. |
+| `prepare_first` | Requires saved design approval; no execution-settings display is required. Provider selects fixed Harbor documentation links or native Gym wording. Author one task at its permanent path, then prove its environment before tests. |
 | `review_first` | Requires current first-task environment proof, task files, report, and mirror. Facts: `input`, `expected_result`, `grading`, `grading_limitation`. Displays derived environment, validation, and execution statuses separately. Formal grading checks may still be pending. |
 | `prepare_remaining` | Requires saved approval of the current first-task revision and its environment proof. The fixed message announces remaining authoring and controls; it does not imply individual review of later tasks. |
 | `ready_to_run` | Requires current validation of all selected tasks and no pending execution-settings display. `access_ready: true` adds the run announcement only with saved execution authorization and no blockers. Otherwise supply one `missing_execution_question`. Verify credentials without retaining secret values. |
 | `results` | Requires a saved exact agent run/attempt review whose evidence remains applicable. Facts: `input`, `observed`, `grade_explanation`, `quality_failures`, `identity_limitations`, `reconciliation`. Describe quality failures using the provider’s actual criteria; a numeric zero alone is not a universal failure rule. Review limitations must include unknown or unavailable evidence. |
-| `resume` | Selects the next stage from current state. After design approval with no created first task, it selects `execution_settings` until the current display receipt is saved, then `prepare_first`. Existing created tasks resume without a retroactive settings display. Supply the selected stage’s inspected facts and reuse prior decisions. Rendering does not execute the next step. |
+| `resume` | Uses current progress: `proposal` → `prepare_first` → `review_first` → `prepare_remaining` → `execution_settings` after local validation → `ready_to_run`/`results`. Reuse current displayed settings and completed legacy progress. Explicit settings presentation may precede ready paid checks after first-task approval. Supply the selected stage’s facts and reuse decisions; rendering executes nothing. |
 | `blockers` | Requires `facts.blockers`; usable without a proposed scope. Render a concrete recovery action, then continue independent work. |
 
 `facts.blockers` is a list of `{ "step": "…", "reason": "…", "needed": "…" }`.
-Retain run-only blockers in state while rendering the initial proposal; display
-them at `execution_settings` and later applicable checkpoints. A blocker that
-prevents task design uses `blockers` instead of `proposal`. When a stage displays
+Retain run-only blockers in state while proposing, building, and reviewing tasks;
+`prepare_first`, `review_first`, and `prepare_remaining` do not require their
+display. Show them when the affected runs or paid checks are ready. Show
+blockers preventing current environment or authoring work at that checkpoint.
+A blocker that prevents task design uses `blockers` instead of `proposal`.
+When a stage displays
 saved blockers, supply their explanations. The renderer uses exactly
 `### Blockers` with the blocked step, cause, and required action. Errors from the
 renderer are diagnostic failures: fix missing state/evidence or render the blocker;

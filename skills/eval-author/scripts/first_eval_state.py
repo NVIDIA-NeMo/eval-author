@@ -350,9 +350,6 @@ def progress(repo: Path, state: dict) -> dict | None:
     settings_digest = fingerprint({"plan_digest": plan_digest, "settings": execution_settings(record)})
     presented = record.get("execution_settings_presented")
     settings_presented = bool(approved and presented and presented["digest"] == settings_digest)
-    # Existing task observations predate this presentation checkpoint. Keep
-    # them usable without claiming that missing presentation evidence exists.
-    legacy_started = "execution_settings" not in record and record["first_task"] in record["tasks"]
     tasks = {}
     for task_id in planned:
         task = record["tasks"].get(task_id)
@@ -402,6 +399,11 @@ def progress(repo: Path, state: dict) -> dict | None:
     first = tasks[record["first_task"]]
     first_approved = first["reviewed"] and first["environment_proven"]
     selection = record["selection"]
+    # Preserve existing execution agreements without inventing a settings
+    # receipt or changing the fingerprints of historical native runs.
+    legacy_execution = (
+        "execution_settings" not in record and selection is not None and "settings_digest" not in selection
+    )
     selection_digest = (
         fingerprint(
             {
@@ -580,14 +582,14 @@ def progress(repo: Path, state: dict) -> dict | None:
     audit_decision = invitation["status"] if invitation else None
     if not approved:
         next_stage = "proposal"
-    elif not settings_presented and not legacy_started:
-        next_stage = "execution_settings"
     elif not first["created"] or not first["environment_proven"]:
         next_stage = "prepare_first"
     elif not first_approved:
         next_stage = "review_first"
     elif not all(task["validated"] for task in tasks.values()):
         next_stage = "prepare_remaining"
+    elif not settings_presented and not legacy_execution:
+        next_stage = "execution_settings"
     elif not selection_current or not any(run["reviewable"] for run in run_progress.values()):
         next_stage = "ready_to_run"
     else:
@@ -631,6 +633,15 @@ def transition(repo: Path, previous: dict, updated: dict) -> None:
     if presented is not None and presented != (before or {}).get("execution_settings_presented"):
         if not old or not old["scope_approved"] or not now["scope_approved"]:
             raise ValueError("Save scope approval before recording displayed execution settings")
+    selection = after["selection"]
+    if (
+        selection is not None
+        and (before or {}).get("selection") is None
+        and "execution_settings" not in after
+        and "settings_digest" not in selection
+        and not (old and old["execution_settings_presented"] and now["execution_settings_presented"])
+    ):
+        raise ValueError("Display and save execution settings before introducing an unbound execution selection")
     previous_tasks = before["tasks"] if before else {}
     if not set(previous_tasks) <= set(after["tasks"]):
         raise ValueError("Retain prior task observations; remove retired tasks from the plan instead")
@@ -641,10 +652,6 @@ def transition(repo: Path, previous: dict, updated: dict) -> None:
     if added:
         if not old or not old["scope_approved"] or not now["scope_approved"]:
             raise ValueError("Save scope approval before recording created tasks")
-        if after["first_task"] in added and not (
-            old["execution_settings_presented"] and now["execution_settings_presented"]
-        ):
-            raise ValueError("Display and save execution settings before recording the first created task")
         if added - {after["first_task"]} and not (old["first_task_approved"] and now["first_task_approved"]):
             raise ValueError(
                 "Prove the environment and approve exactly the first task before creating the remaining tasks"

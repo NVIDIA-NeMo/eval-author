@@ -58,7 +58,7 @@ Repeat with the same selection supplied in the opening request: no duplicate
 source question is needed. A newly discovered source requires a changed choice
 before use, not an automatic fallback.
 
-## 2. Review task design, then execution settings before generation
+## 2. Review task design, then build the first task
 
 **Start:** Resume at scope planning with scenario 1's confirmed corpus. Have the
 agent propose four complaint examples and two policy-answer examples, with
@@ -83,17 +83,21 @@ example per behavior, one task per example and one attempt per task. Cost is a
 budget consideration, not a passing score. Keep the rest as future expansion.
 I approve the design, but have not authorized model or paid-judge execution.”
 
-**Inspect:** Save design approval before authoring. The next checkpoint displays
-the six execution-settings bullets, in order: `Agent/model`, `Tasks and examples`,
-`Attempts`, `Validation`, `Time/cost limits`, and `Open questions`. It records two
-examples, two tasks, and two agent trials per rerun, with environment proof, task
-controls, and judge work counted separately. Show relevant **Blockers**,
-distinguishing blocked authoring from missing access that only blocks later runs.
-Save the settings outside the design plan and record actual message delivery;
-do not add another generic user approval gate. Execution authorization stays
-absent. No invented monetary estimate, extra examples from repeats, or claim
-that design approval or displayed settings authorizes spend is allowed. Only
-the selected first task is built before its review; the second remains planned.
+**Inspect:** Save design approval and proceed directly to first-task environment
+preparation and authoring. Ask only about actual unresolved environment or design
+choices needed for that work; no six execution bullets or generic approval stage
+appear. The next substantive checkpoint reviews the built task’s artifacts.
+Show **Blockers** preventing current work, while retaining and deferring run-only
+limitations. Execution authorization stays absent. Only the selected first task
+is built before its review; the second remains planned.
+
+After first-task approval, present the six execution-settings bullets when
+concrete agent runs or paid checks are ready: `Agent/model`, `Tasks and examples`,
+`Attempts`, `Validation`, `Time/cost limits`, and `Open questions`. This records
+two examples, two tasks, and two agent trials per rerun, counting environment
+proof, controls, and judge work separately. Save settings outside the design and
+record actual delivery without a generic approval gate. No invented monetary
+estimate, extra examples from repeats, or implicit spending consent is allowed.
 Repeat with these design choices already agreed: no repeated preference interview.
 
 ## 3. First-task review, then remaining tasks and expansion
@@ -229,15 +233,15 @@ performance or a newly implemented adapter.
 | --- | --- |
 | Optional traces | After shared continuation with no choice, render `traces` verbatim before searching. Repeat with a saved no-trace choice and with a selected bounded corpus: neither asks the same source question again. |
 | Proposal | Render `proposal` from saved task design. Change one dynamic task input while retaining column order and framing. Its introduction, table, coverage explanation, and first-task choice end with the exact question; no execution bullets, run blockers, consent footer, or policy citations appear. No task files exist before design approval. |
-| Execution settings | After saved design approval, render `execution_settings` with the six labels and relevant blockers. Save actual delivery bound to the settings digest; no generic user approval is added. Run-only blockers do not prevent independent authoring. Changing settings does not invalidate unchanged design approval. |
+| Execution settings | After first-task review approval, render `execution_settings` when concrete agent runs or paid grading are ready. It may precede needed paid validation; automatic resume reaches it after local validation. Save actual delivery bound to the settings digest, reusing current prior displays. No generic user approval is added, and settings never gate first-task generation or review. |
 | Bounded run permission | Keep design approval and settings delivery separate from execution authorization. Request missing consent only for concrete bounded work with actual agent/model, tasks/examples, attempts, validation, and time/spend limits. “Design looks good” must not authorize execution; an explicit matching authorization is reused. |
-| First task | After settings delivery, render `prepare_first`; prove environment before grader/reference; build only the first task. Render `review_first` with actual task README, HTML, Markdown, and control/limitation facts. No remainder exists before approval. |
+| First task | After design approval, render `prepare_first` directly without execution bullets or a settings receipt. Prove environment before grader/reference; build only the first task. Render `review_first` with actual task README, HTML, Markdown, and control/limitation facts. No remainder exists before approval. |
 | First-task changes | Change input, grading, environment, reference, or relevant native dataset bytes after review. The prior revision approval/control evidence cannot approve current bytes; retain old evidence and review the repaired first task again. |
 | Remainder | After explicit current first-task approval, render `prepare_remaining`; create all remaining agreed tasks and validate them without adding individual human review gates. |
 | Ready to run | Resolve the exact accepted, validated selection. Render `ready_to_run` using current authorization. Ask the exact run-now question only when authorization is missing; do not ask again for an already-authorized bounded run. |
 | Results | Render `results` only from current evidence. Include an actual named task/attempt, informative artifact links, limitations, and a verified clickable Run instructions anchor. One agreed native attempt with reward 0 remains a completed attempt. |
-| Blocker | A design blocker uses `blockers` instead of an approvable proposal. Run-only blockers remain saved but are displayed with execution settings after design approval. At applicable checkpoints, show the cause, blocked step, and action. A missing native run or report does not become completion. |
-| Resume | Interrupt after source selection, design approval, settings delivery, first-task creation, revised review, first-task approval, control validation, or partial agent runs. With an uncreated first task, resume goes to settings until delivery is recorded, then preparation. Already-created legacy tasks skip retroactive display. Preserve current progress without duplicate approvals or model runs. |
+| Blocker | A design blocker uses `blockers` instead of an approvable proposal. First-task work shows blockers preventing that work; run-only blockers remain saved until the affected execution is ready. At applicable checkpoints, show the cause, blocked step, and action. A missing native run or report does not become completion. |
+| Resume | Interrupt after source selection, design approval, first-task creation, revised review, first-task approval, control validation, settings delivery, or partial runs. Resume uses proposal → preparation → first-task review → remainder → execution settings after local validation → ready/results. Preserve prior display and legacy progress without duplicate approvals or model runs. |
 
 Check these failure variants rather than only the successful sequence:
 
@@ -246,13 +250,16 @@ Check these failure variants rather than only the successful sequence:
 - A side question (“Why are attempts different from examples?”) is answered while
   retaining the pending gate; it is not approval of design, first task, or spend.
 - Missing run credentials stay saved but do not appear in the initial design
-  proposal. After approval, they appear under **Blockers** with execution settings
-  and prevent only dependent runs. A genuine design blocker uses the blocker
-  checkpoint instead of an approvable proposal.
-- Interrupt after design approval but before settings delivery: resume shows the
-  six settings bullets. Record actual delivery, then resume preparation without
-  asking for another generic approval. Never fabricate a delivery source.
-- Resolve execution settings after design approval: the design approval remains
+  proposal or first-task authoring/review when they only affect later runs. They
+  appear under **Blockers** when that execution is ready. A genuine design
+  blocker uses the blocker checkpoint instead of an approvable proposal.
+- Interrupt after design approval with no settings receipt: resume prepares the
+  first task directly and reaches its artifact review without execution bullets.
+  Current environment questions do not create another generic approval stage.
+- Before a concrete paid grading check, after first-task approval, explicitly
+  show execution settings and obtain any missing bounded authorization. Local
+  validation that needs no paid work can finish before automatic settings display.
+- Resolve execution settings when execution is ready: the design approval remains
   current, while the settings display receipt and any execution selection bound
   to old settings become stale. Reuse only authorization that still covers the
   exact work. Legacy already-created tasks do not restart their completed stages.

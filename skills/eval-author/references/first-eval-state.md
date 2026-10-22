@@ -68,7 +68,8 @@ If the shared flow marked the creation scope `needs_review`, clear that flag
 and record its `confirmed` decision only when the revised plan is actually agreed.
 
 Leave `execution_settings` absent until its display fields are populated; a
-present value must be an object, not `null`. After design approval, save it with `agent_model`, `attempts`,
+present value must be an object, not `null`. Populate it when concrete agent runs
+or paid grading are ready, using `agent_model`, `attempts`,
 `validation`, `limits`, and `open_questions` display fields. Task and example
 counts come from the approved design. This separate record is not part of the
 design digest: resolving an execution model or budget does not reopen unchanged
@@ -78,10 +79,13 @@ task design. A change to the actual design still requires current design approva
 save `execution_settings_presented: {"digest": "<settings_digest>", "source":
 "<actual message reference>"}`. This records delivery, not user approval or paid
 execution consent. Do not fabricate the receipt before sending the message or
-insert another generic approval question. With design approved and no first task
-created, resume selects `execution_settings` until its current delivery receipt
-is saved, then `prepare_first`. Legacy already-created first tasks resume their
-existing stage without a retroactive display requirement.
+insert another generic approval question. Neither settings nor their delivery
+receipt are prerequisites for first-task generation or review. With design
+approved, resume selects `prepare_first`, then `review_first`, then
+`prepare_remaining` after first-task approval. Once local validation is complete,
+it selects `execution_settings` if needed, then `ready_to_run` or `results`.
+Settings may be explicitly displayed after first-task approval before concrete
+paid validation. Reuse current prior displays and completed legacy progress.
 
 Updates that contain the structured creation scope require `--expected-revision`
 from the latest `show`. They preserve omitted sibling fields of `scopes.create`

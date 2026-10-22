@@ -57,8 +57,8 @@ Every user-facing checkpoint must use the required
 Supply the current journey-state revision and supported facts as the contract
 specifies. Copy its rendered Markdown verbatim; do not reconstruct, shorten,
 paraphrase, reorder, or add to its fixed messages, questions, labels, or tables.
-Use its `traces`, `proposal`, `execution_settings`, `prepare_first`, `review_first`,
-`prepare_remaining`, `ready_to_run`, `results`, `resume`, and `blockers` stages at the corresponding
+Use its `traces`, `proposal`, `prepare_first`, `review_first`, `prepare_remaining`,
+`execution_settings`, `ready_to_run`, `results`, `resume`, and `blockers` stages at the corresponding
 checkpoints. Dynamic facts, links, task content, and claims require evidence.
 If state changes, refresh it and render against the current revision. This
 reference owns exact wording; the descriptions below specify when to use it.
@@ -76,8 +76,9 @@ blocker, name its cause, the step it prevents, and the concrete action needed to
 continue. Preserve completed work and distinguish a partial delivery from the
 completed journey. A missing integration or report must not silently advance
 a review gate. Keep run-only blockers saved while presenting the initial task
-design; display them after design approval with the execution settings. If a
-blocker prevents a meaningful design proposal, render `blockers` instead of an
+design and first-task authoring; display them when the affected runs or paid
+checks are ready. If a blocker prevents a meaningful design proposal, render
+`blockers` instead of an
 approvable proposal. Do not request secret values. Review replies must not append
 unsolicited policy explanations, skill citations, or approval-rule quotations.
 
@@ -142,8 +143,8 @@ Use [Execution dependencies](../eval-author/references/execution-dependencies.md
 and Steps 1 and 2 of [environment preparation](../eval-author-environment/SKILL.md)
 to establish provider fit, dependency inventory, and result collection. Files
 and embedded databases count as dependencies. Save run-only integration or access
-findings for the execution-settings checkpoint after design approval. A finding
-that prevents a meaningful task design requires `blockers` instead of a proposal;
+findings for execution settings when concrete runs or paid checks are ready.
+A finding that prevents a meaningful task design requires `blockers` instead of a proposal;
 a provider change requires the user's decision and verification of its runtime.
 Do not make the user supply runtime YAML or invent a replacement agent.
 
@@ -177,36 +178,10 @@ choices stop that work. Proposal-only requests end with the conversational
 proposal. Expansion
 retains existing examples and records additions, new totals, difficulty, and cost.
 
-After design approval, save `execution_settings` separately from the plan and
-render `execution_settings` with exactly these six bulleted labels:
-
-- **Agent/model:** the actual agent and model configuration, or what is unresolved.
-- **Tasks and examples:** agreed task count, distinct examples and their mapping,
-  the first task to build, and remaining planned tasks and exclusions.
-- **Attempts:** attempts per task or selected Gym row and total agent executions;
-  count repeats separately from examples and control runs.
-- **Validation:** environment proof and task controls, what they establish, and
-  any paid judge or model work they require.
-- **Time/cost limits:** agreed bounds, timeout/retry limits, and estimated work;
-  use supported prices or measured evidence, otherwise say monetary cost is unknown.
-- **Open questions:** unresolved access, integration, budget, or run choices;
-  say none when settled instead of inventing another question.
-
-Show relevant **Blockers** in this checkpoint, distinguishing what prevents
-building the first task from what only prevents later execution. A run-only
-blocker does not stop independent authorized authoring. Record actual delivery
-with `execution_settings_presented` before `prepare_first`; that record is a
-display receipt, not user approval or spending consent. Do not add another generic
-approval gate for these settings. Legacy already-created first tasks resume at
-their current stage without a retroactive display checkpoint.
-
-Obtain missing **explicit bounded execution authorization** when concrete paid
-work is ready: identify the selected agent/model, tasks/examples, attempts,
-validation work, paid judging, and retry/time/spend limits. Reuse authorization
-that already covers the exact work; do not ask again because the stage changed.
-A design approval, first-task approval, displayed settings, or general positive
-response never implicitly authorizes spend. Changes beyond authorized bounds
-require a revised decision.
+After design approval, proceed directly to `prepare_first` and first-task
+authoring. The next substantive checkpoint is the built task’s artifact review.
+Ask only about unresolved environment or design choices needed for current work;
+do not present execution settings, run-only blockers, or another approval gate.
 
 ## 5. Prepare tasks and grading
 
@@ -332,6 +307,38 @@ Validate the saved config and resolve its exact selected tasks/rows and settings
 Do not equate YAML presence with a runnable config. If a shared Gym dataset or
 component changes while adding tasks, renew evidence for every affected task;
 its previous dataset/config digest is no longer current.
+
+After first-task review approval, when concrete agent runs or paid grading are
+ready, save `execution_settings` separately from the plan and render
+`execution_settings` with exactly these six bulleted labels. Show this before any
+paid validation that needs authorization; otherwise finish local validation first:
+
+- **Agent/model:** the actual agent and model configuration, or what is unresolved.
+- **Tasks and examples:** agreed task count, distinct examples and their mapping,
+  the reviewed first task, and remaining planned tasks and exclusions.
+- **Attempts:** attempts per task or selected Gym row and total agent executions;
+  count repeats separately from examples and control runs.
+- **Validation:** environment proof and task controls, what they establish, and
+  any paid judge or model work they require.
+- **Time/cost limits:** agreed bounds, timeout/retry limits, and estimated work;
+  use supported prices or measured evidence, otherwise say monetary cost is unknown.
+- **Open questions:** unresolved access, integration, budget, or run choices;
+  say none when settled instead of inventing another question.
+
+Show relevant **Blockers** affecting the concrete runs or paid checks. These
+settings and their display receipt never gate first-task generation or review.
+Record actual delivery with `execution_settings_presented`; that record is a
+display receipt, not user approval or spending consent. Reuse applicable settings
+already displayed. Do not add another generic approval gate or reset legacy
+progress. Missing run access does not stop independent task authoring.
+
+Obtain missing **explicit bounded execution authorization** when concrete paid
+work is ready: identify the selected agent/model, tasks/examples, attempts,
+validation work, paid judging, and retry/time/spend limits. Reuse authorization
+that already covers the exact work; do not ask again because the stage changed.
+A design approval, first-task approval, displayed settings, or general positive
+response never implicitly authorizes spend. Changes beyond authorized bounds
+require a revised decision.
 
 ## 9. Evaluate the agent
 

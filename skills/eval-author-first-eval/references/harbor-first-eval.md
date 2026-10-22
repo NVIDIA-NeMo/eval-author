@@ -9,17 +9,20 @@ No audit report or measured gap closure is required. A configured NeMo Gym–Har
 integration uses its verified supported commands and retained native evidence;
 conversion alone does not establish that the bridge executed. If the integration
 is missing, retain that finding and report **Blockers** with the execution
-settings after task-design approval, naming the cause, blocked step, and setup
-action. Keep run-only blockers out of the initial proposal. If a finding prevents
+settings when concrete runs or paid checks are ready, naming the cause, blocked
+step, and setup action. Keep run-only blockers out of the initial proposal and
+first-task authoring checkpoints. If a finding prevents
 a meaningful task design, use the blocker checkpoint instead of a proposal.
 Do not add an adapter or silently replace the selected execution path.
 
 ## 5. Prepare tasks and grading
 
-After design approval, present the six execution-settings bullets and relevant
-blockers before building the first task. Save the display receipt; it is neither
-another approval gate nor execution authorization. Continue independent task
-authoring when the remaining blocker only affects later runs.
+After design approval, proceed directly to first-task environment preparation
+and authoring. Ask only about unresolved choices needed for current work and
+show blockers that prevent it. Defer run-only settings and blockers; the six
+execution bullets are not required to build or review the first task. After its
+review approval, display them when concrete agent runs or paid grading are ready,
+reusing applicable previously displayed settings without another generic gate.
 
 Use the verified Harbor CLI and Python environment. Read `harbor task init --help`
 and `harbor trial start --help` before using options. Create only the approved

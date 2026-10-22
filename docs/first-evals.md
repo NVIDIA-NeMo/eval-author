@@ -49,32 +49,9 @@ The proposal explains the suite's purpose and limits, identifies the first task
 to build, and asks for your feedback or design approval. There is no separate
 planning document to review.
 
-After you approve the design, Eval Author presents these six execution details
-in a separate message:
-
-- **Agent/model:** which actual agent and model configuration would run.
-- **Tasks and examples:** task count, distinct inputs, their mapping, and the
-  first task to build and review.
-- **Attempts:** how many times each task or selected Gym row would run.
-- **Validation:** environment checks and task controls, separate from measuring
-  the agent's performance.
-- **Time/cost limits:** execution bounds, retry/time limits, and supported cost
-  estimates; monetary cost stays unknown when reliable evidence is unavailable.
-- **Open questions:** choices or missing access that still need to be resolved.
-
-That message also shows any **Blockers**, separating what prevents task creation
-from what prevents later execution. Missing run access does not stop independent
-task authoring. Displaying the settings does not add another approval checkpoint.
-
-Repeating a task does not add a new input example. Cost of running the suite is
-also different from testing whether the agent itself operates efficiently.
-You can prioritize lower rerun cost, wider coverage, harder examples, latency,
-or another concern, and revise the agreed scope in the conversation.
-
-Design approval and displayed settings do not implicitly authorize paid execution.
-Eval Author asks for explicit authorization when the selected agent, tasks,
-attempts, validation, and execution limits define a concrete bounded run. Existing
-applicable authorization carries forward without being requested again.
+After design approval, Eval Author starts preparing the first task. It asks only
+about unresolved environment or design choices needed for that work; run-only
+settings and blockers wait until execution is ready.
 
 ## Review the first task
 
@@ -112,6 +89,34 @@ The same sequence applies to native Gym, where the first task's selected rows
 are explicit and do not silently include every row in a draft.
 
 ## Run the agreed suite
+
+After you approve the first built task, Eval Author presents these six details
+when concrete agent runs or paid grading are ready:
+
+- **Agent/model:** which actual agent and model configuration would run.
+- **Tasks and examples:** task count, distinct inputs, their mapping, and the
+  reviewed first task and remaining agreed tasks.
+- **Attempts:** how many times each task or selected Gym row would run.
+- **Validation:** environment checks and task controls, separate from measuring
+  the agent's performance.
+- **Time/cost limits:** execution bounds, retry/time limits, and supported cost
+  estimates; monetary cost stays unknown when reliable evidence is unavailable.
+- **Open questions:** choices or missing access that still need to be resolved.
+
+That message also shows any **Blockers** affecting those runs or paid checks.
+The settings are never a prerequisite to building or reviewing the first task.
+Displaying them does not add another approval checkpoint, and current previously
+displayed settings are reused.
+
+Repeating a task does not add a new input example. Cost of running the suite is
+also different from testing whether the agent itself operates efficiently.
+You can prioritize lower rerun cost, wider coverage, harder examples, latency,
+or another concern, and revise the agreed scope in the conversation.
+
+Design approval and displayed settings do not implicitly authorize paid execution.
+Eval Author asks for explicit authorization when the selected agent, tasks,
+attempts, validation, and execution limits define a concrete bounded run. Existing
+applicable authorization carries forward without being requested again.
 
 After first-task approval, Eval Author builds the remaining agreed tasks and
 validates all tasks, reusing current checks. It does not add individual human

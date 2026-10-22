@@ -78,10 +78,14 @@ def approve_plan(modules, repo, record):
         "digest": helper.progress(repo, state.load_state(repo))["plan_digest"],
         "source": "user agrees to the displayed pilot",
     }
-    saved = save_record(state, repo, record)
+    return save_record(state, repo, record)
+
+
+def present_settings(modules, repo, record):
+    state, helper = modules
     record["execution_settings_presented"] = {
-        "digest": helper.progress(repo, saved)["settings_digest"],
-        "source": "Displayed the settings checkpoint after design approval",
+        "digest": helper.progress(repo, state.load_state(repo))["settings_digest"],
+        "source": "Displayed execution settings after first-task approval",
     }
     return save_record(state, repo, record)
 
@@ -144,6 +148,7 @@ def cases_ready(modules, repo, provider="harbor", examples=None, *, with_setting
 def selection_ready(modules, repo, provider="harbor", examples=None, *, with_settings=False):
     state, helper = modules
     record = cases_ready(modules, repo, provider, examples, with_settings=with_settings)
+    present_settings(modules, repo, record)
     cases: list[dict[str, Any]] = [
         {"task_id": item["id"], "example_ids": item["example_ids"], "attempts": 1} for item in record["plan"]["tasks"]
     ]
@@ -237,7 +242,7 @@ def test_scope_approval_and_first_task_require_separate_saved_checkpoints(module
 
 
 @pytest.mark.parametrize("with_settings", [False, True])
-def test_design_approval_resumes_to_settings_before_first_task_creation(modules, tmp_path, with_settings):
+def test_design_approval_authors_and_reviews_tasks_before_execution_settings(modules, tmp_path, with_settings):
     state, helper = modules
     record = start(modules, tmp_path, with_settings=with_settings)
     record["plan_approval"] = {
@@ -248,28 +253,123 @@ def test_design_approval_resumes_to_settings_before_first_task_creation(modules,
     facts = helper.progress(tmp_path, saved)
     assert facts["scope_approved"]
     assert not facts["execution_settings_presented"]
-    assert facts["next_stage"] == "execution_settings"
+    assert facts["next_stage"] == "prepare_first"
     before = state.state_path(tmp_path).read_bytes()
     assert helper.progress(tmp_path, state.load_state(tmp_path)) == facts
     assert state.state_path(tmp_path).read_bytes() == before
 
     record["tasks"]["refund"] = task(modules, tmp_path, "refund")
-    with pytest.raises(ValueError, match="Display and save execution settings"):
-        save_record(state, tmp_path, record)
-    record["execution_settings_presented"] = {
-        "digest": facts["settings_digest"],
-        "source": "Delivered the post-approval settings message",
-    }
-    with pytest.raises(ValueError, match="Display and save execution settings"):
-        save_record(state, tmp_path, record)
-    record["tasks"] = {}
     saved = save_record(state, tmp_path, record)
+    assert helper.progress(tmp_path, saved)["next_stage"] == "prepare_first"
+    first = record["tasks"]["refund"]
+    validate_and_review(tmp_path, "refund", first)
+    first["review"] = None
+    saved = save_record(state, tmp_path, record)
+    assert helper.progress(tmp_path, saved)["next_stage"] == "review_first"
+    assert not helper.progress(tmp_path, saved)["execution_settings_presented"]
+    first["review"] = {"sha256": first["sha256"], "decision": "approved", "source": "User approves first task"}
+    saved = save_record(state, tmp_path, record)
+    assert helper.progress(tmp_path, saved)["next_stage"] == "prepare_remaining"
+    record["tasks"]["policy"] = task(modules, tmp_path, "policy")
+    save_record(state, tmp_path, record)
+    validate_and_review(tmp_path, "policy", record["tasks"]["policy"])
+    saved = save_record(state, tmp_path, record)
+    assert helper.progress(tmp_path, saved)["next_stage"] == "execution_settings"
+    assert not helper.progress(tmp_path, saved)["execution_settings_presented"]
+    saved = present_settings(modules, tmp_path, record)
     shown = helper.progress(tmp_path, saved)
-    assert shown["next_stage"] == "prepare_first"
+    assert shown["next_stage"] == "ready_to_run"
     assert shown["scope_approved"] and shown["execution_settings_presented"]
     assert not shown["execution_authorized"]
+
+
+def test_settings_only_changes_do_not_interrupt_first_task_authoring_or_review(modules, tmp_path):
+    state, helper = modules
+    record = start(modules, tmp_path, with_settings=True)
+    saved = approve_plan(modules, tmp_path, record)
+    approved_digest = helper.progress(tmp_path, saved)["plan_digest"]
+    record["execution_settings"]["limits"] = "Run budget unresolved; no paid work authorized"
+    saved = save_record(state, tmp_path, record)
+    assert helper.progress(tmp_path, saved)["next_stage"] == "prepare_first"
     record["tasks"]["refund"] = task(modules, tmp_path, "refund")
     save_record(state, tmp_path, record)
+    first = record["tasks"]["refund"]
+    validate_and_review(tmp_path, "refund", first)
+    first["review"] = None
+    record["execution_settings"]["agent_model"] = "Agent and judge models remain unresolved"
+    saved = save_record(state, tmp_path, record)
+    facts = helper.progress(tmp_path, saved)
+    assert facts["scope_approved"] and facts["plan_digest"] == approved_digest
+    assert facts["tasks"]["refund"]["validated"] and facts["next_stage"] == "review_first"
+    first["review"] = {"sha256": first["sha256"], "decision": "approved", "source": "User approves first task"}
+    saved = save_record(state, tmp_path, record)
+    assert helper.progress(tmp_path, saved)["next_stage"] == "prepare_remaining"
+    assert not helper.progress(tmp_path, saved)["execution_settings_presented"]
+
+
+def test_settings_presented_for_paid_validation_are_reused_before_running(modules, tmp_path):
+    state, helper = modules
+    record = cases_ready(modules, tmp_path, with_settings=True)
+    validation = record["tasks"]["refund"]["validation"]
+    record["tasks"]["refund"]["validation"] = None
+    saved = save_record(state, tmp_path, record)
+    assert helper.progress(tmp_path, saved)["first_task_approved"]
+    assert helper.progress(tmp_path, saved)["next_stage"] == "prepare_remaining"
+    saved = present_settings(modules, tmp_path, record)
+    assert helper.progress(tmp_path, saved)["execution_settings_presented"]
+    assert helper.progress(tmp_path, saved)["next_stage"] == "prepare_remaining"
+    record["tasks"]["refund"]["validation"] = validation
+    saved = save_record(state, tmp_path, record)
+    assert helper.progress(tmp_path, saved)["next_stage"] == "ready_to_run"
+    assert not helper.progress(tmp_path, saved)["execution_authorized"]
+
+
+def test_current_execution_authorization_does_not_imply_settings_were_displayed(modules, tmp_path):
+    state, helper = modules
+    record = selection_ready(modules, tmp_path, with_settings=True)
+    record.pop("execution_settings_presented")
+    saved = save_record(state, tmp_path, record)
+    facts = helper.progress(tmp_path, saved)
+    assert facts["execution_authorized"]
+    assert not facts["execution_settings_presented"]
+    assert facts["next_stage"] == "execution_settings"
+
+
+def test_new_unbound_selection_requires_previously_saved_settings_display(modules, tmp_path):
+    state, helper = modules
+    record = cases_ready(modules, tmp_path)
+    selection = {
+        "config": reference(tmp_path, ".eval-author/run.yaml", "native selected configuration"),
+        "cases": [
+            {"task_id": item["id"], "example_ids": item["example_ids"], "attempts": 1}
+            for item in record["plan"]["tasks"]
+        ],
+        "agent": "actual-support-agent",
+        "model": "configured-model",
+        "source": "Inspected concrete native selection",
+    }
+    record["selection"] = selection
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="before introducing an unbound execution selection"):
+        save_record(state, tmp_path, record)
+    assert state.state_path(tmp_path).read_bytes() == before
+
+    record["execution_settings_presented"] = {
+        "digest": helper.progress(tmp_path, state.load_state(tmp_path))["settings_digest"],
+        "source": "Delivered settings checkpoint",
+    }
+    with pytest.raises(ValueError, match="before introducing an unbound execution selection"):
+        save_record(state, tmp_path, record)
+    record["selection"] = None
+    present_settings(modules, tmp_path, record)
+    record["selection"] = selection
+    saved = save_record(state, tmp_path, record)
+    current = helper.progress(tmp_path, saved)
+    assert current["selection_current"]
+    record.pop("execution_settings_presented")
+    saved = save_record(state, tmp_path, record)
+    assert helper.progress(tmp_path, saved)["selection_digest"] == current["selection_digest"]
+    assert helper.progress(tmp_path, saved)["selection_current"]
 
 
 def test_settings_display_requires_previously_saved_design_approval(modules, tmp_path):

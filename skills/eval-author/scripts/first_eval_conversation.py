@@ -207,10 +207,9 @@ def execution_settings(record: dict) -> str:
     ]
     return "\n\n".join(
         [
-            "Here are the settings for building and running the approved tasks.",
+            "Here are the settings for running the approved tasks.",
             "\n".join(bullets),
-            "I’ll pause after the first task for your review. Agent runs and paid grading require separate "
-            "authorization within the agreed limits.",
+            "Agent runs and paid grading require authorization within these limits.",
         ]
     )
 
@@ -386,17 +385,17 @@ def render(repo: Path, payload: dict) -> str:
         if progress["scope_approved"]:
             raise ValueError("Scope is already approved; resume the saved next stage")
         # Run blockers remain saved and are presented with the execution settings
-        # after design approval. Design blockers use the separate blockers stage.
+        # when execution is ready. Design blockers use the separate blockers stage.
         return proposal(record) + "\n"
     elif stage == "execution_settings":
         if not progress["scope_approved"]:
             raise ValueError("Save scope approval before displaying execution settings")
+        if not progress["first_task_approved"]:
+            raise ValueError("Review and approve the first task before displaying execution settings")
         result = execution_settings(record)
     elif stage == "prepare_first":
         if not progress["scope_approved"]:
             raise ValueError("Save scope approval before preparing the first task")
-        if progress["next_stage"] == "execution_settings":
-            raise ValueError("Display and save execution settings before preparing the first task")
         result = FIRST_PROGRESS if record["provider"] == "harbor" else GYM_PROGRESS
     elif stage == "review_first":
         result = first_review(repo, record, progress, facts)
@@ -430,7 +429,7 @@ def render(repo: Path, payload: dict) -> str:
         result = results(repo, record, progress, facts)
     if stage != "results" and facts.get("blockers"):
         result += "\n\n" + blockers(facts["blockers"])
-    if state["blockers"] and not facts.get("blockers"):
+    if stage in {"execution_settings", "ready_to_run", "results"} and state["blockers"] and not facts.get("blockers"):
         raise ValueError("Saved blockers must be explained with the Blockers heading and a specific needed action")
     return result + "\n"
 
