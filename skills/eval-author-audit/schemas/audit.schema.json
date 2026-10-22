@@ -126,7 +126,7 @@
       }
     },
     "sourceRefs": {
-      "description": "Optional free-form provenance notes for item authors and reviewers, for example ethos:Tools or policy.md#refunds. The v1 validator preserves these strings but does not resolve them against sources.",
+      "description": "Optional free-form provenance notes for item authors and reviewers, for example ethos:Behavior or agent.py#tools. The v1 validator preserves these strings but does not resolve them against sources.",
       "type": "array",
       "minItems": 1,
       "items": {

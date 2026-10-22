@@ -90,7 +90,7 @@
       "reason": "not_covered_by_any_input_report",
       "description": "Resets a verified customer's password.",
       "source_refs": [
-        "ethos:Tools"
+        "implementation:src/tools/password.py#reset"
       ],
       "generation": {
         "focus": "Exercise a scenario where the agent should call password.reset: Used after identity is verified and the user requests password recovery.",
@@ -109,7 +109,7 @@
         "kind": "tool",
         "name": "password.reset",
         "source_refs": [
-          "ethos:Tools"
+          "implementation:src/tools/password.py#reset"
         ],
         "description": "Resets a verified customer's password.",
         "expected_use": "Used after identity is verified and the user requests password recovery.",
