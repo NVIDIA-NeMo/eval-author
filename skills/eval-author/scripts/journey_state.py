@@ -39,18 +39,15 @@ JOURNEYS = {
     "expand": "Improve, run, and review your existing evaluations",
 }
 STAGES = {"explore", "interview", "draft", "write", "review", "complete"}
-PREREQUISITES = {
+COMMON_PREREQUISITES = {
     "code_access",
     "file_writes",
     "command_execution",
     "skills",
     "ethos_skills",
-    "runtime",
     "python",
-    "environment",
-    "services",
-    "data",
 }
+PREREQUISITES = COMMON_PREREQUISITES | {"runtime", "environment", "services", "data"}
 DEFERRED = {"agent_connection", "model_credentials"}
 PROVIDER_DEPENDENT = {"runtime", "python", "environment", "services", "data", *DEFERRED}
 AGENT_DEPENDENT = {"services", "data", *DEFERRED}
@@ -186,14 +183,7 @@ def validate(state: dict) -> None:
         }:
             raise ValueError(f"Invalid prerequisite answer: {key}")
         _text(answer["source"], f"{key}.source")
-        if answer["status"] == "not_required" and key in {
-            "code_access",
-            "file_writes",
-            "command_execution",
-            "skills",
-            "ethos_skills",
-            "python",
-        }:
+        if answer["status"] == "not_required" and key in COMMON_PREREQUISITES:
             raise ValueError(f"{key} is required for the shared prerequisite flow")
         if answer["status"] == "not_required" and key == "runtime" and state["journey"] != "audit":
             raise ValueError("runtime is required when creating or improving evaluations")
@@ -479,15 +469,13 @@ def task_lifecycle(repo: Path, state: dict, task_path: str) -> dict:
 def checklist(state: dict) -> list[dict]:
     blocked = {item["phase"] for item in state["blockers"]}
     journey = state["journey"]
+    # Readiness for Ethos differs from readiness for later execution.
+    # Audit needs completed-run traces, not an authoring provider or runner.
+    required = COMMON_PREREQUISITES | {"data" if journey == "audit" else "runtime"}
     setup_done = (
-        bool(state["agent"] and state["setup"])
-        and all(
-            state["prerequisites"].get(key, {}).get("status") in ("verified", "confirmed", "not_required")
-            for key in PREREQUISITES
-        )
-        # Full audit onboarding needs traces from completed evaluation runs.
-        # Legacy exemptions remain readable, but cannot establish readiness.
-        and (journey != "audit" or state["prerequisites"].get("data", {}).get("status") in ("verified", "confirmed"))
+        bool(state["agent"])
+        and (journey == "audit" or bool(state["setup"]))
+        and all(state["prerequisites"].get(key, {}).get("status") in ("verified", "confirmed") for key in required)
         and "setup" not in blocked
     )
     ethos_done = state["ethos"]["stage"] == "complete" and "ethos" not in blocked

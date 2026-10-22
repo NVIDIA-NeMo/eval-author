@@ -27,6 +27,13 @@ existing evaluation format from supplied context or bounded suite documentation.
 Required skills are the shared, Ethos, and audit skills; do not recommend
 authoring-only assistant skills for this step.
 
+Record the actual framework and its source in `scopes.audit`. An audit does not
+require a NeMo Gym or Harbor authoring setup: leave `--setup` unset for other
+frameworks, and do not apply the Harbor default. A retained authoring choice or
+Harbor parser dependency does not identify the audited suite's framework.
+This does not select a suite or trace source, or extend the supported evidence
+formats; selected evidence still needs ATIF or an existing supported conversion.
+
 ### Traces from completed evaluation runs
 
 Keep this prerequisite visible in both the initial and results tables. Reuse any

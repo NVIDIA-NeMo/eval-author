@@ -55,8 +55,11 @@ and default choices as such; neither is a user confirmation. Reuse explicit
 choices without asking the user to select them again. Do not enumerate or read
 traces before the user selects their source and location.
 
-Honor the user's NeMo Gym or Harbor choice, otherwise preserve the selected suite's
-setup, otherwise use the existing Harbor default. Keep format compatibility
+For creation and improvements, honor the user's NeMo Gym or Harbor choice,
+otherwise preserve the selected suite's setup, otherwise use the existing Harbor
+default. For audit, record the actual framework using the
+[audit prerequisite rules](pre-reqs/audit.md#checks-and-blocking-conditions).
+Keep format compatibility
 separate from availability. Explain unsupported material without converting it or
 switching the selected runtime. Apply the selected reference's format requirements
 before checking a provider's runtime or starting Ethos.
@@ -322,9 +325,18 @@ python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository update 
 ```
 
 `--journey` accepts `create`, `audit`, or `expand`; `--setup` accepts `gym` or
-`harbor`. `init` reuses state and invalidates affected facts when identity or
+`harbor` for an authoring setup. Audit does not require `--setup`; record its actual
+framework and provenance in `scopes.audit`, independently of any retained authoring
+choice. `init` reuses state and invalidates affected facts when identity or
 setup changes, or when switching between audit and authoring. `show` derives checklist status without writing. Do not maintain
 a separate saved checklist.
+
+Setup completion requires agent identity, code/file/command access, usable required
+skills, and the applicable Python tooling. Creation and improvements also require
+a selected authoring setup and its runtime; audit instead requires confirmed or
+verified availability of completed-evaluation traces. Later environment, services,
+and authoring data findings do not delay this checklist step. Any explicit setup
+blocker still prevents completion, including access needed for the next Ethos action.
 
 An update is a partial JSON mapping. Allowed fields are `prerequisites`, `ethos`,
 `scopes`, `journey_status`, `blockers`, `pending_question`, and `next_handoff`.

@@ -39,7 +39,7 @@ on task difficulty and authoring prompts.
 ## Prerequisites
 
 NeMo Eval Author has tested support for [NeMo Gym](https://docs.nvidia.com/nemo/gym/latest/) and
-[Harbor](https://docs.harborframework.com/) eval formats. Workflows default to Harbor when neither is specified. 
+[Harbor](https://docs.harborframework.com/) eval formats. Authoring defaults to Harbor when neither is specified.
 NeMo Gym is compatible with Harbor, and the user has the final say.
 
 NeMo Gym authoring needs NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment; Harbor authoring needs its

@@ -223,6 +223,126 @@ def test_authoring_can_complete_prerequisites_without_prior_traces(state, tmp_pa
     assert resumed["prerequisites"] == ready["prerequisites"]
 
 
+@pytest.mark.parametrize("journey", ["create", "expand"])
+@pytest.mark.parametrize("provider", ["gym", "harbor"])
+@pytest.mark.parametrize("status", [None, "unknown", "missing"])
+def test_later_authoring_dependencies_do_not_delay_ethos(state, tmp_path, journey, provider, status):
+    state.initialize(tmp_path, agent="assistant", journey=journey, setup=provider)
+    prerequisites = {
+        key: {"status": "verified", "source": "Current prerequisite check passed"}
+        for key in ("code_access", "file_writes", "command_execution", "skills", "ethos_skills", "python", "runtime")
+    }
+    if status is not None:
+        prerequisites.update(
+            {
+                key: {"status": status, "source": "Needed before dependent execution, not before Ethos"}
+                for key in ("environment", "services", "data", "agent_connection", "model_credentials")
+            }
+        )
+    ready = state.update(tmp_path, {"prerequisites": prerequisites})
+    resumed = state.initialize(tmp_path, journey=journey, setup=provider)
+    assert resumed["prerequisites"] == ready["prerequisites"]
+    assert state.checklist(resumed)[0]["complete"]
+    assert state.checklist(resumed)[1]["current"]
+    assert not state.checklist(resumed)[2]["complete"]
+    assert state.view(resumed)["confirmation_is_runtime_evidence"] is False
+
+
+@pytest.mark.parametrize("provider", [None, "gym", "harbor"])
+@pytest.mark.parametrize("status", [None, "unknown", "missing"])
+def test_audit_readiness_uses_audit_requirements_and_actual_framework(state, tmp_path, provider, status):
+    state.initialize(tmp_path, agent="assistant", journey="audit", setup=provider)
+    prerequisites = {
+        key: {"status": "verified", "source": "Current access, required skills, and audit tooling checks passed"}
+        for key in ("code_access", "file_writes", "command_execution", "skills", "ethos_skills", "python")
+    }
+    prerequisites["data"] = {"status": "confirmed", "source": "User confirms completed evaluation traces exist"}
+    if status is not None:
+        prerequisites.update(
+            {
+                key: {"status": status, "source": "Historical authoring dependency; not used for this audit"}
+                for key in ("runtime", "environment", "services", "agent_connection", "model_credentials")
+            }
+        )
+    framework = {"name": "NAT/DeepEval", "source": "Existing evaluation documentation"}
+    ready = state.update(
+        tmp_path, {"prerequisites": prerequisites, "scopes": {"audit": {"framework": framework, "confirmed": False}}}
+    )
+    resumed = state.initialize(tmp_path, journey="audit")
+    assert resumed["setup"] == provider
+    assert resumed["prerequisites"] == ready["prerequisites"]
+    assert resumed["scopes"]["audit"] == {"framework": framework, "confirmed": False}
+    assert state.checklist(resumed)[0]["complete"]
+    assert state.checklist(resumed)[1]["current"]
+    assert not state.checklist(resumed)[2]["complete"]
+    assert state.view(resumed)["runtime_requirements"]["runtime"] is None
+
+
+@pytest.mark.parametrize("journey", ["create", "expand"])
+@pytest.mark.parametrize("required", ["runtime", "python"])
+@pytest.mark.parametrize("status", [None, "unknown", "missing"])
+def test_authoring_runtime_and_python_still_block_before_ethos(state, tmp_path, journey, required, status):
+    ready = setup_ready(state, tmp_path, journey=journey, setup="harbor")
+    if status is None:
+        del ready["prerequisites"][required]
+    else:
+        ready["prerequisites"][required] = {"status": status, "source": "Selected authoring tooling unresolved"}
+    state.save(tmp_path, ready)
+    loaded = state.load_state(tmp_path)
+    assert not state.checklist(loaded)[0]["complete"]
+    assert state.checklist(loaded)[0]["current"]
+    assert not state.checklist(loaded)[1]["current"]
+
+
+@pytest.mark.parametrize("journey", ["create", "expand"])
+def test_audit_without_authoring_provider_cannot_establish_authoring_readiness(state, tmp_path, journey):
+    audit_ready(state, tmp_path, setup=None)
+    changed = state.initialize(tmp_path, journey=journey)
+    assert changed["setup"] is None
+    assert not state.checklist(changed)[0]["complete"]
+    reassessed = state.update(
+        tmp_path,
+        {
+            "prerequisites": {
+                key: {"status": "verified", "source": "Authoring check passed"}
+                for key in ("runtime", "python", "skills")
+            }
+        },
+    )
+    assert reassessed["setup"] is None
+    assert not state.checklist(reassessed)[0]["complete"]
+    ready = setup_ready(state, tmp_path, journey=journey, setup="harbor")
+    assert state.checklist(ready)[0]["complete"]
+
+
+@pytest.mark.parametrize("journey", ["create", "audit", "expand"])
+@pytest.mark.parametrize(
+    "required", ["code_access", "file_writes", "command_execution", "skills", "ethos_skills", "python"]
+)
+def test_unresolved_common_requirements_still_prevent_setup_completion(state, tmp_path, journey, required):
+    setup_ready(state, tmp_path, journey=journey)
+    pending = state.update(
+        tmp_path, {"prerequisites": {required: {"status": "unknown", "source": "Current prerequisite unresolved"}}}
+    )
+    assert not state.checklist(pending)[0]["complete"]
+    assert state.checklist(pending)[0]["current"]
+
+
+@pytest.mark.parametrize("journey,requirement", [("create", "data"), ("expand", "environment"), ("audit", "services")])
+def test_explicit_setup_blocker_is_not_dismissed_as_a_later_dependency(state, tmp_path, journey, requirement):
+    setup_ready(state, tmp_path, journey=journey)
+    blocked = state.update(
+        tmp_path,
+        {
+            "prerequisites": {requirement: {"status": "missing", "source": "Required to read agent intent sources"}},
+            "blockers": [{"id": requirement, "phase": "setup", "message": "Cannot access the next Ethos input"}],
+        },
+    )
+    assert not state.checklist(blocked)[0]["complete"]
+    assert state.checklist(blocked)[0]["blocked"]
+    assert not any(row["current"] for row in state.checklist(blocked))
+
+
 @pytest.mark.parametrize(
     "required", ["code_access", "file_writes", "command_execution", "skills", "ethos_skills", "python"]
 )
