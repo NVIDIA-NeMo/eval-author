@@ -139,9 +139,35 @@ If Blockers remain, use the blocked response instead.
 
 ## Recovery
 
-If the canonical Ethos skills are unavailable, identify the missing dependency
-and provide their installation location. Retain source findings and answers in
-shared state or conversation and continue independent work; do not invent a
-fallback authoring workflow. If writing fails, preserve the reviewed draft and
-answers under `.eval-author/.working/` when writable, otherwise in conversation.
-Keep the actual validation or filesystem limitation explicit.
+If an Ethos skill or required resource is missing, unreadable, or has a broken
+symlink, identify the dependency under **Blockers** and link the
+[canonical installation guide](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md#how-to-use).
+Provide this command from the agent repository root, substituting the current
+assistant's identifier for `claude-code` and adding `--global` when repairing
+a global installation:
+
+```bash
+npx skills@latest add nvidia/skills \
+  --skill ethos-orchestrate \
+  --skill ethos-explore \
+  --skill ethos-write \
+  --agent claude-code --yes
+```
+
+Do not install during prerequisite checks or substitute another authoring
+workflow. After repair, recheck the actual skill files and required resources;
+a catalog listing alone does not resolve the blocker.
+
+Preserve the current flow's confirmation of the exact document or draft, its
+destination, and intended behavior. If validation is still pending, retain the
+actual reply in `ethos.prior_answers`, including the reviewed path, content digest,
+and agent identity in its `source`; preserve any draft and `draft_source` too.
+After repair, pass that confirmation to the orchestrator and resume the unfinished
+validation or writing step. Ask again only if the agent, destination, content, or
+material validation findings change. Complete through `confirm-ethos` only after
+successful validation. If Ethos was already complete, update only the skill
+prerequisite and blocker; skill availability alone does not reset Ethos or scope.
+
+If writing fails, preserve the reviewed draft and answers under
+`.eval-author/.working/` when writable, otherwise in conversation. Keep the actual
+validation or filesystem limitation explicit.

@@ -16,10 +16,11 @@ together: skills load sibling skills and their bundled scripts, schemas,
 templates, and references. The set includes the **experimental**
 trace-to-environment workflow.
 
-First evaluations and coverage audits also need the ethos skills (`ethos-orchestrate`,
-`ethos-explore`, and `ethos-write`), which install separately:
-`npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/team-skills/ethos`.
-See the [ETHOS.md guide](../team-skills/ethos/ethos-orchestrate/README.md).
+All three journeys also need the Ethos skills (`ethos-orchestrate`,
+`ethos-explore`, and `ethos-write`), which install separately from the NVIDIA
+skills catalog. Use the [installation command](../README.md#prerequisites) for
+your assistant and scope; see the
+[ETHOS.md guide](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md#how-to-use).
 
 Neither installation path installs Harbor, Python dependencies, a coding
 assistant, or NeMo services. Those have [workflow-specific requirements](#requirements).

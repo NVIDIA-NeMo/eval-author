@@ -63,10 +63,28 @@ before checking a provider's runtime or starting Ethos.
 
 Select checks by the requested work. The common checks are:
 
-- Find required Eval Author and Ethos skills in the available catalog and supplied
-  skill locations; distinguish files found from skills available to the assistant
+- Read each required Eval Author and Ethos skill's `SKILL.md` from its supplied or
+  installed location, following symlinks to verify readable targets. Check the
+  local resources needed for this flow relative to the loaded skill directory,
+  including `scripts/validate_ethos.py` relative to the loaded `ethos-write`
+  directory. Check all three Ethos skills:
+  `ethos-orchestrate`, `ethos-explore`, and `ethos-write`. A catalog entry or symlink
+  alone does not establish usability; do not start the Ethos interview during checks
 - Establish file and command access from host permissions and actual bounded
   reads or commands; keep any write probe under `.eval-author/.working/`
+
+If a required skill or resource is missing, broken, or inaccessible, finish the
+other accessible checks, then show **Blockers** before Ethos. Record the actual
+reason under `skills` or `ethos_skills`, keep setup incomplete, and preserve
+answers and confirmations. Save the blocker in phase `setup`, its repair action
+as `pending_question`, and `eval-author` as `next_handoff`.
+Use the [Ethos recovery instructions](ethos-confirmation.md#recovery)
+for Ethos dependencies. For Eval Author dependencies, link the
+[installation guide](https://github.com/NVIDIA-NeMo/eval-author/blob/main/docs/getting-started.md#install-eval-author-with-npx)
+and provide `npx skills@latest add NVIDIA-NeMo/eval-author --skill '*' --agent claude-code --yes`,
+substituting the current assistant's identifier and adding `--global` when repairing
+a global installation. Provide the command without running it during checks;
+after repair, recheck the files and resources before clearing the blocker.
 
 ### Authoring checks
 
