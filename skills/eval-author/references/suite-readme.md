@@ -9,11 +9,19 @@ Use this shared reporting contract for Harbor and NeMo Gym.
 
 `.eval-author/report.html` defines the case/run review content.
 Its Tasks tab lists discovered Harbor tasks and NeMo Gym workload definitions by directory,
-including tasks being authored and accepted tasks at their stable paths, with provider, task name, task status, grading,
-behavior, expected outcome, and actions. Its Runs tab lists one row per native
-Harbor job with date/time, the exact on-disk directory name and project-relative
-path, role, status, aggregate reward, and actions. Its Harbor viewer action opens
-the job and its individual trials. Standalone results appear separately under
+including tasks being authored and accepted tasks at their stable paths, with
+Task, Status, Behavior, Expected outcome, Grader, and Actions columns.
+Task shows the complete task README's first H1 title,
+including any ID prefix, such as `IMP-01: bare docs link`, in bold monospace,
+followed by its path in monospace. There is no separate ID header, additional task
+description, or provider label. The title falls back to the native task name when
+unavailable. Refresh also restores complete titles from saved README previews in
+older reports that split the ID and title. Grader shows the type of grader and the
+grader description as defined in the task README.
+
+Its Runs tab lists one row per native Harbor job with date/time, the exact on-disk
+directory name and project-relative path, role, status, aggregate reward, and actions.
+Its Harbor viewer action opens the job and its individual trials. Standalone results appear separately under
 the collapsed Legacy trials section; a folder of trials does not establish a
 single job or evaluation invocation. Both show available warnings
 and missing-data states. Settings configures browser viewer addresses only.
@@ -149,8 +157,10 @@ For example, using actual discovered paths and a documented reward range and bin
   "tasks": {
     ".eval-author/tasks/refund-policy": {
       "display_id": "refund-01",
-      "grading_kind": "deterministic",
-      "grading_rule": "All refund-state assertions pass."
+      "grading_kind": "Custom code",
+      "grading_rule": "All refund-state assertions pass.",
+      "grading_summary": "Checks saved refund state against policy rules.",
+      "source_refs": [".eval-author/tasks/refund-policy/README.md"]
     }
   },
   "runs": {
@@ -213,7 +223,31 @@ labels, derive categories from task-name prefixes, or rename directories for the
 report. Directories with the same basename under different suites remain separate.
 Tasks sharing a parent appear together, even if they belong to different run
 configurations; these are filesystem sections, not inferred suite memberships.
-Verifier type is `deterministic`, `model`, `hybrid`, or `unknown`. Native Oracle/NOP
+Report grading types are `Custom code`, `LLM-as-judge`,
+`Custom code + LLM-as-judge`, and `Not documented`. Refresh accepts the legacy
+`deterministic`, `model`, `hybrid`, and `unknown` values and normalizes both stored
+metadata and task rows to the clearer names, including retained unverified rows.
+These are reporting descriptions, not runtime verifier settings. Refresh reads
+`Type: Custom code`, `Type: LLM-as-judge`, or `Type: Custom code + LLM-as-judge`
+from the task README's unique Grading section before consulting imported metadata.
+Missing declarations fall back to metadata, then `Not documented`. Invalid or
+ambiguous declarations display `Not documented`; refresh does not guess from prose.
+The type line is excluded from the short grader description.
+
+The grader description comes from a unique `## Grader summary` or
+`## Grading summary` section when present. Otherwise, an imported `grading_summary`
+may supply a 5–10 word summary derived from the task README, with that README
+listed in `source_refs`. Without either, refresh takes up to ten words from the
+first suitable prose sentence of a unique `## Grading` section, omitting fenced
+code, tables, and verifier-link-only paragraphs. Legacy linked Grading headings
+and `## Expected outcome and grading` sections are also readable. Refresh never
+calls a model to paraphrase the README. Put a concise 5–10 word sentence immediately after the type line in
+Grading for the best automatic description, or supply a sourced summary. Missing,
+unreadable, empty, ambiguous, or insufficient grading text shows
+"No grader description documented in README." Imported summaries are not displayed
+when the README is unavailable. Refresh after editing the task documentation.
+
+Native Oracle/NOP
 runs are labeled controls; explicitly label custom controls and actual-agent
 runs rather than inferring their purpose from a directory name. A run patch may
 record `invalid_attempts` as native attempt ID to evidence-backed reason; native
@@ -268,6 +302,10 @@ The observable result that constitutes success for this case.
 
 ## Grading
 
+Type: Custom code
+
+Checks saved state against the documented success criteria.
+
 How the verifier measures that result: checks or judge criteria, reward metrics,
 pass rules, and known limitations. Link the test entry point, verifier code, and
 the criteria, expected-data, or judge/rubric files actually used by this task.
@@ -280,7 +318,13 @@ inputs, describe the input shape and link the complete source. Link `instruction
 and the actual fixtures with relative Markdown links, not bare code paths. Keep
 expected answers in Expected result and verifier-only data, outside Input.
 
-Keep the `Grading` heading plain; put clickable relative links in its body.
+Keep the `Grading` heading plain. Start with a standalone `Type:` paragraph using
+`Custom code`, `LLM-as-judge`, or `Custom code + LLM-as-judge`, based on the actual
+verifier implementation. Use `Custom code` for programmatic checks, `LLM-as-judge`
+for model judging, and the combined label when both determine the score. Running
+an LLM as the agent under test does not make the verifier an LLM judge.
+Follow the type with a blank line and a task-specific 5–10 word description of
+what the grader checks; put clickable relative links in its body.
 For example, link `tests/test.sh`, `tests/verify.py`, and `tests/expected.json`
 only when those files exist and are used. For model or hybrid grading, also link
 the judge implementation and rubric/configuration actually used. A deterministic

@@ -52,6 +52,15 @@ TEXT = {"type": "string", "maxLength": 2000}
 PATH = {"type": "string", "minLength": 1, "maxLength": 2000}
 NULL_TEXT = {"anyOf": [TEXT, {"type": "null"}]}
 NUMBER = {"type": ["number", "null"]}
+GRADING_KINDS = ["Custom code", "LLM-as-judge", "Custom code + LLM-as-judge", "Not documented"]
+LEGACY_GRADING_KINDS = {
+    "deterministic": "Custom code",
+    "model": "LLM-as-judge",
+    "hybrid": "Custom code + LLM-as-judge",
+    "unknown": "Not documented",
+}
+GRADING_SUMMARY = {"type": "string", "maxLength": 200, "pattern": r"^\S+(?: \S+){4,9}$"}
+NO_GRADING_SUMMARY = "No grader description documented in README."
 
 
 def obj(properties: dict, required: list[str] | None = None) -> dict:
@@ -72,8 +81,9 @@ TASK_METADATA = obj(
         "display_id": TEXT,
         "behavior": TEXT,
         "expected_outcome": TEXT,
-        "grading_kind": {"enum": ["deterministic", "model", "hybrid", "unknown"]},
+        "grading_kind": {"enum": GRADING_KINDS + list(LEGACY_GRADING_KINDS)},
         "grading_rule": TEXT,
+        "grading_summary": GRADING_SUMMARY,
         "source_refs": array(PATH),
     },
     [],
@@ -121,6 +131,11 @@ TASK_SCHEMA["properties"].update(
     readiness={"enum": ["draft", "accepted", "unknown"]},
     readiness_reason=TEXT,
 )
+# Keep new README-derived fields optional when reading older version-1 reports.
+TASK_SCHEMA["properties"]["title"] = NULL_TEXT
+# Accept the former split-title field when refreshing existing reports.
+TASK_SCHEMA["properties"]["heading_id"] = TEXT
+TASK_SCHEMA["properties"]["grading_summary"] = {"anyOf": [GRADING_SUMMARY, {"type": "null"}]}
 ATTEMPT_SCHEMA = obj(
     {
         "id": TEXT,
@@ -259,6 +274,16 @@ class EmbeddedData(HTMLParser):
             self.blocks[-1] += data
 
 
+def normalize_task_fields(payload: dict) -> None:
+    """Upgrade legacy task display fields in HTML imports and internal snapshots."""
+    for task in payload["tasks"]:
+        task["grading_kind"] = LEGACY_GRADING_KINDS.get(task["grading_kind"], task["grading_kind"])
+        if "heading_id" in task:
+            if task["readme_html"] is not None:
+                task["title"] = readme_title(task["readme_html"]) or task.get("title")
+            del task["heading_id"]
+
+
 def previous_report(path: Path) -> tuple[dict | None, bytes | None]:
     if not path.exists():
         return None, None
@@ -269,6 +294,7 @@ def previous_report(path: Path) -> tuple[dict | None, bytes | None]:
         raise ReportError("Existing report must contain exactly one report-data block.")
     payload = decode_json(parser.blocks[0])
     validate(payload, REPORT_SCHEMA)
+    normalize_task_fields(payload)
     return payload, content
 
 
@@ -290,6 +316,7 @@ def previous_snapshot(path: Path, output: Path) -> tuple[dict | None, bytes | No
     raw = read_bytes(path, MAX_REPORT_BYTES)
     previous = decode_json(raw)
     validate(previous, REPORT_SCHEMA)
+    normalize_task_fields(previous)
     return previous, raw, projection_version(output)
 
 
@@ -352,6 +379,128 @@ def render_readme(source: str) -> str:
     return renderer.render(source)
 
 
+class ReadmeTitle(HTMLParser):
+    """Read the first H1 from rendered Markdown, ignoring code and inline markup."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.active = False
+        self.found = False
+        self.parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "h1" and not self.found:
+            self.active = True
+        elif tag == "br" and self.active:
+            self.parts.append(" ")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "h1" and self.active:
+            self.active = False
+            self.found = True
+
+    def handle_data(self, data: str) -> None:
+        if self.active:
+            self.parts.append(data)
+
+
+def readme_title(rendered: str) -> str | None:
+    parser = ReadmeTitle()
+    parser.feed(rendered)
+    title = " ".join("".join(parser.parts).split())
+    return title if title and len(title) <= 2000 else None
+
+
+def readme_grading_sections(source: str) -> dict[str, list[list[str]]]:
+    """Read grading prose, excluding code blocks and tables."""
+    from markdown_it import MarkdownIt
+
+    def plain(token: Any) -> str:
+        return "".join(
+            "\n" if child.type in {"softbreak", "hardbreak"} else child.content
+            for child in token.children or []
+            if child.type in {"text", "code_inline", "softbreak", "hardbreak"}
+        ).strip()
+
+    sections: dict[str, list[list[str]]] = {}
+    current: list[str] | None = None
+    tokens = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"]).parse(source)
+    for index, token in enumerate(tokens):
+        if token.type == "heading_open" and token.tag in {"h1", "h2"}:
+            current = None
+            if token.tag == "h2":
+                heading = re.sub(r"\s*\(.*\)\s*$", "", plain(tokens[index + 1])).casefold()
+                if heading in {"grader summary", "grading summary"}:
+                    key = "summary"
+                elif heading in {"grading", "grader", "expected outcome and grading"}:
+                    key = "grading"
+                else:
+                    continue
+                current = []
+                sections.setdefault(key, []).append(current)
+        elif current is not None and token.type == "inline" and tokens[index - 1].type == "paragraph_open":
+            paragraph = plain(token)
+            if paragraph:
+                current.append(paragraph)
+    return sections
+
+
+def readme_grading_kind(source: str) -> str | None:
+    """Prefer an explicit README type; never infer a verifier from prose."""
+    grading = readme_grading_sections(source).get("grading", [])
+    declarations = [
+        match.group(1).strip()
+        for section in grading
+        for paragraph in section
+        for line in paragraph.splitlines()
+        if (match := re.match(r"^Type\s*:\s*(.*)$", line, re.I))
+    ]
+    if not declarations:
+        return None
+    if len(grading) != 1 or len(declarations) != 1:
+        return "Not documented"
+    value = declarations[0]
+    return LEGACY_GRADING_KINDS.get(value, value if value in GRADING_KINDS else "Not documented")
+
+
+def readme_grading_summary(source: str, imported: str | None = None) -> str | None:
+    """Read a short grading description without calling a model or executing code."""
+
+    def excerpt(value: str) -> str | None:
+        words = value.split()
+        if len(words) < 5:
+            return None
+        summary = " ".join(words[:10])
+        if len(words) > 10:
+            summary = summary.rstrip(",;:.") + "…"
+        return summary if len(summary) <= 200 else None
+
+    sections = readme_grading_sections(source)
+    for groups in sections.values():
+        for paragraphs in groups:
+            paragraphs[:] = [
+                " ".join(
+                    line
+                    for line in paragraph.splitlines()
+                    if not re.match(r"^(?:type|verifier|grader|tests|source|implementation)\s*:", line, re.I)
+                )
+                for paragraph in paragraphs
+            ]
+    summaries = sections.get("summary", [])
+    if summaries:
+        return excerpt(" ".join(summaries[0])) if len(summaries) == 1 else None
+    if imported is not None:
+        return imported
+    grading = sections.get("grading", [])
+    if len(grading) == 1:
+        for paragraph in grading[0]:
+            sentence = re.split(r"(?<=[.!?])\s+", paragraph, maxsplit=1)[0]
+            summary = excerpt(sentence)
+            if summary is not None:
+                return summary
+    return None
+
+
 def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) -> tuple[list[dict], bool, list[str]]:
     found: dict[str, dict] = {}
     excluded: set[str] = set()
@@ -379,6 +528,8 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
             sections: dict[str, str | None] = {}
             revision = None
             readme_html = None
+            grading_summary = None
+            grading_kind = None
             readme = directory / "README.md"
             if item["provider"] == "gym":
                 # Native NeMo Gym scaffolds keep the task README above environments/<name>.
@@ -399,7 +550,13 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
                 except (ReportError, OSError, UnicodeError):
                     issues.append("Task README could not be read.")
                 else:
-                    readme_html = render_readme(content.decode("utf-8"))
+                    readme_source = content.decode("utf-8")
+                    readme_html = render_readme(readme_source)
+                    imported_summary = overrides.get("grading_summary")
+                    if imported_summary is not None and readme_path not in overrides.get("source_refs", []):
+                        raise ReportError("Imported grader descriptions require the task README in source_refs.")
+                    grading_summary = readme_grading_summary(readme_source, imported_summary)
+                    grading_kind = readme_grading_kind(readme_source)
             native_name = directory.name
             if item["provider"] == "harbor":
                 try:
@@ -420,16 +577,19 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
                 outcome = overrides.get("expected_outcome")
             if behavior is None or outcome is None:
                 issues.append("Behavior under test or Expected result is not documented in unique nonempty sections.")
+            title = readme_title(readme_html) if readme_html is not None else None
             found[path] = {
                 "id": item["provider"] + ":" + path,
                 "provider": item["provider"],
                 "path": path,
                 "display_id": overrides.get("display_id", directory.name),
                 "name": native_name,
+                "title": title,
                 "behavior": behavior,
                 "expected_outcome": outcome,
-                "grading_kind": overrides.get("grading_kind", "unknown"),
+                "grading_kind": grading_kind or overrides.get("grading_kind", "Not documented"),
                 "grading_rule": overrides.get("grading_rule"),
+                "grading_summary": grading_summary,
                 "readme_revision": revision,
                 "readme_path": readme_path,
                 "readme_html": readme_html,
@@ -795,8 +955,12 @@ def metadata_for(
         if "reward_min" in fields and fields["reward_min"] >= fields["reward_max"]:
             raise ReportError("reward_min must be smaller than reward_max.")
     for fields in metadata["tasks"].values():
-        if (fields.get("behavior") or fields.get("expected_outcome")) and not fields.get("source_refs"):
+        if (
+            fields.get("behavior") or fields.get("expected_outcome") or fields.get("grading_summary")
+        ) and not fields.get("source_refs"):
             raise ReportError("Imported task descriptions require source_refs.")
+        if "grading_kind" in fields:
+            fields["grading_kind"] = LEGACY_GRADING_KINDS.get(fields["grading_kind"], fields["grading_kind"])
         for ref in fields.get("source_refs", []):
             relative(ref)
     validate(metadata, METADATA_SCHEMA)
@@ -842,15 +1006,15 @@ def render_markdown(data: dict) -> str:
                 [
                     "### " + markdown_text(parent.removeprefix(".eval-author/")),
                     "",
-                    "| Test case / grading | Status | Behavior | Expected outcome | Actions |",
-                    "| --- | --- | --- | --- | --- |",
+                    "| Task | Status | Behavior | Expected outcome | Grader | Actions |",
+                    "| --- | --- | --- | --- | --- | --- |",
                 ]
             )
-        grading = "Verifier not documented" if task["grading_kind"] == "unknown" else task["grading_kind"]
-        name = [task["name"], task["provider"], grading + " · " + (task["grading_rule"] or "Grading not documented")]
+        grading = task["grading_kind"]
+        name = []
         if task["status"] == "unverified":
             name.append("Inventory unverified")
-        name.extend([task["path"].removeprefix(".eval-author/"), *task["issues"]])
+        name.extend(task["issues"])
         if task["status"] == "found" and task["provider"] == "harbor":
             route = "task-definitions/" + quote(PurePosixPath(task["path"]).name, safe="")
             actions = [f"[View task](http://127.0.0.1:8081/{route})"]
@@ -864,13 +1028,19 @@ def render_markdown(data: dict) -> str:
             actions.append("[Saved Task README snapshot](report.html#cases)")
         else:
             actions.append(artifact_link("Task README", task["readme_path"]))
+        name_cell = [
+            "<strong><code>" + markdown_text(task.get("title") or task["name"]) + "</code></strong>",
+            *(markdown_text(part) for part in name),
+            "<code>" + markdown_text(task["path"].removeprefix(".eval-author/")) + "</code>",
+        ]
         cells = [
-            "<br>".join(markdown_text(part) for part in name),
+            "<br>".join(name_cell),
             markdown_text(task.get("readiness", "unknown").capitalize())
             + "<br>"
             + markdown_text(task.get("readiness_reason", "No task acceptance has been recorded.")),
             markdown_text(task["behavior"] or "Not documented"),
             markdown_text(task["expected_outcome"] or "Not documented"),
+            markdown_text(grading) + "<br>" + markdown_text(task.get("grading_summary") or NO_GRADING_SUMMARY),
             "<br>".join(actions),
         ]
         lines.append("| " + " | ".join(cells) + " |")
