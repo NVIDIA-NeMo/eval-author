@@ -80,7 +80,8 @@ passing result establishes comprehensive soundness, fairness, or difficulty.
 
 ### Distinguish verifier faults from rejected submissions
 
-When a verifier delegates work to a verifier-owned helper, an unexpected helper exit, missing
+When a verifier delegates work to a verifier-owned helper, follow
+[trusted verifier helpers](verifier-helpers.md). An unexpected helper exit, missing
 dependency or malformed helper report is a verifier error, not evidence of a
 wrong answer. Check helper readiness independently of submission correctness and
 propagate unexpected failures through the native runtime's error path. Recognizing
