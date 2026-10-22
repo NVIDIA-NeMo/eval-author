@@ -169,11 +169,10 @@ Record user-confirmed prerequisites separately from runtime verification.
 Mark each step complete when its work and required review are finished.
 
 Read [Shared prerequisites and Ethos](references/shared-prerequisites.md) for
-the prerequisite table and checks, shared state, resumption, and the exact handoff.
-Keep its table fixed while selecting checks for the goal: audits need source
-access, audit tooling, and confirmed availability of completed-evaluation traces
-before Ethos; authoring also checks the selected evaluation runtime
-and applicable task environment. Reassess requirements when the goal changes.
+the common procedure, shared state, resumption, and the exact handoff. It selects
+the prerequisite table and checks for [creation](references/pre-reqs/create.md),
+[audit](references/pre-reqs/audit.md), or [improvement](references/pre-reqs/improve.md).
+Keep the selected table fixed and reassess requirements when the goal changes.
 
 Use `ethos-orchestrate` to review, create, or update `ETHOS.md`. Pass along the
 context and answers already collected. For an existing document, ask the user to

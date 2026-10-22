@@ -16,39 +16,22 @@ repository context or save state in preparation for either orientation turn.
 
 ## Check the agent and setup
 
-After the user continues, show this introduction and the selected goal's table
+After the user continues, load only the selected goal's prerequisite reference:
+
+| Goal | Prerequisite table and flow-specific checks |
+|---|---|
+| Create first evaluations | [Creation prerequisites](pre-reqs/create.md) |
+| Audit existing coverage | [Audit prerequisites](pre-reqs/audit.md) |
+| Improve existing evaluations | [Improvement prerequisites](pre-reqs/improve.md) |
+
+Show this introduction and the selected reference's table
 before repository inspection or commands. Send it as a visible progress message,
 then perform the checks in the same turn; do not stop for an answer or ask the
 user to attest to installed software.
 
 I’ll check the prerequisites below, then explain anything that’s missing or unclear.
 
-For creation and improvements:
-
-| Prerequisite | Status | Findings |
-|---|---|---|
-| Agent and repository | Checking | — |
-| Evaluation framework | Checking | — |
-| Required skills | Checking | — |
-| File and command access | Checking | — |
-| Python and evaluation runtime | Checking | — |
-| Evaluation environment | Checking | — |
-| Required services and data | Checking | — |
-| Agent connection and credentials | Needed before agent runs | — |
-
-For audit:
-
-| Prerequisite | Status | Findings |
-|---|---|---|
-| Agent and repository | Checking | — |
-| Evaluation framework | Checking | — |
-| Traces from completed evaluation runs | Unknown | This audit requires saved traces from evaluations that have already run. Their availability must be confirmed before we continue |
-| Required skills | Checking | — |
-| File and command access | Checking | — |
-| Audit tooling | Checking | — |
-
-Use the same six-row table for every audit and the eight-row table above for
-creation and improvements, for both NeMo Gym and Harbor. Copy the introduction, column
+Use the selected reference's table for both NeMo Gym and Harbor. Copy the introduction, column
 headings, row labels, and row order exactly for the selected goal. Change only the
 status and findings cells. Keep every row, including those marked **Not needed
 now**; do not add, rename, reorder, or omit rows from the selected template.
@@ -57,6 +40,12 @@ in the final reply so it remains visible alongside questions.
 On resume, reuse findings already in context; show the table before loading saved
 state, then update it from applicable records. Do not keep a second progress record.
 Recheck affected facts when the environment changes.
+
+Follow the selected reference's checks and blocking conditions, using the common
+checks below. Creation and improvement also use the shared authoring checks;
+audit uses its own tooling checks instead.
+
+### Common checks
 
 Read the repository's supplied agent files and documentation with bounded reads.
 Reuse known identity, repository paths, runtime choice, and answers. When naming
@@ -68,34 +57,9 @@ traces before the user selects their source and location.
 
 Honor the user's NeMo Gym or Harbor choice, otherwise preserve the selected suite's
 setup, otherwise use the existing Harbor default. Keep format compatibility
-separate from availability: a first suite needs an intended supported format,
-not an existing task. Explain unsupported material without converting it or
-switching the selected runtime.
-
-For improvements, confirm that the existing suite uses a supported format before
-checking a provider's runtime or starting Ethos. Identifying an existing framework
-does not establish compatibility; a saved Harbor setup does not establish the
-suite's format. If the suite uses another format, finish the independent checks
-and show this under **Blockers**:
-
-```markdown
-Eval Author only supports NeMo Gym or Harbor formats. Convert your existing evaluations to one of those formats before we continue.
-```
-
-Keep setup incomplete and omit Next Steps, the checklist, and Ethos guidance
-until the user returns with a supported suite. Save progress and wait for them to
-convert it; conversion remains outside Eval Author. Do not offer direct authoring
-in the unsupported format or separate supported evaluations as a workaround.
-This requirement adds no audit or trace requirement and does not change supported
-audit evidence formats or scoped trace conversion.
-
-Record the detected suite format and required conversion in the selected scope,
-with an `evaluation_format` blocker in phase `setup`, the conversion request as
-`pending_question`, and `eval-author` as `next_handoff`. On return, check the
-converted suite's format before clearing the blocker and resuming prerequisites.
-Reassess this blocker when the scope changes; remove its blocking effect when it
-no longer applies to the new request, such as a switch to audit, while retaining
-the format findings.
+separate from availability. Explain unsupported material without converting it or
+switching the selected runtime. Apply the selected reference's format requirements
+before checking a provider's runtime or starting Ethos.
 
 Select checks by the requested work. The common checks are:
 
@@ -104,57 +68,10 @@ Select checks by the requested work. The common checks are:
 - Establish file and command access from host permissions and actual bounded
   reads or commands; keep any write probe under `.eval-author/.working/`
 
-**For an audit**, identify the existing evaluation format from supplied context
-or bounded suite documentation. Check an existing Python environment against
-`audit_tools` in `scripts/runtime-policy.json`: Python 3.11+ with PyYAML and
-jsonschema for audit specification generation, validation, and report aggregation.
-Report these checks under **Audit tooling**. Use bounded version and import checks
-and retain the exact interpreter and results.
-This does not require an installed NeMo Gym or Harbor execution runtime.
-On resume, reuse `python` evidence only when it establishes this audit tooling.
-An older authoring-runtime check may verify Python without PyYAML or jsonschema;
-mark that prerequisite `unknown` and check the audit requirements before deriving
-the results checklist, even when the saved goal is already audit.
+### Authoring checks
 
-Skip evaluation runner, Docker, live agent service, and agent credential probes.
-Access to selected evaluation definitions and traces is checked with those inputs
-within the audit. Required skills are the shared, Ethos, and audit skills;
-do not recommend authoring-only assistant skills for this step.
-Reassess old audit state the same way: replace obsolete execution requirements
-with explained exemptions and remove their blocking effect on this audit,
-retaining the earlier evidence.
-
-Keep the **Traces from completed evaluation runs** prerequisite visible in both
-the initial and results tables. Reuse any supplied availability answer: use
-**Confirmed by you** when the user says those traces exist, **Missing** when they
-say none exist, and **Unknown** otherwise. Evaluation definitions and pass/fail
-scores alone do not satisfy this prerequisite.
-
-Unknown or missing trace availability blocks full audit onboarding. Finish the
-other accessible checks, then show **Blockers** and pause before Ethos. For unknown
-availability, ask: “Do you have saved traces from evaluations that have already run
-for this agent?” For confirmed absence, explain that the audit needs those traces
-and ask the user to provide them or choose a different scope. Do not report that
-the prerequisites passed, mark setup complete, or show Next Steps while this is
-unresolved. Never mark traces **Not needed now** or run evaluations to create them.
-An explicitly requested specification-only operation retains its scoped entry.
-
-Availability confirmation does not select a trace source or prove usable evidence.
-Select suites and traces within the audit after Ethos confirmation, then verify
-their usability, suite/run mapping, and preparation/measurement dependencies.
-ATIF measurement needs the Harbor trajectory parser, including for converted NeMo Gym
-traces; use the existing locator with `--provider harbor --flow audit` then.
-It does not need a NeMo Gym runner, Docker, or agent credentials. Local NeMo Gym and MLflow
-export conversion uses the selected converter's requirements; access to a live
-source is relevant only when the user explicitly selects it. A parser, converter,
-or selected-source access failure discovered at this later stage blocks dependent
-measurement; preserve completed Ethos and independently authorized specification
-work. Preserve the user's evaluation framework when choosing a
-parser dependency. Refer to the audit skill for those operations; do not move
-trace selection or measurement into shared prerequisites.
-
-**For creation and improvements**, read the selected setup's authoring and Python
-requirements from `scripts/runtime-policy.json`, then:
+For creation and improvements only, read the selected setup's authoring and Python
+requirements from [runtime-policy.json](../scripts/runtime-policy.json), then:
 
 - Use the shared [runtime locator](runtime-prerequisites.md#runtime-prerequisite-checks)
   with the selected provider and `--flow authoring` to inspect Python, package
@@ -169,6 +86,8 @@ requirements from `scripts/runtime-policy.json`, then:
 - Record whether agent connection and credentials are configured only where that
   is safely observable without exposing values; their absence blocks actual-agent
   runs, not this prerequisite review or planning
+
+### Record results
 
 Check all applicable, accessible items even when one fails. Skip checks marked
 **Not needed now** rather than probing them for completeness. A denied command, timeout, or
@@ -407,8 +326,9 @@ case inventory, and downstream decisions. Updating a journey's scope replaces
 that entry, so read and preserve unaffected fields first. `journey_status` maps
 a journey to `pending`, `in_progress`, or `complete`. Blockers have `id`, `phase`
 (`setup`, `ethos`, or a journey), and `message`. For a prerequisite blocker, use
-its prerequisite key as `id`, or `evaluation_format` for the improvement format
-requirement above. On an audit/authoring switch, the helper retains
+its prerequisite key as `id`, or `evaluation_format` for the
+[improvement format requirement](pre-reqs/improve.md#checks-and-blocking-conditions).
+On an audit/authoring switch, the helper retains
 affected setup blockers under the previous journey's phase and marks affected
 prerequisite answers `unknown` while preserving their source. Reassess them for
 the new operation, including retained blockers when returning to that journey;
