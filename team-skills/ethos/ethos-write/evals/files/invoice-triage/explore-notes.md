@@ -17,9 +17,9 @@ them.
 - Scope (confirmed): audience is accounts-payable clerks; categories are
   ready to pay, PO match needed, suspected duplicate; out of scope: approving
   or sending payments, editing supplier records, expense reports.
-- Tools (inferred, accepted): `erp_lookup` reads purchase orders and supplier
-  records from the ERP with a read-only service account; `queue_write` moves an
-  invoice into one of three review queues.
+- Implementation context (inferred, accepted): `erp_lookup` reads purchase
+  orders and supplier records from the ERP with a read-only service account;
+  `queue_write` moves an invoice into one of three review queues.
 - Harness (inferred, accepted): a nightly batch job reads the day's invoices,
   calls the model once per invoice with both tools available, and writes one
   queue assignment per invoice.

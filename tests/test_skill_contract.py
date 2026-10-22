@@ -75,7 +75,6 @@ _ETHOS_REQUIRED_SECTIONS = (
     "Role",
     "Purpose & Outcomes",
     "Scope",
-    "Tools",
     "Harness",
     "Behavior",
     "Principles",
@@ -2058,7 +2057,7 @@ def _filled_ethos_template() -> str:
 
 
 def test_filled_ethos_template_passes_the_bundled_validator(tmp_path: Path) -> None:
-    """New Ethos files require intended behavior, without a change-permission section."""
+    """New Ethos files require intended behavior without a tool inventory or change-permission section."""
     markdown = _filled_ethos_template()
     assert re.findall(r"^## (.+)$", markdown, flags=re.MULTILINE) == list(_ETHOS_REQUIRED_SECTIONS)
     path = tmp_path / "ETHOS.md"
@@ -2072,12 +2071,13 @@ def test_filled_ethos_template_passes_the_bundled_validator(tmp_path: Path) -> N
     "extra_section",
     [
         "## Local Notes\n\nKeep demo fixtures.\n",
+        "## Tools\n\n- customer.lookup: requires a customer-read scope.\n",
         "## Change Scope\n\n- System prompt: with-approval\n- Notes: Ask the service owner.\n",
     ],
-    ids=["custom-section", "legacy-change-scope"],
+    ids=["custom-section", "legacy-tools", "legacy-change-scope"],
 )
 def test_ethos_validator_accepts_and_preserves_extra_sections(tmp_path: Path, extra_section: str) -> None:
-    """A legacy permission section remains valid extra content, without migration or deletion."""
+    """Legacy inventories and permissions remain valid extra content without migration or deletion."""
     path = tmp_path / "ETHOS.md"
     original = (_filled_ethos_template() + "\n" + extra_section).encode("utf-8")
     path.write_bytes(original)
@@ -2637,10 +2637,11 @@ def test_audit_validation_rejects_prefixed_yaml_fence(tmp_path: Path) -> None:
 def test_audit_generate_renders_valid_audit_from_items(tmp_path: Path) -> None:
     ethos = tmp_path / "ETHOS.md"
     ethos.write_text(
-        "---\nname: support-agent\ncreated_timestamp: '2026-08-25T00:00:00+00:00'\nauthor: tester\n---\n"
-        "\n# Ethos: support-agent\n",
+        re.sub(r"^name: .*$", "name: support-agent", _filled_ethos_template(), flags=re.MULTILINE),
         encoding="utf-8",
     )
+    validation = _run_script(_ETHOS_VALIDATE, str(ethos))
+    assert validation.returncode == 0, validation.stderr
     items = tmp_path / "items.yaml"
     items_payload = _template_payload()["items"]
     items_payload[0]["expected_use"] = (
@@ -2673,6 +2674,68 @@ def test_audit_generate_renders_valid_audit_from_items(tmp_path: Path) -> None:
         text,
         "expected_behavior",
         "The agent grounds recovery in customer identity and routes to an approved recovery path.",
+    )
+
+
+@_needs_harbor
+@pytest.mark.parametrize("legacy_tools", [False, True], ids=["no-tool-inventory", "legacy-tool-inventory"])
+@pytest.mark.parametrize("observed_tool", ["customer.lookup", "legacy.lookup"], ids=["matching-tool", "other-tool"])
+def test_generated_audit_measures_explicit_items_independently_of_ethos_tools(
+    tmp_path: Path, legacy_tools: bool, observed_tool: str
+) -> None:
+    """Runtime tool gates come from audit items, whether Ethos omits Tools or retains a stale inventory."""
+    ethos = tmp_path / "ETHOS.md"
+    markdown = _filled_ethos_template()
+    assert "## Tools\n" not in markdown
+    if legacy_tools:
+        markdown += "\n## Tools\n\n- legacy.lookup\n"
+    ethos.write_text(markdown, encoding="utf-8")
+    validation = _run_script(_ETHOS_VALIDATE, str(ethos))
+    assert validation.returncode == 0, validation.stderr
+
+    items_payload = _template_payload()["items"][:2]
+    capability = items_payload[1]
+    capability["evidence_required"] = [
+        evidence for evidence in capability["evidence_required"] if evidence["kind"] == "tool_call"
+    ]
+    items = tmp_path / "items.yaml"
+    _write_audit_items(items, items_payload)
+    audit = tmp_path / ".eval-author" / "audit.md"
+    generation = _run_script(_AUDIT_GENERATE, "--ethos", str(ethos), "--items", str(items), "--out", str(audit))
+    assert generation.returncode == 0, generation.stderr
+    code, report, stderr = _run_json_script(_AUDIT_VALIDATE, "--audit", str(audit))
+    assert code == 0, stderr or report
+    assert _audit_payload(audit)["items"] == items_payload
+
+    trace = tmp_path / "trajectory.json"
+    _write_atif_trace(trace, tool_calls=[observed_tool])
+    out_dir = tmp_path / ".eval-author" / "audit-measurements"
+    code, summary, stderr = _run_json_script(
+        _AUDIT_MEASURE,
+        "--audit",
+        str(audit),
+        "--trace",
+        str(trace),
+        "--evidence-class",
+        "agent_under_test",
+        "--task-id",
+        "account-recovery",
+        "--measure",
+        "tool_calls,capabilities",
+        "--out-dir",
+        str(out_dir),
+    )
+    assert code == 0, stderr or summary
+    matched = observed_tool == "customer.lookup"
+    assert summary["measurements"][0]["covered"] == (["customer.lookup"] if matched else [])
+    assert summary["measurements"][1]["covered"] == (["account_recovery"] if matched else [])
+    measurement_dir = _measurement_dir(out_dir, "account-recovery", "root-trajectory", method="capabilities")
+    details = json.loads((measurement_dir / "details.json").read_text(encoding="utf-8"))
+    capability_result = details["capability_results"]["account_recovery"]
+    assert capability_result["required_tool_results"][0]["status"] == ("satisfied" if matched else "missing")
+    assert capability_result["evidence_results"][0]["status"] == ("satisfied" if matched else "missing")
+    assert capability_result["missing_reasons"] == (
+        [] if matched else ["missing_required_tool", "missing_tool_call_evidence"]
     )
 
 

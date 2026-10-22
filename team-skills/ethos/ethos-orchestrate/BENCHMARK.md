@@ -9,11 +9,11 @@ Recommended for publication based on the completed evaluation evidence in this r
 ## Evaluation Metadata
 
 - Skill: `ethos-orchestrate`
-- Evaluation date: 2026-10-16
+- Evaluation date: 2026-10-22
 - Evaluator version: `1.5.6`
-- Agents: Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`), Codex (`openai/openai/gpt-5.5`)
+- Agents: Claude Code (`aws/anthropic/bedrock-claude-sonnet-5-5`), Codex (`openai/openai/gpt-5.5`)
 - Tasks: 4 evaluation tasks (3 positive, 1 negative)
-- Dataset digest: `sha256:a405e089d93c5fbaef1a4083da0609f55595a62b10d5fc3c59d9ce536e49b4d1` (skill-evaluator-dataset-snapshot/1)
+- Dataset digest: `sha256:6942fae0be5eadc7b3316beec87f23463835a73a6bd797a4c3efb56388733816` (skill-evaluator-dataset-snapshot/1)
 - Attempts per task: 1
 - Environment: `k8s-sandbox`
 - Tier 2 evidence: required for publication
@@ -35,12 +35,12 @@ The three-tier evaluation checks whether the skill:
 
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 95.7% — baseline ran, but no comparable score was available; uplift unavailable | 95.0% — baseline ran, but no comparable score was available; uplift unavailable |
-| Security | 75.0% → 100.0% (+25.0 points) | 100.0% → 100.0% (±0.0 points) |
-| Correctness | 70.0% → 100.0% (+30.0 points) | 70.0% → 95.0% (+25.0 points) |
-| Discoverability | 86.7% — baseline ran, but no comparable score was available; uplift unavailable | 91.7% — baseline ran, but no comparable score was available; uplift unavailable |
-| Effectiveness | 61.0% → 96.3% (+35.3 points) | 51.7% → 96.7% (+45.0 points) |
-| Efficiency | 95.5% — baseline ran, but no comparable score was available; uplift unavailable | 91.9% — baseline ran, but no comparable score was available; uplift unavailable |
+| Overall | 92.6% — baseline ran, but no comparable score was available; uplift unavailable | 85.9% — baseline ran, but no comparable score was available; uplift unavailable |
+| Security | 100.0% → 100.0% (±0.0 points) | 100.0% → 100.0% (±0.0 points) |
+| Correctness | 45.0% → 100.0% (+55.0 points) | 30.0% → 85.0% (+55.0 points) |
+| Discoverability | 86.7% — baseline ran, but no comparable score was available; uplift unavailable | 80.0% — baseline ran, but no comparable score was available; uplift unavailable |
+| Effectiveness | 54.4% → 96.0% (+41.6 points) | 44.0% → 68.3% (+24.3 points) |
+| Efficiency | 80.4% — baseline ran, but no comparable score was available; uplift unavailable | 96.2% — baseline ran, but no comparable score was available; uplift unavailable |
 
 **How to read this table:** baseline is the same task attempted without the target skill. Scores are rounded to one decimal; threshold-adjacent values use additional precision so their displayed band matches the verdict. Uplift is derived from those displayed scores and shown in percentage points.
 
@@ -54,17 +54,17 @@ Actual Tier 3 execution usage is reported for every observed agent/case pair and
 
 | Agent | Dataset case | With skill | Without skill | Delta | Change | Coverage |
 |---|---|---:|---:|---:|---:|---|
-| claude-code | All cases | 1,302,367 | 2,806,171 | -1,503,804 | -53.59% | skill 4/4; base 4/4 |
-| claude-code | orchestrate-explicit-new-ethos | 734,212 | 585,182 | +149,030 | +25.47% | skill 1/1; base 1/1 |
-| claude-code | orchestrate-implicit-existing-status | 233,175 | 251,638 | -18,463 | -7.34% | skill 1/1; base 1/1 |
-| claude-code | orchestrate-legacy-rename | 305,800 | 1,940,368 | -1,634,568 | -84.24% | skill 1/1; base 1/1 |
-| claude-code | orchestrate-negative | 29,180 | 28,983 | +197 | +0.68% | skill 1/1; base 1/1 |
-| codex | All cases | 346,265 | 455,748 | -109,483 | -24.02% | skill 4/4; base 4/4 |
-| codex | orchestrate-explicit-new-ethos | 29,475 | 152,903 | -123,428 | -80.72% | skill 1/1; base 1/1 |
-| codex | orchestrate-implicit-existing-status | 100,580 | 124,371 | -23,791 | -19.13% | skill 1/1; base 1/1 |
-| codex | orchestrate-legacy-rename | 202,838 | 165,257 | +37,581 | +22.74% | skill 1/1; base 1/1 |
-| codex | orchestrate-negative | 13,372 | 13,217 | +155 | +1.17% | skill 1/1; base 1/1 |
-| ALL AGENTS | Dataset aggregate | 1,648,632 | 3,261,919 | -1,613,287 | -49.46% | skill 8/8; base 8/8 |
+| claude-code | All cases | 668,487 | 472,906 | +195,581 | +41.36% | skill 4/4; base 4/4 |
+| claude-code | orchestrate-existing-uppercase | 281,088 | 191,006 | +90,082 | +47.16% | skill 1/1; base 1/1 |
+| claude-code | orchestrate-explicit-new-ethos | 94,253 | 125,708 | -31,455 | -25.02% | skill 1/1; base 1/1 |
+| claude-code | orchestrate-implicit-existing-status | 264,020 | 127,246 | +136,774 | +107.49% | skill 1/1; base 1/1 |
+| claude-code | orchestrate-negative | 29,126 | 28,946 | +180 | +0.62% | skill 1/1; base 1/1 |
+| codex | All cases | 412,577 | 452,686 | -40,109 | -8.86% | skill 4/4; base 4/4 |
+| codex | orchestrate-existing-uppercase | 272,109 | 181,454 | +90,655 | +49.96% | skill 1/1; base 1/1 |
+| codex | orchestrate-explicit-new-ethos | 45,047 | 169,585 | -124,538 | -73.44% | skill 1/1; base 1/1 |
+| codex | orchestrate-implicit-existing-status | 82,061 | 88,430 | -6,369 | -7.20% | skill 1/1; base 1/1 |
+| codex | orchestrate-negative | 13,360 | 13,217 | +143 | +1.08% | skill 1/1; base 1/1 |
+| ALL AGENTS | Dataset aggregate | 1,081,064 | 925,592 | +155,472 | +16.80% | skill 8/8; base 8/8 |
 
 Prompt tokens include cached reads, so total tokens are `prompt + completion` (cached is not added twice). The Efficiency score uses `(prompt - cached) + completion`. N/A means the relevant trajectory counters were not available; coverage is never estimated.
 
@@ -72,7 +72,7 @@ Prompt tokens include cached reads, so total tokens are `prompt + completion` (c
 
 | Tier | Purpose | Status | Evidence |
 |---|---|---|---|
-| Tier 1 | Static validation | **PASSED WITH OBSERVATIONS** | 11 validator(s); 7 finding(s) |
+| Tier 1 | Static validation | **PASSED WITH OBSERVATIONS** | 11 validator(s); 8 finding(s) |
 | Tier 2 | Semantic deduplication | **PASSED** | 2 validator(s); 0 finding(s) |
 | Tier 3 | Live agent evaluation | **PASS** | 2 agent(s); 4 task(s) |
 
@@ -86,7 +86,7 @@ Prompt tokens include cached reads, so total tokens are `prompt + completion` (c
 - **MEDIUM** QUALITY/quality_discoverability: Description uses first/second person (`team-skills/ethos/ethos-orchestrate/SKILL.md`)
 - **MEDIUM** SCHEMA/body_recommended_section: Missing recommended section: '## Instructions' (`team-skills/ethos/ethos-orchestrate/SKILL.md`)
 - **MEDIUM** SCHEMA/author_missing: Author not specified in metadata (`team-skills/ethos/ethos-orchestrate/SKILL.md`)
-- 2 additional finding(s) are available in the full evaluation artifacts.
+- 3 additional finding(s) are available in the full evaluation artifacts.
 
 </details>
 

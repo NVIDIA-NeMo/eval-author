@@ -57,12 +57,12 @@ interview.
 ## The schema you are filling
 
 The ETHOS.md has five base front-matter fields, plus optional `updated_timestamp`,
-and fourteen body sections. Every body section is required. One field is a
+and thirteen body sections. Every body section is required. One field is a
 quality gate for handoff: `ethos-write` is blocked until `Role` is concrete.
 For any other canonical section with nothing to say, write `_(none)_` rather
 than dropping the heading.
 
-The fourteen headings are a floor, not a ceiling. Extra `##` headings and extra
+The thirteen headings are a floor, not a ceiling. Extra `##` headings and extra
 YAML front-matter keys are allowed. Keep them if the user adds them. Do not
 strip custom sections to make the file look "strict."
 
@@ -84,17 +84,16 @@ strip custom sections to make the file look "strict."
 | 1 | Role | One concrete sentence describing the role this agent plays. Example: "answer IT helpdesk questions about VPN, password reset, and software access." Vague answers ("help with stuff") are useless downstream. |
 | 2 | Purpose & Outcomes | Two labeled parts. **Mission:** why the agent exists, what user value it provides, and the product or workflow context it serves — not a restatement of implementation mechanics. **Outcome:** the external result it is accountable for, with the measurable target and who owns that number. A mission with no outcome cannot be measured; an outcome with no mission gets improved in the wrong direction. Say so plainly when the agent is internal tooling with no business metric. |
 | 3 | Scope | Audience, 3-6 task categories, expected in-scope work, and explicit out-of-scope work/non-goals. |
-| 4 | Tools | Tools, APIs, and knowledge sources the agent can use, or "Prompt-only." Group related helpers by capability or source. Capture only behaviorally important purpose, credentials/scopes, side effects, freshness, and expected failures. |
-| 5 | Harness | How this agent actually runs: the loop, tool use, and runtime. Write what is true of this agent. Do not pick a named harness from a catalog, and do not treat a framework import as a requirement. Write `_(none)_` if you cannot describe how it runs. |
-| 6 | Behavior | Behavioral rules and boundaries: refusal/escalation policy, tone, safety/compliance requirements, accepted limitations, and known non-goals. Hard external limits belong in `Constraints`. |
-| 7 | Principles | How the agent should decide when no rule in `Behavior` covers the case: which way to err on an ambiguous request, what it protects even at some cost to the answer, and whose interest wins when the user and the business disagree. Two or three concrete judgment calls. "Helpful, harmless, and honest" is not an answer — it is true of every agent. Write `_(none)_` if there is no judgment call beyond `Behavior`. |
-| 8 | Success Criteria | What good production behavior looks like, independent of current evals: mission-level outcomes, quality standards, escalation quality, accuracy expectations, and examples of success. Rank them when some matter more. |
-| 9 | Trade-offs | How to choose when desired outcomes conflict. Needs three things: hard gates never traded away, a priority order over the rest (quality, latency, cost, reliability), and unacceptable compromises. "Balance quality and cost" is not an answer. Write `_(none)_` if the user cannot rank them. These are behavioral priorities, not permission to optimize the application. |
-| 10 | Constraints | Hard external bounds on the agent's operation: approved providers/models/regions, data residency and handling, compliance obligations, production cost ceilings and latency SLOs, and runtime actions that need human sign-off. Retain already-confirmed organizational safety and review policies. Give the current measured figure next to a ceiling when you know it. Usually organizational, which is why the code cannot supply them. Write `_(none)_` if unconstrained. Do not collect application-change permissions here. |
-| 11 | Evaluation Setup | Current validation setup: how to run it, what datasets/checks it uses, what scorers/metrics measure, pass/fail thresholds, and known coverage gaps relative to the success criteria. If no eval suite exists, say so explicitly. |
-| 12 | Metric Semantics | What ambiguous or load-bearing metric and telemetry field names actually mean, and which claims they do not support. Write `_(none)_` when every name means exactly what it says. |
-| 13 | Vision | Where the agent is headed: an intention beyond today's job, plus one or two concrete use cases it should grow into but does not serve yet. That last part marks what `Scope` excludes *for now* rather than on principle. Write `_(none)_` rather than pasting a dated backlog. |
-| 14 | Open Questions | Open facts that affect safe use or evaluation of the agent. Write `_(none)_` when there are none. Remove items once answered. Missing application-change permissions are not an Ethos gap. |
+| 4 | Harness | How this agent actually runs: the loop, tool use, and runtime. Write what is true of this agent. Do not pick a named harness from a catalog, and do not treat a framework import as a requirement. Write `_(none)_` if you cannot describe how it runs. |
+| 5 | Behavior | Behavioral rules and boundaries: refusal/escalation policy, tone, safety/compliance requirements, accepted limitations, and known non-goals. Hard external limits belong in `Constraints`. |
+| 6 | Principles | How the agent should decide when no rule in `Behavior` covers the case: which way to err on an ambiguous request, what it protects even at some cost to the answer, and whose interest wins when the user and the business disagree. Two or three concrete judgment calls. "Helpful, harmless, and honest" is not an answer — it is true of every agent. Write `_(none)_` if there is no judgment call beyond `Behavior`. |
+| 7 | Success Criteria | What good production behavior looks like, independent of current evals: mission-level outcomes, quality standards, escalation quality, accuracy expectations, and examples of success. Rank them when some matter more. |
+| 8 | Trade-offs | How to choose when desired outcomes conflict. Needs three things: hard gates never traded away, a priority order over the rest (quality, latency, cost, reliability), and unacceptable compromises. "Balance quality and cost" is not an answer. Write `_(none)_` if the user cannot rank them. These are behavioral priorities, not permission to optimize the application. |
+| 9 | Constraints | Hard external bounds on the agent's operation: approved providers/models/regions, data residency and handling, compliance obligations, production cost ceilings and latency SLOs, and runtime actions that need human sign-off. Retain already-confirmed organizational safety and review policies. Give the current measured figure next to a ceiling when you know it. Usually organizational, which is why the code cannot supply them. Write `_(none)_` if unconstrained. Do not collect application-change permissions here. |
+| 10 | Evaluation Setup | Current validation setup: how to run it, what datasets/checks it uses, what scorers/metrics measure, pass/fail thresholds, and known coverage gaps relative to the success criteria. If no eval suite exists, say so explicitly. |
+| 11 | Metric Semantics | What ambiguous or load-bearing metric and telemetry field names actually mean, and which claims they do not support. Write `_(none)_` when every name means exactly what it says. |
+| 12 | Vision | Where the agent is headed: an intention beyond today's job, plus one or two concrete use cases it should grow into but does not serve yet. That last part marks what `Scope` excludes *for now* rather than on principle. Write `_(none)_` rather than pasting a dated backlog. |
+| 13 | Open Questions | Open facts that affect safe use or evaluation of the agent. Write `_(none)_` when there are none. Remove items once answered. Missing application-change permissions are not an Ethos gap. |
 
 The ETHOS.md records durable intent, not a running list of observed failures.
 Track known issues and recurring failure patterns where the team tracks bugs.
@@ -161,10 +160,6 @@ interview and ask for Role first.
      in code; even when a README names a metric, ask the user to confirm it.
    - **Scope** — audience from docs or prompts; categories from enumerated
      capabilities or named tool clusters; in/out boundaries from prompt rules.
-   - **Tools** — from `@tool` decorators, tool registries,
-     `create_react_agent(tools=[...])`, retrieval/corpus config, or API clients.
-     Group low-level helpers when they share credentials, side effects,
-     freshness, and failure modes.
    - **Harness** — infer from how the agent actually runs: adapter
      configuration, workflow YAML, service entrypoints, CLI commands,
      Dockerfiles, notebooks, or deployment configs. Capture behaviorally
@@ -211,7 +206,7 @@ are not reasons to skip it.
 After the scan, split fields into two piles:
 
 - **Inferred** — implementation-shaped fields you can draft from source:
-  `Tools`, `Harness`, `Evaluation Setup`, `Behavior` copied from prompts,
+  `Harness`, `Evaluation Setup`, `Behavior` copied from prompts,
   `Metric Semantics` from scorer names.
 - **Intent** — fields source cannot own: `Purpose & Outcomes`, `Principles`,
   and `Vision` always; then `Constraints`, `Trade-offs`, and
@@ -220,8 +215,7 @@ After the scan, split fields into two piles:
 Walk the intent pile. Skip a topic only when **this conversation** already
 answered it. A README, prompt, or roadmap is not a substitute for a user
 reply on the always-ask topics below. Keep every other unanswered intent
-topic on the list. Greenfield work adds `Role`, `Scope`, and whether the
-agent is prompt-only before that intent list.
+topic on the list. Greenfield work adds `Role` and `Scope` before that intent list.
 
 Question count is at least three, then however many remaining intent topics
 still need a reply. Prefer fewer sharp questions over a long checklist, but
@@ -349,7 +343,6 @@ Show the rendered ETHOS.md inline in markdown (one `##` section per field,
 same shape as the on-disk file). For fields you defaulted, note the
 default in parentheses so the user knows they can override:
 
-- `Tools: Prompt-only.` *(default — say so if the agent needs tools)*
 - `Purpose & Outcomes` / `Success Criteria` inferred from implementation
   *(say so if there is outside context to incorporate)*
 
@@ -371,8 +364,8 @@ Allowed follow-ups after the draft:
 1. The **hard-required** `Role` is missing or vague — ask for it before
    handoff.
 2. The user's reply surfaces a contradiction that needs one targeted
-   clarification (for example they say "drop the search tool" but the
-   codebase shows the agent depends on it).
+   clarification (for example they request account recovery while also
+   saying that no account state may change).
 
 ## Step 4 — Hand off
 
@@ -413,16 +406,6 @@ If the Role quality gate is satisfied, announce the handoff in one line
 
 ## Gotchas
 
-- **"You decide" means commit to the default and announce it.** Example:
-  "I'll record `Tools: Prompt-only.` Tell me to change it if not." Never
-  silently fill in.
-- **Tool over-spec is the most common error.** Users ask for a search tool
-  when prompt-only would work. Probe: "Do you have evidence the model alone
-  fails on these?" If no, drop the tool.
-- **Tool and harness inventory should be compressed.** Do not create one row
-  per helper method when several helpers share the same source, credential,
-  side effect, freshness, and failure mode. Group them and call out only the
-  differences an evaluator or reviewer needs to know.
 - **Mission before mechanics.** An ETHOS.md that only says how the current code is
   wired is not good enough. If goal context cannot be found in the codebase or
   docs, say the mission is inferred from implementation and still ask the user

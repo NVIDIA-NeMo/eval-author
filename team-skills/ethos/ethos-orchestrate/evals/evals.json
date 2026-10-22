@@ -21,7 +21,7 @@
     {
       "id": "orchestrate-implicit-existing-status",
       "prompt": "Does the agent repo in /workspace/input/router-help already have an ETHOS.md? If so, tell me whether it is valid, what it says the agent is for, and what is still missing. Don't change anything.",
-      "expected_output": "Reports /workspace/input/router-help/ETHOS.md and leads with whether it validates: front matter with schema_version 1 and all fourteen required sections are present (or says the bundled validator was not run). Then summarizes what the file says the agent is for (answering Acme RT-200/RT-300 router setup, firmware, and connectivity questions to resolve conversations without a ticket), then the gaps: Vision is _(none)_ and RT-400 support is an open question. Offers a next route (ethos-write for specific edits, ethos-explore to revisit intent) without starting to write.",
+      "expected_output": "Reports /workspace/input/router-help/ETHOS.md and leads with whether it validates: front matter with schema_version 1 and all thirteen required sections are present (or says the bundled validator was not run). Then summarizes what the file says the agent is for (answering Acme RT-200/RT-300 router setup, firmware, and connectivity questions to resolve conversations without a ticket), then the gaps: Vision is _(none)_ and RT-400 support is an open question. Offers a next route (ethos-write for specific edits, ethos-explore to revisit intent) without starting to write.",
       "assertions": [
         "Identifies /workspace/input/router-help/ETHOS.md as the agent's ETHOS.md.",
         "Leads with whether the file is structurally valid, and says so plainly if the bundled validator was not run.",

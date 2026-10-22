@@ -75,7 +75,7 @@ are part of the agent's intended behavior.
 ## What's in the file
 
 YAML front matter (`schema_version`, `name`, `created_timestamp`, `author`, and
-optional `owner` and `updated_timestamp`) followed by fourteen required sections.
+optional `owner` and `updated_timestamp`) followed by thirteen required sections.
 Section bodies stay human-readable; the headings are the outline other agents
 parse. A section with nothing to say contains `_(none)_`.
 
@@ -84,7 +84,6 @@ parse. A section with nothing to say contains `_(none)_`.
 | `Role` | What the agent does, in one concrete sentence. |
 | `Purpose & Outcomes` | Why it exists, and the result it is judged by. |
 | `Scope` | Who it serves, in-scope work, and boundaries. |
-| `Tools` | APIs, tools, and knowledge sources it can use. |
 | `Harness` | How the agent actually runs. |
 | `Behavior` | Rules, tone, refusals, and policies. |
 | `Principles` | How to decide when no rule in `Behavior` covers the case. |
@@ -131,6 +130,9 @@ npx skills@latest list --agent claude-code
 
 For a global installation, add `--global` to this check too. Confirm that
 `ethos-orchestrate`, `ethos-explore`, and `ethos-write` are listed.
+
+Existing `Tools` sections remain valid and are preserved during edits unless
+you request their removal.
 
 ## Create an ETHOS.md
 
