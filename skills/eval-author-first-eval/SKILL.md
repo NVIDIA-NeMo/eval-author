@@ -116,7 +116,8 @@ after changes to detect improvement or regression.
 
 Read [Corpus and coverage planning](../eval-author/references/coverage-planning.md#select-trace-evidence-before-using-it)
 before searching for or inspecting traces. If the choice is unresolved, use the
-renderer’s exact optional-trace question (`traces`).
+renderer’s exact optional-trace question and choices (`traces`), including when
+using a question tool, as specified in its optional trace choice contract.
 Present only already-known source candidates and confirm a bounded selection
 before reading them. Reuse an explicit selection or no-trace choice; do not ask
 again. No evals does not imply no traces. Without traces, proceed from `ETHOS.md`

@@ -22,6 +22,7 @@ from test_first_eval_state import (
     task,
     validate_and_review,
 )
+from test_journey_state import ethos_ready, setup_ready
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 
@@ -105,21 +106,47 @@ def test_proposal_shape_and_fixed_feedback_are_repeatable_and_read_only(context)
     assert modules[0].state_path(repo).read_bytes() == before
 
 
-def test_trace_choice_is_skipped_when_saved_and_does_not_need_a_proposal(context):
+def test_trace_choice_has_fixed_options_before_a_proposal_and_is_read_only(context):
+    modules, conversation, repo = context
+    state = modules[0]
+    setup_ready(state, repo)
+    with pytest.raises(ValueError, match="Confirm ETHOS.md"):
+        render(context, "traces")
+    ethos_ready(state, repo)
+    assert "first_eval" not in state.load_state(repo)["scopes"].get("create", {})
+    before = state.state_path(repo).read_bytes()
+
+    output = render(context, "traces")
+
+    assert output == (
+        conversation.TRACE_INTRO
+        + "\n\n"
+        + conversation.TRACE_QUESTION
+        + "\n\n- Start from ETHOS.md\n- Use existing traces\n"
+    )
+    assert output == render(context, "traces")
+    assert state.state_path(repo).read_bytes() == before
+
+
+@pytest.mark.parametrize("location", ["scope", "plan"])
+@pytest.mark.parametrize("choice", ["none", {"locations": ["traces/selected"], "runs": ["run-1"], "exclusions": []}])
+def test_trace_question_and_options_are_skipped_for_saved_source_choices(context, location, choice):
     modules, conversation, repo = context
     record = proposal(context)
     state = modules[0]
-    state.update(
-        repo,
-        {"scopes": {"create": {"first_eval": record, "trace_choice": "none"}}},
-        expected_revision=state.load_state(repo)["revision"],
-    )
-    assert conversation.TRACE_QUESTION not in render(context, "traces")
-    state.update(
-        repo, {"scopes": {"create": {"trace_choice": None}}}, expected_revision=state.load_state(repo)["revision"]
-    )
-    assert conversation.TRACE_QUESTION in render(context, "traces")
-    assert "confirmed `ETHOS.md`" in render(context, "traces")
+    if location == "scope":
+        state.update(
+            repo,
+            {"scopes": {"create": {"trace_choice": choice}}},
+            expected_revision=state.load_state(repo)["revision"],
+        )
+    else:
+        record["plan"]["trace_choice"] = choice
+        save_record(state, repo, record)
+    before = state.state_path(repo).read_bytes()
+
+    assert render(context, "traces") == conversation.TRACE_INTRO + "\n"
+    assert state.state_path(repo).read_bytes() == before
 
 
 def test_combined_offer_is_not_execution_authorization(context):

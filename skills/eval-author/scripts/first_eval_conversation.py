@@ -26,6 +26,7 @@ TRACE_INTRO = (
     "Existing traces can help us use realistic requests, but they aren’t required."
 )
 TRACE_QUESTION = "Would you like to use existing traces, or start from `ETHOS.md`?"
+TRACE_CHOICES = ("Start from ETHOS.md", "Use existing traces")
 PROPOSAL_QUESTION = (
     "Do these tasks make sense for your agent? Are we testing the right behaviors, "
     "with the right expected results and grading? Tell me what you’d change, add, "
@@ -368,7 +369,9 @@ def render(repo: Path, payload: dict) -> str:
             raise ValueError("Confirm ETHOS.md before proposing the trace choice")
         scope = state["scopes"].get("create", {})
         choice = scope.get("trace_choice") or scope.get("first_eval", {}).get("plan", {}).get("trace_choice")
-        result = TRACE_INTRO + ("\n\n" + TRACE_QUESTION if not choice else "")
+        result = TRACE_INTRO
+        if not choice:
+            result += "\n\n" + TRACE_QUESTION + "\n\n" + "\n".join(f"- {label}" for label in TRACE_CHOICES)
         if facts.get("blockers"):
             result += "\n\n" + blockers(facts["blockers"])
         if state["blockers"] and not facts.get("blockers"):

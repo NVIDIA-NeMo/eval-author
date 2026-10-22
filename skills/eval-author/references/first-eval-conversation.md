@@ -21,6 +21,22 @@ The renderer rejects stale revisions and invalid navigation. Update evidence and
 decisions through the existing revision-checked state interface; see
 [first-eval state](first-eval-state.md). Never synthesize a user approval source.
 
+## Optional trace choice
+
+When the choice is unresolved, the `traces` renderer supplies its fixed introduction
+and question followed by exactly these choices, in this order:
+
+```markdown
+- Start from ETHOS.md
+- Use existing traces
+```
+
+When using a question tool, use the rendered introduction and question before this
+bullet block as the question text, and these exact labels without bullet markers as
+the choices. Do not append explanations such as “with synthetic examples” or “I’ll
+specify the source.” Free-text answers remain possible. A saved trace choice omits
+both the question and choices; reuse that decision without asking again.
+
 ## Saved proposal presentation
 
 Put the proposal in `scopes.create.first_eval.plan` before rendering it. In addition
@@ -52,7 +68,7 @@ authorization and does not grant it. Design approval alone cannot start paid wor
 
 | Stage | Preconditions and facts |
 |---|---|
-| `traces` | Requires confirmed `ETHOS.md`; can run before a proposal exists. Fixed optional-trace question is omitted when `scopes.create.trace_choice` (or `plan.trace_choice`) is saved. Save `none` or an object containing selected locations, run IDs, and exclusions. Select sources before inspection. |
+| `traces` | Requires confirmed `ETHOS.md`; can run before a proposal exists. Fixed optional-trace question and choices are omitted when `scopes.create.trace_choice` (or `plan.trace_choice`) is saved. Save `none` or an object containing selected locations, run IDs, and exclusions. Select sources before inspection. |
 | `proposal` | Renders saved proposal as five columns, immediately followed by six settings bullets and the fixed feedback question. No task generation before the approval is saved. |
 | `prepare_first` | Requires saved scope approval; provider selects fixed Harbor documentation links or native Gym wording. Author one task at its permanent path, then prove its environment before tests. |
 | `review_first` | Requires current first-task environment proof, task files, report, and mirror. Facts: `input`, `expected_result`, `grading`, `grading_limitation`. Displays derived environment, validation, and execution statuses separately. Formal grading checks may still be pending. |
