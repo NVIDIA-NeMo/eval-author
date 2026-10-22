@@ -24,8 +24,8 @@ python3.11 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --prov
 python3.11 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider gym --flow authoring
 ```
 
-Use Python 3.11+ to run the locator. Select `--flow audit` for audit runtime
-requirements, `discovery` for readiness, and `authoring` for first-eval,
+Use Python 3.11+ to run the locator. Select `discovery` for readiness and
+`authoring` for first-eval,
 task-create, environment, or trace-derived authoring. Use `--provider both` only
 when both runtimes are needed. File-only inventory never runs this command.
 Here `<skill_dir>` is the eval-author skill directory. The shared files ship in

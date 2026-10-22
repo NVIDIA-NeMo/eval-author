@@ -483,7 +483,7 @@ def locate(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path.cwd())
-    parser.add_argument("--flow", choices=["audit", "discovery", "authoring"], default="discovery")
+    parser.add_argument("--flow", choices=["discovery", "authoring"], default="discovery")
     parser.add_argument("--provider", choices=["harbor", "gym", "both"], default="both")
     for name in ("harbor", "gym"):
         parser.add_argument(f"--{name}-python")

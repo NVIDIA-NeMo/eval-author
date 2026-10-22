@@ -88,7 +88,7 @@ Use `eval-author-task-create/scripts/task_evidence.py` with Python 3.11+; Harbor
 preparation also needs the same Harbor Python runtime used for execution. Finish
 the task, verifier, control implementations, and any result adapter before
 preparing evidence. Keep those files inside the task tree. Keep receipts, jobs,
-converted traces, and measurement outputs outside that tree under `.eval-author/`.
+loaded traces, and measurement outputs outside that tree under `.eval-author/`.
 
 Write a private contract identifying the task and native result checks. Each
 case has `kind`, a nonempty `requirement`, `health` assertions, and behavior
@@ -143,7 +143,7 @@ It reads native verifier-case reports separately from rollout JSONL and health
 artifacts; authors do not implement a result adapter. Prepare the selected dataset
 row, resolved configuration, runtime record, and reset plan before recording.
 The adapter compares executed inputs, preserves native health status, and checks
-conversion receipts against the selected rollout and ATIF bytes. It does not
+trace loading receipts against the selected rollout and normalized trace. It does not
 attest a remote service's deployed source.
 
 ```bash
@@ -192,11 +192,11 @@ Run every declared control. For first-eval, recording the agent baseline is
 optional: each Gym manifest binds one dataset row and every receipt needs fresh
 native output, so per-case baseline receipts multiply model runs. Retain the
 suite-level baseline run as native evidence instead. A recorded first-eval
-baseline uses `--purpose baseline`; it allows one attempt without ATIF and cannot
+baseline uses `--purpose baseline`; it allows one attempt without a trace and cannot
 count as gap-closure evidence.
-For `--purpose closure` (the default), agent runs require `--trace <fresh-absolute-ATIF-path>`;
-produce or convert that trace inside the recorded command, retaining conversion
-receipts where required. Use that exact absolute trace path and the recorder's
+For `--purpose closure` (the default), agent runs require `--trace <fresh-absolute-trace-path>`:
+Harbor's ATIF trajectory, or for Gym the normalized trace that `trace_loading.py`
+writes inside the recorded command, with its receipt. Use that exact absolute trace path and the recorder's
 `--run-id` when measuring coverage. Distinct measurements of the same trace may
 share a report, but each after-report must describe exactly one agent run.
 

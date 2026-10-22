@@ -148,8 +148,8 @@ def test_socket_restriction_is_infrastructure_not_a_control_failure(tmp_path, mo
     assert set(report["checks"].values()) == {"missing"}
 
 
-@pytest.mark.parametrize("route", ["trace", "ng-trajectory"])
-def test_audit_evidence_cannot_pass_as_trace_evidence(tmp_path, route):
+def test_audit_evidence_cannot_pass_as_trace_evidence(tmp_path):
+    route = "trace"
     evidence(tmp_path)
     assert collector.summarize(tmp_path, 0, route)["status"] == "incomplete"
     nodes = "".join(f'<testcase name="{name}[{route}]"/>' for name in collector.NATIVE_TESTS)

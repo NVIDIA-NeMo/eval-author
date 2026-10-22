@@ -99,7 +99,7 @@ npx skills list --agent claude-code
 
 For a global installation, use `npx skills list --agent claude-code --global`.
 Use the same assistant identifier you installed for, and confirm the listed
-paths match your chosen project or global destination. Expect these ten skills:
+paths match your chosen project or global destination. Expect these eight skills:
 
 ```text
 eval-author
@@ -110,8 +110,6 @@ eval-author-first-eval
 eval-author-inspect-trace
 eval-author-task-create
 eval-author-trace-environment
-gym-to-atif
-mlflow-to-atif
 ```
 
 If none appear, check the directory, assistant identifier, and scope. Then
@@ -291,9 +289,8 @@ you need to create, validate, or run Harbor tasks.
 | Create, validate, and run Harbor tasks | Harbor and its supported Python environment. Execution also needs the selected backend and any application access, agent integration, and provider credentials required by the task. |
 | Build and prove a task environment | Repository access for the fit check and inventory. Harbor environments need Harbor and Docker with Compose for sidecar services; Gym environments need the Gym runtime above. Vendor sandboxes need your authorization and credentials, supplied by variable name. |
 | Generate or validate an audit specification; aggregate measured coverage | Python 3.11+, PyYAML, and jsonschema. These operations read local evidence and do not call NeMo services. |
-| Measure coverage from ATIF traces | Python 3.12+ and the [audit dependencies](../skills/eval-author-audit/requirements.txt), including Harbor. Measurement does not start evaluation jobs. |
-| Convert exported MLflow traces | Python 3.11+ and the standard library. Live MLflow queries additionally need an existing MLflow environment and access to the store. |
-| Convert Gym traces with `gym-to-atif` | Python 3.11+ and the standard library for conversion. |
+| Measure coverage from ATIF, MLflow, Gym, or normalized Compass traces | Python 3.12–3.13 and the [audit dependencies](../skills/eval-author-audit/requirements.txt) (`nemo-compass` 0.2.0); Harbor is not needed. Measurement does not start evaluation jobs. |
+| Load ATIF, MLflow, Gym, or Intake traces into NeMo Compass | Python 3.12–3.13 and the eval-author skill's [requirements](../skills/eval-author/requirements.txt) (`nemo-compass` 0.2.0). See [Work with traces](traces.md#load-local-traces). |
 | Prepare and validate a trace-derived environment (**experimental**) | Python 3.11+, jsonschema 4.23+, and referencing 0.28.4+ for preparation; Harbor and Docker for Harbor checks, or the sibling task-create skill and Gym v0.6.0+ in Python 3.13.14+ for [native Gym output](../skills/eval-author-trace-environment/references/gym-output.md). |
 | Inspect NeMo Intake traces | A working `nemo` CLI, an explicit workspace, and read access to a configured local or remote NeMo Helix instance. |
 | Generate the Harbor HTML case/run report | Python 3.11+, jsonschema 4.23+, and markdown-it-py 4.x. Reads local task/run artifacts; no Harbor runtime, Docker, model access, or network is needed to render. See the [Report generation](../skills/eval-author/references/suite-readme.md#report-generation). |

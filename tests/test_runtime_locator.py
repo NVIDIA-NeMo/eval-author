@@ -108,7 +108,7 @@ def test_duplicate_path_sightings_do_not_create_ambiguity(locator, tmp_path, mon
 def test_capabilities_are_flow_specific(locator, tmp_path):
     runtime(tmp_path / ".venv")
     locator.load()["providers"]["harbor"]["capabilities"]["discovery"]["imports"] = ["harbor:Absent"]
-    assert selected(locator.locate(tmp_path, flow="audit", providers=("harbor",)))
+    assert selected(locator.locate(tmp_path, flow="authoring", providers=("harbor",)))
     report = locator.locate(tmp_path, flow="discovery", providers=("harbor",))
     assert selected(report) is None
     assert any("Absent" in item["reason"] for item in report["candidates"])

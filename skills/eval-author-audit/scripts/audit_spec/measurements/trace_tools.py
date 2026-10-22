@@ -2,46 +2,42 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Shared ATIF trace helpers for deterministic audit measurement."""
+"""Shared NeMo Compass trace helpers for deterministic audit measurement."""
 
 from __future__ import annotations
 
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from _values import optional_string
 
-try:
-    from harbor.models.trajectories import Trajectory
-except ImportError:
-    Trajectory = Any  # type: ignore[assignment,misc]
+if TYPE_CHECKING:
+    from trace_ingest import Span, Trace
 
 JsonObject: TypeAlias = dict[str, Any]
 
 
-def collect_tool_calls(trajectory: Trajectory, *, trajectory_path: str = "$") -> list[JsonObject]:
-    """Return all ATIF tool calls, including embedded subagent trajectories."""
-    calls: list[JsonObject] = []
-    trajectory_id = optional_string(trajectory.trajectory_id)
-    for step_index, step in enumerate(trajectory.steps or [], start=1):
-        step_id = step.step_id or step_index
-        for tool_call in step.tool_calls or []:
-            function_name = tool_call.function_name
-            if not isinstance(function_name, str) or not function_name.strip():
-                continue
-            call: JsonObject = {
-                "tool": function_name.strip(),
-                "step_id": step_id,
-                "trajectory_path": trajectory_path,
-            }
-            tool_call_id = optional_string(getattr(tool_call, "tool_call_id", None))
-            if tool_call_id is not None:
-                call["tool_call_id"] = tool_call_id
-            if trajectory_id is not None:
-                call["trajectory_id"] = trajectory_id
-            calls.append(call)
+def collect_tool_calls(trace: Trace) -> list[JsonObject]:
+    """Return every named TOOL span in depth-first order, including nested agent spans."""
+    from trace_ingest import SpanKind
 
-    for index, subagent in enumerate(trajectory.subagent_trajectories or []):
-        calls.extend(collect_tool_calls(subagent, trajectory_path=f"{trajectory_path}.subagent_trajectories[{index}]"))
+    calls: list[JsonObject] = []
+    trace_id = optional_string(trace.id)
+    stack: list[Span] = list(reversed(trace.root_spans))
+    while stack:
+        span = stack.pop()
+        stack.extend(reversed(span.children))
+        if span.kind is not SpanKind.TOOL:
+            continue
+        tool = optional_string(span.tool_name)
+        if tool is None:
+            continue
+        call: JsonObject = {"tool": tool, "span_id": span.id}
+        tool_call_id = optional_string(span.tool_call.call_id) if span.tool_call is not None else None
+        if tool_call_id is not None:
+            call["tool_call_id"] = tool_call_id
+        if trace_id is not None:
+            call["trace_id"] = trace_id
+        calls.append(call)
     return calls
 
 

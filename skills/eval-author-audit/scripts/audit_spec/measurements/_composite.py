@@ -7,15 +7,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from _values import dedupe_names
 from measurements.trace_tools import collect_tool_calls, tool_call_counts
 
-try:
-    from harbor.models.trajectories import Trajectory
-except ImportError:
-    Trajectory = Any  # type: ignore[assignment,misc]
+if TYPE_CHECKING:
+    from trace_ingest import Trace
 
 JsonObject: TypeAlias = dict[str, Any]
 EvidenceTarget: TypeAlias = tuple[str, int]
@@ -58,14 +56,14 @@ class CompositeSpec:
 
 def measure_composite(
     audit: JsonObject,
-    trajectory: Trajectory,
+    trace: Trace,
     *,
     judgments: JsonObject | None,
     spec: CompositeSpec,
 ) -> JsonObject:
     """Measure one composite item kind against a trace and optional judgments."""
     audit_items = [item for item in audit["items"] if item["kind"] == spec.item_kind]
-    observed_tool_calls = collect_tool_calls(trajectory)
+    observed_tool_calls = collect_tool_calls(trace)
     calls_by_tool = _calls_by_tool(observed_tool_calls)
     judgments_by_target = _judgments_by_target(audit_items, judgments, spec=spec)
     item_results = {
@@ -289,7 +287,7 @@ def _judgment_input_summary(judgments: JsonObject | None, *, spec: CompositeSpec
 
 
 def _calls_by_tool(tool_calls: list[JsonObject]) -> dict[str, list[JsonObject]]:
-    """Group observed ATIF tool calls by function name."""
+    """Group observed trace tool calls by tool name."""
     grouped: dict[str, list[JsonObject]] = {}
     for call in tool_calls:
         grouped.setdefault(call["tool"], []).append(call)

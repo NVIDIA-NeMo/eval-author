@@ -7,7 +7,6 @@ import copy
 import importlib
 import json
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -565,7 +564,6 @@ def test_seed_datasets_are_bounded_and_have_negative_cases(live):
     for path in (
         "skills/eval-author",
         "skills/eval-author-first-eval",
-        "skills/mlflow-to-atif",
         "skills/eval-author-task-create",
         "skills/eval-author-environment",
         "team-skills/ethos/ethos-orchestrate",
@@ -696,35 +694,3 @@ def test_progress_heartbeat_does_not_stream_raw_logs(live, tmp_path, monkeypatch
     assert live.execute_with_progress([], tmp_path, {}, tmp_path / "console.log", 1800) == (1, None)
     text = capsys.readouterr().out
     assert "starting" in text and "running" in text and "finished" in text and "1800s" in text
-
-
-@pytest.mark.parametrize("fixture,exit_code", [("valid.json", 0), ("missing-instruction.json", 1)])
-def test_converter_seed_evidence_matches_expected_behavior(tmp_path, fixture, exit_code):
-    skill = ROOT / "skills/mlflow-to-atif"
-    output = tmp_path / "converted"
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(skill / "scripts/convert_mlflow_to_atif.py"),
-            "--input",
-            str(skill / "evals/files" / fixture),
-            "--output-dir",
-            str(output),
-            "--agent-name",
-            "fixture-agent",
-            "--agent-version",
-            "1.0",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == exit_code, result.stderr
-    trajectories = list(output.glob("*.atif.json"))
-    if exit_code:
-        assert not trajectories
-    else:
-        assert len(trajectories) == 1
-        assert json.loads(trajectories[0].read_text())["schema_version"] == "ATIF-v1.7"
-        assert output.stat().st_mode & 0o777 == 0o700
-        assert trajectories[0].stat().st_mode & 0o777 == 0o600

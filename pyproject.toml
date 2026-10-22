@@ -12,10 +12,9 @@ dependencies = ["jsonschema>=4.23", "markdown-it-py>=4,<5", "referencing>=0.28.4
 
 [project.optional-dependencies]
 # Workflow requirements are optional for skill users and included in license scans.
-audit = ["harbor>=0.16.1", "pyyaml>=6.0", "pydantic>=2"]
-mlflow = ["mlflow-skinny>=3.6,<4"]
+audit = ["nemo-compass[mlflow]==0.2.0", "pyyaml>=6.0", "pydantic>=2"]
 trace-loaders = [
-  "nemo-compass[mlflow]==0.1.0",
+  "nemo-compass[mlflow]==0.2.0",
 ]
 
 [dependency-groups]
@@ -28,7 +27,7 @@ dev = [
   "pyyaml>=6.0",
   "ruff>=0.14",
   "ty>=0.0.80",
-  "nemo-compass[mlflow]==0.1.0",
+  "nemo-compass[mlflow]==0.2.0",
 ]
 
 [tool.uv]
@@ -56,5 +55,4 @@ extra-paths = [
   "tools",
   "skills/eval-author/scripts",
   "skills/eval-author-trace-environment/scripts",
-  "skills/gym-to-atif/scripts",
 ]

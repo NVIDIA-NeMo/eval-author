@@ -3,8 +3,8 @@
 
 # Harness-derived SkillEvaluator datasets
 
-The five datasets added for audit, discovery, Intake inspection, trace environment
-derivation, and Gym conversion each contain three scoped cases and one unrelated
+The four datasets added for audit, discovery, Intake inspection, and trace
+environment derivation each contain three scoped cases and one unrelated
 negative case. CI discovers them through each skill's `evals/evals.json`.
 
 ## Conversation coverage
@@ -30,7 +30,6 @@ arithmetic cases are new controls. Historical harness results remain separate.
 | Discovery | Inventory, Oracle/grader limitations, blocked-readiness interpretation |
 | Intake inspection | Missing selection, rejected URI, unavailable CLI boundaries |
 | Trace environment | Harbor and Gym proposals, blocked-validation handoff |
-| Gym conversion | Offline conversion, retained original, explicit JSONL row selection |
 
 Inputs are synthetic. Trace provenance explicitly records no native task or
 model execution. The discovery fixture retains its weak grader and Oracle-only

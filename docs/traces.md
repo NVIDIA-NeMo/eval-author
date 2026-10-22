@@ -32,48 +32,25 @@ It does not set up the platform or ingest new traces. See the
 [Intake inspection skill](../skills/eval-author-inspect-trace/SKILL.md).
 Keep the report uncommitted and treat its contents as private trace data.
 
-## Convert local traces
+## Load local traces
 
-ATIF (Agent Trajectory Interchange Format) records an agent's interaction in a
-structured trajectory. Convert an exported MLflow trace before using it in an
-ATIF coverage audit or deriving a task:
+Eval Author loads provider traces through one shared module,
+`skills/eval-author/scripts/trace_loading.py`, backed by NeMo Compass's pinned
+`nemo-compass` distribution. It normalizes ATIF (Agent Trajectory Interchange
+Format), MLflow, Gym, and Intake evidence into Compass `Trace` objects; that
+`Trace` is Eval Author's only trace interface, and Eval Author never converts
+traces into ATIF. See the
+[trace loading guide](../skills/eval-author/references/trace-loading.md).
+Loading needs Python 3.12 or 3.13 and the skill's `requirements.txt`; it makes
+no model calls or live queries.
 
-```text
-Use Eval Author to convert /absolute/path/mlflow-export.json to ATIF.
-The agent name is support-agent and its version is 1.0.
-Write the converted traces to a new private directory at
-/absolute/path/private-atif and report any conversion losses.
-```
-
-The [MLflow conversion skill](../skills/mlflow-to-atif/SKILL.md) accepts a
-`Trace.to_dict()` export, an array of exports, or a `{"traces": [...]}` object.
-It writes one owner-private `.atif.json` file per trace. Conversion preserves
-recorded evidence and reports losses; it cannot recover missing instructions
-or results.
-
-For Gym traces, use the standalone
-[Gym conversion skill](../skills/gym-to-atif/SKILL.md) with one
-rollout JSON record or one explicit JSONL line. Prefer the original Harbor ATIF
-when retained. The experimental trace-to-environment
+Coverage audits measure ATIF, MLflow, Gym, and normalized traces directly. The
+experimental trace-to-environment workflow's `prepare` step reads ATIF only
+until it reads Compass Traces; its
 [source guide](../skills/eval-author-trace-environment/references/sources.md)
-describes the supported ATIF, Gym, MLflow, Intake, and bounded JSON
-OpenTelemetry inputs and their limits.
-
-## Load shared normalized evidence
-
-The Gym and MLflow skills can also use NeMo Compass's pinned `nemo-compass`
-distribution to retain normalized provider evidence with its bundled
-`trace_ingest` loaders. See the
-[Gym loader guide](../skills/gym-to-atif/references/trace-intel-ingest.md) for
-native `ng_trajectory` captures and the
-[MLflow loader guide](../skills/mlflow-to-atif/references/trace-intel-ingest.md)
-for complete bounded exports. These optional commands need Python 3.12 or 3.13
-and the documented dependencies; loading makes no model calls or live queries.
-
-Their output is a NeMo Compass model, not an ATIF trajectory. Keep using the
-ATIF converters for coverage measurement or experimental environment derivation.
-A capture that loads successfully can still lack sufficient interaction evidence
-for either workflow.
+describes this temporary limit. A capture that loads successfully can still
+lack sufficient interaction evidence for coverage measurement or experimental
+environment derivation.
 
 ## Build an evaluation task
 
@@ -109,8 +86,9 @@ Review privacy and ground truth, complete the native task, and validate it
 with the installed Gym runtime. Retain controls and exact rerun instructions.
 ```
 
-The source can be ATIF, Gym, MLflow, Intake, or supported OpenTelemetry data;
-source format does not select the output provider. No audit coverage report is
+The source must be ATIF, including a Gym run's retained Harbor ATIF, until the
+workflow reads NeMo Compass Traces; source format does not select the output
+provider. No audit coverage report is
 required. The [Gym extension](../skills/eval-author-trace-environment/references/gym-output.md)
 shares trace preparation and candidacy, then reuses Gym's native scaffolder,
 resources server, datasets, verifier fixtures, and repeated execution controls.

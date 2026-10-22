@@ -100,22 +100,26 @@ def inputs(tmp_path):
         "summary": str(tmp_path / "summary.json"),
         "inputs": native_inputs,
     }
-    trace = dump(tmp_path / "trace.json", {"schema_version": "ATIF-v1.7"})
-    conversion = dump(
-        tmp_path / "conversion.json",
+    trace = line(tmp_path / "traces.normalized.jsonl", {"id": "native-one"})
+    loading = dump(
+        tmp_path / "loading.json",
         {
-            "schema": "nemo.eval_author.gym_to_atif.v1",
-            "basis": "gym_projection",
-            "selected_line": 1,
-            "gym_sha256": "sha256:" + hashlib.sha256((tmp_path / "rollouts.jsonl").read_bytes()).hexdigest(),
-            "atif_sha256": "sha256:" + evidence.digest(trace),
+            "schema": "nemo.eval_author.trace_load.v2",
+            "source_kind": "gym",
+            "loader_distribution": gym.pinned_loader()[0],
+            "loader_version": gym.pinned_loader()[1],
+            "source_sha256": {
+                "source.gym.jsonl": "sha256:" + hashlib.sha256((tmp_path / "rollouts.jsonl").read_bytes()).hexdigest()
+            },
+            "normalized_sha256": "sha256:" + evidence.digest(trace),
+            "trace_count": 1,
         },
     )
-    source["conversion"] = str(conversion)
+    source["loading"] = str(loading)
     return manifest_path, case, source, trace
 
 
-def test_native_rollout_binds_input_health_and_conversion(inputs):
+def test_native_rollout_binds_input_health_and_trace_loading(inputs):
     manifest, case, source, trace = inputs
     result = gym.build(source, evidence.read(manifest), case, "closure", trace)
     assert result["native_run_id"] == "native-one"
@@ -133,9 +137,11 @@ def test_native_rollout_binds_input_health_and_conversion(inputs):
         ("health", "unhealthy"),
         ("missing_health", "missing or duplicate"),
         ("disabled", "disabled"),
-        ("conversion_row", "does not bind"),
-        ("conversion_hash", "does not bind"),
+        ("loading_source", "does not bind"),
+        ("loading_version", "does not bind"),
+        ("loading_schema_v1", "does not bind"),
         ("trace", "does not bind"),
+        ("trace_identity", "does not identify the selected rollout"),
         ("duplicate_health", "missing or duplicate"),
         ("null_trajectory", "missing native Gym rollout ID"),
         ("summary_shape", "missing or disabled"),
@@ -153,13 +159,23 @@ def test_rejects_wrong_native_evidence(inputs, mutation, message):
     elif mutation == "null_trajectory":
         native = gym.jsonl(Path(source["rollouts"]))[0][1]
         line(Path(source["rollouts"]), {**native, "ng_trajectory": None})
-    elif mutation in ("conversion_row", "conversion_hash"):
-        path = Path(source["conversion"])
+    elif mutation in ("loading_source", "loading_version", "loading_schema_v1"):
+        path = Path(source["loading"])
         value = evidence.read(path)
-        value["selected_line" if mutation == "conversion_row" else "gym_sha256"] = 2
+        if mutation == "loading_schema_v1":
+            value["schema"] = "nemo.eval_author.trace_load.v1"
+        elif mutation == "loading_version":
+            value["loader_version"] = "0.0.0"
+        else:
+            value["source_sha256"] = {"source.gym.jsonl": "sha256:" + "0" * 64}
         dump(path, value)
     elif mutation == "trace":
         trace.write_text("{}")
+    elif mutation == "trace_identity":
+        line(trace, {"id": "native-other"})
+        value = evidence.read(Path(source["loading"]))
+        value["normalized_sha256"] = "sha256:" + evidence.digest(trace)
+        dump(Path(source["loading"]), value)
     elif mutation in ("disabled", "summary_shape", "artifacts_shape"):
         path = Path(source["summary"])
         value = evidence.read(path)
@@ -187,7 +203,7 @@ def test_rejects_wrong_native_evidence(inputs, mutation, message):
         gym.build(source, evidence.read(manifest), case, "closure", trace)
 
 
-def test_baseline_keeps_unobserved_health_without_atif(inputs):
+def test_baseline_keeps_unobserved_health_without_trace(inputs):
     manifest, case, source, _ = inputs
     verdict = gym.jsonl(Path(source["verdicts"]))[0][1]
     verdict["verdict"] = "unobserved"
@@ -195,7 +211,7 @@ def test_baseline_keeps_unobserved_health_without_atif(inputs):
     summary = evidence.read(Path(source["summary"]))
     summary["run"]["verdicts"] = {"healthy": 0, "unhealthy": 0, "unobserved": 1}
     dump(Path(source["summary"]), summary)
-    source.pop("conversion")
+    source.pop("loading")
     result = gym.build(source, evidence.read(manifest), case, "baseline", None)
     assert result["health"]["verdict"] == "unobserved"
     with pytest.raises(evidence.EvidenceError, match="unobserved Gym health"):
@@ -241,7 +257,7 @@ def stage_native_outputs(source):
 @pytest.mark.parametrize("via_cli", [False, True])
 def test_recorder_baseline_can_run_without_trace(tmp_path, inputs, via_cli):
     manifest, case, source, _ = inputs
-    source.pop("conversion")
+    source.pop("loading")
     code = stage_native_outputs(source)
     source_path = dump(tmp_path / "source.json", source)
     output = tmp_path / "receipt.json"
@@ -294,7 +310,7 @@ def test_recorder_baseline_can_run_without_trace(tmp_path, inputs, via_cli):
 
 def test_malformed_native_output_still_writes_a_receipt(tmp_path, inputs):
     manifest, _, source, _ = inputs
-    source.pop("conversion")
+    source.pop("loading")
     native = gym.jsonl(Path(source["rollouts"]))[0][1]
     line(Path(source["rollouts"]), {**native, "ng_trajectory": None})
     code = stage_native_outputs(source)
@@ -355,35 +371,25 @@ def check_native_artifacts(output, draft):
         None,
     )
     assert fixture["reward"] == 1 and fixture["native_run_id"].startswith("fixture:")
-    # Convert this exact native row and check the existing converter's real receipt.
-    import importlib.util
-
-    converter_path = SCRIPTS.parents[1] / "gym-to-atif/scripts/gym_to_atif.py"
-    spec = importlib.util.spec_from_file_location("gym_conversion_for_evidence", converter_path)
-    assert spec is not None and spec.loader is not None
-    converter = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(converter)
-    raw = converter.read_source(output / "cli-rollouts.jsonl", source["row"])
-    atif, conversion = converter.normalize(raw, None, allow_projection=True, output_scope="auto")
-    conversion["selected_line"] = source["row"]
-    trace = output / "evidence.atif.json"
-    trace.write_bytes(atif)
-    source["conversion"] = str(dump(output / "evidence-conversion.json", conversion))
-    gym.build(source, manifest, {"kind": "agent"}, "baseline", trace)
-
-
-def test_retained_atif_requires_original_bytes(inputs, tmp_path):
-    manifest, case, source, trace = inputs
-    original = tmp_path / "native.atif.json"
-    original.write_bytes(trace.read_bytes())
-    source["source_atif"] = str(original)
-    path = Path(source["conversion"])
-    conversion = evidence.read(path)
-    conversion.update(
-        basis="provided_atif", atif_bytes_preserved=True, source_atif_sha256="sha256:" + evidence.digest(original)
+    # Load this exact native row with eval-author's loader and bind its real receipt.
+    loaded = output / "evidence-loaded"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS.parents[1] / "eval-author/scripts/trace_loading.py"),
+            "--source-kind",
+            "gym",
+            "--input",
+            source["rollouts"],
+            "--row",
+            str(source["row"]),
+            "--output-dir",
+            str(loaded),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
-    dump(path, conversion)
-    gym.build(source, evidence.read(manifest), case, "closure", trace)
-    original.write_text("{}")
-    with pytest.raises(evidence.EvidenceError, match="retained native ATIF"):
-        gym.build(source, evidence.read(manifest), case, "closure", trace)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    source["loading"] = str(loaded / "loading.json")
+    gym.build(source, manifest, {"kind": "agent"}, "baseline", loaded / "traces.normalized.jsonl")

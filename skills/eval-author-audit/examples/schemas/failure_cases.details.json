@@ -1,5 +1,5 @@
 {
-  "schema": "nemo.eval_author.audit_failure_cases_details.v1",
+  "schema": "nemo.eval_author.audit_failure_cases_details.v2",
   "audit": {
     "path": ".eval-author/audit.md",
     "schema": "nemo.eval_author.audit.v1",
@@ -9,7 +9,8 @@
   },
   "subject": {
     "trace": ".harbor/runs/account-recovery/trials/trial-001/agent/trajectory.json",
-    "trace_format": "atif",
+    "trace_format": "nemo-compass-trace",
+    "source_kind": "atif",
     "task_id": "account-recovery-unverified-identity",
     "run_id": "trial-001"
   },
@@ -30,10 +31,9 @@
   "observed_tool_calls": [
     {
       "tool": "customer.lookup",
-      "step_id": 2,
+      "span_id": "trajectory/step/2/tool/0",
       "tool_call_id": "call-001",
-      "trajectory_id": "root-trajectory",
-      "trajectory_path": "$"
+      "trace_id": "root-trajectory"
     }
   ],
   "tool_call_counts": {

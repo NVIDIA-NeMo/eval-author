@@ -1,20 +1,23 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Read Gym records and standalone ATIF locally
+# Read Gym records and provider traces locally
 
 Use the [bundled reader](../scripts/render_review.py) for generated Gym cases,
-retained Gym rollout rows, and standalone ATIF that Harbor's native viewer cannot
-open. Keep native Harbor
+retained Gym rollout rows, and ATIF, MLflow, Gym, or normalized NeMo Compass
+trace files that Harbor's native viewer cannot open. Keep native Harbor
 tasks and jobs in `harbor view`; verify its commands against the installed
 runtime. Rendering reads existing evidence and does not execute an evaluation,
 validate a task, measure coverage, or prove the agent succeeded.
 
-The selected authoring sub-flow runs the script with Python 3.11+ and the
-standard library. Resolve `eval-author` in the same installed skill tree as that
-sub-flow; do not assume the evaluated repository contains this script. Replace
-the skill-directory placeholder below with that resolved absolute path when
-saving copyable commands in a suite README.
+The `gym-jsonl` reader needs only Python 3.11+ and the standard library. Every
+other format loads through the sibling [`trace_loading.py`](../scripts/trace_loading.py)
+and needs Python 3.12–3.13 with `uv run --with-requirements
+"<eval-author-skill-dir>/requirements.txt"`. Resolve `eval-author` in the same
+installed skill tree as the selected authoring sub-flow; do not assume the
+evaluated repository contains this script. Replace the skill-directory
+placeholder below with that resolved absolute path when saving copyable
+commands in a suite README.
 
 ## Select evidence explicitly
 
@@ -51,10 +54,15 @@ no recorded response remains a case specification, not a completed run.
 For an `agent` or `control` record, a missing response adds an attention notice;
 the reader cannot establish whether execution occurred without capture.
 
-For one standalone canonical ATIF file, omit `--rows`:
+For a trace file, omit `--rows` and name its `--format`: `atif` (one
+trajectory per `.json` file, JSONL otherwise), `mlflow` (a `Trace.to_dict()`
+export), `gym` (one `.json` rollout record), or `trace` (normalized
+`traces.normalized.jsonl` from `trace_loading.py`). Every trace in the file
+becomes one report record:
 
 ```bash
-python "<eval-author-skill-dir>/scripts/render_review.py" \
+uv run --with-requirements "<eval-author-skill-dir>/requirements.txt" \
+  "<eval-author-skill-dir>/scripts/render_review.py" \
   --input .eval-author/traces/source.atif.json --format atif \
   --evidence-role source --output-dir .eval-author/review/source-001
 ```
@@ -73,16 +81,17 @@ unknown data for inspection; it cannot infer hidden grader behavior from fields
 alone. Missing capture remains missing, and a reward is not relabeled as a
 successful run.
 
-For ATIF versions 1.0–1.7, the reader presents recorded steps, calls, and
-observations. It is not an ATIF schema validator. Unsupported versions or
-structures, images, and other unsupported content are identified explicitly;
-images and external attachments are not fetched or displayed. Embedded subagent
-data remains available as raw evidence, with the rendering limitation stated.
-Continuation paths, subagent file references, and converter source paths are
-never followed. Converter losses and uncertainties retained in the selected
-record remain part of the review.
+For trace formats, the reader shows the loaded NeMo Compass trace: every span
+depth-first, indented by depth, with its kind, tool or span name, model, start
+and end times, input and output, recorded error, and each tool result with its
+`is_error` flag (`None` when the source recorded no usable flag). Span
+attributes, tool definitions, and token counts stay under expandable fields. It
+is not a provider schema validator: a file the pinned loader rejects is reported
+as a malformed or unsupported record without its content. Images and external
+attachments are never fetched or displayed, and continuation or source paths are
+never followed.
 
-Each decodable selected record includes its raw text, and the report links the explicitly
+Each decodable Gym record includes its raw text, and the report links the explicitly
 selected original input. Read the report's attention notices alongside the
 transcript. A report containing malformed or unsupported records can still be
 created successfully: the content-free CLI summary reports `status: attention`

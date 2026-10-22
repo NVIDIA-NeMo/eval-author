@@ -11,7 +11,7 @@ source traces. Reuse Harbor and scope additional rendering to those gaps.
 This assessment supports [ASE-1029](https://linear.app/nvidia/issue/ASE-1029/improve-visibility-and-review-of-generated-test-cases).
 The native-runtime findings below describe the assessment before the additional
 reader. The bundled [local reader](../skills/eval-author/references/local-review.md)
-now covers selected Gym JSONL and standalone ATIF without a server or model
+now covers selected Gym JSONL and ATIF, MLflow, or Gym traces without a server or model
 calls. Neither native nor bundled rendering establishes evaluation quality.
 The broader suite README guidance is a separate change in
 [PR #43](https://github.com/NVIDIA-NeMo/eval-author/pull/43).
@@ -32,10 +32,10 @@ Assessed on September 30, 2026 against the repository's pinned versions:
   pinned source and versioned documentation, plus six dependency-free source CLI
   help probes. A configured Gym runtime was unavailable; dataset preparation,
   profiling, and health checks were not executed.
-- **Eval Author's Gym converter:** an offline synthetic two-row JSONL check
-  confirmed explicit physical-line selection, exact source-row retention, and
-  ATIF output. Omitting the row selector was rejected. Conversion supplies
-  structured evidence, not a human review interface.
+- **Gym rollout loading:** NeMo Compass's Gym loader, through Eval Author's
+  `trace_loading.py`, requires an explicit physical-line selection for JSONL
+  and retains the exact source row. Loading supplies structured evidence, not
+  a human review interface.
 
 No model calls, live evaluations, customer traces, or container jobs were used.
 Current online documentation can describe features newer than these pins.
@@ -101,7 +101,7 @@ Report only the status supported by retained evidence.
 | ASE-1029 criterion | Assessment |
 | --- | --- |
 | Cases and associated traces are discoverable without a follow-up question | The README handoff can address this. Its behavior still needs authoring-workflow validation; native viewers do not create the handoff automatically. |
-| Cases and traces are readable without manually formatting JSONL | Harbor supports its native artifacts. The bundled reader presents selected Gym records and standalone ATIF, with missing, malformed, and unsupported evidence identified. |
+| Cases and traces are readable without manually formatting JSONL | Harbor supports its native artifacts. The bundled reader presents selected Gym records and ATIF, MLflow, or Gym traces, with missing, malformed, and unsupported evidence identified. |
 | Review uses a supported workflow without building a custom UI | Harbor has a reusable native workflow. The bundled reader supplies a reusable offline HTML report for the formats its viewer does not accept; users do not need to build a UI. |
 | Logging sufficiency and any viewer scope are documented | Logging and links address discovery and context. The bounded reader below addresses the formats that still needed presentation. |
 
@@ -112,10 +112,10 @@ The inspected native tools do not provide the remaining views. The bundled
 standard library and the browser's existing links and expandable details:
 
 - It reads explicitly selected Gym dataset rows and retained rollout records,
-  keeping the request and grading fields distinct, and standalone canonical
-  ATIF.
+  keeping the request and grading fields distinct, and ATIF, MLflow, Gym, or
+  normalized trace files loaded through the pinned NeMo Compass trace loader.
 - It presents recorded messages, tool calls and their results, final responses,
-  and available rewards/errors. It preserves converter uncertainty, missing
+  and available rewards/errors. It preserves loader uncertainty, missing
   capture, unsupported content, and malformed-record errors explicitly.
 - It requires a caller-supplied evidence role, links the selected original,
   retains raw records, and never follows embedded paths. A role label does not
@@ -126,10 +126,10 @@ standard library and the browser's existing links and expandable details:
 
 The [usage guide](../skills/eval-author/references/local-review.md) defines
 selection, limits, output permissions, error behavior, and the README handoff.
-ATIF rendering covers versions 1.0–1.7 without claiming schema validation. Images
-and external references are not loaded; embedded subagent evidence remains raw
-with its rendering limitation stated. Native Gym observability attachments do
-not become canonical ATIF merely because their raw data appears in the report.
+Trace rendering shows Compass spans depth-first with tool results and their
+error flags, without claiming provider schema validation. Images and external
+references are not loaded. Native Gym observability attachments do not become
+canonical ATIF merely because their raw data appears in the report.
 
 Reliable case-to-attempt association remains separate work: use recorded provider
 identities and retained input versions, and leave ambiguous associations

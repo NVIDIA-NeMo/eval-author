@@ -70,7 +70,7 @@ does not capture stdout, so record `gym env test --json` through a wrapper kept
 in the task tree that writes the report and captures the inputs. The wrapper must
 not manufacture results, suppress errors, or substitute a declared configuration
 for the configuration actually used. Fixture cases use a stable
-report-and-case identity; they do not need rollout IDs or ATIF. Retain every
+report-and-case identity; they do not need rollout IDs or a trace. Retain every
 native case even when the descriptor selects only one for a control receipt.
 
 For an agent rollout, use `mode: rollout`, the same `inputs` mapping, and:
@@ -81,7 +81,7 @@ For an agent rollout, use `mode: rollout`, the same `inputs` mapping, and:
   "row": 1,
   "verdicts": "/absolute/fresh-run/rollout_verdicts.jsonl",
   "summary": "/absolute/fresh-run/quality_summary.json",
-  "conversion": "/absolute/fresh-run/converted/conversion.json"
+  "loading": "/absolute/fresh-run/loaded/loading.json"
 }
 ```
 
@@ -97,23 +97,34 @@ Use a new directory outside the draft for each recorded run: Gym writes
 
 Recording a first-eval agent baseline is optional; when recorded, use
 `--purpose baseline`, and one agent attempt may omit `--trace` and
-`conversion`. The receipt retains rewards, legitimate behavioral failures, and
+`loading`. The receipt retains rewards, legitimate behavioral failures, and
 `health_status: unobserved` when model health was not observable. Successful native
 execution with unobserved model health must not be described as healthy.
 Baseline receipts cannot establish measured tool-gap closure.
 
-For task-create closure, use `--purpose closure` and run the existing
-`gym-to-atif` converter inside the recorded command with the same native JSONL
-and selected row. Supply its fresh ATIF via `--trace` and its conversion receipt
-via the descriptor. The adapter checks selected line, raw-row hash, and ATIF hash.
-For preserved original ATIF, also supply `source_atif` pointing to the retained
-native ATIF artifact; its hash must match the converter's source digest and the
-unchanged output bytes. Preserve the native attachment provenance as well.
+For task-create closure, use `--purpose closure` and, inside the recorded
+command, load the same native JSONL and selected row with the sibling eval-author
+[trace loader](../../eval-author/references/trace-loading.md):
+
+```bash
+uv run --with-requirements <eval-author>/requirements.txt \
+  <eval-author>/scripts/trace_loading.py --source-kind gym \
+  --input /absolute/fresh-run/rollouts.jsonl --row 1 \
+  --output-dir /absolute/fresh-run/loaded
+```
+
+Supply `loaded/traces.normalized.jsonl` via `--trace` and its
+`loaded/loading.json` receipt (`nemo.eval_author.trace_load.v2`) as `loading`
+in the descriptor. The adapter requires the receipt's source digest to match the
+rollout file, its normalized digest to match the trace, its loader distribution
+and version to match the sibling loader's pinned NeMo Compass release, and the
+trace ID to equal the selected row's unique native rollout ID. Measure that
+trace with the audit skill's `--source-kind trace`.
 Closure requires healthy native agent rollouts, all declared controls, and two
 distinct agent runs through `task_pipeline.py verify`.
 
 All native source files are hashed and reread during acceptance. Changed config,
-wrong dataset rows, missing or duplicated health identities, stale conversion
+wrong dataset rows, missing or duplicated health identities, stale loading
 receipts, and changed traces fail closed. The recorder still trusts the native
 invocation and input capture; it reports `deployment_identity: not_attested`.
 It does not independently establish the source deployed to a remote service or

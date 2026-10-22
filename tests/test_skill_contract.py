@@ -45,9 +45,8 @@ import re
 import shutil
 import subprocess
 import sys
-import types
 from collections.abc import Callable
-from importlib.util import find_spec, module_from_spec, spec_from_file_location
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -62,8 +61,6 @@ _AUDIT_DIR = _SKILLS_DIR / "eval-author-audit"
 _TASK_CREATE_DIR = _SKILLS_DIR / "eval-author-task-create"
 _FIRST_EVAL_DIR = _SKILLS_DIR / "eval-author-first-eval"
 _INSPECT_DIR = _SKILLS_DIR / "eval-author-inspect-trace"
-_MLFLOW_TO_ATIF_DIR = _SKILLS_DIR / "mlflow-to-atif"
-_GYM_TO_ATIF_DIR = _SKILLS_DIR / "gym-to-atif"
 _TRACE_ENVIRONMENT_DIR = _SKILLS_DIR / "eval-author-trace-environment"
 _ENVIRONMENT_DIR = _SKILLS_DIR / "eval-author-environment"
 _ETHOS_SKILLS_DIR = _SKILLS_DIR.parent / "team-skills" / "ethos"
@@ -94,8 +91,6 @@ _SKILL_DIRS = (
     _TASK_CREATE_DIR,
     _FIRST_EVAL_DIR,
     _INSPECT_DIR,
-    _MLFLOW_TO_ATIF_DIR,
-    _GYM_TO_ATIF_DIR,
     _TRACE_ENVIRONMENT_DIR,
     _ENVIRONMENT_DIR,
 )
@@ -112,16 +107,12 @@ _DISCOVER_SCRIPTS_DIR = _DISCOVER_DIR / "scripts"
 _CORE_SCRIPTS_DIR = _CORE_DIR / "scripts"
 _AUDIT_SPEC_DIR = _AUDIT_DIR / "scripts" / "audit_spec"
 _TASK_CREATE_SCRIPTS_DIR = _TASK_CREATE_DIR / "scripts"
-_MLFLOW_TO_ATIF_SCRIPTS_DIR = _MLFLOW_TO_ATIF_DIR / "scripts"
-_GYM_TO_ATIF_SCRIPTS_DIR = _GYM_TO_ATIF_DIR / "scripts"
 _TRACE_ENVIRONMENT_SCRIPTS_DIR = _TRACE_ENVIRONMENT_DIR / "scripts"
 _SCRIPT_DIRS = (
     _CORE_SCRIPTS_DIR,
     _DISCOVER_SCRIPTS_DIR,
     _AUDIT_SPEC_DIR,
     _TASK_CREATE_SCRIPTS_DIR,
-    _MLFLOW_TO_ATIF_SCRIPTS_DIR,
-    _GYM_TO_ATIF_SCRIPTS_DIR,
     _TRACE_ENVIRONMENT_SCRIPTS_DIR,
 )
 _DISCOVER = _DISCOVER_SCRIPTS_DIR / "discover.py"
@@ -149,7 +140,6 @@ _AUDIT_COVERAGE_REPORT_EXAMPLE = _AUDIT_DIR / "examples" / "schemas" / "coverage
 _AUDIT_TOOL_CALLS_DETAILS_EXAMPLE = _AUDIT_DIR / "examples" / "schemas" / "tool_calls.details.json"
 _AUDIT_CAPABILITIES_DETAILS_EXAMPLE = _AUDIT_DIR / "examples" / "schemas" / "capabilities.details.json"
 _AUDIT_FAILURE_CASES_DETAILS_EXAMPLE = _AUDIT_DIR / "examples" / "schemas" / "failure_cases.details.json"
-_MLFLOW_TO_ATIF = _MLFLOW_TO_ATIF_SCRIPTS_DIR / "convert_mlflow_to_atif.py"
 _TRACE_ENVIRONMENT = _TRACE_ENVIRONMENT_SCRIPTS_DIR / "trace_environment.py"
 
 _REQUIRED_FRONTMATTER = (
@@ -433,7 +423,7 @@ def _write_coverage(
     audit_payload = _audit_payload(audit)
     item_counts = _audit_item_counts(audit_payload)
     payload = {
-        "schema": "nemo.eval_author.audit_coverage.v1",
+        "schema": "nemo.eval_author.audit_coverage.v2",
         "audit": {
             "path": str(audit),
             "schema": audit_payload["schema"],
@@ -443,7 +433,8 @@ def _write_coverage(
         },
         "subject": {
             "trace": str(path.parent / "trajectory.json"),
-            "trace_format": "atif",
+            "trace_format": "nemo-compass-trace",
+            "source_kind": "atif",
             "task_id": task_id,
             "run_id": run_id,
         },
@@ -616,71 +607,6 @@ def _write_task(task_dir: Path, *, name: str = "smoke/generated") -> None:
     )
     (task_dir / "instruction.md").write_text("Look up the total hours for Ada.\n", encoding="utf-8")
     (task_dir / "tests" / "test.sh").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
-
-
-def _load_mlflow_to_atif() -> Any:
-    """Load the standalone converter so boundary behavior can be tested without a child process."""
-    spec = spec_from_file_location("test_convert_mlflow_to_atif", _MLFLOW_TO_ATIF)
-    assert spec is not None and spec.loader is not None
-    module = module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def _mlflow_export() -> dict[str, Any]:
-    """Return a small synthetic MLflow export with one retriever child."""
-    return {
-        "traces": [
-            {
-                "info": {
-                    "trace_id": "tr-fixture",
-                    "trace_metadata": {
-                        "mlflow.traceInputs": '{"question":"Where is Paris?"}',
-                        "mlflow.traceOutputs": '{"answer":"France"}',
-                    },
-                    "assessments": [
-                        {
-                            "assessment_id": "assessment-1",
-                            "assessment_name": "correctness",
-                            "feedback": {"value": 1.0},
-                        }
-                    ],
-                },
-                "data": {
-                    "spans": [
-                        {
-                            "trace_id": "tr-fixture",
-                            "span_id": "root-span",
-                            "parent_span_id": None,
-                            "name": "answer",
-                            "start_time_unix_nano": 1_000_000_000,
-                            "end_time_unix_nano": 3_000_000_000,
-                            "status": {"code": "STATUS_CODE_OK"},
-                            "attributes": {
-                                "mlflow.spanType": '"CHAIN"',
-                                "mlflow.spanInputs": '{"question":"Where is Paris?"}',
-                                "mlflow.spanOutputs": '{"answer":"France"}',
-                            },
-                        },
-                        {
-                            "trace_id": "tr-fixture",
-                            "span_id": "tool-span",
-                            "parent_span_id": "root-span",
-                            "name": "lookup",
-                            "start_time_unix_nano": 2_000_000_000,
-                            "end_time_unix_nano": 2_500_000_000,
-                            "status": {"code": "STATUS_CODE_OK"},
-                            "attributes": {
-                                "mlflow.spanType": '"RETRIEVER"',
-                                "mlflow.spanInputs": '{"query":"Paris"}',
-                                "mlflow.spanOutputs": '{"documents":["Paris is in France."]}',
-                            },
-                        },
-                    ]
-                },
-            }
-        ]
-    }
 
 
 @pytest.fixture
@@ -1457,20 +1383,6 @@ def test_task_create_script_the_skill_names_exists() -> None:
     assert (_TASK_CREATE_DIR / relative).is_file()
 
 
-def test_mlflow_to_atif_script_the_skill_names_exists() -> None:
-    _, body = _frontmatter_and_body(_MLFLOW_TO_ATIF_DIR)
-    relative = "scripts/convert_mlflow_to_atif.py"
-    assert relative in body
-    assert (_MLFLOW_TO_ATIF_DIR / relative).is_file()
-
-
-def test_gym_to_atif_script_the_skill_names_exists() -> None:
-    _, body = _frontmatter_and_body(_GYM_TO_ATIF_DIR)
-    for relative in ("scripts/gym_to_atif.py", "references/trace-intel-ingest.md"):
-        assert relative in body
-        assert (_GYM_TO_ATIF_DIR / relative).is_file()
-
-
 def test_trace_environment_script_the_skill_names_exists() -> None:
     _, body = _frontmatter_and_body(_TRACE_ENVIRONMENT_DIR)
     relative = "scripts/trace_environment.py"
@@ -1489,467 +1401,6 @@ def test_trace_environment_records_ground_truth_and_software_constraints() -> No
         "private/ground-truth/",
     ):
         assert phrase in body
-
-
-def test_mlflow_to_atif_converts_export_to_private_v17_trajectory(tmp_path: Path) -> None:
-    source = tmp_path / "mlflow.json"
-    source.write_text(json.dumps(_mlflow_export()), encoding="utf-8")
-    output = tmp_path / "atif"
-
-    result = _run_script(
-        _MLFLOW_TO_ATIF,
-        "--input",
-        str(source),
-        "--output-dir",
-        str(output),
-        "--agent-name",
-        "fixture-agent",
-        "--agent-version",
-        "1.0.0",
-    )
-
-    assert result.returncode == 0, result.stderr
-    summary = json.loads(result.stdout)
-    assert summary["converted"] == 1
-    assert summary["schema_version"] == "ATIF-v1.7"
-    assert summary["validated_with_harbor"] is False
-    target = Path(summary["files"][0])
-    trajectory = json.loads(target.read_text(encoding="utf-8"))
-    assert trajectory["schema_version"] == "ATIF-v1.7"
-    assert trajectory["trajectory_id"] == "tr-fixture"
-    assert trajectory["agent"] == {"name": "fixture-agent", "version": "1.0.0"}
-    assert [step["source"] for step in trajectory["steps"]] == ["user", "agent", "agent"]
-    assert trajectory["steps"][0]["extra"]["mlflow_to_atif"]["canonical_role"] == "human_instruction"
-    tool_step = trajectory["steps"][1]
-    assert tool_step["llm_call_count"] == 0
-    assert tool_step["tool_calls"][0] == {
-        "tool_call_id": "tool-span",
-        "function_name": "lookup",
-        "arguments": {"query": "Paris"},
-        "extra": {"mlflow": {"span_type": "RETRIEVER"}},
-    }
-    assert tool_step["observation"]["results"][0]["source_call_id"] == "tool-span"
-    assert trajectory["steps"][2]["message"] == "France"
-    assert trajectory["extra"]["mlflow"]["info"]["assessments"][0]["assessment_id"] == "assessment-1"
-    assert [span["span_id"] for span in trajectory["extra"]["mlflow"]["spans"]] == ["root-span", "tool-span"]
-    assert trajectory["extra"]["mlflow_to_atif"]["loss_codes"] == [
-        "mlflow_span_tree_linearized",
-        "orchestration_parent_not_emitted_as_step",
-    ]
-    assert trajectory["extra"]["mlflow_to_atif"]["normalization_codes"] == []
-    if os.name == "posix":
-        assert output.stat().st_mode & 0o777 == 0o700
-        assert target.stat().st_mode & 0o777 == 0o600
-
-
-def test_mlflow_to_atif_normalizes_parent_bounded_microsecond_event_times() -> None:
-    converter = _load_mlflow_to_atif()
-    payload = _mlflow_export()
-    event_time_micros = 1_788_000_000_000_006
-    event_time_nanos = event_time_micros * 1_000
-    root, tool = payload["traces"][0]["data"]["spans"]
-    root["start_time_unix_nano"] = event_time_nanos - 2_000
-    root["end_time_unix_nano"] = event_time_nanos + 2_000
-    tool["start_time_unix_nano"] = event_time_nanos - 1_000
-    tool["end_time_unix_nano"] = event_time_nanos + 1_000
-    tool["events"] = [{"name": "completed", "time_unix_nano": event_time_micros}]
-
-    (trajectory,) = converter.convert_export(
-        payload,
-        agent_name="fixture-agent",
-        agent_version="1.0.0",
-    )
-
-    preserved_tool = trajectory["extra"]["mlflow"]["spans"][1]
-    assert preserved_tool["events"][0]["time_unix_nano"] == event_time_nanos
-    assert trajectory["steps"][1]["extra"]["mlflow"]["events"][0]["time_unix_nano"] == event_time_nanos
-    assert trajectory["extra"]["mlflow_to_atif"]["normalization_codes"] == [
-        "event_time_microseconds_normalized_to_nanoseconds"
-    ]
-
-
-def test_mlflow_to_atif_does_not_normalize_event_time_outside_parent_bounds() -> None:
-    converter = _load_mlflow_to_atif()
-    payload = _mlflow_export()
-    event_time = 1_788_000_000_000_006
-    payload["traces"][0]["data"]["spans"][1]["events"] = [{"name": "unbounded", "time_unix_nano": event_time}]
-
-    (trajectory,) = converter.convert_export(
-        payload,
-        agent_name="fixture-agent",
-        agent_version="1.0.0",
-    )
-
-    preserved_tool = trajectory["extra"]["mlflow"]["spans"][1]
-    assert preserved_tool["events"][0]["time_unix_nano"] == event_time
-    assert trajectory["extra"]["mlflow_to_atif"]["normalization_codes"] == []
-
-
-def test_mlflow_to_atif_accepts_one_bare_trace_to_dict_value(tmp_path: Path) -> None:
-    source = tmp_path / "mlflow.json"
-    source.write_text(json.dumps(_mlflow_export()["traces"][0]), encoding="utf-8")
-
-    result = _run_script(
-        _MLFLOW_TO_ATIF,
-        "--input",
-        str(source),
-        "--output-dir",
-        str(tmp_path / "atif"),
-        "--agent-name",
-        "fixture-agent",
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout)["converted"] == 1
-
-
-def test_mlflow_to_atif_uses_request_preview_after_empty_input_placeholders() -> None:
-    converter = _load_mlflow_to_atif()
-    payload = _mlflow_export()
-    info = payload["traces"][0]["info"]
-    info["request_preview"] = "Where is Paris?"
-    info["trace_metadata"]["mlflow.traceInputs"] = "{}"
-    payload["traces"][0]["data"]["spans"][0]["attributes"]["mlflow.spanInputs"] = "[]"
-
-    (trajectory,) = converter.convert_export(
-        payload,
-        agent_name="fixture-agent",
-        agent_version="1.0.0",
-    )
-
-    assert trajectory["steps"][0]["message"] == "Where is Paris?"
-
-
-def test_mlflow_to_atif_uses_later_populated_root_input_attribute() -> None:
-    converter = _load_mlflow_to_atif()
-    payload = _mlflow_export()
-    root_attributes = payload["traces"][0]["data"]["spans"][0]["attributes"]
-    root_attributes["mlflow.spanInputs"] = "{}"
-    root_attributes["input.value"] = "Use the populated root input."
-
-    (trajectory,) = converter.convert_export(
-        payload,
-        agent_name="fixture-agent",
-        agent_version="1.0.0",
-    )
-
-    assert trajectory["steps"][0]["message"] == "Use the populated root input."
-
-
-def test_mlflow_to_atif_matches_current_mlflow_external_and_native_trace_ids(tmp_path: Path) -> None:
-    payload = _mlflow_export()
-    external_trace_id = "tr-06429b3cbfa8ac4aee6168aedf62e3fe"
-    payload["traces"][0]["info"]["trace_id"] = external_trace_id
-    for span in payload["traces"][0]["data"]["spans"]:
-        span["trace_id"] = "BkKbPL+orEruYWiu32Lj/g=="
-    source = tmp_path / "mlflow.json"
-    source.write_text(json.dumps(payload), encoding="utf-8")
-
-    result = _run_script(
-        _MLFLOW_TO_ATIF,
-        "--input",
-        str(source),
-        "--output-dir",
-        str(tmp_path / "atif"),
-        "--agent-name",
-        "fixture-agent",
-    )
-
-    assert result.returncode == 0, result.stderr
-    target = Path(json.loads(result.stdout)["files"][0])
-    assert json.loads(target.read_text(encoding="utf-8"))["trajectory_id"] == external_trace_id
-
-
-@pytest.mark.parametrize(
-    "trace_input",
-    [
-        {"messages": []},
-        {"messages": [{"role": "user", "content": "valid"}, {"content": "missing a role"}]},
-    ],
-)
-def test_mlflow_to_atif_rejects_empty_or_malformed_chat_input(tmp_path: Path, trace_input: dict[str, Any]) -> None:
-    payload = _mlflow_export()
-    payload["traces"][0]["data"]["spans"][0]["attributes"]["mlflow.spanInputs"] = json.dumps(trace_input)
-    source = tmp_path / "mlflow.json"
-    source.write_text(json.dumps(payload), encoding="utf-8")
-
-    result = _run_script(
-        _MLFLOW_TO_ATIF,
-        "--input",
-        str(source),
-        "--output-dir",
-        str(tmp_path / "atif"),
-        "--agent-name",
-        "fixture-agent",
-    )
-
-    assert result.returncode == 1
-    assert "empty or malformed message list" in result.stderr
-    assert not (tmp_path / "atif").exists()
-
-
-@pytest.mark.parametrize(
-    ("output_mode", "expected_state", "expected_loss_code"),
-    [
-        ("missing", "missing", "missing_tool_output_rendered_as_empty_string"),
-        ("null", "null", "null_tool_output_rendered_as_empty_string"),
-    ],
-)
-def test_mlflow_to_atif_distinguishes_missing_and_null_tool_outputs(
-    tmp_path: Path,
-    output_mode: str,
-    expected_state: str,
-    expected_loss_code: str,
-) -> None:
-    payload = _mlflow_export()
-    attributes = payload["traces"][0]["data"]["spans"][1]["attributes"]
-    if output_mode == "missing":
-        attributes.pop("mlflow.spanOutputs")
-    else:
-        attributes["mlflow.spanOutputs"] = "null"
-    source = tmp_path / "mlflow.json"
-    source.write_text(json.dumps(payload), encoding="utf-8")
-
-    result = _run_script(
-        _MLFLOW_TO_ATIF,
-        "--input",
-        str(source),
-        "--output-dir",
-        str(tmp_path / "atif"),
-        "--agent-name",
-        "fixture-agent",
-    )
-
-    assert result.returncode == 0, result.stderr
-    target = Path(json.loads(result.stdout)["files"][0])
-    trajectory = json.loads(target.read_text(encoding="utf-8"))
-    tool_result = trajectory["steps"][1]["observation"]["results"][0]
-    assert tool_result["content"] == ""
-    assert tool_result["extra"]["mlflow"]["output_state"] == expected_state
-    assert expected_loss_code in trajectory["extra"]["mlflow_to_atif"]["loss_codes"]
-
-
-def test_mlflow_to_atif_rejects_incomplete_paginated_export(tmp_path: Path) -> None:
-    payload = _mlflow_export()
-    payload["next_page_token"] = "fetch-another-page"
-    source = tmp_path / "mlflow.json"
-    source.write_text(json.dumps(payload), encoding="utf-8")
-
-    result = _run_script(
-        _MLFLOW_TO_ATIF,
-        "--input",
-        str(source),
-        "--output-dir",
-        str(tmp_path / "atif"),
-        "--agent-name",
-        "fixture-agent",
-    )
-
-    assert result.returncode == 1
-    assert "fetch all pages" in result.stderr
-    assert not (tmp_path / "atif").exists()
-
-
-@pytest.mark.parametrize(
-    ("parent_ids", "expected_error"),
-    [
-        ((None, "missing-span"), "unresolved parent span ID"),
-        (("tool-span", "root-span"), "parent graph contains a cycle"),
-    ],
-)
-def test_mlflow_to_atif_rejects_invalid_parent_graphs(
-    tmp_path: Path,
-    parent_ids: tuple[str | None, str],
-    expected_error: str,
-) -> None:
-    payload = _mlflow_export()
-    spans = payload["traces"][0]["data"]["spans"]
-    for span, parent_id in zip(spans, parent_ids, strict=True):
-        span["parent_span_id"] = parent_id
-    source = tmp_path / "mlflow.json"
-    source.write_text(json.dumps(payload), encoding="utf-8")
-
-    result = _run_script(
-        _MLFLOW_TO_ATIF,
-        "--input",
-        str(source),
-        "--output-dir",
-        str(tmp_path / "atif"),
-        "--agent-name",
-        "fixture-agent",
-    )
-
-    assert result.returncode == 1
-    assert expected_error in result.stderr
-    assert not (tmp_path / "atif").exists()
-
-
-def test_mlflow_to_atif_rejects_info_and_span_trace_id_mismatch(tmp_path: Path) -> None:
-    payload = _mlflow_export()
-    for span in payload["traces"][0]["data"]["spans"]:
-        span["trace_id"] = "a-different-trace"
-    source = tmp_path / "mlflow.json"
-    source.write_text(json.dumps(payload), encoding="utf-8")
-
-    result = _run_script(
-        _MLFLOW_TO_ATIF,
-        "--input",
-        str(source),
-        "--output-dir",
-        str(tmp_path / "atif"),
-        "--agent-name",
-        "fixture-agent",
-    )
-
-    assert result.returncode == 1
-    assert "info trace ID does not match its spans" in result.stderr
-    assert not (tmp_path / "atif").exists()
-
-
-def test_mlflow_to_atif_requires_recoverable_human_input(tmp_path: Path) -> None:
-    payload = _mlflow_export()
-    payload["traces"][0]["info"]["trace_metadata"].pop("mlflow.traceInputs")
-    payload["traces"][0]["data"]["spans"][0]["attributes"].pop("mlflow.spanInputs")
-    source = tmp_path / "mlflow.json"
-    source.write_text(json.dumps(payload), encoding="utf-8")
-
-    result = _run_script(
-        _MLFLOW_TO_ATIF,
-        "--input",
-        str(source),
-        "--output-dir",
-        str(tmp_path / "atif"),
-        "--agent-name",
-        "fixture-agent",
-    )
-
-    assert result.returncode == 1
-    assert "no recoverable root input" in result.stderr
-    assert not (tmp_path / "atif").exists()
-
-
-def test_mlflow_to_atif_refuses_to_overwrite_existing_output(tmp_path: Path) -> None:
-    source = tmp_path / "mlflow.json"
-    source.write_text(json.dumps(_mlflow_export()), encoding="utf-8")
-    args = (
-        "--input",
-        str(source),
-        "--output-dir",
-        str(tmp_path / "atif"),
-        "--agent-name",
-        "fixture-agent",
-    )
-
-    first = _run_script(_MLFLOW_TO_ATIF, *args)
-    second = _run_script(_MLFLOW_TO_ATIF, *args)
-
-    assert first.returncode == 0, first.stderr
-    assert second.returncode == 1
-    assert "refusing to overwrite" in second.stderr
-
-
-def test_mlflow_to_atif_no_overwrite_survives_concurrent_writer(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    converter = _load_mlflow_to_atif()
-    output = tmp_path / "atif"
-    trajectory = {"trajectory_id": "race"}
-    target = output / converter._safe_filename("race")
-    real_link = converter.os.link
-
-    def publish_competing_file(source: Path, destination: Path) -> None:
-        Path(destination).write_text("concurrent writer\n", encoding="utf-8")
-        real_link(source, destination)
-
-    monkeypatch.setattr(converter.os, "link", publish_competing_file)
-
-    with pytest.raises(FileExistsError):
-        converter._write_trajectories([trajectory], output_dir=output, overwrite=False)
-
-    assert target.read_text(encoding="utf-8") == "concurrent writer\n"
-    assert sorted(path.name for path in output.iterdir()) == [target.name]
-
-
-@pytest.mark.parametrize("tracking_uri", ["http://mlflow.example.com", "http://192.0.2.10:5000"])
-def test_mlflow_to_atif_rejects_remote_cleartext_tracking_uri(
-    monkeypatch: pytest.MonkeyPatch,
-    tracking_uri: str,
-) -> None:
-    converter = _load_mlflow_to_atif()
-    monkeypatch.delenv("MLFLOW_TRACKING_INSECURE_TLS", raising=False)
-
-    with pytest.raises(ValueError, match="must use HTTPS"):
-        converter._validate_mlflow_transport(tracking_uri)
-
-
-def test_mlflow_to_atif_rejects_disabled_tls_verification(monkeypatch: pytest.MonkeyPatch) -> None:
-    converter = _load_mlflow_to_atif()
-    monkeypatch.setenv("MLFLOW_TRACKING_INSECURE_TLS", "true")
-
-    with pytest.raises(ValueError, match="is not allowed"):
-        converter._validate_mlflow_transport("https://mlflow.example.com")
-
-
-def test_mlflow_to_atif_fetches_all_client_pages_without_redirects(monkeypatch: pytest.MonkeyPatch) -> None:
-    converter = _load_mlflow_to_atif()
-    calls: list[dict[str, Any]] = []
-
-    class Page(list):
-        def __init__(self, values: list[dict[str, Any]], token: str | None) -> None:
-            super().__init__(values)
-            self.token = token
-
-    class Client:
-        def __init__(self, tracking_uri: str) -> None:
-            assert tracking_uri == "https://mlflow.example.com"
-
-        def search_traces(self, **kwargs: Any) -> Page:
-            assert os.environ["MLFLOW_ALLOW_HTTP_REDIRECTS"] == "false"
-            calls.append(kwargs)
-            if kwargs["page_token"] is None:
-                return Page([{"info": {"trace_id": "one"}, "data": {"spans": []}}], "next")
-            return Page([{"info": {"trace_id": "two"}, "data": {"spans": []}}], None)
-
-    fake_mlflow = types.SimpleNamespace(MlflowClient=Client)
-    monkeypatch.setattr(converter.importlib.util, "find_spec", lambda name: object())
-    monkeypatch.setattr(converter.importlib, "import_module", lambda name: fake_mlflow)
-    monkeypatch.delenv("MLFLOW_TRACKING_INSECURE_TLS", raising=False)
-    monkeypatch.setenv("MLFLOW_ALLOW_HTTP_REDIRECTS", "true")
-    args = types.SimpleNamespace(
-        tracking_uri="https://mlflow.example.com",
-        experiment_id="experiment",
-        since=converter.datetime(2026, 1, 1, tzinfo=converter.timezone.utc),
-        until=converter.datetime(2026, 1, 2, tzinfo=converter.timezone.utc),
-    )
-
-    result = converter._fetch_mlflow(args)
-
-    assert [trace["info"]["trace_id"] for trace in result["traces"]] == ["one", "two"]
-    assert [call["page_token"] for call in calls] == [None, "next"]
-    assert os.environ["MLFLOW_ALLOW_HTTP_REDIRECTS"] == "true"
-
-
-@_needs_harbor
-def test_mlflow_to_atif_output_validates_with_harbor(tmp_path: Path) -> None:
-    source = tmp_path / "mlflow.json"
-    source.write_text(json.dumps(_mlflow_export()), encoding="utf-8")
-
-    result = _run_script(
-        _MLFLOW_TO_ATIF,
-        "--input",
-        str(source),
-        "--output-dir",
-        str(tmp_path / "atif"),
-        "--agent-name",
-        "fixture-agent",
-        "--validate-with-harbor",
-    )
-
-    assert result.returncode == 0, result.stderr
-    summary = json.loads(result.stdout)
-    assert summary["schema_version"] == "ATIF-v1.7"
-    assert summary["validated_with_harbor"] is True
 
 
 def test_every_audit_spec_path_the_skill_or_reference_readme_names_exists() -> None:
@@ -3140,7 +2591,7 @@ def test_audit_measure_reports_tool_call_coverage_from_atif_trace(tmp_path: Path
             "audit_sha256": hashlib.sha256(json.dumps(_audit_payload(audit), sort_keys=True).encode()).hexdigest(),
             "trace_sha256": hashlib.sha256(trace.read_bytes()).hexdigest(),
         },
-        "schema": "nemo.eval_author.audit_coverage.v1",
+        "schema": "nemo.eval_author.audit_coverage.v2",
         "audit": {
             "path": str(audit),
             "schema": "nemo.eval_author.audit.v1",
@@ -3150,7 +2601,8 @@ def test_audit_measure_reports_tool_call_coverage_from_atif_trace(tmp_path: Path
         },
         "subject": {
             "trace": str(trace),
-            "trace_format": "atif",
+            "trace_format": "nemo-compass-trace",
+            "source_kind": "atif",
             "task_id": "account-recovery",
             "run_id": "root-trajectory",
             "evidence_class": "agent_under_test",
@@ -3160,7 +2612,7 @@ def test_audit_measure_reports_tool_call_coverage_from_atif_trace(tmp_path: Path
         "item_kind_count": 1,
         "covered": ["customer.lookup"],
     }
-    assert details["schema"] == "nemo.eval_author.audit_tool_calls_details.v1"
+    assert details["schema"] == "nemo.eval_author.audit_tool_calls_details.v2"
     assert details["subject"]["task_id"] == "account-recovery"
     assert details["audit_tools"] == ["customer.lookup"]
     assert details["covered"] == ["customer.lookup"]
@@ -3168,11 +2620,10 @@ def test_audit_measure_reports_tool_call_coverage_from_atif_trace(tmp_path: Path
     assert details["tool_call_counts"] == {"customer.lookup": 1}
     assert details["matches"]["customer.lookup"] == [
         {
-            "step_id": 1,
+            "span_id": "trajectory/subagent/0/step/1/tool/0",
             "tool": "customer.lookup",
             "tool_call_id": "sub-call-1",
-            "trajectory_id": "sub-trajectory",
-            "trajectory_path": "$.subagent_trajectories[0]",
+            "trace_id": "root-trajectory",
         }
     ]
 
@@ -3261,9 +2712,8 @@ def test_audit_measure_omits_whitespace_only_optional_trace_identifiers(tmp_path
     assert details["covered"] == ["customer.lookup"]
     assert details["matches"]["customer.lookup"] == [
         {
-            "step_id": 2,
+            "span_id": "trajectory/step/2/tool/0",
             "tool": "customer.lookup",
-            "trajectory_path": "$",
         }
     ]
 
@@ -3304,7 +2754,7 @@ def test_audit_measure_reports_capability_coverage_from_tool_call_evidence(tmp_p
     assert coverage["item_kind"] == "capability"
     assert coverage["item_kind_count"] == 1
     assert coverage["covered"] == ["account_recovery"]
-    assert details["schema"] == "nemo.eval_author.audit_capabilities_details.v1"
+    assert details["schema"] == "nemo.eval_author.audit_capabilities_details.v2"
     assert details["covered"] == ["account_recovery"]
     assert details["missing"] == []
     assert details["judgment_input"] == {"provided": False, "judgment_count": 0}
@@ -3317,11 +2767,10 @@ def test_audit_measure_reports_capability_coverage_from_tool_call_evidence(tmp_p
             "status": "satisfied",
             "matches": [
                 {
-                    "step_id": 2,
+                    "span_id": "trajectory/step/2/tool/0",
                     "tool": "customer.lookup",
                     "tool_call_id": "root-call-1",
-                    "trajectory_id": "root-trajectory",
-                    "trajectory_path": "$",
+                    "trace_id": "root-trajectory",
                 }
             ],
         }
@@ -3336,11 +2785,10 @@ def test_audit_measure_reports_capability_coverage_from_tool_call_evidence(tmp_p
             "status": "satisfied",
             "matches": [
                 {
-                    "step_id": 2,
+                    "span_id": "trajectory/step/2/tool/0",
                     "tool": "customer.lookup",
                     "tool_call_id": "root-call-1",
-                    "trajectory_id": "root-trajectory",
-                    "trajectory_path": "$",
+                    "trace_id": "root-trajectory",
                 }
             ],
         }
@@ -3739,7 +3187,7 @@ def test_audit_measure_uses_failure_case_judgments_for_non_tool_evidence(tmp_pat
     assert summary["measurements"][0]["covered"] == ["account_recovery_unverified_identity"]
     assert coverage["method"] == {"name": "failure_cases"}
     assert coverage["covered"] == ["account_recovery_unverified_identity"]
-    assert details["schema"] == "nemo.eval_author.audit_failure_cases_details.v1"
+    assert details["schema"] == "nemo.eval_author.audit_failure_cases_details.v2"
     assert details["covered"] == ["account_recovery_unverified_identity"]
     assert details["judgment_input"] == {
         "provided": True,
@@ -4107,12 +3555,12 @@ def test_audit_measure_keeps_distinct_runs_separate(tmp_path: Path) -> None:
 
 
 @_needs_harbor
-def test_audit_measure_derives_run_id_from_trace_digest_when_trace_has_no_identity(tmp_path: Path) -> None:
+def test_audit_measure_derives_run_id_from_loader_digest_when_trace_has_no_identity(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path)
     trace = tmp_path / "trajectory.json"
     _write_atif_trace(trace, tool_calls=["customer.lookup"], session_id=None, trajectory_id=None)
     out_dir = tmp_path / ".eval-author" / "audit-measurements"
-    expected_run_id = f"trace-sha256-{hashlib.sha256(trace.read_bytes()).hexdigest()[:12]}"
+    expected_run_id = f"atif-{hashlib.sha256(trace.read_bytes()).hexdigest()[:16]}"
 
     code, summary, stderr = _run_json_script(
         _AUDIT_MEASURE,
@@ -4138,7 +3586,7 @@ def test_audit_measure_derives_run_id_from_trace_digest_when_trace_has_no_identi
 
 
 @_needs_harbor
-def test_audit_measure_rejects_non_atif_trace_without_writing(tmp_path: Path) -> None:
+def test_audit_measure_rejects_unloadable_trace_without_writing(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path)
     trace = tmp_path / "trajectory.json"
     trace.write_text("{}", encoding="utf-8")
@@ -4162,8 +3610,27 @@ def test_audit_measure_rejects_non_atif_trace_without_writing(tmp_path: Path) ->
     assert report["valid"] is True
     assert report["written"] is False
     assert report["error_type"] == "trace"
-    assert "not an ATIF trajectory" in report["error"]
+    assert "is not a loadable atif trace" in report["error"]
     assert not out_dir.exists()
+
+
+@_needs_harbor
+def test_audit_measure_rejects_trace_changed_while_loading(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    measure_module = _import_audit_measure(monkeypatch)
+    trace = tmp_path / "trajectory.json"
+    _write_atif_trace(trace, tool_calls=["customer.lookup"])
+    monkeypatch.syspath_prepend(str(_SKILLS_DIR / "eval-author/scripts"))
+    trace_loading = importlib.import_module("trace_loading")
+    load_traces = trace_loading.load_traces
+
+    def load_then_change(path: Path, *args: Any, **kwargs: Any) -> Any:
+        loaded = load_traces(path, *args, **kwargs)
+        path.write_bytes(path.read_bytes() + b"\n")
+        return loaded
+
+    monkeypatch.setattr(trace_loading, "load_traces", load_then_change)
+    with pytest.raises(measure_module.AuditTraceError, match="changed while it was being loaded"):
+        measure_module._load_trace(trace, "atif")
 
 
 @_needs_harbor
@@ -4324,8 +3791,8 @@ def test_audit_measure_reports_write_failures_as_environment_json(
     monkeypatch.setattr(measure_module, "load_audit_spec", lambda path: _template_payload())
     monkeypatch.setattr(
         measure_module,
-        "_load_harbor_trajectory",
-        lambda path: measure_module.LoadedTrace(trajectory=object(), content_sha256="a" * 64),
+        "_load_trace",
+        lambda path, source_kind: measure_module.LoadedTrace(trace=object(), content_sha256="a" * 64),
     )
     monkeypatch.setattr(measure_module, "_validate_reports", lambda reports: None)
     monkeypatch.setitem(
@@ -4383,8 +3850,8 @@ def test_audit_measure_reports_unknown_method_item_kind_as_measurement_json(
     monkeypatch.setattr(measure_module, "load_audit_spec", lambda path: _template_payload())
     monkeypatch.setattr(
         measure_module,
-        "_load_harbor_trajectory",
-        lambda path: measure_module.LoadedTrace(trajectory=object(), content_sha256="a" * 64),
+        "_load_trace",
+        lambda path, source_kind: measure_module.LoadedTrace(trace=object(), content_sha256="a" * 64),
     )
     monkeypatch.setitem(
         measure_module.METHODS,
@@ -4423,11 +3890,13 @@ def test_audit_measure_reports_unknown_method_item_kind_as_measurement_json(
     assert "measurement method 'boundary' returned unsupported item kind 'boundary'" in report["error"]
 
 
-def test_audit_measure_marks_missing_harbor_as_environment_error(tmp_path: Path) -> None:
+def test_audit_measure_marks_missing_trace_ingest_as_environment_error(tmp_path: Path) -> None:
     audit = _write_audit(tmp_path)
-    fake_harbor = tmp_path / "harbor"
-    fake_harbor.mkdir()
-    (fake_harbor / "__init__.py").write_text('raise ImportError("simulated missing harbor")\n', encoding="utf-8")
+    fake_trace_ingest = tmp_path / "trace_ingest"
+    fake_trace_ingest.mkdir()
+    (fake_trace_ingest / "__init__.py").write_text(
+        'raise ImportError("simulated missing trace_ingest")\n', encoding="utf-8"
+    )
     env = os.environ.copy()
     env["PYTHONPATH"] = str(tmp_path) if not env.get("PYTHONPATH") else f"{tmp_path}{os.pathsep}{env['PYTHONPATH']}"
 
@@ -4450,7 +3919,7 @@ def test_audit_measure_marks_missing_harbor_as_environment_error(tmp_path: Path)
     assert report["valid"] is None
     assert report["written"] is False
     assert report["error_type"] == "environment"
-    assert "Harbor is required to read ATIF trajectories" in report["error"]
+    assert "audit measurement reads traces with NeMo Compass" in report["error"]
 
 
 def test_audit_report_aggregates_coverage_and_formats_generation_gaps(tmp_path: Path) -> None:
@@ -4512,7 +3981,8 @@ def test_audit_report_aggregates_coverage_and_formats_generation_gaps(tmp_path: 
             "item_kind_count": 1,
             "subject": {
                 "trace": str(coverage_path.parent / "trajectory.json"),
-                "trace_format": "atif",
+                "trace_format": "nemo-compass-trace",
+                "source_kind": "atif",
                 "task_id": "account-recovery",
                 "run_id": "trial-001",
             },
