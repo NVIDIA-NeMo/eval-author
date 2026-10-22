@@ -836,7 +836,12 @@ def _record_repair(args: argparse.Namespace) -> dict[str, Any]:
         "repair": index,
         "repairs_remaining": _workspace._MAX_REPAIRS - index,
         "reason_code": args.reason_code,
-        "next": "record-reproducibility, then a fresh proof set; the archived reports remain private evidence",
+        "next": (
+            "activate the repaired contract, then record-reproducibility, then a fresh proof set"
+            if "active-construction.json" in sources
+            else "record-reproducibility, then a fresh proof set"
+        )
+        + "; the archived reports remain private evidence",
     }
 
 
@@ -894,7 +899,7 @@ def _construction_context(task_dir: Path) -> dict[str, Any] | None:
     except (ValueError, OSError, KeyError, TypeError, RecursionError) as error:
         raise _workspace.ContractError(
             f"construction contract invalid: {error}"
-            if isinstance(error, construction.ConstructionError)
+            if isinstance(error, (construction.ConstructionError, construction.PlanError))
             else "construction contract malformed or unreadable"
         ) from error
 

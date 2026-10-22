@@ -53,7 +53,10 @@ history before fresh proof.
 
 ## Import existing artifacts without rewriting evidence
 
-Both `construction_plan.v1` and `construction.v1` remain readable through their
+`construction.v1` is the published trace format. `construction_plan.v1` was an
+earlier experimental format from this work; retained experiment artifacts already
+use it, so its explicit import and receipt readers remain supported. New native
+and trace authoring uses only v2. Both old formats remain readable through their
 existing script APIs. Migration writes a new private file and records the exact
 original path, schema and SHA-256. It never modifies the source or its receipts.
 

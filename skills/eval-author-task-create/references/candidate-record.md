@@ -9,18 +9,20 @@
 **Experimental:** This guide is part of the
 [trace input workflow](../../eval-author/references/trace-input.md).
 
-Read this when writing the Step 5 decision. Replace illustrative values with
+Read this when making the [candidate decision](construction-boundary.md). Replace illustrative values with
 reviewed evidence; this example is not a ready candidate while required software
-availability remains unknown. Validate metadata before building a task:
+availability remains unknown. For a candidate, complete source privacy review and
+tool-access decisions/materialization before checking admission:
 
 ```bash
 python <skill_dir>/scripts/candidate_admission.py --task-dir <task-dir>
 ```
 
-This read-only check validates the existing record, prepared safe-trace digest,
-evidence step references and retained ground-truth artifacts. It does not edit
-values, finalize the workspace, attest privacy review or prove the environment.
-Finalization still enforces its full contract.
+Admission validates the record, safe-source binding, retained ground truth,
+completed contextual privacy review and complete tool-access pipeline. It prints
+a verdict without writing by default; `--out <private-receipt>` additionally
+persists that verdict. A valid `no_candidate` record requires no constructed task.
+Admission does not prove execution or finalize the workspace.
 
 ## Accepted values
 
@@ -41,7 +43,8 @@ synonyms. Put those details in `name`, `version` or `notes` instead.
 Software `required` is a boolean; `redistributable` is a boolean or null.
 `version` is nonempty text or null. Software names must be unique ignoring case.
 Every software item and ground-truth artifact needs nonempty `notes` and complete
-provenance; use the skill's ATIF-versus-external evidence rules.
+provenance; cite an existing safe-trace step for `atif_step`, or an independently
+reviewed source reference for `external`. Neither basis grants missing authority.
 
 Available or partial ground truth must retain at least one hashed artifact and
 declare comparison or verification use. Partial ground truth needs an

@@ -22,11 +22,11 @@ class PlanError(ValueError):
     """A declaration is malformed, unresolved for construction, or changed."""
 
 
-def load(path: Path) -> tuple[dict[str, Any], str]:
-    if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_BYTES:
+def load(path: Path, *, max_bytes: int = MAX_BYTES) -> tuple[dict[str, Any], str]:
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > max_bytes:
         raise PlanError("plan must be a bounded regular file")
     raw = path.read_bytes()
-    if len(raw) > MAX_BYTES:
+    if len(raw) > max_bytes:
         raise PlanError("plan exceeds size limit")
 
     def pairs(items):

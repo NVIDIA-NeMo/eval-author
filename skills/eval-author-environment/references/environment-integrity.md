@@ -97,8 +97,11 @@ Reason codes: `verifier_defect`, `environment_build_failure`,
 `instruction_ambiguity`, `oracle_failure`, `nop_contamination`,
 `negative_control_failure`, `probe_mismatch`, `runtime_incompatible`, `other`
 (with a concrete note). The command archives the superseded `validation.json`
-and `reproducibility.json` under `private/repairs/repair-<n>/` and requires a
-fresh `record-reproducibility` and a complete fresh proof set afterward. At
+and `reproducibility.json`, the candidate and construction contract under
+`private/repairs/repair-<n>/`. If present, `private/active-construction.json` is
+archived and removed too. After editing, activate the repaired canonical contract
+first, then run `record-reproducibility` and a complete fresh proof set. Historical
+workspaces without an active marker keep their existing construction path. At
 most three repairs are recorded per task; beyond the budget, finalize the
 environment as failed instead of repairing further. Repairs apply before
 `finalize`: a finalized failed environment stays failed and becomes input to

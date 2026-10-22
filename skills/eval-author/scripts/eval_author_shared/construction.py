@@ -20,9 +20,16 @@ CUSTOM_ARMS = trace_format.CUSTOM_ARMS
 ConstructionError = trace_format.ConstructionError
 PlanError = plan_format.PlanError
 # Historical API helpers remain available to integrations.
-load = plan_format.load
 execution = trace_format.execution
 qualify = trace_format.qualify
+
+
+def load(path):
+    """Retain the published trace format's bound without widening native plans."""
+    value, sha = plan_format.load(path, max_bytes=trace_format.MAX_BYTES)
+    if value.get("schema") != trace_format.SCHEMA and path.stat().st_size > plan_format.MAX_BYTES:
+        raise PlanError("plan exceeds size limit")
+    return value, sha
 
 
 def _projection(value):
@@ -361,11 +368,7 @@ def activate(root, path):
         from .task_evidence import _repairs
 
         repairs = _repairs(root)
-        if (
-            not repairs
-            or repairs[-1]["superseded"].get("active-construction.json") is None
-            or (root / "reproducibility.json").exists()
-        ):
+        if not repairs or repairs[-1]["superseded"].get("active-construction.json") is None:
             raise PlanError("retain the historical proof workspace; activate in a fresh workspace")
     document, sha = load(path)
     if document.get("schema") != SCHEMA:
@@ -583,11 +586,23 @@ def main():
             result = migrate(args.plan, args.migrate_to, args.workspace, contract)
         else:
             value, _ = load(args.plan)
-            result = (
-                assess(value, args.mode, args.task_dir, contract, args.workspace)
-                if value.get("schema") == SCHEMA
-                else validate(value, args.mode, args.task_dir, contract)
-            )
+            if value.get("schema") == trace_format.SCHEMA:
+                if args.workspace is None or args.plan.resolve() != (args.workspace / PATH).resolve():
+                    raise PlanError("historical trace validation requires --workspace and its construction path")
+                context = trace_format.validate(args.workspace)
+                result = {
+                    "status": "structurally_valid",
+                    "schema": trace_format.SCHEMA,
+                    "sha256": context["sha256"],
+                    "mode": args.mode,
+                    "execution": "unmeasured",
+                }
+            else:
+                result = (
+                    assess(value, args.mode, args.task_dir, contract, args.workspace)
+                    if value.get("schema") == SCHEMA
+                    else validate(value, args.mode, args.task_dir, contract)
+                )
         print(json.dumps(result, indent=2))
         return 0
     except (ValueError, OSError, KeyError, TypeError) as error:

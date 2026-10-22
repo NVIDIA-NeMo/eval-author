@@ -15,7 +15,7 @@ triggers:
   - continue eval-author environment setup
 not-for:
   - eval-author (use for the standard, the boundaries, and to pick a sub-flow)
-  - eval-author-trace-environment (experimental; use to derive a whole task from one recorded trace)
+  - eval-author-trace-environment (experimental; use only for an explicit request or existing workspace)
   - eval-author-task-create (use to propose dataset improvements and create audit-gap tasks)
   - eval-author-first-eval (use to plan and build a starter suite)
   - eval-author-discover (use to check whether an existing suite runs)

@@ -1381,6 +1381,11 @@ def _check_candidate(args: argparse.Namespace) -> dict[str, Any]:
 
 def _record_reproducibility(args: argparse.Namespace) -> dict[str, Any]:
     task_dir = _ensure_task_dir(args.task_dir)
+    # A repair must select its reviewed contract before recording the new revision.
+    try:
+        construction.active_path(task_dir)
+    except construction.PlanError as error:
+        raise ContractError(str(error)) from error
     output = task_dir / "reproducibility.json"
     if output.exists():
         raise ContractError("refusing to replace existing reproducibility.json")
@@ -1967,6 +1972,11 @@ def _check(args: argparse.Namespace) -> dict[str, Any]:
         _validate_tool_call_pipeline(task_dir, require_decisions=summary["status"] == "candidate")
     except ContractError as error:
         errors.append(str(error))
+    try:
+        active = construction.active_path(task_dir)
+    except (construction.PlanError, construction.ConstructionError, ContractError, OSError) as error:
+        errors.append(str(error))
+        active = None
     return {
         "task_dir": str(task_dir),
         "valid": not errors,
@@ -1977,9 +1987,10 @@ def _check(args: argparse.Namespace) -> dict[str, Any]:
             for receipt in repairs
             for name, path in (
                 ("candidate.json", task_dir / "candidate.json"),
-                ("construction.json", construction.active_path(task_dir)),
+                ("construction.json", active),
             )
-            if receipt["superseded"].get(name) is not None
+            if path is not None
+            and receipt["superseded"].get(name) is not None
             and (not path.is_file() or _sha256_file(path) != receipt["superseded"][name]["sha256"])
         ],
         "qualification": summary["environment"].get("qualification", "unmeasured"),

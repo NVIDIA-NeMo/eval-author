@@ -266,3 +266,115 @@ def test_shared_runtime_assets_preserve_standalone_compatibility():
         ).read_bytes()
     assert Path(load("qualification_runtime").__file__).parent == ASSETS
     assert Path(load("review_runtime").__file__).parent == ASSETS
+
+
+def test_repair_reports_pending_activation_and_recovers_without_manual_deletion(tmp_path):
+    import argparse
+
+    from eval_author_shared import commands, trace_workspace
+
+    helpers, root, _ = fresh_workspace(tmp_path)
+    value = construction.from_trace(root)
+    for requirement in value["requirements"]:
+        requirement["authority"] = {"basis": "specification", "reference": "Synthetic public requirement"}
+    first = root / "private/first.json"
+    helpers.save(first, value)
+    construction.activate(root, first)
+    repair = task_evidence._record_repair(
+        argparse.Namespace(task_dir=root, reason_code="verifier_defect", note="Fix a public requirement check")
+    )
+    assert repair["next"].startswith("activate the repaired contract")
+    assert commands.main("environment", ["record-reproducibility", "--task-dir", str(root)]) == 1
+    assert not (root / "reproducibility.json").exists()
+    checked = trace_workspace._check(argparse.Namespace(task_dir=root))
+    assert not checked["valid"]
+    assert any("activate the repaired" in error for error in checked["errors"])
+    summary = json.loads((root / "summary.json").read_text())
+    summary["status"] = "candidate"
+    helpers.save(root / "summary.json", summary)
+    manifest = root.parent / "batch.json"
+    helpers.save(
+        manifest,
+        {
+            "schema": trace_workspace.BATCH_SCHEMA,
+            "members": [
+                {"task_id": root.name, "atif": "unused.json", "source_kind": "atif"},
+                {"task_id": "missing-member", "atif": "unused.json", "source_kind": "atif"},
+            ],
+        },
+    )
+    batch = trace_workspace._batch_status(argparse.Namespace(root=root.parent, manifest=manifest))
+    assert batch["counts"] == {"invalid": 1, "missing": 1}
+    second = root / "private/second.json"
+    helpers.save(second, value)
+    construction.activate(root, second)
+    assert commands.main("environment", ["record-reproducibility", "--task-dir", str(root)]) == 0
+    args = trace_workspace._parser().parse_args(
+        ["record-run-inputs", "--task-dir", str(root), "--arm", "nop", "--job-dir", "private/jobs/repaired"]
+    )
+    receipt = task_evidence._record_run_inputs(args)
+    assert json.loads(Path(receipt["run_inputs"]).read_text())["construction_path"] == "private/second.json"
+
+
+def test_activation_recovers_previously_recorded_post_repair_reproducibility(tmp_path):
+    import argparse
+
+    from eval_author_shared import trace_workspace
+
+    helpers, root, _ = fresh_workspace(tmp_path)
+    value = construction.from_trace(root)
+    for requirement in value["requirements"]:
+        requirement["authority"] = {"basis": "specification", "reference": "Synthetic public requirement"}
+    first = root / "private/first.json"
+    helpers.save(first, value)
+    construction.activate(root, first)
+    task_evidence._record_repair(
+        argparse.Namespace(task_dir=root, reason_code="verifier_defect", note="Repair a check")
+    )
+    # Reproduce the previous CLI's ordering; this report describes the new revision.
+    helpers.save(root / "reproducibility.json", trace_workspace._derive_reproducibility(root))
+    second = root / "private/second.json"
+    helpers.save(second, value)
+    construction.activate(root, second)
+    assert construction.active_path(root) == second
+
+
+def test_canonical_authority_error_survives_workspace_boundary(tmp_path):
+    helpers, root, _ = fresh_workspace(tmp_path)
+    value = construction.from_trace(root)
+    helpers.save(root / "private/construction.json", value)
+    with pytest.raises(ValueError, match="resolve grading authority before construction"):
+        task_evidence._construction_context(root)
+
+
+def test_historical_trace_size_bound_and_cli_validation(tmp_path):
+    import subprocess
+
+    from eval_author_shared import legacy_construction
+
+    helpers, root, value = fresh_workspace(tmp_path)
+    value["review"] = {"reviewer_kind": "agent", "note": "Reviewed source. " * 80000}
+    path = root / "private/construction.json"
+    helpers.save(path, value)
+    assert legacy_plan.MAX_BYTES < path.stat().st_size < legacy_construction.MAX_BYTES
+    expected = legacy_construction.validate(root)
+    assert construction.validate(root)["sha256"] == expected["sha256"]
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "skills/eval-author/scripts/construction_contract.py"),
+            "--plan",
+            str(path),
+            "--mode",
+            "draft",
+            "--workspace",
+            str(root),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    value["schema"] = construction.SCHEMA
+    helpers.save(path, value)
+    with pytest.raises(construction.PlanError, match="size limit"):
+        construction.load(path)

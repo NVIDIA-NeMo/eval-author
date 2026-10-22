@@ -6,9 +6,9 @@
 `<skill_dir>` is the installed `eval-author-environment` directory.
 
 **Experimental.** Use this extension when Gym is the selected output provider.
-Any supported trace source can produce a Gym task. Follow shared Steps 1-5 in
-[trace input workflow](../../eval-author/references/trace-input.md), including privacy review, tool-access decisions,
-ground-truth and software inventories, and `check-candidate`. A proposal may
+Any supported trace source can produce a Gym task. Follow [Prepare and review](../../eval-author/references/trace-input.md#prepare-and-review)
+and [Decide admission and prepare tools](../../eval-author/references/trace-input.md#decide-admission-and-prepare-tools), including privacy review, tool-access decisions,
+ground-truth and software inventories, and task-create's `candidate_admission.py --task-dir <task-dir>`. A proposal may
 provide context, but an audit report or uncovered tool is not a prerequisite.
 Proposal-only requests still stop before construction.
 
@@ -76,7 +76,7 @@ Keep the shared evidence at the workspace root. Add:
   gym-report.md
 ```
 
-After `check-candidate` accepts `status: candidate` and contextual privacy
+After task-create's `candidate_admission.py --task-dir <task-dir>` accepts `status: candidate` and contextual privacy
 review is complete with no blocking findings, write the exact generalized
 `candidate.json` instruction to `private/gym-instruction.md`. Review the
 instruction and scaffold metadata for private values. Use a stable task name
@@ -91,7 +91,7 @@ native scaffolder directly:
   --description '<generalized scenario>' --author '<actual-author>'
 ```
 
-Here The sibling skill must be installed alongside it. The helper invokes Gym's
+The sibling skill must be installed alongside it. The helper invokes Gym's
 native scaffolder, refuses to overwrite a draft, and records `runnable: false`.
 Choose a valid Python module name, replacing task-ID hyphens with underscores
 (for example, `ledger-total` becomes `ledger_total`); the direct helper does not
@@ -194,8 +194,9 @@ Record whether a human supplied or reviewed the generalized task and Relevant
 experience. Do not manufacture that review or infer model performance from
 reference controls. Review the generated task files separately from the trace.
 
-The shared `check-candidate` and `check` commands validate candidate metadata
-and prepared evidence respectively; they do not validate this native product.
+Task-create's `candidate_admission.py --task-dir <task-dir>` checks candidacy,
+privacy review and tool-access decisions. `task_evidence.py workspace check`
+checks the prepared workspace; neither qualifies this native Gym product.
 Leave the shared `summary.json` pending for a Gym candidate and explain that it
 is the preparation record, while `gym-report.md` carries native results.
 Keep `gym/draft.json` as the original scaffolding receipt, not a mutable proof

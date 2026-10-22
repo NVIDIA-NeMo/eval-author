@@ -2,18 +2,19 @@
 name: eval-author-trace-environment
 version: 1.7.0
 description: >-
-  Experimental workflow. Use Gym, MLflow, Intake, OpenTelemetry, or ATIF trace
-  evidence to derive a private, reproducible Harbor or native NeMo Gym task candidate.
+  Experimental compatibility workflow for an explicit trace-environment request
+  or continuation of an existing trace-environment workspace. New requests to
+  derive tasks from recorded interactions go to task-create ATIF source mode or
+  first-eval. Supports Gym, MLflow, Intake, OpenTelemetry and ATIF evidence.
 triggers:
-  - create an evaluation environment from a trace
-  - turn ATIF into a Harbor task environment
-  - turn a trace into a native Gym task
-  - derive an eval task from Gym MLflow Intake or OpenTelemetry data
+  - explicitly use trace-environment
+  - resume the trace-environment workflow by name
+  - continue an existing trace-environment workspace
 not-for:
   - eval-author (use for the shared standard and routing)
   - mlflow-to-atif (use only to normalize MLflow traces into ATIF)
   - gym-to-atif (use only to normalize Gym Responses traces into ATIF)
-  - eval-author-task-create (use to close an actionable audit coverage gap)
+  - eval-author-task-create (use for new ATIF-source tasks or an actionable audit coverage gap)
   - eval-author-inspect-trace (use to explain an Intake trace without creating an environment)
   - eval-author-environment (use when first-eval or task-create needs a reusable environment for its agreed cases)
 compatibility: >-

@@ -42,6 +42,10 @@ artifacts private.
 
 Write `candidate.json` using the retained
 [candidate record](../../eval-author-task-create/references/candidate-record.md).
+Apply the [candidate decision boundary](../../eval-author-task-create/references/construction-boundary.md):
+the request and outcome must be complete, reproducible without unavailable private
+or live state, and objectively testable. Otherwise retain `no_candidate` with
+its reason codes; do not simplify the requested capability to obtain a candidate.
 Inventory independent ground truth and the complete build/runtime/solution/
 verifier software requirements. Record unavailable or unknown state explicitly.
 A valid rejection retains these inventories and requires no generated task.
@@ -99,6 +103,21 @@ commands with the provider result contract. Gym keeps its native scaffold and
 Harbor workspace ledgers do not stand in for Gym evidence. A trace task's
 qualification is reported separately from real-agent performance and audit closure.
 
+## Finalize and check Harbor workspaces
+
+After retaining the qualification results, finalize using the candidate record's
+actual disposition and check the complete workspace:
+
+```bash
+python <task_create_dir>/scripts/task_evidence.py workspace finalize \
+  --task-dir <workspace> --status <candidate|no_candidate>
+python <task_create_dir>/scripts/task_evidence.py workspace check --task-dir <workspace>
+```
+
+Resolve reported errors before publication. Finalization records measured status;
+it does not turn unrun or failed qualification into success. Gym uses its native
+reporting handoff instead of these Harbor finalization/export commands.
+
 ## Optional publication
 
 Retain export as an explicit, optional Harbor capability. It stays private until
@@ -111,5 +130,12 @@ the review. Trace privacy review, admission, and task qualification are separate
 from publication approval. Native Gym export remains unsupported.
 
 For batches, inspect-trace's `batch-prepare` and `batch-status` retain the full
-selected-source denominator, including blocked and rejected sources. Raw source
-paths and evidence remain private.
+selected-source denominator, including blocked and rejected sources. Pass the
+same root used at initialization; the compatibility default is a different path:
+
+```bash
+python <inspect_trace_dir>/scripts/trace_privacy.py batch-prepare --manifest <manifest.json> --root .eval-author/trace-inputs
+python <inspect_trace_dir>/scripts/trace_privacy.py batch-status --manifest <manifest.json> --root .eval-author/trace-inputs
+```
+
+Raw source paths and evidence remain private.

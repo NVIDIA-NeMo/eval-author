@@ -24,7 +24,7 @@ expected answer. A proposal may remain useful while construction is blocked.
 
 Preserve the calling flow's eligibility rules. A capability or failure-case
 finding does not become an automatically actionable tool gap because a trace
-mentions a tool. Task-create needs measured tool-gap inputs. First-eval can
+mentions a tool. Task-create's audit-gap mode needs measured tool-gap inputs; its ATIF source mode does not. First-eval can
 establish a baseline without gap closure; environment smoke proves readiness,
 not proposal usefulness or task acceptance.
 
@@ -91,8 +91,9 @@ the tested transitions and leave broader fidelity unmeasured.
 ## Close the loop without changing the claim
 
 Report proposal disposition, construction, controls and agent behavior separately.
-For task-create, measure each fresh trajectory against the original audit item and
-use the existing closure verifier. Tool occurrence or reward cannot substitute
+For task-create's audit-gap mode, measure each fresh trajectory against the original
+audit item and use the existing closure verifier. ATIF source mode reports task
+qualification and agent behavior without claiming audit-gap closure. Tool occurrence or reward cannot substitute
 for that measurement. Preserve refusals and failed/incomplete attempts; missing
 evidence is distinct from an observed failure.
 

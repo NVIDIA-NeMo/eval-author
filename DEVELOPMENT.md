@@ -271,3 +271,16 @@ These checks do not claim live routing acceptance.
 
 See [determinism checks](docs/determinism-checks.md) for discovery comparisons,
 bound audit/task evidence, factual ledgers, and advisory host/semantic accounting.
+
+## Retained reference compatibility
+
+Receiving skills own the current trace reference contracts. The full legacy
+references remain available for existing workflows. `test_reference_ownership.py`
+checks their differences against reviewed owner-specific deltas: command paths,
+cross-links, canonical-schema guidance and admission semantics. Update shared
+rules in both copies; changes to owner-specific differences require reviewing and
+updating `tests/fixtures/trace-reference-owner-deltas.json`.
+
+Compatibility covers command invocations and retained artifact formats. Private
+Python helper globals and monkeypatch targets are implementation details; patch
+the module that owns the helper when writing repository tests.

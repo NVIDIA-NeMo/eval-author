@@ -1,15 +1,19 @@
 ---
 name: eval-author-task-create
 description: >-
-  Propose dataset improvements from Eval Author audit findings, then optionally
+  Create a task from a recorded interaction in ATIF source mode, without requiring
+  an audit gap. Or propose dataset improvements from Eval Author audit findings, then optionally
   create one Gym or Harbor task from one actionable uncovered tool. Prove it with
   Gym controls and native execution or Harbor's Oracle, then run it repeatedly
   with the repository's real agent when authorized, and accept it only when
-  measured ATIF closes the selected gap every time. Use when the user asks to
+  measured ATIF closes the selected gap every time in audit-gap mode. ATIF source
+  mode reports task qualification separately from audit closure. Use when the user asks to
   suggest dataset changes, fill an eval gap, turn audit uncovered_items into a
   Gym or Harbor task, or add missing tool coverage. Writes proposals, drafts, and
   measurements only under `.eval-author/`.
 triggers:
+  - create a task from a recorded interaction
+  - turn ATIF into a Harbor or Gym task
   - create a Gym task from an audit gap
   - create a Harbor task from an audit gap
   - fill an uncovered eval tool
@@ -98,6 +102,8 @@ with the selected runtime's Python; Harbor preparation imports Harbor.
 | Script | Purpose | Arguments |
 |---|---|---|
 | `scripts/task_evidence.py` | Record current-revision native controls and agent runs | `prepare --task-dir --contract --out`; `run --manifest --case --run-id --result --out [--trace] -- <command>` |
+| `scripts/candidate_admission.py` | Check trace candidacy, privacy and tool-access gates | `--task-dir [--out <private-receipt>]` |
+| `scripts/task_evidence.py workspace` | Retain trace-workspace evidence and finalize/check its status | `<probe|record-run-inputs|record-validation|record-repair|finalize|check> --task-dir`; use `<command> --help` |
 | `scripts/task_pipeline.py` | Select, scaffold, and verify one audit-gap task | `select --report`; `scaffold --report --target` plus task metadata; `verify --before --after --target --evidence` |
 
 The three deterministic commands have these verdicts:
