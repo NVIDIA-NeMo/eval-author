@@ -119,7 +119,7 @@ specification and report, but coverage is **unmeasured**, not 0%. The unchecked
 measurement step includes the reason, such as “deferred — selected trace
 directory is missing,” including in later
 check-ins and the final review. If you have no evaluations yet, Eval Author can define
-the specification and then offer the [first-eval workflow](first-evals.md).
+the specification and then offer the [bootstrap workflow](bootstrap.md).
 An uncovered item can reflect a missing scenario, an agent failure, or
 insufficient evidence. Coverage measurements (JSON) alone does not identify
 which explanation applies or establish overall agent quality.
@@ -141,7 +141,7 @@ into the proposal workflow, reusing the report, specification, selected sources,
 and prior answers.
 
 The offer follows the evidence. With no evaluations, it points to the
-[first-eval workflow](first-evals.md). With insufficient evidence, it recommends
+[bootstrap workflow](bootstrap.md). With insufficient evidence, it recommends
 the needed measurement first; any candidate task proposals are explicitly
 unmeasured. If the findings do not support more tasks, it explains the useful
 alternative, such as addressing an observed agent failure or gathering specific

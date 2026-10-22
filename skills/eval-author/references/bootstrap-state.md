@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Save and resume first evaluations
+# Save and resume bootstrap
 
 Use the existing `journey_state.py show` and `update` commands. Save first-evaluation progress
 under `scopes.create.first_eval` in `.eval-author/.working/journey-state.json`.
@@ -128,7 +128,7 @@ Each `tasks` entry is keyed by planned task ID:
 
 New task paths are `.eval-author/tasks/<slug>` and remain stable through review,
 validation, execution, and acceptance. Calculate `sha256` with
-`first_eval_state.task_digest(repo, relative_path)`, which uses the existing
+`bootstrap_state.task_digest(repo, relative_path)`, which uses the existing
 task-evidence recorder's revision rules, including task README content. A
 changed task requires refreshing the applicable observations; preserve old
 native jobs and receipts instead of rewriting them to match new bytes.

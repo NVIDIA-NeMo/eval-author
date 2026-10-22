@@ -71,7 +71,7 @@ def test_downstream_resume_preserves_progress_and_audit_switch_reopens_applicabi
             "scopes": {"create": {"cases": ["refund"], "confirmed": True}},
             "journey_status": {"create": "in_progress"},
             "pending_question": "Which case first?",
-            "next_handoff": "eval-author-first-eval",
+            "next_handoff": "eval-author-bootstrap",
         },
     )
     ongoing = state.initialize(tmp_path, agent="assistant", journey="create", setup="gym")
@@ -79,7 +79,7 @@ def test_downstream_resume_preserves_progress_and_audit_switch_reopens_applicabi
     assert ongoing["scopes"]["create"]["confirmed"]
     assert ongoing["journey_status"]["create"] == "in_progress"
     assert ongoing["pending_question"] == "Which case first?"
-    assert ongoing["next_handoff"] == "eval-author-first-eval"
+    assert ongoing["next_handoff"] == "eval-author-bootstrap"
     resumed = state.initialize(tmp_path, agent="assistant", journey="audit", setup="gym")
     for key, answer in original["prerequisites"].items():
         assert resumed["prerequisites"][key]["source"] == answer["source"]
@@ -92,6 +92,40 @@ def test_downstream_resume_preserves_progress_and_audit_switch_reopens_applicabi
     assert resumed["journey_status"]["create"] == "in_progress"
     assert resumed["pending_question"] is None
     assert state.checklist(resumed)[2]["label"] == "Check what your existing evaluations cover"
+
+
+def test_legacy_skill_handoff_resolves_without_changing_saved_decisions(state, tmp_path):
+    setup_ready(state, tmp_path)
+    ethos_ready(state, tmp_path)
+    saved = state.update(
+        tmp_path,
+        {
+            "scopes": {
+                "create": {
+                    "confirmed": True,
+                    "cases": ["refund"],
+                    "trace_sources": ["selected-run/attempt-2"],
+                    "exclusions": ["unselected-run"],
+                    "approval_source": "user approved this scope in reply 5",
+                }
+            },
+            "journey_status": {"create": "in_progress"},
+            "pending_question": "Does this first task grade refunds fairly?",
+            "next_handoff": "eval-author-first-eval",
+        },
+    )
+    before = state.state_path(tmp_path).read_bytes()
+    expected = {**saved, "next_handoff": "eval-author-bootstrap"}
+
+    assert state.load_state(tmp_path) == expected
+    shown = subprocess.run(
+        [sys.executable, str(SCRIPTS / "journey_state.py"), "--repo", str(tmp_path), "show"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert json.loads(shown.stdout)["state"] == expected
+    assert state.state_path(tmp_path).read_bytes() == before
 
 
 def audit_ready(state, repo, *, setup="gym"):
@@ -385,11 +419,11 @@ def test_ethos_completion_pause_survives_resume_and_continuation(state, tmp_path
     setup_ready(state, tmp_path)
     confirmed = ethos_ready(state, tmp_path)
     question = "We’re ready to build your evaluation suite. Ready to continue?"
-    state.update(tmp_path, {"pending_question": question, "next_handoff": "eval-author-first-eval"})
+    state.update(tmp_path, {"pending_question": question, "next_handoff": "eval-author-bootstrap"})
     resumed = state.initialize(tmp_path, agent="assistant", journey="create", setup="gym")
     assert resumed["ethos"] == confirmed["ethos"]
     assert resumed["pending_question"] == question
-    assert resumed["next_handoff"] == "eval-author-first-eval"
+    assert resumed["next_handoff"] == "eval-author-bootstrap"
     assert [row["complete"] for row in state.checklist(resumed)] == [True, True, False]
     assert state.checklist(resumed)[2]["current"]
     continued = state.update(tmp_path, {"pending_question": None, "journey_status": {"create": "in_progress"}})
@@ -709,7 +743,7 @@ def test_required_runtime_blocks_onboarding_until_resolved(
             "prerequisites": {"runtime": {"status": "verified", "source": evidence}},
             "blockers": [],
             "pending_question": None,
-            "next_handoff": "eval-author-first-eval" if ethos_confirmed else "ethos-orchestrate",
+            "next_handoff": "eval-author-bootstrap" if ethos_confirmed else "ethos-orchestrate",
         },
     )
     assert state.load_state(tmp_path) == resolved

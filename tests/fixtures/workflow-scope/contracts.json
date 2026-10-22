@@ -117,7 +117,7 @@
           "Help me bootstrap evaluations."
         ],
         "context": "Fresh session; no prior authorization.",
-        "flow": "eval-author-first-eval",
+        "flow": "eval-author-bootstrap",
         "allowed_actions": [
           "read_skill"
         ],
@@ -287,7 +287,7 @@
           "Help me bootstrap evaluations."
         ],
         "context": "Fresh session; no prior authorization.",
-        "flow": "eval-author-first-eval",
+        "flow": "eval-author-bootstrap",
         "allowed_actions": [
           "read_skill"
         ],
@@ -301,7 +301,7 @@
           "Go ahead and check the prerequisites using the supplied agent documentation and record what you find."
         ],
         "context": "The previous turn showed only the shared welcome, creation checklist, and Ready to get started? call to action. The user now requests setup work; prerequisite and Ethos decisions remain unconfirmed.",
-        "flow": "eval-author-first-eval",
+        "flow": "eval-author-bootstrap",
         "allowed_actions": [
           "read_skill",
           "read_repository",
@@ -343,7 +343,7 @@
           "Yes, let’s build the evaluation suite."
         ],
         "context": "The previous turn confirmed saved Ethos, showed Next Steps with the first two checklist items complete, and asked Ready to continue? Shared state retains the continuation question and first-eval handoff. Source selection has not started.",
-        "flow": "eval-author-first-eval",
+        "flow": "eval-author-bootstrap",
         "allowed_actions": [
           "read_skill",
           "read_repository",
@@ -393,7 +393,7 @@
           "Yes, continue with the prerequisite checks."
         ],
         "context": "After goal clarification, the previous turn displayed the fixed creation introduction, creation checklist, and Ready to get started? without inspection. The user now requests prerequisite checks; agent documentation is available and setup decisions remain unconfirmed.",
-        "flow": "eval-author-first-eval",
+        "flow": "eval-author-bootstrap",
         "allowed_actions": [
           "read_skill",
           "read_repository",

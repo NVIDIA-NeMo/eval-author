@@ -23,7 +23,7 @@ you fix an earlier one.
 | Probe | `harbor` | Harbor is not importable by this interpreter. Re-run with the interpreter from **Before you start** |
 | Probe | `harbor-cli` | Advisory. No `harbor` executable exists on `PATH`, so Judge's `round-trip` check cannot run |
 | Probe | `gym` | Advisory. Whether a `gym` command next to the interpreter or on `PATH` reports NeMo Gym 0.6.0 or later. NeMo Gym alone lets discovery explore, judge, and solve NeMo Gym manifests; Harbor tasks still need Harbor |
-| Explore | `config` | Required only when the repository holds neither a config nor a task. Confirm the location if an existing suite is expected. If the user has no evals and asked to build them, follow `eval-author-first-eval`. Advisory when datasets exist without a config, since each runs by path |
+| Explore | `config` | Required only when the repository holds neither a config nor a task. Confirm the location if an existing suite is expected. If the user has no evals and asked to build them, follow `eval-author-bootstrap`. Advisory when datasets exist without a config, since each runs by path |
 | Explore | `config-parse` | A config file did not parse. Either PyYAML is missing, which means the wrong interpreter, or the file's YAML is broken. The hint says which |
 | Explore | `ethos` | Advisory. Explore did not find a readable root `ETHOS.md`. This check records file readability, not substantive Ethos validity |
 | Explore | `tasks-on-disk` | Advisory, and always unproven. A count of directories holding a `task.toml` |

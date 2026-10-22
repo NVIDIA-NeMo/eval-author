@@ -11,7 +11,7 @@ verifier.
 
 For scaffolding, the version and rerun plan, native validation commands, and
 real-agent runs, follow
-[Native NeMo Gym first evals](../../eval-author-first-eval/references/gym-first-eval.md)
+[Native NeMo Gym bootstrap](../../eval-author-bootstrap/references/gym-bootstrap.md)
 from first-eval or
 [Author and prove a NeMo Gym evaluation](../../eval-author-task-create/references/gym-tasks.md)
 from task-create, with

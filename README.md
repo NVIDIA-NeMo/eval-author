@@ -43,7 +43,7 @@ NeMo Eval Author has tested support for [NeMo Gym](https://docs.nvidia.com/nemo/
 NeMo Gym is compatible with Harbor, and the user has the final say.
 
 NeMo Gym authoring needs NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment; Harbor authoring needs its
-CLI and supported Python environment. See the [first-eval guide](docs/first-evals.md)
+CLI and supported Python environment. See the [bootstrap guide](docs/bootstrap.md)
 and [Harbor setup guide](skills/eval-author/references/harbor-setup.md).
 Full creation and improvement onboarding verifies the selected runtime before
 Ethos. Explicit inventory or planning-only requests do not require an evaluation runtime.
@@ -128,7 +128,7 @@ Use eval-author to build my first evaluations for [agent name] using [NeMo Gym o
 I don't have evaluations yet.
 ```
 
-See [Build your first evaluations](docs/first-evals.md).
+See [Bootstrap your evaluation suite](docs/bootstrap.md).
 
 ### Audit your existing coverage
 

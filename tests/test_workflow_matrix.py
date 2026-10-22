@@ -122,7 +122,7 @@ def test_review_mutations_fail_but_later_skill_updates_preserve_evidence(tmp_pat
     assert matrix.evaluate(CONTRACTS, changed)["status"] == "incomplete"
     review = Path(recorded["review"])
     payload = json.loads(review.read_text())
-    payload["evidence"]["turns"][0]["flow"] = "eval-author-first-eval"
+    payload["evidence"]["turns"][0]["flow"] = "eval-author-bootstrap"
     review.write_text(json.dumps(payload))
     assert matrix.evaluate(CONTRACTS, recorded)["status"] == "fail"
     (Path(recorded["skills_root"]) / "SKILL.md").write_text("changed")

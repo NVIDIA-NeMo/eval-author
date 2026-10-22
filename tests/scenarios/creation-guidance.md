@@ -215,8 +215,8 @@ new examples. Provider selection and row selection precede the final cost estima
 ## Deterministic first-evaluation checkpoints and interruption matrix
 
 These checks are an unexecuted acceptance protocol. Use
-`skills/eval-author/references/first-eval-conversation.md` and its required
-`first_eval_conversation.py` as the authority for exact fixed text. The source
+`skills/eval-author/references/bootstrap-conversation.md` and its required
+`bootstrap_conversation.py` as the authority for exact fixed text. The source
 owns the trace question, progress message, first-task review question,
 remaining-task message, checks-complete message, run-now question, and audit
 invitation. Capture the renderer input, current state revision, stdout, and final

@@ -1,9 +1,9 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Harbor first evals
+# Harbor bootstrap
 
-Use this reference for Harbor-specific work in first-eval stages 5–9. Preserve
+Use this reference for Harbor-specific work in bootstrap stages 5–9. Preserve
 the parent skill's conversational approval gates, state, and selected setup.
 No audit report or measured gap closure is required. A configured NeMo Gym–Harbor
 integration uses its verified supported commands and retained native evidence;

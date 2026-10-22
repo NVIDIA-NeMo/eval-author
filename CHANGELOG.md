@@ -23,7 +23,7 @@ To install exactly this version, clone the `v0.1.0` tag and follow the
   local `ETHOS.md` that first evaluations and audits build on.
 - **First evaluations for NeMo Gym or Harbor.** Agree on a reviewed plan, build
   a starter suite in a proven environment, and validate each task before
-  evaluating your agent. See [Build your first evaluations](docs/first-evals.md).
+  evaluating your agent. See [Bootstrap your evaluation suite](docs/bootstrap.md).
 - **Discovery and readiness checks.** Inventory the evaluations in a repository
   and check whether its NeMo Gym and Harbor suites are ready to run. See
   [Find existing evaluations](docs/getting-started.md#find-existing-evaluations)

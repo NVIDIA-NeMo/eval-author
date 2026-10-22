@@ -17,7 +17,7 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 @pytest.fixture
 def modules(monkeypatch):
     monkeypatch.syspath_prepend(str(SCRIPTS))
-    return importlib.import_module("journey_state"), importlib.import_module("first_eval_state")
+    return importlib.import_module("journey_state"), importlib.import_module("bootstrap_state")
 
 
 def reference(repo, path, contents="retained native evidence"):
@@ -481,7 +481,7 @@ def test_missing_credentials_retains_cases_controls_and_pending_question(modules
             "prerequisites": {"model_credentials": {"status": "missing", "source": "MODEL_KEY absent"}},
             "blockers": [{"id": "model_credentials", "phase": "create", "message": "Set MODEL_KEY"}],
             "pending_question": "Configure MODEL_KEY in the execution environment",
-            "next_handoff": "eval-author-first-eval",
+            "next_handoff": "eval-author-bootstrap",
         },
     )
     resumed = state.initialize(tmp_path, agent="support", journey="create", setup="harbor")

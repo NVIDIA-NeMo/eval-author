@@ -10,7 +10,7 @@ remain in `.eval-author/proposals/dataset-recommendations.md`.
 A proposal is provisional until the user settles its open choices; it is not
 permission to generate or run evaluations.
 
-For first evaluations, use the [first-eval conversation renderer](first-eval-conversation.md)
+For first evaluations, use the [bootstrap conversation renderer](bootstrap-conversation.md)
 for the proposal table, exact feedback question, later execution settings,
 and first-task review. Its fixed wording and ordering take precedence over the
 illustrative

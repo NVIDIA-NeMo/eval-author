@@ -60,7 +60,7 @@ _CORE_DIR = _SKILLS_DIR / "eval-author"
 _DISCOVER_DIR = _SKILLS_DIR / "eval-author-discover"
 _AUDIT_DIR = _SKILLS_DIR / "eval-author-audit"
 _TASK_CREATE_DIR = _SKILLS_DIR / "eval-author-task-create"
-_FIRST_EVAL_DIR = _SKILLS_DIR / "eval-author-first-eval"
+_BOOTSTRAP_DIR = _SKILLS_DIR / "eval-author-bootstrap"
 _INSPECT_DIR = _SKILLS_DIR / "eval-author-inspect-trace"
 _MLFLOW_TO_ATIF_DIR = _SKILLS_DIR / "mlflow-to-atif"
 _GYM_TO_ATIF_DIR = _SKILLS_DIR / "gym-to-atif"
@@ -92,7 +92,7 @@ _SKILL_DIRS = (
     _DISCOVER_DIR,
     _AUDIT_DIR,
     _TASK_CREATE_DIR,
-    _FIRST_EVAL_DIR,
+    _BOOTSTRAP_DIR,
     _INSPECT_DIR,
     _MLFLOW_TO_ATIF_DIR,
     _GYM_TO_ATIF_DIR,
@@ -103,7 +103,7 @@ _SUB_FLOW_DIRS = (
     _DISCOVER_DIR,
     _AUDIT_DIR,
     _TASK_CREATE_DIR,
-    _FIRST_EVAL_DIR,
+    _BOOTSTRAP_DIR,
     _INSPECT_DIR,
     _TRACE_ENVIRONMENT_DIR,
     _ENVIRONMENT_DIR,
@@ -907,11 +907,11 @@ def test_environment_flow_relative_links_resolve() -> None:
 def test_authoring_flows_hand_environment_work_to_the_environment_flow() -> None:
     """First-eval, its provider references, and task-create delegate environment construction."""
     link = "../eval-author-environment/SKILL.md"
-    for skill_dir in (_FIRST_EVAL_DIR, _TASK_CREATE_DIR):
+    for skill_dir in (_BOOTSTRAP_DIR, _TASK_CREATE_DIR):
         _, body = _frontmatter_and_body(skill_dir)
         assert link in body, f"{skill_dir.name} must hand environment work to {_ENVIRONMENT_DIR.name}"
-    for reference in ("harbor-first-eval.md", "gym-first-eval.md"):
-        text = (_FIRST_EVAL_DIR / "references" / reference).read_text(encoding="utf-8")
+    for reference in ("harbor-bootstrap.md", "gym-bootstrap.md"):
+        text = (_BOOTSTRAP_DIR / "references" / reference).read_text(encoding="utf-8")
         assert f"../{link}" in text, f"first-eval's {reference} must build environments from the environment kit"
 
 
@@ -954,7 +954,7 @@ def test_environment_kit_records_digests_for_preservation_checks() -> None:
 
 def test_first_eval_builds_and_proves_the_kit_before_tests() -> None:
     """Bench sessions did the stage 5 work but skipped stage 6, so the smoke proof moved into stage 5."""
-    _, body = _frontmatter_and_body(_FIRST_EVAL_DIR)
+    _, body = _frontmatter_and_body(_BOOTSTRAP_DIR)
     stage5 = body.split("## 5. Prepare tasks and grading", 1)[1].split("\n## ", 1)[0]
     stage6 = body.split("## 6. Prepare the execution environment", 1)[1].split("\n## ", 1)[0]
     assert "Build and prove the kit before the tests" in stage5
@@ -962,7 +962,7 @@ def test_first_eval_builds_and_proves_the_kit_before_tests() -> None:
     assert "../eval-author-environment/SKILL.md" in stage5
     assert "environment-plan.md" in stage6
     assert "never count as environment proof" in stage6
-    harbor = (_FIRST_EVAL_DIR / "references" / "harbor-first-eval.md").read_text(encoding="utf-8")
+    harbor = (_BOOTSTRAP_DIR / "references" / "harbor-bootstrap.md").read_text(encoding="utf-8")
     assert "in the next milestone" not in harbor, "Harbor first-eval must not defer environment/ until after the tests"
 
 
@@ -970,7 +970,7 @@ def test_harbor_tasks_build_without_the_session_kit_image() -> None:
     """Bench tasks started FROM a kit tag that existed only in the authoring session's Docker engine."""
     environment = " ".join((_ENVIRONMENT_DIR / "references" / "harbor.md").read_text(encoding="utf-8").split())
     assert "Never start a task `FROM` a locally built kit tag" in environment
-    harbor = (_FIRST_EVAL_DIR / "references" / "harbor-first-eval.md").read_text(encoding="utf-8")
+    harbor = (_BOOTSTRAP_DIR / "references" / "harbor-bootstrap.md").read_text(encoding="utf-8")
     before_controls = harbor.split("## 8. Validate the evals", 1)[1].split("```", 1)[0]
     assert "docker image rm" in before_controls, "remove the local kit image before the first control"
 
@@ -2027,7 +2027,7 @@ def test_ethos_skills_are_named_for_their_directories_and_links_resolve() -> Non
 def test_ethos_confirmation_handoff_resources_resolve() -> None:
     """Eval Author delegates to the canonical orchestrator without a second writer."""
     reference = _CORE_DIR / "references" / "ethos-confirmation.md"
-    for skill_dir in (_CORE_DIR, _FIRST_EVAL_DIR, _AUDIT_DIR):
+    for skill_dir in (_CORE_DIR, _BOOTSTRAP_DIR, _AUDIT_DIR):
         _, body = _frontmatter_and_body(skill_dir)
         links = re.findall(r"\[(?:Ethos|ETHOS\.md) confirmation\]\(([^)]+)\)", body)
         assert links, f"{skill_dir.name} has no shared Ethos handoff"
@@ -2054,7 +2054,7 @@ def test_shared_prerequisites_replace_duplicate_onboarding() -> None:
     assert "sole authority" in reference
     assert "runtime-prerequisites.md#runtime-prerequisite-checks" in reference
     assert "--flow authoring" in reference
-    for skill_dir in (_FIRST_EVAL_DIR, _AUDIT_DIR):
+    for skill_dir in (_BOOTSTRAP_DIR, _AUDIT_DIR):
         _, body = _frontmatter_and_body(skill_dir)
         assert "shared prerequisite flow" in body
 

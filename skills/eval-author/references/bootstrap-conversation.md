@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Conversation renderer for first evaluations
+# Bootstrap conversation renderer
 
 Use fixed wording and structure wherever the next message does not require judgment.
 Render the message, inspect it, and send it without paraphrasing its fixed text. Task
@@ -11,7 +11,7 @@ providers, manufacture evidence, or obtain approval. Rendering never advances st
 
 ```bash
 python <core-skill>/scripts/journey_state.py --repo <repo> show
-python <core-skill>/scripts/first_eval_conversation.py --repo <repo> \
+python <core-skill>/scripts/bootstrap_conversation.py --repo <repo> \
   --input <repo>/.eval-author/.working/conversation.json
 ```
 
@@ -19,7 +19,7 @@ python <core-skill>/scripts/first_eval_conversation.py --repo <repo> \
 document. Use `{ "stage": "proposal", "revision": <current state revision>, "facts": {} }`.
 The renderer rejects stale revisions and invalid navigation. Update evidence and
 decisions through the existing revision-checked state interface; see
-[first-eval state](first-eval-state.md). Never synthesize a user approval source.
+[bootstrap state](bootstrap-state.md). Never synthesize a user approval source.
 
 ## Optional trace choice
 

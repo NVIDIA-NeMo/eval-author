@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Build your first evaluations
+# Bootstrap your evaluation suite
 
 Use this guide when your agent has no evaluations yet. Eval Author helps you
 build evaluation tasks, review the first task before creating the rest, and run
@@ -178,7 +178,7 @@ completed first-evaluation baseline. See [Audit coverage](existing-evals.md#audi
 
 To expand later, ask to retain the current tasks and review additional behaviors,
 examples, difficulty, and rerun cost before generating them. See the
-[first-eval workflow](../skills/eval-author-first-eval/SKILL.md) for the complete
+[bootstrap workflow](../skills/eval-author-bootstrap/SKILL.md) for the complete
 implementation and [runtime requirements](getting-started.md#requirements) for
 setup. A missing selected runtime pauses full onboarding before `ETHOS.md` and
 task design; an explicit planning-only request can proceed without it.

@@ -1,5 +1,5 @@
 ---
-name: eval-author-first-eval
+name: eval-author-bootstrap
 description: >-
   For a fresh start, read eval-author, show its welcome, checklist, and call to
   action, and end the turn before repository inspection or prerequisite work.
@@ -31,7 +31,7 @@ allowed-tools: Bash Read Write Grep Glob
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Eval Author: first eval
+# Eval Author: bootstrap
 
 ## Purpose
 
@@ -52,8 +52,8 @@ tasks, distinct input examples, and repeated attempts; a repeat never adds an ex
 `case`, but do not use that term to introduce tasks to the user.
 
 Every user-facing checkpoint must use the required
-[deterministic conversation renderer](../eval-author/references/first-eval-conversation.md):
-`python <core-skill>/scripts/first_eval_conversation.py --repo <repo> --input <working-json>`.
+[deterministic conversation renderer](../eval-author/references/bootstrap-conversation.md):
+`python <core-skill>/scripts/bootstrap_conversation.py --repo <repo> --input <working-json>`.
 Supply the current journey-state revision and supported facts as the contract
 specifies. Copy its rendered Markdown verbatim; do not reconstruct, shorten,
 paraphrase, reorder, or add to its fixed messages, questions, labels, or tables.
@@ -63,7 +63,7 @@ checkpoints. Dynamic facts, links, task content, and claims require evidence.
 If state changes, refresh it and render against the current revision. This
 reference owns exact wording; the descriptions below specify when to use it.
 
-Use [First-eval state and resume](../eval-author/references/first-eval-state.md)
+Use [Bootstrap state and resume](../eval-author/references/bootstrap-state.md)
 for every checkpoint, approval, authorization, task revision, and handoff. Save
 accepted decisions before acting on them. Resume at the first unfinished stage;
 a side question is not approval, and restarting the chat does not erase a gate.
@@ -172,7 +172,7 @@ approval footer, or policy citations to this proposal. Ask for task-design feedb
 first; design approval does not authorize paid work.
 
 Save the accepted proposal and feedback using the
-[state contract](../eval-author/references/first-eval-state.md) before scaffolding,
+[state contract](../eval-author/references/bootstrap-state.md) before scaffolding,
 fixtures, instructions, graders, or delegated authoring. Unanswered task-design
 choices stop that work. Proposal-only requests end with the conversational
 proposal. Expansion
@@ -187,9 +187,9 @@ do not present execution settings, run-only blockers, or another approval gate.
 
 Read the selected provider reference for stages 5–9:
 
-- [Harbor first evals](references/harbor-first-eval.md): native tasks, reference
+- [Harbor bootstrap](references/harbor-bootstrap.md): native tasks, reference
   solutions, NOP/Oracle controls, configuration, and execution.
-- [Native NeMo Gym first evals](references/gym-first-eval.md): native components,
+- [Native NeMo Gym bootstrap](references/gym-bootstrap.md): native components,
   selected dataset rows, known-correct fixtures, controls, and execution.
 
 A combined setup uses its configured supported integration and relevant parts of
@@ -392,7 +392,7 @@ and executed through the supported actual-agent integration, and the required
 report, Markdown/task documentation, results, and rerun handoff are available.
 A low score does not prevent completion. A missing run, integration, required
 review artifact, or unfinished agreed task does. Save completion and artifacts
-using the [state contract](../eval-author/references/first-eval-state.md), then
+using the [state contract](../eval-author/references/bootstrap-state.md), then
 show the final checklist accurately. A missing optional trace does not invalidate
 a completed baseline, though it may limit a later audit.
 

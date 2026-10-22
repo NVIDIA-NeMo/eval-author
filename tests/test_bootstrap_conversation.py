@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from test_first_eval_state import (
+from test_bootstrap_state import (
     approve_plan,
     cases_ready,
     finished,
@@ -33,8 +33,8 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 def context(monkeypatch, tmp_path):
     monkeypatch.syspath_prepend(str(SCRIPTS))
     state = importlib.import_module("journey_state")
-    helper = importlib.import_module("first_eval_state")
-    conversation = importlib.import_module("first_eval_conversation")
+    helper = importlib.import_module("bootstrap_state")
+    conversation = importlib.import_module("bootstrap_conversation")
     return (state, helper), conversation, tmp_path
 
 
@@ -409,8 +409,8 @@ def test_native_gym_progress_uses_reference_fixtures(context):
 def test_harbor_workflow_retains_explicit_run_yaml_name():
     root = SCRIPTS.parents[2]
     for relative in (
-        "skills/eval-author-first-eval/SKILL.md",
-        "skills/eval-author-first-eval/references/harbor-first-eval.md",
+        "skills/eval-author-bootstrap/SKILL.md",
+        "skills/eval-author-bootstrap/references/harbor-bootstrap.md",
     ):
         source = (root / relative).read_text()
         assert ".eval-author/run.yaml" in source
@@ -487,7 +487,7 @@ def test_cli_reports_invalid_input_without_mutation(context):
     input_path = repo / "conversation.json"
     input_path.write_text(json.dumps({"stage": "proposal", "revision": 0}))
     result = subprocess.run(
-        [sys.executable, str(SCRIPTS / "first_eval_conversation.py"), "--repo", str(repo), "--input", str(input_path)],
+        [sys.executable, str(SCRIPTS / "bootstrap_conversation.py"), "--repo", str(repo), "--input", str(input_path)],
         capture_output=True,
         text=True,
     )

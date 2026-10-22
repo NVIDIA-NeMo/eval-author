@@ -10,7 +10,7 @@ not authorize bypassing the selected evaluation runner or replacing its verifier
 Use this in first-eval when evidence points to software or state
 outside the agent process: desktop applications, licensed tools, hardware, or
 external services. A tool name alone does not establish where it executes.
-Follow the [first-eval authoring stages](../../eval-author-first-eval/SKILL.md): learn the
+Follow the [first-eval authoring stages](../../eval-author-bootstrap/SKILL.md): learn the
 requirements while defining scope, implement the supported environment later,
 and verify it during validation. Scope does not require a live connection or
 finished environment configuration.

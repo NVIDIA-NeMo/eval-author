@@ -17,7 +17,7 @@ import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
-import first_eval_state
+import bootstrap_state
 import journey_state
 from markdown_it import MarkdownIt
 
@@ -120,7 +120,7 @@ def artifact(repo: Path, value: object, label: str, *, fragment: bool = False) -
     """Resolve an existing local target, verifying any actual navigation anchor."""
     value = text(value, label)
     relative, _, anchor = value.partition("#")
-    path = first_eval_state._path(repo, relative)
+    path = bootstrap_state._path(repo, relative)
     if not path.is_file():
         raise ValueError(f"{label} does not exist: {relative}")
     if fragment and not anchor:
@@ -191,7 +191,7 @@ def proposal(record: dict) -> str:
 
 
 def execution_settings(record: dict) -> str:
-    settings = first_eval_state.execution_settings(record)
+    settings = bootstrap_state.execution_settings(record)
     questions = settings.get("open_questions")
     if not isinstance(questions, list):
         raise ValueError("Execution settings need open_questions, including an empty list when resolved")
@@ -375,7 +375,7 @@ def render(repo: Path, payload: dict) -> str:
         if state["blockers"] and not facts.get("blockers"):
             raise ValueError("Saved blockers must be explained with a specific needed action")
         return result + "\n"
-    progress = first_eval_state.progress(repo, state)
+    progress = bootstrap_state.progress(repo, state)
     if progress is None:
         raise ValueError("Save a first-evaluation proposal record before rendering")
     record = state["scopes"]["create"]["first_eval"]

@@ -19,7 +19,7 @@ triggers:
   - propose dataset improvements from audit findings
   - suggest new evals based on this audit
 not-for:
-  - eval-author-first-eval (use when the user has no evaluations yet)
+  - eval-author-bootstrap (use when the user has no evaluations yet)
   - eval-author (use for the shared standard and routing)
   - eval-author-audit (use to create the denominator and coverage report)
   - eval-author-discover (use to prove an existing suite is runnable)

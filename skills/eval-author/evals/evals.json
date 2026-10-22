@@ -16,9 +16,9 @@
     {
       "id": "router-implicit-first-eval",
       "prompt": "My agent has no evaluation suite and no ETHOS.md. For now, just tell me the appropriate workflow for building my first evals and its first prerequisite. Do not run commands or create files.",
-      "expected_output": "Route to eval-author-first-eval through shared setup and Ethos confirmation before constructing a starter suite. Begin with the agent and evaluation setup, then establish intended behavior through ethos-orchestrate. Production traces and an existing coverage audit are not prerequisites. This explanation-only request does not start onboarding.",
+      "expected_output": "Route to eval-author-bootstrap through shared setup and Ethos confirmation before constructing a starter suite. Begin with the agent and evaluation setup, then establish intended behavior through ethos-orchestrate. Production traces and an existing coverage audit are not prerequisites. This explanation-only request does not start onboarding.",
       "assertions": [
-        "Selects eval-author-first-eval.",
+        "Selects eval-author-bootstrap.",
         "Identifies shared setup and Ethos confirmation, starting with the agent and evaluation setup, rather than an independent Ethos interview.",
         "Does not claim evaluations were built or executed."
       ],

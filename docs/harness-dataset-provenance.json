@@ -221,7 +221,7 @@
     "origin": "Authored in this repository; not imported from the source_repository or source_cohort above",
     "cases": [
       {
-        "skill": "eval-author-first-eval",
+        "skill": "eval-author-bootstrap",
         "id": "first-eval-shared-entry-gym",
         "basis": [
           "skills/eval-author/SKILL.md",
@@ -231,7 +231,7 @@
         "scope": "NeMo Gym opening-only first response for first evaluations through the direct skill entry"
       },
       {
-        "skill": "eval-author-first-eval",
+        "skill": "eval-author-bootstrap",
         "id": "first-eval-shared-entry-harbor",
         "basis": [
           "skills/eval-author/SKILL.md",
@@ -268,7 +268,7 @@
         "description": "Synthetic agent documentation; no runtime evidence or confirmed Ethos"
       },
       {
-        "path": "skills/eval-author-first-eval/evals/files/README.md",
+        "path": "skills/eval-author-bootstrap/evals/files/README.md",
         "sha256": "8c5794d710fadab7b78242b6aac298dbeda3073d0dfdd09d616f11e60bc5d04e",
         "description": "Synthetic agent documentation; no runtime evidence or confirmed Ethos"
       }

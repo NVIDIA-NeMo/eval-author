@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Native NeMo Gym first evals
+# Native NeMo Gym bootstrap
 
 Use this reference for native NeMo Gym stages 5–9. Preserve the parent skill's
 conversation, first-task approval, state, and completion requirements. No audit

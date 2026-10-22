@@ -93,7 +93,7 @@ instructions. The individual skill files document each workflow in detail.
 | --- | --- |
 | [`ethos-orchestrate`](team-skills/ethos/ethos-orchestrate/SKILL.md), [`ethos-explore`](team-skills/ethos/ethos-explore/SKILL.md), [`ethos-write`](team-skills/ethos/ethos-write/SKILL.md) | Route, explore intended behavior, then write and validate an ETHOS.md. Installed separately. |
 | [`eval-author`](skills/eval-author/SKILL.md) | Entry point and shared workflow guidance. |
-| [`eval-author-first-eval`](skills/eval-author-first-eval/SKILL.md) | Plan, build, and validate a small starter evaluation suite. |
+| [`eval-author-bootstrap`](skills/eval-author-bootstrap/SKILL.md) | Plan, build, and validate a small starter evaluation suite. |
 | [`eval-author-discover`](skills/eval-author-discover/SKILL.md) | Inventory evaluations and check Harbor readiness. |
 | [`eval-author-audit`](skills/eval-author-audit/SKILL.md) | Define intended behavior and measure coverage against trace evidence. |
 | [`eval-author-task-create`](skills/eval-author-task-create/SKILL.md) | Propose improvements from an audit and create a supported task when requested. |

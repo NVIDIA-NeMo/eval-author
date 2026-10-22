@@ -37,7 +37,7 @@ triggers:
   - create an evaluation environment from a trace
   - which eval author step do I need
 not-for:
-  - eval-author-first-eval (use to establish Ethos and build first evals without prior coverage or traces)
+  - eval-author-bootstrap (use to establish Ethos and build first evals without prior coverage or traces)
   - eval-author-discover (use to run the discovery pass and get a runnable verdict)
   - eval-author-audit (use to generate, validate, measure, or aggregate audit.md coverage)
   - eval-author-task-create (use to propose dataset improvements; when task creation is requested, create and prove an eligible NeMo Gym or Harbor task)
@@ -106,7 +106,7 @@ rather than repeating this pause.
 
 | Request | Route after shared prerequisites and Ethos |
 |---|---|
-| Build first evals | `eval-author-first-eval`, continuing at the first unfinished authoring stage |
+| Build first evals | `eval-author-bootstrap`, continuing at the first unfinished authoring stage |
 | Audit coverage | `eval-author-audit`, continuing with eval and trace selection |
 | Improve or expand evals | Preserve the expansion goal and use the expansion handoff below; an audit is optional |
 
@@ -117,7 +117,7 @@ welcome or unchanged document review. Apply audit-specific prerequisite checks
 and source selection before measurement; missing audit evidence blocks the audit
 without undoing completed creation. Offering the invitation or a declined reply
 does not start audit work. Audit acceptance does not authorize expansion or new
-paid runs. Follow [first-eval state](references/first-eval-state.md) for the saved
+paid runs. Follow [bootstrap state](references/bootstrap-state.md) for the saved
 invitation decision and handoff.
 
 When the goal is unclear, ask “What would you like to do?” and present these
@@ -278,7 +278,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 
 | Sub-flow | Use it to |
 |---|---|
-| `eval-author-first-eval` | Confirm prerequisites and Ethos, plan cases, and build or expand a starter suite at the agreed breadth while teaching the user how to run it |
+| `eval-author-bootstrap` | Confirm prerequisites and Ethos, plan cases, and build or expand a starter suite at the agreed breadth while teaching the user how to run it |
 | `eval-author-discover` | Establish whether a repository's evaluations run, name the rung that fails, and get the exact command to run them |
 | `eval-author-audit` | Generate and validate a finite `audit.md` coverage denominator, measure and aggregate trace coverage, and report findings |
 | `eval-author-task-create` | Propose concrete dataset improvements from audit findings; when task creation is requested, create one eligible NeMo Gym or Harbor task and prove it with native controls and repeated measured runs |
@@ -369,7 +369,7 @@ user, not to you.
   requested audit artifacts; `eval-author-task-create` writes only drafts,
   proposals, job outputs, and measurements there; `eval-author-trace-environment`
   writes only private, gitignored task workspaces there.
-  `eval-author-first-eval` writes plans, drafts, configs, and jobs there and uses
+  `eval-author-bootstrap` writes plans, drafts, configs, and jobs there and uses
   the narrow Ethos write exception above. `eval-author-environment` writes
   environment kits, generated data, and smoke tasks under
   `.eval-author/.working/environments/`, copying any repository file it needs.

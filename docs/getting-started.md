@@ -106,7 +106,7 @@ eval-author
 eval-author-audit
 eval-author-discover
 eval-author-environment
-eval-author-first-eval
+eval-author-bootstrap
 eval-author-inspect-trace
 eval-author-task-create
 eval-author-trace-environment
@@ -275,7 +275,7 @@ report records that result and the scope inspected.
 
 To continue, [check an existing suite](existing-evals.md#check-readiness),
 [audit its coverage](existing-evals.md#audit-coverage), or
-[build your first evaluations](first-evals.md).
+[bootstrap your evaluation suite](bootstrap.md).
 
 ## Requirements
 
@@ -288,7 +288,7 @@ you need to create, validate, or run Harbor tasks.
 | Read repository docs or explicitly request case planning only | Your coding agent and repository access. No evaluation runtime is required for this scoped work. |
 | Start full creation or improvement onboarding | The selected supported NeMo Gym or Harbor runtime, verified before Ethos and case planning. |
 | Run the discovery helper | Python 3.11+. Harbor configs/tasks need Harbor importable by that interpreter; native NeMo Gym manifests need a NeMo Gym v0.6.0+ CLI. Execution checks need the selected backend and task dependencies; Docker is needed for Docker-backed tasks. |
-| Build first evals with native NeMo Gym | NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment; no audit report required. See [first evals](first-evals.md). Execution needs the actual agent integration and configured model access. |
+| Build first evals with native NeMo Gym | NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment; no audit report required. See the [bootstrap guide](bootstrap.md). Execution needs the actual agent integration and configured model access. |
 | Create a NeMo Gym task from an audit gap | An existing actionable coverage report and an installed NeMo Gym v0.6.0+ runtime in Python 3.13.14+. See the [NeMo Gym task-authoring guide](../skills/eval-author-task-create/references/gym-tasks.md). Execution needs the task components and actual agent/model configuration. |
 | Create, validate, and run Harbor tasks | Harbor and its supported Python environment. Execution also needs the selected backend and any application access, agent integration, and provider credentials required by the task. |
 | Build and prove a task environment | Repository access for the fit check and inventory. Harbor environments need Harbor and Docker with Compose for sidecar services; NeMo Gym environments need the NeMo Gym runtime above. Vendor sandboxes need your authorization and credentials, supplied by variable name. |

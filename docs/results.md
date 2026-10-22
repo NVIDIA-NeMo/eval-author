@@ -89,7 +89,7 @@ Task controls check the task and its verifier: NeMo Gym's known-correct and nega
 verifier fixtures, or Harbor's no-op baseline and reference solution. Results
 from running your actual agent are separate evidence of its performance.
 A valid task, a working environment, and a successful agent run are distinct
-outcomes. See [Build your first evaluations](first-evals.md).
+outcomes. See [Bootstrap your evaluation suite](bootstrap.md).
 
 ## Open readable cases and traces
 

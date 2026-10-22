@@ -310,7 +310,7 @@ case descriptions, and evidence links outside the generated markers. Neither
 provider's reporting workflow replaces those sections.
 
 First-evaluation conversations use the deterministic
-[conversation renderer](first-eval-conversation.md). Use `ETHOS.md` when naming
+[conversation renderer](bootstrap-conversation.md). Use `ETHOS.md` when naming
 the intended-behavior document, **tasks** for proposed or created evaluations,
 **examples** for distinct inputs, and **attempts** for repeated executions.
 For new first-eval suite guides, use an authored `## Rerun evaluations` section

@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import first_eval_state  # noqa: E402
+import bootstrap_state  # noqa: E402
 from runtime_policy import load as runtime_policy  # noqa: E402
 from working_paths import (  # noqa: E402
     atomic_write,
@@ -200,7 +200,7 @@ def validate(state: dict) -> None:
             raise ValueError(f"Invalid {field}")
     create_scope = state["scopes"].get("create", {})
     if isinstance(create_scope, dict) and "first_eval" in create_scope:
-        first_eval_state.validate(create_scope["first_eval"])
+        bootstrap_state.validate(create_scope["first_eval"])
     if any(value not in ("pending", "in_progress", "complete") for value in state["journey_status"].values()):
         raise ValueError("Invalid journey completion status")
     if not isinstance(state["blockers"], list):
@@ -285,6 +285,10 @@ def load_state(repo: Path) -> dict:
     validate(state)
     if state["repository"] != str(repo):
         raise ValueError("Journey state belongs to another repository; do not reuse its approvals")
+    # Resolve the former skill name in memory so saved handoffs still resume
+    # after the rename. Read-only inspection must preserve the original file.
+    if state["next_handoff"] == "eval-author-first-eval":
+        state["next_handoff"] = "eval-author-bootstrap"
     confirmed = state["ethos"]["confirmed_digest"]
     if confirmed:
         try:
@@ -314,7 +318,7 @@ def load_state(repo: Path) -> dict:
             state["next_handoff"] = "ethos-orchestrate"
             state["pending_question"] = "The agreed draft changed or is unavailable; review the draft before writing."
     if state["journey_status"].get("create") == "complete":
-        creation = first_eval_state.progress(repo, state)
+        creation = bootstrap_state.progress(repo, state)
         if creation is None or not creation["complete"]:
             state["journey_status"]["create"] = "in_progress"
     return state
@@ -337,7 +341,7 @@ def checklist(state: dict) -> list[dict]:
     ethos_done = state["ethos"]["stage"] == "complete" and "ethos" not in blocked
     completed = state["journey_status"].get(journey) == "complete" and journey not in blocked
     if journey == "create":
-        creation = first_eval_state.progress(Path(state["repository"]), state)
+        creation = bootstrap_state.progress(Path(state["repository"]), state)
         completed = bool(completed and creation and creation["complete"])
     rows = [
         {
@@ -383,7 +387,7 @@ def view(state: dict) -> dict:
         "checklist": checklist(state) if state["journey"] else [],
         "runtime_requirements": requirements,
         "confirmation_is_runtime_evidence": False,
-        "first_eval": first_eval_state.progress(Path(state["repository"]), state),
+        "first_eval": bootstrap_state.progress(Path(state["repository"]), state),
     }
 
 
@@ -493,8 +497,8 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None) -> 
             state["ethos"]["validation"] = None
             invalidate_scopes(state)
         validate(state)
-        first_eval_state.transition(repo, previous, state)
-        creation = first_eval_state.progress(repo, state)
+        bootstrap_state.transition(repo, previous, state)
+        creation = bootstrap_state.progress(repo, state)
         if patch.get("journey_status", {}).get("create") == "complete" and creation and not creation["complete"]:
             raise ValueError("First-eval completion requires the current selected agent run and its exact review")
         if state["ethos"]["draft_confirmed"] and state["ethos"]["stage"] != "complete":
