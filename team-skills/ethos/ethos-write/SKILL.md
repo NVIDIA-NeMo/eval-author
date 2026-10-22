@@ -43,6 +43,10 @@ and how to weigh a win on one metric against a loss on another.
 
 ## Location
 
+On continuation, reuse the selected file location from
+[prior context](../ethos-orchestrate/SKILL.md#continue-from-prior-context).
+Do not ask for another path or create another copy. Otherwise:
+
 The ETHOS.md is a local file in the agent's repository, committed alongside
 the code it describes. Use the path the user names. Otherwise reuse an
 existing ETHOS.md. Otherwise write
@@ -91,15 +95,25 @@ The parser cannot catch a vague `Role`, which is why this skill enforces it
 upstream: the user sees a clear gap-question instead of a file that validates
 and then helps nobody.
 
+## Continue from prior context
+
+Follow the orchestrator's [continuation guidance](../ethos-orchestrate/SKILL.md#continue-from-prior-context).
+Reuse confirmed answers and completed focus checks, including an honest
+`_(none)_` the user accepted. Recover the exact accepted draft before writing;
+if it is missing or changed, return to draft review without restarting the
+interview. For a requested revision, show the proposed changes in context and
+obtain confirmation before writing. A saved-file review does not authorize a rewrite.
+
 ## What you do
 
 1. **Confirm the agent name.** Short and recognizable: `it-helpdesk`,
    `support-triage`, `code-reviewer`. If the user has not named it, propose
-   two options based on the role.
+   two options based on the role. Reuse a name already confirmed in prior context.
 
 2. **Pre-flight: locate the file.** Resolve `ETHOS_PATH` as described in
    [Location](#location). If a file already exists there, ask the user whether
-   to edit it or start over.
+   to edit it or start over unless prior context already establishes the
+   operation. An existing-file review does not authorize a rewrite.
 
    ```bash
    find . -maxdepth 4 -iname ETHOS.md -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null | grep . || echo "ethos_new"
@@ -135,8 +149,10 @@ and then helps nobody.
    `references/templates/ETHOS.md` as the starting point. Substitute
    every section from the `ethos-explore` answers. Set front matter as:
    `schema_version` = `1`, `name` = the canonical agent name,
-   `created_timestamp` = current UTC timestamp in ISO 8601 form, and `author` =
-   the human or coding agent creating the file. Add `owner` when a human or
+   `created_timestamp` = current UTC timestamp in ISO 8601 form on first write
+   (preserve the existing value on edits), and `author` =
+   the human or coding agent creating the file on first write (preserve the
+   original creation author on edits). Add `owner` when a human or
    team is accountable for the agent's behavioral or safety approvals named in
    `Behavior` or `Constraints`, including a known owner of an already-confirmed
    organizational safety policy.
@@ -150,6 +166,10 @@ and then helps nobody.
    for agents and humans to read directly.
 
 5. **Write the file.** Write to `ETHOS_PATH`, creating its directory if needed.
+   A continuation must satisfy its draft-confirmation gate first.
+   Preserve `author` and `created_timestamp` on edits, along with custom sections and
+   extra front-matter keys. Skip writing when validating or reviewing an
+   unchanged existing file; do not update its timestamp just for reuse.
 
 6. **Validate.** Run the bundled validator and surface any warnings to the
    user. A failure means the file is malformed; fix the named problem before
@@ -180,12 +200,16 @@ and then helps nobody.
 
    Then print the full file contents and ask: "Does this match what we
    agreed? Edit anything you want to change." If the user edits, repeat
-   steps 5–7, including a fresh gut-check.
+   steps 5–7, including a fresh gut-check. On continuation, confirm
+   any revised draft before writing it. Reuse a prior final review only under
+   the unchanged-file conditions above.
 
 8. **Hand off.** Once confirmed, tell the user where the file is and that it is
    ready to commit. It is now the reference for evaluating, reviewing, or
    changing this agent. When intent changes, edit it in place and set
-   `updated_timestamp`.
+   `updated_timestamp`. On continuation, return the confirmed path,
+   validation result, unresolved questions, and what the user confirmed to
+   the invoking conversation or workflow.
 
 ## Verification
 
