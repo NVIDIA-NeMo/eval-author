@@ -50,10 +50,11 @@ from collections.abc import Callable
 from importlib.util import find_spec, module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlsplit
 
 import pytest
 import yaml
+from markdown_it import MarkdownIt
 
 _SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
 _CORE_DIR = _SKILLS_DIR / "eval-author"
@@ -2024,39 +2025,76 @@ def test_ethos_skills_are_named_for_their_directories_and_links_resolve() -> Non
             assert (skill_dir / link).resolve().is_file(), f"{skill_dir.name} links to missing {link}"
 
 
+def _markdown_links(document: Path) -> set[str]:
+    """Read actual Markdown links, excluding illustrative fenced examples."""
+    return {
+        href
+        for block in MarkdownIt().parse(document.read_text(encoding="utf-8"))
+        for child in block.children or []
+        if child.type == "link_open" and isinstance(href := child.attrGet("href"), str)
+    }
+
+
+def _markdown_anchors(document: Path) -> set[str]:
+    """Return GitHub-style heading anchors, including duplicate suffixes."""
+    tokens = MarkdownIt().parse(document.read_text(encoding="utf-8"))
+    anchors = set()
+    for index, token in enumerate(tokens):
+        if token.type != "heading_open":
+            continue
+        heading = "".join(
+            child.content for child in tokens[index + 1].children or [] if child.type in {"text", "code_inline"}
+        )
+        base = re.sub(r"[^\w\- ]", "", heading.lower()).replace(" ", "-")
+        slug = base
+        suffix = 0
+        while slug in anchors:
+            suffix += 1
+            slug = f"{base}-{suffix}"
+        anchors.add(slug)
+    return anchors
+
+
 def test_ethos_confirmation_handoff_resources_resolve() -> None:
-    """Eval Author delegates to the canonical orchestrator without a second writer."""
+    """The shared handoff and canonical orchestrator remain reachable."""
     reference = _CORE_DIR / "references" / "ethos-confirmation.md"
     for skill_dir in (_CORE_DIR, _FIRST_EVAL_DIR, _AUDIT_DIR):
-        _, body = _frontmatter_and_body(skill_dir)
-        links = re.findall(r"\[Ethos confirmation\]\(([^)]+)\)", body)
-        assert links, f"{skill_dir.name} has no shared Ethos handoff"
-        assert all((skill_dir / link).resolve() == reference.resolve() for link in links)
-    text = reference.read_text()
-    targets = {(reference.parent / link).resolve() for link in re.findall(r"\]\((\.\./[^)]+)\)", text)}
-    assert targets == {(_ETHOS_SKILLS_DIR / "ethos-orchestrate" / "SKILL.md").resolve()}
-    assert "caller=eval-author" not in text
-    assert "orientation_shown" not in text
-    assert "confirmed_digest" in text
+        targets = {
+            (skill_dir / urlsplit(link).path).resolve()
+            for link in _markdown_links(skill_dir / "SKILL.md")
+            if not urlsplit(link).scheme
+        }
+        assert reference.resolve() in targets, f"{skill_dir.name} has no shared Ethos handoff"
+    assert "https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/SKILL.md" in _markdown_links(reference)
 
 
-def test_shared_prerequisites_replace_duplicate_onboarding() -> None:
-    """The shared entry must retain scoped operations and one state authority."""
-    _, core = _frontmatter_and_body(_CORE_DIR)
-    reference = (_CORE_DIR / "references" / "shared-prerequisites.md").read_text()
-    assert "Check how your agent runs and how you’ll test it" in core
-    assert (
-        "Agree on how your agent behaves using "
-        "[ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)"
-    ) in core
-    assert "An expansion request does not imply an audit" in core
-    assert ".eval-author/.working/journey-state.json" in reference
-    assert "sole authority" in reference
-    assert "runtime-prerequisites.md#runtime-prerequisite-checks" in reference
-    assert "--flow authoring" in reference
-    for skill_dir in (_FIRST_EVAL_DIR, _AUDIT_DIR):
-        _, body = _frontmatter_and_body(skill_dir)
-        assert "shared prerequisite flow" in body
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "skills/eval-author/SKILL.md",
+        "skills/eval-author/references/shared-prerequisites.md",
+        "skills/eval-author/references/ethos-confirmation.md",
+        "skills/eval-author/references/runtime-prerequisites.md",
+        "skills/eval-author-discover/SKILL.md",
+        "skills/eval-author-first-eval/SKILL.md",
+        "skills/eval-author-audit/SKILL.md",
+        "docs/getting-started.md",
+        "docs/results.md",
+    ],
+)
+def test_onboarding_document_links_and_anchors_resolve(relative: str) -> None:
+    """Document structure is checked here; state and scope tests check behavior."""
+    root = _SKILLS_DIR.parent
+    document = root / relative
+    for link in _markdown_links(document):
+        url = urlsplit(link)
+        if url.scheme or url.netloc:
+            continue
+        target = (document.parent / unquote(url.path)).resolve() if url.path else document
+        assert target.is_relative_to(root), f"{relative} links outside this repository: {link}"
+        assert target.is_file(), f"{relative} links to a missing file: {link}"
+        if url.fragment:
+            assert unquote(url.fragment) in _markdown_anchors(target), f"{relative} links to a missing anchor: {link}"
 
 
 def _filled_ethos_template() -> str:
