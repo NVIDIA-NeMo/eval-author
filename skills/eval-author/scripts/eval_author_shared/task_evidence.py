@@ -16,10 +16,15 @@ import json
 import math
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
+
+from . import construction
+from . import workspace_contract as _workspace
 
 SCHEMA = "nemo.eval_author.task_evidence.v1"
 MANIFEST_SCHEMA = "nemo.eval_author.task_evidence.v2"
@@ -527,8 +532,6 @@ def main() -> int:
 def _job_check_rows(job_dir: Path) -> list[dict[str, str]] | None:
     """Parse retained per-check rows from a Harbor job, when the verifier emitted them."""
 
-    from . import trace_workspace as _workspace
-
     paths = sorted(
         path for path in job_dir.glob("task__*/verifier/results") if path.is_file() and not path.is_symlink()
     )
@@ -561,8 +564,6 @@ def _probes_path(task_dir: Path) -> Path:
 
 
 def _load_probes(task_dir: Path) -> list[dict[str, Any]]:
-    from . import trace_workspace as _workspace
-
     path = _probes_path(task_dir)
     if not path.is_file():
         return []
@@ -583,8 +584,6 @@ def _record_probe(
     reward: Any,
     checks: list[dict[str, str]] | None,
 ) -> dict[str, Any]:
-    from . import trace_workspace as _workspace
-
     entries = _load_probes(task_dir)
     revision = [entry for entry in entries if entry["arm"] == arm and entry["task_tree_sha256"] == task_digest]
     if len(revision) >= _workspace._MAX_PROBES_PER_REVISION:
@@ -613,8 +612,6 @@ def _record_probe(
 
 
 def _probe(args: argparse.Namespace) -> dict[str, Any]:
-    from . import trace_workspace as _workspace
-
     task_dir = _workspace._ensure_task_dir(args.task_dir)
     try:
         _workspace._validate_task(task_dir)
@@ -641,7 +638,7 @@ def _probe(args: argparse.Namespace) -> dict[str, Any]:
             if identity != arm:
                 raise _workspace.ContractError(f"probe {arm} job must identify the {arm} agent")
         else:
-            harbor = _workspace.shutil.which("harbor")
+            harbor = shutil.which("harbor")
             if harbor is None:
                 results.append(
                     {
@@ -708,8 +705,6 @@ def _probe(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _repairs(task_dir: Path) -> list[dict[str, Any]]:
-    from . import trace_workspace as _workspace
-
     root = task_dir / "private" / "repairs"
     if not root.is_dir():
         return []
@@ -751,8 +746,6 @@ def _repairs(task_dir: Path) -> list[dict[str, Any]]:
 
 
 def _record_repair(args: argparse.Namespace) -> dict[str, Any]:
-    from . import trace_workspace as _workspace
-
     task_dir = _workspace._ensure_task_dir(args.task_dir)
     if args.reason_code not in _workspace._REPAIR_REASON_CODES:
         raise _workspace.ContractError(
@@ -781,7 +774,7 @@ def _record_repair(args: argparse.Namespace) -> dict[str, Any]:
         )
     # Resolve and snapshot every input before changing any live report. A stale
     # active contract must not strand reports in a half-written repair archive.
-    active_contract = _workspace.construction.active_path(task_dir)
+    active_contract = construction.active_path(task_dir)
     marker = task_dir / "private/active-construction.json"
     sources = {
         "validation.json": validation_path,
@@ -809,7 +802,7 @@ def _record_repair(args: argparse.Namespace) -> dict[str, Any]:
     if archive.exists() or receipt_path.exists():
         raise _workspace.ContractError("repair archive already exists; retain it for recovery")
     _workspace._mkdir_private(archive.parent)
-    with _workspace.tempfile.TemporaryDirectory(prefix="repair-stage-", dir=archive.parent) as temporary:
+    with tempfile.TemporaryDirectory(prefix="repair-stage-", dir=archive.parent) as temporary:
         staged = Path(temporary)
         for name, data in snapshots.items():
             _workspace._write_bytes_once(staged / name, data)
@@ -848,8 +841,6 @@ def _record_repair(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _job_result(task_dir: Path, value: str | Path, *, arm: str) -> tuple[Path, Path, dict[str, Any]]:
-    from . import trace_workspace as _workspace
-
     job_dir = Path(value)
     if not job_dir.is_absolute():
         job_dir = task_dir / job_dir
@@ -871,8 +862,6 @@ def _job_result(task_dir: Path, value: str | Path, *, arm: str) -> tuple[Path, P
 def _harbor_task_checksum(task_dir: Path) -> str:
     # Let Harbor own task validation and checksum semantics. This is separate
     # from our full-tree digest, which additionally covers executable bits.
-    from . import trace_workspace as _workspace
-
     try:
         from harbor.models.task.task import Task
     except ImportError as error:
@@ -891,10 +880,8 @@ def _run_input_path(task_dir: Path, job_dir: Path) -> Path:
 
 
 def _construction_context(task_dir: Path) -> dict[str, Any] | None:
-    from . import trace_workspace as _workspace
-
     summary = _workspace._load_summary(task_dir)
-    path = task_dir / _workspace.construction.PATH
+    path = task_dir / construction.PATH
     if summary["schema"] == _workspace.SCHEMA:
         marker = task_dir / "private/active-construction.json"
         if path.exists() or path.is_symlink() or marker.exists() or marker.is_symlink():
@@ -903,18 +890,16 @@ def _construction_context(task_dir: Path) -> dict[str, Any] | None:
             )
         return None
     try:
-        return _workspace.construction.validate(task_dir)
+        return construction.validate(task_dir)
     except (ValueError, OSError, KeyError, TypeError, RecursionError) as error:
         raise _workspace.ContractError(
             f"construction contract invalid: {error}"
-            if isinstance(error, _workspace.construction.ConstructionError)
+            if isinstance(error, construction.ConstructionError)
             else "construction contract malformed or unreadable"
         ) from error
 
 
 def _agent_identity(config: Any) -> str:
-    from . import trace_workspace as _workspace
-
     if not isinstance(config, dict):
         raise _workspace.ContractError("Harbor result must record config.agent")
     name, import_path = config.get("name"), config.get("import_path")
@@ -933,8 +918,6 @@ def _agent_identity(config: Any) -> str:
 
 
 def _proof_control(task_dir: Path, agent: str, source: Path, rationale: str, *, arm: str) -> dict[str, Any]:
-    from . import trace_workspace as _workspace
-
     identity = _agent_identity({"name": agent})
     if identity in ("nop", "oracle") or re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*:[A-Za-z_]\w*", identity) is None:
         raise _workspace.ContractError(
@@ -962,8 +945,6 @@ def _proof_control(task_dir: Path, agent: str, source: Path, rationale: str, *, 
 
 
 def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
-    from . import trace_workspace as _workspace
-
     task_dir = _workspace._ensure_task_dir(args.task_dir)
     job_dir = args.job_dir if args.job_dir.is_absolute() else task_dir / args.job_dir
     if job_dir.is_symlink():
@@ -985,7 +966,7 @@ def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
     reproducibility = _workspace._validate_reproducibility(task_dir)
     context = _construction_context(task_dir)
     control_id = getattr(args, "control_id", None)
-    if context is not None and args.arm in _workspace.construction.CUSTOM_ARMS:
+    if context is not None and args.arm in construction.CUSTOM_ARMS:
         if control_id not in context["controls"] or context["controls"][control_id]["arm"] != args.arm:
             raise _workspace.ContractError("custom proof arm requires a matching declared --control-id")
     elif context is not None and control_id is not None:
@@ -993,7 +974,7 @@ def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
     elif control_id is not None or args.arm in ("alternative", "bypass"):
         raise _workspace.ContractError("control IDs, alternative and bypass arms require a construction contract")
     control = None
-    if args.arm in _workspace.construction.CUSTOM_ARMS:
+    if args.arm in construction.CUSTOM_ARMS:
         if not args.negative_agent or args.negative_source is None or not args.negative_rationale:
             raise _workspace.ContractError(
                 f"{args.arm} run inputs require --control-agent, --control-source and --control-rationale"
@@ -1031,8 +1012,6 @@ def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
 def _validate_run_inputs(
     task_dir: Path, job_dir: Path, arm: str, result: dict[str, Any], task_digest: str, checksum: str
 ) -> dict[str, Any]:
-    from . import trace_workspace as _workspace
-
     path = _run_input_path(task_dir, job_dir)
     receipt = _workspace._load_object(
         path, label="pre-run inputs (record-run-inputs is required before every Harbor job)"
@@ -1061,7 +1040,7 @@ def _validate_run_inputs(
             _workspace.ContractError,
         )
         control_id = receipt["control_id"]
-        if arm in _workspace.construction.CUSTOM_ARMS:
+        if arm in construction.CUSTOM_ARMS:
             if (
                 not isinstance(control_id, str)
                 or control_id not in context["controls"]
@@ -1085,7 +1064,7 @@ def _validate_run_inputs(
     config = result.get("config")
     identity = _agent_identity(config.get("agent") if isinstance(config, dict) else None)
     control = receipt["negative_control"]
-    if arm in _workspace.construction.CUSTOM_ARMS:
+    if arm in construction.CUSTOM_ARMS:
         if not isinstance(control, dict) or set(control) != {"agent", "source_path", "source_sha256", "rationale"}:
             raise _workspace.ContractError(f"{arm} run inputs require retained control source and rationale")
         if not isinstance(control["agent"], str) or not isinstance(control["source_path"], str):
@@ -1107,8 +1086,6 @@ def _validate_run_inputs(
 
 
 def _arm_from_result(task_dir: Path, job_dir: Path, result_path: Path, result: dict[str, Any]) -> dict[str, Any]:
-    from . import trace_workspace as _workspace
-
     verifier_result = result.get("verifier_result")
     rewards = verifier_result.get("rewards") if isinstance(verifier_result, dict) else None
     reward = rewards.get("reward") if isinstance(rewards, dict) else None
@@ -1140,8 +1117,6 @@ def _validation_from_jobs(
     alternative_job_dirs: list[str | Path] | None = None,
     bypass_job_dirs: list[str | Path] | None = None,
 ) -> dict[str, Any]:
-    from . import trace_workspace as _workspace
-
     if not isinstance(harbor_version, str) or not harbor_version.strip():
         raise _workspace.ContractError("Harbor version must be nonempty text")
     task_contract = _workspace._validate_task(task_dir)
@@ -1184,7 +1159,7 @@ def _validation_from_jobs(
             if context is not None:
                 receipt = _workspace._load_object(_run_input_path(task_dir, job_dir), label="run inputs")
                 try:
-                    run["construction_execution"] = _workspace.construction.execution(
+                    run["construction_execution"] = construction.execution(
                         task_dir, result_path, context, receipt["control_id"]
                     )
                 except (ValueError, OSError, KeyError, TypeError, RecursionError) as error:
@@ -1257,8 +1232,8 @@ def _validation_from_jobs(
     qualification = None
     if context is not None:
         try:
-            qualification = _workspace.construction.qualify(context, runs)
-        except (_workspace.construction.ConstructionError, KeyError, TypeError) as error:
+            qualification = construction.qualify(context, runs)
+        except (construction.ConstructionError, KeyError, TypeError) as error:
             raise _workspace.ContractError(f"construction qualification failed: {error}") from error
         passed = passed and qualification["status"] == "passed"
     report = {
@@ -1295,8 +1270,6 @@ def _copy_probe_summary(validation: dict[str, Any]) -> dict[str, Any]:
 
 
 def _record_validation(args: argparse.Namespace) -> dict[str, Any]:
-    from . import trace_workspace as _workspace
-
     task_dir = _workspace._ensure_task_dir(args.task_dir)
     validation_path = task_dir / "validation.json"
     if validation_path.exists():
@@ -1326,8 +1299,6 @@ def _record_validation(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _validate_validation(task_dir: Path) -> dict[str, Any]:
-    from . import trace_workspace as _workspace
-
     recorded = _workspace._load_object(task_dir / "validation.json", label="environment validation")
     expected_keys = {
         "schema",

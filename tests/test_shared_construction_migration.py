@@ -203,3 +203,66 @@ def test_admission_keeps_rejected_sources_without_task_or_execution(tmp_path):
     assert result["disposition"] == "no_candidate"
     assert result["readiness"] == "not_attempted"
     assert not (root / "task").exists()
+
+
+def test_qualification_without_legacy_skill_or_workspace_orchestration(tmp_path):
+    """Copied core validates the same retained proof without loading the CLI layer."""
+    import subprocess
+
+    helpers = load_helpers()
+    root, manifest = helpers.workspace(tmp_path)
+    jobs = helpers.proof(root, manifest)
+    expected = helpers.validate(root, jobs)
+    installed = tmp_path / "installed"
+    shutil.copytree(ROOT / "skills/eval-author/scripts/eval_author_shared", installed / "eval_author_shared")
+    script = r"""
+import json, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from eval_author_shared import task_evidence as evidence
+root = Path(sys.argv[2])
+jobs = {key: [Path(p) for p in paths] for key, paths in json.loads(sys.argv[3]).items()}
+result = evidence._validation_from_jobs(
+    root, jobs['nop'], jobs['oracle'], jobs['negative'], 'synthetic',
+    alternative_job_dirs=jobs['alternative'], bypass_job_dirs=jobs['bypass'])
+contract = {
+    'task_id': root.name, 'provider': 'harbor', 'native_run_id': '/rollout_id',
+    'alternative_not_applicable': 'Single numeric synthetic output.',
+    'side_effect_not_applicable': 'Read-only synthetic task.', 'cases': {}}
+for kind, reward in [('reference', 1), ('incorrect', 0), ('empty', 0), ('agent', 1)]:
+    contract['cases'][kind] = {
+        'kind': kind, 'requirement': 'Return the total.',
+        'health': [{'pointer': '/error', 'equals': None}],
+        'checks': [{'pointer': '/reward', 'min': reward, 'max': reward}]}
+contract_path = root.parent / 'native-contract.json'
+contract_path.write_text(json.dumps(contract))
+evidence.prepare(root / 'task', contract_path, root.parent / 'native-manifest.json')
+assert 'eval_author_shared.trace_workspace' not in sys.modules
+print(json.dumps(result, sort_keys=True))
+"""
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", script, str(installed), str(root), json.dumps(jobs, default=str)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert json.loads(result.stdout) == expected
+    # The same isolated implementation rejects altered retained proof.
+    receipt = jobs["oracle"][0] / "task__trial/result.json"
+    payload = json.loads(receipt.read_text())
+    payload["task_checksum"] = "changed"
+    receipt.write_text(json.dumps(payload))
+    changed = subprocess.run(result.args, capture_output=True, text=True)
+    assert changed.returncode != 0
+    assert "checksum" in changed.stderr
+
+
+def test_shared_runtime_assets_preserve_standalone_compatibility():
+    from eval_author_shared.runtime_assets import ASSETS, load
+
+    for name in ("qualification_runtime", "review_runtime", "replay_mcp_server"):
+        assert (ASSETS / f"{name}.py").read_bytes() == (
+            ROOT / "skills/eval-author-trace-environment/scripts" / f"{name}.py"
+        ).read_bytes()
+    assert Path(load("qualification_runtime").__file__).parent == ASSETS
+    assert Path(load("review_runtime").__file__).parent == ASSETS

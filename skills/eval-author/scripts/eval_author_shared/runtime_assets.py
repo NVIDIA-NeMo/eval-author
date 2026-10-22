@@ -7,7 +7,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-ASSETS = Path(__file__).resolve().parents[3] / "eval-author-trace-environment" / "scripts"
+ASSETS = Path(__file__).resolve().parent / "runtime"
 
 
 def load(name):
