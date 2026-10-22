@@ -100,9 +100,10 @@ when authoring. Do not assume Harbor's task.toml, solve.sh, or reward.txt protoc
 applies. Stateful tasks need controls against the same stateful tools and reset
 behavior, not just fabricated final responses fed to a stateless verifier.
 
-Maintain the draft root's task-level `README.md` using
-[Review and rerun guidance](../../eval-author/references/suite-readme.md#review-and-rerun-guidance).
-Preserve its existing filename and content when adding review and rerun sections.
+Complete the draft root's `README.md`, including setup and run instructions,
+before preparing validation evidence. Maintain the evolving suite guide using
+[Review and rerun guidance](../../eval-author/references/suite-readme.md#review-and-rerun-guidance),
+keeping later results and evidence links outside the task directory.
 Refresh the shared HTML report and marked `.eval-author/README.md` section after
 authoring and native controls or agent runs using
 [Report generation](../../eval-author/references/suite-readme.md#report-generation).
@@ -111,7 +112,7 @@ Preserve authored suite and task documentation outside generated markers.
 Present and link its case inventory when the cases are authored, before execution.
 Link `reproducibility.md` for pinned inputs and setup; include concrete full-data
 and individual-item commands with the actual dataset selection, composition,
-service startup, reset procedure, and fresh output paths. Keep it current through
+service startup, reset procedure, and fresh output paths. Keep the suite guide current through
 validation and execution, and link it when handing off the draft.
 
 Before calling the task portable, follow [Component dependencies and packaging](gym-packaging.md)

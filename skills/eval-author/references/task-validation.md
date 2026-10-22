@@ -80,8 +80,12 @@ passing result establishes comprehensive soundness, fairness, or difficulty.
 
 Use `eval-author-task-create/scripts/task_evidence.py` with Python 3.11+; Harbor
 preparation also needs the same Harbor Python runtime used for execution. Finish
-the task, verifier, control implementations, and any result adapter before
-preparing evidence. Keep those files inside the task tree. Keep receipts, jobs,
+the task, verifier, control implementations, any result adapter, and the task
+README's setup and run instructions before preparing evidence. Keep those files
+inside the task tree. Put later results, evidence links, and rerun summaries in
+the outer suite README and report. A task-file edit requires evidence for that
+revised task before acceptance; recording a new status cannot make stale receipts
+current. Keep receipts, jobs,
 converted traces, and measurement outputs outside that tree under `.eval-author/`.
 
 Write a private contract identifying the task and native result checks. Each

@@ -295,13 +295,14 @@ Then complete Harbor's generated files:
 For either provider, refresh `.eval-author/report.html` and the marked report
 section of `.eval-author/README.md` after authoring and after controls or
 actual-agent runs using [Report generation](../eval-author/references/suite-readme.md#report-generation).
-Preserve and maintain setup/rerun documentation in suite and task READMEs
-outside generated markers. Reporting failure does not change
+Finish task README setup/run instructions before preparing validation evidence.
+Maintain later results and rerun summaries in the suite README outside generated
+markers. Reporting failure does not change
 acceptance or execution evidence.
 
 For either provider, maintain the generated suite's top-level review and rerun guide using
 [Review and rerun guidance](../eval-author/references/suite-readme.md#review-and-rerun-guidance).
-For a standalone draft, extend its task-level `README.md` without renaming it;
+For a standalone task, use `.eval-author/README.md` and link its finalized task README;
 when adding it to a generated collection, refresh the shared report and maintain the
 collection guide, preserving the existing coverage mapping. Present and link the
 case inventory when the cases are authored, with execution pending, then refresh
