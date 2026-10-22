@@ -20,7 +20,8 @@ Show me the plan first, and explain the cases and how they will be graded.
 
 ## Establish what the agent should do
 
-After confirming your agent and setup, Eval Author uses the shared Ethos workflow to establish an **Ethos**: a local document describing
+After verifying your agent, setup, and selected evaluation runtime, Eval Author
+uses the shared Ethos workflow to establish an **Ethos**: a local document describing
 your agent's purpose, boundaries, and success criteria. It can reuse an existing
 `ETHOS.md` or help you create and review one.
 
@@ -53,8 +54,12 @@ the work each rerun requires and whether cost is a budget, a reported metric,
 or a scoring rule. Without reliable pricing or comparable measurements, the plan
 uses work counts and marks monetary cost unknown.
 
-You can plan cases before either runtime is installed. Native NeMo Gym authoring
-requires NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment.
+Full first-eval onboarding requires the selected supported runtime before Ethos
+and case planning. A missing or incompatible runtime pauses onboarding and
+preserves progress; an inconclusive check stays unknown until resolved.
+Eval Author does not install software during these checks. An explicitly requested
+planning-only operation can proceed without an evaluation runtime.
+Native NeMo Gym authoring requires NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment.
 For Harbor authoring, see the [Harbor setup guide](../skills/eval-author/references/harbor-setup.md).
 Execution also needs the selected environment backend, any required application
 access, and a supported connection to your agent. See the full

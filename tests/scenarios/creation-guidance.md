@@ -23,7 +23,7 @@ that every record is available or usable.
 
 For fresh starts, request first evals and follow the shared entry and milestone
 check-ins. For staged tests, supply explicit conversation history showing the
-shared prerequisites confirmed, Ethos reviewed, selected-runtime readiness checked or explicitly deferred,
+shared prerequisites confirmed, Ethos reviewed, selected-runtime readiness verified,
 and the user's statement that no evals exist. State which milestone transition
 was answered and which source or scope choice remains open. File presence alone
 does not establish this history or runtime readiness. Reuse applicable history
@@ -128,8 +128,10 @@ excluded source or fabricating observed examples.
 **A — no traces:** At source selection, answer: “There are no traces. Use Ethos
 and synthetic examples.” Planning continues without a trace hunt or manufactured
 coverage report. The plan records the choice and marks examples as synthetic.
-Missing the selected runtime can leave a useful plan complete while scaffolding
-is blocked. Report prerequisites for the user's selected setup.
+For an explicitly requested planning-only variant, the selected runtime may be
+absent: keep the work scoped to the plan and do not scaffold or mark full
+authoring onboarding complete. A full creation or improvement request instead
+pauses before Ethos when the selected runtime is missing or incompatible.
 
 **B — question detour:** At the scope checkpoint, ask: “Explain why a repeated
 attempt is not another input example.” The agent answers, preserves existing
@@ -179,6 +181,9 @@ not a paid model evaluation or proof of real-agent performance. The repository
 test suite separately passed 637 tests with 7 skips: three need a running Docker
 backend, one needs the optional Ethos plugin, one needs live model authorization,
 and two need extended-attribute support.
+
+This historical walkthrough predates the requirement to verify the selected
+runtime before full creation or improvement onboarding proceeds to Ethos.
 
 The walkthrough's README named `runs/selected/records.json` and
 `runs/archive/records.json`; an old note claimed 200 selected records. Its Ethos
@@ -279,8 +284,9 @@ creation with an eligible synthetic trace:
 - Explicit NeMo Gym or Harbor: honor the choice even when the existing suite differs.
 - No explicit choice, existing NeMo Gym or Harbor suite: preserve that provider.
 - No explicit choice or existing suite: default to Harbor, even for NeMo Gym traces.
-- Selected runtime missing: retain useful planning and report the setup need;
-  do not silently switch providers because another runtime is installed.
+- Selected runtime missing or incompatible: preserve progress and report the setup
+  need without switching providers. Full creation or improvement onboarding stops
+  before Ethos with **Blockers**; explicit planning-only requests retain their scope.
 - User selects NeMo Gym with Harbor: recognize compatibility, record each tool's role,
   and check the requirements of that setup.
 

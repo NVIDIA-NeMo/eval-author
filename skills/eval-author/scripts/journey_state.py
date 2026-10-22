@@ -348,7 +348,11 @@ def checklist(state: dict) -> list[dict]:
             "blocked": journey in blocked if journey else False,
         },
     ]
-    current = next((i for i, row in enumerate(rows) if not row["complete"] and not row["blocked"]), None)
+    current = (
+        None
+        if "setup" in blocked
+        else next((i for i, row in enumerate(rows) if not row["complete"] and not row["blocked"]), None)
+    )
     for i, row in enumerate(rows):
         row["current"] = i == current
     return rows

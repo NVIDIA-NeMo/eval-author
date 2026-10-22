@@ -87,6 +87,19 @@ requirements from [runtime-policy.json](../scripts/runtime-policy.json), then:
   is safely observable without exposing values; their absence blocks actual-agent
   runs, not this prerequisite review or planning
 
+Creation and improvement require the selected evaluation runtime and its supported
+Python environment before Ethos or case planning in the full flow. If either is
+missing, incompatible, or unresolved, finish the other accessible checks, then
+show **Blockers** with the required action and relevant setup documentation. Keep
+setup incomplete and pause; do not install software or switch providers.
+
+Save a `runtime` or `python` blocker in phase `setup`, the required action or
+unresolved question as `pending_question`, and `eval-author` as `next_handoff`.
+Preserve existing Ethos and other progress, but do not begin or resume Ethos while
+this blocker remains. On return, recheck the selected runtime before clearing the
+blocker. Explicitly scoped inventory, planning-only, and audit operations retain
+their own requirements.
+
 ### Record results
 
 Check all applicable, accessible items even when one fails. Skip checks marked
@@ -102,11 +115,12 @@ evidence, **Missing** for established unavailable or incompatible prerequisites,
 successful runtime probe does not prove the suite or agent is ready to run.
 
 After this pass, ask only for unresolved information or decisions needed to
-continue, such as the supported format for improvements, audit trace availability,
+continue, such as the selected runtime's location, the supported format for improvements, audit trace availability,
 an inaccessible repository location, an ambiguous agent, or access required for
-the next Ethos action. For creation and improvements, keep later execution
-requirements in the table, with the work they block and when they must be
-resolved. Do not label them optional or hold up Ethos for them. Do not ask the
+the next Ethos action. For creation and improvements, keep later environment,
+service, data, and agent-access requirements in the table, with the work they block
+and when they must be resolved. Do not label those later requirements optional or
+confuse them with the runtime prerequisite above. Do not ask the
 user to confirm facts already established by checks. Preserve progress; a saved availability question must go
 through these checks before it is asked again.
 
@@ -118,7 +132,8 @@ or the next action; do not display the placeholders.
 
 - Include **Recommendations** only when there are optional suggestions, such as
   Harbor assistant skills; these do not prevent continuing
-- Include **Blockers** when an improvement's supported format is unresolved,
+- Include **Blockers** when creation or improvement lacks an available supported
+  runtime or Python environment, an improvement's supported format is unresolved,
   an audit's required trace availability is unknown or missing, or another
   unresolved issue prevents the next Ethos action; explain
   the affected action and the answer or change needed, with relevant documentation
@@ -154,11 +169,11 @@ These items need to be resolved before we can continue.
 [Ethos explanation and next action]
 ```
 
-Omit empty Recommendations and Blockers sections. Creation and improvement tables
-retain runtime setup and credentials needed for later evaluation runs; those
-later requirements are not optional recommendations or blockers to Ethos.
-Supported improvement format and audit trace availability are prerequisites for
-continuing shared onboarding.
+Omit empty Recommendations and Blockers sections. Creation and improvement require
+their selected runtime before continuing shared onboarding; agent connection and
+credentials remain requirements for later actual-agent runs. Supported improvement
+format and audit trace availability are also prerequisites for continuing shared
+onboarding.
 Missing Ethos skills can block this step; missing `ETHOS.md` alone does not,
 because the Ethos skills can create it.
 For an existing document, use the complete **Next Steps** section from the

@@ -45,7 +45,8 @@ NeMo Gym is compatible with Harbor, and the user has the final say.
 NeMo Gym authoring needs NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment; Harbor authoring needs its
 CLI and supported Python environment. See the [first-eval guide](docs/first-evals.md)
 and [Harbor setup guide](skills/eval-author/references/harbor-setup.md).
-Repository inventory and case planning can start without either runtime.
+Full creation and improvement onboarding verifies the selected runtime before
+Ethos. Explicit inventory or planning-only requests do not require an evaluation runtime.
 
 First-evaluation design and coverage audits require a local **ETHOS.md file** describing
 your agent's purpose, boundaries, and success criteria. Install the

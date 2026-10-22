@@ -119,7 +119,7 @@ options as a bulleted list:
 
 Reuse known context and ask only for the unresolved goal.
 
-Explicit inventory, readiness, repair, trace inspection, supported NeMo Gym or MLflow
+Explicit inventory, planning-only, readiness, repair, trace inspection, supported NeMo Gym or MLflow
 trace conversion, trace-derived authoring, proposal-only, and audit
 generate/validate/measure/aggregate requests keep their
 scope. Explanation-only requests do not start a workflow. Scoped operations reuse
@@ -268,7 +268,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 
 | Sub-flow | Use it to |
 |---|---|
-| `eval-author-first-eval` | Establish required Ethos, plan cases without an installed runtime, and build or expand a starter suite at the agreed breadth while teaching the user how to run it |
+| `eval-author-first-eval` | Confirm prerequisites and Ethos, plan cases, and build or expand a starter suite at the agreed breadth while teaching the user how to run it |
 | `eval-author-discover` | Establish whether a repository's evaluations run, name the rung that fails, and get the exact command to run them |
 | `eval-author-audit` | Generate and validate a finite `audit.md` coverage denominator, measure and aggregate trace coverage, and report findings |
 | `eval-author-task-create` | Propose concrete dataset improvements from audit findings; when task creation is requested, create one eligible NeMo Gym or Harbor task and prove it with native controls and repeated measured runs |
@@ -302,9 +302,10 @@ All flows that need a runtime use the shared
 Use `--flow authoring` for creation/improvement prerequisites, first-eval,
 task-create, environment, and trace-derived authoring; `--flow discovery` for
 readiness; `--provider harbor --flow audit` for selected ATIF measurement.
+Creation and improvement require an available supported runtime before Ethos.
 Audit entry checks its Python tooling without probing an evaluation runner.
-This does not add runtime requirements to file-only inventory,
-planning, or provider-independent audit work. Keep the selected Python/CLI pair
+This does not add runtime requirements to explicitly scoped file-only inventory,
+planning-only, or provider-independent audit work. Keep the selected Python/CLI pair
 and recorded version; missing setup or ambiguity never authorizes a provider switch.
 
 Select the output provider independently of the evidence source: a NeMo Gym trace
@@ -415,8 +416,8 @@ In validation and execution reports, state whether findings are proven, whether
 the suite is ready, and the checks that failed. Never describe a suite as ready while a required check
 fails, and never present an observation as proof. When a sub-flow could not reach
 its provider, its validation report must state that readiness was not proven.
-This does not block the empty-scan conversation or first-eval Ethos and case
-planning within their prerequisite rules.
+An empty inventory can still be discussed. Creation and improvement follow their
+shared runtime prerequisite before Ethos and case planning.
 
 For a trace, use `success`, `failure`, or `unknown`. Tie key moments and findings
 to span IDs, evaluator result IDs, or source symbols. A healthy trace doesn't

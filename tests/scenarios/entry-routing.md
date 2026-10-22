@@ -59,7 +59,9 @@ agent identity. Explicit choices do not need to be asked again.
 After continuation, show the fixed prerequisite table before repository/state
 reads or commands and inspect all accessible prerequisites in the same turn.
 For creation and expansion, use the existing runtime locator for the selected
-setup and check Docker only when the chosen environment requires it. For audit,
+setup. A missing or incompatible selected runtime blocks onboarding before Ethos
+or case planning. An inconclusive runtime check remains unresolved. Check Docker
+only when the chosen environment requires it. For audit,
 identify the existing suite format and check Python 3.11 or newer with PyYAML and
 jsonschema for audit tooling; skip evaluation runner, Docker, live service, and
 agent credential probes. Confirm that traces from completed evaluation runs exist
@@ -83,6 +85,17 @@ progress message before the first check and the results table in the final reply
   evidence without asking whether Python, the runtime, or Docker is installed
 - An authoring runtime exists outside the default project environment: use the
   locator's bounded declared/PATH/tool locations before asking for another location
+- The selected authoring runtime is missing or incompatible: finish independent
+  checks, show **Missing** with the evidence and required setup change, then end
+  with **Blockers**. Keep setup incomplete, preserve progress, and omit Next Steps,
+  the checklist, and Ethos guidance. Do not install or switch providers
+- The selected runtime probe is denied, times out, or cannot establish compatibility:
+  report **Unknown** with the actual reason, finish independent checks, and ask only
+  for the information or access needed to resolve it under **Blockers**. Do not
+  claim that the runtime is absent or proceed to Ethos
+- Resume before the runtime issue is resolved: retain the blocker and evidence.
+  Once the selected runtime is verified as supported, clear the resolved blocker
+  and resume the earliest incomplete step without repeating the opening
 - Docker is unavailable and the selected authoring environment requires it:
   finish the other checks, explain what Docker blocks, and preserve independent planning
 - Commands or repository access are denied: record the limitation as unknown,
@@ -142,7 +155,10 @@ and Harbor; omit sections only under the template's stated conditions.
 - Optional assistant skills are absent: show **Recommendations**, explicitly say
   suggestions are optional and not required to continue, then show **Next Steps**
   and the shared progress checklist before the Ethos explanation or question
-- Authoring runtime, Docker, or execution credentials are missing but Ethos can proceed:
+- The selected authoring runtime is missing, incompatible, or unresolved: show
+  **Blockers**, preserve progress, and omit Next Steps, the checklist, and Ethos
+  guidance. An existing or historically confirmed Ethos does not bypass this check
+- Docker or execution credentials are missing but Ethos can proceed:
   keep their later requirements in the table, without classifying them as
   optional or adding them to **Blockers**; continue below the checklist in **Next Steps**
 - Required Ethos skills or access needed for the next Ethos action are missing:
@@ -225,10 +241,12 @@ is implied by converting to a supported format.
 
 ## 3. Narrow operations keep their scope
 
-Request only inventory, readiness, audit validation, recommendations from a
+Request only inventory, explicit case planning, readiness, audit validation, recommendations from a
 supplied report, or trace inspection. Use the existing scoped operation without
 unrelated prerequisite interviews or a full checklist. Readiness retains real
 runtime verification; schema validation does not claim measured coverage.
+Explicit inventory and planning-only requests do not acquire the full authoring
+runtime gate or authorize scaffolding and execution.
 An explicit specification-only request can use confirmed Ethos without completed-run
 traces; it does not complete full audit onboarding or establish measured coverage.
 Explanation-only requests do not start work. A trace source must still be selected

@@ -6,7 +6,7 @@ description: >-
   Establish a required Ethos, plan evaluation cases, and build first evals or
   expand a starter NeMo Gym or Harbor suite while explaining
   its parts. No prior traces or coverage reports are required. Missing selected
-  runtime blocks scaffolding and execution, not planning.
+  runtime blocks shared onboarding before Ethos and case planning.
 triggers:
   - help me build my first evals
   - my agent has no evals yet
@@ -19,7 +19,7 @@ not-for:
 compatibility: >-
   Ethos is required before evaluation design and is saved and checked locally
   in the user's repository. No NeMo service, account, platform CLI, or upload is needed.
-  Planning needs no evaluation runtime. NeMo Gym and Harbor authoring need the Python/CLI
+  Shared onboarding requires the selected runtime. NeMo Gym and Harbor authoring need the Python/CLI
   pairs verified by eval-author’s shared locator and runtime-policy.json.
   Keep their runtime environments separate. Execution may require Docker,
   an agent adapter, and provider credentials.
@@ -71,12 +71,15 @@ selection or evaluation work. Continue the stages below only after the user repl
 ## 2. Reuse prerequisites and verify when needed
 
 Preserve the selected NeMo Gym or Harbor setup and recorded prerequisite evidence
-and answers. Planning requires no installed runtime. Before scaffolding or another
+and answers. Shared onboarding requires an available supported runtime before
+Ethos and case planning. Before scaffolding or another
 runtime-dependent operation, reuse applicable checks from shared prerequisites or
 use the shared runtime locator as described in
 [Runtime prerequisite checks](../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks). Record
 actual checks separately from user confirmation and reuse unchanged evidence.
-Missing setup pauses dependent operations and leaves planning available.
+If the selected runtime becomes unavailable, preserve completed work and return
+to the shared prerequisite blocker before continuing the full flow. Other setup
+needs pause the operations that depend on them.
 
 ## 3. Understand the evaluation starting point
 
@@ -140,8 +143,8 @@ tested with available resources, retain the original requirement as blocked.
 Explain the limitation; select a supported alternative only with the user,
 and record it as a scope change rather than completion of the original case.
 
-Without the selected runtime, the deliverable at this point is the evaluation
-plan; native task creation remains blocked on that runtime's setup.
+If the selected runtime becomes unavailable at this stage, preserve the agreed
+plan and return to the shared runtime blocker before continuing.
 
 Present the plan using the shared [scope review](../eval-author/references/coverage-planning.md#explain-ongoing-cost-and-settle-the-plan).
 Settle unresolved scope choices and incorporate changes before preparing cases.
@@ -367,9 +370,9 @@ hand the established Ethos and actual ATIF to `eval-author-audit`, then use
 
 ## Prerequisites
 
-Establish Ethos before case design. Planning needs agent documentation and
-intended behavior, not prior traces, coverage reports, or an evaluation runtime.
-Scaffolding and validation require the selected NeMo Gym or Harbor installation. Execution
+Shared onboarding requires the selected NeMo Gym or Harbor runtime before Ethos.
+Establish Ethos before case design; no prior traces or coverage reports are required.
+Scaffolding and validation use that selected installation. Execution
 needs the chosen backend, agent connection, and any configured provider access.
 Real-agent and paid-judge runs require authorization for execution and spend.
 
@@ -377,8 +380,8 @@ Real-agent and paid-judge runs require authorization for execution and spend.
 
 A starter suite establishes a baseline for the selected cases, not comprehensive
 coverage. NeMo Gym verifier controls or Harbor NOP and Oracle validate task wiring
-and selected verifier behavior; they do not measure the real agent. Missing runtime access can leave useful
-plans and drafts complete while execution remains unproven.
+and selected verifier behavior; they do not measure the real agent. If runtime
+access is lost, retain existing plans and drafts while the flow is blocked.
 
 ## Troubleshooting
 

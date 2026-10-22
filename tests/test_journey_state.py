@@ -663,19 +663,64 @@ def test_unwritable_storage_does_not_claim_persistence(state, tmp_path, monkeypa
     assert state.load_state(tmp_path) == original
 
 
-def test_blocked_setup_allows_independent_ethos_but_not_completion(state, tmp_path):
-    setup_ready(state, tmp_path)
-    result = state.update(
+@pytest.mark.parametrize("provider,name", [("gym", "NeMo Gym"), ("harbor", "Harbor")])
+@pytest.mark.parametrize("journey", ["create", "expand"])
+@pytest.mark.parametrize("status", ["missing", "unknown"])
+@pytest.mark.parametrize("ethos_confirmed", [False, True])
+def test_required_runtime_blocks_onboarding_until_resolved(
+    state, tmp_path, provider, name, journey, status, ethos_confirmed
+):
+    setup_ready(state, tmp_path, journey=journey, setup=provider)
+    prior_ethos = ethos_ready(state, tmp_path)["ethos"] if ethos_confirmed else state.load_state(tmp_path)["ethos"]
+    finding = (
+        f"{name} CLI was not found" if status == "missing" else f"Access to the {name} runtime could not be checked"
+    )
+    question = f"Make the required {name} runtime available" if status == "missing" else f"Resolve access to {name}"
+    saved = state.update(
         tmp_path,
         {
-            "blockers": [{"id": "runtime", "phase": "setup", "message": "Runtime missing"}],
-            "journey_status": {"create": "complete"},
+            "prerequisites": {
+                "runtime": {"status": status, "source": finding},
+                "model_credentials": {"status": "missing", "source": "No credentials configured for later agent runs"},
+            },
+            "blockers": [{"id": "runtime", "phase": "setup", "message": finding}],
+            "pending_question": question,
+            "next_handoff": "eval-author",
         },
     )
-    rows = state.checklist(result)
-    assert rows[0]["blocked"] and not rows[0]["complete"]
-    assert rows[1]["current"]
-    assert not rows[2]["complete"]
+    assert state.load_state(tmp_path) == saved
+    resumed = state.initialize(tmp_path, agent="assistant", journey=journey, setup=provider)
+    for blocked in (saved, resumed):
+        assert blocked["prerequisites"]["runtime"] == {"status": status, "source": finding}
+        assert blocked["blockers"] == saved["blockers"]
+        assert blocked["pending_question"] == question
+        assert blocked["next_handoff"] == "eval-author"
+        assert blocked["ethos"] == prior_ethos
+        rows = state.checklist(blocked)
+        assert rows[0]["blocked"] and not rows[0]["complete"]
+        assert rows[1]["complete"] is ethos_confirmed
+        assert not rows[2]["complete"]
+        assert not any(row["current"] for row in rows)
+
+    evidence = f"Current {name} authoring runtime check passed"
+    resolved = state.update(
+        tmp_path,
+        {
+            "prerequisites": {"runtime": {"status": "verified", "source": evidence}},
+            "blockers": [],
+            "pending_question": None,
+            "next_handoff": "eval-author-first-eval" if ethos_confirmed else "ethos-orchestrate",
+        },
+    )
+    assert state.load_state(tmp_path) == resolved
+    assert resolved["prerequisites"]["runtime"] == {"status": "verified", "source": evidence}
+    assert resolved["prerequisites"]["model_credentials"]["status"] == "missing"
+    assert resolved["ethos"] == prior_ethos
+    assert state.checklist(resolved)[0]["complete"]
+    assert state.checklist(resolved)[2 if ethos_confirmed else 1]["current"]
+    confirmed = resolved if ethos_confirmed else ethos_ready(state, tmp_path)
+    assert state.checklist(confirmed)[2]["current"]
+    assert not state.checklist(confirmed)[2]["complete"]
 
 
 def test_cli_roundtrip_matches_helpers_and_updates_no_domain_artifacts(state, tmp_path):

@@ -246,6 +246,11 @@ improve a suite. It first confirms your setup and your agent's intended behavior
 in `ETHOS.md`, then continues with your selected goal. You can also use a
 [more specific starter prompt](../README.md#start-here).
 
+Full creation and improvement onboarding pauses before Ethos if the selected
+runtime is missing, incompatible, or cannot yet be verified. Progress is saved
+while you resolve setup; prerequisite checks do not install software. A full
+audit checks audit tooling without probing an evaluation runner.
+
 ## Find existing evaluations
 
 With the skills loaded, ask your coding assistant:
@@ -280,7 +285,8 @@ you need to create, validate, or run Harbor tasks.
 
 | Operation | Requirements |
 | --- | --- |
-| Read repository docs, establish Ethos, and plan cases | Your coding agent and repository access. No evaluation runtime is required for this work. |
+| Read repository docs or explicitly request case planning only | Your coding agent and repository access. No evaluation runtime is required for this scoped work. |
+| Start full creation or improvement onboarding | The selected supported NeMo Gym or Harbor runtime, verified before Ethos and case planning. |
 | Run the discovery helper | Python 3.11+. Harbor configs/tasks need Harbor importable by that interpreter; native NeMo Gym manifests need a NeMo Gym v0.6.0+ CLI. Execution checks need the selected backend and task dependencies; Docker is needed for Docker-backed tasks. |
 | Build first evals with native NeMo Gym | NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment; no audit report required. See [first evals](first-evals.md). Execution needs the actual agent integration and configured model access. |
 | Create a NeMo Gym task from an audit gap | An existing actionable coverage report and an installed NeMo Gym v0.6.0+ runtime in Python 3.13.14+. See the [NeMo Gym task-authoring guide](../skills/eval-author-task-create/references/gym-tasks.md). Execution needs the task components and actual agent/model configuration. |
