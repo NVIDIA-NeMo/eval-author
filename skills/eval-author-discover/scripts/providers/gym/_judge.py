@@ -10,8 +10,8 @@ Two jobs, one per kind of NeMo Gym artifact:
   ``run_gym`` is the one place this skill calls the ``gym`` CLI, and Solve reuses it.
 - A **NeMo Gym extension task** is judged by Harbor, after ``convert`` renders it as a
   plain Harbor task directory. Harbor does the judging; this only gives it tasks
-  it can read. Output goes to a caller-owned scratch directory outside the
-repository, so discovery still writes nothing to the user's checkout.
+  it can read. Output goes to a caller-owned scratch directory under the selected
+  repository's ``.eval-author/.working/tmp`` and is removed after validation.
 
 The rendering follows the contract the NeMo Gym authoring prototype states: a task has
 exactly one of ``tests/test.sh`` or ``tests/verifier.py``; ``verify()`` receives
