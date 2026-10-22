@@ -11,8 +11,9 @@ A proposal is provisional until the user settles its open choices; it is not
 permission to generate or run evaluations.
 
 For first evaluations, use the [first-eval conversation renderer](first-eval-conversation.md)
-for the proposal table, six settings bullets, exact feedback question, and first-task
-review. Its fixed wording and ordering take precedence over the illustrative
+for the proposal table, exact feedback question, post-design execution settings,
+and first-task review. Its fixed wording and ordering take precedence over the
+illustrative
 questions below. Refer to `ETHOS.md`, evaluation tasks, input examples, and attempts;
 describe the limited first build as the **first task**, not a pilot. Save the
 proposal and agreement in shared journey state, not a separate planning document.
@@ -168,17 +169,21 @@ invitation in the review reply, even when they also appear in the saved scope in
 Wait for unresolved scope choices, incorporate feedback in the saved
 agreement, then generate the agreed cases. Before the first generation or
 scaffolding call, save the accepted revision with the user's decision, current
-example IDs/counts, task mapping, and attempt settings. Replace superseded
+example IDs/counts and task mapping. First-evaluation execution settings are
+presented separately after design approval and saved outside the plan. Replace
+superseded
 current values or label them as history; an approval recorded only in the
 conversation while the plan still says "pending" is not a saved agreement.
 Reuse decisions and authorization
 already established; do not ask again merely because a new stage starts. Scope
-agreement does not authorize paid execution. When the target agent/model, validation
-work, attempts, and limits are settled, the first-evaluation workflow may explicitly
-offer approval for both building and running within those displayed limits. Record the actual
-execution authorization separately; a design-only approval remains design-only.
-Proposal-only work ends with its
-recommendations and open decisions, without demanding approval or scaffolding.
+agreement does not authorize paid execution. In first-evaluation work, the initial
+proposal ends with its task-design feedback question; run blockers and the six
+execution bullets appear only after design approval. Recording that display adds
+no generic human approval gate and grants no execution consent. When concrete
+paid work and its limits are ready, request any missing bounded authorization.
+Record the actual execution authorization separately and reuse applicable consent.
+Proposal-only work ends with its recommendations and open decisions, without
+demanding approval or scaffolding.
 
 ## Expand and reconcile
 

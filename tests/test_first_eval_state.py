@@ -38,7 +38,7 @@ def save_record(state, repo, record, **fields):
     )
 
 
-def start(modules, repo, provider="harbor", examples=None):
+def start(modules, repo, provider="harbor", examples=None, *, with_settings=False):
     state, helper = modules
     state.initialize(repo, agent="support", journey="create", setup=provider)
     state.update(
@@ -66,6 +66,8 @@ def start(modules, repo, provider="harbor", examples=None):
         "run_review": None,
         "audit_invitation": None,
     }
+    if with_settings:
+        adopt_settings(record)
     save_record(state, repo, record, journey_status={"create": "in_progress"})
     return record
 
@@ -76,7 +78,22 @@ def approve_plan(modules, repo, record):
         "digest": helper.progress(repo, state.load_state(repo))["plan_digest"],
         "source": "user agrees to the displayed pilot",
     }
+    saved = save_record(state, repo, record)
+    record["execution_settings_presented"] = {
+        "digest": helper.progress(repo, saved)["settings_digest"],
+        "source": "Displayed the settings checkpoint after design approval",
+    }
     return save_record(state, repo, record)
+
+
+def adopt_settings(record):
+    record["execution_settings"] = {
+        "agent_model": "Actual support agent; configured model",
+        "attempts": "One attempt per task",
+        "validation": "Reference and relevant incorrect-result controls",
+        "limits": "180 seconds per attempt; no paid grading or retries",
+        "open_questions": [],
+    }
 
 
 def task(modules, repo, task_id):
@@ -108,9 +125,9 @@ def validate_and_review(repo, task_id, item):
     item["review"] = {"sha256": item["sha256"], "decision": "approved", "source": "user reviewed this task revision"}
 
 
-def cases_ready(modules, repo, provider="harbor", examples=None):
+def cases_ready(modules, repo, provider="harbor", examples=None, *, with_settings=False):
     state, helper = modules
-    record = start(modules, repo, provider, examples)
+    record = start(modules, repo, provider, examples, with_settings=with_settings)
     approve_plan(modules, repo, record)
     record["tasks"]["refund"] = task(modules, repo, "refund")
     save_record(state, repo, record)
@@ -124,9 +141,9 @@ def cases_ready(modules, repo, provider="harbor", examples=None):
     return record
 
 
-def selection_ready(modules, repo, provider="harbor", examples=None):
+def selection_ready(modules, repo, provider="harbor", examples=None, *, with_settings=False):
     state, helper = modules
-    record = cases_ready(modules, repo, provider, examples)
+    record = cases_ready(modules, repo, provider, examples, with_settings=with_settings)
     cases: list[dict[str, Any]] = [
         {"task_id": item["id"], "example_ids": item["example_ids"], "attempts": 1} for item in record["plan"]["tasks"]
     ]
@@ -137,6 +154,8 @@ def selection_ready(modules, repo, provider="harbor", examples=None):
         "model": "configured-model",
         "source": "Validated native selection and connection configuration",
     }
+    if "execution_settings" in record:
+        selection["settings_digest"] = helper.progress(repo, state.load_state(repo))["settings_digest"]
     if provider == "gym":
         selection["inputs"] = [reference(repo, ".eval-author/dataset.jsonl", "selected native rows")]
         for case in cases:
@@ -151,9 +170,9 @@ def selection_ready(modules, repo, provider="harbor", examples=None):
     return record
 
 
-def finished(modules, repo, provider="harbor", examples=None):
+def finished(modules, repo, provider="harbor", examples=None, *, with_settings=False):
     state, helper = modules
-    record = selection_ready(modules, repo, provider, examples)
+    record = selection_ready(modules, repo, provider, examples, with_settings=with_settings)
     selected = helper.progress(repo, state.load_state(repo))["selection_digest"]
     attempts = []
     for case in record["selection"]["cases"]:
@@ -215,6 +234,142 @@ def test_scope_approval_and_first_task_require_separate_saved_checkpoints(module
     record["tasks"]["policy"] = task(modules, tmp_path, "policy")
     result = save_record(state, tmp_path, record)
     assert helper.progress(tmp_path, result)["first_task_approved"]
+
+
+@pytest.mark.parametrize("with_settings", [False, True])
+def test_design_approval_resumes_to_settings_before_first_task_creation(modules, tmp_path, with_settings):
+    state, helper = modules
+    record = start(modules, tmp_path, with_settings=with_settings)
+    record["plan_approval"] = {
+        "digest": helper.progress(tmp_path, state.load_state(tmp_path))["plan_digest"],
+        "source": "User approved the proposed task design",
+    }
+    saved = save_record(state, tmp_path, record)
+    facts = helper.progress(tmp_path, saved)
+    assert facts["scope_approved"]
+    assert not facts["execution_settings_presented"]
+    assert facts["next_stage"] == "execution_settings"
+    before = state.state_path(tmp_path).read_bytes()
+    assert helper.progress(tmp_path, state.load_state(tmp_path)) == facts
+    assert state.state_path(tmp_path).read_bytes() == before
+
+    record["tasks"]["refund"] = task(modules, tmp_path, "refund")
+    with pytest.raises(ValueError, match="Display and save execution settings"):
+        save_record(state, tmp_path, record)
+    record["execution_settings_presented"] = {
+        "digest": facts["settings_digest"],
+        "source": "Delivered the post-approval settings message",
+    }
+    with pytest.raises(ValueError, match="Display and save execution settings"):
+        save_record(state, tmp_path, record)
+    record["tasks"] = {}
+    saved = save_record(state, tmp_path, record)
+    shown = helper.progress(tmp_path, saved)
+    assert shown["next_stage"] == "prepare_first"
+    assert shown["scope_approved"] and shown["execution_settings_presented"]
+    assert not shown["execution_authorized"]
+    record["tasks"]["refund"] = task(modules, tmp_path, "refund")
+    save_record(state, tmp_path, record)
+
+
+def test_settings_display_requires_previously_saved_design_approval(modules, tmp_path):
+    state, helper = modules
+    record = start(modules, tmp_path, with_settings=True)
+    facts = helper.progress(tmp_path, state.load_state(tmp_path))
+    record["plan_approval"] = {"digest": facts["plan_digest"], "source": "User approves task design"}
+    record["execution_settings_presented"] = {
+        "digest": facts["settings_digest"],
+        "source": "Delivered execution settings",
+    }
+    with pytest.raises(ValueError, match="Save scope approval before recording displayed execution settings"):
+        save_record(state, tmp_path, record)
+
+
+def test_legacy_proposal_settings_are_available_without_changing_approved_plan(modules, tmp_path):
+    state, helper = modules
+    record = start(modules, tmp_path)
+    settings = {}
+    adopt_settings(settings)
+    record["plan"]["presentation"] = {"coverage_note": "Useful task coverage", **settings["execution_settings"]}
+    saved = save_record(state, tmp_path, record)
+    plan_digest = helper.progress(tmp_path, saved)["plan_digest"]
+    approve_plan(modules, tmp_path, record)
+    before = state.state_path(tmp_path).read_bytes()
+    assert helper.execution_settings(record) == settings["execution_settings"]
+    facts = helper.progress(tmp_path, state.load_state(tmp_path))
+    assert facts["scope_approved"] and facts["plan_digest"] == plan_digest
+    assert facts["next_stage"] == "prepare_first"
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+def test_settings_changes_preserve_design_but_reopen_execution_and_retain_history(modules, tmp_path):
+    state, helper = modules
+    record = finished(modules, tmp_path, with_settings=True)
+    prior = helper.progress(tmp_path, state.load_state(tmp_path))
+    prior_settings = copy.deepcopy(record["execution_settings"])
+    prior_runs = copy.deepcopy(record["runs"])
+    record["execution_settings"]["limits"] = "120 seconds per attempt; no paid grading or retries"
+    saved = save_record(state, tmp_path, record, journey_status={"create": "in_progress"})
+    facts = helper.progress(tmp_path, saved)
+    assert facts["scope_approved"] and facts["first_task_approved"]
+    assert facts["plan_digest"] == prior["plan_digest"]
+    assert all(task["validated"] for task in facts["tasks"].values())
+    assert not facts["selection_current"] and not facts["execution_authorized"]
+    assert not facts["complete"] and not facts["reviewed_run_current"]
+    assert facts["next_stage"] == "execution_settings"
+    assert saved["scopes"]["create"]["first_eval"]["runs"] == prior_runs
+    assert any(
+        item["kind"] == "execution_settings" and item["record"] == prior_settings
+        for item in saved["scopes"]["create"]["first_eval"]["history"]
+    )
+
+    previous_display = copy.deepcopy(record["execution_settings_presented"])
+    record["execution_settings_presented"] = {
+        "digest": facts["settings_digest"],
+        "source": "Displayed revised limits without requesting design approval again",
+    }
+    saved = save_record(state, tmp_path, record)
+    assert helper.progress(tmp_path, saved)["next_stage"] == "ready_to_run"
+    assert any(
+        item["kind"] == "execution_settings_presented" and item["record"] == previous_display
+        for item in saved["scopes"]["create"]["first_eval"]["history"]
+    )
+    record["selection"]["settings_digest"] = facts["settings_digest"]
+    saved = save_record(state, tmp_path, record)
+    assert helper.progress(tmp_path, saved)["selection_current"]
+    assert not helper.progress(tmp_path, saved)["execution_authorized"]
+    assert not helper.progress(tmp_path, saved)["runs"]["baseline-job"]["reviewable"]
+
+
+def test_adopted_settings_cannot_be_removed_to_restore_execution(modules, tmp_path):
+    state, _ = modules
+    record = finished(modules, tmp_path, with_settings=True)
+    before = state.state_path(tmp_path).read_bytes()
+    record.pop("execution_settings")
+    record.pop("execution_settings_presented")
+    record["selection"].pop("settings_digest")
+    with pytest.raises(ValueError, match="Retain adopted execution settings"):
+        save_record(state, tmp_path, record)
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+def test_legacy_completed_records_do_not_require_retroactive_settings_display(modules, tmp_path):
+    state, helper = modules
+    record = finished(modules, tmp_path)
+    prior = helper.progress(tmp_path, state.load_state(tmp_path))
+    record.pop("execution_settings_presented")
+    save_record(state, tmp_path, record)
+    before = state.state_path(tmp_path).read_bytes()
+    loaded = state.load_state(tmp_path)
+    facts = helper.progress(tmp_path, loaded)
+    assert facts["complete"] and facts["scope_approved"] and facts["execution_authorized"]
+    assert not facts["execution_settings_presented"]
+    assert facts["next_stage"] == "results"
+    assert facts["plan_digest"] == prior["plan_digest"]
+    assert facts["selection_digest"] == prior["selection_digest"]
+    assert facts["run_digests"] == prior["run_digests"]
+    assert "execution_settings" not in loaded["scopes"]["create"]["first_eval"]
+    assert state.state_path(tmp_path).read_bytes() == before
 
 
 def test_missing_credentials_retains_cases_controls_and_pending_question(modules, tmp_path):

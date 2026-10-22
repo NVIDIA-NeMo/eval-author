@@ -8,10 +8,18 @@ the parent skill's conversational approval gates, state, and selected setup.
 No audit report or measured gap closure is required. A configured NeMo Gym–Harbor
 integration uses its verified supported commands and retained native evidence;
 conversion alone does not establish that the bridge executed. If the integration
-is missing, report **Blockers** with the cause, blocked step, and setup action.
+is missing, retain that finding and report **Blockers** with the execution
+settings after task-design approval, naming the cause, blocked step, and setup
+action. Keep run-only blockers out of the initial proposal. If a finding prevents
+a meaningful task design, use the blocker checkpoint instead of a proposal.
 Do not add an adapter or silently replace the selected execution path.
 
 ## 5. Prepare tasks and grading
+
+After design approval, present the six execution-settings bullets and relevant
+blockers before building the first task. Save the display receipt; it is neither
+another approval gate nor execution authorization. Continue independent task
+authoring when the remaining blocker only affects later runs.
 
 Use the verified Harbor CLI and Python environment. Read `harbor task init --help`
 and `harbor trial start --help` before using options. Create only the approved

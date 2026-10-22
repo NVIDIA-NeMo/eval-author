@@ -7,10 +7,18 @@ Use this reference for native NeMo Gym stages 5–9. Preserve the parent skill's
 conversation, first-task approval, state, and completion requirements. No audit
 report, measured gap, or closure attempt count is required. A selected combined
 Gym–Harbor setup must use its configured supported integration; this native path
-is not a substitute. Report missing integration under **Blockers**, naming the
-cause, blocked step, and required action, without adding a new adapter.
+is not a substitute. Retain missing integration findings and report them under
+**Blockers** with the execution settings after task-design approval, naming the
+cause, blocked step, and required action, without adding a new adapter. Keep
+run-only blockers out of the initial proposal; a finding that prevents meaningful
+task design uses the blocker checkpoint instead of a proposal.
 
 ## 5. Prepare tasks and grading
+
+After design approval, present the six execution-settings bullets and relevant
+blockers before building the first task. Save the display receipt; it is neither
+another approval gate nor execution authorization. Continue independent task
+authoring when the remaining blocker only affects later runs.
 
 Use the Python/CLI pair from the [shared runtime locator](../../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks)
 with `--provider gym --flow authoring`. Keep Gym in its separate environment and

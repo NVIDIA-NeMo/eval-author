@@ -62,6 +62,7 @@ AUDIT_QUESTION = (
 STAGES = {
     "traces",
     "proposal",
+    "execution_settings",
     "prepare_first",
     "review_first",
     "prepare_remaining",
@@ -169,8 +170,6 @@ def proposal(record: dict) -> str:
     presentation = plan.get("presentation", {})
     if not isinstance(presentation, dict):
         raise ValueError("Proposal presentation must be an object")
-    if type(presentation.get("request_execution_authorization", False)) is not bool:
-        raise ValueError("request_execution_authorization must be true or false")
     rows = ["| Task | Input | Behavior under test | Expected result | Grading |", "|---|---|---|---|---|"]
     for task in plan["tasks"]:
         rows.append(
@@ -180,40 +179,40 @@ def proposal(record: dict) -> str:
             )
             + " |"
         )
-    questions = presentation.get("open_questions")
-    if not isinstance(questions, list):
-        raise ValueError("Proposal needs open_questions, including an empty list when resolved")
-    examples = len({example for task in plan["tasks"] for example in task["example_ids"]})
-    settings = [
-        f"- **Agent/model:** {line(presentation.get('agent_model'), 'agent_model')}",
-        f"- **Tasks and examples:** {len(plan['tasks'])} tasks; {examples} distinct input examples.",
-        f"- **Attempts:** {line(presentation.get('attempts'), 'attempts')}",
-        f"- **Validation:** {line(presentation.get('validation'), 'validation')}",
-        f"- **Time/cost limits:** {line(presentation.get('limits'), 'limits')}",
-        "- **Open questions:** " + ("; ".join(line(item, "open question") for item in questions) or "None."),
-    ]
     first = next(task for task in plan["tasks"] if task["id"] == record["first_task"])
     paragraphs = [
         "Here are the proposed evaluation tasks.",
         "\n".join(rows),
-        "\n".join(settings),
         text(presentation.get("coverage_note"), "coverage_note"),
         f"I’ll build **{line(first.get('title'), 'first task title')}** first.",
         PROPOSAL_QUESTION,
     ]
-    if presentation.get("request_execution_authorization", False):
-        if questions:
-            raise ValueError("Resolve open execution questions before offering combined approval")
-        paragraphs.append(
-            "You can approve building and running within the displayed settings and limits. "
-            "I’ll pause after the first task for your review before building the remaining tasks."
-        )
-    else:
-        paragraphs.append(
-            "This approval covers the task design. We’ll resolve execution settings and authorization "
-            "before running. I’ll pause after the first task for your review."
-        )
     return "\n\n".join(paragraphs)
+
+
+def execution_settings(record: dict) -> str:
+    settings = first_eval_state.execution_settings(record)
+    questions = settings.get("open_questions")
+    if not isinstance(questions, list):
+        raise ValueError("Execution settings need open_questions, including an empty list when resolved")
+    tasks = record["plan"]["tasks"]
+    examples = len({example for task in tasks for example in task["example_ids"]})
+    bullets = [
+        f"- **Agent/model:** {line(settings.get('agent_model'), 'agent_model')}",
+        f"- **Tasks and examples:** {len(tasks)} tasks; {examples} distinct input examples.",
+        f"- **Attempts:** {line(settings.get('attempts'), 'attempts')}",
+        f"- **Validation:** {line(settings.get('validation'), 'validation')}",
+        f"- **Time/cost limits:** {line(settings.get('limits'), 'limits')}",
+        "- **Open questions:** " + ("; ".join(line(item, "open question") for item in questions) or "None."),
+    ]
+    return "\n\n".join(
+        [
+            "Here are the settings for building and running the approved tasks.",
+            "\n".join(bullets),
+            "I’ll pause after the first task for your review. Agent runs and paid grading require separate "
+            "authorization within the agreed limits.",
+        ]
+    )
 
 
 def first_review(repo: Path, record: dict, progress: dict, facts: dict) -> str:
@@ -386,10 +385,18 @@ def render(repo: Path, payload: dict) -> str:
     if stage == "proposal":
         if progress["scope_approved"]:
             raise ValueError("Scope is already approved; resume the saved next stage")
-        result = proposal(record)
+        # Run blockers remain saved and are presented with the execution settings
+        # after design approval. Design blockers use the separate blockers stage.
+        return proposal(record) + "\n"
+    elif stage == "execution_settings":
+        if not progress["scope_approved"]:
+            raise ValueError("Save scope approval before displaying execution settings")
+        result = execution_settings(record)
     elif stage == "prepare_first":
         if not progress["scope_approved"]:
             raise ValueError("Save scope approval before preparing the first task")
+        if progress["next_stage"] == "execution_settings":
+            raise ValueError("Display and save execution settings before preparing the first task")
         result = FIRST_PROGRESS if record["provider"] == "harbor" else GYM_PROGRESS
     elif stage == "review_first":
         result = first_review(repo, record, progress, facts)
@@ -398,6 +405,8 @@ def render(repo: Path, payload: dict) -> str:
             raise ValueError("Save first-task approval before preparing remaining tasks")
         result = REMAINDER_PROGRESS
     elif stage == "ready_to_run":
+        if progress["next_stage"] == "execution_settings":
+            raise ValueError("Display and save execution settings before announcing execution")
         if not progress["first_task_approved"] or not all(item["validated"] for item in progress["tasks"].values()):
             raise ValueError("All selected tasks need current grading validation before announcing reference checks")
         result = CHECKS_PASSED

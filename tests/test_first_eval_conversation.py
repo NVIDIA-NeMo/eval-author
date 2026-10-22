@@ -41,7 +41,7 @@ def render(context, stage, **facts):
     return conversation.render(repo, {"revision": state.load_state(repo)["revision"], "stage": stage, "facts": facts})
 
 
-def proposal(context):
+def proposal(context, *, with_settings=True):
     modules, _, repo = context
     record = start(modules, repo)
     for item in record["plan"]["tasks"]:
@@ -52,17 +52,26 @@ def proposal(context):
             expected_result="Correct disposition",
             grading="Check state and response",
         )
-    record["plan"]["presentation"] = {
-        "agent_model": "support / model (health unknown)",
-        "attempts": "2 per task; 4 total executions",
-        "validation": "Reference checks and incorrect-result controls; no paid grading",
-        "limits": "10 minutes; at most $1",
-        "open_questions": [],
-        "coverage_note": "These test refunds and policy. Other regions remain untested.",
-        "request_execution_authorization": False,
-    }
+    record["plan"]["presentation"] = {"coverage_note": "These test refunds and policy. Other regions remain untested."}
+    if with_settings:
+        record["execution_settings"] = {
+            "agent_model": "support / model (health unknown)",
+            "attempts": "2 per task; 4 total executions",
+            "validation": "Reference checks and incorrect-result controls; no paid grading",
+            "limits": "10 minutes; at most $1",
+            "open_questions": [],
+        }
     save_record(modules[0], repo, record)
     return record
+
+
+def approve_design(context, record):
+    (state, helper), _, repo = context
+    record["plan_approval"] = {
+        "digest": helper.progress(repo, state.load_state(repo))["plan_digest"],
+        "source": "User approves the task design",
+    }
+    return save_record(state, repo, record)
 
 
 def artifacts(repo):
@@ -98,12 +107,17 @@ def test_proposal_shape_and_fixed_feedback_are_repeatable_and_read_only(context)
     assert output == render(context, "resume") == render(context, "proposal")
     assert "| Task | Input | Behavior under test | Expected result | Grading |" in output
     assert "Request \\| with newline<br>continued" in output
-    labels = ["Agent/model", "Tasks and examples", "Attempts", "Validation", "Time/cost limits", "Open questions"]
-    assert [row.split("**")[1].rstrip(":") for row in output.splitlines() if row.startswith("- **")] == labels
-    assert "| Check state and response |\n\n- **Agent/model:" in output
-    assert conversation.PROPOSAL_QUESTION in output
-    assert "This approval covers the task design" in output
+    assert "| Check state and response |\n\nThese test refunds and policy." in output
+    assert "I’ll build **refund** first.\n\n" + conversation.PROPOSAL_QUESTION in output
+    assert output.endswith(conversation.PROPOSAL_QUESTION + "\n")
+    assert "- **" not in output and "### Blockers" not in output
+    assert "This approval covers" not in output and "SKILL.md" not in output
     assert modules[0].state_path(repo).read_bytes() == before
+
+
+def test_task_design_can_be_reviewed_before_execution_details_exist(context):
+    proposal(context, with_settings=False)
+    assert render(context, "proposal").endswith(context[1].PROPOSAL_QUESTION + "\n")
 
 
 def test_trace_choice_has_fixed_options_before_a_proposal_and_is_read_only(context):
@@ -149,20 +163,50 @@ def test_trace_question_and_options_are_skipped_for_saved_source_choices(context
     assert state.state_path(repo).read_bytes() == before
 
 
-def test_combined_offer_is_not_execution_authorization(context):
-    modules, _, repo = context
+@pytest.mark.parametrize("legacy_offer", [True, False, "false"])
+def test_legacy_combined_offer_never_expands_design_review(context, legacy_offer):
+    modules, conversation, repo = context
     record = proposal(context)
-    record["plan"]["presentation"]["request_execution_authorization"] = "false"
+    record["plan"]["presentation"]["request_execution_authorization"] = legacy_offer
     save_record(modules[0], repo, record)
-    with pytest.raises(ValueError, match="must be true or false"):
-        render(context, "proposal")
-    record["plan"]["presentation"]["request_execution_authorization"] = True
-    save_record(modules[0], repo, record)
-    assert "approve building and running within the displayed settings and limits" in render(context, "proposal")
-    approve_plan(modules, repo, record)
-    assert not modules[1].progress(repo, modules[0].load_state(repo))["execution_authorized"]
-    assert "reference solution](https://docs.harborframework.com/tasks/solution)" in render(context, "prepare_first")
-    assert "grader](https://docs.harborframework.com/tasks/verifier)" in render(context, "prepare_first")
+    output = render(context, "proposal")
+    assert output.endswith(conversation.PROPOSAL_QUESTION + "\n")
+    assert "approve building and running" not in output
+    assert "- **Agent/model:" not in output
+
+
+def test_approved_design_resumes_to_read_only_settings_before_first_task(context):
+    modules, conversation, repo = context
+    state, helper = modules
+    record = proposal(context)
+    with pytest.raises(ValueError, match="scope approval"):
+        render(context, "execution_settings")
+    approve_design(context, record)
+    before = state.state_path(repo).read_bytes()
+
+    output = render(context, "execution_settings")
+
+    assert output == render(context, "resume")
+    assert output.startswith("Here are the settings for building and running the approved tasks.")
+    labels = ["Agent/model", "Tasks and examples", "Attempts", "Validation", "Time/cost limits", "Open questions"]
+    assert [row.split("**")[1].rstrip(":") for row in output.splitlines() if row.startswith("- **")] == labels
+    assert "I’ll pause after the first task for your review." in output
+    assert "Agent runs and paid grading require separate authorization" in output
+    assert "| Task |" not in output and conversation.PROPOSAL_QUESTION not in output
+    assert state.state_path(repo).read_bytes() == before
+    assert not helper.progress(repo, state.load_state(repo))["execution_authorized"]
+    with pytest.raises(ValueError, match="Display and save execution settings"):
+        render(context, "prepare_first")
+    record["execution_settings_presented"] = {
+        "digest": helper.progress(repo, state.load_state(repo))["settings_digest"],
+        "source": "Actual settings message delivered after design approval",
+    }
+    save_record(state, repo, record)
+    output = render(context, "resume")
+    assert output == conversation.FIRST_PROGRESS + "\n"
+    assert "reference solution](https://docs.harborframework.com/tasks/solution)" in output
+    assert "grader](https://docs.harborframework.com/tasks/verifier)" in output
+    assert not helper.progress(repo, state.load_state(repo))["execution_authorized"]
 
 
 def test_no_preapproval_generation_messages_or_stale_revision(context):
@@ -221,15 +265,32 @@ def test_run_announcement_requires_authorization_credentials_and_no_blocker(cont
     )
 
 
-def test_blockers_are_structured_and_saved_blockers_cannot_disappear(context):
+def test_explicit_run_stage_cannot_skip_pending_settings_display(context):
     modules, _, repo = context
-    proposal(context)
+    record = selection_ready(modules, repo, with_settings=True)
+    record.pop("execution_settings_presented")
+    saved = save_record(modules[0], repo, record)
+    assert modules[1].progress(repo, saved)["next_stage"] == "execution_settings"
+    with pytest.raises(ValueError, match="Display and save execution settings"):
+        render(context, "ready_to_run", access_ready=True)
+
+
+def test_blockers_are_structured_and_saved_blockers_cannot_disappear(context):
+    modules, conversation, repo = context
+    record = proposal(context)
     modules[0].update(repo, {"blockers": [{"id": "credential", "phase": "create", "message": "Credential missing"}]})
-    with pytest.raises(ValueError, match="Saved blockers"):
-        render(context, "proposal")
     entries = [{"step": "Run tasks", "reason": "Credential missing.", "needed": "Configure MODEL_KEY locally."}]
     output = render(context, "proposal", blockers=entries)
+    assert output == render(context, "proposal")
+    assert "### Blockers" not in output
+    assert output.endswith(conversation.PROPOSAL_QUESTION + "\n")
+    assert modules[0].load_state(repo)["blockers"][0]["id"] == "credential"
+    approve_design(context, record)
+    with pytest.raises(ValueError, match="Saved blockers"):
+        render(context, "execution_settings")
+    output = render(context, "execution_settings", blockers=entries)
     assert "### Blockers\n\n- **Run tasks:** Credential missing. **Needed:** Configure MODEL_KEY locally." in output
+    assert render(context, "resume", blockers=entries) == output
     assert render(context, "blockers", blockers=entries).startswith("### Blockers")
 
 
@@ -307,7 +368,8 @@ def test_shared_input_is_one_distinct_example(context):
     for proposed in record["plan"]["tasks"]:
         proposed["example_ids"] = ["shared-request"]
     save_record(modules[0], repo, record)
-    assert "2 tasks; 1 distinct input examples" in render(context, "proposal")
+    approve_design(context, record)
+    assert "2 tasks; 1 distinct input examples" in render(context, "execution_settings")
 
 
 def test_native_gym_progress_uses_reference_fixtures(context):

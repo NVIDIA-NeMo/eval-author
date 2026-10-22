@@ -48,9 +48,12 @@ the conversation renderer, before requesting approval:
 `provider` is `harbor` or `gym`. The plan contains a nonempty `tasks` list, each
 with a unique stable `id` and nonempty unique `example_ids`. Keep the request,
 behavior, expected outcome, grading, ETHOS.md references, source selection,
-priorities, breadth, exclusions, proposed agent/model, attempts, costs, and open
-questions in the plan. Extra planning and presentation fields are retained and
-included in its digest. `first_task` identifies exactly one planned task whose
+priorities, breadth, and exclusions in the plan. New records keep only
+`coverage_note` in `plan.presentation`; save execution details separately as
+`execution_settings`. Extra planning and legacy presentation fields are retained
+and included in the plan digest. Do not rewrite existing legacy presentation
+fields solely to move them; they remain a fallback when separate execution
+settings are absent. `first_task` identifies exactly one planned task whose
 implementation the user will review before the remaining tasks are generated.
 A native Gym task may contain several explicitly selected examples/rows.
 
@@ -64,6 +67,22 @@ do not reduce the agreement to whatever happened to finish.
 If the shared flow marked the creation scope `needs_review`, clear that flag
 and record its `confirmed` decision only when the revised plan is actually agreed.
 
+Leave `execution_settings` absent until its display fields are populated; a
+present value must be an object, not `null`. After design approval, save it with `agent_model`, `attempts`,
+`validation`, `limits`, and `open_questions` display fields. Task and example
+counts come from the approved design. This separate record is not part of the
+design digest: resolving an execution model or budget does not reopen unchanged
+task design. A change to the actual design still requires current design approval.
+
+`show` returns a `settings_digest`. After sending the `execution_settings` message,
+save `execution_settings_presented: {"digest": "<settings_digest>", "source":
+"<actual message reference>"}`. This records delivery, not user approval or paid
+execution consent. Do not fabricate the receipt before sending the message or
+insert another generic approval question. With design approved and no first task
+created, resume selects `execution_settings` until its current delivery receipt
+is saved, then `prepare_first`. Legacy already-created first tasks resume their
+existing stage without a retroactive display requirement.
+
 Updates that contain the structured creation scope require `--expected-revision`
 from the latest `show`. They preserve omitted sibling fields of `scopes.create`
 and other journeys. The `first_eval` record itself is replaced as a whole: load
@@ -76,7 +95,8 @@ If shared state marked `scopes.create.needs_review` after an agent, provider, or
 proposal first. Then explicitly set `needs_review: false` alongside the saved
 agreement. A matching plan digest alone does not clear that shared review flag.
 
-Updates automatically retain superseded plan agreements, task observations,
+Updates automatically retain superseded plan agreements, execution settings and
+display receipts, task observations,
 selections, native-run observations, exact run reviews, and audit decisions in
 optional `history`. Each snapshot records its kind/key, originating shared-state
 revision, prior record, and content digest. Callers may omit this generated field;
@@ -165,6 +185,7 @@ prerequisites or ETHOS.md.
   "cases": [{"task_id": "refund-policy", "example_ids": ["refund-eligible", "refund-ineligible"], "attempts": 1}],
   "agent": "<actual configured agent>",
   "model": "<actual configured model>",
+  "settings_digest": "<current settings_digest>",
   "source": "<native configuration/selection inspection reference>"
 }
 ```
@@ -179,8 +200,15 @@ selection must match the agreed task/example set; unrelated drafts are excluded.
 Native configuration inspection must establish the saved selection. This helper
 does not parse arbitrary provider configurations or prove an agent connection.
 
+New selections bind the separately edited execution settings through
+`selection.settings_digest`. A stale settings digest invalidates affected
+execution authorization and evidence; refresh the concrete selection and obtain
+new consent only when existing consent no longer covers it. Older selections
+remain readable without implying missing authorization or execution evidence.
+
 `show` returns `selection_digest`, binding the selection, approved plan digest,
-and selected task revisions. Execution/spend authorization is independent
+settings binding, and selected task revisions. Execution/spend authorization is
+independent
 of scope approval. Carry forward applicable prior authorization or the user's
 new answer as optional `selection.authorization: {"digest": "<selection_digest>",
 "source": "<actual authorization reference>"}`. Carry earlier consent forward only

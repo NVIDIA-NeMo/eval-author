@@ -90,7 +90,7 @@ def validate(record: dict) -> None:
             "run_review",
             "audit_invitation",
         },
-        {"selected_run_ids", "history"},
+        {"selected_run_ids", "history", "execution_settings", "execution_settings_presented"},
     )
     if type(record["schema_version"]) is not int or record["schema_version"] != 1:
         raise ValueError("Unsupported first-eval state schema")
@@ -115,6 +115,16 @@ def validate(record: dict) -> None:
         _mapping(record["plan_approval"], {"digest", "source"})
         _digest(record["plan_approval"]["digest"])
         _text(record["plan_approval"]["source"], "scope approval source")
+    if "execution_settings" in record:
+        settings = record["execution_settings"]
+        _mapping(settings, {"agent_model", "attempts", "validation", "limits", "open_questions"})
+        for field in ("agent_model", "attempts", "validation", "limits"):
+            _text(settings[field], f"execution settings {field}")
+        _strings(settings["open_questions"], "execution settings open questions")
+    if record.get("execution_settings_presented") is not None:
+        _mapping(record["execution_settings_presented"], {"digest", "source"})
+        _digest(record["execution_settings_presented"]["digest"])
+        _text(record["execution_settings_presented"]["source"], "execution settings presentation source")
     if not isinstance(record["tasks"], dict):
         raise ValueError("First-eval tasks must be a mapping")
     # Retired tasks remain available after a scope change, but never count toward
@@ -146,7 +156,13 @@ def validate(record: dict) -> None:
             _evidence(validation["evidence"])
     selection = record["selection"]
     if selection is not None:
-        _mapping(selection, {"config", "cases", "agent", "model", "source"}, {"inputs", "authorization"})
+        _mapping(
+            selection,
+            {"config", "cases", "agent", "model", "source"},
+            {"inputs", "authorization", "settings_digest"},
+        )
+        if "settings_digest" in selection:
+            _digest(selection["settings_digest"])
         _reference(selection["config"])
         if "inputs" in selection:
             _evidence(selection["inputs"])
@@ -253,6 +269,8 @@ def validate(record: dict) -> None:
                 "run_review",
                 "audit_invitation",
                 "selected_runs",
+                "execution_settings",
+                "execution_settings_presented",
             }:
                 raise ValueError("Unknown first-eval history kind")
             _text(item["key"], "history key")
@@ -293,6 +311,20 @@ def task_digest(repo: Path, relative: str) -> str:
     return module.task_digest(_path(repo, relative))
 
 
+def execution_settings(record: dict) -> dict:
+    """Keep execution details independent of task design without rewriting old plans."""
+    if "execution_settings" in record:
+        return record["execution_settings"]
+    presentation = record["plan"].get("presentation", {})
+    if not isinstance(presentation, dict):
+        return {}
+    return {
+        field: presentation[field]
+        for field in ("agent_model", "attempts", "validation", "limits", "open_questions")
+        if field in presentation
+    }
+
+
 def progress(repo: Path, state: dict) -> dict | None:
     scope = state["scopes"].get("create", {})
     if not isinstance(scope, dict) or "first_eval" not in scope:
@@ -315,6 +347,12 @@ def progress(repo: Path, state: dict) -> dict | None:
     )
     approval = record["plan_approval"]
     approved = bool(context_current and approval and approval["digest"] == plan_digest)
+    settings_digest = fingerprint({"plan_digest": plan_digest, "settings": execution_settings(record)})
+    presented = record.get("execution_settings_presented")
+    settings_presented = bool(approved and presented and presented["digest"] == settings_digest)
+    # Existing task observations predate this presentation checkpoint. Keep
+    # them usable without claiming that missing presentation evidence exists.
+    legacy_started = "execution_settings" not in record and record["first_task"] in record["tasks"]
     tasks = {}
     for task_id in planned:
         task = record["tasks"].get(task_id)
@@ -382,6 +420,11 @@ def progress(repo: Path, state: dict) -> dict | None:
     selection_current = bool(
         approved
         and selection
+        and (
+            selection.get("settings_digest") == settings_digest
+            if "execution_settings" in record or "settings_digest" in selection
+            else True
+        )
         and selected_matches
         and all(task["created"] for task in tasks.values())
         and _current(repo, selection["config"])
@@ -537,6 +580,8 @@ def progress(repo: Path, state: dict) -> dict | None:
     audit_decision = invitation["status"] if invitation else None
     if not approved:
         next_stage = "proposal"
+    elif not settings_presented and not legacy_started:
+        next_stage = "execution_settings"
     elif not first["created"] or not first["environment_proven"]:
         next_stage = "prepare_first"
     elif not first_approved:
@@ -551,6 +596,8 @@ def progress(repo: Path, state: dict) -> dict | None:
         "scope_approved": approved,
         "plan_approved": approved,
         "plan_digest": plan_digest,
+        "settings_digest": settings_digest,
+        "execution_settings_presented": settings_presented,
         "first_task_approved": first_approved,
         "tasks": tasks,
         "selection_digest": selection_digest,
@@ -578,6 +625,12 @@ def transition(repo: Path, previous: dict, updated: dict) -> None:
     if now is None:
         raise ValueError("The structured first-eval record is unavailable")
     old = progress(repo, previous) if before else None
+    if before and "execution_settings" in before and "execution_settings" not in after:
+        raise ValueError("Retain adopted execution settings; revise them instead of removing them")
+    presented = after.get("execution_settings_presented")
+    if presented is not None and presented != (before or {}).get("execution_settings_presented"):
+        if not old or not old["scope_approved"] or not now["scope_approved"]:
+            raise ValueError("Save scope approval before recording displayed execution settings")
     previous_tasks = before["tasks"] if before else {}
     if not set(previous_tasks) <= set(after["tasks"]):
         raise ValueError("Retain prior task observations; remove retired tasks from the plan instead")
@@ -588,6 +641,10 @@ def transition(repo: Path, previous: dict, updated: dict) -> None:
     if added:
         if not old or not old["scope_approved"] or not now["scope_approved"]:
             raise ValueError("Save scope approval before recording created tasks")
+        if after["first_task"] in added and not (
+            old["execution_settings_presented"] and now["execution_settings_presented"]
+        ):
+            raise ValueError("Display and save execution settings before recording the first created task")
         if added - {after["first_task"]} and not (old["first_task_approved"] and now["first_task_approved"]):
             raise ValueError(
                 "Prove the environment and approve exactly the first task before creating the remaining tasks"
@@ -628,6 +685,8 @@ def transition(repo: Path, previous: dict, updated: dict) -> None:
             retain("run", key, old_run, next_runs[key])
         for field in ("selection", "run_review", "audit_invitation"):
             retain(field, field, before[field], after[field])
+        for field in ("execution_settings", "execution_settings_presented"):
+            retain(field, field, before.get(field), after.get(field))
         if before.get("selected_run_ids") != after.get("selected_run_ids"):
             retain(
                 "selected_runs",

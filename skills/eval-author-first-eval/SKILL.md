@@ -57,8 +57,8 @@ Every user-facing checkpoint must use the required
 Supply the current journey-state revision and supported facts as the contract
 specifies. Copy its rendered Markdown verbatim; do not reconstruct, shorten,
 paraphrase, reorder, or add to its fixed messages, questions, labels, or tables.
-Use its `traces`, `proposal`, `prepare_first`, `review_first`, `prepare_remaining`,
-`ready_to_run`, `results`, `resume`, and `blockers` stages at the corresponding
+Use its `traces`, `proposal`, `execution_settings`, `prepare_first`, `review_first`,
+`prepare_remaining`, `ready_to_run`, `results`, `resume`, and `blockers` stages at the corresponding
 checkpoints. Dynamic facts, links, task content, and claims require evidence.
 If state changes, refresh it and render against the current revision. This
 reference owns exact wording; the descriptions below specify when to use it.
@@ -71,11 +71,15 @@ When expanding a suite, reuse its reviewed tasks, selected sources, setup, and
 current `ETHOS.md` confirmation. Reopen only affected decisions. Do not require
 an audit just to add agreed examples.
 
-Whenever work is blocked, show a **Blockers** heading in the reply. For each
+Whenever the current step is blocked, show a **Blockers** heading in the reply. For each
 blocker, name its cause, the step it prevents, and the concrete action needed to
 continue. Preserve completed work and distinguish a partial delivery from the
 completed journey. A missing integration or report must not silently advance
-a review gate. Do not request secret values.
+a review gate. Keep run-only blockers saved while presenting the initial task
+design; display them after design approval with the execution settings. If a
+blocker prevents a meaningful design proposal, render `blockers` instead of an
+approvable proposal. Do not request secret values. Review replies must not append
+unsolicited policy explanations, skill citations, or approval-rule quotations.
 
 The deliverable is the agreed working suite, actual-agent run evidence, and
 usable review and rerun guidance. Low agent scores are a valid baseline;
@@ -137,7 +141,9 @@ semantics unresolved. Explain which behavior remains outside the proposed suite.
 Use [Execution dependencies](../eval-author/references/execution-dependencies.md)
 and Steps 1 and 2 of [environment preparation](../eval-author-environment/SKILL.md)
 to establish provider fit, dependency inventory, and result collection. Files
-and embedded databases count as dependencies. Raise poor fit in this review;
+and embedded databases count as dependencies. Save run-only integration or access
+findings for the execution-settings checkpoint after design approval. A finding
+that prevents a meaningful task design requires `blockers` instead of a proposal;
 a provider change requires the user's decision and verification of its runtime.
 Do not make the user supply runtime YAML or invent a replacement agent.
 
@@ -151,10 +157,31 @@ outcomes, and what the grader checks. Retain requirement/source IDs in saved
 state and later task documentation. Do not create or ask the user to review a
 separate planning document. The environment's technical plan is still required.
 
-Follow the table with exactly these six bulleted execution-summary labels:
+Explain a small initial suite's purpose and limits without calling the first
+reviewed task a separate breadth standard. Lower rerun cost, measuring the
+agent's own cost or latency, broader coverage, and harder examples are different
+priorities. Carry forward the user's preferences and identify the first task to
+build. The initial `proposal` contains only its introduction, table, coverage
+explanation, first-task choice, and this fixed question as its final text:
+
+> Do these tasks make sense for your agent? Are we testing the right behaviors, with the right expected results and grading? Tell me what you’d change, add, or prioritize—or approve the proposal as written.
+
+Do not append the execution bullets, run blockers, execution authorization request,
+approval footer, or policy citations to this proposal. Ask for task-design feedback
+first; design approval does not authorize paid work.
+
+Save the accepted proposal and feedback using the
+[state contract](../eval-author/references/first-eval-state.md) before scaffolding,
+fixtures, instructions, graders, or delegated authoring. Unanswered task-design
+choices stop that work. Proposal-only requests end with the conversational
+proposal. Expansion
+retains existing examples and records additions, new totals, difficulty, and cost.
+
+After design approval, save `execution_settings` separately from the plan and
+render `execution_settings` with exactly these six bulleted labels:
 
 - **Agent/model:** the actual agent and model configuration, or what is unresolved.
-- **Tasks and examples:** proposed task count, distinct examples and their mapping,
+- **Tasks and examples:** agreed task count, distinct examples and their mapping,
   the first task to build, and remaining planned tasks and exclusions.
 - **Attempts:** attempts per task or selected Gym row and total agent executions;
   count repeats separately from examples and control runs.
@@ -162,32 +189,24 @@ Follow the table with exactly these six bulleted execution-summary labels:
   any paid judge or model work they require.
 - **Time/cost limits:** agreed bounds, timeout/retry limits, and estimated work;
   use supported prices or measured evidence, otherwise say monetary cost is unknown.
-- **Open questions:** unresolved design, access, integration, budget, or run choices;
+- **Open questions:** unresolved access, integration, budget, or run choices;
   say none when settled instead of inventing another question.
 
-Explain a small initial suite's purpose and limits without calling the first
-reviewed task a separate breadth standard. Lower rerun cost, measuring the
-agent's own cost or latency, broader coverage, and harder examples are different
-priorities. Carry forward the user's preferences. The `proposal` renderer asks:
+Show relevant **Blockers** in this checkpoint, distinguishing what prevents
+building the first task from what only prevents later execution. A run-only
+blocker does not stop independent authorized authoring. Record actual delivery
+with `execution_settings_presented` before `prepare_first`; that record is a
+display receipt, not user approval or spending consent. Do not add another generic
+approval gate for these settings. Legacy already-created first tasks resume at
+their current stage without a retroactive display checkpoint.
 
-> Do these tasks make sense for your agent? Are we testing the right behaviors, with the right expected results and grading? Tell me what you’d change, add, or prioritize—or approve the proposal as written.
-
-When the execution setup and bounds are known, this same review may also request
-**explicit bounded execution authorization**: identify the selected agent/model,
-tasks/examples, attempts, validation work, paid judging, retry/time/spend limits,
-and that the remaining tasks are built only after first-task review. Make clear
-whether the user is approving design only or also those runs. A design approval,
-first-task approval, or general positive response never implicitly authorizes
-spend. If execution bounds remain unresolved, settle design now and ask for the
-missing execution authorization only when a concrete bounded run is ready.
-Reuse an authorization that already covers the exact work; do not ask again
-because the stage changed. Changes beyond its bounds require a revised decision.
-
-Save the accepted proposal, feedback, and any explicit authorization using the
-[state contract](../eval-author/references/first-eval-state.md) before scaffolding,
-fixtures, instructions, graders, or delegated authoring. Unanswered choices stop
-that work. Proposal-only requests end with the conversational proposal. Expansion
-retains existing examples and records additions, new totals, difficulty, and cost.
+Obtain missing **explicit bounded execution authorization** when concrete paid
+work is ready: identify the selected agent/model, tasks/examples, attempts,
+validation work, paid judging, and retry/time/spend limits. Reuse authorization
+that already covers the exact work; do not ask again because the stage changed.
+A design approval, first-task approval, displayed settings, or general positive
+response never implicitly authorizes spend. Changes beyond authorized bounds
+require a revised decision.
 
 ## 5. Prepare tasks and grading
 
