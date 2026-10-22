@@ -241,10 +241,10 @@ _FAKE_GYM = '#!/bin/sh\necho "NeMo Gym v0.6.0"\n'
 
 
 def _write_gym_stub(folder: Path, script: str, version: str = "0.6.0") -> Path:
-    """Synthetic interpreter + CLI boundary; not evidence of a real Gym install.
+    """Synthetic interpreter + CLI boundary; not evidence of a real NeMo Gym install.
 
     Locator behavior against real interpreters is covered in test_runtime_locator.
-    These fixtures isolate discovery's Judge/Solve orchestration from Gym setup.
+    These fixtures isolate discovery's Judge/Solve orchestration from NeMo Gym setup.
     """
     sys.path.append(str(_CORE_DIR / "scripts"))
     from locate_runtime import PROBE_MARKER as probe_marker
@@ -274,8 +274,8 @@ def _run_discover(
     so Harbor and PyYAML are both unimportable. That reproduces a customer
     repository with no Harbor install without needing a second interpreter.
     ``gym_stub`` puts a directory holding a fake ``gym`` command on ``PATH``, which
-    answers ``--version`` like NeMo Gym 0.6.0, so the probe sees Gym installed.
-    ``gym_script`` replaces that command, to fake Gym's Judge and Solve as well.
+    answers ``--version`` like NeMo Gym 0.6.0, so the probe sees NeMo Gym installed.
+    ``gym_script`` replaces that command, to fake NeMo Gym's Judge and Solve as well.
     """
     command = [sys.executable, *([] if with_harbor else ["-S"]), str(_DISCOVER), "--repo", str(repo), *args]
     env = None
@@ -5047,7 +5047,7 @@ def test_discover_reports_a_task_harbor_silently_dropped(suite: Path) -> None:
 
 @_needs_harbor
 def test_discover_fails_judge_when_gym_manifests_go_unchecked(suite: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Harbor alone cannot pass a repo whose Gym manifests nobody checked."""
+    """Harbor alone cannot pass a repo whose NeMo Gym manifests nobody checked."""
     if shutil.which("gym") or (Path(sys.executable).parent / "gym").is_file():
         pytest.skip("a gym command is installed here, so the manifest would be checked")
     manifest = suite / "environments" / "fixture_env" / "manifest.yaml"
@@ -5079,7 +5079,7 @@ def test_discover_exits_early_without_harbor_or_gym(suite: Path) -> None:
     assert report["phases"] == {"probe": "invalid", "explore": "skipped", "judge": "skipped", "solve": "skipped"}
     assert report["configs"] == [] and report["datasets"] == [] and report["task_count"] == 0
     assert _named(report, "harbor")["hint"]
-    assert _named(report, "gym")["hint"], "a missing Gym must tell the user what to do"
+    assert _named(report, "gym")["hint"], "a missing NeMo Gym must tell the user what to do"
 
 
 def test_discover_marks_every_finding_unproven_without_harbor(
@@ -5263,7 +5263,7 @@ def test_other_evals_needs_an_opentelemetry_import(tmp_path: Path, monkeypatch: 
 
 
 def test_other_evals_leaves_out_a_manifests_resources_server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A Gym workload's server and verifier code belong to its manifest, not to another eval."""
+    """A NeMo Gym workload's server and verifier code belong to its manifest, not to another eval."""
     other_evals = _import_other_evals(monkeypatch)
     server = tmp_path / "resources_servers" / "fixture_env"
     server.mkdir(parents=True)
@@ -5324,7 +5324,7 @@ def test_solve_samples_evenly_from_first_to_last(monkeypatch: pytest.MonkeyPatch
 
 
 def test_explore_groups_sibling_tasks_into_one_dataset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Sibling tasks form a dataset; a folder that also holds other files, or Gym's environments/, does not."""
+    """Sibling tasks form a dataset; a folder that also holds other files, or NeMo Gym's environments/, does not."""
     _import_discover(monkeypatch)
     explore = importlib.import_module("providers.harbor._explore")
     gym_explore = importlib.import_module("providers.gym._explore")
@@ -5354,7 +5354,7 @@ def test_explore_groups_sibling_tasks_into_one_dataset(tmp_path: Path, monkeypat
 def test_gym_probe_trusts_only_a_new_enough_nemo_gym(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, output: str, available: bool
 ) -> None:
-    """The shared locator rejects old Gym and unrelated CLIs through the discovery adapter."""
+    """The shared locator rejects old NeMo Gym and unrelated CLIs through the discovery adapter."""
     _import_discover(monkeypatch)
     gym_probe = importlib.import_module("providers.gym._probe")
     version_match = re.search(r"v(\d+\.\d+\.\d+)", output)
@@ -5380,7 +5380,7 @@ def test_judge_line_counts_each_format_and_names_a_docker_failure(monkeypatch: p
         "checks": [],
     }
     assert renderer._phase_line("judge", "invalid", report) == (
-        "- [ ] **Judge** (invalid) - validated 2 Harbor evals and 1 Gym eval, but 1 Gym eval could not be validated"
+        "- [ ] **Judge** (invalid) - validated 2 Harbor evals and 1 NeMo Gym eval, but 1 NeMo Gym eval could not be validated"
     )
     docker = {"name": "backend", "status": "fail", "severity": "required", "message": "Docker daemon is not running"}
     report["checks"] = [docker]
@@ -5400,7 +5400,7 @@ esac
 def test_solve_runs_what_passed_judge_even_when_something_failed(
     tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
 ) -> None:
-    """One manifest Gym rejects keeps Judge invalid, but does not stop Solve on the one that passed."""
+    """One manifest NeMo Gym rejects keeps Judge invalid, but does not stop Solve on the one that passed."""
     if shutil.which("gym") or (Path(sys.executable).parent / "gym").is_file():
         pytest.skip("a real gym command is installed here and would shadow the fake one")
     for name in ("good_env", "broken_env"):
@@ -5427,7 +5427,7 @@ def test_solve_runs_what_passed_judge_even_when_something_failed(
 
 @_needs_harbor
 def test_gym_extension_tasks_are_an_advisory_not_a_failure(suite: Path) -> None:
-    """Nothing runs Gym extension tasks yet, which the user cannot fix, so it must not fail discovery."""
+    """Nothing runs NeMo Gym extension tasks yet, which the user cannot fix, so it must not fail discovery."""
     task = suite / "extension" / "verifier-task"
     _write_task(task)
     (task / "tests" / "test.sh").unlink()

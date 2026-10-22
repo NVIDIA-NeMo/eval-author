@@ -164,9 +164,9 @@ def scan_repository(
 ) -> RepositoryScan:
     """Find repo-owned configs, Harbor datasets, and task directories.
 
-    ``exclude_config`` removes files another provider owns, such as a Gym
+    ``exclude_config`` removes files another provider owns, such as a NeMo Gym
     manifest, which also declares a ``datasets`` list. ``never_group`` names
-    directories whose task children are each their own dataset, such as Gym's
+    directories whose task children are each their own dataset, such as NeMo Gym's
     ``environments/`` root.
     """
     repo_root = repo_root.resolve()
@@ -180,7 +180,7 @@ def scan_repository(
         max_entries=task_max_entries,
         excluded_directory_names=frozenset(_PRUNE_DIR_NAMES),
     )
-    # Readiness still requires task.toml; file-only Gym scaffolds remain visible
+    # Readiness still requires task.toml; file-only NeMo Gym scaffolds remain visible
     # in the inventory, without being sent to Harbor as ready task directories.
     tasks = sorted(
         repo_root / item["path"]

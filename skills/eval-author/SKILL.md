@@ -40,20 +40,20 @@ not-for:
   - eval-author-first-eval (use to establish Ethos and build first evals without prior coverage or traces)
   - eval-author-discover (use to run the discovery pass and get a runnable verdict)
   - eval-author-audit (use to generate, validate, measure, or aggregate audit.md coverage)
-  - eval-author-task-create (use to propose dataset improvements; when task creation is requested, create and prove an eligible Gym or Harbor task)
+  - eval-author-task-create (use to propose dataset improvements; when task creation is requested, create and prove an eligible NeMo Gym or Harbor task)
   - eval-author-inspect-trace (use after this skill selects the trace sub-flow)
-  - eval-author-trace-environment (experimental; use to derive a Harbor or native Gym task from canonical ATIF evidence)
+  - eval-author-trace-environment (experimental; use to derive a Harbor or native NeMo Gym task from canonical ATIF evidence)
   - eval-author-environment (use after an authoring sub-flow hands over its cases to build and prove their task environment)
   - nemo-intake (use to instrument agents, ingest telemetry, or query Intake outside Eval Author)
   - mlflow-to-atif (use to convert MLflow traces into canonical ATIF files)
-  - gym-to-atif (use to convert Gym Responses traces into canonical ATIF files)
+  - gym-to-atif (use to convert NeMo Gym Responses traces into canonical ATIF files)
   - nemo-experimentalist (use to run insight-driven optimization end to end, which drives the Eval Author agent itself)
   - nemo-evaluator (use to run an existing benchmark rather than work on a repository's own suite)
 compatibility: >-
   The core manages shared state and delegates Ethos to ethos-orchestrate;
   runtime execution is delegated to sub-flows.
   Discovery, audit, and task creation use the local checkout.
-  Task execution requires the selected Gym or Harbor runtime and may require Docker and provider
+  Task execution requires the selected NeMo Gym or Harbor runtime and may require Docker and provider
   credentials. Trace inspection requires the nemo CLI, an explicit workspace,
   and read access to configured Intake.
 maturity: alpha
@@ -75,7 +75,7 @@ each request to the narrow sub-flow that owns it.
 
 Use the requested outcome and prior answers before asking a question. Creating,
 auditing, and improving evals use the **Shared prerequisites and Ethos** flow
-below for Gym and Harbor, including direct invocations of their skills.
+below for NeMo Gym and Harbor, including direct invocations of their skills.
 
 The first response to a new shared flow is orientation only. Determine the goal
 from the user's request and conversation already available, without inspecting the
@@ -119,7 +119,7 @@ options as a bulleted list:
 
 Reuse known context and ask only for the unresolved goal.
 
-Explicit inventory, readiness, repair, trace inspection, supported Gym or MLflow
+Explicit inventory, readiness, repair, trace inspection, supported NeMo Gym or MLflow
 trace conversion, trace-derived authoring, proposal-only, and audit
 generate/validate/measure/aggregate requests keep their
 scope. Explanation-only requests do not start a workflow. Scoped operations reuse
@@ -191,7 +191,10 @@ or replacing them. Scoped utilities retain their explicit `--ethos` path behavio
 
 An expansion request does not imply an audit. Carry supplied suite context,
 requested additions, confirmed Ethos, prerequisites, and pending decisions into
-the selected authoring flow.
+the selected authoring flow. Resolve an unsupported suite format during
+[shared prerequisites](references/shared-prerequisites.md#check-the-agent-and-setup),
+before Ethos. If the suite uses an unsupported format, ask the user to convert
+it to NeMo Gym or Harbor before proceeding.
 For a starter suite created by first-eval, resume its scope stage. For supplied
 reviewed audit findings, use `eval-author-task-create` proposals and its existing
 eligibility checks. If no supported authoring flow matches the supplied suite,
@@ -215,25 +218,25 @@ or unfinished work. A side question does not confirm pending content.
 The authority depends on the sub-flow:
 
 - For suite discovery, the selected provider's validators and execution checks
-  judge readiness: Gym for native manifests and Harbor for its configs and tasks.
+  judge readiness: NeMo Gym for native manifests and Harbor for its configs and tasks.
   File presence alone does not prove runnability.
-- For first evals, Ethos establishes intended behavior. Gym's positive/negative
+- For first evals, Ethos establishes intended behavior. NeMo Gym's positive/negative
   controls or Harbor's NOP and Oracle check basic task wiring and verifier
   behavior; the user's agent run establishes a baseline. Working setup does not
   establish evaluation quality or coverage,
   and a plan alone is not proof of runnability.
-- For task environments, the environment's Harbor smoke runs or Gym native
+- For task environments, the environment's Harbor smoke runs or NeMo Gym native
   controls establish that its dependencies, starting data, reset, and end-state
   export work. Build files and an environment plan are not that proof.
 - For audit-spec validation, the bundled schema and validator judge the finite
   `audit.md` coverage denominator.
-- For task creation, Gym's positive/negative controls and native execution, or
+- For task creation, NeMo Gym's positive/negative controls and native execution, or
   Harbor's Oracle, check task behavior. Measured ATIF proves whether repeated
   real-agent runs close the selected gap; reference controls do not measure agent ability.
 - For trace inspection, Intake establishes what happened. Local source code can
   explain behavior, but it can't replace recorded trace evidence.
 - For experimental trace-derived environments, canonical ATIF establishes the request.
-  Harbor's NOP and Oracle runs or Gym's native validation and repeated controls
+  Harbor's NOP and Oracle runs or NeMo Gym's native validation and repeated controls
   establish the generated task's behavior within the reported proof limits.
 
 No sub-flow reimplements a provider's rules. When evidence can't settle a claim,
@@ -255,7 +258,7 @@ The sub-flows share this language, and reports use it verbatim.
 | Advisory | A warning worth surfacing that blocks nothing |
 | Rung | One step of a provider's validation ladder, ordered so a lower rung's failure often clears once a higher one is fixed |
 | Proven | A provider judged this check. An unproven check is an observation and never evidence |
-| Provider | The evaluation framework that owns the rules. Gym and Harbor are supported and compatible; follow the shared provider-selection rule |
+| Provider | The evaluation framework that owns the rules. NeMo Gym and Harbor are supported and compatible; follow the shared provider-selection rule |
 | Finding | One trace claim categorized as `behavior`, `issue`, `recovery`, or `uncertainty`, with evidence IDs |
 | Outcome | The trace assessment: `success`, `failure`, or `unknown` |
 
@@ -269,10 +272,10 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 | `eval-author-first-eval` | Establish required Ethos, plan cases without an installed runtime, and build or expand a starter suite at the agreed breadth while teaching the user how to run it |
 | `eval-author-discover` | Establish whether a repository's evaluations run, name the rung that fails, and get the exact command to run them |
 | `eval-author-audit` | Generate and validate a finite `audit.md` coverage denominator, measure and aggregate trace coverage, and report findings |
-| `eval-author-task-create` | Propose concrete dataset improvements from audit findings; when task creation is requested, create one eligible Gym or Harbor task and prove it with native controls and repeated measured runs |
+| `eval-author-task-create` | Propose concrete dataset improvements from audit findings; when task creation is requested, create one eligible NeMo Gym or Harbor task and prove it with native controls and repeated measured runs |
 | `eval-author-inspect-trace` | Understand one Intake trace without presuming that the trace contains a failure. Not user-invocable; this skill selects it |
-| `eval-author-trace-environment` | **Experimental.** Normalize one trace to ATIF, make a privacy-reviewed candidate decision, and build a private Harbor or native Gym task when evidence supports it |
-| `eval-author-environment` | Build and prove the environment a Harbor or Gym task runs in: provider fit, how each dependency is provided, starting data and reset, end-state export, and isolation. Not user-invocable; first-eval and task-create hand it their agreed cases |
+| `eval-author-trace-environment` | **Experimental.** Normalize one trace to ATIF, make a privacy-reviewed candidate decision, and build a private Harbor or native NeMo Gym task when evidence supports it |
+| `eval-author-environment` | Build and prove the environment a Harbor or NeMo Gym task runs in: provider fit, how each dependency is provided, starting data and reset, end-state export, and isolation. Not user-invocable; first-eval and task-create hand it their agreed cases |
 
 `eval-author-audit` works one level above tasks: it generates and validates the
 coverage denominator, measures traces against it, and aggregates deterministic
@@ -280,16 +283,16 @@ coverage reports. `eval-author-task-create` owns the proposal step: prioritize
 dataset improvements from those findings across tools, capabilities, and failure
 cases while preserving their measured or unmeasured status. Proposal-only
 requests stop there. Its subsequent task-creation path consumes only actionable
-tool gaps and uses the selected Gym or Harbor native scaffolder rather than guessing a task
+tool gaps and uses the selected NeMo Gym or Harbor native scaffolder rather than guessing a task
 layout. For a requested full workflow, proceed from audit to proposals even when
 there are no eligible tool gaps; an audit-only request ends with the findings.
 
 ## Select the evaluation provider
 
 Use the same rule for first-eval, audit-derived task creation, and trace-derived
-task creation: honor the user's explicit Gym or Harbor choice; otherwise preserve
+task creation: honor the user's explicit NeMo Gym or Harbor choice; otherwise preserve
 the existing suite's provider. When neither is specified, default to Harbor.
-Both providers are supported, and Gym is compatible with Harbor. If the user
+Both providers are supported, and NeMo Gym is compatible with Harbor. If the user
 selects a setup using both, record which provider owns each artifact and execution
 step and verify the runtimes that setup uses. For a mixed suite, preserve the
 setup of the affected cases; clarify only when the target is ambiguous. The user
@@ -305,8 +308,8 @@ This does not add runtime requirements to file-only inventory,
 planning, or provider-independent audit work. Keep the selected Python/CLI pair
 and recorded version; missing setup or ambiguity never authorizes a provider switch.
 
-Select the output provider independently of the evidence source: a Gym trace
-does not require Gym output. Use the selected provider's native scaffolding,
+Select the output provider independently of the evidence source: a NeMo Gym trace
+does not require NeMo Gym output. Use the selected provider's native scaffolding,
 validation, and execution path. Missing setup is a reported prerequisite, not
 permission to silently switch providers.
 
@@ -365,12 +368,12 @@ user, not to you.
   their documented deliverable paths. Journey state is the sole workflow-state authority.
 - **A missing tool is a finding, not a task.** When the provider is not installed,
   say so and stop short of proving anything. Report what you found regardless, and
-  do not install the provider automatically. For Gym, report its separate runtime
+  do not install the provider automatically. For NeMo Gym, report its separate runtime
   requirements and repository setup instructions; for Harbor, use discovery's
   setup guidance to explain installation and verification. An explicit request to install is
   authorization for that setup; a broad eval request alone is not.
 - **Do not run without approval.** Discovery proves an existing suite can run and
-  hands over the command. Task creation may run Gym verifier controls or Harbor Oracle locally, then starts
+  hands over the command. Task creation may run NeMo Gym verifier controls or Harbor Oracle locally, then starts
   real-agent jobs only when the user explicitly asked for or approved that spend.
   First-eval authoring may run local task sanity checks when task creation is requested;
   real-agent or paid-judge runs require authorization for that execution and spend.

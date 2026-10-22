@@ -51,20 +51,20 @@ It writes one owner-private `.atif.json` file per trace. Conversion preserves
 recorded evidence and reports losses; it cannot recover missing instructions
 or results.
 
-For Gym traces, use the standalone
-[Gym conversion skill](../skills/gym-to-atif/SKILL.md) with one
+For NeMo Gym traces, use the standalone
+[NeMo Gym conversion skill](../skills/gym-to-atif/SKILL.md) with one
 rollout JSON record or one explicit JSONL line. Prefer the original Harbor ATIF
 when retained. The experimental trace-to-environment
 [source guide](../skills/eval-author-trace-environment/references/sources.md)
-describes the supported ATIF, Gym, MLflow, Intake, and bounded JSON
+describes the supported ATIF, NeMo Gym, MLflow, Intake, and bounded JSON
 OpenTelemetry inputs and their limits.
 
 ## Load shared normalized evidence
 
-The Gym and MLflow skills can also use NeMo Compass's pinned `nemo-compass`
+The NeMo Gym and MLflow skills can also use NeMo Compass's pinned `nemo-compass`
 distribution to retain normalized provider evidence with its bundled
 `trace_ingest` loaders. See the
-[Gym loader guide](../skills/gym-to-atif/references/trace-intel-ingest.md) for
+[NeMo Gym loader guide](../skills/gym-to-atif/references/trace-intel-ingest.md) for
 native `ng_trajectory` captures and the
 [MLflow loader guide](../skills/mlflow-to-atif/references/trace-intel-ingest.md)
 for complete bounded exports. These optional commands need Python 3.12 or 3.13
@@ -98,34 +98,34 @@ is solvable and its verifier distinguishes outcomes. These checks do not
 establish your actual agent's performance. That requires running your agent
 with its configured provider and dependencies. See [Understanding results](results.md).
 
-### Produce a Gym task
+### Produce a NeMo Gym task
 
-Choose Gym explicitly or use a repository whose existing suite uses Gym:
+Choose NeMo Gym explicitly or use a repository whose existing suite uses NeMo Gym:
 
 ```text
-Use eval-author-trace-environment to produce a native Gym task from
+Use eval-author-trace-environment to produce a native NeMo Gym task from
 /absolute/path/trace.atif.json, with task ID ledger-total.
 Review privacy and ground truth, complete the native task, and validate it
-with the installed Gym runtime. Retain controls and exact rerun instructions.
+with the installed NeMo Gym runtime. Retain controls and exact rerun instructions.
 ```
 
-The source can be ATIF, Gym, MLflow, Intake, or supported OpenTelemetry data;
+The source can be ATIF, NeMo Gym, MLflow, Intake, or supported OpenTelemetry data;
 source format does not select the output provider. No audit coverage report is
-required. The [Gym extension](../skills/eval-author-trace-environment/references/gym-output.md)
-shares trace preparation and candidacy, then reuses Gym's native scaffolder,
+required. The [NeMo Gym extension](../skills/eval-author-trace-environment/references/gym-output.md)
+shares trace preparation and candidacy, then reuses NeMo Gym's native scaffolder,
 resources server, datasets, verifier fixtures, and repeated execution controls.
-It requires the sibling `eval-author-task-create` skill and an existing Gym
+It requires the sibling `eval-author-task-create` skill and an existing NeMo Gym
 v0.6.0+ runtime in Python 3.13.14+.
 
 The native task lives under `<task-dir>/gym/`; `gym-report.md` records validation
 and remaining blockers. The shared `summary.json` remains a pending preparation
-record. Gym controls do not measure model performance. Harbor's automated
-readiness, batch reporting, and publication/export do not cover Gym products.
+record. NeMo Gym controls do not measure model performance. Harbor's automated
+readiness, batch reporting, and publication/export do not cover NeMo Gym products.
 
 ## Sharing generated tasks
 
 **Experimental:** Publication review and export currently cover Harbor products.
-Native Gym products from this extension remain private.
+Native NeMo Gym products from this extension remain private.
 
 Keep source traces, intermediate files, and validation jobs private. Before
 sharing a generated Harbor product, complete the separate

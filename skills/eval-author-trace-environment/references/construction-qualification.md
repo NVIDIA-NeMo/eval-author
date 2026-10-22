@@ -6,7 +6,7 @@
 **Experimental.** New Harbor workspaces require this contract before proof.
 It codifies verifier qualification, declared starting-file provenance and tested
 dependencies. It does not measure difficulty, establish all possible valid
-solutions, or reconstruct missing historical truth. Gym uses native evidence;
+solutions, or reconstruct missing historical truth. NeMo Gym uses native evidence;
 the helper's qualification receipts apply only to Harbor.
 
 ## Author the private contract

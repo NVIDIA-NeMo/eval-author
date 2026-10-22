@@ -98,11 +98,11 @@ its own records. The smoke proof is reused because the repository revision,
 generator, provider version, and dependency choices are unchanged. Changing the
 generator seed triggers a new proof.
 
-## 7. Gym provider
+## 7. NeMo Gym provider
 
-**Start:** Repeat scenario 1 with Gym selected and an installed Gym runtime.
+**Start:** Repeat scenario 1 with NeMo Gym selected and an installed NeMo Gym runtime.
 
 **Inspect:** The resources server's tools wrap the same orders backend and copy
 the agent's real tool names and schemas. Verifier cases show state persisting
 within a session and resetting between sessions. No Harbor layout, `task.toml`
-field, or NOP and Oracle flag is applied to the Gym draft.
+field, or NOP and Oracle flag is applied to the NeMo Gym draft.

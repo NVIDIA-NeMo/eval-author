@@ -132,7 +132,7 @@ For example, a Harbor contract begins:
 Inspect the installed runtime's actual result shape before choosing pointers.
 For Harbor, retain the trial's native `result.json`: the recorder additionally
 checks its task checksum and absence of exceptions against the prepared task.
-For Gym, use the maintained [native Gym evidence adapter](../../eval-author-task-create/references/gym-evidence.md).
+For NeMo Gym, use the maintained [native NeMo Gym evidence adapter](../../eval-author-task-create/references/gym-evidence.md).
 It reads native verifier-case reports separately from rollout JSONL and health
 artifacts; authors do not implement a result adapter. Prepare the selected dataset
 row, resolved configuration, runtime record, and reset plan before recording.
@@ -172,7 +172,7 @@ python <task_create_dir>/scripts/task_evidence.py run \
 The command must produce the declared result. `harbor trial start` writes the
 trial's `result.json` and `agent/trajectory.json` under its `--trials-dir` and
 `--trial-name`, so they can be the declared `--result` and `--trace` without a
-copying wrapper; Harbor jobs name their trials randomly. Gym uses the maintained
+copying wrapper; Harbor jobs name their trials randomly. NeMo Gym uses the maintained
 adapter described above. The recorder runs argv directly without adding a shell
 and uses the current directory. Put wrappers and control sources in the prepared
 task tree, and pass the actual selected task/configuration. Never copy old job
@@ -183,7 +183,7 @@ environment, which the recorder forwards to the command; never put secret values
 in arguments such as Harbor's `--ae KEY=VALUE`.
 
 Run every declared control. For first-eval, recording the agent baseline is
-optional: each Gym manifest binds one dataset row and every receipt needs fresh
+optional: each NeMo Gym manifest binds one dataset row and every receipt needs fresh
 native output, so per-case baseline receipts multiply model runs. Retain the
 suite-level baseline run as native evidence instead. A recorded first-eval
 baseline uses `--purpose baseline`; it allows one attempt without ATIF and cannot

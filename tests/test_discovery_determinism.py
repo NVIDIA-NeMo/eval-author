@@ -23,7 +23,7 @@ def capture(tmp_path, report, index, code=1, **identity):
 
 @pytest.mark.parametrize("case", ["harbor", "gym", "mixed", "empty", "malformed", "ignored", "dropped", "missing-env"])
 def test_actual_discovery_repeats(tmp_path, monkeypatch, case):
-    """Run real Explore/Judge with installed Harbor and controlled fake Gym; no Solve tasks."""
+    """Run real Explore/Judge with installed Harbor and controlled fake NeMo Gym; no Solve tasks."""
     repo = tmp_path / "repo"
     repo.mkdir()
     if case not in {"gym", "empty"}:

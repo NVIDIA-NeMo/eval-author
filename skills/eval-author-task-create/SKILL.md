@@ -2,15 +2,15 @@
 name: eval-author-task-create
 description: >-
   Propose dataset improvements from Eval Author audit findings, then optionally
-  create one Gym or Harbor task from one actionable uncovered tool. Prove it with
-  Gym controls and native execution or Harbor's Oracle, then run it repeatedly
+  create one NeMo Gym or Harbor task from one actionable uncovered tool. Prove it with
+  NeMo Gym controls and native execution or Harbor's Oracle, then run it repeatedly
   with the repository's real agent when authorized, and accept it only when
   measured ATIF closes the selected gap every time. Use when the user asks to
   suggest dataset changes, fill an eval gap, turn audit uncovered_items into a
-  Gym or Harbor task, or add missing tool coverage. Writes proposals, drafts, and
+  NeMo Gym or Harbor task, or add missing tool coverage. Writes proposals, drafts, and
   measurements only under `.eval-author/`.
 triggers:
-  - create a Gym task from an audit gap
+  - create a NeMo Gym task from an audit gap
   - create a Harbor task from an audit gap
   - fill an uncovered eval tool
   - generate missing eval tasks
@@ -25,9 +25,9 @@ not-for:
   - eval-author-discover (use to prove an existing suite is runnable)
   - nemo-evaluator (use to run an existing benchmark without authoring tasks)
 compatibility: >-
-  Proposals read local audit artifacts and task evidence without running Gym or Harbor.
+  Proposals read local audit artifacts and task evidence without running NeMo Gym or Harbor.
   Task creation needs the selected provider’s authoring runtime verified by
-  eval-author’s shared locator and runtime-policy.json. Keep Gym separate.
+  eval-author’s shared locator and runtime-policy.json. Keep NeMo Gym separate.
   Docker is required for Oracle and Docker-backed real-agent runs. Real-agent
   runs may require provider credentials and explicit user approval.
 maturity: alpha
@@ -66,7 +66,7 @@ existing execution path:
 
 ```text
 actionable uncovered tool
-  → Gym-native or Harbor-native draft
+  → NeMo Gym-native or Harbor-native draft
   → native positive and negative controls
   → repeated real-agent ATIF
   → target tool covered in every report
@@ -101,7 +101,7 @@ The three deterministic commands have these verdicts:
 | Command | Verdict |
 |---|---|
 | `select` | Lists only tool items with `reason: not_covered_by_any_input_report` and emits a deterministic `task_slug` plus artifact paths |
-| `scaffold` | Calls Gym's native scaffolder with `--provider gym` or Harbor's `harbor task init`, requires matching draft/proposal names for that slug, and installs the supplied instruction |
+| `scaffold` | Calls NeMo Gym's native scaffolder with `--provider gym` or Harbor's `harbor task init`, requires matching draft/proposal names for that slug, and installs the supplied instruction |
 | `verify` | Exits 0 only with current-revision control and agent receipts, matching task/trace identities, and tool coverage in both distinct agent runs |
 
 The script prints one JSON object. Exit code 0 is success; do not replace its
@@ -174,9 +174,9 @@ For each recommendation, include:
   and tradeoffs as provisional until agreed; repeated runs are not new examples.
 - **Next action:** say whether the suggestion is eligible for automatic tool-gap
   task creation, needs manual task design, or needs more measurement. A written
-  recommendation is not a generated, validated, or accepted Gym or Harbor task.
+  recommendation is not a generated, validated, or accepted NeMo Gym or Harbor task.
 
-For Gym recommendations, include a [version and rerun plan](references/gym-tasks.md#version-and-rerun-plan)
+For NeMo Gym recommendations, include a [version and rerun plan](references/gym-tasks.md#version-and-rerun-plan)
 in the recommendation: exact pins supported by the available evidence, unresolved
 versions, and the settings and reset procedure needed to repeat the evaluation.
 Carry the selected plan into task creation; a proposed pin is not a verified lock.
@@ -213,7 +213,7 @@ Do not invent alternate slugs or filenames.
 Before generating task instructions, fixtures, or scaffolds, use the shared
 [coverage-planning checkpoint](../eval-author/references/coverage-planning.md).
 Use the core's [provider-selection rule](../eval-author/SKILL.md#select-the-evaluation-provider)
-to resolve Gym or Harbor when mapping scope to execution counts. Gym repeats
+to resolve NeMo Gym or Harbor when mapping scope to execution counts. NeMo Gym repeats
 selected dataset rows, while Harbor repeats tasks. Keep estimates conditional
 if that choice remains open.
 Present the proposed priorities and breadth for review, including an option to
@@ -249,13 +249,13 @@ Decide the verifier before scaffolding. Prefer deterministic shell or pytest.
 The verifier must grade the task outcome, not the tool call; ATIF measurement
 proves tool coverage separately.
 
-## Step 4: scaffold with Gym or Harbor
+## Step 4: scaffold with NeMo Gym or Harbor
 
 Select the provider from the user's request and existing suite.
-For **Gym**, follow [Author and prove a Gym evaluation](references/gym-tasks.md)
+For **NeMo Gym**, follow [Author and prove a NeMo Gym evaluation](references/gym-tasks.md)
 for native scaffolding, verifier controls, and real-agent runs. Keep Steps 1–3's
 selected gap and instruction, then return to the shared coverage verification
-steps. Do not apply Harbor file layouts or Oracle CLI flags to Gym. For either
+steps. Do not apply Harbor file layouts or Oracle CLI flags to NeMo Gym. For either
 provider, build the task's environment with
 [`eval-author-environment`](../eval-author-environment/SKILL.md) and pass its
 smoke task before writing the verifier, reusing the agent's existing proven
@@ -328,8 +328,8 @@ Follow [Execution recovery](../eval-author/references/execution-recovery.md)
 for native controls, real-agent trials, and reporting. Compatibility repairs
 must preserve the selected provider and original grading semantics.
 
-For Gym, use the positive and negative controls and native execution in the
-[Gym guide](references/gym-tasks.md). For Harbor, record the Oracle reference
+For NeMo Gym, use the positive and negative controls and native execution in the
+[NeMo Gym guide](references/gym-tasks.md). For Harbor, record the Oracle reference
 before spending model credentials. `harbor trial start` writes `result.json` and
 `agent/trajectory.json` under its `--trials-dir` and `--trial-name`, giving the
 recorder fixed paths; a Harbor job names its trials randomly:
@@ -356,7 +356,7 @@ merely to make it pass.
 Running a model spends credentials. Do it only when the user asked for the run
 or approved it. Use the repository's proven agent configuration and point it at
 the draft. Record each attempt as its own invocation with fresh native output:
-one Gym repeat per recorded run, or one Harbor trial per run with a distinct
+one NeMo Gym repeat per recorded run, or one Harbor trial per run with a distinct
 trial name. One job with two attempts cannot back two receipts. Keep all outputs
 under `.eval-author/`:
 
@@ -378,7 +378,7 @@ Require both trials to:
 
 1. finish without an exception,
 2. receive the intended verifier reward, and
-3. retain interaction evidence accepted as ATIF by the audit `measure.py`: Gym
+3. retain interaction evidence accepted as ATIF by the audit `measure.py`: NeMo Gym
    Responses converted with receipts, original retained ATIF, or Harbor's
    `agent/trajectory.json`. Trace Loader output alone is not ATIF.
 
@@ -392,7 +392,7 @@ Run `eval-author-audit`'s `measure.py` and `report.py` separately for each
 recorded attempt. Measure the recorded trace with the recorder's `--run-id` and
 the selected `<task-slug>`; `verify` rejects any other trace. For Harbor, pass the
 recorded trial directory so `subject.evidence_class` is stamped from
-`result.json`. For Gym or other exports, pass the converted ATIF with `--trace`
+`result.json`. For NeMo Gym or other exports, pass the converted ATIF with `--trace`
 and `--evidence-class agent_under_test` on real agent repeats (`reference_solution`
 or `nop` only when remeasuring those control traces for audit context). Keep
 repeat outputs separate so one successful run cannot hide another:
@@ -465,7 +465,7 @@ without claiming the pilot completes it.
 
 Proposals need audit findings and the relevant task or trace evidence. Automated
 task creation additionally needs an actionable measured tool gap, Python 3.11+,
-and the selected native runtime: Gym in its separate environment or a Harbor
+and the selected native runtime: NeMo Gym in its separate environment or a Harbor
 CLI supporting `harbor task init`. Docker is needed for Docker-backed execution;
 measurement uses the audit skill's dependencies.
 Use the repository's proven agent configuration and authorize real-agent spend

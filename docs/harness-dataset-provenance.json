@@ -37,8 +37,8 @@
       "path": "skills/eval-author-discover/evals/files/repo/README.md",
       "source_path": "fixture_inputs/harness-consistency/existing-suite/README.md",
       "source_sha256": "a88cdd157817b98bd88a9f00ada4922c7758343468a9ff48fe610ad0c35e9943",
-      "sha256": "a88cdd157817b98bd88a9f00ada4922c7758343468a9ff48fe610ad0c35e9943",
-      "transformation": "none; byte-for-byte copy"
+      "sha256": "a47c6d93d62b057b046eff1d76e8d1c5ba6123aed65556a8692af8db24a28140",
+      "transformation": "Standardize the product name to NeMo Gym in fixture documentation."
     },
     {
       "path": "skills/eval-author-discover/evals/files/repo/tasks/lookup-stock/instruction.md",
@@ -86,8 +86,8 @@
       "path": "skills/eval-author-inspect-trace/evals/files/README.md",
       "source_path": "fixture_inputs/harness-consistency/intake-selection/README.md",
       "source_sha256": "1b72184ecb159abd5fb70fa737e55d5b7c4b90ea671d9f32ac50d6a012489446",
-      "sha256": "1b72184ecb159abd5fb70fa737e55d5b7c4b90ea671d9f32ac50d6a012489446",
-      "transformation": "none; byte-for-byte copy"
+      "sha256": "df947fc38c451e9a5f44352ee49f64e020a0da28b2f98dcb461b63dbed5a2aa5",
+      "transformation": "Standardize the product name to NeMo Gym in fixture documentation."
     },
     {
       "path": "skills/eval-author-trace-environment/evals/files/traces/lookup.atif.json",
@@ -228,7 +228,7 @@
           "skills/eval-author/references/shared-prerequisites.md",
           "tests/scenarios/entry-routing.md"
         ],
-        "scope": "Gym opening-only first response for first evaluations through the direct skill entry"
+        "scope": "NeMo Gym opening-only first response for first evaluations through the direct skill entry"
       },
       {
         "skill": "eval-author-first-eval",
@@ -248,7 +248,7 @@
           "skills/eval-author/references/shared-prerequisites.md",
           "tests/scenarios/entry-routing.md"
         ],
-        "scope": "Gym opening-only first response for expansion through the core skill entry"
+        "scope": "NeMo Gym opening-only first response for expansion through the core skill entry"
       },
       {
         "skill": "eval-author",

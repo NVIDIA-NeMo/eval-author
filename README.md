@@ -40,9 +40,9 @@ on task difficulty and authoring prompts.
 
 NeMo Eval Author has tested support for [NeMo Gym](https://docs.nvidia.com/nemo/gym/latest/) and
 [Harbor](https://docs.harborframework.com/) eval formats. Workflows default to Harbor when neither is specified. 
-Gym is compatible with Harbor, and the user has the final say. 
+NeMo Gym is compatible with Harbor, and the user has the final say.
 
-Gym authoring needs Gym v0.6.0+ in its separate Python 3.13.14+ environment; Harbor authoring needs its
+NeMo Gym authoring needs NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment; Harbor authoring needs its
 CLI and supported Python environment. See the [first-eval guide](docs/first-evals.md)
 and [Harbor setup guide](skills/eval-author/references/harbor-setup.md).
 Repository inventory and case planning can start without either runtime.
@@ -115,7 +115,7 @@ Use eval-author to help me with the evals for my agent.
 
 With no goal supplied, Eval Author welcomes you and asks whether you want to
 build first evals, audit coverage, or improve an existing suite.
-Each uses the same prerequisite and Ethos confirmation flow for Gym and Harbor.
+Each uses the same prerequisite and Ethos confirmation flow for NeMo Gym and Harbor.
 It reuses a known goal or prior progress without repeating that question.
 If the assistant cannot find
 `eval-author`, follow the [availability check](docs/getting-started.md#verify-your-assistant-can-use-eval-author).
@@ -126,9 +126,9 @@ If you know more about your scenario, try one of these:
 | "Find the evals in this repository and explain how to run them." | [Discover existing evaluations](docs/getting-started.md#find-existing-evaluations) |
 | "I don't have evals yet. Help me build my first ones." | [Build your first evaluations](docs/first-evals.md) |
 | "Help me onboard to expand my evals." | [Improve your existing evaluations](docs/getting-started.md); an audit is optional |
-| "Check whether my Gym or Harbor evals are ready to run." | [Check readiness](docs/existing-evals.md#check-readiness) |
+| "Check whether my NeMo Gym or Harbor evals are ready to run." | [Check readiness](docs/existing-evals.md#check-readiness) |
 | "Audit my evals against my agent's intended behavior using these traces." | [Audit coverage](docs/existing-evals.md#audit-coverage) |
-| "Create a Gym evaluation from this audit gap." | [Author and prove a Gym task](skills/eval-author-task-create/references/gym-tasks.md) |
+| "Create a NeMo Gym evaluation from this audit gap." | [Author and prove a NeMo Gym task](skills/eval-author-task-create/references/gym-tasks.md) |
 | "Use this audit report to propose the next evals to add." | [Plan new or improved evaluations](docs/existing-evals.md#propose-new-evaluations) |
 | "Explain Intake trace TRACE_ID in workspace WORKSPACE." | [Inspect a trace](docs/traces.md#inspect-an-intake-trace) |
 | "Turn this local trace into a Harbor eval task." | **Experimental** · [Build a task from a trace](docs/traces.md#build-an-evaluation-task) |
@@ -141,8 +141,8 @@ Include the relevant file paths, trace IDs, or workspace names in your request.
 
 The [trace-environment workflow](docs/traces.md#build-an-evaluation-task) turns
 trace evidence into a private candidate task, validates it with Harbor's `nop`
-and `oracle` or Gym's native validation and repeated controls, and uses the findings
-to refine the task. Gym output uses a private native report; automated publication
+and `oracle` or NeMo Gym's native validation and repeated controls, and uses the findings
+to refine the task. NeMo Gym output uses a private native report; automated publication
 and readiness reporting remain Harbor-specific. It can start directly
 from a trace or be paired with [dataset proposals](docs/existing-evals.md#propose-new-evaluations):
 propose a useful scenario, construct it from supporting trace evidence, then

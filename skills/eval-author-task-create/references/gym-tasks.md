@@ -1,27 +1,27 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Author and prove a Gym evaluation
+# Author and prove a NeMo Gym evaluation
 
 Use this provider path to create a task from an existing actionable audit gap
-when Gym is selected. It replaces Harbor-specific scaffolding, Oracle, and job
+when NeMo Gym is selected. It replaces Harbor-specific scaffolding, Oracle, and job
 commands; the shared proposal-only boundary, evidence rules, and repeated
 measured coverage requirements still apply. Preserve the user's provider choice
 and existing suite.
 
 ## Version and rerun plan
 
-During proposal work, include this plan in the Gym recommendation in
+During proposal work, include this plan in the NeMo Gym recommendation in
 `.eval-author/proposals/dataset-recommendations.md`. Use the repository's existing
 versions and lockfiles when available. Record the intended consumer: native
-Gym, Helix Evaluator, or another explicitly selected runner. For each item, give the exact pin or
+NeMo Gym, Helix Evaluator, or another explicitly selected runner. For each item, give the exact pin or
 artifact identity, its evidence source, and whether it is observed, proposed, or
 unresolved. Do not fill missing versions with `latest` or imply that a version
 range, release label, or proposed configuration is a verified lock.
 
 | Item | What the plan fixes |
 | --- | --- |
-| Gym and runtime | Gym package version and full source commit or immutable distribution digest; Python patch version and relevant OS/architecture. A dirty checkout needs the retained changes as well as its commit. |
+| NeMo Gym and runtime | NeMo Gym package version and full source commit or immutable distribution digest; Python patch version and relevant OS/architecture. A dirty checkout needs the retained changes as well as its commit. |
 | Dependencies and services | The native dependency manifest and lockfile, their SHA-256 digests, selected extras, and the command that uses the lock without resolving upgrades. Pin container images by digest when used; identify external service versions or record that they cannot be pinned. |
 | Task and grading | Resource-server and verifier code, agent code, prompts, configuration overrides, and verifier fixtures, identified by immutable revision or retained files and SHA-256 digests. Include judge model/settings when grading uses a model. |
 | Data and initial state | Dataset bytes and SHA-256 digest, split, selected rows and ordering, fixture version, and how to restore the same initial state and isolate each attempt. |
@@ -37,21 +37,21 @@ When task creation is requested, carry the selected plan into the draft's
 `reproducibility.md`. Reuse the existing package manager's lock format. If the
 task has no dependency lock, generate one for its selected dependencies in
 a dedicated `reproducibility/locks/` subdirectory under the draft. Keep lock
-projects separate from Gym component roots: a root `pyproject.toml` can change
-Gym's install mode. Apply [component dependency and packaging checks](gym-packaging.md)
+projects separate from NeMo Gym component roots: a root `pyproject.toml` can change
+NeMo Gym's install mode. Apply [component dependency and packaging checks](gym-packaging.md)
 so each server actually consumes the pins. Retain the manifest and lockfile together with a verified command that
 consumes them without updates. Preserve source provenance and
 local changes needed to reconstruct the task. Keep configuration free of secret
 values. Resolve proposed pins against the actual runtime before calling the
-environment locked; the scaffolder's `draft.json` records a Gym version but is
+environment locked; the scaffolder's `draft.json` records a NeMo Gym version but is
 not a dependency lock or proof of repeatability.
 
 ## Scaffold the native draft
 
-Use the Gym Python/CLI pair selected by the
+Use the NeMo Gym Python/CLI pair selected by the
 [shared runtime locator](../../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks)
 with `--provider gym --flow authoring`. Its central policy owns version and
-Python requirements; keep Gym in its separate environment. Obtain its Python and CLI paths from the existing installation;
+Python requirements; keep NeMo Gym in its separate environment. Obtain its Python and CLI paths from the existing installation;
 use the installed CLI's `--help` before invoking it. If the runtime is missing,
 report the prerequisite and retain the proposal without scaffolding.
 Keep each draft in a fresh `.eval-author/tasks/<task-slug>/` directory.
@@ -66,9 +66,9 @@ uv run scripts/task_pipeline.py scaffold --provider gym \
   --instruction-file .eval-author/.working/proposals/<task-slug>-instruction.md
 ```
 
-The wrapper uses Gym's native `scaffold_environment`, puts the proposed
+The wrapper uses NeMo Gym's native `scaffold_environment`, puts the proposed
 instruction into its example dataset, and records `draft.json`. Hyphenated task
-slugs map to underscored Gym module names. **This is a draft, not a verified task.**
+slugs map to underscored NeMo Gym module names. **This is a draft, not a verified task.**
 The generated example grader, rewards, and verifier cases are placeholders for
 the proposed scenario. Replace them; passing template tests does not prove the
 proposal works or exercises its selected tool.
@@ -85,7 +85,7 @@ proposal works or exercises its selected tool.
   merely for a tool call when the requirement includes arguments or side effects.
   Choose the backends these tools wrap, build their starting data, and prove
   state and reset with the
-  [environment sub-flow's Gym guide](../../eval-author-environment/references/gym.md).
+  [environment sub-flow's NeMo Gym guide](../../eval-author-environment/references/gym.md).
 - Dataset JSONL rows supply `responses_create_params` and task-specific verifier
   fields. Keep expected answers out of the model input unless the task requires
   them. Distinguish training, validation, and benchmark splits. Document fixture
@@ -95,7 +95,7 @@ proposal works or exercises its selected tool.
   a known-correct reference response or interaction. These are verifier controls,
   not measurements of a model's ability.
 
-Inspect the installed Gym base request models and a comparable resources server
+Inspect the installed NeMo Gym base request models and a comparable resources server
 when authoring. Do not assume Harbor's task.toml, solve.sh, or reward.txt protocol
 applies. Stateful tasks need controls against the same stateful tools and reset
 behavior, not just fabricated final responses fed to a stateless verifier.
@@ -133,21 +133,21 @@ unexpected drift before claiming a comparable rerun. Intentional changes create
 a new recorded plan revision; retain earlier run evidence instead of overwriting
 it. A fixed environment does not guarantee identical stochastic model outputs.
 
-From the draft root, using the verified Gym CLI:
+From the draft root, using the verified NeMo Gym CLI:
 
 ```bash
 /path/to/Gym/.venv/bin/gym env validate --manifest environments/<name>/manifest.yaml --json
 /path/to/Gym/.venv/bin/gym env test <name> --json
 ```
 
-Gym's verifier fixtures provide the known-correct and no-action/negative controls;
-Gym does not use Harbor's `-a oracle` or `-a nop` flags. Inspect observed rewards
+NeMo Gym's verifier fixtures provide the known-correct and no-action/negative controls;
+NeMo Gym does not use Harbor's `-a oracle` or `-a nop` flags. Inspect observed rewards
 and errors, including resets and repeatability. A manifest may validate while a
 model is still unconfigured; neither validation nor verifier fixtures establish
 service readiness or actual agent performance.
 
 Select the repository's actual agent and its required model configuration. Start
-and run it through Gym, retaining the complete composition and input identities.
+and run it through NeMo Gym, retaining the complete composition and input identities.
 For the native simple-agent composition and an explicit example JSONL file,
 start services in one terminal, then collect in another from the same draft root.
 Write outputs outside the draft, in a fresh directory per recorded run; `REPO` is
@@ -165,7 +165,7 @@ the absolute repository root:
 ```
 
 Use the head-server address from the running composition when it differs from
-Gym's default. In v0.6.0, end-to-end `gym eval run` without `--no-serve` uses
+NeMo Gym's default. In v0.6.0, end-to-end `gym eval run` without `--no-serve` uses
 prepared `train`, `validation`, or `benchmark` splits; it rejects `--input` and
 `--split example`. For that mode, declare repeats in the dataset configuration.
 The example above uses an explicit file and `--num-repeats` against running servers.
@@ -183,9 +183,9 @@ rerun command and state-reset steps alongside the results.
 
 Adapt agent selection and dependencies to the inspected repository. Do not
 replace the actual agent with a reference implementation to claim gap closure.
-Do not disable Gym health checks, discard failed attempts, or mark a missing
+Do not disable NeMo Gym health checks, discard failed attempts, or mark a missing
 model credential as successful execution. Use fresh output paths and retain run
-IDs, input digests, Gym revision/version, configured agent/model, rewards,
+IDs, input digests, NeMo Gym revision/version, configured agent/model, rewards,
 exceptions, and control results. Only claim a working task after native execution
 succeeds; only claim measured gap closure after every required real-agent repeat
 closes the selected gap under the existing `verify` command.

@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Find local Harbor task and Gym workload candidates without loading runtimes.
+"""Find local Harbor task and NeMo Gym workload candidates without loading runtimes.
 
 Uses filename/layout evidence only, including incomplete scaffolds. Never parses
 or executes repository configuration. A complete search covers only the declared

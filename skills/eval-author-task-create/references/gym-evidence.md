@@ -1,10 +1,10 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Native Gym evidence
+# Native NeMo Gym evidence
 
 Use `task_evidence.py` with its maintained `gym_evidence.py` adapter. Compatibility
-is exercised against the repository's pinned Gym 0.6.0 runtime; newer runtime
+is exercised against the repository's pinned NeMo Gym 0.6.0 runtime; newer runtime
 formats must pass the native integration checks before claiming compatibility.
 This records native evidence; it grants no execution or model-spend permission.
 
@@ -26,7 +26,7 @@ and a `gym` object like:
 These paths are relative to the task tree. Select one one-based physical dataset
 row per manifest. The recorder hashes the full dataset, resolved configuration,
 runtime record, and reset plan. Do not place inputs in excluded cache directories.
-The runtime record should identify Gym revision/version, Python, and dependencies;
+The runtime record should identify NeMo Gym revision/version, Python, and dependencies;
 the reset plan describes the actual initial state/reset procedure. Prepare after
 resolving services and configuration so ephemeral settings are known. Keep
 expected inputs in the task tree and execution evidence outside it.
@@ -41,7 +41,7 @@ For example, a reference uses a reward band; a malformed case can assert
 from infrastructure failure while collecting their report.
 
 Normalized `health.verdict` is `healthy` for completed verifier cases. Rollouts
-retain Gym's `healthy`, `unhealthy`, or `unobserved` classification. Native failures,
+retain NeMo Gym's `healthy`, `unhealthy`, or `unobserved` classification. Native failures,
 missing records, and disabled health checks cannot pass. Define behavior assertions
 on `/reward` and health assertions on `/health/ignored_checks` (must equal `[]`),
 plus relevant task-specific properties. The adapter enforces the native health
@@ -90,7 +90,7 @@ The adapter matches the selected dataset fields, rollout ID, task/repeat indexes
 health record, summary counts, and execution-input digests. Keep all native rows;
 do not pre-filter rollouts without their matching health evidence. The command
 writes native files; the recorder itself writes `--result` as normalized evidence.
-Use a new directory outside the draft for each recorded run: Gym writes
+Use a new directory outside the draft for each recorded run: NeMo Gym writes
 `rollout_verdicts.jsonl` and `quality_summary.json` beside the rollout output.
 
 ## Baseline and closure are different claims

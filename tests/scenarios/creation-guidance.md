@@ -165,10 +165,10 @@ example work outside the generator's support stays explicitly pending. Repeat
 as a proposal-only request: recommendations remain provisional, with no creation
 checkpoint imposed, scaffolding, or execution.
 
-**Gym counting variant:** Use a Gym draft with four distinct selected dataset
+**NeMo Gym counting variant:** Use a NeMo Gym draft with four distinct selected dataset
 rows, one agent configuration, and two repeats per row. The scope review records
 one draft, four distinct examples, and eight planned agent executions. It must
-not apply Harbor task-attempt counts to the whole Gym draft or count repeats as
+not apply Harbor task-attempt counts to the whole NeMo Gym draft or count repeats as
 new examples. Provider selection and row selection precede the final cost estimate.
 
 ## Recorded walkthrough — 2026-09-28
@@ -262,26 +262,26 @@ own skill contract checks passed. No live model evaluation was performed.
 ## Consistent provider selection
 
 **Start:** Supply the support agent with reviewed Ethos, no evals, no traces,
-and a working native Gym installation. Explicitly request Gym first evals.
+and a working native NeMo Gym installation. Explicitly request NeMo Gym first evals.
 Answer the existing milestone and scope questions.
 
-**Inspect:** The agent honors the choice, verifies Gym, and prepares native
+**Inspect:** The agent honors the choice, verifies NeMo Gym, and prepares native
 manifest, component, dataset, and verifier files with no audit report. Native
 validation and positive/negative controls remain separate from actual agent
 execution. A missing actual-agent integration is reported as a blocker, never
-replaced by a passing run of Gym's example agent. The suite README retains Gym
+replaced by a passing run of NeMo Gym's example agent. The suite README retains NeMo Gym
 commands, selected rows, agreed attempts, and fresh result paths.
 
 **Provider matrix:** Exercise the same selection cases for first-eval,
 audit-derived task creation with an eligible synthetic gap, and trace-derived
 creation with an eligible synthetic trace:
 
-- Explicit Gym or Harbor: honor the choice even when the existing suite differs.
-- No explicit choice, existing Gym or Harbor suite: preserve that provider.
-- No explicit choice or existing suite: default to Harbor, even for Gym traces.
+- Explicit NeMo Gym or Harbor: honor the choice even when the existing suite differs.
+- No explicit choice, existing NeMo Gym or Harbor suite: preserve that provider.
+- No explicit choice or existing suite: default to Harbor, even for NeMo Gym traces.
 - Selected runtime missing: retain useful planning and report the setup need;
   do not silently switch providers because another runtime is installed.
-- User selects Gym with Harbor: recognize compatibility, record each tool's role,
+- User selects NeMo Gym with Harbor: recognize compatibility, record each tool's role,
   and check the requirements of that setup.
 
 For Harbor, retain native scaffolding and NOP/Oracle checks. For a mixed suite,
@@ -316,10 +316,10 @@ target-agent settings and native verifier results; the low agent score remains.
 Raw rewards and exceptions are preserved while infrastructure failures,
 blocked/missing trials and agent-quality failures are explained separately.
 
-Repeat the blocked variant with a native Gym suite. The reports lead with
-**Diagnostic only — Gym evaluation incomplete**, preserve rollout failure reasons
+Repeat the blocked variant with a native NeMo Gym suite. The reports lead with
+**Diagnostic only — NeMo Gym evaluation incomplete**, preserve rollout failure reasons
 and health records, and do not substitute a Harbor run or local grader for the
-requested Gym rollouts.
+requested NeMo Gym rollouts.
 
 This scenario tests recovery and reporting, not an allegation that the author
 fabricated application outputs. Static checks of this file do not establish

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Render explicitly selected Gym records or standalone ATIF as private offline HTML.
+"""Render explicitly selected NeMo Gym records or standalone ATIF as private offline HTML.
 
 This is a reader, not a provider validator, converter, or case-to-run matcher.
 Only the named input is read. All recorded content is escaped text, including
@@ -443,7 +443,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--format", choices=("gym-jsonl", "atif"), required=True)
-    parser.add_argument("--rows", type=select_rows, help="Gym physical lines, e.g. 1,3-5; required for JSONL")
+    parser.add_argument("--rows", type=select_rows, help="NeMo Gym physical lines, e.g. 1,3-5; required for JSONL")
     parser.add_argument("--evidence-role", choices=tuple(ROLES), required=True)
     parser.add_argument(
         "--output-dir", type=Path, required=True, help="New private directory; existing paths are refused"

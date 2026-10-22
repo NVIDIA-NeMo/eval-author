@@ -373,7 +373,7 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
             readme_html = None
             readme = directory / "README.md"
             if item["provider"] == "gym":
-                # Native Gym scaffolds keep the task README above environments/<name>.
+                # Native NeMo Gym scaffolds keep the task README above environments/<name>.
                 for parent in [directory, *directory.parents]:
                     if parent in {repo, repo / ".eval-author"}:
                         break
@@ -381,7 +381,7 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
                     if candidate.exists():
                         readme = candidate
                         break
-                issues.append("Gym workload candidate; native validation has not been run.")
+                issues.append("NeMo Gym workload candidate; native validation has not been run.")
             readme_path = readme.relative_to(repo).as_posix()
             if readme.exists():
                 try:
@@ -824,7 +824,7 @@ def render_markdown(data: dict) -> str:
             route = "task-definitions/" + quote(PurePosixPath(task["path"]).name, safe="")
             actions = [f"[View task](http://127.0.0.1:8081/{route})"]
         elif task["status"] == "found":
-            actions = [artifact_link("Gym source", task["path"])]
+            actions = [artifact_link("NeMo Gym source", task["path"])]
         else:
             actions = [artifact_link("Review saved artifacts", task["path"])]
         if task["readme_html"] is None:

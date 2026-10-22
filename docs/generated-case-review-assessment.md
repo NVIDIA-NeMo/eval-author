@@ -5,12 +5,12 @@
 
 Harbor's existing local viewer can support review of generated Harbor tasks and
 their recorded trials. Better logging and README links can make those views
-discoverable, but do not provide readable review of native Gym JSONL or standalone
+discoverable, but do not provide readable review of native NeMo Gym JSONL or standalone
 source traces. Reuse Harbor and scope additional rendering to those gaps.
 
 The native-runtime findings below describe the assessment before the additional
 reader. The bundled [local reader](../skills/eval-author/references/local-review.md)
-now covers selected Gym JSONL and standalone ATIF without a server or model
+now covers selected NeMo Gym JSONL and standalone ATIF without a server or model
 calls. Neither native nor bundled rendering establishes evaluation quality.
 The broader suite README guidance is a separate change in
 [PR #43](https://github.com/NVIDIA-NeMo/eval-author/pull/43).
@@ -27,11 +27,11 @@ Assessed on September 30, 2026 against the repository's pinned versions:
   README, verifier source, separate pass/fail/error/config-only trial rows, and
   ATIF messages with expandable tool arguments and observations. Missing,
   malformed, and config-only trajectory states were also inspected in-browser.
-- **Gym v0.6.0**, commit `3045a793346a31291d7ea4ae6af3f94a35036ce5`:
+- **NeMo Gym v0.6.0**, commit `3045a793346a31291d7ea4ae6af3f94a35036ce5`:
   pinned source and versioned documentation, plus six dependency-free source CLI
-  help probes. A configured Gym runtime was unavailable; dataset preparation,
+  help probes. A configured NeMo Gym runtime was unavailable; dataset preparation,
   profiling, and health checks were not executed.
-- **Eval Author's Gym converter:** an offline synthetic two-row JSONL check
+- **Eval Author's NeMo Gym converter:** an offline synthetic two-row JSONL check
   confirmed explicit physical-line selection, exact source-row retention, and
   ATIF output. Omitting the row selector was rejected. Conversion supplies
   structured evidence, not a human review interface.
@@ -48,8 +48,8 @@ Current online documentation can describe features newer than these pins.
 | Find nested generated tasks | The task scanner accepts tasks directly inside the supplied directory. | It does not recursively find tasks under a mixed trace-workspace collection. Supply each actual task parent. |
 | Review missing or invalid traces | A missing Harbor trajectory returns no data; malformed trajectory JSON returns an API error. Both showed the same "No trajectory" browser state. | The empty view alone cannot distinguish absence from parse failure. Report the recorded reason and preserve failed attempts. |
 | Open a standalone source ATIF | The tested Harbor viewer reads trajectories within its job/trial layout. | A source-only directory produces no jobs; passing the ATIF file itself fails. Source evidence needs a separate readable view. |
-| Review Gym dataset cases | `gym dataset render` materializes prompts into JSONL. Task manifests, verifier code, and dataset fields remain inspectable. | Rendering here produces another JSONL file, not a case browser. Inputs and verifier-only expectations need a readable presentation. |
-| Review Gym rollouts | `gym eval profile` produces metrics; `gym eval health-check` reports evidence quality; BLADE provides agent-assisted analysis. | None of these establishes a built-in human transcript viewer in the inspected pin. |
+| Review NeMo Gym dataset cases | `gym dataset render` materializes prompts into JSONL. Task manifests, verifier code, and dataset fields remain inspectable. | Rendering here produces another JSONL file, not a case browser. Inputs and verifier-only expectations need a readable presentation. |
+| Review NeMo Gym rollouts | `gym eval profile` produces metrics; `gym eval health-check` reports evidence quality; BLADE provides agent-assisted analysis. | None of these establishes a built-in human transcript viewer in the inspected pin. |
 
 Harbor observations come from the installed `harbor.cli.view`,
 `harbor.viewer.task_scanner`, `harbor.viewer.scanner`, `harbor.viewer.server`,
@@ -58,7 +58,7 @@ and `harbor.viewer.trial_utils` modules. Its
 describes the supported local job-review workflow; installed-version checks
 establish the limits above.
 
-For Gym, the pinned [command registry][gym-cli] and
+For NeMo Gym, the pinned [command registry][gym-cli] and
 [dataset-render contract][gym-render] establish command availability and output
 format. [Profiling][gym-profile] uses paired materialized inputs and rollout
 indices; [health checking][gym-health] marks checks requiring missing capture as
@@ -100,7 +100,7 @@ Report only the status supported by retained evidence.
 | Review criterion | Assessment |
 | --- | --- |
 | Cases and associated traces are discoverable without a follow-up question | The README handoff can address this. Its behavior still needs authoring-workflow validation; native viewers do not create the handoff automatically. |
-| Cases and traces are readable without manually formatting JSONL | Harbor supports its native artifacts. The bundled reader presents selected Gym records and standalone ATIF, with missing, malformed, and unsupported evidence identified. |
+| Cases and traces are readable without manually formatting JSONL | Harbor supports its native artifacts. The bundled reader presents selected NeMo Gym records and standalone ATIF, with missing, malformed, and unsupported evidence identified. |
 | Review uses a supported workflow without building a custom UI | Harbor has a reusable native workflow. The bundled reader supplies a reusable offline HTML report for the formats its viewer does not accept; users do not need to build a UI. |
 | Logging sufficiency and any viewer scope are documented | Logging and links address discovery and context. The bounded reader below addresses the formats that still needed presentation. |
 
@@ -110,7 +110,7 @@ The inspected native tools do not provide the remaining views. The bundled
 `render_review.py` addresses them with a static local HTML report, using Python's
 standard library and the browser's existing links and expandable details:
 
-- It reads explicitly selected Gym dataset rows and retained rollout records,
+- It reads explicitly selected NeMo Gym dataset rows and retained rollout records,
   keeping the request and grading fields distinct, and standalone canonical
   ATIF.
 - It presents recorded messages, tool calls and their results, final responses,
@@ -127,14 +127,14 @@ The [usage guide](../skills/eval-author/references/local-review.md) defines
 selection, limits, output permissions, error behavior, and the README handoff.
 ATIF rendering covers versions 1.0–1.7 without claiming schema validation. Images
 and external references are not loaded; embedded subagent evidence remains raw
-with its rendering limitation stated. Native Gym observability attachments do
+with its rendering limitation stated. Native NeMo Gym observability attachments do
 not become canonical ATIF merely because their raw data appears in the report.
 
 Reliable case-to-attempt association remains separate work: use recorded provider
 identities and retained input versions, and leave ambiguous associations
 unresolved. Rendering cannot infer this relationship from row order or similar
 prompts. Editing cases, recording approvals, deploying a shared service, and
-upgrading Gym are outside this minimum scope.
+upgrading NeMo Gym are outside this minimum scope.
 
 The [reader regression tests](../tests/test_render_review.py) exercise selected
 physical lines, unexecuted cases, retained errors and rewards, missing/malformed

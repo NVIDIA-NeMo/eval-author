@@ -473,7 +473,7 @@ def test_provider_change_invalidates_only_provider_answers_and_scope_approval(st
         tmp_path,
         {
             "prerequisites": {
-                "runtime": {"status": "verified", "source": "Gym import check succeeded"},
+                "runtime": {"status": "verified", "source": "NeMo Gym import check succeeded"},
                 "python": {"status": "verified", "source": ".venv/bin/python --version returned Python 3.13.14"},
                 "skills": {"status": "verified", "source": "Required skill instructions were readable"},
             }

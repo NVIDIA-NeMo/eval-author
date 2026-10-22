@@ -31,20 +31,20 @@
     },
     {
       "id": "recovery-partial-gym-evidence",
-      "prompt": "Use eval-author-first-eval to summarize this synthetic evaluation status without executing anything. Our first-eval suite uses native Gym. Eight rollouts were requested for the selected agent, one per selected dataset row. Six completed with the original verifier: five reward 1 and one reward 0. One rollout has a failure_reason from an endpoint error and raw reward 0, and the eighth row has no rollout or health record. A local diagnostic grader reports success on the two remaining rows. Can I mark all eight complete? Give the counts and next action.",
-      "expected_output": "Reports the Gym evaluation incomplete: six completed rollouts, five passes and one agent-quality failure; one infrastructure failure with its failure reason and raw reward 0 preserved; one missing rollout. The local successes are diagnostic only. Repair and rerun the outstanding rows through Gym and cite retained native rollouts and health records without turning all eight into completed runs or switching to Harbor.",
+      "prompt": "Use eval-author-first-eval to summarize this synthetic evaluation status without executing anything. Our first-eval suite uses native NeMo Gym. Eight rollouts were requested for the selected agent, one per selected dataset row. Six completed with the original verifier: five reward 1 and one reward 0. One rollout has a failure_reason from an endpoint error and raw reward 0, and the eighth row has no rollout or health record. A local diagnostic grader reports success on the two remaining rows. Can I mark all eight complete? Give the counts and next action.",
+      "expected_output": "Reports the NeMo Gym evaluation incomplete: six completed rollouts, five passes and one agent-quality failure; one infrastructure failure with its failure reason and raw reward 0 preserved; one missing rollout. The local successes are diagnostic only. Repair and rerun the outstanding rows through NeMo Gym and cite retained native rollouts and health records without turning all eight into completed runs or switching to Harbor.",
       "assertions": [
         "Reports six completed of eight requested rollouts, with five passes and one agent-quality failure.",
         "Preserves the failed rollout's raw reward 0 and failure reason while distinguishing it from agent-quality failure.",
-        "Keeps the missing rollout explicit and excludes diagnostic successes from the Gym aggregate.",
-        "Does not mark all eight or the pipeline complete; requires fresh native Gym evidence for outstanding work."
+        "Keeps the missing rollout explicit and excludes diagnostic successes from the NeMo Gym aggregate.",
+        "Does not mark all eight or the pipeline complete; requires fresh native NeMo Gym evidence for outstanding work."
       ],
       "expected_skill": "eval-author-first-eval",
       "files": []
     },
     {
       "id": "first-eval-shared-entry-gym",
-      "prompt": "Use eval-author-first-eval to help me start building my first evaluations for the Catalog assistant. I want to use Gym. I have no evaluation suite, traces, or ETHOS.md. The repository is /workspace/input; its README.md describes the agent. Gym is not installed yet, but I want to begin the work that can proceed without it. My model credentials are not configured. You may read the supplied documentation. Help me get started before designing cases, changing files, or running evaluations.",
+      "prompt": "Use eval-author-first-eval to help me start building my first evaluations for the Catalog assistant. I want to use NeMo Gym. I have no evaluation suite, traces, or ETHOS.md. The repository is /workspace/input; its README.md describes the agent. NeMo Gym is not installed yet, but I want to begin the work that can proceed without it. My model credentials are not configured. You may read the supplied documentation. Help me get started before designing cases, changing files, or running evaluations.",
       "expected_output": "After loading the shared core, ends the first turn with only the fixed welcome followed by the three-item checklist, selecting Create your first evaluations, followed by the exact closing question \"Ready to get started?\". The opening is the final visible reply, not just a progress message. It does not inspect the supplied repository or Ethos, check prerequisites, ask setup questions, write state, or delegate work. Setup and Ethos work wait for a later user turn. If the shared core cannot be loaded, reports only that missing dependency and stops without repository work.",
       "assertions": [
         "When the shared core is available, copies this exact welcome at the start of the final response: \"Welcome to Eval Author! I’ll help you evaluate your agent against the behavior you expect. Here’s what we’ll work through:\"",

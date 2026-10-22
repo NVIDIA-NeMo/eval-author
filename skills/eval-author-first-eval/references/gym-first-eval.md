@@ -1,23 +1,23 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Native Gym first evals
+# Native NeMo Gym first evals
 
-Use this reference for the Gym-specific work in first-eval stages 5–9. Keep the
-parent skill's stage boundaries and shared deliverables. Gym is compatible with
+Use this reference for the NeMo Gym-specific work in first-eval stages 5–9. Keep the
+parent skill's stage boundaries and shared deliverables. NeMo Gym is compatible with
 Harbor; follow the user's selected setup. No audit report, actionable tool gap,
 or measured gap closure is required.
 
 ## 5. Prepare cases and grading
 
-Use the Gym Python/CLI pair selected by the
+Use the NeMo Gym Python/CLI pair selected by the
 [shared runtime locator](../../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks)
 with `--provider gym --flow authoring`. Its central policy owns version and
-Python requirements; keep Gym in its separate environment. Inspect its CLI help and native scaffolder before use. Create each
+Python requirements; keep NeMo Gym in its separate environment. Inspect its CLI help and native scaffolder before use. Create each
 planned draft in a fresh `.eval-author/tasks/<slug>/` directory using
-Gym's `nemo_gym.environment.scaffold.scaffold_environment(kind="environment",
+NeMo Gym's `nemo_gym.environment.scaffold.scaffold_environment(kind="environment",
 name=<module_name>, root=<draft_path>)`. Use a valid Python module name for the
-Gym environment. Do not call the audit-driven `task_pipeline.py scaffold` route:
+NeMo Gym environment. Do not call the audit-driven `task_pipeline.py scaffold` route:
 first-eval has no coverage report or uncovered-tool selector.
 
 Follow [Complete the task without changing its intended capability](../../eval-author-task-create/references/gym-tasks.md#complete-the-task-without-changing-its-intended-capability)
@@ -45,9 +45,9 @@ Prepare the generated resources, agent, and model components, dependency inputs,
 fixtures, and state reset. Build the backends the resources server wraps, their
 seeded session state, and its reset from the environment kit that
 [`eval-author-environment`](../../eval-author-environment/SKILL.md) built and
-proved at stage 5, following its [Gym environments](../../eval-author-environment/references/gym.md)
+proved at stage 5, following its [NeMo Gym environments](../../eval-author-environment/references/gym.md)
 reference, and add each case's own records to its dataset row or session seed.
-Apply the [Gym version and rerun plan](../../eval-author-task-create/references/gym-tasks.md#version-and-rerun-plan)
+Apply the [NeMo Gym version and rerun plan](../../eval-author-task-create/references/gym-tasks.md#version-and-rerun-plan)
 to the selected suite, recording it in the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` and the drafts'
 `reproducibility.md`; no dataset recommendation or audit proposal is required.
 Use the component packaging checks linked there for the selected runtime.
@@ -56,8 +56,8 @@ variable names and blocked cases without recording secret values.
 
 ## 7. Connect the agent
 
-Use the actual repository agent through a supported Gym integration. Inspect
-its entry point and the installed Gym interfaces; do not substitute Gym's example
+Use the actual repository agent through a supported NeMo Gym integration. Inspect
+its entry point and the installed NeMo Gym interfaces; do not substitute NeMo Gym's example
 agent to claim the user's agent ran. Record the resolved composition, configured
 agent instance, model settings, selected dataset rows, reset procedure, and
 output paths. If integration is missing, retain the drafts and verifier work and
@@ -65,7 +65,7 @@ name the specific connection required.
 
 Propose one attempt per selected example for the initial baseline unless the
 agreed purpose requires repeats. Record the count and cost in shared scope. A Harbor
-JobConfig or `.eval-author/run.yaml` is not required for Gym.
+JobConfig or `.eval-author/run.yaml` is not required for NeMo Gym.
 
 ## 8. Validate the evals
 
@@ -74,7 +74,7 @@ environment defect to fix, not a task or agent result. Its persistence and reset
 verifier cases run with the commands below and are recorded in the kit's plan,
 not declared as task controls.
 
-From each draft root, use the verified Gym CLI:
+From each draft root, use the verified NeMo Gym CLI:
 
 ```bash
 /path/to/Gym/.venv/bin/gym env validate --manifest environments/<name>/manifest.yaml --json
@@ -85,13 +85,13 @@ Apply [Task validation and execution evidence](../../eval-author/references/task
 to retain the task revision and native control results. Include the declared
 incorrect, valid-alternative, and side-effect cases, with explicit reasons for
 non-applicability. Record the verifier controls with the shared recorder and the
-maintained [native Gym adapter](../../eval-author-task-create/references/gym-evidence.md);
+maintained [native NeMo Gym adapter](../../eval-author-task-create/references/gym-evidence.md);
 this does not require an audit report or agent baselines.
 Retain validation and verifier-control output under fresh run paths. Require the
 controls to complete without exceptions and meet their predeclared reward
 criteria, exercising real tools and reset behavior for stateful cases. Repair
 broken cases without weakening assertions. Report blocked cases separately.
-Gym has no Harbor `-a nop` or `-a oracle` requirement. Passing verifier fixtures
+NeMo Gym has no Harbor `-a nop` or `-a oracle` requirement. Passing verifier fixtures
 does not establish actual agent performance or broad coverage.
 
 ## 9. Evaluate the agent
@@ -110,5 +110,5 @@ outputs, rewards, errors, resolved settings, and exact commands for every select
 case under `.eval-author/runs/`. Link these from the plan and suite README using
 paths resolved from the documented working directory. A working suite requires
 native execution of the actual agent and recorded rewards, even when scores are
-low. Return to stage 10 for reconciliation and rerun instructions. Report Gym
+low. Return to stage 10 for reconciliation and rerun instructions. Report NeMo Gym
 control results in their own terms, without labeling them Harbor NOP/Oracle jobs.

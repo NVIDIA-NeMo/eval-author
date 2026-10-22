@@ -19,8 +19,8 @@ replace the required unit tests, lint, or type checks.
 
 Pull requests also receive a credential-free coverage plan. They do not run
 live inference. Fork PRs are excluded from these evaluation workflows.
-Daily CI also runs the Python test matrix and three independent native Gym
-input routes. Gym summaries remain separate from SkillEvaluator artifacts; see
+Daily CI also runs the Python test matrix and three independent native NeMo Gym
+input routes. NeMo Gym summaries remain separate from SkillEvaluator artifacts; see
 [retained CI measurements](../DEVELOPMENT.md#retained-ci-measurements). The daily
 schedule starts after merge to `main` and does not enable live model evaluations.
 

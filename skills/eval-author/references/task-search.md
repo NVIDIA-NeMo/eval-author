@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Find local Harbor tasks and Gym workloads
+# Find local Harbor tasks and NeMo Gym workloads
 
 Use this file-only search when the user wants to find existing evaluations or
 when an authorized workflow needs local source candidates. It needs Python 3.10+
@@ -19,7 +19,7 @@ python3 <skill_dir>/scripts/search_tasks.py --repo /absolute/project --provider 
 
 The JSON records candidate paths, observed marker files, provider/layout hints,
 and search scope. Every candidate has `validation: "not_checked"`. Directory
-paths identify Harbor and Gym extension tasks; file paths identify Gym manifests
+paths identify Harbor and NeMo Gym extension tasks; file paths identify NeMo Gym manifests
 and config candidates. `.` identifies a task at the supplied root. `--query` is a
 case-insensitive substring filter on the reported path, not semantic search.
 Filters apply after the same bounded traversal; they do not reduce its scope.
@@ -29,12 +29,12 @@ Filters apply after the same bounded traversal; they do not reduce its scope.
 | Layout evidence | Candidate | Interpretation |
 | --- | --- | --- |
 | `task.toml` in any scanned directory, including the root | Harbor task | Include incomplete scaffolds; other markers are evidence, not validation requirements. |
-| `tasks.jsonl` and `instruction.template.md` together | Gym parameterized task | Rows and template are not parsed or expanded. |
-| `task.toml` and `tests/verifier.py` together | Gym Python-verifier task | A Gym extension of the Harbor layout. Parameterized evidence takes precedence when both are present. |
-| `manifest.yaml` | Gym manifest candidate | Retain even outside a catalog tree, where it may be an example or unrelated manifest. |
-| `environments/<name>/config.yaml` | Gym legacy config candidate | Structural match only. |
-| `benchmarks/**/*.yaml` | Gym legacy config candidate | Native Gym checks config contents; this search deliberately leaves that unverified. |
-| `resources_servers/<name>/configs/*.yaml` | Gym resource config candidate | Some contain workloads; others only configure a component. Do not call every match a task. |
+| `tasks.jsonl` and `instruction.template.md` together | NeMo Gym parameterized task | Rows and template are not parsed or expanded. |
+| `task.toml` and `tests/verifier.py` together | NeMo Gym Python-verifier task | A NeMo Gym extension of the Harbor layout. Parameterized evidence takes precedence when both are present. |
+| `manifest.yaml` | NeMo Gym manifest candidate | Retain even outside a catalog tree, where it may be an example or unrelated manifest. |
+| `environments/<name>/config.yaml` | NeMo Gym legacy config candidate | Structural match only. |
+| `benchmarks/**/*.yaml` | NeMo Gym legacy config candidate | Native NeMo Gym checks config contents; this search deliberately leaves that unverified. |
+| `resources_servers/<name>/configs/*.yaml` | NeMo Gym resource config candidate | Some contain workloads; others only configure a component. Do not call every match a task. |
 
 ## Harbor environment and step evidence
 
@@ -76,7 +76,7 @@ The task-search CI job runs these layout tests on Linux, macOS, and Windows with
 only pytest installed. Windows symlink tests explicitly skip if the runner lacks
 symlink creation privilege; other errors remain failures.
 
-## Gym catalog context
+## NeMo Gym catalog context
 
 The nearest scanned `environments/` or `benchmarks/` ancestor supplies catalog
 context, including when that directory is the explicit search root. Nested
@@ -90,19 +90,19 @@ named `.nemo_gym_tombstone` are reported when observed; the candidate remains
 visible for explanation rather than being silently dropped.
 
 These rules are grounded in [Harbor 0.20.0 task paths](https://github.com/harbor-framework/harbor/blob/v0.20.0/src/harbor/models/task/paths.py)
-and the pinned Gym source used by this repository:
+and the pinned NeMo Gym source used by this repository:
 [registry](https://github.com/NVIDIA-NeMo/Gym/blob/3045a793346a31291d7ea4ae6af3f94a35036ce5/nemo_gym/registry.py),
 [benchmark discovery](https://github.com/NVIDIA-NeMo/Gym/blob/3045a793346a31291d7ea4ae6af3f94a35036ce5/nemo_gym/benchmarks.py).
 The two extension markers preserve Eval Author's existing
-[Gym classification](../../eval-author-discover/scripts/providers/gym/_explore.py);
-they do not establish support for execution by the pinned Gym runtime.
+[NeMo Gym classification](../../eval-author-discover/scripts/providers/gym/_explore.py);
+they do not establish support for execution by the pinned NeMo Gym runtime.
 The search is a conservative inventory of these layouts, not a replacement for
-native validation or Gym's catalog resolver.
+native validation or NeMo Gym's catalog resolver.
 
-Gym's native catalog applies manifest validation, content checks for legacy
+NeMo Gym's native catalog applies manifest validation, content checks for legacy
 workloads, tombstones, and precedence across extra roots, working directory,
 and installation. Its `gym list environments --json` and `gym search` commands
-serve that runtime-backed catalog; see the [Gym 0.6.0 CLI reference](https://docs.nvidia.com/nemo/gym/v0.6.0/reference/cli-commands/).
+serve that runtime-backed catalog; see the [NeMo Gym 0.6.0 CLI reference](https://docs.nvidia.com/nemo/gym/v0.6.0/reference/cli-commands/).
 The local search does not borrow built-in catalog entries from an installation
 or download Harbor registry datasets. It does not establish a usable native
 name or execution command from a filename.
@@ -146,7 +146,7 @@ that is not a readiness pass or proof that the repository contains no evals.
 Preserve this evidence with the discovery findings. Read representative task
 instructions, suite READMEs, runners, and CI commands to explain purpose and
 source-derived run instructions. Continue bounded inspection for Harbor job
-configs, nonstandard Gym configs, scripts, notebooks, and manual rubrics; those
+configs, nonstandard NeMo Gym configs, scripts, notebooks, and manual rubrics; those
 are outside this layout search. Do not fabricate missing execution commands or
 infer readiness from marker files.
 
@@ -163,14 +163,14 @@ inventory in `task_search` in its JSON report, including environment, solution,
 verifier, and step evidence. Its existing generated-directory exclusions are
 passed to the helper and reported in `search.excluded_directory_names`.
 Readiness preserves its previous scope: it excludes the repository root itself
-and `task_template` roots and still requires `task.toml`. These roots and Gym
+and `task_template` roots and still requires `task.toml`. These roots and NeMo Gym
 parameterized scaffolds without TOML remain inventory candidates only.
 
 Full discovery has no task depth or entry limit by default (reported as JSON
 `null`), preserving discovery of large and deeply nested suites. The optional
 `--task-max-depth` and `--task-max-entries` flags impose limits explicitly.
 An incomplete task scan still makes Explore invalid and prevents a repository
-runnable verdict, including repositories containing Gym manifests: config
+runnable verdict, including repositories containing NeMo Gym manifests: config
 discovery alone cannot establish that all tasks were found. Fix unreadable paths
 or remove/raise explicit limits before claiming repository-wide readiness.
 

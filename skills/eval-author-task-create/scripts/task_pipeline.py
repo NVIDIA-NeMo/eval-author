@@ -8,7 +8,7 @@
 # extra-paths = ["."]
 # ///
 
-"""Select actionable audit gaps, scaffold Gym or Harbor drafts, and verify closure."""
+"""Select actionable audit gaps, scaffold NeMo Gym or Harbor drafts, and verify closure."""
 
 from __future__ import annotations
 
@@ -296,7 +296,7 @@ def _scaffold(
     _verify_coverage_binding(report_path)
     if provider == "gym":
         if not gym_python:
-            raise PipelineError("--gym-python must select an existing Gym runtime")
+            raise PipelineError("--gym-python must select an existing NeMo Gym runtime")
         command = [
             gym_python,
             str(Path(__file__).with_name("gym_scaffold.py")),
@@ -315,9 +315,9 @@ def _scaffold(
             result = subprocess.run(command, capture_output=True, text=True, timeout=90, check=False)
             payload = json.loads(result.stdout)
         except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
-            raise PipelineError("Gym scaffolder unavailable or returned no report") from exc
+            raise PipelineError("NeMo Gym scaffolder unavailable or returned no report") from exc
         if result.returncode or not isinstance(payload, dict) or not payload.get("written"):
-            raise PipelineError("Gym scaffolding failed; inspect the selected runtime and destination")
+            raise PipelineError("NeMo Gym scaffolding failed; inspect the selected runtime and destination")
         _write_lineage(output, report_path, instruction_file, target)
         return {**payload, "target_tool": target, "task_slug": task_slug, "paths": _artifact_paths(task_slug)}
     harbor = shutil.which("harbor")
@@ -516,9 +516,9 @@ def _parser() -> argparse.ArgumentParser:
     select.add_argument("--report", type=Path, required=True)
     select.add_argument("--target")
 
-    scaffold = subparsers.add_parser("scaffold", help="initialize a Gym or Harbor native task draft")
+    scaffold = subparsers.add_parser("scaffold", help="initialize a NeMo Gym or Harbor native task draft")
     scaffold.add_argument("--provider", choices=("gym", "harbor"), default="harbor")
-    scaffold.add_argument("--gym-python", help="Existing Gym Python interpreter (required for Gym)")
+    scaffold.add_argument("--gym-python", help="Existing NeMo Gym Python interpreter (required for NeMo Gym)")
     scaffold.add_argument("--report", type=Path, required=True)
     scaffold.add_argument("--target", required=True)
     scaffold.add_argument("--out", type=Path, required=True)

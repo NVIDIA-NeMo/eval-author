@@ -5,7 +5,7 @@
 
 Use this reference for the Harbor-specific work in first-eval stages 5–9. Keep
 the parent skill's stage boundaries, scope, check-ins, and shared deliverables.
-Harbor is compatible with Gym; follow the user's selected setup. No audit report
+Harbor is compatible with NeMo Gym; follow the user's selected setup. No audit report
 or measured gap closure is required.
 
 ## 5. Prepare cases and grading

@@ -1,18 +1,18 @@
 ---
 name: gym-to-atif
 description: >-
-  Convert one bounded Gym Responses rollout record, or a retained Harbor ATIF
-  from a Gym run, into one canonical ATIF trajectory for Harbor or Eval Author's
-  experimental environment derivation. Offline only: no Gym runtime, model invocation, or
+  Convert one bounded NeMo Gym Responses rollout record, or a retained Harbor ATIF
+  from a NeMo Gym run, into one canonical ATIF trajectory for Harbor or Eval Author's
+  experimental environment derivation. Offline only: no NeMo Gym runtime, model invocation, or
   image download. Also load native ng_trajectory evidence through NeMo Compass without ATIF export.
 triggers:
-  - load Gym ng_trajectory evidence with NeMo Compass
-  - convert a Gym rollout to ATIF
-  - prepare a Gym Responses trace for an ATIF consumer
-  - normalize one Gym JSONL rollout line into ATIF
+  - load NeMo Gym ng_trajectory evidence with NeMo Compass
+  - convert a NeMo Gym rollout to ATIF
+  - prepare a NeMo Gym Responses trace for an ATIF consumer
+  - normalize one NeMo Gym JSONL rollout line into ATIF
 not-for:
   - eval-author (use for the shared evidence standard and routing)
-  - eval-author-trace-environment (experimental; use after this skill emits ATIF to build a Harbor or native Gym task)
+  - eval-author-trace-environment (experimental; use after this skill emits ATIF to build a Harbor or native NeMo Gym task)
   - mlflow-to-atif (use only to normalize MLflow traces into ATIF)
 compatibility: >-
   Offline ATIF conversion uses Python 3.11+ and the standard library. The optional
@@ -31,13 +31,13 @@ allowed-tools: Bash Read Write
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Convert Gym to ATIF
+# Convert NeMo Gym to ATIF
 
 ## Purpose
 
-Gym's stored rollouts use its Responses-style format, not ATIF. This does
-**not** mean the rollout must run outside Gym. Gym's Harbor bridge can run the
-user's Harbor agent and then project its ATIF into a Gym response. Keep the
+NeMo Gym's stored rollouts use its Responses-style format, not ATIF. This does
+**not** mean the rollout must run outside NeMo Gym. NeMo Gym's Harbor bridge can run the
+user's Harbor agent and then project its ATIF into a NeMo Gym response. Keep the
 user's agent and harness; choose the best retained evidence for downstream
 processing. The bundled script writes owner-private files and prints only a
 content-free summary.
@@ -59,11 +59,11 @@ public or shared output directory. The script makes its output directory mode
 
 ### Choose the source
 
-1. **Harbor-backed Gym run with original ATIF:** prefer that original, without a
-   Gym→ATIF round trip. Supply its path explicitly with `--source-atif`.
-2. **Gym-native rollout:** normalize one self-contained record using the bundled
+1. **Harbor-backed NeMo Gym run with original ATIF:** prefer that original, without a
+   NeMo Gym→ATIF round trip. Supply its path explicitly with `--source-atif`.
+2. **NeMo Gym-native rollout:** normalize one self-contained record using the bundled
    adapter below, then use the normal ATIF preparation/privacy flow.
-3. **Only a Harbor→Gym projection remains:** supply `--allow-projection`
+3. **Only a Harbor→NeMo Gym projection remains:** supply `--allow-projection`
    explicitly. Missing information is not recoverable merely by converting the
    format back. Multiple Harbor step trajectories require an explicitly selected
    original ATIF; the adapter does not combine first-step output with last-step
@@ -112,16 +112,16 @@ is **experimental**; identify its workflows and outputs as experimental when
 presenting them to the user. When using it, run `prepare` with the derived ATIF and
 `--source-kind gym` (`--source-kind atif` for an explicit original); its
 `private/source.atif.json` is the exact ATIF input to `prepare`, not a claim
-that the original Gym record was ATIF. Batch manifests point `atif` at the
+that the original NeMo Gym record was ATIF. Batch manifests point `atif` at the
 **converted ATIF**, with `source_kind: gym` for projections. Never point that
-field at raw Gym JSONL.
+field at raw NeMo Gym JSONL.
 
 ## ng_trajectory attachments use a separate loader
 
-Some Gym rollout records carry an `ng_trajectory` observability attachment
+Some NeMo Gym rollout records carry an `ng_trajectory` observability attachment
 (with `ng_model_call_capture` / `ng_agent_observations` sources); many do not.
 Emission is producer- and path-dependent: it requires `observability_enabled`
-and model calls routed through the rollout-prefixed Gym Model Server, while
+and model calls routed through the rollout-prefixed NeMo Gym Model Server, while
 direct-provider calls bypass capture and aggregate exports omit the attachment
 entirely. The ATIF adapter converts only the Responses record
 (`responses_create_params`/`response`) and ignores the attachment, so its
@@ -132,7 +132,7 @@ recorded per-step timestamp, token-cost, and LLM-call-grouping losses.
 
 ## Mapping boundary
 
-The adapter supports Gym rollout envelopes (`responses_create_params` and
+The adapter supports NeMo Gym rollout envelopes (`responses_create_params` and
 `response`) and standalone Responses objects with complete history:
 
 - text and structured images in messages;
@@ -141,7 +141,7 @@ The adapter supports Gym rollout envelopes (`responses_create_params` and
 - `function_call` with object-valued JSON arguments and matching
   `function_call_output` items;
 - recorded reasoning summaries, explicitly **not** claimed as verbatim hidden
-  reasoning. Encrypted/additional reasoning stays in the original Gym record.
+  reasoning. Encrypted/additional reasoning stays in the original NeMo Gym record.
 
 Tool IDs, source item positions, statuses, declared schemas, aggregate usage and
 reported reward are retained where mapped. Tool observations attach to their
@@ -160,7 +160,7 @@ not project native MCP/computer/shell/apply-patch items, namespaced calls,
 video/audio/file content, or opaque image file IDs. Supply an original ATIF or
 add a fixture-backed explicit mapping; do not silently flatten them into text.
 
-## Images are not uniformly unsupported in Gym
+## Images are not uniformly unsupported in NeMo Gym
 
 In the pinned upstream implementation, user/tool content can contain structured
 `input_image` parts. Assistant output messages support text/refusal content, so
@@ -186,7 +186,7 @@ authorization and provenance. The converter never follows source metadata paths.
 
 ## Limitations
 
-The mappings were derived from Gym revision
+The mappings were derived from NeMo Gym revision
 `676cf1f4efe265f74455f73986a734dbda4eaec2`:
 
 - [Harbor bridge and conversion warnings](https://github.com/NVIDIA-NeMo/Gym/blob/676cf1f4efe265f74455f73986a734dbda4eaec2/responses_api_agents/harbor_agent_general/app.py)
@@ -198,14 +198,14 @@ Attachment semantics were checked against the [trajectory capability matrix](htt
 Synthetic fixtures exercise this bounded mapping and validate projected ATIF
 with Harbor's models plus the adapter's structural check, which mirrors the
 downstream `prepare` boundary. This is not a claim of complete
-Gym model validation, lossless round trips, or live Gym task execution. Unknown
-Gym fields remain in the retained raw record. No Gym/Ray dependency, provider
+NeMo Gym model validation, lossless round trips, or live NeMo Gym task execution. Unknown
+NeMo Gym fields remain in the retained raw record. No NeMo Gym/Ray dependency, provider
 credentials, Docker stack, or model invocation is required for conversion.
 
 ## Prerequisites
 
 Use Python 3.11+ and one local rollout record, with a physical line number for
-JSONL. Offline conversion uses only the standard library; no Gym runtime,
+JSONL. Offline conversion uses only the standard library; no NeMo Gym runtime,
 provider credentials, model invocation, Docker, or image download is needed.
 Choose a new owner-private output directory and retain the source record.
 

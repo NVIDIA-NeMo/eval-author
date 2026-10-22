@@ -85,7 +85,7 @@ cases, and acceptance criteria. Task drafts and run results show which checks
 have actually completed. Use the [generated case review guide](#review-generated-cases)
 to inspect the authored cases and their available evidence.
 
-Task controls check the task and its verifier: Gym's known-correct and negative
+Task controls check the task and its verifier: NeMo Gym's known-correct and negative
 verifier fixtures, or Harbor's no-op baseline and reference solution. Results
 from running your actual agent are separate evidence of its performance.
 A valid task, a working environment, and a successful agent run are distinct
@@ -94,15 +94,15 @@ outcomes. See [Build your first evaluations](first-evals.md).
 ## Open readable cases and traces
 
 Start with the html report or the README.md for artifact paths and commands. Harbor
-tasks and recorded jobs use its native local viewer. For Gym JSONL and standalone
+tasks and recorded jobs use its native local viewer. For NeMo Gym JSONL and standalone
 ATIF, Eval Author includes an offline reader that creates a private `report.html`
 you can open directly in a browser; see [Local review](../skills/eval-author/references/local-review.md)
 for commands and supported formats.
 
-Gym reports keep model input separate from verifier and other row fields. The
+NeMo Gym reports keep model input separate from verifier and other row fields. The
 reader shows recorded messages, tool calls and results, and available rewards
 and errors, while preserving raw records and identifying missing or unsupported
-content. Select Gym records by their physical line numbers. Keep generated
+content. Select NeMo Gym records by their physical line numbers. Keep generated
 cases, source evidence, task controls, and actual-agent attempts in reports
 with their respective evidence roles; these are caller-supplied labels, not
 verified relationships.
@@ -217,7 +217,7 @@ prerequisites are missing.
 
 | Workflow | Main outputs |
 | --- | --- |
-| First evaluations | `ETHOS.md`, `.eval-author/README.md`, `.eval-author/tasks/`, and run results under `.eval-author/runs/` for Gym or `.eval-author/jobs/` for Harbor. Harbor suites also get `.eval-author/run.yaml` when the agent integration supports it. |
+| First evaluations | `ETHOS.md`, `.eval-author/README.md`, `.eval-author/tasks/`, and run results under `.eval-author/runs/` for NeMo Gym or `.eval-author/jobs/` for Harbor. Harbor suites also get `.eval-author/run.yaml` when the agent integration supports it. |
 | Discovery and readiness | `.eval-author/discovery.md` |
 | Coverage audit | The four artifacts listed under [Coverage audits](#coverage-audits), plus supporting evidence in `.eval-author/audit-measurements/` |
 | Intake trace inspection | `.eval-author/traces/` |

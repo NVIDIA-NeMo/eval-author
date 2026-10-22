@@ -281,16 +281,16 @@ you need to create, validate, or run Harbor tasks.
 | Operation | Requirements |
 | --- | --- |
 | Read repository docs, establish Ethos, and plan cases | Your coding agent and repository access. No evaluation runtime is required for this work. |
-| Run the discovery helper | Python 3.11+. Harbor configs/tasks need Harbor importable by that interpreter; native Gym manifests need a Gym v0.6.0+ CLI. Execution checks need the selected backend and task dependencies; Docker is needed for Docker-backed tasks. |
-| Build first evals with native Gym | Gym v0.6.0+ in its separate Python 3.13.14+ environment; no audit report required. See [first evals](first-evals.md). Execution needs the actual agent integration and configured model access. |
-| Create a Gym task from an audit gap | An existing actionable coverage report and an installed Gym v0.6.0+ runtime in Python 3.13.14+. See the [Gym task-authoring guide](../skills/eval-author-task-create/references/gym-tasks.md). Execution needs the task components and actual agent/model configuration. |
+| Run the discovery helper | Python 3.11+. Harbor configs/tasks need Harbor importable by that interpreter; native NeMo Gym manifests need a NeMo Gym v0.6.0+ CLI. Execution checks need the selected backend and task dependencies; Docker is needed for Docker-backed tasks. |
+| Build first evals with native NeMo Gym | NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment; no audit report required. See [first evals](first-evals.md). Execution needs the actual agent integration and configured model access. |
+| Create a NeMo Gym task from an audit gap | An existing actionable coverage report and an installed NeMo Gym v0.6.0+ runtime in Python 3.13.14+. See the [NeMo Gym task-authoring guide](../skills/eval-author-task-create/references/gym-tasks.md). Execution needs the task components and actual agent/model configuration. |
 | Create, validate, and run Harbor tasks | Harbor and its supported Python environment. Execution also needs the selected backend and any application access, agent integration, and provider credentials required by the task. |
-| Build and prove a task environment | Repository access for the fit check and inventory. Harbor environments need Harbor and Docker with Compose for sidecar services; Gym environments need the Gym runtime above. Vendor sandboxes need your authorization and credentials, supplied by variable name. |
+| Build and prove a task environment | Repository access for the fit check and inventory. Harbor environments need Harbor and Docker with Compose for sidecar services; NeMo Gym environments need the NeMo Gym runtime above. Vendor sandboxes need your authorization and credentials, supplied by variable name. |
 | Generate or validate an audit specification; aggregate measured coverage | Python 3.11+, PyYAML, and jsonschema. These operations read local evidence and do not call NeMo services. |
 | Measure coverage from ATIF traces | Python 3.12+ and the [audit dependencies](../skills/eval-author-audit/requirements.txt), including Harbor. Measurement does not start evaluation jobs. |
 | Convert exported MLflow traces | Python 3.11+ and the standard library. Live MLflow queries additionally need an existing MLflow environment and access to the store. |
-| Convert Gym traces with `gym-to-atif` | Python 3.11+ and the standard library for conversion. |
-| Prepare and validate a trace-derived environment (**experimental**) | Python 3.11+, jsonschema 4.23+, and referencing 0.28.4+ for preparation; Harbor and Docker for Harbor checks, or the sibling task-create skill and Gym v0.6.0+ in Python 3.13.14+ for [native Gym output](../skills/eval-author-trace-environment/references/gym-output.md). |
+| Convert NeMo Gym traces with `gym-to-atif` | Python 3.11+ and the standard library for conversion. |
+| Prepare and validate a trace-derived environment (**experimental**) | Python 3.11+, jsonschema 4.23+, and referencing 0.28.4+ for preparation; Harbor and Docker for Harbor checks, or the sibling task-create skill and NeMo Gym v0.6.0+ in Python 3.13.14+ for [native NeMo Gym output](../skills/eval-author-trace-environment/references/gym-output.md). |
 | Inspect NeMo Intake traces | A working `nemo` CLI, an explicit workspace, and read access to a configured local or remote NeMo Helix instance. |
 | Generate the Harbor HTML case/run report | Python 3.11+, jsonschema 4.23+, and markdown-it-py 4.x. Reads local task/run artifacts; no Harbor runtime, Docker, model access, or network is needed to render. See the [Report generation](../skills/eval-author/references/suite-readme.md#report-generation). |
 
@@ -299,7 +299,7 @@ Harbor-backed operations. This repository's development checks use Python 3.12
 and 3.13 with Harbor 0.20.0; see [development setup](../DEVELOPMENT.md).
 
 The experimental trace-to-environment workflow uses Harbor's `nop` agent (a no-op
-baseline) and `oracle` agent (the task's reference solution), or Gym's native
+baseline) and `oracle` agent (the task's reference solution), or NeMo Gym's native
 positive and negative controls. These checks do not require a model provider.
 Running your actual agent uses its configured provider and dependencies.
 

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Point at evaluation code that is neither a Harbor nor a Gym task.
+"""Point at evaluation code that is neither a Harbor nor a NeMo Gym task.
 
 Standard library only. These are leads for the agent to raise with the user, who
 decides whether to convert them. They never count as discovered evals, and a
@@ -114,7 +114,7 @@ def _entries(directory: Path) -> list[Path]:
 
 
 def _is_owned(directory: Path, owned_roots: set[Path], repo_root: Path) -> bool:
-    """Return whether a directory sits inside a Harbor or Gym path, checking its ancestors against a set."""
+    """Return whether a directory sits inside a Harbor or NeMo Gym path, checking its ancestors against a set."""
     for candidate in (directory, *directory.parents):
         if candidate in owned_roots:
             return True

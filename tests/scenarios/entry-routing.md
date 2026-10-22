@@ -17,7 +17,7 @@ Its synthetic tests are not a record of passing conversational replay.
 
 ## 1. Shared entry for each journey and runtime
 
-Request first evals, an audit, and expansion in separate synthetic Gym and Harbor
+Request first evals, an audit, and expansion in separate synthetic NeMo Gym and Harbor
 repositories. For full audits, unless testing unknown or missing traces, include
 the user's explicit statement that traces from completed evaluation runs exist;
 leave their source and location unselected. The first orientation has the same
@@ -72,7 +72,7 @@ observed checks from user-confirmed answers and from end-to-end suite readiness.
 ### Prerequisite inspection variants
 
 Use the fixed eight-row table for creation and expansion and the fixed six-row
-table for audit, with both Gym and Harbor. The audit rows are **Agent and
+table for audit, with both NeMo Gym and Harbor. The audit rows are **Agent and
 repository**, **Evaluation framework**, **Traces from completed evaluation runs**,
 **Required skills**, **File and command access**, and **Audit tooling**, in that
 order. Within each goal's template, only status and findings cells vary, including
@@ -92,7 +92,7 @@ progress message before the first check and the results table in the final reply
   before deciding whether a question remains
 - A creation or expansion environment needs no Docker, services, or live
   credentials yet: retain its eight rows and explain the applicable or deferred requirements
-- Audit local Gym or Harbor definitions with Python 3.11 or newer, PyYAML, and
+- Audit local NeMo Gym or Harbor definitions with Python 3.11 or newer, PyYAML, and
   jsonschema available, but neither evaluation runner, Docker, nor agent
   credentials, and with confirmed trace availability: identify the suite format
   without probing those execution dependencies and continue to Ethos confirmation
@@ -122,8 +122,8 @@ progress message before the first check and the results table in the final reply
   trace-availability evidence, preserve provenance, and keep setup blocked until
   availability is confirmed
 - After the audit selects local ATIF evidence, check the Harbor trajectory
-  parser for measurement, including when the evidence was converted from Gym;
-  do not check a Gym runner or launch Harbor jobs
+  parser for measurement, including when the evidence was converted from NeMo Gym;
+  do not check a NeMo Gym runner or launch Harbor jobs
 - The required conversion tool or parser is absent for selected audit evidence:
   explain the blocked conversion or measurement, retain the selection, and
   preserve Ethos and agreed independent specification work without installing
@@ -136,7 +136,7 @@ and a missing or timed-out check is never promoted to successful execution.
 ### Results and the transition to Ethos
 
 Check the response after the results table against the shared reference's exact
-headings and introductory sentences. Keep the section order across goals, Gym,
+headings and introductory sentences. Keep the section order across goals, NeMo Gym,
 and Harbor; omit sections only under the template's stated conditions.
 
 - Optional assistant skills are absent: show **Recommendations**, explicitly say
@@ -168,7 +168,7 @@ fresh welcome/checklist/call-to-action response before any prerequisite work.
 ### Ethos completion and the pause before evaluation work
 
 Finish the canonical saved-content validation and review, then confirm the saved
-Ethos. Repeat for create, audit, and expand with Gym and Harbor. Inspect the final
+Ethos. Repeat for create, audit, and expand with NeMo Gym and Harbor. Inspect the final
 visible response: it links `ETHOS.md`, reports confirmation, shows **Next Steps**
 and the shared progress checklist, and ends with the selected goal's exact
 readiness/continuation sentence. Completed prerequisites and Ethos are checked;
@@ -195,6 +195,34 @@ planning; provided audit findings support proposals through task-create. When no
 supported authoring flow matches the supplied suite, save the pending handoff
 and explain the missing capability.
 
+### Existing suite uses an unsupported format
+
+Request improvements to a synthetic NAT or DeepEval suite with an existing
+`ETHOS.md` and saved Harbor authoring state. After the opening and continuation,
+show the eight-row table and complete independent checks. The framework row must
+identify the incompatible format; the saved Harbor setup does not establish
+compatibility or justify provider-specific probes yet.
+
+Under **Blockers**, say “Eval Author only supports NeMo Gym or Harbor formats.
+Convert your existing evaluations to one of those formats before we continue.”
+Keep setup incomplete and omit Next Steps, the checklist, and Ethos guidance.
+The blocker must appear before Ethos confirmation, including when an earlier
+flow already confirmed that document.
+
+- Preserve progress and pause for the user to convert the suite; no conversion
+  or unsupported-format authoring occurs
+- Do not offer separate NeMo Gym or Harbor evaluations as a workaround
+- Resume before conversion: retain the setup blocker and required action; do not
+  enter Ethos, probe a default provider, or mark prerequisites complete
+- Return with a converted supported suite: verify its format from supplied
+  context, clear the resolved blocker, and resume the earliest incomplete step
+- Switch to audit: remove the improvement-format blocker's effect and apply
+  audit prerequisites while preserving its findings and the existing suite
+
+Keep explicit audit operations and supported trace conversion outside this
+authoring-format requirement. No new adapter or general expansion implementation
+is implied by converting to a supported format.
+
 ## 3. Narrow operations keep their scope
 
 Request only inventory, readiness, audit validation, recommendations from a
@@ -208,7 +236,7 @@ before searches or reads. Explicit source selections are reused.
 
 ### Existing Ethos requires current confirmation
 
-For each new shared entry with Gym and Harbor, supply a valid root `ETHOS.md` and
+For each new shared entry with NeMo Gym and Harbor, supply a valid root `ETHOS.md` and
 saved state with a matching confirmed digest from an earlier flow. Complete the
 opening and prerequisite checks. Under **Next Steps**, Ethos must remain
 unchecked and current when setup is complete. The response links the actual file,

@@ -30,7 +30,7 @@ environment, or trace-derived authoring. Audit shared entry checks the existing
 Python environment and packages in `audit_tools` from the policy directly; it
 does not probe an evaluation runner. After ATIF evidence is selected for audit
 measurement, use `--provider harbor --flow audit` for the trajectory parser,
-including for converted Gym evidence. This does not change the suite's framework
+including for converted NeMo Gym evidence. This does not change the suite's framework
 or require an evaluation environment. Use `--provider both` only
 when both runtimes are needed. File-only inventory never runs this command.
 Here `<skill_dir>` is the eval-author skill directory. The shared files ship in
@@ -57,7 +57,7 @@ missing, broken, incompatible, ambiguous, or incomplete findings.
 
 The standalone locator does not add its invoking interpreter as a candidate;
 discovery explicitly supplies its own interpreter because Harbor validates in-process.
-Each Harbor probe has a 10-second timeout and each Gym probe 60 seconds.
+Each Harbor probe has a 10-second timeout and each NeMo Gym probe 60 seconds.
 Each provider has a separate 390-second cumulative probe budget; uv enumeration
 has a 10-second budget. This retains bounded execution without one provider
 consuming another's probe allowance. These limits are not cold-start performance
@@ -93,7 +93,7 @@ or `--gym-python` / `--gym-cli`. Do not edit customer configuration to resolve
 this. For unsupported requirements, report the limitation for explicit review.
 
 Preserve `selection.<provider>.selected.python` and `.cli` across shell sessions.
-Use that exact Python for Harbor discovery and pass the selected Gym CLI with
+Use that exact Python for Harbor discovery and pass the selected NeMo Gym CLI with
 `discover.py --gym-cli /absolute/gym`. Discovery rechecks runtime capabilities;
 its Harbor validators remain in-process, so launching it with an unrelated
 Python cannot borrow another installation's readiness evidence.
@@ -101,7 +101,7 @@ Python cannot borrow another installation's readiness evidence.
 When unresolved, return the candidates and actual errors to the calling flow.
 Shared prerequisites complete the other accessible checks before asking only
 for the missing location or choice. If no usable installation exists, follow
-[Harbor setup](harbor-setup.md), or the selected project's Gym setup instructions,
+[Harbor setup](harbor-setup.md), or the selected project's NeMo Gym setup instructions,
 subject to existing setup authorization. Do not reinstall over a broken runtime.
 
 The policy's `test_profiles` identify pinned test configurations and their test

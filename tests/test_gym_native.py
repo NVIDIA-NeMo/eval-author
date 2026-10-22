@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Integration checks against a separately installed, real Gym runtime."""
+"""Integration checks against a separately installed, real NeMo Gym runtime."""
 
 import json
 import os
@@ -14,7 +14,9 @@ import pytest
 HARNESS_ROOT = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("EVAL_AUTHOR_SOURCE_ROOT", HARNESS_ROOT))
 GYM_PYTHON = os.environ.get("EVAL_AUTHOR_GYM_PYTHON")
-pytestmark = pytest.mark.skipif(not GYM_PYTHON, reason="set EVAL_AUTHOR_GYM_PYTHON to an installed Gym v0.6.0+ runtime")
+pytestmark = pytest.mark.skipif(
+    not GYM_PYTHON, reason="set EVAL_AUTHOR_GYM_PYTHON to an installed NeMo Gym v0.6.0+ runtime"
+)
 
 
 def scaffold_draft(tmp_path):
@@ -241,7 +243,7 @@ def scaffold_trace_draft(tmp_path, *, gym_rollouts=None):
 
 
 def scaffold_ng_trace_draft(tmp_path):
-    """Produce a real Gym rollout attachment, then derive a new native task from one row."""
+    """Produce a real NeMo Gym rollout attachment, then derive a new native task from one row."""
     assert GYM_PYTHON is not None
     resource = tmp_path / "source-resource"
     (resource / "tests").mkdir(parents=True)

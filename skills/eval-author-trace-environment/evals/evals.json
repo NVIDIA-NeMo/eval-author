@@ -18,11 +18,11 @@
     },
     {
       "id": "trace-proposal-gym",
-      "prompt": "Use /workspace/input/traces/lookup.atif.json and provenance.json in that directory to propose a private Gym evaluation task for the synthetic inventory agent. Save a candidate proposal at /workspace/output/.eval-author/candidate-plan.md and show it for review. This turn authorizes a written proposal only; do not scaffold, validate, install, run a model, or export anything.",
-      "expected_output": "Writes an experimental private candidate proposal grounded in the recorded lookup_item call and BOLT-17 quantity observation. Names Gym as the chosen output provider independently of the ATIF source format. Acknowledges hand-constructed synthetic evidence with no actual model/native task execution; a recorded answer is not independent ground truth. Describes needed independent grading and provider-native controls, then stops for review without claiming readiness or execution.",
+      "prompt": "Use /workspace/input/traces/lookup.atif.json and provenance.json in that directory to propose a private NeMo Gym evaluation task for the synthetic inventory agent. Save a candidate proposal at /workspace/output/.eval-author/candidate-plan.md and show it for review. This turn authorizes a written proposal only; do not scaffold, validate, install, run a model, or export anything.",
+      "expected_output": "Writes an experimental private candidate proposal grounded in the recorded lookup_item call and BOLT-17 quantity observation. Names NeMo Gym as the chosen output provider independently of the ATIF source format. Acknowledges hand-constructed synthetic evidence with no actual model/native task execution; a recorded answer is not independent ground truth. Describes needed independent grading and provider-native controls, then stops for review without claiming readiness or execution.",
       "assertions": [
         "Writes an experimental private candidate proposal grounded in the recorded lookup_item call and BOLT-17 quantity observation.",
-        "Names Gym as the chosen output provider independently of the ATIF source format.",
+        "Names NeMo Gym as the chosen output provider independently of the ATIF source format.",
         "Acknowledges hand-constructed synthetic evidence with no actual model/native task execution; a recorded answer is not independent ground truth.",
         "Describes needed independent grading and provider-native controls, then stops for review without claiming readiness or execution."
       ],

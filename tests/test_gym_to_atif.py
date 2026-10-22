@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Synthetic Gym records shaped from upstream 676cf1f; no live agent or customer data."""
+"""Synthetic NeMo Gym records shaped from upstream 676cf1f; no live agent or customer data."""
 
 import copy
 import json

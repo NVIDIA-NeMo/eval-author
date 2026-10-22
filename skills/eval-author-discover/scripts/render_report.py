@@ -50,9 +50,9 @@ def _action(check: dict[str, Any]) -> str:
         "backend": "Check the evaluation environment's setup, then rerun the readiness check.",
         "config": "Confirm where the Harbor configuration lives; discovery searches up to four directories deep.",
         "dataset-tasks": "Repair the task files identified in the diagnostic details below.",
-        "gym-conversion": "Fix the Gym task files identified in the diagnostic details below.",
-        "gym-runner": "Give each Gym extension task a `tests/test.sh`, or wait for NeMo Gym's Harbor task runner.",
-        "gym-validate": "Rerun the rejected manifest with the command in the diagnostic details below, and fix what Gym reports.",
+        "gym-conversion": "Fix the NeMo Gym task files identified in the diagnostic details below.",
+        "gym-runner": "Give each NeMo Gym extension task a `tests/test.sh`, or wait for NeMo Gym's Harbor task runner.",
+        "gym-validate": "Rerun the rejected manifest with the command in the diagnostic details below, and fix what NeMo Gym reports.",
         "solve": "Rerun the failing eval with the command in the diagnostic details below, and fix what it reports.",
         "config-parse": "Check the configuration's syntax and Python dependencies; see the diagnostic details below.",
         "schema": "Correct the configuration fields identified in the diagnostic details below.",
@@ -138,7 +138,7 @@ def _fully_operational(report: dict[str, Any]) -> bool:
 
 
 def _judge_cell(entry: dict[str, Any]) -> str:
-    """Describe what Gym's Judge did with one manifest."""
+    """Describe what NeMo Gym's Judge did with one manifest."""
     judge = entry.get("judge") or {}
     status = judge.get("status")
     if status == "passed":
@@ -251,7 +251,7 @@ def render_summary(report: dict[str, Any]) -> str:
 
 
 def _gym_readiness(report: dict[str, Any], manifests: list[dict[str, Any]]) -> str:
-    """Summarize a repository's NeMo Gym manifests, which Judge and Solve check with Gym."""
+    """Summarize a repository's NeMo Gym manifests, which Judge and Solve check with NeMo Gym."""
 
     def with_status(stage: str, *statuses: str) -> list[dict[str, Any]]:
         return [m for m in manifests if (m.get(stage) or {}).get("status") in statuses]
@@ -316,7 +316,7 @@ def _readiness(report: dict[str, Any], configs: list[dict[str, Any]], datasets: 
     else:
         headline = f"This repo has Harbor evals, but none of the {len(units)} {noun} is ready to run yet."
     # Group common actions so one unavailable service does not produce a wall of failures.
-    # The NeMo Gym paragraph that follows covers a missing Gym.
+    # The NeMo Gym paragraph that follows covers a missing NeMo Gym.
     actions = list(dict.fromkeys(_action(c) for c in _required_failures(report) if c.get("name") != "gym-unavailable"))
     return headline + "\n\n" + "\n".join(f"- {action}" for action in actions)
 
@@ -342,7 +342,7 @@ def _phase_detail(name: str, status: str, report: dict[str, Any]) -> str:
         # No task rows yet, such as a config for a remote dataset or an unprepared benchmark.
         found = [
             _plural(len(report.get(key) or []), noun)
-            for key, noun in (("configs", "config"), ("gym_manifests", "Gym manifest"))
+            for key, noun in (("configs", "config"), ("gym_manifests", "NeMo Gym manifest"))
             if report.get(key)
         ]
         return f"found {' and '.join(found)} but no tasks"
@@ -378,7 +378,7 @@ def _phase_detail(name: str, status: str, report: dict[str, Any]) -> str:
 
 
 def _judge_verdicts(report: dict[str, Any]) -> dict[str, list[bool]]:
-    """Whether each eval Judge checked passed, by format: Harbor configs and datasets when proven, and Gym manifests."""
+    """Whether each eval Judge checked passed, by format: Harbor configs and datasets when proven, and NeMo Gym manifests."""
     harbor: list[bool] = []
     if report.get("proven"):
         harbor += [bool(c.get("runnable")) for c in report.get("configs", [])]
@@ -395,7 +395,7 @@ def _judge_verdicts(report: dict[str, Any]) -> dict[str, list[bool]]:
         for m in report.get("gym_manifests", [])
         if (m.get("judge") or {}).get("status") in {"passed", "failed", "blocked"}
     ]
-    return {"Harbor": harbor, "Gym": gym}
+    return {"Harbor": harbor, "NeMo Gym": gym}
 
 
 def _phase_line(name: str, status: str, report: dict[str, Any]) -> str:

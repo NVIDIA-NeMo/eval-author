@@ -1,23 +1,23 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Gym's part of the Judge phase. Standard library only.
+"""NeMo Gym's part of the Judge phase. Standard library only.
 
-Two jobs, one per kind of Gym artifact:
+Two jobs, one per kind of NeMo Gym artifact:
 
 - A **manifest** is judged by NeMo Gym itself: ``gym env validate <name>`` checks
   the workload's config, components, and data files without starting a service.
   ``run_gym`` is the one place this skill calls the ``gym`` CLI, and Solve reuses it.
-- A **Gym extension task** is judged by Harbor, after ``convert`` renders it as a
+- A **NeMo Gym extension task** is judged by Harbor, after ``convert`` renders it as a
   plain Harbor task directory. Harbor does the judging; this only gives it tasks
   it can read. Output goes to a caller-owned scratch directory outside the
 repository, so discovery still writes nothing to the user's checkout.
 
-The rendering follows the contract the Gym authoring prototype states: a task has
+The rendering follows the contract the NeMo Gym authoring prototype states: a task has
 exactly one of ``tests/test.sh`` or ``tests/verifier.py``; ``verify()`` receives
 the workspace path, plus the row's ``task_data`` for a parameterized task, and
 returns the reward; each ``tasks.jsonl`` row fills ``{{ task_data.<key> }}``
-placeholders in ``instruction.template.md``. Gym has not shipped its own renderer,
+placeholders in ``instruction.template.md``. NeMo Gym has not shipped its own renderer,
 so the generated ``tests/test.sh`` is discovery's stand-in, which lets Harbor judge
 everything else about the task.
 """
@@ -61,11 +61,11 @@ def validate_command(repo_root: Path, name: str, kind: str) -> str:
 
 
 def run_gym(gym: str, args: list[str], repo_root: Path) -> GymRun:
-    """Run the ``gym`` CLI from the repository root, where Gym finds workloads by name, and read its JSON."""
+    """Run the ``gym`` CLI from the repository root, where NeMo Gym finds workloads by name, and read its JSON."""
     try:
         completed = subprocess.run(
             # env(1) runs gym with the inherited environment plus one setting: COLUMNS keeps Rich from
-            # wrapping Gym's error messages at the terminal width, which would split file paths.
+            # wrapping NeMo Gym's error messages at the terminal width, which would split file paths.
             ["env", "COLUMNS=10000", gym, *args],
             cwd=repo_root,
             stdin=subprocess.DEVNULL,
@@ -83,7 +83,7 @@ def run_gym(gym: str, args: list[str], repo_root: Path) -> GymRun:
     if completed.returncode:
         lines = [line.strip() for line in (completed.stderr + completed.stdout).splitlines() if line.strip()]
         starts = [index for index, line in enumerate(lines) if line.startswith("Error")]
-        # Gym continues an error on the lines after it, such as the paths it searched.
+        # NeMo Gym continues an error on the lines after it, such as the paths it searched.
         detail = " ".join(lines[starts[-1] :]) if starts else lines[-1] if lines else "no output"
         if len(detail) > _BRIEF_CHARS:
             detail = detail[: _BRIEF_CHARS - 3] + "..."
@@ -128,7 +128,7 @@ PY
 
 
 class ConversionError(Exception):
-    """A Gym task that cannot be rendered, with a message naming the defect."""
+    """A NeMo Gym task that cannot be rendered, with a message naming the defect."""
 
 
 @dataclass(frozen=True)
@@ -140,7 +140,7 @@ class ConvertedTask:
 
 
 def convert(task_dir: Path, kind: str, scratch: Path) -> list[ConvertedTask]:
-    """Render one Gym extension task directory into Harbor task directories under ``scratch``."""
+    """Render one NeMo Gym extension task directory into Harbor task directories under ``scratch``."""
     tests = task_dir / "tests"
     if (tests / "test.sh").is_file() and (tests / "verifier.py").is_file():
         raise ConversionError(

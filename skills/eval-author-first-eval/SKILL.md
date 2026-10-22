@@ -4,7 +4,7 @@ description: >-
   For a fresh start, read eval-author, show its welcome, checklist, and call to
   action, and end the turn before repository inspection or prerequisite work.
   Establish a required Ethos, plan evaluation cases, and build first evals or
-  expand a starter Gym or Harbor suite while explaining
+  expand a starter NeMo Gym or Harbor suite while explaining
   its parts. No prior traces or coverage reports are required. Missing selected
   runtime blocks scaffolding and execution, not planning.
 triggers:
@@ -19,7 +19,7 @@ not-for:
 compatibility: >-
   Ethos is required before evaluation design and is saved and checked locally
   in the user's repository. No NeMo service, account, platform CLI, or upload is needed.
-  Planning needs no evaluation runtime. Gym and Harbor authoring need the Python/CLI
+  Planning needs no evaluation runtime. NeMo Gym and Harbor authoring need the Python/CLI
   pairs verified by eval-author’s shared locator and runtime-policy.json.
   Keep their runtime environments separate. Execution may require Docker,
   an agent adapter, and provider credentials.
@@ -70,7 +70,7 @@ selection or evaluation work. Continue the stages below only after the user repl
 
 ## 2. Reuse prerequisites and verify when needed
 
-Preserve the selected Gym or Harbor setup and recorded prerequisite evidence
+Preserve the selected NeMo Gym or Harbor setup and recorded prerequisite evidence
 and answers. Planning requires no installed runtime. Before scaffolding or another
 runtime-dependent operation, reuse applicable checks from shared prerequisites or
 use the shared runtime locator as described in
@@ -158,8 +158,8 @@ and side-effect cases. These are local task controls, not extra model repeats.
 Read the reference for each provider in the selected setup for the runtime-specific
 work in stages 5–9:
 
-- [Native Gym first evals](references/gym-first-eval.md): native scaffolding,
-  component configuration, verifier fixtures, and Gym execution.
+- [Native NeMo Gym first evals](references/gym-first-eval.md): native scaffolding,
+  component configuration, verifier fixtures, and NeMo Gym execution.
 - [Harbor first evals](references/harbor-first-eval.md): native task files,
   environment and agent setup, NOP/Oracle controls, and Harbor execution.
 
@@ -247,7 +247,7 @@ alone does not prove that the connection works.
 
 Follow [Execution recovery](../eval-author/references/execution-recovery.md)
 for control and target-agent runs, compatibility repairs, and all result recaps.
-Confirm the current environment kit's proof (Harbor's smoke task or Gym's
+Confirm the current environment kit's proof (Harbor's smoke task or NeMo Gym's
 persistence and reset cases) passed first; a proof failure is an environment
 defect to fix, not a task or agent result. That proof is recorded in the kit's
 plan, not with the task evidence recorder below.
@@ -315,7 +315,7 @@ When an actual-agent attempt exists, explain in the results reply how to open
 and inspect its saved evidence, using the shared
 [review walkthrough](../eval-author/references/suite-readme.md#show-the-user-how-to-review).
 For Harbor, give the run viewer's launch command and browser URL or a verified
-live link, and identify the saved job and case. For Gym, link the readable
+live link, and identify the saved job and case. For NeMo Gym, link the readable
 evidence for the selected dataset rows and identify the saved attempt.
 State what can be reviewed when the adapter emits no
 ATIF; captured actions and replies do not imply a native trajectory exists.
@@ -336,7 +336,7 @@ or checks are basic. A functioning case that the agent fails provides a useful
 baseline; do not weaken it to obtain success.
 
 Name each created eval case and explain the customer behavior it measures.
-Translate the recorded controls into their meaning. For Gym, explain the actual
+Translate the recorded controls into their meaning. For NeMo Gym, explain the actual
 positive and negative fixtures and observed rewards. For a Harbor binary action case,
 doing nothing failed and the prepared reference solution passed, so the grader
 distinguishes those examples. Do not call NOP an empty answer unless that is what
@@ -369,21 +369,21 @@ hand the established Ethos and actual ATIF to `eval-author-audit`, then use
 
 Establish Ethos before case design. Planning needs agent documentation and
 intended behavior, not prior traces, coverage reports, or an evaluation runtime.
-Scaffolding and validation require the selected Gym or Harbor installation. Execution
+Scaffolding and validation require the selected NeMo Gym or Harbor installation. Execution
 needs the chosen backend, agent connection, and any configured provider access.
 Real-agent and paid-judge runs require authorization for execution and spend.
 
 ## Limitations
 
 A starter suite establishes a baseline for the selected cases, not comprehensive
-coverage. Gym verifier controls or Harbor NOP and Oracle validate task wiring
+coverage. NeMo Gym verifier controls or Harbor NOP and Oracle validate task wiring
 and selected verifier behavior; they do not measure the real agent. Missing runtime access can leave useful
 plans and drafts complete while execution remains unproven.
 
 ## Troubleshooting
 
 - Missing Ethos: resume the shared Ethos confirmation adapter before case design.
-- Selected runtime unavailable: retain the case plan and identify the Gym setup
+- Selected runtime unavailable: retain the case plan and identify the NeMo Gym setup
   requirement or follow discovery's Harbor setup guidance. Install only when
   authorized, following the user's selected setup.
 - Oracle fails or NOP unexpectedly passes: inspect task state, reference solution,

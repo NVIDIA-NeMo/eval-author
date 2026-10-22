@@ -23,7 +23,7 @@ triggers:
   - audit coverage of my evals against the ethos
 not-for:
   - eval-author (use for the standard, the boundaries, and to pick a sub-flow)
-  - eval-author-discover (use to check Gym or Harbor suite readiness)
+  - eval-author-discover (use to check NeMo Gym or Harbor suite readiness)
   - eval-author-inspect-trace (use after eval-author selects an Intake trace)
   - nemo-experimentalist (use to optimize an agent from Insights or explicit datasets)
 compatibility: >-
@@ -466,7 +466,7 @@ gaps to [`eval-author-task-create`](../eval-author-task-create/SKILL.md) using
 Establish Ethos and review audit items first. Generation/validation need Python 3.11+, PyYAML, and jsonschema; no provider probe.
 ATIF measurement from Harbor or NeMo Gym needs Python 3.12+ and Harbor's trajectory model; use `requirements.txt`.
 Use the [shared locator](../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks) with `--provider harbor --flow audit`.
-For Gym traces, follow [Gym audit inputs](references/gym-audit.md); offline conversion and measurement need no Gym runtime. Commands read local files, not services.
+For NeMo Gym traces, follow [NeMo Gym audit inputs](references/gym-audit.md); offline conversion and measurement need no NeMo Gym runtime. Commands read local files, not services.
 
 ## Limitations
 

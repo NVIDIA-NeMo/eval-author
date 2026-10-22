@@ -339,7 +339,7 @@ uv run --locked pytest tests/test_workflow_scope.py tests/test_workflow_matrix.p
 ```
 
 These tests exercise mutations such as omitted calls, forbidden writes, stale
-inputs, copied evidence, missing turns and altered verdicts. Native Gym/Solve
+inputs, copied evidence, missing turns and altered verdicts. Native NeMo Gym/Solve
 runs, task-specific controls and repeated real-agent closure require separate
 execution evidence. Semantic batches require concrete models and a reviewed
 baseline. Cursor/Pi native adapters and full host/install/OS replay remain

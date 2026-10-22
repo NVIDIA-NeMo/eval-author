@@ -12,7 +12,7 @@ operation you choose.
 ## Find local tasks without running them
 
 The shared [task search](../skills/eval-author/references/task-search.md) finds
-Harbor task directories and Gym workload candidates from provider layouts
+Harbor task directories and NeMo Gym workload candidates from provider layouts
 and Eval Author's existing extension markers.
 It uses Python's standard library and reports stable paths, marker files, and
 search limits without importing providers or executing repository code. Matches
@@ -22,12 +22,12 @@ use readiness checks only when you want to validate or execute them.
 ## Check readiness
 
 ```text
-Check whether the Gym or Harbor evaluations in this repository are ready to run.
+Check whether the NeMo Gym or Harbor evaluations in this repository are ready to run.
 Explain any blockers and show the command for each suite you check.
 ```
 
 Eval Author uses provider-native checks: Harbor validates its configs and tasks,
-and Gym validates native manifests and runs verifier fixtures. Discovery also
+and NeMo Gym validates native manifests and runs verifier fixtures. Discovery also
 runs a bounded sample of Harbor tasks with Oracle. It saves findings and evidence
 in `.eval-author/discovery.md`.
 

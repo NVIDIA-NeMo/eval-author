@@ -5,10 +5,10 @@
 
 ## Report generation
 
-Use this shared reporting contract for Harbor and Gym.
+Use this shared reporting contract for Harbor and NeMo Gym.
 
 `.eval-author/report.html` defines the case/run review content.
-Its Tasks tab lists discovered Harbor tasks and Gym workload definitions by directory,
+Its Tasks tab lists discovered Harbor tasks and NeMo Gym workload definitions by directory,
 including tasks being authored and accepted tasks at their stable paths, with provider, task name, grading,
 behavior, expected outcome, and actions. Its Runs tab lists one row per native
 Harbor job with date/time, the exact on-disk directory name and project-relative
@@ -36,12 +36,12 @@ refresh. Maintain operational and rerun guidance outside the marked section for
 both providers.
 
 Task README actions become relative links to the source documentation (or the
-HTML's saved snapshot when the source is unverified). Gym source actions link
-the native workload definition; Gym workloads do not open in Harbor's viewer.
-For native Gym scaffolds, the report finds the nearest task README above the
+HTML's saved snapshot when the source is unverified). NeMo Gym source actions link
+the native workload definition; NeMo Gym workloads do not open in Harbor's viewer.
+For native NeMo Gym scaffolds, the report finds the nearest task README above the
 environment definition. Document dataset paths, selected rows, and each case's
 input, expected result, and grading there; a workload row does not imply a
-single dataset example or native validation. Gym run evidence remains linked
+single dataset example or native validation. NeMo Gym run evidence remains linked
 from the maintained README; the Runs table reads native Harbor jobs only.
 Harbor actions use the HTML's default viewer URLs; Markdown cannot read browser
 settings or probe a viewer. Use the linked HTML report for configured addresses
@@ -239,7 +239,7 @@ refresh does not start a viewer or claim that an environment or task is valid.
 ## Task documentation
 
 Add these exact sections to every newly authored task's `README.md` for either
-provider. For native Gym scaffolds, use the task root's README and link its
+provider. For native NeMo Gym scaffolds, use the task root's README and link its
 dataset rows and component files:
 
 ```markdown
@@ -297,7 +297,7 @@ documentation.
 Use this guidance for setup, run commands, and evidence review with either
 provider. Maintain the suite inventory and operational instructions in the
 existing suite README, and refresh the shared HTML report and marked Markdown
-section for both Harbor and Gym. Keep authored setup, rerun commands, pending
+section for both Harbor and NeMo Gym. Keep authored setup, rerun commands, pending
 case descriptions, and evidence links outside the generated markers. Neither
 provider's reporting workflow replaces those sections.
 
@@ -333,7 +333,7 @@ For each case, give a short readable description and links to the details:
 
 - **Purpose and input:** what behavior it tests, the request and relevant
   starting state, and the exact task or dataset row. Link the instruction and
-  fixtures. For Gym, identify the dataset and one-based physical JSONL line;
+  fixtures. For NeMo Gym, identify the dataset and one-based physical JSONL line;
   describe the row's input in Markdown so the user need not format JSONL just
   to understand the case.
 - **Expected outcome:** what a correct response or action achieves. Link the
@@ -394,7 +394,7 @@ the commands. Include:
   the actual reward fields; and remedies for known setup failures. Link the
   saved run summary for observed results and limitations.
 - **Open readable evidence:** use the installed Harbor viewer for native tasks
-  and jobs. For selected Gym JSONL records or standalone ATIF, follow
+  and jobs. For selected NeMo Gym JSONL records or standalone ATIF, follow
   [Local review](local-review.md) to create and link a private `report.html`.
   Save its exact regeneration command, selected source and rows, evidence role,
   and any missing or unsupported content. Introduce that review path in the
@@ -440,7 +440,7 @@ harbor job start -c .eval-author/rerun/refund-policy.yaml \
   --jobs-dir .eval-author/jobs --job-name "refund-policy-$(date -u +%Y%m%dT%H%M%S)-$$"
 ```
 
-For Gym, retain the selected composition, model configuration, dataset identity,
+For NeMo Gym, retain the selected composition, model configuration, dataset identity,
 and reset procedure from `reproducibility.md`. Use a verified native selector or
 save a subset JSONL with the complete original rows, including verifier fields,
 in their original order. Show the exact selection and run commands, including
@@ -488,7 +488,7 @@ An adapter that records custom action/reply JSON without ATIF can still supply
 case files, trial results, and grading evidence. Explain that its native
 trajectory is unavailable, and link the actual capture by name and path. Do not
 promise that the Trajectory tab contains those actions or send unsupported
-custom JSON through the Gym/ATIF reader. For supported standalone ATIF or Gym
+custom JSON through the NeMo Gym/ATIF reader. For supported standalone ATIF or NeMo Gym
 JSONL, link the local reader's HTML report directly and explain its evidence role.
 
 ## Verify the handoff

@@ -55,12 +55,12 @@ Explain the counting units before discussing scope:
   file does not create another example. Preserve stable IDs and explain any
   transformation that makes a new example meaningfully different.
 - A **task** packages instructions, environment, and grading. A Harbor task can
-  exercise one example or several; a Gym draft can contain several dataset rows.
+  exercise one example or several; a NeMo Gym draft can contain several dataset rows.
   Map examples to the selected runner's tasks or rows; a draft count alone says
   little about breadth. An example reused across behaviors can appear in each
   behavior's mapping but counts once in the suite's unique total.
 - An **attempt** repeats an execution unit to observe variability: a Harbor task
-  or a selected Gym dataset row. Repeats and verifier controls do not add
+  or a selected NeMo Gym dataset row. Repeats and verifier controls do not add
   distinct examples or new scenarios.
 
 For each behavior, save a compact table or list containing:
@@ -118,7 +118,7 @@ distinct examples, task/draft count, and repeat settings separately:
 - For Harbor tasks indexed by `t`, planned agent trials are `sum(attempts[t])`;
   example executions are `sum(examples[t] * attempts[t])` when each task runs all
   its examples. State sampling or early-exit behavior if that assumption is false.
-- For Gym, count rollouts over the selected dataset rows and their configured
+- For NeMo Gym, count rollouts over the selected dataset rows and their configured
   repeats. One draft with four selected rows and two repeats means eight agent
   executions for one agent configuration, not two. Duplicate rows or repeated
   rollouts do not increase the distinct-example count.

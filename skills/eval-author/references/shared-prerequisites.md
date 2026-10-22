@@ -5,7 +5,7 @@
 
 The core owns orientation and goal selection. This procedure owns the common
 entry for creating, auditing, and improving evals, including direct skill calls.
-It supports Gym and Harbor through the same flow. Scoped operations retain their
+It supports NeMo Gym and Harbor through the same flow. Scoped operations retain their
 existing input requirements and do not acquire a full onboarding checklist.
 For a new flow, begin this procedure only after the selected goal's three-item
 checklist and **Ready to get started?** have been shown and the user replies to
@@ -48,7 +48,7 @@ For audit:
 | Audit tooling | Checking | — |
 
 Use the same six-row table for every audit and the eight-row table above for
-creation and improvements, for both Gym and Harbor. Copy the introduction, column
+creation and improvements, for both NeMo Gym and Harbor. Copy the introduction, column
 headings, row labels, and row order exactly for the selected goal. Change only the
 status and findings cells. Keep every row, including those marked **Not needed
 now**; do not add, rename, reorder, or omit rows from the selected template.
@@ -66,11 +66,36 @@ and default choices as such; neither is a user confirmation. Reuse explicit
 choices without asking the user to select them again. Do not enumerate or read
 traces before the user selects their source and location.
 
-Honor the user's Gym or Harbor choice, otherwise preserve the selected suite's
+Honor the user's NeMo Gym or Harbor choice, otherwise preserve the selected suite's
 setup, otherwise use the existing Harbor default. Keep format compatibility
 separate from availability: a first suite needs an intended supported format,
 not an existing task. Explain unsupported material without converting it or
 switching the selected runtime.
+
+For improvements, confirm that the existing suite uses a supported format before
+checking a provider's runtime or starting Ethos. Identifying an existing framework
+does not establish compatibility; a saved Harbor setup does not establish the
+suite's format. If the suite uses another format, finish the independent checks
+and show this under **Blockers**:
+
+```markdown
+Eval Author only supports NeMo Gym or Harbor formats. Convert your existing evaluations to one of those formats before we continue.
+```
+
+Keep setup incomplete and omit Next Steps, the checklist, and Ethos guidance
+until the user returns with a supported suite. Save progress and wait for them to
+convert it; conversion remains outside Eval Author. Do not offer direct authoring
+in the unsupported format or separate supported evaluations as a workaround.
+This requirement adds no audit or trace requirement and does not change supported
+audit evidence formats or scoped trace conversion.
+
+Record the detected suite format and required conversion in the selected scope,
+with an `evaluation_format` blocker in phase `setup`, the conversion request as
+`pending_question`, and `eval-author` as `next_handoff`. On return, check the
+converted suite's format before clearing the blocker and resuming prerequisites.
+Reassess this blocker when the scope changes; remove its blocking effect when it
+no longer applies to the new request, such as a switch to audit, while retaining
+the format findings.
 
 Select checks by the requested work. The common checks are:
 
@@ -85,7 +110,7 @@ or bounded suite documentation. Check an existing Python environment against
 jsonschema for audit specification generation, validation, and report aggregation.
 Report these checks under **Audit tooling**. Use bounded version and import checks
 and retain the exact interpreter and results.
-This does not require an installed Gym or Harbor execution runtime.
+This does not require an installed NeMo Gym or Harbor execution runtime.
 On resume, reuse `python` evidence only when it establishes this audit tooling.
 An older authoring-runtime check may verify Python without PyYAML or jsonschema;
 mark that prerequisite `unknown` and check the audit requirements before deriving
@@ -117,9 +142,9 @@ An explicitly requested specification-only operation retains its scoped entry.
 Availability confirmation does not select a trace source or prove usable evidence.
 Select suites and traces within the audit after Ethos confirmation, then verify
 their usability, suite/run mapping, and preparation/measurement dependencies.
-ATIF measurement needs the Harbor trajectory parser, including for converted Gym
+ATIF measurement needs the Harbor trajectory parser, including for converted NeMo Gym
 traces; use the existing locator with `--provider harbor --flow audit` then.
-It does not need a Gym runner, Docker, or agent credentials. Local Gym and MLflow
+It does not need a NeMo Gym runner, Docker, or agent credentials. Local NeMo Gym and MLflow
 export conversion uses the selected converter's requirements; access to a live
 source is relevant only when the user explicitly selects it. A parser, converter,
 or selected-source access failure discovered at this later stage blocks dependent
@@ -158,13 +183,12 @@ evidence, **Missing** for established unavailable or incompatible prerequisites,
 successful runtime probe does not prove the suite or agent is ready to run.
 
 After this pass, ask only for unresolved information or decisions needed to
-continue, such as audit trace availability, an inaccessible repository location,
-an ambiguous agent, or access required for the next Ethos action. For creation
-and improvements, keep later execution requirements in the table, with the work
-they block and when they must
-be resolved. Do not label them optional or hold up Ethos for them. Do not ask the
-user to confirm facts already
-established by checks. Preserve progress; a saved availability question must go
+continue, such as the supported format for improvements, audit trace availability,
+an inaccessible repository location, an ambiguous agent, or access required for
+the next Ethos action. For creation and improvements, keep later execution
+requirements in the table, with the work they block and when they must be
+resolved. Do not label them optional or hold up Ethos for them. Do not ask the
+user to confirm facts already established by checks. Preserve progress; a saved availability question must go
 through these checks before it is asked again.
 
 ## Present results and the next step
@@ -175,8 +199,9 @@ or the next action; do not display the placeholders.
 
 - Include **Recommendations** only when there are optional suggestions, such as
   Harbor assistant skills; these do not prevent continuing
-- Include **Blockers** when an audit's required trace availability is unknown or
-  missing, or another unresolved issue prevents the next Ethos action; explain
+- Include **Blockers** when an improvement's supported format is unresolved,
+  an audit's required trace availability is unknown or missing, or another
+  unresolved issue prevents the next Ethos action; explain
   the affected action and the answer or change needed, with relevant documentation
 - If **Blockers** is present, end with the required action or focused question
   in that section; omit Next Steps, the checklist, and all Ethos guidance
@@ -213,7 +238,8 @@ These items need to be resolved before we can continue.
 Omit empty Recommendations and Blockers sections. Creation and improvement tables
 retain runtime setup and credentials needed for later evaluation runs; those
 later requirements are not optional recommendations or blockers to Ethos.
-Audit trace availability is a prerequisite for continuing shared onboarding.
+Supported improvement format and audit trace availability are prerequisites for
+continuing shared onboarding.
 Missing Ethos skills can block this step; missing `ETHOS.md` alone does not,
 because the Ethos skills can create it.
 For an existing document, use the complete **Next Steps** section from the
@@ -374,14 +400,15 @@ results in the audit scope and findings. Availability alone does not approve a
 source, complete the audit, or establish measured coverage.
 Do not mark the audit interpreter as proof of the agent's runtime requirements.
 The helper's audit `runtime_requirements` describe audit tooling independently
-of the selected Gym or Harbor source format.
+of the selected NeMo Gym or Harbor source format.
 
 `scopes` is keyed by journey and holds agreed source bounds, scope tables,
 case inventory, and downstream decisions. Updating a journey's scope replaces
 that entry, so read and preserve unaffected fields first. `journey_status` maps
 a journey to `pending`, `in_progress`, or `complete`. Blockers have `id`, `phase`
 (`setup`, `ethos`, or a journey), and `message`. For a prerequisite blocker, use
-its prerequisite key as `id`. On an audit/authoring switch, the helper retains
+its prerequisite key as `id`, or `evaluation_format` for the improvement format
+requirement above. On an audit/authoring switch, the helper retains
 affected setup blockers under the previous journey's phase and marks affected
 prerequisite answers `unknown` while preserving their source. Reassess them for
 the new operation, including retained blockers when returning to that journey;

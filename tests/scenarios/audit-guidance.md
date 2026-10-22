@@ -27,7 +27,7 @@ statement that traces from completed evaluation runs exist. This confirms
 availability without selecting their source or location.
 
 Every fresh full audit uses the core's three-item shared prerequisite checklist with
-**Check what your existing evaluations cover** selected. Repeat with Gym and
+**Check what your existing evaluations cover** selected. Repeat with NeMo Gym and
 Harbor, missing Ethos, and unchanged confirmed Ethos. User-confirmed prerequisites
 remain distinct from observed checks. On continuation, show the fixed prerequisite
 table before bounded checks, finish accessible checks, then ask only about
@@ -43,7 +43,7 @@ traces exist before continuing to Ethos. Confirm agent and
 repository identity, identify the existing suite format, check required skills
 and file/command access, and check Python 3.11 or newer with PyYAML and jsonschema
 for audit tooling. The **Audit tooling** row reports those checks.
-Do not probe Harbor or Gym runners, Docker, live agent services, or agent
+Do not probe Harbor or NeMo Gym runners, Docker, live agent services, or agent
 credentials. **Evaluation environment**, **Required services and data**, and
 **Agent connection and credentials** are absent from both the initial and results
 tables. Trace selection remains in the audit flow; only after selection check its
@@ -67,8 +67,8 @@ Repeat the shared entry with neither evaluation runner, Docker, nor agent
 credentials available but with confirmed trace availability. Ethos confirmation
 and specification work must remain available. For selected local ATIF,
 measurement uses Harbor's trajectory parser,
-including for converted Gym evidence, without running Harbor jobs or requiring a
-Gym runner. Repeat with that parser unavailable: record measurement as blocked,
+including for converted NeMo Gym evidence, without running Harbor jobs or requiring a
+NeMo Gym runner. Repeat with that parser unavailable: record measurement as blocked,
 preserve selected evidence and agreed independent specification work, and do not
 reopen Ethos or treat this as an onboarding blocker. A missing conversion tool
 similarly blocks only the selected conversion and dependent measurement.

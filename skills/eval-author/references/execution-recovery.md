@@ -7,7 +7,7 @@ Apply this guidance when executing or reporting an evaluation, including after
 an endpoint, adapter, dependency, or environment failure. Preserve the selected
 provider, target agent, tasks, fixtures, and original verifiers during recovery.
 Completion requires the selected provider's native artifacts from that agent and
-those verifiers: Harbor jobs and trials, or Gym rollouts with their verifier
+those verifiers: Harbor jobs and trials, or NeMo Gym rollouts with their verifier
 rewards and health records. A run through the other provider is not a fallback
 completion path.
 
@@ -43,7 +43,7 @@ for the requested evaluation. Do not synthesize provider results from local
 outputs, even when the real application ran and the workaround was disclosed.
 
 When the requested run remains incomplete, start a diagnostic report with
-**Diagnostic only — Harbor evaluation incomplete** or **Diagnostic only — Gym
+**Diagnostic only — Harbor evaluation incomplete** or **Diagnostic only — NeMo Gym
 evaluation incomplete**, naming the selected provider. Retain that qualification
 in later summaries, comparisons, and checklist recaps. Label any diagnostic score
 beside the score; do not lead with an unqualified pass rate or “comparison
@@ -53,15 +53,15 @@ Never mark the requested run or whole pipeline complete based on those outputs.
 ## Report what actually executed
 
 For each completed evaluation claim, identify the actual native run paths (Harbor
-jobs and trials, or Gym rollout and health files), selected target agent/model
+jobs and trials, or NeMo Gym rollout and health files), selected target agent/model
 configuration, tested task/verifier versions, and the retained native results and
-verifier outputs. Task controls such as Harbor's Oracle or Gym's known-correct
+verifier outputs. Task controls such as Harbor's Oracle or NeMo Gym's known-correct
 fixtures establish reference behavior, not results for the target agent. Missing
 runs or verifier evidence remain explicit; report any completed subset separately
 from the outstanding requested work.
 
 Preserve raw rewards and failure details: Harbor exceptions and trial statuses,
-or Gym failure reasons and health verdicts. Add an explanation that distinguishes
+or NeMo Gym failure reasons and health verdicts. Add an explanation that distinguishes
 infrastructure failures, blocked or missing runs, and agent-quality failures
 without rewriting those outcomes. Show requested and completed run counts and
 the denominator of every score. An infrastructure failure is not evidence of poor

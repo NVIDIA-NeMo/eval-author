@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Load one Gym attachment through Trace Intel; this does not emit ATIF."""
+"""Load one NeMo Gym attachment through Trace Intel; this does not emit ATIF."""
 
 from __future__ import annotations
 
@@ -84,7 +84,9 @@ def main() -> int:
         with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
             load(args.input, args.output_dir, args.row)
     except Exception:
-        print(json.dumps({"status": "error", "message": "Gym loading failed; check input and pinned dependencies"}))
+        print(
+            json.dumps({"status": "error", "message": "NeMo Gym loading failed; check input and pinned dependencies"})
+        )
         return 2
     print(json.dumps({"status": "loaded", "traces": 1, "atif_emitted": False}))
     return 0

@@ -54,7 +54,7 @@ def write(path, value):
 
 @pytest.fixture
 def prepared(tmp_path, monkeypatch):
-    # Generic receipt invariants use a synthetic runtime; native Gym is tested separately.
+    # Generic receipt invariants use a synthetic runtime; native NeMo Gym is tested separately.
     import harbor.models.task.task
 
     monkeypatch.setattr(harbor.models.task.task, "Task", lambda path: SimpleNamespace(checksum="synthetic"))

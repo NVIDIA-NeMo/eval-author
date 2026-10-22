@@ -455,7 +455,7 @@ def test_harbor_and_gym_workloads_share_reports_without_harbor_links_for_gym(tmp
     harbor = task(tmp_path)
     draft = ".eval-author/tasks/gym-refund"
     readme = draft + "/README.md"
-    write(tmp_path, readme, "## Behavior under test\nGym refunds.\n## Expected result\nRefund saved.")
+    write(tmp_path, readme, "## Behavior under test\nNeMo Gym refunds.\n## Expected result\nRefund saved.")
     manifest = draft + "/environments/refund/manifest.yaml"
     write(tmp_path, manifest, "name: refund\n")
     write(tmp_path, draft + "/environments/refund/config.yaml", "components: {}\n")
@@ -468,11 +468,11 @@ def test_harbor_and_gym_workloads_share_reports_without_harbor_links_for_gym(tmp
     assert set(found) == {harbor, manifest, parameterized}
     assert found[harbor]["provider"] == "harbor"
     assert found[manifest]["provider"] == found[parameterized]["provider"] == "gym"
-    assert found[manifest]["behavior"] == "Gym refunds."
+    assert found[manifest]["behavior"] == "NeMo Gym refunds."
     assert found[manifest]["readme_path"] == readme
     assert "Refund saved." in found[manifest]["readme_html"]
     raw = (tmp_path / ".eval-author/README.md").read_text()
-    assert "[Gym source](tasks/gym-refund/environments/refund/manifest.yaml)" in raw
+    assert "[NeMo Gym source](tasks/gym-refund/environments/refund/manifest.yaml)" in raw
     assert "[Task README](tasks/gym-refund/README.md)" in raw
     assert "task-definitions/refund" in raw
     assert "task-definitions/row-task" not in raw
@@ -486,7 +486,7 @@ def test_browser_gym_actions_open_native_source_and_readme_without_harbor(tmp_pa
     task(tmp_path)
     source_path = "environments/gym case/manifest.yaml"
     write(tmp_path, source_path, "name: example\n")
-    write(tmp_path, "environments/gym case/README.md", "## Behavior under test\nGym.\n## Expected result\nSaved.")
+    write(tmp_path, "environments/gym case/README.md", "## Behavior under test\nNeMo Gym.\n## Expected result\nSaved.")
     data = report.refresh(tmp_path)
     source = (SCRIPTS / "report-template.html").read_text()
     helper = source[source.index("function drawCases()") : source.index("function runRow(")]
@@ -513,7 +513,7 @@ const links=descendants(ids['case-tables']).filter(node=>node.tag==='a');
 assert.equal(viewers.length,1);
 assert.equal(viewers[0][0],'View task');
 assert.equal(links.length,1);
-assert.equal(links[0].textContent,'Gym source');
+assert.equal(links[0].textContent,'NeMo Gym source');
 assert.equal(links[0].href,'../environments/gym%20case/manifest.yaml');
 assert(readmes.includes('environments/gym case/README.md'));
 ids.search.value='gym case';viewers.length=0;
@@ -923,7 +923,7 @@ def test_markdown_refresh_repairs_missing_or_edited_mirror_without_touching_html
 
 def test_refresh_preserves_authored_readme_bytes_before_and_after_report(tmp_path):
     path = task(tmp_path, readme="## Behavior under test\nBefore.\n## Expected result\nSaved.")
-    prefix = b"# My Gym suite\r\n\r\nRun: ng_run --input rows.jsonl\r\n\r\n"
+    prefix = b"# My NeMo Gym suite\r\n\r\nRun: ng_run --input rows.jsonl\r\n\r\n"
     markdown = tmp_path / ".eval-author/README.md"
     markdown.write_bytes(prefix)
     report.refresh(tmp_path)
