@@ -36,6 +36,8 @@ For a local ATIF file passed toward task construction, follow the
 [ATIF source handoff](../eval-author/references/trace-input.md).
 This branch starts before Intake CLI resolution and needs no Intake access. It
 owns scrubbing, the contextual privacy review, and the observation evidence audit.
+Use [source adapters](references/sources.md) for normalization and the
+[evidence audit contract](references/evidence-audit.md) for review coverage.
 Return the private workspace to first-eval or task-create after review; candidacy
 belongs to task-create. For a remote Intake investigation, continue below.
 

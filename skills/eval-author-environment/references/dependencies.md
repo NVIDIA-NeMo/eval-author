@@ -89,7 +89,7 @@ request and response types, or recorded traces.
 Trace-environment's reviewed tool-call fixtures and its replay adapter serve
 read-only calls whose inputs the cases repeat exactly; that workflow calls this
 access state `mock`. See
-[Trace-derived tool-call access](../../eval-author-trace-environment/references/trace-derived-fixtures.md).
+[Trace-derived tool-call access](trace-derived-fixtures.md).
 Replay cannot reproduce side effects, so never use it for a write the verifier
 checks.
 

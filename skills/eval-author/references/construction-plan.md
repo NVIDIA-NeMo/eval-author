@@ -32,7 +32,7 @@ verifier rows. Negative/copy/bypass cases declare only the checks they must fail
 Oracle and valid alternatives declare every check passing. NOP declares every
 check failing. Native cases use the provider's actual result fields.
 
-The [provenance and probe field definitions](../../eval-author-trace-environment/references/construction-qualification.md)
+The [provenance and probe field definitions](construction-qualification.md)
 remain applicable to trace fields. In v2, move `starting_state.artifacts` into
 `inputs`, remove the `task/` path prefix, and use each artifact review note as
 its rationale. Requirements carry the bound candidate statement and an explicit

@@ -17,7 +17,7 @@ from first-eval or
 from task-create, with
 [Component dependencies and packaging](../../eval-author-task-create/references/gym-packaging.md).
 For trace-derived output, follow
-[the Gym extension](../../eval-author-trace-environment/references/gym-output.md).
+[the Gym extension](gym-output.md).
 Do not apply Harbor layouts, `task.toml` fields, or NOP and Oracle flags to Gym.
 
 ## Tools wrap the realized backend

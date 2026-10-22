@@ -828,7 +828,7 @@ def test_inspect_flow_keeps_intake_cli_and_adds_local_privacy() -> None:
     _, body = _frontmatter_and_body(_INSPECT_DIR)
 
     # Remote Intake remains CLI-driven; local ATIF gains a privacy entry point.
-    assert {path.name for path in _INSPECT_DIR.iterdir()} == {"SKILL.md", "evals", "scripts"}
+    assert {path.name for path in _INSPECT_DIR.iterdir()} == {"SKILL.md", "evals", "scripts", "references"}
     assert (_INSPECT_DIR / "scripts/trace_privacy.py").is_file()
     assert "needs no Intake access" in body
     assert (_INSPECT_DIR / "evals").is_dir()
