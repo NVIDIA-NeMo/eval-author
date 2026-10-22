@@ -16,7 +16,7 @@ with `--provider gym --flow authoring`. Its central policy owns version and
 Python requirements; keep NeMo Gym in its separate environment. Inspect its CLI help and native scaffolder before use. Create each
 planned draft in a fresh `.eval-author/tasks/<slug>/` directory using
 NeMo Gym's `nemo_gym.environment.scaffold.scaffold_environment(kind="environment",
-name=<module_name>, root=<draft_path>)`. Use a valid Python module name for the
+name=<module_name>, root=<task_path>)`. Use a valid Python module name for the
 NeMo Gym environment. Do not call the audit-driven `task_pipeline.py scaffold` route:
 first-eval has no coverage report or uncovered-tool selector.
 

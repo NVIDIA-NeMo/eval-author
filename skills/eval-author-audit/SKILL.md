@@ -1,8 +1,9 @@
 ---
 name: eval-author-audit
 description: >-
-  For a fresh full audit, read eval-author, show its welcome, checklist, and call
-  to action, and end the turn before repository inspection or prerequisite work.
+  For a fresh full audit, read the eval-author core skill at ../eval-author/SKILL.md,
+  show its welcome, checklist, and call to action, and end the turn before
+  repository inspection or prerequisite work.
   Guide coverage audits with milestone check-ins and user-confirmed eval and trace sources.
   Generate, validate, measure, and report on an audit-spec coverage denominator
   for Eval Author. Use when the user wants a hand-editable audit.md file derived
@@ -43,8 +44,9 @@ allowed-tools: Bash Read Write Grep Glob
 
 ## Purpose
 
-Read `eval-author` for the shared standard, vocabulary, and boundaries. This
-sub-flow generates and validates a finite coverage denominator from `<ethos_path>` and
+Read the [eval-author core skill](../eval-author/SKILL.md) for the shared standard,
+vocabulary, and boundaries. This sub-flow generates and validates a finite
+coverage denominator from `<ethos_path>` and
 reviewed audit items, then can measure ATIF traces and aggregate coverage reports
 against it. It also writes a human-readable `audit-coverage-report.md` and reviews
 the findings with the user. It does not generate tasks yet.
