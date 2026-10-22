@@ -24,6 +24,15 @@ with a catalog version that honors the supplied path; verify its installed
 instructions before clearing the blocker. Reinstalling the same incompatible
 version does not resolve it.
 
+The orchestrator and writer must also support continuation from supplied
+context: reuse the selected operation, destination, answers, exact draft, and
+confirmation provenance; review the draft before writing; and validate an
+unchanged saved document without rewriting it. Report missing continuation
+support as an unfinished dependency. Carry the user's approval through an
+unchanged save and successful validation when the agent, destination, exact
+content, and material findings still match; do not request the same approval
+again.
+
 ## Enter the Ethos step
 
 Enter or resume Ethos in the shared flow only when no Blockers remain. Use **Next Steps** and the
@@ -99,8 +108,8 @@ do not treat the former agent's document or draft approval as current permission
 Load shared journey state before each call, including a fresh chat or a switch
 between create, audit, and expand. Eval Author owns the selected journey,
 checklist, state layout, and return routing; Ethos needs none of those details.
-Pass the selected `repository`, `agent`, root `ethos_path`, and only the Ethos
-context needed to continue:
+Pass the selected `repository`, `agent`, root `ethos_path` as the explicit
+destination, the requested operation, and only the Ethos context needed to continue:
 
 - `source_findings` from `ethos.source_findings`: records with `path` and `summary`.
 - `prior_answers` from `ethos.prior_answers`: records with `topic`, `question`,
@@ -151,7 +160,8 @@ the current flow's confirmation, compare the current bytes with that
 digest and retain its user-reply provenance. Changed contents reopen the affected
 review or intent step. Persist unfinished stages and answers through
 `journey_state.py update`. For completion, require successful returned validation
-and explicit saved-content confirmation, then use `confirm-ethos` with the
+and explicit confirmation of the exact saved content, reusing approval of an
+unchanged draft when applicable, then use `confirm-ethos` with the
 computed digest, the user's confirmation reference as
 `--source`, and the validator result's provenance as `--validation`. Preserve
 the validation details in a linked working artifact or the conversation; do
