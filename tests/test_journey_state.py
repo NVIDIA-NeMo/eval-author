@@ -1171,6 +1171,91 @@ def test_interrupted_atomic_write_preserves_last_state_and_cleans_staging(state,
     assert not list(state.state_path(tmp_path).parent.glob(".journey-state.json-*"))
 
 
+@pytest.mark.parametrize("operation", ["save", "update"])
+def test_formatted_state_limit_preserves_previous_bytes_and_revision(state, tmp_path, monkeypatch, operation):
+    monkeypatch.setattr(state, "now", lambda: "2026-10-22T12:34:56.123456+00:00")
+    original = state.initialize(tmp_path, agent="assistant", journey="audit")
+    before = state.state_path(tmp_path).read_bytes()
+    proposed = copy.deepcopy(original)
+    scope = {"create": {"cases": ["refund"] * 128}}
+    proposed["scopes"] = scope
+    persisted = {**proposed, "revision": proposed["revision"] + 1}
+    compact_size = len(json.dumps(persisted, allow_nan=False).encode())
+    formatted_size = len((json.dumps(persisted, indent=2, ensure_ascii=False) + "\n").encode())
+    limit = (compact_size + formatted_size) // 2
+    assert len(before) <= limit
+    assert compact_size < limit < formatted_size
+    monkeypatch.setattr(state, "MAX_BYTES", limit)
+    with pytest.raises(ValueError, match="Journey state is too large"):
+        if operation == "save":
+            state.save(tmp_path, proposed)
+        else:
+            state.update(tmp_path, {"scopes": scope})
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert proposed == {**original, "scopes": scope}
+    assert state.load_state(tmp_path) == original
+    assert not list(state.state_path(tmp_path).parent.glob(".journey-state.json-*"))
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["ASCII text " * 30, "Résumé ☃ 🦊 " * 30, 'Quotes " and escapes\n\\ ' * 30],
+    ids=["ascii", "unicode", "escapes"],
+)
+@pytest.mark.parametrize("one_byte_over", [False, True])
+def test_state_size_uses_exact_utf8_format_and_trailing_newline(state, tmp_path, monkeypatch, text, one_byte_over):
+    monkeypatch.setattr(state, "now", lambda: "2026-10-22T12:34:56.123456+00:00")
+    original = state.initialize(tmp_path, agent="assistant", journey="audit")
+    before = state.state_path(tmp_path).read_bytes()
+    proposed = {**original, "pending_question": text}
+    persisted = {**proposed, "revision": proposed["revision"] + 1}
+    payload = (json.dumps(persisted, indent=2, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
+    monkeypatch.setattr(state, "MAX_BYTES", len(payload) - one_byte_over)
+    if one_byte_over:
+        with pytest.raises(ValueError, match="Journey state is too large"):
+            state.save(tmp_path, proposed)
+        assert state.state_path(tmp_path).read_bytes() == before
+        assert proposed == {**original, "pending_question": text}
+        assert state.load_state(tmp_path) == original
+    else:
+        state.save(tmp_path, proposed)
+        assert state.state_path(tmp_path).read_bytes() == payload
+        assert len(payload) == state.MAX_BYTES
+        assert proposed == persisted
+        assert state.load_state(tmp_path) == persisted
+
+
+def test_failed_save_does_not_advance_in_memory_revision(state, tmp_path, monkeypatch):
+    original = state.initialize(tmp_path, agent="assistant", journey="audit")
+    proposed = copy.deepcopy(original)
+    before = state.state_path(tmp_path).read_bytes()
+
+    def failed_write(*args, **kwargs):
+        raise OSError("Storage unavailable")
+
+    monkeypatch.setattr(state, "atomic_write_json", failed_write)
+    with pytest.raises(OSError, match="Storage unavailable"):
+        state.save(tmp_path, proposed)
+    assert proposed == original
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert state.load_state(tmp_path) == original
+
+
+def test_revision_digit_growth_cannot_exceed_persisted_byte_limit(state, tmp_path, monkeypatch):
+    monkeypatch.setattr(state, "now", lambda: "2026-10-22T12:34:56.123456+00:00")
+    original = state.initialize(tmp_path, agent="assistant", journey="audit")
+    original["revision"] = 9
+    state.atomic_write_json(state.state_path(tmp_path), original)
+    before = state.state_path(tmp_path).read_bytes()
+    proposed = copy.deepcopy(original)
+    monkeypatch.setattr(state, "MAX_BYTES", len(before))
+    with pytest.raises(ValueError, match="Journey state is too large"):
+        state.save(tmp_path, proposed)
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert proposed == original
+    assert state.load_state(tmp_path) == original
+
+
 def test_optimistic_revision_rejects_stale_answer(state, tmp_path):
     first = state.initialize(tmp_path, journey="create")
     state.update(tmp_path, {"pending_question": "Current"}, expected_revision=first["revision"])

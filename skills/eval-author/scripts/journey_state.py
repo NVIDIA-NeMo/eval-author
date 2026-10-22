@@ -28,6 +28,7 @@ from runtime_policy import load as runtime_policy  # noqa: E402
 from working_paths import (  # noqa: E402
     atomic_write,
     atomic_write_json,
+    json_bytes,
     repository_root,
     working_lock,
     working_path,
@@ -262,7 +263,7 @@ def validate(state: dict) -> None:
             raise ValueError("Invalid legacy import status or digest")
         _text(item["source"], "legacy source")
         _text(item["archive"], "legacy archive")
-    encoded = json.dumps(state, allow_nan=False).encode()
+    encoded = json_bytes(state)
     if len(encoded) > MAX_BYTES:
         raise ValueError("Journey state is too large; link domain artifacts instead of embedding them")
 
@@ -535,10 +536,10 @@ def view(state: dict) -> dict:
 
 
 def save(repo: Path, state: dict) -> None:
-    state["revision"] += 1
-    state["updated_at"] = now()
-    validate(state)
-    atomic_write_json(working_path(repo, "journey-state.json"), state)
+    proposed = {**state, "revision": state["revision"] + 1, "updated_at": now()}
+    validate(proposed)
+    atomic_write_json(working_path(repo, "journey-state.json"), proposed)
+    state.update(proposed)
 
 
 def initialize(repo: Path, *, agent: str | None = None, journey: str | None = None, setup: str | None = None) -> dict:
