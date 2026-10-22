@@ -32,12 +32,22 @@ allowed-tools: Bash Read Write Grep Glob
 
 ## Local ATIF privacy handoff
 
-For a local ATIF file passed toward task construction, use
-`scripts/trace_privacy.py` and the [ATIF source handoff](../eval-author/references/trace-input.md).
+For a local ATIF file passed toward task construction, follow the
+[ATIF source handoff](../eval-author/references/trace-input.md).
 This branch starts before Intake CLI resolution and needs no Intake access. It
 owns scrubbing, the contextual privacy review, and the observation evidence audit.
 Return the private workspace to first-eval or task-create after review; candidacy
 belongs to task-create. For a remote Intake investigation, continue below.
+
+### Available Scripts
+
+| Script | Purpose | Arguments |
+| --- | --- | --- |
+| `scripts/trace_privacy.py` | Prepare and scrub local ATIF, record privacy review, and audit observation evidence | `<command>`; use `<command> --help` for workspace, source and review options |
+
+Invoke directly with `python <skill_dir>/scripts/trace_privacy.py --help` to list
+commands; no `run_script()` wrapper is required. Commands emit JSON and return
+nonzero on contract errors. Remote Intake inspection uses the CLI below.
 
 ## Purpose
 

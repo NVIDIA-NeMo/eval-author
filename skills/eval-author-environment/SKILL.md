@@ -62,11 +62,19 @@ task's own NOP, Oracle, or verifier controls never prove the environment.
 ## Trace-backed tools and integrity
 
 For an admitted trace source, follow the [ATIF environment handoff](../eval-author/references/trace-input.md).
-Use `scripts/trace_tools.py` for tool inventory/access, mock generation, verifier
-lint, reproducibility/contamination checks and optional solution review. Preserve
-source-state provenance and reviewed real/mock/none decisions in the shared
+Preserve source-state provenance and reviewed real/mock/none decisions in the shared
 construction contract. The environment kit and its smoke handoff still precede
 task tests. Recorded replay covers only its declared interactions.
+
+### Available Scripts
+
+| Script | Purpose | Arguments |
+| --- | --- | --- |
+| `scripts/trace_tools.py` | Tool inventory/access, mocks, verifier lint, reproducibility/contamination checks and solution review | `<command>`; use `<command> --help` for workspace and review options |
+
+Invoke directly with `python <skill_dir>/scripts/trace_tools.py --help` to list
+commands; no `run_script()` wrapper is required. Commands emit JSON and return
+nonzero on contract errors.
 
 ## Purpose
 
