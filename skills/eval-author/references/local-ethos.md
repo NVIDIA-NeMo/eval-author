@@ -104,13 +104,14 @@ Write the complete document. Use `schema_version: 1`, the actual agent name and
 author, and an ISO 8601 creation timestamp. On edits, retain creation metadata,
 add `updated_timestamp`, preserve unknown frontmatter keys and custom sections,
 and make targeted changes instead of replacing an existing file with the template.
+This includes legacy Tools sections; preserve them unless the user requests removal.
 
 Read back the exact file and check:
 
 1. It is nonempty and at the selected in-repo path.
 2. Frontmatter is a mapping with version 1, nonempty `name` and `author`, and valid
    ISO 8601 creation and optional update timestamps.
-3. Each of the template's fourteen `##` headings occurs once. Extra headings are
+3. Each required `##` heading from the template occurs once. Extra headings are
    allowed. Role and Purpose & Outcomes express concrete intent; remaining sections
    have real content or honest `_(none)_` values, with no template placeholders.
 4. Purpose, intended behavior, success criteria, failure conditions, and safety
