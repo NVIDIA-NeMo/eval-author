@@ -313,9 +313,9 @@ the suite and task README run instructions for either provider and refresh
 Preserve the full-suite command and concrete commands for individual coverage items,
 following [Review and rerun guidance](../eval-author/references/suite-readme.md#review-and-rerun-guidance).
 
-Report refresh must not change the evaluation result or workflow state. When the report
-should be mentioned in a response, link `.eval-author/README.md` and `.eval-author/report.html`
-as the last lines of the response, after all other communication. Do not link
+Report refresh must not change the evaluation result or workflow state. Follow
+the closing-sentence template in [Report generation](../eval-author/references/suite-readme.md#report-generation)
+when linking the report and suite README. Do not link
 the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` in the run handoff unless asked.
 
 Continue saving agreed scope and current progress in `.eval-author/.working/journey-state.json`

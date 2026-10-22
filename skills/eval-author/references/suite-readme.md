@@ -91,10 +91,15 @@ explicitly selected.
 
 Refresh after cases are authored, after additions or edits, and after validation
 or actual-agent runs, including failed runs. Refresh again at the final handoff
-and link the report. When the report needs to be mentioned, always link
-`.eval-author/README.md` and `.eval-author/report.html` as the last lines of the
-response, after all other communication with a note like: Reivew (test cases|runs)
-created in this session in the `.eval-author/report.html` or `.eval-author/README.md`.
+and link the report. When mentioning the report, end the response with one
+sentence containing each artifact link once:
+
+```markdown
+Review your evaluations in [the report](<report-path>) or [the suite README](<readme-path>).
+```
+
+Use the actual paths to `.eval-author/report.html` and `.eval-author/README.md`,
+and keep both links in that closing sentence.
 
 Present evaluation findings and report links to the user; describe generation internals
 only when asked. Reuse the settled scope and authorization: a missing report is not
