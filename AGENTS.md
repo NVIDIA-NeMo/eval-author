@@ -18,3 +18,7 @@ This repo authors agent skills (`skills/*/SKILL.md`, `references/`, bundled `scr
 - **Don't duplicate:** Link to the existing page instead of restating setup steps, workflow lists, or overviews. Don't create a new file when an existing one covers the topic.
 - **Don't narrate code:** No docstrings or comments that restate self-explanatory code, and no changelog-style prose or summary files unless asked.
 - **When unsure, don't add it:** Ask whether a user would be confused or blocked without it. If not, leave it out.
+
+## Using references
+
+Review every change for repeated instructions. Consider carefully whether the instructions need to be repeated at all. If they should be and run longer than a single line, put them in a file in `references/` and link to it instead of copying them.
