@@ -156,8 +156,9 @@ After the results table, use the following template in order, with these exact
 headings and introductory sentences. Replace the bracketed content with findings
 or the next action; do not display the placeholders.
 
-- Include **Recommendations** only when there are optional suggestions, such as
-  Harbor assistant skills; these do not prevent continuing
+- When offering optional suggestions, render `### Recommendations` and its
+  introductory sentence from the template. Put suggestions such as Harbor
+  assistant skills under that heading
 - Include **Blockers** when creation or improvement lacks an available supported
   runtime or Python environment, an improvement's supported format is unresolved,
   an audit's required trace availability is unknown or missing, or another
@@ -165,8 +166,9 @@ or the next action; do not display the placeholders.
   the affected action and the answer or change needed, with relevant documentation
 - If **Blockers** is present, end with the required action or focused question
   in that section; omit Next Steps, the checklist, and all Ethos guidance
-- Include **Next Steps** only when no Blockers remain, after the table and any
-  Recommendations, followed by the shared three-item checklist with current progress
+- When no Blockers remain, render `### Next Steps` after the table and any
+  Recommendations, immediately before the shared three-item checklist. Keep this
+  heading when resuming saved progress or reviewing an existing Ethos
 - Copy the checklist wording, Ethos link, and selected goal's third item from the
   core; derive checkmarks and the current-step marker from shared state, and do
   not repeat the checklist before the table

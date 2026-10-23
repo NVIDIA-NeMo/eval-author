@@ -141,12 +141,19 @@ not installed. A subset is useful; do not require every skill in the collection.
 
 When presenting the runtime findings, briefly explain their purpose and
 observed availability. When missing or unconfirmed, recommend them and link the
-official collection. For example, when the search found none:
+official collection. In shared onboarding, use the
+[Recommendations section](shared-prerequisites.md#present-results-and-the-next-step),
+including its heading and introduction. For example, when the search found none:
 
-> Harbor also provides skills that guide your coding assistant through creating
-> and working with evals. I didn't find them in the locations I checked. They're
-> optional, but recommended: see [Harbor's skills](https://github.com/harbor-framework/harbor/tree/main/skills).
-> We can continue without them.
+```markdown
+### Recommendations
+
+These suggestions are optional and are not required to continue.
+
+- [Harbor's skills](https://github.com/harbor-framework/harbor/tree/main/skills)
+  guide your coding assistant through creating and working with evals; none were
+  found in the locations checked
+```
 
 When skills are available, name the relevant ones briefly instead of recommending
 another installation. Include this advisory with the runtime findings. Do not
