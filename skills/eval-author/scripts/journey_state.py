@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from conversation_templates import CHECKLIST_LABELS, JOURNEYS  # noqa: E402
 from runtime_policy import load as runtime_policy  # noqa: E402
 from working_paths import (  # noqa: E402
     atomic_write,
@@ -34,11 +35,6 @@ from working_paths import (  # noqa: E402
     working_path,
 )
 
-JOURNEYS = {
-    "create": "Build, run, and review your first evaluations",
-    "audit": "Check what your existing evaluations cover",
-    "expand": "Improve, run, and review your existing evaluations",
-}
 STAGES = {"explore", "interview", "draft", "write", "review", "complete"}
 COMMON_PREREQUISITES = {
     "code_access",
@@ -156,7 +152,26 @@ def _validate_tasks(tasks: object) -> None:
 
 
 def validate(state: dict) -> None:
-    fields = set(new_state(Path("/")))
+    # Schema validation is also used by the pure conversation renderer; creating
+    # a state here would unnecessarily read the clock.
+    fields = {
+        "schema_version",
+        "revision",
+        "repository",
+        "agent",
+        "journey",
+        "setup",
+        "prerequisites",
+        "ethos",
+        "scopes",
+        "tasks",
+        "journey_status",
+        "blockers",
+        "pending_question",
+        "next_handoff",
+        "legacy_imports",
+        "updated_at",
+    }
     # Older v1 records predate task lifecycle tracking; their readiness is unknown.
     if not isinstance(state, dict) or set(state) not in (fields, fields - {"tasks"}):
         raise ValueError("Invalid journey state fields; preserve the file and resolve its schema")
@@ -491,15 +506,12 @@ def checklist(state: dict, *, state_only: bool = False) -> list[dict]:
     completed = state["journey_status"].get(journey) == "complete" and journey not in blocked
     rows = [
         {
-            "label": "Check how your agent runs and how you’ll test it",
+            "label": CHECKLIST_LABELS[0],
             "complete": setup_done,
             "blocked": "setup" in blocked,
         },
         {
-            "label": (
-                "Agree on how your agent behaves using "
-                "[ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)"
-            ),
+            "label": CHECKLIST_LABELS[1],
             "complete": ethos_done,
             "blocked": "ethos" in blocked,
         },
