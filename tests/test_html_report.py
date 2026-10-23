@@ -713,14 +713,15 @@ def test_browser_task_titles_graders_and_gym_actions(tmp_path, grading_kind):
 const assert=require('node:assert/strict'),vm=require('node:vm');
 const input=JSON.parse(require('node:fs').readFileSync(0,'utf8'));
 class Element {
-  constructor(tag,text){this.tag=tag;this.textContent=text;this.children=[];this.dataset={};}
+  constructor(tag,text,className){this.tag=tag;this.textContent=text;this.className=className;this.children=[];this.dataset={};}
   append(...children){this.children.push(...children);}
   replaceChildren(...children){this.children=children;}
+  setAttribute(key,value){this.attrs=this.attrs||{};this.attrs[key]=value;}
 }
 const ids={'case-tables':new Element('div'),search:{value:''},'no-cases':{}};
 const viewers=[],readmes=[];
 const context={data:input.data,byId:id=>ids[id],
-  element:(tag,text)=>new Element(tag,text),
+  element:(tag,text,className)=>new Element(tag,text,className),
   parent:path=>path.includes('/')?path.slice(0,path.lastIndexOf('/')):'.',
   displayTaskPath:path=>path.replace(/^\.eval-author\//,''),
   viewerAction:(...args)=>{viewers.push(args);return new Element('button');},
@@ -739,6 +740,9 @@ for(const row of taskRows()){
   assert.equal(row.children[0].children[0].textContent,task.title||task.name);
   assert(!descendants(row.children[0]).some(node=>node.textContent===task.provider));
   assert.equal(row.children[1].children[0].textContent,task.readiness[0].toUpperCase()+task.readiness.slice(1));
+  assert.equal(row.children[1].children[0].className,'badge badge-'+task.readiness);
+  assert.equal(row.children[1].children[1].attrs.role,'tooltip');
+  assert.equal(row.children[1].children[0].attrs['aria-describedby'],row.children[1].children[1].id);
   assert.equal(row.children[4].children[0].textContent,task.grading_kind);
   assert.equal(row.children[4].children[1].textContent,task.grading_summary||'No grader description documented in README.');
 }
@@ -801,13 +805,14 @@ def test_browser_task_status_is_separate_from_inventory_status(tmp_path):
 const assert=require('node:assert/strict'),vm=require('node:vm');
 const input=JSON.parse(require('node:fs').readFileSync(0,'utf8'));
 class Element {
-  constructor(tag,text){this.tag=tag;this.textContent=text;this.children=[];this.dataset={};}
+  constructor(tag,text,className){this.tag=tag;this.textContent=text;this.className=className;this.children=[];this.dataset={};}
   append(...children){this.children.push(...children);}
   replaceChildren(...children){this.children=children;}
+  setAttribute(key,value){this.attrs=this.attrs||{};this.attrs[key]=value;}
 }
 const ids={'case-tables':new Element('div'),search:{value:''},'no-cases':{}};
 const context={data:input.data,byId:id=>ids[id],
-  element:(tag,text)=>new Element(tag,text),
+  element:(tag,text,className)=>new Element(tag,text,className),
   parent:path=>path.includes('/')?path.slice(0,path.lastIndexOf('/')):'.',
   displayTaskPath:path=>path.replace(/^\.eval-author\//,''),
   viewerAction:()=>new Element('button'),readmeAction:()=>new Element('button')

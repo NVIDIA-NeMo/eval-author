@@ -45,6 +45,9 @@ both providers.
 
 Display **Draft**, **Accepted**, or **Unknown** and any status reason in the Tasks
 table in both outputs, using [Task status](shared-prerequisites.md#task-status).
+In the HTML, each status is a badge (Draft grey, Accepted green, Unknown amber)
+and the reason appears in a popover on hover or keyboard focus; Markdown prints
+the reason as text.
 Shared journey state owns these decisions; reporting metadata and native run
 scores cannot override them. **Draft** means acceptance is pending or its task
 revision or evidence changed; **Unknown** means no valid task status is available.

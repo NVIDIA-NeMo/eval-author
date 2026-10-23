@@ -21,6 +21,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:t
 th{font-size:12px;color:#65736b;background:#fafbf8}tr:last-child td{border-bottom:0}.case-table{min-width:960px;table-layout:fixed;font-size:13px}
 .case-table td:nth-child(3),.case-table td:nth-child(4){white-space:pre-line}
 .case-table th:nth-child(1){width:22%}.case-table th:nth-child(2){width:14%}.case-table th:nth-child(3){width:18%}.case-table th:nth-child(4){width:20%}.case-table th:nth-child(5){width:16%}.case-table th:nth-child(6){width:10%}
+.task-readiness{position:relative}.badge{display:inline-block;padding:2px 10px;border-radius:999px;border:1px solid;font-size:12px;font-weight:650;line-height:1.6;cursor:default}.badge:focus-visible{outline:2px solid #4b7400;outline-offset:2px}.badge-draft{background:#eceeeb;color:#4f5b54;border-color:#c9cfc9}.badge-accepted{background:#e4f3c8;color:#2f5500;border-color:#a9d45a}.badge-unknown{background:#fff3d6;color:#7a4a0c;border-color:#e3b765}.readiness-note{position:absolute;z-index:5;top:46px;left:12px;width:min(240px,calc(100% - 12px));margin:0;padding:8px 10px;border-radius:6px;background:#203029;color:white;font-size:12px;line-height:1.5;box-shadow:0 4px 14px rgba(0,0,0,.18);visibility:hidden;opacity:0;transition:opacity .12s}.task-readiness:hover .readiness-note,.badge:focus+.readiness-note{visibility:visible;opacity:1}
 .small{font-size:12px}.grader-kind{font-weight:650}.case-name{font-weight:650;font-family:ui-monospace,monospace}.text-link{font:inherit;color:#4b7400;text-decoration:underline;text-underline-offset:3px;border:0;background:none;padding:0;text-align:left;overflow-wrap:anywhere}
 .run-table{min-width:760px}.run-table th:first-child{width:22%}.run-table th:nth-child(2){width:40%}.run-date{white-space:pre-line;font-size:13px}.run-table td:nth-child(n+3),.run-table th:nth-child(n+3){text-align:center;vertical-align:middle}.run-table td{padding:24px 12px}
 .score{width:240px;max-width:100%;margin:auto}.score-track{height:6px;border-radius:3px;outline:1px solid #d2d7cf;background:transparent;overflow:hidden}.score-fill{display:block;height:100%;background:#76b900}
@@ -169,7 +170,12 @@ function drawCases(){
       if(task.status==='unverified')name.append(element('span','Inventory unverified','status'));
       name.append(element('p',displayTaskPath(task.path),'small muted task-path'));name.title=task.issues.join('\n');
       const readiness=element('td',undefined,'task-readiness');
-      readiness.append(element('strong',({draft:'Draft',accepted:'Accepted',unknown:'Unknown'})[task.readiness]||'Unknown'),element('p',task.readiness_reason||'No task acceptance has been recorded.','small muted'));
+      const state=({draft:'draft',accepted:'accepted'})[task.readiness]||'unknown';
+      const badge=element('strong',({draft:'Draft',accepted:'Accepted',unknown:'Unknown'})[state],'badge badge-'+state);
+      const note=element('p',task.readiness_reason||'No task acceptance has been recorded.','readiness-note');
+      note.id='readiness-note-'+row.dataset.task.replace(/[^A-Za-z0-9_-]/g,'-');note.setAttribute('role','tooltip');
+      badge.tabIndex=0;badge.setAttribute('aria-describedby',note.id);
+      readiness.append(badge,note);
       row.append(name,readiness,element('td',task.behavior||'Not documented'),element('td',task.expected_outcome||'Not documented'));
       const action=element('td',undefined,'task-actions');
       if(task.provider==='harbor')action.append(viewerAction('View task','tasks',parent(task.path),'task-definitions/'+encodeURIComponent(task.path.split('/').pop()),task.status==='found',task));
