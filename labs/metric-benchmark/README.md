@@ -16,8 +16,9 @@ sight.
 Prep happens outside this repository. The benchmark consumes prepared case
 examples, fixed task-subset manifests, and a YAML experiment configuration.
 
-The experiment has four executable stages, each exposed as a Python tool and
-library API:
+The architecture has three phases: external prep, execution, and score analysis.
+Execution and score analysis comprise four executable stages, each exposed as a
+Python tool and library API:
 
 1. **Run mutants x eval tasks:** run the baseline and every mutant against the
    benchmark tasks and save the results. The first execution script will be a

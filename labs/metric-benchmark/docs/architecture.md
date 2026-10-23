@@ -11,8 +11,8 @@ evaluate our ability to do this separately.
 
 The question we answer here is **Is our coverage metric a good predictor for agentic evaluation quality?**
 
-This is hard question to answer. Benchmarking a _metric_ is a more complicated ask than simply benchmarking an
-agent's ability to perform veriable tasks. Our approach is to conducting an experiment based on mutation
+This is a hard question to answer. Benchmarking a _metric_ is a more complicated ask than simply benchmarking an
+agent's ability to perform verifiable tasks. Our approach is to conduct an experiment based on mutation
 testing (see [Mutation testing — Wikipedia](https://en.wikipedia.org/wiki/Mutation_testing)),
 measuring the correlations between the ability of eval tasks to detect mutants and their coverage.
 
@@ -32,10 +32,12 @@ or resource use. Results are reported per case and measurement.
 
 ## Experiment flow
 
-The architecture has three stages: **prep**, **run mutants x eval tasks**, and
+The architecture has three phases: **prep**, **run mutants x eval tasks**, and
 **score analysis**. Prep prepares case examples for the experiment. The experiment
 consumes those inputs, runs the baseline and mutants against the eval tasks,
-and analyzes the resulting directory.
+and analyzes the resulting directory. Execution and score analysis contain four
+executable stages: run mutants x eval tasks, compute mutant scores, compute
+coverage, and correlation. Prep is external to those stages.
 
 ![Metric benchmark architecture: prepare case examples, run mutants x eval tasks, and analyze coverage versus mutant sensitivity.](assets/experiment-flow.svg)
 
@@ -159,8 +161,6 @@ Mutant scoring uses mean signed baseline-to-mutant degradation, with equal
 weight for tasks and mutants. Correlation compares the ranks of the paired
 scores, with average ranks for ties. The [component descriptions](stages.md#2-compute-mutant-scores)
 specify these calculations and the handling of missing or undefined values.
-The [tool guide](https://github.com/NVIDIA-NeMo/eval-author/blob/feat/metric-benchmark-record/labs/metric-benchmark/docs/tools.md) documents the commands and their current
-implementation status.
 
 ### Metric computation (e.g. Eval Author)
 
@@ -177,8 +177,8 @@ storage.
 Tool-specific adapters provide the common invocation interface needed to
 evaluate other systems, such as skill-based or LangChain-based workflows.
 They handle differences in native inputs, runtimes, and outputs; the experiment
-still performs the same Compute Coverage stage. Integration details and current
-implementation limits are described in the [tool guide](https://github.com/NVIDIA-NeMo/eval-author/blob/feat/metric-benchmark-record/labs/metric-benchmark/docs/tools.md#coverage-system-invocation).
+still performs the same Compute Coverage stage. Each adapter defines and validates the native inputs and outputs required by
+its system.
 
 ## Benchmark orchestration
 
@@ -210,5 +210,4 @@ configuration and coordinates their execution.
 External prep builds the benchmark and its fixed subset manifest. The
 experiment runner consumes those artifacts. Execution tools
 can have multiple implementations without changing the analysis tools or their
-input contract. Available commands and implementation status are documented in
-the [tool guide](https://github.com/NVIDIA-NeMo/eval-author/blob/feat/metric-benchmark-record/labs/metric-benchmark/docs/tools.md#fixed-python-pipeline).
+input contract.

@@ -3,7 +3,9 @@
 
 # Experiment stages
 
-The experiment runs the four stages below using the supplied YAML configuration.
+The architecture has three phases: external prep, execution, and score analysis.
+The experiment runs the four executable stages below using the supplied YAML
+configuration: one execution stage and three analysis stages.
 Each stage has a Python tool and an importable API; the orchestrator validates
 inputs, calls the tools in dependency order, and passes their outputs onward.
 
@@ -17,10 +19,6 @@ fixed subset manifest.
 | 2. Compute mutant scores | `compute_mutant_scores.py` |
 | 3. Compute coverage | `compute_coverage.py` |
 | 4. Correlation | `correlate.py` |
-
-The analysis tools are provided in the implementation PRs above this design.
-Their [tool guide](https://github.com/NVIDIA-NeMo/eval-author/blob/feat/metric-benchmark-record/labs/metric-benchmark/docs/tools.md)
-describes available commands and implementation status.
 
 ## Stage contract
 
@@ -171,7 +169,11 @@ M(subset) = mean over selected mutants of
 ```
 
 The scorer uses this equally weighted signed score and preserves
-negative differences when a mutant outperforms the baseline. Missing required
+negative differences when a mutant outperforms the baseline. Negative subset
+scores and individual mutant effects are flagged for inspection in the scoring
+output. These diagnostics do not fail the stage, clip values, or exclude pairs
+from correlation. A negative value can reflect execution variability or a
+mutation that improves performance on those tasks. Missing required
 pairs make a subset unavailable; no tasks or mutants are silently dropped.
 One run per agent and an explicit attempt-selection rule are required.
 This analysis does not pool repetitions or apply alternative weighting.
@@ -201,8 +203,8 @@ command. The adapter translates the request into its system's native inputs,
 executes that system through its native interface, validates its outputs, and
 converts the result to the common response. The coverage stage validates the
 adapter's JSON response as a numeric score or an unavailable value with a reason.
-Missing baseline evidence, invalid responses,
-input modification, timeouts, and nonzero exits fail the stage.
+Missing baseline evidence, invalid responses, input modification,
+timeouts, and nonzero exits fail the stage.
 
 The system may generate a rubric as part of its method. Its adapter places the
 supporting outputs in the work directory. The runner does not infer which
