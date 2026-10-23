@@ -3,7 +3,10 @@
 
 """Canonical copy for orientation, prerequisites, and Ethos onboarding."""
 
-WELCOME = "Welcome to Eval Author! I’ll help you evaluate your agent against the behavior you expect."
+WELCOME = (
+    "Welcome to Eval Author! This skill helps you build, audit, and improve evaluations "
+    "against your agent’s intended behavior."
+)
 WELCOME_WITH_CHECKLIST = WELCOME + " Here’s what we’ll work through:"
 GOAL_QUESTION = "What would you like to do?"
 GOAL_CHOICES = (

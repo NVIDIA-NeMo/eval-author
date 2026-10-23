@@ -61,9 +61,9 @@ The only allowed preview facts are rows: no Recommendations, Blockers, Ethos,
 draft, or question facts. Use the same row IDs and factual record fields as
 below, with actual findings and source provenance for known statuses.
 
-Preview statuses may be `checking`, `verified`, `confirmed`, `missing`, `unknown`,
-or applicable `not_required`. `checking` is allowed only in this initial table;
-known facts must retain their actual evidence status. A user-supplied availability
+Use the statuses and evidence requirements in [Prerequisite row facts](#prerequisite-row-facts).
+The initial preview additionally accepts `checking`; it is not a final status.
+Known facts must retain their actual evidence status. A user-supplied availability
 answer can appear as Confirmed by you without claiming verification. The
 `--ready` flag or `ready: true` represents the actual readiness reply, never
 permission inferred by rendering.

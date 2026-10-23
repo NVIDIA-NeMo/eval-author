@@ -29,6 +29,20 @@ Review every change for repeated content: instructions, setup steps, workflow li
 - User-facing details live in one `docs/` page; other docs link to it.
 - Shared logic goes in one script or helper rather than being copied between skills.
 
+## Conversation rendering
+
+Use the existing `skills/eval-author/scripts/conversation_renderer.py` entry point.
+Keep shared formatting and escaping in `conversation_formatting.py` and shared
+labels and headings in `conversation_templates.py`. Flow-specific rendering and
+copy belong in `conversation_flows/<flow>.py` and `<flow>_templates.py`, with
+the flow's instructions in `references/conversations/<flow>.md`.
+
+Fixed conversation copy has one source of truth in its template module; link to
+it instead of duplicating it in skill instructions. When copy changes
+intentionally, update the affected fixture expectations in the same change.
+Follow the [shared rendering contract](skills/eval-author/references/conversation-rendering.md)
+for input authority, workflow boundaries, and extension guidance.
+
 ## Copyright headers
 
 Every new NVIDIA-authored source or markdown file needs the NVIDIA Apache-2.0 header, and CI fails without it. Follow [DEVELOPMENT.md](DEVELOPMENT.md) to add headers and [CONTRIBUTING.md](CONTRIBUTING.md) for the checks to run before opening a PR. Don't hand-write headers or copy them from this file.
