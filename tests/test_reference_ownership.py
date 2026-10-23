@@ -3,6 +3,7 @@
 
 """Retained reference copies may differ only by reviewed owner-specific changes."""
 
+import argparse
 import difflib
 import json
 from pathlib import Path
@@ -30,19 +31,17 @@ OWNERS = {
 }
 
 
+def owner_delta(legacy: str, current: str) -> list[str]:
+    diff = list(difflib.unified_diff(legacy.splitlines(keepends=True), current.splitlines(keepends=True), n=0))
+    return [line for line in diff[2:] if not line.startswith("@@")]
+
+
 def deltas():
     result = {}
     for name, owner in OWNERS.items():
         legacy = ROOT / "skills/eval-author-trace-environment/references" / name
         current = ROOT / "skills" / owner / "references" / name
-        result[name] = list(
-            difflib.unified_diff(
-                legacy.read_text().splitlines(keepends=True),
-                current.read_text().splitlines(keepends=True),
-                fromfile="retained/" + name,
-                tofile=owner + "/" + name,
-            )
-        )
+        result[name] = owner_delta(legacy.read_text(), current.read_text())
     return result
 
 
@@ -51,3 +50,19 @@ def test_retained_references_have_only_reviewed_owner_differences():
     assert deltas() == expected, (
         "Reference copies drifted; reconcile shared rules and review owner-specific differences"
     )
+
+
+def test_owner_delta_ignores_synchronized_context_and_position_changes():
+    legacy, current = "header\nshared\nold owner\ntail\n", "header\nshared\nnew owner\ntail\n"
+    expected = owner_delta(legacy, current)
+    assert owner_delta("prefix\n" + legacy, "prefix\n" + current) == expected
+    assert owner_delta(legacy.replace("shared", "updated"), current.replace("shared", "updated")) == expected
+    assert owner_delta(legacy, current.replace("shared", "drifted")) != expected
+    assert owner_delta("---\n", "") == ["----\n"]
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--update", action="store_true", required=True)
+    parser.parse_args()
+    (ROOT / "tests/fixtures/trace-reference-owner-deltas.json").write_text(json.dumps(deltas(), indent=2) + "\n")

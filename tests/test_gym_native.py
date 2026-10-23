@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Integration checks against a separately installed, real Gym runtime."""
+"""Integration checks against a separately installed, real NeMo Gym runtime."""
 
 import json
 import os
@@ -14,12 +14,14 @@ import pytest
 HARNESS_ROOT = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("EVAL_AUTHOR_SOURCE_ROOT", HARNESS_ROOT))
 GYM_PYTHON = os.environ.get("EVAL_AUTHOR_GYM_PYTHON")
-pytestmark = pytest.mark.skipif(not GYM_PYTHON, reason="set EVAL_AUTHOR_GYM_PYTHON to an installed Gym v0.6.0+ runtime")
+pytestmark = pytest.mark.skipif(
+    not GYM_PYTHON, reason="set EVAL_AUTHOR_GYM_PYTHON to an installed NeMo Gym v0.6.0+ runtime"
+)
 
 
 def scaffold_draft(tmp_path):
     assert GYM_PYTHON is not None
-    proposals = tmp_path / ".eval-author/proposals"
+    proposals = tmp_path / ".eval-author/.working/proposals"
     proposals.mkdir(parents=True)
     instruction = proposals / "cover-ledger-total-instruction.md"
     instruction.write_text("Use ledger_total to total the supplied ledger and report the amount.")
@@ -27,7 +29,7 @@ def scaffold_draft(tmp_path):
     from audit_fixtures import bound_gap
 
     bound_gap(tmp_path, report, "ledger_total", source=ROOT)
-    output = tmp_path / ".eval-author/task-drafts/cover-ledger-total"
+    output = tmp_path / ".eval-author/tasks/cover-ledger-total"
     command = [
         sys.executable,
         str(ROOT / "skills/eval-author-task-create/scripts/task_pipeline.py"),
@@ -69,7 +71,7 @@ def scaffold_trace_draft(tmp_path, *, gym_rollouts=None):
         return json.loads(result.stdout)
 
     initialized = trace_command(
-        "init", "--root", tmp_path / ".eval-author/trace-environments", "--task-id", "cover-ledger-total"
+        "init", "--root", tmp_path / ".eval-author/.working/trace-environments", "--task-id", "cover-ledger-total"
     )
     task_dir = Path(initialized["task_dir"])
     instruction_text = "Use ledger_total and report the total for each list: [7, -2, 13] and [0, 6, -10]."
@@ -241,7 +243,7 @@ def scaffold_trace_draft(tmp_path, *, gym_rollouts=None):
 
 
 def scaffold_ng_trace_draft(tmp_path):
-    """Produce a real Gym rollout attachment, then derive a new native task from one row."""
+    """Produce a real NeMo Gym rollout attachment, then derive a new native task from one row."""
     assert GYM_PYTHON is not None
     resource = tmp_path / "source-resource"
     (resource / "tests").mkdir(parents=True)

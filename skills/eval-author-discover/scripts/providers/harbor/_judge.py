@@ -41,6 +41,7 @@ from harbor.utils.env import get_required_host_vars
 from harbor.utils.import_path import import_class
 from providers.harbor._explore import ConfigCandidate
 from pydantic import ValidationError
+from working_paths import scratch_directory
 
 _ROUND_TRIP_TIMEOUT_SEC = 120
 
@@ -94,7 +95,7 @@ async def judge_config(candidate: ConfigCandidate, repo_root: Path) -> Validatio
             return outcome
         outcome.checks.append(_check("schema", PASS, "Harbor accepts the job config schema."))
 
-        job = await _resolve(config, outcome)
+        job = await _resolve(config, outcome, repo_root)
         _check_agent(config, outcome)
         _check_backend(config, outcome)
         outcome.checks.append(check_config_file(candidate.path, repo_root))
@@ -118,11 +119,9 @@ async def judge_config(candidate: ConfigCandidate, repo_root: Path) -> Validatio
     return outcome
 
 
-async def _resolve(config: JobConfig, outcome: ValidationOutcome) -> Job | None:
-    import tempfile
-
+async def _resolve(config: JobConfig, outcome: ValidationOutcome, repo_root: Path) -> Job | None:
     try:
-        with tempfile.TemporaryDirectory(prefix="eval-author-jobs-") as scratch:
+        with scratch_directory(repo_root, prefix="harbor-resolution-") as scratch:
             job = await Job.create(config.model_copy(update={"jobs_dir": Path(scratch)}))
             # Cleanup on a private API, and it has to precede the scratch removal.
             # Resolution already succeeded, so a Harbor rename here is not a

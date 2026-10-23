@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Load Gym evidence with NeMo Compass
+# Load NeMo Gym evidence with NeMo Compass
 
 Read this when normalized provider evidence is useful alongside ATIF, or when
 ATIF cannot represent the available capture. This path uses the shared
@@ -31,7 +31,7 @@ python scripts/load_gym_trace.py --input <private-export.json> \
 
 ## Supported evidence
 
-The shared loader requires `ng_trajectory` schema `1.0` from a supported Gym
+The shared loader requires `ng_trajectory` schema `1.0` from a supported NeMo Gym
 producer path. It preserves invocation trees, captured model calls, tool-call
 joins, recorded timing and token counts, semantic turns, rewards, and explicit
 gaps. Missing values stay missing; rewards do not prove execution success.

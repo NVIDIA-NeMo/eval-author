@@ -50,10 +50,11 @@ from collections.abc import Callable
 from importlib.util import find_spec, module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlsplit
 
 import pytest
 import yaml
+from markdown_it import MarkdownIt
 
 _SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
 _CORE_DIR = _SKILLS_DIR / "eval-author"
@@ -241,10 +242,10 @@ _FAKE_GYM = '#!/bin/sh\necho "NeMo Gym v0.6.0"\n'
 
 
 def _write_gym_stub(folder: Path, script: str, version: str = "0.6.0") -> Path:
-    """Synthetic interpreter + CLI boundary; not evidence of a real Gym install.
+    """Synthetic interpreter + CLI boundary; not evidence of a real NeMo Gym install.
 
     Locator behavior against real interpreters is covered in test_runtime_locator.
-    These fixtures isolate discovery's Judge/Solve orchestration from Gym setup.
+    These fixtures isolate discovery's Judge/Solve orchestration from NeMo Gym setup.
     """
     sys.path.append(str(_CORE_DIR / "scripts"))
     from locate_runtime import PROBE_MARKER as probe_marker
@@ -274,8 +275,8 @@ def _run_discover(
     so Harbor and PyYAML are both unimportable. That reproduces a customer
     repository with no Harbor install without needing a second interpreter.
     ``gym_stub`` puts a directory holding a fake ``gym`` command on ``PATH``, which
-    answers ``--version`` like NeMo Gym 0.6.0, so the probe sees Gym installed.
-    ``gym_script`` replaces that command, to fake Gym's Judge and Solve as well.
+    answers ``--version`` like NeMo Gym 0.6.0, so the probe sees NeMo Gym installed.
+    ``gym_script`` replaces that command, to fake NeMo Gym's Judge and Solve as well.
     """
     command = [sys.executable, *([] if with_harbor else ["-S"]), str(_DISCOVER), "--repo", str(repo), *args]
     env = None
@@ -755,8 +756,8 @@ def _allowed_tools(frontmatter: dict) -> set[str]:
     return tools
 
 
-def test_the_core_can_save_ethos_and_the_sub_flow_executes() -> None:
-    """Ethos can be saved before routing; executable work belongs to sub-flows."""
+def test_the_core_can_manage_state_and_the_sub_flow_executes() -> None:
+    """The core runs bounded state helpers; runtime execution belongs to sub-flows."""
     core_tools = _allowed_tools(_frontmatter_and_body(_CORE_DIR)[0])
     discover_tools = _allowed_tools(_frontmatter_and_body(_DISCOVER_DIR)[0])
     audit_tools = _allowed_tools(_frontmatter_and_body(_AUDIT_DIR)[0])
@@ -765,8 +766,8 @@ def test_the_core_can_save_ethos_and_the_sub_flow_executes() -> None:
     trace_environment_tools = _allowed_tools(_frontmatter_and_body(_TRACE_ENVIRONMENT_DIR)[0])
     environment_tools = _allowed_tools(_frontmatter_and_body(_ENVIRONMENT_DIR)[0])
 
-    assert "Write" in core_tools, "the core must be able to save Ethos before selecting an authoring flow"
-    assert "Bash" not in core_tools, "the core delegates executable work to a sub-flow"
+    assert "Write" in core_tools, "the core must be able to persist shared journey state"
+    assert "Bash" in core_tools, "the core needs bounded state-helper commands"
     assert {"Bash", "Write"} <= discover_tools, (
         f"{_DISCOVER_DIR.name} runs a script and saves a report; it has {sorted(discover_tools)}"
     )
@@ -2026,28 +2027,76 @@ def test_ethos_skills_are_named_for_their_directories_and_links_resolve() -> Non
             assert (skill_dir / link).resolve().is_file(), f"{skill_dir.name} links to missing {link}"
 
 
-def test_local_ethos_handoff_resources_resolve() -> None:
-    """Eval Author's ETHOS.md handoff must reach the ethos skills and their template."""
-    reference = _CORE_DIR / "references" / "local-ethos.md"
-    checkins = reference.parent / "milestone-checkins.md"
-    assert checkins.is_file()
-    for skill_dir in (_CORE_DIR, _FIRST_EVAL_DIR):
-        _, body = _frontmatter_and_body(skill_dir)
-        links = re.findall(r"\]\(([^)]+milestone-checkins\.md)\)", body)
-        assert links, f"{skill_dir.name} has no shared milestone handoff"
-        assert all((skill_dir / link).resolve() == checkins.resolve() for link in links)
-    for skill_dir in (_CORE_DIR, _FIRST_EVAL_DIR, _AUDIT_DIR):
-        _, body = _frontmatter_and_body(skill_dir)
-        links = re.findall(r"\[Local Ethos\]\(([^)]+)\)", body)
-        assert links, f"{skill_dir.name} has no local Ethos handoff"
-        assert all((skill_dir / link).resolve() == reference.resolve() for link in links)
-    text = reference.read_text()
-    targets = {(reference.parent / link).resolve() for link in re.findall(r"\]\((\.\./[^)]+)\)", text)}
-    assert targets == {
-        (_ETHOS_EXPLORE_DIR / "SKILL.md").resolve(),
-        (_ETHOS_DIR / "SKILL.md").resolve(),
-        _ETHOS_TEMPLATE.resolve(),
+def _markdown_links(document: Path) -> set[str]:
+    """Read actual Markdown links, excluding illustrative fenced examples."""
+    return {
+        href
+        for block in MarkdownIt().parse(document.read_text(encoding="utf-8"))
+        for child in block.children or []
+        if child.type == "link_open" and isinstance(href := child.attrGet("href"), str)
     }
+
+
+def _markdown_anchors(document: Path) -> set[str]:
+    """Return GitHub-style heading anchors, including duplicate suffixes."""
+    tokens = MarkdownIt().parse(document.read_text(encoding="utf-8"))
+    anchors = set()
+    for index, token in enumerate(tokens):
+        if token.type != "heading_open":
+            continue
+        heading = "".join(
+            child.content for child in tokens[index + 1].children or [] if child.type in {"text", "code_inline"}
+        )
+        base = re.sub(r"[^\w\- ]", "", heading.lower()).replace(" ", "-")
+        slug = base
+        suffix = 0
+        while slug in anchors:
+            suffix += 1
+            slug = f"{base}-{suffix}"
+        anchors.add(slug)
+    return anchors
+
+
+def test_ethos_confirmation_handoff_resources_resolve() -> None:
+    """The shared handoff and canonical orchestrator remain reachable."""
+    reference = _CORE_DIR / "references" / "ethos-confirmation.md"
+    for skill_dir in (_CORE_DIR, _FIRST_EVAL_DIR, _AUDIT_DIR):
+        targets = {
+            (skill_dir / urlsplit(link).path).resolve()
+            for link in _markdown_links(skill_dir / "SKILL.md")
+            if not urlsplit(link).scheme
+        }
+        assert reference.resolve() in targets, f"{skill_dir.name} has no shared Ethos handoff"
+    assert "https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/SKILL.md" in _markdown_links(reference)
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "skills/eval-author/SKILL.md",
+        "skills/eval-author/references/shared-prerequisites.md",
+        "skills/eval-author/references/ethos-confirmation.md",
+        "skills/eval-author/references/runtime-prerequisites.md",
+        "skills/eval-author-discover/SKILL.md",
+        "skills/eval-author-first-eval/SKILL.md",
+        "skills/eval-author-audit/SKILL.md",
+        "docs/getting-started.md",
+        "docs/results.md",
+    ],
+)
+def test_onboarding_document_links_and_anchors_resolve(relative: str) -> None:
+    """Document structure is checked here; state and scope tests check behavior."""
+    root = _SKILLS_DIR.parent
+    document = root / relative
+    for link in _markdown_links(document):
+        url = urlsplit(link)
+        if url.scheme or url.netloc:
+            continue
+        target = (document.parent / unquote(url.path)).resolve() if url.path else document
+        assert target.is_relative_to(root), f"{relative} links outside this repository: {link}"
+        assert target.is_file(), f"{relative} links to a missing file: {link}"
+        if url.fragment:
+            assert unquote(url.fragment) in _markdown_anchors(target), f"{relative} links to a missing anchor: {link}"
 
 
 def _filled_ethos_template() -> str:
@@ -5038,7 +5087,7 @@ def test_discover_reports_a_task_harbor_silently_dropped(suite: Path) -> None:
 
 @_needs_harbor
 def test_discover_fails_judge_when_gym_manifests_go_unchecked(suite: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Harbor alone cannot pass a repo whose Gym manifests nobody checked."""
+    """Harbor alone cannot pass a repo whose NeMo Gym manifests nobody checked."""
     if shutil.which("gym") or (Path(sys.executable).parent / "gym").is_file():
         pytest.skip("a gym command is installed here, so the manifest would be checked")
     manifest = suite / "environments" / "fixture_env" / "manifest.yaml"
@@ -5070,7 +5119,7 @@ def test_discover_exits_early_without_harbor_or_gym(suite: Path) -> None:
     assert report["phases"] == {"probe": "invalid", "explore": "skipped", "judge": "skipped", "solve": "skipped"}
     assert report["configs"] == [] and report["datasets"] == [] and report["task_count"] == 0
     assert _named(report, "harbor")["hint"]
-    assert _named(report, "gym")["hint"], "a missing Gym must tell the user what to do"
+    assert _named(report, "gym")["hint"], "a missing NeMo Gym must tell the user what to do"
 
 
 def test_discover_marks_every_finding_unproven_without_harbor(
@@ -5108,13 +5157,17 @@ def test_discover_finds_configs_without_pyyaml(suite: Path, tmp_path_factory: py
     assert "harbor-job.yaml" in parse["message"]
 
 
-def test_discovery_writes_no_files(suite: Path) -> None:
-    """The scripts report and the agent saves, which is what makes the skill safe to run."""
+def test_discovery_preserves_source_and_retains_only_empty_scratch_directories(suite: Path) -> None:
+    """Discovery leaves customer inputs intact and confines temporary work to .working."""
     before = _tree_state(suite)
 
     _run_discover(suite)
 
-    assert _tree_state(suite) == before
+    after = _tree_state(suite)
+    for path in (".eval-author", ".eval-author/.working", ".eval-author/.working/tmp"):
+        if path not in before:
+            assert after.pop(path, None) is None
+    assert after == before
 
 
 def test_discover_reports_a_config_pyyaml_cannot_parse(suite: Path) -> None:
@@ -5250,7 +5303,7 @@ def test_other_evals_needs_an_opentelemetry_import(tmp_path: Path, monkeypatch: 
 
 
 def test_other_evals_leaves_out_a_manifests_resources_server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A Gym workload's server and verifier code belong to its manifest, not to another eval."""
+    """A NeMo Gym workload's server and verifier code belong to its manifest, not to another eval."""
     other_evals = _import_other_evals(monkeypatch)
     server = tmp_path / "resources_servers" / "fixture_env"
     server.mkdir(parents=True)
@@ -5311,7 +5364,7 @@ def test_solve_samples_evenly_from_first_to_last(monkeypatch: pytest.MonkeyPatch
 
 
 def test_explore_groups_sibling_tasks_into_one_dataset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Sibling tasks form a dataset; a folder that also holds other files, or Gym's environments/, does not."""
+    """Sibling tasks form a dataset; a folder that also holds other files, or NeMo Gym's environments/, does not."""
     _import_discover(monkeypatch)
     explore = importlib.import_module("providers.harbor._explore")
     gym_explore = importlib.import_module("providers.gym._explore")
@@ -5341,7 +5394,7 @@ def test_explore_groups_sibling_tasks_into_one_dataset(tmp_path: Path, monkeypat
 def test_gym_probe_trusts_only_a_new_enough_nemo_gym(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, output: str, available: bool
 ) -> None:
-    """The shared locator rejects old Gym and unrelated CLIs through the discovery adapter."""
+    """The shared locator rejects old NeMo Gym and unrelated CLIs through the discovery adapter."""
     _import_discover(monkeypatch)
     gym_probe = importlib.import_module("providers.gym._probe")
     version_match = re.search(r"v(\d+\.\d+\.\d+)", output)
@@ -5367,7 +5420,7 @@ def test_judge_line_counts_each_format_and_names_a_docker_failure(monkeypatch: p
         "checks": [],
     }
     assert renderer._phase_line("judge", "invalid", report) == (
-        "- [ ] **Judge** (invalid) - validated 2 Harbor evals and 1 Gym eval, but 1 Gym eval could not be validated"
+        "- [ ] **Judge** (invalid) - validated 2 Harbor evals and 1 NeMo Gym eval, but 1 NeMo Gym eval could not be validated"
     )
     docker = {"name": "backend", "status": "fail", "severity": "required", "message": "Docker daemon is not running"}
     report["checks"] = [docker]
@@ -5387,7 +5440,7 @@ esac
 def test_solve_runs_what_passed_judge_even_when_something_failed(
     tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
 ) -> None:
-    """One manifest Gym rejects keeps Judge invalid, but does not stop Solve on the one that passed."""
+    """One manifest NeMo Gym rejects keeps Judge invalid, but does not stop Solve on the one that passed."""
     if shutil.which("gym") or (Path(sys.executable).parent / "gym").is_file():
         pytest.skip("a real gym command is installed here and would shadow the fake one")
     for name in ("good_env", "broken_env"):
@@ -5414,7 +5467,7 @@ def test_solve_runs_what_passed_judge_even_when_something_failed(
 
 @_needs_harbor
 def test_gym_extension_tasks_are_an_advisory_not_a_failure(suite: Path) -> None:
-    """Nothing runs Gym extension tasks yet, which the user cannot fix, so it must not fail discovery."""
+    """Nothing runs NeMo Gym extension tasks yet, which the user cannot fix, so it must not fail discovery."""
     task = suite / "extension" / "verifier-task"
     _write_task(task)
     (task / "tests" / "test.sh").unlink()

@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Synthetic ledger task used to exercise Gym proposal authoring and execution."""
+"""Synthetic ledger task used to exercise NeMo Gym proposal authoring and execution."""
 
 import importlib
 import json
@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from pydantic import BaseModel, ConfigDict, Field
 
-# This fixture runs in the separately installed Gym environment.
+# This fixture runs in the separately installed NeMo Gym environment.
 resources = importlib.import_module("nemo_gym.base_resources_server")
 VerifierFixture = importlib.import_module("nemo_gym.verifier_fixture").VerifierFixture
 

@@ -32,7 +32,7 @@ a task needs lets the agent succeed without searching, choosing, or checking.
 The calling flow's case plan names the records each case needs and the outcome
 it expects. Add them on top of the base population rather than editing base
 records. Keep them with their task: in the task's own `environment/` for Harbor,
-or in the dataset row or session seed for Gym. The shared base then stays
+or in the dataset row or session seed for NeMo Gym. The shared base then stays
 reusable, and each task's world stays reviewable on its own.
 
 ## Decoys

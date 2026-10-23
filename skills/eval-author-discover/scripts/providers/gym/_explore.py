@@ -3,15 +3,15 @@
 
 """Find the NeMo Gym artifacts a repository owns.
 
-Standard library only. Gym holds two kinds of artifact that discovery treats
+Standard library only. NeMo Gym holds two kinds of artifact that discovery treats
 differently:
 
-- A Gym **manifest** (``manifest.yaml``) describes a resources-server environment
+- A NeMo Gym **manifest** (``manifest.yaml``) describes a resources-server environment
   or benchmark backed by JSONL rows. It declares a ``datasets`` list, so the Harbor
   inventory would otherwise mistake it for a job config. Manifests are inventoried
-  and never converted, because Gym has no Harbor mapping for them.
-- A Gym **extension task** is a Harbor task directory that uses one of Gym's
-  authoring extensions, which Harbor rejects until Gym renders it:
+  and never converted, because NeMo Gym has no Harbor mapping for them.
+- A NeMo Gym **extension task** is a Harbor task directory that uses one of NeMo Gym's
+  authoring extensions, which Harbor rejects until NeMo Gym renders it:
   ``tests/verifier.py`` in place of ``tests/test.sh``, or a parameterized directory
   whose ``tasks.jsonl`` rows fill ``instruction.template.md``.
 """
@@ -33,7 +33,7 @@ _MANIFEST_KEY_PATTERN = re.compile(r"^(?:integration_profile:|\s*-?\s*jsonl_fpat
 
 @dataclass(frozen=True)
 class GymManifest:
-    """A Gym resources-server environment or benchmark.
+    """A NeMo Gym resources-server environment or benchmark.
 
     ``task_count`` counts the rows in the data files that exist. ``missing_data``
     names the declared files that do not, such as a benchmark nobody has prepared.
@@ -49,7 +49,7 @@ class GymManifest:
 
 
 def is_manifest(candidate: ConfigCandidate) -> bool:
-    """Return whether a config candidate is a Gym manifest rather than a Harbor job config."""
+    """Return whether a config candidate is a NeMo Gym manifest rather than a Harbor job config."""
     if candidate.parsed:
         data = candidate.data
         datasets = data.get("datasets")
@@ -64,9 +64,9 @@ def is_manifest(candidate: ConfigCandidate) -> bool:
 
 
 def manifest(candidate: ConfigCandidate, repo_root: Path) -> GymManifest:
-    """Describe a Gym manifest from its parsed fields, counting the rows of its data files.
+    """Describe a NeMo Gym manifest from its parsed fields, counting the rows of its data files.
 
-    Gym resolves each ``jsonl_fpath`` against the repository root.
+    NeMo Gym resolves each ``jsonl_fpath`` against the repository root.
     """
     data: dict[str, Any] = candidate.data
     datasets = data.get("datasets")
@@ -101,11 +101,11 @@ def jsonl_rows(path: Path) -> int:
 
 
 def is_cataloged(item: GymManifest) -> bool:
-    """Return whether Gym's catalog lists this manifest, so ``gym env test <name>`` can find it.
+    """Return whether NeMo Gym's catalog lists this manifest, so ``gym env test <name>`` can find it.
 
-    Gym catalogs ``manifest.yaml`` files under an ``environments/`` or ``benchmarks/``
+    NeMo Gym catalogs ``manifest.yaml`` files under an ``environments/`` or ``benchmarks/``
     directory that matches their kind. A manifest elsewhere, such as a documentation
-    example, is not a workload Gym can test by name.
+    example, is not a workload NeMo Gym can test by name.
     """
     if not item.name or item.kind not in {"environment", "benchmark"} or item.path.name != "manifest.yaml":
         return False
@@ -113,12 +113,12 @@ def is_cataloged(item: GymManifest) -> bool:
 
 
 def is_environments_root(directory: Path) -> bool:
-    """Return whether a directory is where Gym looks for environments, each of which stands alone."""
+    """Return whether a directory is where NeMo Gym looks for environments, each of which stands alone."""
     return directory.name == "environments"
 
 
 def extension_kind(task_dir: Path) -> str | None:
-    """Return the Gym extension a task directory uses, or None for a plain Harbor task."""
+    """Return the NeMo Gym extension a task directory uses, or None for a plain Harbor task."""
     if (task_dir / "tasks.jsonl").is_file() and (task_dir / "instruction.template.md").is_file():
         return PARAMETERIZED
     if (task_dir / "tests" / "verifier.py").is_file():

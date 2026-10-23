@@ -5,7 +5,7 @@ description: >-
   Experimental compatibility workflow for an explicit trace-environment request
   or continuation of an existing trace-environment workspace. New requests to
   derive tasks from recorded interactions go to task-create ATIF source mode or
-  first-eval. Supports Gym, MLflow, Intake, OpenTelemetry and ATIF evidence.
+  first-eval. Supports NeMo Gym, MLflow, Intake, OpenTelemetry and ATIF evidence.
 triggers:
   - explicitly use trace-environment
   - resume the trace-environment workflow by name
@@ -13,13 +13,13 @@ triggers:
 not-for:
   - eval-author (use for the shared standard and routing)
   - mlflow-to-atif (use only to normalize MLflow traces into ATIF)
-  - gym-to-atif (use only to normalize Gym Responses traces into ATIF)
+  - gym-to-atif (use only to normalize NeMo Gym Responses traces into ATIF)
   - eval-author-task-create (use for new ATIF-source tasks or an actionable audit coverage gap)
   - eval-author-inspect-trace (use to explain an Intake trace without creating an environment)
   - eval-author-environment (use when first-eval or task-create needs a reusable environment for its agreed cases)
 compatibility: >-
-  Python 3.11+, jsonschema 4.23+, referencing 0.28.4+; mlflow-to-atif for MLflow; gym-to-atif for Gym; nemo CLI for Intake; Harbor and
-  Docker for Harbor proof. Gym output uses the sibling eval-author-task-create
+  Python 3.11+, jsonschema 4.23+, referencing 0.28.4+; mlflow-to-atif for MLflow; gym-to-atif for NeMo Gym; nemo CLI for Intake; Harbor and
+  Docker for Harbor proof. NeMo Gym output uses the sibling eval-author-task-create
   scaffolder. Verify authoring runtimes using eval-author’s shared locator
   and runtime-policy.json.
   Native-agent checks use the agent's configured provider.
@@ -44,14 +44,20 @@ to the user.
 ## Purpose
 
 Read `eval-author` for the shared evidence standard and boundaries. Turn one
-recorded interaction into a reproducible Harbor or native Gym task with privacy
+recorded interaction into a reproducible Harbor or native NeMo Gym task with privacy
 scrubbing and provider-native validation.
+
+This scoped trace workflow keeps its selected source and existing proof boundary.
+Reuse applicable shared state when supplied; do not add a full prerequisite or
+Ethos interview to trace-only work. All new private working artifacts live below
+`.eval-author/.working/trace-environments/`; keep historical evidence-bound paths
+readable and preserve their receipts unchanged.
 
 ## Instructions
 
 Follow the core's [provider-selection rule](../eval-author/SKILL.md#select-the-evaluation-provider),
-choosing the output provider independently of the trace source. Both Gym and
-Harbor are supported. A Gym source does not imply Gym output. Follow shared
+choosing the output provider independently of the trace source. Both NeMo Gym and
+Harbor are supported. A NeMo Gym source does not imply NeMo Gym output. Follow shared
 steps 1-5, then the selected provider's construction path in Step 6, one task workspace per trace. Commands are in
 `## Available Scripts`; an end-to-end run is in `## Examples`. Trace payloads,
 credentials, and task workspaces never go into Git.
@@ -65,12 +71,12 @@ is a verifier defect to investigate, not a reason to weaken that control.
 ## Artifact contract
 
 Use one workspace per task. The tree below describes Harbor output; the
-[Gym extension](references/gym-output.md) adds a native `gym/` draft and its own
+[NeMo Gym extension](references/gym-output.md) adds a native `gym/` draft and its own
 report in the same private workspace. Paths are generated workspace artifacts, not
 bundled skill files; `extra.*` names elsewhere are ATIF fields, not file paths.
 
 ```text
-.eval-author/trace-environments/
+.eval-author/.working/trace-environments/
   .gitignore
   <task-id>/
     private/source.atif.json
@@ -93,7 +99,7 @@ bundled skill files; `extra.*` names elsewhere are ATIF fields, not file paths.
 ```
 
 Source, evidence, ground truth, and jobs stay ignored. Harbor's whitelist-only
-`export` command publishes reviewed Harbor products; Gym handoff stays private.
+`export` command publishes reviewed Harbor products; NeMo Gym handoff stays private.
 `init` writes the parent `.gitignore`, makes directories owner-only, refuses to replace an existing
 workspace, and prints content-free JSON summaries.
 
@@ -111,7 +117,7 @@ Read and follow `references/sources.md`. One task per trace; never merge
 unrelated traces, and never invent an instruction, tool result, file, or final
 answer. Existing ATIF is used as-is; MLflow goes through `mlflow-to-atif`;
 Intake reads one exact trace plus every detailed span; bounded JSON OTLP
-exports map spans directly. For Gym, read and follow the `gym-to-atif` skill:
+exports map spans directly. For NeMo Gym, read and follow the `gym-to-atif` skill:
 prefer a retained Harbor ATIF, otherwise use its offline adapter.
 Record every missing or lossy field under
 `extra.normalization.uncertainties` or `extra.normalization.losses`. If no
@@ -163,7 +169,7 @@ After privacy review, when at least one decision is mock, run
 Select `real`, `mock`, or `none` for every scoped tool; candidate finalization
 requires complete decisions. Never substitute silently. The fixture reference
 defines reviewed schema overrides for traces that record calls without schemas.
-For Gym output, follow the native tool wiring in
+For NeMo Gym output, follow the native tool wiring in
 [references/gym-output.md](references/gym-output.md); the generated MCP adapter
 and `integration.toml` are Harbor-specific. For Harbor, copy generated fixtures
 into the task image and merge `integration.toml` into
@@ -251,7 +257,7 @@ software inventory blocks reproducibility.
 
 For batch failures, use the reference's specific source or construction
 `reason_codes` instead of `insufficient_trace_evidence`. Record failed commands
-or contract checks in the Gym report or Step 7's `finalize --did-not-work`,
+or contract checks in the NeMo Gym report or Step 7's `finalize --did-not-work`,
 according to the selected output path.
 
 ## Step 6: author and prove a candidate environment
@@ -261,7 +267,7 @@ for either provider. For every candidate, read
 [references/task-fidelity.md](references/task-fidelity.md) for starting-state,
 runtime setup, assertion, and alternative-solution review. These authoring
 checks supplement provider proof; the helper does not machine-check all of them.
-For Gym output, read and follow
+For NeMo Gym output, read and follow
 [references/gym-output.md](references/gym-output.md) for construction, native
 validation, and handoff. It replaces the Harbor-specific instructions below,
 Step 7's candidate finalization, and Harbor batch/publication reporting.
@@ -425,7 +431,7 @@ Harbor is the authority for whether the task actually runs.
 
 ## Examples
 
-Steps 1–7 cover Harbor authoring; the [Gym extension](references/gym-output.md)
+Steps 1–7 cover Harbor authoring; the [NeMo Gym extension](references/gym-output.md)
 contains the native scaffold and validation example. For retained Harbor proof commands, use
 [the repeat-run example](references/environment-integrity.md#repeat-and-negative-control-proof);
 for transcription controls, use
@@ -435,7 +441,7 @@ for transcription controls, use
 
 Invoke the helper as `python <skill_dir>/scripts/trace_environment.py
 <command>`; there is no `run_script()` wrapper. Every command prints one JSON
-object and exits nonzero on contract errors. Gym's standalone adapter lives in
+object and exits nonzero on contract errors. NeMo Gym's standalone adapter lives in
 the sibling `gym-to-atif` skill; put its owner-private output under
 `<task-dir>/private/gym` before `prepare`.
 
@@ -463,11 +469,11 @@ the sibling `gym-to-atif` skill; put its owner-private output under
 
 Python 3.11+ with jsonschema 4.23+ and referencing 0.28.4+ for the helper; the
 sibling `mlflow-to-atif` skill for MLflow sources; the sibling `gym-to-atif`
-skill for Gym sources; the `nemo` CLI for Intake
+skill for NeMo Gym sources; the `nemo` CLI for Intake
 sources; an existing Harbor installation plus Docker for Harbor probes and proof.
-For Gym output, use the existing separate Gym runtime and sibling
-`eval-author-task-create` resources described in the Gym extension; Harbor and
-Docker are not required unless the selected Gym components need them.
+For NeMo Gym output, use the existing separate NeMo Gym runtime and sibling
+`eval-author-task-create` resources described in the NeMo Gym extension; Harbor and
+Docker are not required unless the selected NeMo Gym components need them.
 
 ## Limitations
 
@@ -475,14 +481,14 @@ Docker are not required unless the selected Gym components need them.
 - Execution verification with binary rewards only: no model judge, rubric, or graded scoring.
 - One bounded trace per task; no merging, deduplication, or corpus triage.
 - Cannot prove unrecorded side effects, subjective outcomes, unavailable software, or private and live external state.
-- Harbor probes and proof run on the local Harbor+Docker runtime; Gym uses its native local runtime.
-- Gym output has native validation and a private report; Harbor's automated proof, batch readiness, and publication/export commands do not cover Gym products.
+- Harbor probes and proof run on the local Harbor+Docker runtime; NeMo Gym uses its native local runtime.
+- NeMo Gym output has native validation and a private report; Harbor's automated proof, batch readiness, and publication/export commands do not cover NeMo Gym products.
 - Reconstructed-state tasks generalize the recorded capability; they never recover unrecorded state.
 
 ## Troubleshooting
 
 - On a contract failure, preserve the artifacts and record the exact failed
-  command in the Gym report or Harbor's `finalize --did-not-work`; never bypass
+  command in the NeMo Gym report or Harbor's `finalize --did-not-work`; never bypass
   privacy, isolation, or proof gates.
 - `validate-task` exits 1: fix each listed issue; hints name the contract. Rerun after every edit.
 - `probe` reports `not_run`: Harbor is missing; probing is optional, proof is not.

@@ -16,23 +16,23 @@ or final answer.
 
 Use the trajectory as the canonical input. Do not relabel its ATIF version.
 
-## Gym
+## NeMo Gym
 
-Read and follow the `gym-to-atif` skill. Gym-native records use Responses-style
+Read and follow the `gym-to-atif` skill. NeMo Gym-native records use Responses-style
 messages and tools, not ATIF. Its adapter converts one bounded record or an
-explicitly selected JSONL line. Retain the raw Gym record and conversion
+explicitly selected JSONL line. Retain the raw NeMo Gym record and conversion
 receipt privately under the task workspace; pass the derived ATIF to
 `prepare --source-kind gym`.
 
 For a rollout carrying `ng_trajectory`, ATIF conversion still uses the Responses
 envelope. The sibling NeMo Compass loader retains attachment evidence separately;
 its normalized output is not ATIF. Attachment-only exports do not currently
-enter this workflow. See the [Gym output example](../../eval-author-environment/references/gym-output.md#start-from-a-rollout-with-ng_trajectory).
+enter this workflow. See the [NeMo Gym output example](../../eval-author-environment/references/gym-output.md#start-from-a-rollout-with-ng_trajectory).
 
-For Gym's Harbor bridge, prefer the explicitly supplied original ATIF instead
+For NeMo Gym's Harbor bridge, prefer the explicitly supplied original ATIF instead
 of a lossy reverse conversion. Its bytes/version remain unchanged; prepare it
 with `--source-kind atif`. Never automatically follow the source paths recorded
-inside Gym metadata. Image serialization, unknown fields, and incomplete
+inside NeMo Gym metadata. Image serialization, unknown fields, and incomplete
 history must remain explicit—not silently treated as equivalent text evidence.
 
 ## MLflow

@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Native-shaped evidence boundaries; the optional Gym integration uses real outputs."""
+"""Native-shaped evidence boundaries; the optional NeMo Gym integration uses real outputs."""
 
 import hashlib
 import importlib
@@ -137,7 +137,7 @@ def test_native_rollout_binds_input_health_and_conversion(inputs):
         ("conversion_hash", "does not bind"),
         ("trace", "does not bind"),
         ("duplicate_health", "missing or duplicate"),
-        ("null_trajectory", "missing native Gym rollout ID"),
+        ("null_trajectory", "missing native NeMo Gym rollout ID"),
         ("summary_shape", "missing or disabled"),
         ("artifacts_shape", "does not match retained rollouts"),
     ],
@@ -198,7 +198,7 @@ def test_baseline_keeps_unobserved_health_without_atif(inputs):
     source.pop("conversion")
     result = gym.build(source, evidence.read(manifest), case, "baseline", None)
     assert result["health"]["verdict"] == "unobserved"
-    with pytest.raises(evidence.EvidenceError, match="unobserved Gym health"):
+    with pytest.raises(evidence.EvidenceError, match="unobserved NeMo Gym health"):
         gym.build(source, evidence.read(manifest), case, "closure", None)
 
 
@@ -315,7 +315,7 @@ def test_malformed_native_output_still_writes_a_receipt(tmp_path, inputs):
 
 
 def check_native_artifacts(output, draft):
-    """Called by the real Gym integration after native HTTP/CLI execution."""
+    """Called by the real NeMo Gym integration after native HTTP/CLI execution."""
     inputs = {
         "dataset": output / "executed-dataset.jsonl",
         "config": output / "executed-config.yaml",
@@ -343,7 +343,7 @@ def check_native_artifacts(output, draft):
     )
     result = gym.build(source, manifest, {"kind": "agent"}, "baseline", None)
     assert result["reward"] == 1 and result["health"]["verdict"] == "unobserved"
-    with pytest.raises(evidence.EvidenceError, match="unobserved Gym health"):
+    with pytest.raises(evidence.EvidenceError, match="unobserved NeMo Gym health"):
         gym.build(source, manifest, {"kind": "agent"}, "closure", None)
     report = evidence.read(output / "verifier-report.json")
     reference = next(c for c in report["cases"] if c["kind"] == "full_reward")

@@ -1,10 +1,10 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Read Gym records and standalone ATIF locally
+# Read NeMo Gym records and standalone ATIF locally
 
-Use the [bundled reader](../scripts/render_review.py) for generated Gym cases,
-retained Gym rollout rows, and standalone ATIF that Harbor's native viewer cannot
+Use the [bundled reader](../scripts/render_review.py) for generated NeMo Gym cases,
+retained NeMo Gym rollout rows, and standalone ATIF that Harbor's native viewer cannot
 open. Keep native Harbor
 tasks and jobs in `harbor view`; verify its commands against the installed
 runtime. Rendering reads existing evidence and does not execute an evaluation,
@@ -33,7 +33,7 @@ case. Use separate reports for different evidence roles. Never associate inputs
 and attempts by row order or prompt similarity; preserve the provider identities
 and known mappings in the suite's existing records.
 
-For Gym JSONL, `--rows` is required and selects one-based **physical line
+For NeMo Gym JSONL, `--rows` is required and selects one-based **physical line
 numbers**. Commas and inclusive ranges are accepted, for example `1,3-5`. Blank
 and malformed selected lines remain visible with their original line numbers;
 they do not shift later selections. Select the known cases or attempts, without
@@ -66,7 +66,7 @@ script, model credentials, network connection, or upload is required.
 
 ## Read the report with its limits
 
-The report presents Gym input and instructions separately from other row fields,
+The report presents NeMo Gym input and instructions separately from other row fields,
 including verifier expectations. Recorded Responses messages, tool calls and
 results, rewards, errors, and provider indices appear when present. It preserves
 unknown data for inspection; it cannot infer hidden grader behavior from fields

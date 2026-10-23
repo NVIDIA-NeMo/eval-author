@@ -185,7 +185,7 @@ jobs:
           enable-cache: false
       - name: Install Eval Author test environment
         run: uv sync --locked
-      - name: Install isolated Gym runtime from policy
+      - name: Install isolated NeMo Gym runtime from policy
         run: |
           policy=skills/eval-author/scripts/runtime_policy.py
           GYM_REVISION=$(python "$policy" --get providers.gym.test_profiles.ci.revision)
@@ -195,7 +195,7 @@ jobs:
           uv sync --directory "$RUNNER_TEMP/gym" --locked --no-dev --python "$GYM_PYTHON"
           GYM_VERSION=$(python "$policy" --get providers.gym.test_profiles.ci.version)
           test "$("$RUNNER_TEMP/gym/.venv/bin/python" -c 'import importlib.metadata; print(importlib.metadata.version("nemo-gym"))')" = "$GYM_VERSION"
-      - name: Exercise native Gym task scaffolding and execution controls
+      - name: Exercise native NeMo Gym task scaffolding and execution controls
         if: ${{ !cancelled() }}
         run: |
           python_bin=.venv/bin/python
@@ -204,7 +204,7 @@ jobs:
           "$python_bin" tools/collect_gym_evidence.py --output "$RUNNER_TEMP/gym-evidence" \
             --gym-python "$RUNNER_TEMP/gym/.venv/bin/python" --gym-root "$RUNNER_TEMP/gym" \
             --gym-revision "$GYM_REVISION" --route "${{ matrix.route }}"
-      - name: Publish Gym measurement summary
+      - name: Publish NeMo Gym measurement summary
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

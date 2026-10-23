@@ -71,7 +71,7 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _workspace(tmp_path: Path, *, image_only: bool = False) -> tuple[Path, Path]:
-    root = tmp_path / ".eval-author" / "trace-environments"
+    root = tmp_path / ".eval-author" / ".working" / "trace-environments"
     code, result = _run("init", "--root", str(root), "--task-id", "repair-fixture")
     assert code == 0, result
     task_dir = Path(result["task_dir"])
@@ -166,7 +166,7 @@ def _fixture_atif() -> dict[str, Any]:
 
 
 def _fixture_workspace(tmp_path: Path, *, trace: dict[str, Any] | None = None) -> Path:
-    root = tmp_path / ".eval-author" / "trace-environments"
+    root = tmp_path / ".eval-author" / ".working" / "trace-environments"
     code, result = _run("init", "--root", str(root), "--task-id", "fixture-tools")
     assert code == 0, result
     task_dir = Path(result["task_dir"])
@@ -274,7 +274,7 @@ def test_tool_call_inventory_includes_embedded_subagent_calls(tmp_path: Path) ->
             ],
         }
     ]
-    root = tmp_path / ".eval-author" / "trace-environments"
+    root = tmp_path / ".eval-author" / ".working" / "trace-environments"
     code, result = _run("init", "--root", str(root), "--task-id", "subagent-fixture")
     assert code == 0, result
     task_dir = Path(result["task_dir"])
@@ -495,7 +495,7 @@ def test_redacted_values_are_not_materialized_as_replay_cases(tmp_path: Path) ->
             "annotations": {"readOnlyHint": True},
         }
     ]
-    root = tmp_path / ".eval-author" / "trace-environments"
+    root = tmp_path / ".eval-author" / ".working" / "trace-environments"
     code, result = _run("init", "--root", str(root), "--task-id", "redacted-fixture")
     assert code == 0, result
     task_dir = Path(result["task_dir"])
@@ -676,7 +676,7 @@ def test_check_candidate_rejects_invalid_status(tmp_path: Path, status: Any) -> 
 
 
 def test_check_candidate_requires_prepared_evidence(tmp_path: Path) -> None:
-    root = tmp_path / ".eval-author" / "trace-environments"
+    root = tmp_path / ".eval-author" / ".working" / "trace-environments"
     code, result = _run("init", "--root", str(root), "--task-id", "repair-fixture")
     assert code == 0, result
     task_dir = Path(result["task_dir"])
@@ -915,7 +915,7 @@ The human reviewer confirmed that this fixture accurately represents the recorde
 
 
 def test_init_creates_private_gitignored_workspace(tmp_path: Path) -> None:
-    root = tmp_path / ".eval-author" / "trace-environments"
+    root = tmp_path / ".eval-author" / ".working" / "trace-environments"
 
     code, result = _run("init", "--root", str(root), "--task-id", "repair-fixture")
 
@@ -935,7 +935,7 @@ def test_init_creates_private_gitignored_workspace(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("symlink", [False, True])
 def test_init_preserves_unexpected_gitignore(tmp_path: Path, symlink: bool) -> None:
-    root = tmp_path / ".eval-author" / "trace-environments"
+    root = tmp_path / ".eval-author" / ".working" / "trace-environments"
     root.mkdir(parents=True)
     ignore = root / ".gitignore"
     original = "*\n!.gitignore\n" if symlink else "existing-user-rule\n"
@@ -957,8 +957,35 @@ def test_init_refuses_to_write_outside_eval_author(tmp_path: Path) -> None:
     code, result = _run("init", "--root", str(tmp_path / "elsewhere"), "--task-id", "repair-fixture")
 
     assert code == 1
-    assert "under a .eval-author directory" in result["error"]
+    assert "under .eval-author/.working/" in result["error"]
     assert not (tmp_path / "elsewhere").exists()
+
+
+def test_init_rejects_legacy_root_but_retained_workspace_is_readable(tmp_path: Path) -> None:
+    old_root = tmp_path / ".eval-author/trace-environments"
+    code, result = _run("init", "--root", str(old_root), "--task-id", "legacy-case")
+    assert code == 1
+    assert "under .eval-author/.working/" in result["error"]
+    new_root = tmp_path / ".eval-author/.working/trace-environments"
+    code, result = _run("init", "--root", str(new_root), "--task-id", "legacy-case")
+    assert code == 0, result
+    old_root.mkdir()
+    retained = old_root / "legacy-case"
+    (new_root / "legacy-case").rename(retained)
+    assert _TRACE_ENVIRONMENT._load_summary(retained)["task_id"] == "legacy-case"
+
+
+def test_init_does_not_follow_symlinked_working_root(tmp_path: Path) -> None:
+    (tmp_path / ".eval-author").mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (tmp_path / ".eval-author/.working").symlink_to(outside, target_is_directory=True)
+    code, result = _run(
+        "init", "--root", str(tmp_path / ".eval-author/.working/trace-environments"), "--task-id", "new-case"
+    )
+    assert code == 1
+    assert "symlink" in result["error"]
+    assert list(outside.iterdir()) == []
 
 
 def test_prepare_preserves_original_and_writes_text_only_redacted_atif(tmp_path: Path) -> None:
@@ -995,7 +1022,7 @@ def test_prepare_preserves_original_and_writes_text_only_redacted_atif(tmp_path:
 
 
 def test_prepare_reports_non_object_observation(tmp_path: Path) -> None:
-    root = tmp_path / ".eval-author" / "trace-environments"
+    root = tmp_path / ".eval-author" / ".working" / "trace-environments"
     code, result = _run("init", "--root", str(root), "--task-id", "repair-fixture")
     assert code == 0, result
     task_dir = Path(result["task_dir"])
@@ -1572,7 +1599,7 @@ def test_check_detects_changed_safe_evidence(tmp_path: Path) -> None:
 
 
 def test_prepare_narrowly_repairs_provider_redaction_quote(tmp_path: Path) -> None:
-    root = tmp_path / ".eval-author" / "trace-environments"
+    root = tmp_path / ".eval-author" / ".working" / "trace-environments"
     code, result = _run("init", "--root", str(root), "--task-id", "repair-quote")
     assert code == 0, result
     source = tmp_path / "broken.atif.json"
@@ -1600,7 +1627,7 @@ def test_prepare_narrowly_repairs_provider_redaction_quote(tmp_path: Path) -> No
 
 
 def test_prepare_bounds_string_encoded_images_and_audits_context(tmp_path: Path) -> None:
-    root = tmp_path / ".eval-author" / "trace-environments"
+    root = tmp_path / ".eval-author" / ".working" / "trace-environments"
     code, result = _run("init", "--root", str(root), "--task-id", "bound-image")
     assert code == 0, result
     task_dir = Path(result["task_dir"])
@@ -1652,7 +1679,9 @@ def test_prepare_bounds_string_encoded_images_and_audits_context(tmp_path: Path)
 def test_prepare_omits_repeated_image_metadata_without_losing_prose(
     tmp_path: Path, encoded_size: int, location: str
 ) -> None:
-    code, initialized = _run("init", "--root", str(tmp_path / ".eval-author"), "--task-id", "image-metadata")
+    code, initialized = _run(
+        "init", "--root", str(tmp_path / ".eval-author/.working/trace-environments"), "--task-id", "image-metadata"
+    )
     assert code == 0, initialized
     task_dir = Path(initialized["task_dir"])
     payload = _atif()
@@ -1691,7 +1720,9 @@ def test_prepare_omits_repeated_image_metadata_without_losing_prose(
 def test_prepare_handles_non_string_metadata_type(
     tmp_path: Path, metadata_type: object, image_media_type: bool
 ) -> None:
-    code, initialized = _run("init", "--root", str(tmp_path / ".eval-author"), "--task-id", "structured-metadata")
+    code, initialized = _run(
+        "init", "--root", str(tmp_path / ".eval-author/.working/trace-environments"), "--task-id", "structured-metadata"
+    )
     assert code == 0, initialized
     task_dir = Path(initialized["task_dir"])
     payload = _atif()
@@ -2180,7 +2211,9 @@ def test_export_preserves_executable_bits_and_task_digest(tmp_path: Path, execut
         assert execution.returncode == 0, execution.stderr
 
     # Independently rescan the actual exported tree through the public command.
-    code, result = _run("init", "--root", str(tmp_path / ".eval-author/imported"), "--task-id", "imported-task")
+    code, result = _run(
+        "init", "--root", str(tmp_path / ".eval-author/.working/imported"), "--task-id", "imported-task"
+    )
     assert code == 0, result
     imported = Path(result["task_dir"])
     shutil.copytree(output / "task", imported / "task")
@@ -2252,7 +2285,7 @@ def test_batch_prepare_is_resumable_and_reports_full_denominator(tmp_path: Path)
             ],
         },
     )
-    root = tmp_path / ".eval-author" / "trace-environments"
+    root = tmp_path / ".eval-author" / ".working" / "trace-environments"
 
     code, first = _run("batch-prepare", "--root", str(root), "--manifest", str(manifest))
     assert code == 0, first
@@ -2281,7 +2314,7 @@ def test_batch_status_reports_malformed_workspace_without_aborting(tmp_path: Pat
         ],
     }
     _write_json(manifest, manifest_payload)
-    root = tmp_path / ".eval-author" / "trace-environments"
+    root = tmp_path / ".eval-author" / ".working" / "trace-environments"
     code, prepared = _run("batch-prepare", "--root", str(root), "--manifest", str(manifest))
     assert code == 0, prepared
     malformed_summary = root / "task-two" / "summary.json"

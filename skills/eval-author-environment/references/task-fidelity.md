@@ -3,13 +3,13 @@
 
 # Task fidelity and verifier review
 
-**Experimental.** Apply this review when constructing either Harbor or Gym
+**Experimental.** Apply this review when constructing either Harbor or NeMo Gym
 output. For Harbor, codify these findings using the
 [construction contract](../../eval-author/references/construction-qualification.md), including its executed
-alternative and bypass arms. For Gym, retain equivalent native evidence without
+alternative and bypass arms. For NeMo Gym, retain equivalent native evidence without
 claiming Harbor qualification. Keep findings and
 supporting artifacts in private construction notes, and link them from the
-Harbor README or Gym report without copying restricted evidence.
+Harbor README or NeMo Gym report without copying restricted evidence.
 
 ## Preserve the problem and its starting state
 
@@ -100,7 +100,7 @@ setup failure, and missing evidence are different findings.
 
 Use the `alternative` arm and construction contract for new Harbor workspaces.
 Retain the input revision, control source, execution settings, result paths and
-digests privately, or use Gym's native fixtures and controls. Do not relabel an
+digests privately, or use NeMo Gym's native fixtures and controls. Do not relabel an
 alternative as a NOP, Oracle, negative, or copy arm. Source reasoning without execution remains a
 review finding. A missing diagnostic is not evidence of verifier soundness.
 
@@ -118,7 +118,7 @@ of agent-visible images, mounts, package assets, and histories. Encoding them or
 deleting them in a later image layer does not establish absence. Inspect the
 actual runtime visibility as well as source layout. Rebuild and rerun affected
 tasks after fixing a leak; a generator update does not repair old exports or
-cached images. For Gym, account for the selected agent's filesystem and service
+cached images. For NeMo Gym, account for the selected agent's filesystem and service
 access, not merely separation between JSONL keys.
 
 Only the verifier may create authoritative rewards and check rows. Start with

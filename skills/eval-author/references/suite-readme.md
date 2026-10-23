@@ -5,11 +5,11 @@
 
 ## Report generation
 
-Use this shared reporting contract for Harbor and Gym.
+Use this shared reporting contract for Harbor and NeMo Gym.
 
 `.eval-author/report.html` defines the case/run review content.
-Its Tasks tab lists discovered Harbor tasks and Gym workload definitions by directory,
-including both drafts and finalized tasks, with provider, task name, grading,
+Its Tasks tab lists discovered Harbor tasks and NeMo Gym workload definitions by directory,
+including tasks being authored and accepted tasks at their stable paths, with provider, task name, task status, grading,
 behavior, expected outcome, and actions. Its Runs tab lists one row per native
 Harbor job with date/time, the exact on-disk directory name and project-relative
 path, role, status, aggregate reward, and actions. Its Harbor viewer action opens
@@ -35,14 +35,23 @@ artifacts, or supported reporting metadata to update generated content, then
 refresh. Maintain operational and rerun guidance outside the marked section for
 both providers.
 
+Display **Draft**, **Accepted**, or **Unknown** and any status reason in the Tasks
+table in both outputs, using [Task status](shared-prerequisites.md#task-status).
+Shared journey state owns these decisions; reporting metadata and native run
+scores cannot override them. **Draft** means acceptance is pending or its task
+revision or evidence changed; **Unknown** means no valid task status is available.
+Keep inventory findings such as `found` or `unverified` separate from acceptance.
+Refresh after status changes without editing task-local READMEs, which belong
+to the revision checked by execution receipts.
+
 Task README actions become relative links to the source documentation (or the
-HTML's saved snapshot when the source is unverified). Gym source actions link
-the native workload definition; Gym workloads do not open in Harbor's viewer.
-For native Gym scaffolds, the report finds the nearest task README above the
+HTML's saved snapshot when the source is unverified). NeMo Gym source actions link
+the native workload definition; NeMo Gym workloads do not open in Harbor's viewer.
+For native NeMo Gym scaffolds, the report finds the nearest task README above the
 environment definition. Document dataset paths, selected rows, and each case's
 input, expected result, and grading there; a workload row does not imply a
-single dataset example or native validation. Gym run evidence remains linked
-from the maintained README; the Runs table reads native Harbor jobs only.
+single dataset example or native validation. NeMo Gym run evidence remains linked
+from the suite README; the Runs table reads native Harbor jobs only.
 Harbor actions use the HTML's default viewer URLs; Markdown cannot read browser
 settings or probe a viewer. Use the linked HTML report for configured addresses
 and connection help.
@@ -71,19 +80,26 @@ python <eval-author-skill-dir>/scripts/report.py refresh --repo . \
 ```
 
 Roots are project-relative and repeatable. Selected roots are retained in the
-HTML. For authoring and handoff, keep the project root selected (`--task-root .`)
-unless the user selected a narrower scope. Do not narrow the roots to the final
-catalog during promotion: drafts and finalized paths must remain visible, and
-later drafts must appear on refresh. Separate directories remain separate rows,
-even when their contents match. Ordinary nested checkouts are excluded unless
-explicitly selected; source scanner behavior is unchanged.
+internal report state. For authoring and handoff, keep the project root selected
+(`--task-root .`) unless the user selected a narrower scope. New tasks stay at
+`.eval-author/tasks/<slug>` throughout authoring and validation. Default task inventory
+excludes `.eval-author/.working`, `.eval-author/archives`, and historical
+`.eval-author/task-drafts` copies; select one of those roots explicitly to inspect
+its retained evidence. Separate selected directories remain separate rows, even
+when their contents match. Ordinary nested checkouts are excluded unless
+explicitly selected.
 
 Refresh after cases are authored, after additions or edits, and after validation
 or actual-agent runs, including failed runs. Refresh again at the final handoff
-and link the report. When the report needs to be mentioned, always link
-`.eval-author/README.md` and `.eval-author/report.html` as the last lines of the
-response, after all other communication with a note like: Reivew (test cases|runs)
-created in this session in the `.eval-author/report.html` or `.eval-author/README.md`.
+and link the report. When mentioning the report, end the response with one
+sentence containing each artifact link once:
+
+```markdown
+Review your evaluations in [the report](<report-path>) or [the suite README](<readme-path>).
+```
+
+Use the actual paths to `.eval-author/report.html` and `.eval-author/README.md`,
+and keep both links in that closing sentence.
 
 Present evaluation findings and report links to the user; describe generation internals
 only when asked. Reuse the settled scope and authorization: a missing report is not
@@ -95,16 +111,25 @@ A returning refresh reconciles artifacts even if an earlier handoff was interrup
 Outputs are `.eval-author/report.html`, containing the fixed template and validated
 embedded JSON, and the marked report section in `.eval-author/README.md`. Both
 use the same validated records; authored README content is preserved and is not
-reporting state. No companion state/data file, report-specific plan, or per-run
-narrative is generated. Never hand-edit the HTML or rebuild the UI per task.
-The HTML's embedded metadata is read on refresh; task READMEs and native evidence
-take precedence. Refresh repairs a missing or edited generated section while
+reporting state. `.eval-author/.working/report/state.json` is the authoritative
+report metadata and last inventory snapshot; task status is projected from
+`.eval-author/.working/journey-state.json`. A legacy HTML report is imported
+once when that state is absent; later refreshes use the internal state and repair
+missing or edited HTML. The first import also saves the original validated records
+and metadata as `.eval-author/.working/report/legacy-import.json`. Review this
+snapshot and imported journey notes when resuming an old workflow. A legacy
+`task-drafts` directory may contain the only unfinished task and bound receipts;
+use `--task-root <existing-task-or-directory>` to inspect or continue it at its
+existing path. Default inventory exclusion does not mean that its work is obsolete.
+Never hand-edit the HTML or rebuild the UI per task.
+Task READMEs and native evidence take precedence. Refresh repairs a missing or edited generated section while
 preserving surrounding documentation. Deleted records disappear after a complete
 scan; incomplete inventories retain prior in-scope records as unverified.
-Both outputs are prepared before publication; each file is updated atomically.
-An interruption between updates is repaired by the next refresh. An OS advisory
-lock prevents concurrent refreshes and releases automatically when the process
-exits; the `.report.lock` coordination file remains on disk.
+State and both outputs are prepared before publication; each file is updated
+atomically, with state committed first. An interruption between updates is repaired
+by the next refresh. An OS advisory lock prevents concurrent refreshes and releases
+automatically when the process exits. Locks and temporary writes stay under
+`.eval-author/.working/report/`.
 Exit 0 means complete file inventory, 1 means a published incomplete inventory
 with warnings, and 2 means the refresh failed. None establishes evaluation
 validity or success.
@@ -121,13 +146,13 @@ or oversized READMEs (over 256 KiB) show an explicit unavailable message.
 
 Task/run fields are validated by the schema constants in `scripts/report.py`.
 Use `--metadata <temporary-json-path>` for a bounded reporting-only patch; keep
-this input in a temporary directory, not as another persistent project report.
+this input under `.eval-author/.working/report/` and remove it after refresh.
 For example, using actual discovered paths and a documented reward range and binary pass rule:
 
 ```json
 {
   "tasks": {
-    ".eval-author/task-drafts/refund-policy": {
+    ".eval-author/tasks/refund-policy": {
       "display_id": "refund-01",
       "grading_kind": "deterministic",
       "grading_rule": "All refund-state assertions pass."
@@ -229,7 +254,7 @@ refresh does not start a viewer or claim that an environment or task is valid.
 ## Task documentation
 
 Add these exact sections to every newly authored task's `README.md` for either
-provider. For native Gym scaffolds, use the draft root's README and link its
+provider. For native NeMo Gym scaffolds, use the task root's README and link its
 dataset rows and component files:
 
 ```markdown
@@ -265,7 +290,10 @@ For example, link `tests/test.sh`, `tests/verify.py`, and `tests/expected.json`
 only when those files exist and are used. For model or hybrid grading, also link
 the judge implementation and rubric/configuration actually used. A deterministic
 verifier still needs code and criteria links; it does not need an invented judge.
-Check that all README links resolve before the authoring handoff.
+Finish the task README and its setup/run instructions, checking its links, before
+[preparing validation evidence](task-validation.md#prepare-immutable-inputs).
+Maintain later run results and evidence links in the outer suite README so
+reporting does not change the validated task revision.
 
 Do not combine expected results
 and grading under `Expected outcome and grading`, or replace an existing
@@ -287,7 +315,7 @@ documentation.
 Use this guidance for setup, run commands, and evidence review with either
 provider. Maintain the suite inventory and operational instructions in the
 existing suite README, and refresh the shared HTML report and marked Markdown
-section for both Harbor and Gym. Keep authored setup, rerun commands, pending
+section for both Harbor and NeMo Gym. Keep authored setup, rerun commands, pending
 case descriptions, and evidence links outside the generated markers. Neither
 provider's reporting workflow replaces those sections.
 
@@ -301,8 +329,8 @@ entry point. Multi-task suites need a suite guide in addition to individual task
 READMEs.
 
 Use the suite's existing root under `.eval-author/`: for first-eval this is
-`.eval-author/README.md`, beside `first-eval.md`; for a standalone task draft,
-extend `.eval-author/task-drafts/<task-slug>/README.md`. For trace-derived work,
+`.eval-author/README.md`; use that outer guide for a standalone task too, linking
+its finalized `.eval-author/tasks/<task-slug>/README.md`. For trace-derived work,
 use `<task-dir>/README.md`, beside `task/`; a generated batch also needs a README
 at its collection root. Keep the trace task's required `task/README.md` intact.
 When an existing generated suite has an uppercase `README.md` at the same
@@ -323,7 +351,7 @@ For each case, give a short readable description and links to the details:
 
 - **Purpose and input:** what behavior it tests, the request and relevant
   starting state, and the exact task or dataset row. Link the instruction and
-  fixtures. For Gym, identify the dataset and one-based physical JSONL line;
+  fixtures. For NeMo Gym, identify the dataset and one-based physical JSONL line;
   describe the row's input in Markdown so the user need not format JSONL just
   to understand the case.
 - **Expected outcome:** what a correct response or action achieves. Link the
@@ -384,7 +412,7 @@ the commands. Include:
   the actual reward fields; and remedies for known setup failures. Link the
   saved run summary for observed results and limitations.
 - **Open readable evidence:** use the installed Harbor viewer for native tasks
-  and jobs. For selected Gym JSONL records or standalone ATIF, follow
+  and jobs. For selected NeMo Gym JSONL records or standalone ATIF, follow
   [Local review](local-review.md) to create and link a private `report.html`.
   Save its exact regeneration command, selected source and rows, evidence role,
   and any missing or unsupported content. Introduce that review path in the
@@ -422,7 +450,7 @@ repository root (use the actual runtime and paths in the generated guide):
 
 ```bash
 # Full suite: actual agent evaluation, with a new output directory each time.
-harbor job start -c .eval-author/first-eval.yaml \
+harbor job start -c .eval-author/run.yaml \
   --jobs-dir .eval-author/jobs --job-name "suite-$(date -u +%Y%m%dT%H%M%S)-$$"
 
 # Only the refund-policy case, preserving the same agent and run settings.
@@ -430,7 +458,7 @@ harbor job start -c .eval-author/rerun/refund-policy.yaml \
   --jobs-dir .eval-author/jobs --job-name "refund-policy-$(date -u +%Y%m%dT%H%M%S)-$$"
 ```
 
-For Gym, retain the selected composition, model configuration, dataset identity,
+For NeMo Gym, retain the selected composition, model configuration, dataset identity,
 and reset procedure from `reproducibility.md`. Use a verified native selector or
 save a subset JSONL with the complete original rows, including verifier fields,
 in their original order. Show the exact selection and run commands, including
@@ -478,7 +506,7 @@ An adapter that records custom action/reply JSON without ATIF can still supply
 case files, trial results, and grading evidence. Explain that its native
 trajectory is unavailable, and link the actual capture by name and path. Do not
 promise that the Trajectory tab contains those actions or send unsupported
-custom JSON through the Gym/ATIF reader. For supported standalone ATIF or Gym
+custom JSON through the NeMo Gym/ATIF reader. For supported standalone ATIF or NeMo Gym
 JSONL, link the local reader's HTML report directly and explain its evidence role.
 
 ## Verify the handoff

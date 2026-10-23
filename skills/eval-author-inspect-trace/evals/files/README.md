@@ -30,7 +30,7 @@ python agent.py --question 'How many units of BOLT-17 are available?' \
 
 Outputs are `answer.json` (JSON with status, answer, skus) and `trajectory.json`
 (ATIF). Each run invokes the real model; no scripted answer stands in for it.
-For native Harbor or Gym, preserve this agent and invoke its CLI with the task's
+For native Harbor or NeMo Gym, preserve this agent and invoke its CLI with the task's
 inventory file and instruction, retaining both outputs. A provider adapter may
 be authored under `.eval-author/`; do not rewrite this source agent or its tools.
 The final task and adapter must be validated with that provider before claiming

@@ -48,7 +48,7 @@ def test_native_layouts_and_root_task(search, tmp_path):
             "task.toml",
             "instruction.md",
             "tests/test.bat",
-            ".eval-author/task-drafts/new/task.toml",
+            ".eval-author/tasks/new/task.toml",
             "nested/suite/task/task.toml",
             "environments/chat/manifest.yaml",
             "environments/chat/config.yaml",
@@ -75,7 +75,7 @@ def test_native_layouts_and_root_task(search, tmp_path):
     assert report["search"]["complete"]
     assert found["."]["provider"] == "harbor"
     assert "tests/test.bat" in found["."]["evidence"]
-    assert found[".eval-author/task-drafts/new"]["kind"] == "task"
+    assert found[".eval-author/tasks/new"]["kind"] == "task"
     assert found["nested/suite/task"]["validation"] == "not_checked"
     assert found["environments/chat/manifest.yaml"]["evidence"] == [
         "environments/chat/config.yaml",
@@ -382,3 +382,20 @@ def test_nested_repository_listings_consume_entry_budget(search, tmp_path):
     assert report["search"]["entries_retained"] == 4
     assert report["search"]["limits_reached"] == [{"path": "b", "limit": "max_entries"}]
     assert report["candidates"] == []
+
+
+def test_internal_and_legacy_task_copies_are_explicit_only(search, tmp_path):
+    populate(
+        tmp_path,
+        [
+            ".eval-author/tasks/current/task.toml",
+            ".eval-author/task-drafts/old/task.toml",
+            ".eval-author/.working/archives/copy/task.toml",
+            ".eval-author/archives/another/task.toml",
+        ],
+    )
+    found = search.search_tasks(tmp_path)
+    assert [item["path"] for item in found["candidates"]] == [".eval-author/tasks/current"]
+    assert found["search"]["complete"]
+    explicit = search.search_tasks(tmp_path / ".eval-author/.working/archives")
+    assert [item["path"] for item in explicit["candidates"]] == ["copy"]

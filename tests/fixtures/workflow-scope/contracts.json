@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_revision": "5c087f5",
+  "source_revision": "8d91ad5fc77562ca6f8a8905038b919a85406e2e",
   "sources": [
     "skills/eval-author/SKILL.md#choose-the-entry-route",
     "tests/scenarios/entry-routing.md",
@@ -27,7 +27,7 @@
       {
         "prompts": [
           "Audit my existing evals.",
-          "Walk me through improving the evaluations I already have."
+          "Audit the coverage of the evaluations I already have."
         ],
         "context": "Fresh session; no prior authorization.",
         "flow": "eval-author-audit",
@@ -36,7 +36,7 @@
         ],
         "required_actions": [],
         "write_paths": [],
-        "handoff": "audit_opening"
+        "handoff": "shared_opening"
       }
     ],
     "inventory-only": [
@@ -123,7 +123,7 @@
         ],
         "required_actions": [],
         "write_paths": [],
-        "handoff": "authoring_opening"
+        "handoff": "shared_opening"
       }
     ],
     "recommendations-only": [
@@ -168,8 +168,8 @@
           "scaffold"
         ],
         "write_paths": [
-          ".eval-author/task-drafts/cover-read/",
-          ".eval-author/proposals/cover-read-instruction.md"
+          ".eval-author/tasks/cover-read/",
+          ".eval-author/.working/proposals/cover-read-instruction.md"
         ],
         "handoff": "review_draft"
       }
@@ -226,7 +226,7 @@
         ],
         "required_actions": [],
         "write_paths": [],
-        "handoff": "audit_opening"
+        "handoff": "shared_opening"
       }
     ],
     "narrow-to-recommendations": [
@@ -235,13 +235,13 @@
           "Help me improve this existing suite."
         ],
         "context": "Fresh session; no prior authorization.",
-        "flow": "eval-author-audit",
+        "flow": "eval-author",
         "allowed_actions": [
           "read_skill"
         ],
         "required_actions": [],
         "write_paths": [],
-        "handoff": "audit_opening"
+        "handoff": "shared_opening"
       },
       {
         "prompts": [
@@ -262,6 +262,151 @@
           ".eval-author/proposals/dataset-recommendations.md"
         ],
         "handoff": "review_proposals"
+      }
+    ],
+    "explicit-expansion": [
+      {
+        "prompts": [
+          "Help me onboard to expand my evals.",
+          "Walk me through improving the evaluations I already have."
+        ],
+        "context": "Fresh session; existing evals, no audit requested.",
+        "flow": "eval-author",
+        "allowed_actions": [
+          "read_skill"
+        ],
+        "required_actions": [],
+        "write_paths": [],
+        "handoff": "shared_opening"
+      }
+    ],
+    "continue-shared-entry": [
+      {
+        "prompts": [
+          "I have no evals and want to build my first suite.",
+          "Help me bootstrap evaluations."
+        ],
+        "context": "Fresh session; no prior authorization.",
+        "flow": "eval-author-first-eval",
+        "allowed_actions": [
+          "read_skill"
+        ],
+        "required_actions": [],
+        "write_paths": [],
+        "handoff": "shared_opening"
+      },
+      {
+        "prompts": [
+          "Continue with setup. You may inspect the prerequisites, read the supplied agent README.md, and save the findings.",
+          "Go ahead and check the prerequisites using the supplied agent documentation and record what you find."
+        ],
+        "context": "The previous turn showed only the shared welcome, creation checklist, and Ready to get started? call to action. The user now requests setup work; prerequisite and Ethos decisions remain unconfirmed.",
+        "flow": "eval-author-first-eval",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "runtime_probe",
+          "validate",
+          "write_artifact",
+          "delegate"
+        ],
+        "required_actions": [],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "shared_prerequisites"
+      }
+    ],
+    "ethos-completion-pause": [
+      {
+        "prompts": [
+          "The saved ETHOS.md matches my intent.",
+          "Yes, I confirm the saved Ethos."
+        ],
+        "context": "The selected goal is first evaluations. Shared prerequisites are complete; the canonical Ethos skills have saved and validated root ETHOS.md and presented it for review. The user now confirms its saved content. Evaluation source selection has not started.",
+        "flow": "eval-author",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "validate",
+          "write_artifact"
+        ],
+        "required_actions": [],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "ethos_complete_pause"
+      },
+      {
+        "prompts": [
+          "Continue.",
+          "Yes, let’s build the evaluation suite."
+        ],
+        "context": "The previous turn confirmed saved Ethos, showed Next Steps with the first two checklist items complete, and asked Ready to continue? Shared state retains the continuation question and first-eval handoff. Source selection has not started.",
+        "flow": "eval-author-first-eval",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "validate",
+          "write_artifact",
+          "delegate"
+        ],
+        "required_actions": [],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "source_scope_selection"
+      }
+    ],
+    "clarify-goal-before-setup": [
+      {
+        "prompts": [
+          "Help me with evals.",
+          "Get me started with Eval Author."
+        ],
+        "context": "Fresh session; no prior authorization.",
+        "flow": "eval-author",
+        "allowed_actions": [
+          "read_skill"
+        ],
+        "required_actions": [],
+        "write_paths": [],
+        "handoff": "ask_goal"
+      },
+      {
+        "prompts": [
+          "Build my first evals.",
+          "I want to create my first evaluation suite."
+        ],
+        "context": "The previous turn showed the fixed welcome and asked which evaluation goal to pursue. No checklist or Ready to get started? prompt has been shown and no repository inspection has occurred. The user now selects creation.",
+        "flow": "eval-author",
+        "allowed_actions": [
+          "read_skill"
+        ],
+        "required_actions": [],
+        "write_paths": [],
+        "handoff": "shared_opening"
+      },
+      {
+        "prompts": [
+          "Ready to get started.",
+          "Yes, continue with the prerequisite checks."
+        ],
+        "context": "After goal clarification, the previous turn displayed the fixed creation introduction, creation checklist, and Ready to get started? without inspection. The user now requests prerequisite checks; agent documentation is available and setup decisions remain unconfirmed.",
+        "flow": "eval-author-first-eval",
+        "allowed_actions": [
+          "read_skill",
+          "read_repository",
+          "runtime_probe",
+          "validate",
+          "write_artifact",
+          "delegate"
+        ],
+        "required_actions": [],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "shared_prerequisites"
       }
     ]
   }

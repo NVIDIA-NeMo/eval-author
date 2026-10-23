@@ -1,0 +1,142 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Editable explanatory diagram. All example scores and plotted points are illustrative. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="850" viewBox="0 0 1200 850" role="img" aria-labelledby="title description">
+<title id="title">Each task subset produces one pair of scores</title>
+<desc id="description">First, take a predefined subset such as tasks 2, 5, and 8. Read its saved execution results for the baseline and every mutant. Compare baseline and mutant outcomes to compute one mutant score for the subset. Separately, use its baseline evidence and the case description to compute one coverage score. Repeat for every subset in the fixed manifest. Each subset contributes one coverage and mutant score pair, shown as one point on a scatter plot. Correlation measures whether subsets with higher coverage tend to detect more degradation. Example scores and plotted points are illustrative, not experiment results. Analysis does not rerun tasks.</desc>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9 Z" fill="#64748b"/></marker>
+  <marker id="teal-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9 Z" fill="#16856b"/></marker>
+  <style>
+    text { font-family: Arial, Helvetica, sans-serif; fill: #1e293b; }
+    .title { font-size: 28px; font-weight: 700; }
+    .heading { font-size: 22px; font-weight: 700; }
+    .label { font-size: 19px; font-weight: 700; }
+    .detail { font-size: 17px; fill: #475569; }
+    .small { font-size: 15px; fill: #64748b; }
+    .flow { fill: none; stroke: #64748b; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; marker-end: url(#arrow); }
+    .baseline-flow { fill: none; stroke: #16856b; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; marker-end: url(#teal-arrow); }
+  </style>
+</defs>
+<rect width="1200" height="850" rx="18" fill="#fff"/>
+<text x="32" y="42" class="title">One task subset → two scores → one point</text>
+<text x="32" y="73" class="detail">Analysis reuses saved executions; tasks do not run again for each subset.</text>
+
+<rect x="24" y="96" width="1152" height="350" rx="18" fill="#f2f6fc" stroke="#d6e2f2"/>
+<text x="48" y="132" class="heading">1. Score the same subset in two ways</text>
+<text x="48" y="161" class="detail">Example subset A: tasks 2, 5, and 8</text>
+<text x="403" y="192" text-anchor="middle" class="small">All mutants</text>
+<path d="M260 198 H546" stroke="#9ebfe6" stroke-width="1.5"/>
+<text x="194" y="218" text-anchor="middle" class="small" style="fill:#16856b">Baseline</text>
+
+<text x="290" y="218" class="small" text-anchor="middle">M1</text>
+<text x="370" y="218" class="small" text-anchor="middle">M2</text>
+<text x="450" y="218" class="small" text-anchor="middle">…</text>
+<text x="530" y="218" class="small" text-anchor="middle">Mm</text>
+<text x="64" y="252" class="label" >Task 2</text>
+<rect x="165" y="231" width="58" height="30" rx="6" fill="#d9eee6"/>
+<circle cx="194" cy="246" r="4" fill="#16856b"/>
+<rect x="261" y="231" width="58" height="30" rx="6" fill="#dce9fa"/>
+<circle cx="290" cy="246" r="4" fill="#4f83c3"/>
+<rect x="341" y="231" width="58" height="30" rx="6" fill="#dce9fa"/>
+<circle cx="370" cy="246" r="4" fill="#4f83c3"/>
+<rect x="421" y="231" width="58" height="30" rx="6" fill="#dce9fa"/>
+<text x="450" y="251" class="small" text-anchor="middle">…</text>
+<rect x="501" y="231" width="58" height="30" rx="6" fill="#dce9fa"/>
+<circle cx="530" cy="246" r="4" fill="#4f83c3"/>
+<text x="64" y="294" class="label" >Task 5</text>
+<rect x="165" y="273" width="58" height="30" rx="6" fill="#d9eee6"/>
+<circle cx="194" cy="288" r="4" fill="#16856b"/>
+<rect x="261" y="273" width="58" height="30" rx="6" fill="#dce9fa"/>
+<circle cx="290" cy="288" r="4" fill="#4f83c3"/>
+<rect x="341" y="273" width="58" height="30" rx="6" fill="#dce9fa"/>
+<circle cx="370" cy="288" r="4" fill="#4f83c3"/>
+<rect x="421" y="273" width="58" height="30" rx="6" fill="#dce9fa"/>
+<text x="450" y="293" class="small" text-anchor="middle">…</text>
+<rect x="501" y="273" width="58" height="30" rx="6" fill="#dce9fa"/>
+<circle cx="530" cy="288" r="4" fill="#4f83c3"/>
+<text x="64" y="336" class="label" >Task 8</text>
+<rect x="165" y="315" width="58" height="30" rx="6" fill="#d9eee6"/>
+<circle cx="194" cy="330" r="4" fill="#16856b"/>
+<rect x="261" y="315" width="58" height="30" rx="6" fill="#dce9fa"/>
+<circle cx="290" cy="330" r="4" fill="#4f83c3"/>
+<rect x="341" y="315" width="58" height="30" rx="6" fill="#dce9fa"/>
+<circle cx="370" cy="330" r="4" fill="#4f83c3"/>
+<rect x="421" y="315" width="58" height="30" rx="6" fill="#dce9fa"/>
+<text x="450" y="335" class="small" text-anchor="middle">…</text>
+<rect x="501" y="315" width="58" height="30" rx="6" fill="#dce9fa"/>
+<circle cx="530" cy="330" r="4" fill="#4f83c3"/>
+<text x="260" y="381" class="small">Each cell represents a saved task result.</text>
+
+<!-- Mutant scoring uses both baseline and mutant outcomes. -->
+<path d="M568 246 H652" class="flow"/>
+<rect x="656" y="180" width="488" height="103" rx="12" fill="#e4edfa" stroke="#b8d0ed"/>
+<text x="678" y="209" class="label">Compute mutant score</text>
+<text x="678" y="236" class="detail">Compare baseline vs. each mutant on these tasks.</text>
+<text x="678" y="262" class="detail">Average the degradation → one mutant score.</text>
+
+<!-- Only the baseline column feeds the coverage computation. -->
+<path d="M194 346 V399 Q194 409 204 409 H612 Q626 409 626 395 V349 H652" class="baseline-flow"/>
+<rect x="656" y="304" width="488" height="103" rx="12" fill="#e2f2ec" stroke="#b9dcd0"/>
+<text x="678" y="333" class="label">Compute coverage</text>
+<text x="678" y="360" class="detail">Use baseline evidence + the case description.</text>
+<text x="678" y="386" class="detail">Metric computation → one coverage score.</text>
+<text x="900" y="432" text-anchor="middle" class="small">Together: one (coverage, mutant score) pair for subset A</text>
+
+<rect x="24" y="466" width="1152" height="360" rx="18" fill="#f7f4fc" stroke="#e1d7f0"/>
+<text x="48" y="504" class="heading">2. Repeat for every predefined subset, then compute correlation</text>
+
+<text x="64" y="548" class="small">SUBSET</text>
+<text x="175" y="548" class="small">TASKS</text>
+<text x="395" y="548" text-anchor="middle" class="small">COVERAGE</text>
+<text x="525" y="548" text-anchor="middle" class="small">MUTANT SCORE</text>
+
+<rect x="48" y="560" width="552" height="40" rx="8" fill="#fff"/>
+<circle cx="75" cy="580" r="12" fill="#16856b"/>
+<text x="75" y="585" class="small" text-anchor="middle" style="fill:#fff;font-weight:700">A</text>
+<text x="175" y="585" class="detail" >2, 5, 8</text>
+<text x="395" y="585" class="label" text-anchor="middle">0.25</text>
+<text x="525" y="585" class="label" text-anchor="middle">0.10</text>
+<rect x="48" y="607" width="552" height="40" rx="8" fill="#fff"/>
+<circle cx="75" cy="627" r="12" fill="#3578c4"/>
+<text x="75" y="632" class="small" text-anchor="middle" style="fill:#fff;font-weight:700">B</text>
+<text x="175" y="632" class="detail" >1, 4, 8</text>
+<text x="395" y="632" class="label" text-anchor="middle">0.55</text>
+<text x="525" y="632" class="label" text-anchor="middle">0.40</text>
+<rect x="48" y="654" width="552" height="40" rx="8" fill="#fff"/>
+<circle cx="75" cy="674" r="12" fill="#8060b0"/>
+<text x="75" y="679" class="small" text-anchor="middle" style="fill:#fff;font-weight:700">C</text>
+<text x="175" y="679" class="detail" >3, 5, 7</text>
+<text x="395" y="679" class="label" text-anchor="middle">0.80</text>
+<text x="525" y="679" class="label" text-anchor="middle">0.70</text>
+<text x="64" y="717" class="detail">… many fixed subsets → many pairs</text>
+<text x="64" y="750" class="small">Illustrative scores; not experiment results.</text>
+<path d="M612 630 H718" class="flow"/>
+<text x="665" y="605" text-anchor="middle" class="small">Each row</text>
+<text x="665" y="655" text-anchor="middle" class="small">is one point</text>
+
+<!-- Hypothetical scatter plot: a point is a subset, never an individual task. -->
+<path d="M810 545 V747 H1124" fill="none" stroke="#64748b" stroke-width="1.5"/>
+<path d="M810 647 H1124 M810 547 H1124" fill="none" stroke="#e5deef" stroke-width="1"/>
+<text x="967" y="778" text-anchor="middle" class="detail">Coverage score →</text>
+<text x="778" y="647" text-anchor="middle" transform="rotate(-90 778 647)" class="detail">Mutant score →</text>
+
+<circle cx="849.0" cy="717.0" r="5" fill="#bcb0d0"/>
+<circle cx="876.0" cy="699.0" r="5" fill="#bcb0d0"/>
+<circle cx="912.0" cy="719.0" r="5" fill="#bcb0d0"/>
+<circle cx="930.0" cy="667.0" r="5" fill="#bcb0d0"/>
+<circle cx="954.0" cy="685.0" r="5" fill="#bcb0d0"/>
+<circle cx="996.0" cy="635.0" r="5" fill="#bcb0d0"/>
+<circle cx="1011.0" cy="657.0" r="5" fill="#bcb0d0"/>
+<circle cx="1038.0" cy="631.0" r="5" fill="#bcb0d0"/>
+<circle cx="1071.0" cy="579.0" r="5" fill="#bcb0d0"/>
+<circle cx="1092.0" cy="601.0" r="5" fill="#bcb0d0"/>
+<circle cx="1083.0" cy="559.0" r="5" fill="#bcb0d0"/>
+<circle cx="885.0" cy="727.0" r="7" fill="#16856b" stroke="#fff" stroke-width="1.5"/>
+<text x="897.0" y="721.0" class="small" style="fill:#16856b;font-weight:700">A</text>
+<circle cx="975.0" cy="667.0" r="7" fill="#3578c4" stroke="#fff" stroke-width="1.5"/>
+<text x="987.0" y="661.0" class="small" style="fill:#3578c4;font-weight:700">B</text>
+<circle cx="1050.0" cy="607.0" r="7" fill="#8060b0" stroke="#fff" stroke-width="1.5"/>
+<text x="1062.0" y="601.0" class="small" style="fill:#8060b0;font-weight:700">C</text>
+<text x="600" y="811" text-anchor="middle" class="label" style="fill:#73549f">Do subsets with higher coverage also detect more degradation?</text>
+</svg>

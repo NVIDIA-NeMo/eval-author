@@ -1,24 +1,24 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Gym environments
+# NeMo Gym environments
 
-Read this when Gym is the provider. The decisions in Steps 1 through 4 of
+Read this when NeMo Gym is the provider. The decisions in Steps 1 through 4 of
 [the environment sub-flow](../SKILL.md) are unchanged; construction differs in
-one structural way. In Gym, the environment owns the tool surface: the
+one structural way. In NeMo Gym, the environment owns the tool surface: the
 resources server implements the tools, keeps per-session state, and runs the
 verifier.
 
 For scaffolding, the version and rerun plan, native validation commands, and
 real-agent runs, follow
-[Native Gym first evals](../../eval-author-first-eval/references/gym-first-eval.md)
+[Native NeMo Gym first evals](../../eval-author-first-eval/references/gym-first-eval.md)
 from first-eval or
-[Author and prove a Gym evaluation](../../eval-author-task-create/references/gym-tasks.md)
+[Author and prove a NeMo Gym evaluation](../../eval-author-task-create/references/gym-tasks.md)
 from task-create, with
 [Component dependencies and packaging](../../eval-author-task-create/references/gym-packaging.md).
 For trace-derived output, follow
-[the Gym extension](gym-output.md).
-Do not apply Harbor layouts, `task.toml` fields, or NOP and Oracle flags to Gym.
+[the NeMo Gym extension](gym-output.md).
+Do not apply Harbor layouts, `task.toml` fields, or NOP and Oracle flags to NeMo Gym.
 
 ## Tools wrap the realized backend
 
@@ -43,7 +43,7 @@ Do not apply Harbor layouts, `task.toml` fields, or NOP and Oracle flags to Gym.
 - Keep expected state and decoy labels in verifier-only row fields or
   server-side data. Check what the selected agent actually receives, including
   tool outputs; a separate JSONL key alone does not prove isolation.
-- Gym's HTTP services are not Harbor's separate, offline verifier. Describe the
+- NeMo Gym's HTTP services are not Harbor's separate, offline verifier. Describe the
   actual trust boundary in the plan instead of claiming Harbor-style isolation.
 
 ## Prove the environment
@@ -52,13 +52,13 @@ Do not apply Harbor layouts, `task.toml` fields, or NOP and Oracle flags to Gym.
   known-correct and no-action controls: a write followed by a read in the same
   session, showing state persists, and a fresh session showing it starts from
   the seed with no leakage from the previous one.
-- Run Gym's native validation and tests from the draft root. From task-create,
+- Run NeMo Gym's native validation and tests from the draft root. From task-create,
   also repeat the positive and negative controls at least twice from restored
-  state, as its Gym authoring guide describes. From first-eval, the fresh-session
+  state, as its NeMo Gym authoring guide describes. From first-eval, the fresh-session
   case is the reset proof; repeated proof is not an onboarding requirement.
 - These controls establish environment and verifier behavior, not model
   performance. Record their commands, results, and evidence paths in the plan.
   The persistence and reset cases prove the environment, so do not declare them
   as a task's controls in its
-  [native Gym evidence](../../eval-author-task-create/references/gym-evidence.md)
+  [native NeMo Gym evidence](../../eval-author-task-create/references/gym-evidence.md)
   contract.

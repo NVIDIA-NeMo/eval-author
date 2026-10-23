@@ -1,12 +1,12 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Produce a native Gym task from trace evidence
+# Produce a native NeMo Gym task from trace evidence
 
 `<skill_dir>` is the installed `eval-author-environment` directory.
 
-**Experimental.** Use this extension when Gym is the selected output provider.
-Any supported trace source can produce a Gym task. Follow [Prepare and review](../../eval-author/references/trace-input.md#prepare-and-review)
+**Experimental.** Use this extension when NeMo Gym is the selected output provider.
+Any supported trace source can produce a NeMo Gym task. Follow [Prepare and review](../../eval-author/references/trace-input.md#prepare-and-review)
 and [Decide admission and prepare tools](../../eval-author/references/trace-input.md#decide-admission-and-prepare-tools), including privacy review, tool-access decisions,
 ground-truth and software inventories, and task-create's `candidate_admission.py --task-dir <task-dir>`. A proposal may
 provide context, but an audit report or uncovered tool is not a prerequisite.
@@ -18,7 +18,7 @@ initial state, runtime setup, assertions, and solver-visible surfaces as well.
 The existing candidate contract applies: complete text instruction, evidenced
 requirements, recorded or explicitly reconstructed state, and objective binary
 execution verification. A source rollout's reward or final answer is not an
-independent oracle. Do not change these rules to fit a Gym template.
+independent oracle. Do not change these rules to fit a NeMo Gym template.
 
 Refresh the shared HTML report and marked `.eval-author/README.md` section after
 authoring and native controls or agent runs using
@@ -27,7 +27,7 @@ Preserve authored suite and task documentation outside generated markers.
 
 ## Start from a rollout with ng_trajectory
 
-Select one physical JSONL line from a private Gym rollout file. A record with
+Select one physical JSONL line from a private NeMo Gym rollout file. A record with
 both `responses_create_params` / `response` and an `ng_trajectory` attachment
 can follow this path after workspace initialization:
 
@@ -51,11 +51,11 @@ boundary. Continue shared privacy review and candidacy before scaffolding.
 
 ## Native workspace and scaffold
 
-Use the Gym Python/CLI pair selected by the
+Use the NeMo Gym Python/CLI pair selected by the
 [shared runtime locator](../../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks)
 with `--provider gym --flow authoring`. Its central policy owns version and
-Python requirements; keep Gym in its separate environment. Inspect that installation's CLI help and request models as in the
-[Gym authoring guide](../../eval-author-task-create/references/gym-tasks.md).
+Python requirements; keep NeMo Gym in its separate environment. Inspect that installation's CLI help and request models as in the
+[NeMo Gym authoring guide](../../eval-author-task-create/references/gym-tasks.md).
 If it is unavailable, retain the candidate and report construction as blocked;
 do not substitute Harbor or claim that the task runs.
 
@@ -91,7 +91,7 @@ native scaffolder directly:
   --description '<generalized scenario>' --author '<actual-author>'
 ```
 
-The sibling skill must be installed alongside it. The helper invokes Gym's
+The sibling skill must be installed alongside it. The helper invokes NeMo Gym's
 native scaffolder, refuses to overwrite a draft, and records `runnable: false`.
 Choose a valid Python module name, replacing task-ID hyphens with underscores
 (for example, `ledger-total` becomes `ledger_total`); the direct helper does not
@@ -103,7 +103,7 @@ task creation and would require inventing a coverage report for this flow.
 
 Follow the native layout and implementation guidance under **Complete the task
 without changing its intended capability** in the
-[Gym authoring guide](../../eval-author-task-create/references/gym-tasks.md).
+[NeMo Gym authoring guide](../../eval-author-task-create/references/gym-tasks.md).
 Use this workspace's `gym/` in place of that guide's audit draft directory.
 Replace every example grader, expected answer, and verifier case. Map each
 candidate requirement to an observable verifier assertion and a negative
@@ -111,7 +111,7 @@ control. Retain the trace step IDs and reconstruction assumptions in the report.
 
 For observed tools, preserve the reviewed `real`, `mock`, or `none` decisions:
 
-- `real`: expose the selected implementation through Gym's configured resources
+- `real`: expose the selected implementation through NeMo Gym's configured resources
   server; preserve application, licensing, and access requirements.
 - `mock`: retain the generated `call-fixtures.json` and generation receipt as
   provenance. Implement a native resources-server adapter for those reviewed
@@ -122,17 +122,17 @@ For observed tools, preserve the reviewed `real`, `mock`, or `none` decisions:
 
 `generate-mock-tool-calls` currently writes its evidence under
 `task/environment/tool-call-fixtures/`; keep that location for shared digest
-checks. Copy only the required safe fixture data into the Gym resources server.
+checks. Copy only the required safe fixture data into the NeMo Gym resources server.
 Do not treat the generated Harbor `integration.toml`, MCP launcher, or
-`[[environment.mcp_servers]]` configuration as native Gym registration. Prove
-discovery and calls through the actual Gym composition, including mismatched
+`[[environment.mcp_servers]]` configuration as native NeMo Gym registration. Prove
+discovery and calls through the actual NeMo Gym composition, including mismatched
 arguments and reset behavior. Fixture generation alone does not prove wiring.
 
 Agent-visible tool data cannot contain verifier truth. Keep hidden expectations
 out of `responses_create_params`, tool outputs, and agent-accessible files.
 Check what the selected agent actually receives: a separate JSONL key alone
 does not prove isolation. Restore per-session state between attempts and keep
-the grading path free of live services and dependency downloads. Gym HTTP
+the grading path free of live services and dependency downloads. NeMo Gym HTTP
 service communication is not Harbor's separate no-network verifier container;
 describe and test the actual trust boundary without claiming Harbor isolation.
 
@@ -146,7 +146,7 @@ missing-trace or execution blockers.
 ## Validate and retain native evidence
 
 Write `gym/reproducibility.md` using the **Version and rerun plan** in the
-[Gym authoring guide](../../eval-author-task-create/references/gym-tasks.md).
+[NeMo Gym authoring guide](../../eval-author-task-create/references/gym-tasks.md).
 Use candidate and trace provenance instead of an audit recommendation. Follow
 [component dependency and packaging checks](../../eval-author-task-create/references/gym-packaging.md)
 for the selected consumer. Record runtime and component pins, dataset and code
@@ -170,7 +170,7 @@ the correct interaction. Include malformed input, cross-session state leakage,
 and answer-copying controls where they affect this task. Retain all failures.
 
 Use the native startup and `gym eval run --no-serve` procedure under **Validate,
-run, and retain evidence** in the Gym authoring guide when actual-agent
+run, and retain evidence** in the NeMo Gym authoring guide when actual-agent
 execution is in scope and authorized. Keep output under `private/gym-runs/`.
 Preserve the user's agent and model; scripted controls establish verifier
 behavior, not model performance. Do not invent audit-gap closure or require an
@@ -196,16 +196,16 @@ reference controls. Review the generated task files separately from the trace.
 
 Task-create's `candidate_admission.py --task-dir <task-dir>` checks candidacy,
 privacy review and tool-access decisions. `task_evidence.py workspace check`
-checks the prepared workspace; neither qualifies this native Gym product.
-Leave the shared `summary.json` pending for a Gym candidate and explain that it
+checks the prepared workspace; neither qualifies this native NeMo Gym product.
+Leave the shared `summary.json` pending for a NeMo Gym candidate and explain that it
 is the preparation record, while `gym-report.md` carries native results.
 Keep `gym/draft.json` as the original scaffolding receipt, not a mutable proof
 record. Do not run Harbor's `validate-task`, `probe`, `record-reproducibility`,
 `record-run-inputs`, `record-validation`, candidate `finalize`, or publication
-commands against Gym artifacts, or hand-write their proof JSON. For
+commands against NeMo Gym artifacts, or hand-write their proof JSON. For
 `no_candidate`, use the shared no-candidate finalization and `check` normally.
 
-This extension produces private native tasks. Automated Gym readiness,
+This extension produces private native tasks. Automated NeMo Gym readiness,
 batch-status aggregation, and digest-bound publication/export are not yet
 implemented by the Harbor workspace commands; report native batch results separately
 with every selected trace in the denominator. Hand off the private task path,

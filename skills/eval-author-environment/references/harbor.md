@@ -229,7 +229,7 @@ the suite's task set:
 
 ```bash
 harbor task init <org>/<agent-slug>-environment-smoke \
-  --tasks-dir .eval-author/environments/<agent-slug>/smoke \
+  --tasks-dir .eval-author/.working/environments/<agent-slug>/smoke \
   --description "Environment smoke check" --author "<actual author>"
 ```
 
@@ -246,11 +246,11 @@ harbor task init <org>/<agent-slug>-environment-smoke \
 Run the controls from the repository root with fresh job names:
 
 ```bash
-harbor run -p .eval-author/environments/<agent-slug>/smoke/<agent-slug>-environment-smoke -a nop \
+harbor run -p .eval-author/.working/environments/<agent-slug>/smoke/<agent-slug>-environment-smoke -a nop \
   --jobs-dir .eval-author/jobs --job-name <agent-slug>-env-smoke-nop-1
-harbor run -p .eval-author/environments/<agent-slug>/smoke/<agent-slug>-environment-smoke -a oracle \
+harbor run -p .eval-author/.working/environments/<agent-slug>/smoke/<agent-slug>-environment-smoke -a oracle \
   --jobs-dir .eval-author/jobs --job-name <agent-slug>-env-smoke-oracle-1
-harbor run -p .eval-author/environments/<agent-slug>/smoke/<agent-slug>-environment-smoke -a oracle \
+harbor run -p .eval-author/.working/environments/<agent-slug>/smoke/<agent-slug>-environment-smoke -a oracle \
   --jobs-dir .eval-author/jobs --job-name <agent-slug>-env-smoke-oracle-2
 ```
 

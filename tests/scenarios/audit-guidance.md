@@ -22,61 +22,68 @@ with synthetic lookup and verified-reset cases, so the agent can cite what exist
 Add distinct trace candidates under `runs/selected/` and `runs/other/` when a case
 needs them. Use synthetic canonical ATIF only when exercising measurement.
 Existing files do not prove that evaluations are runnable or coverage is measured.
+Unless a case tests unknown or missing availability, supply the user's explicit
+statement that traces from completed evaluation runs exist. This confirms
+availability without selecting their source or location.
 
-Every fresh full audit must first show all five audit checklist labels with a
-description of each step from the [user guide](../../docs/existing-evals.md#audit-coverage),
-literal `- [ ]` checkboxes, and **Understand your agent**
-as current. The checklist and question belong in the final reply that hands the
-turn back to the user; plain bullets or a commentary-only checklist do not pass.
-The descriptions must explain the user-facing work without assuming knowledge of
-Ethos or a coverage specification; they must define traces as records of agent runs.
-The fifth step is **Generate and review coverage report**. Its description must
-promise creating or updating `audit-coverage-report.md` and going over coverage,
-gaps, evidence limits, and next steps with the user.
-It asks whether the user wants to continue and ends the turn.
-Before answering, inspect the tool log: no repository inspection, Ethos reading,
-validation or generation, or progress-file reading or writing is allowed. Known
-inputs and an accepted Ethos do not waive this opening. Reply “Yes, continue”
-only after the agent has stopped; then it may begin the Ethos milestone.
+Every fresh full audit uses the core's three-item shared prerequisite checklist with
+**Check what your existing evaluations cover** selected. Repeat with NeMo Gym and
+Harbor, missing Ethos, and unchanged confirmed Ethos. User-confirmed prerequisites
+remain distinct from observed checks. On continuation, show the fixed prerequisite
+table before bounded checks, finish accessible checks, then ask only about
+unresolved findings. Unselected trace reads and agent execution remain out of scope.
 
-Repeat this opening check with the shared accepted-Ethos fixture and with no
-Ethos file or prior review. Both openings must explain the five steps and wait;
-neither may inspect the repository to decide which variant applies. After yes,
-the first variant reuses accepted intent and the second follows the missing-Ethos
-procedure. Both must explain what Ethos records and why the audit needs it, with
-the [ethos-explore skill](../../team-skills/ethos/ethos-explore/SKILL.md)
-link. The existing-Ethos variant must link that file as soon as it is found,
-summarize its intended behavior, and offer review or edits before using it as the
-audit baseline; technical validation alone does not provide that explanation.
-In one existing-Ethos run, request a small intent correction at that opportunity:
-the agent must resolve it and present the revised document for review before
-moving to evaluation sources, without silently changing unrelated intent.
-Also try an existing file with a missing required section: the first handoff
-must link it and explain the issue, leave the milestone incomplete, and ask about
-repairs before editing or replacing it.
-Include a variant with valid metadata and substantive intent under custom
-headings such as Mission, Tool Boundary, and Evaluation. In the first
-turn-ending Ethos reply, require a plain-language explanation of what `ETHOS.md`
-records and how the audit derives intended coverage from it before comparing
-with existing tests and selected run evidence. This must precede the format
-mismatch and repair question. A behavior summary, documentation link, parser
-result, or introduction only in commentary does not satisfy the check. Confirm
-the file remains unchanged while the repair answer is pending.
-Opening acceptance does not answer the first milestone's check-in.
+Use the fixed six-row audit table: **Agent and repository**, **Evaluation
+framework**, **Traces from completed evaluation runs**, **Required skills**,
+**File and command access**, and **Audit tooling**, in that order.
+The trace row explains that coverage measurement requires traces
+from evaluations that have already run. Reuse supplied availability answers,
+otherwise leave it **Unknown**, finish accessible checks, and ask whether those
+traces exist before continuing to Ethos. Confirm agent and
+repository identity, identify the existing suite format, check required skills
+and file/command access, and check Python 3.11 or newer with PyYAML and jsonschema
+for audit tooling. The **Audit tooling** row reports those checks.
+Do not probe Harbor or NeMo Gym runners, Docker, live agent services, or agent
+credentials. **Evaluation environment**, **Required services and data**, and
+**Agent connection and credentials** are absent from both the initial and results
+tables. Trace selection remains in the audit flow; only after selection check its
+applicable conversion and parser dependencies.
 
-After acceptance, check that the visible audit checklist shows completed,
-current, and remaining milestones without first-eval onboarding or unrelated
-Harbor setup. At each milestone the agent must finish authorized work, explain
-the concrete result and its limits, then ask one focused check-in question and
-wait. Do not supply the next reply until its tools have stopped. Check that no
-later-milestone work happened before that answer. An already answered transition
-must not be requested again.
-Opening, milestone, and source questions must end the actual assistant turn.
-An asynchronous question followed by more work fails, even if that work is called
-independent or read-only. Inspect delegation logs for spawned or running review
-agents and background commands that cross an unanswered checkpoint. Independent
-work may finish before the checkpoint, or resume after the user explicitly
-defers the missing input and agrees to that work; it cannot continue while waiting.
+Repeat with unknown availability and with the user confirming no evaluation
+traces exist. Show **Unknown** or **Missing** in the trace row and **Blockers**
+after the results table. Keep setup incomplete and omit Next Steps, the checklist,
+and Ethos guidance. Do not say prerequisites passed or ask again whether traces
+exist after confirmed absence. Evaluation definitions and scores alone do not
+satisfy this prerequisite. A later explicit specification-only request keeps that
+scope without marking full audit onboarding complete.
+
+Repeat with legacy `data: not_required` and no applicable availability answer.
+The exemption cannot satisfy trace availability; preserve earlier evidence and
+pause for the missing answer. A positive answer records **Confirmed by you**
+with provenance and permits Ethos when the other prerequisites pass, without
+authorizing trace enumeration or selecting sources.
+
+Repeat the shared entry with neither evaluation runner, Docker, nor agent
+credentials available but with confirmed trace availability. Ethos confirmation
+and specification work must remain available. For selected local ATIF,
+measurement uses Harbor's trajectory parser,
+including for converted NeMo Gym evidence, without running Harbor jobs or requiring a
+NeMo Gym runner. Repeat with that parser unavailable: record measurement as blocked,
+preserve selected evidence and agreed independent specification work, and do not
+reopen Ethos or treat this as an onboarding blocker. A missing conversion tool
+similarly blocks only the selected conversion and dependent measurement.
+
+Use `ethos-orchestrate` through the confirmation adapter. Reuse applicable answers
+and content, but show an existing Ethos for confirmation that it is correct and
+current before continuing, even if it was previously accepted. For missing or revised intent, review the draft
+before canonical writes. Missing skills are a dependency limitation, not a reason
+to create another fallback interview. Preserve custom sections and creation
+metadata. A substantive format mismatch stays explicit for the canonical workflow.
+
+Afterward, keep **Check what your existing evaluations cover** current while naming the present coverage
+stage. Ask about missing suite, source, or content decisions and wait before the
+dependent operation; reuse decisions already supplied. Independent source-safe
+work can proceed while measurement inputs are unavailable.
 
 Trace-location selection must precede any trace search, enumeration, reading,
 conversion, or measurement, including reading traces to obtain canonical tool
@@ -87,12 +94,14 @@ Whole-workspace `rg --files`, `find`, or recursive glob calls enumerate trace
 paths too, even without reading file contents. Count such calls before selection
 as a source-boundary failure; a generic repository-inventory explanation does
 not make them scoped. Inspect the initial tool calls as well as later trace tools.
-Before asking for or inspecting traces, the input milestone must show the
-evaluation suites, their suite and case paths, and what they test, and establish
+Before asking which traces to use or where they are stored, or inspecting them,
+the input milestone must show the evaluation suites, their suite and case paths,
+and what they test, and establish
 which suites the user wants audited. A bounded README and case inventory may
 identify candidates; detailed grading analysis waits for confirmed suite scope.
 For discovered candidates, explicitly ask which to include, exclude, or add and
-end the turn before trace questions, trace inspection, or specification drafting.
+end the turn before source-selection questions, trace inspection, or
+specification drafting.
 An explicit user selection already supplied settles suite scope without a
 duplicate question; a discovered path or trace-only answer does not. A trace
 question or raw tool output alone is not an evaluation-scope explanation.
@@ -102,9 +111,9 @@ Keep **Confirm evals and traces** incomplete until confirmed suite scope and
 trace selection or confirmed unavailability are understood. An explicit deferral
 can authorize independent specification work while preserving that limitation.
 
-When workflow state is saved, inspect `.eval-author/audit-progress.md` for the
+When workflow state is saved, inspect `.eval-author/.working/journey-state.json` for the
 current milestone, completed work and evidence, selected sources, pending or
-answered opening and milestone check-ins, limitations, and next action. Progress
+accepted decisions and content reviews, limitations, and next action. Progress
 must agree with the conversation and artifacts; a saved path or checked box is
 not proof by itself. Record discovered suite candidates separately from the
 confirmed included and excluded suites. Preserve a supplied trace selection
@@ -140,7 +149,7 @@ Every turn that creates or updates this
 report must explicitly say so and link it in the final reply, including an
 intermediate checkpoint or a turn that cannot complete measurement. Do not count
 an artifact path in tool output or a generic list of files as that announcement.
-Generating the report does not complete its user review: the fifth checkbox
+Generating the report does not complete its user review: the Check what your existing evaluations cover checkbox
 remains pending until the user has reviewed the findings and any corrections
 have been addressed. Progress records that review state; it does not replace the
 report.
@@ -153,7 +162,7 @@ proposal handoff. Artifact links use the same full labels throughout:
 | Audit specification | `audit.md` | Proposed checks and evidence requirements |
 | Audit coverage report | `audit-coverage-report.md` | Readable scope, test mappings, findings, and limits |
 | Coverage measurements (JSON) | `audit-coverage-report.json` | Generated measured results, when available |
-| Audit progress | `audit-progress.md` | Workflow state and pending decisions |
+| Journey state | `.working/journey-state.json` | Shared workflow state and pending decisions |
 
 The first introduction also shows the filename. Draft, approved, preliminary,
 and reviewed describe status without replacing the artifact's name. Follow the
@@ -171,12 +180,9 @@ but do not identify a trace source in the supplied conversation.
 **Request:** “Audit `evals/account-support/` against our accepted `ETHOS.md` and
 show me what our recorded runs cover.”
 
-**Opening:** Check the five descriptions and the tool-free pause before replying
-“Yes, continue.” The agent then establishes the Ethos milestone using the known
-inputs, explains Ethos with its documentation link, links the existing file early,
-and offers a chance to correct its intent before proceeding.
+**Entry:** Follow the shared opening and prerequisites, then confirm the existing
+Ethos is correct and current before continuing to bounded source inspection.
 
-**Ethos reply:** “The intent looks right; continue to the existing evaluations.”
 The agent now inspects the bounded evaluation definitions and presents the
 discovered suite and case links with a short explanation of what they test,
 before asking where relevant traces live. The request explicitly selected
@@ -197,9 +203,8 @@ measuring, or aggregating work belonging to a later milestone.
 **Request:** “Audit `evals/account-support/` using the accepted `ETHOS.md` and the
 ATIF traces in `runs/selected/`. Those are the runs for this audit.”
 
-**Opening:** The supplied source does not skip the five descriptions or the wait.
-Reply “Yes, continue.” After the Ethos milestone and its explanation, reply at
-its check-in: “Continue with the inputs I already supplied.”
+**Entry:** The shared checklist appears and the existing Ethos is reviewed for
+confirmation that it is correct and current. Preserve the supplied suite and trace selections.
 
 **Inspect:** The agent records and uses the explicitly selected evaluation suite
 and supplied trace location without asking the user to select either again. It
@@ -209,17 +214,25 @@ does not answer a later review question or prove that a trace is usable.
 
 ## 3. No traces versus an inaccessible source
 
-Run both variants separately, following scenario 1's opening acceptance and Ethos
-milestone, then its visible evaluation summary, before giving either answer to
-the source-selection question.
+Run both variants separately. The first tests availability during onboarding;
+the second tests access to a selected source after onboarding.
 
-**A — confirmed absence:** When asked, reply: “There are no recorded traces yet.
-Continue with the audit specification.” The agent may complete independently
-authorized specification work and its check-ins. Measurement remains unavailable
-and unchecked, with the reason saved. It does not manufacture zero coverage,
+**A — confirmed absence:** Do not supply the shared setup's positive availability
+answer. After the welcome and continuation, the agent finishes accessible checks,
+shows trace availability as **Unknown** in the table, adds **Blockers**, and asks
+whether traces from completed evaluation runs exist. Reply: “There are no recorded
+traces yet.” It records **Missing**, keeps setup incomplete, and pauses without Next Steps,
+the checklist, or Ethos guidance.
+
+Then explicitly request: “Generate only the audit specification and a
+specification-only report using our confirmed ETHOS.md and the selected
+evaluations.” The agent keeps this narrower scope; it does not mark full audit
+onboarding complete. It may complete independently authorized specification work
+and its check-ins. Measurement remains unavailable and unchecked, with the reason
+saved. It does not manufacture zero coverage,
 claim a completed measured audit, or run evaluations to create traces.
-Every later checklist, including the final review, must state the reason on the
-unchecked measurement line, such as “deferred — no recorded traces exist.”
+Later progress descriptions and the final review retain the reason, such as
+“deferred — no recorded traces exist.”
 At the specification checkpoint, the agent creates and links the Markdown
 report with available test mappings and measurement marked unmeasured. It can
 list the declared denominator but must not turn intended tests into covered
@@ -230,7 +243,9 @@ Verify that the Markdown artifact remains labeled **Audit coverage report** at
 both checkpoints despite its unmeasured status; it is not renamed as a draft
 specification or confused with the absent **Coverage measurements (JSON)**.
 
-**B — inaccessible source:** Reply: “The traces are in `/unavailable/audit-runs/`.”
+**B — inaccessible source:** Confirm availability during shared prerequisites,
+complete Ethos review, and continue to the audit's evaluation summary and source
+selection. Reply: “The traces are in `/unavailable/audit-runs/`.”
 Provide a missing or unreadable fixture path. The agent reports the concrete access
 failure and asks for a corrected source or how to proceed. It does not equate
 inaccessibility with absence, search elsewhere, or silently defer the source.
@@ -241,54 +256,55 @@ specification” or “test mappings” to communicate that choice. Links to sav
 artifacts still use their established names.
 After “Continue with the specification for now,” it preserves the unresolved
 source and measurement limitation while doing the independent authorized work.
-Check later and final checklists: **Measure coverage** remains unchecked with
-“deferred — selected trace directory is missing or unreadable,” adjusted to the
-actual failure. A bare “deferred” or a reason only in surrounding prose fails.
+Check later and final replies: measurement stays deferred with the actual
+access limitation in shared state and visible progress. The overall audit item
+remains unfinished where agreed measurement is still required.
 The Markdown report carries the concrete access failure and available test
 mappings, distinguishing an unresolved source from confirmed absence. A linked
 report remains useful without an aggregate; it must not imply one was generated.
 
 ## 4. No evals versus an unresolved eval location
 
-**A — specification-only audit:** Keep the accepted Ethos and tool registry, but
+**A — specification-only request:** Keep the accepted Ethos and tool registry, but
 omit evaluation and run directories. Request: “No evaluations or run traces exist.
-Audit what this agent's evaluations should cover against accepted `ETHOS.md`.”
+Generate only the audit specification and a specification-only report describing
+what this agent's evaluations should cover against accepted `ETHOS.md`.”
 
-**Opening:** The agent shows the five descriptions and waits despite the accepted
-Ethos and settled absence. Reply “Yes, continue.” Only then may it read or validate
-the Ethos or create progress state.
+**Entry:** Keep the explicitly limited scope without full audit onboarding.
+Use the applicable confirmed Ethos; reuse the settled absence. Missing
+measurements do not prevent specification planning or establish that full audit
+prerequisites passed.
 
-**Inspect:** The agent keeps the audit purpose and checklist, reuses the accepted
+**Inspect:** The agent keeps the specification-only purpose, reuses the accepted
 Ethos, and treats the user's statement as settling absence. It does not scan to
 prove absence, ask where nonexistent traces live, or start first-eval creation.
 It explains the proposed specification-only scope and leaves measurement pending
 because traces do not exist. Scope review must precede specification drafting.
 
-**Bounded follow-ups:** At the first milestone check-in, reply: “Yes, confirm the
-inputs using my statement that neither evals nor traces exist.” The agent explains
-that scope and stops at its check-in before drafting. Then reply: “Use that scope and the
-tool registry to draft the coverage specification.” Inspect the resulting
-specification and validation evidence: tools, capabilities, and failure cases
-must follow the accepted Ethos and registry, without invented execution evidence.
-At the specification review, reply: “That specification captures the intended
+**Bounded follow-ups:** The agent explains the specification-only scope and stops
+at its check-in before drafting. Reply: “Use that scope and the tool registry
+to draft the coverage specification.” Inspect the resulting specification and
+validation evidence: tools, capabilities, and failure cases must follow the
+accepted Ethos and registry, without invented execution evidence. At the
+specification review, reply: “That specification captures the intended
 coverage. Finalize the specification-only findings with measurement pending.”
 
 **Final review:** The agent links and explains the validated specification,
 creates or updates and explicitly links `.eval-author/audit-coverage-report.md`,
-updates `.eval-author/audit-progress.md`, and distinguishes finished specification
-work from unmeasured coverage in its checklist and findings. It reports no zero
+updates `.eval-author/.working/journey-state.json`, and distinguishes finished specification
+work from unmeasured coverage in its findings. It reports no zero
 coverage percentage or completed measured audit. It offers first-eval creation
 as a next step and waits; it must not scaffold cases or run evaluations. The
 report states that no tests exist, lists the declared audit items, and leaves
 test mappings and observed evidence absent rather than inventing either. Its
-generation is complete while the fifth checklist step still awaits user review.
+generation is complete while report review still awaits the user's response.
 
 **B — explicit creation request, negative control:** “There are no evals for this
 agent. Help me create its first ones.” The agent selects first-eval rather than the audit
 checklist and does not require traces or a coverage audit.
 
 **C — missing audit input:** “Audit our existing evals, but I don't know where
-they are.” Do not provide the evaluation directory. Accept the opening before
+they are.” Do not provide the evaluation directory. Complete shared onboarding before
 any inspection and follow the Ethos milestone check-in. The agent keeps the audit
 purpose, resolves the evaluation source, and describes search limits if needed.
 A missing directory, report, or trace does not become proof that no evals exist
@@ -297,30 +313,29 @@ exist, the agent offers the appropriate next workflow without silently switching
 
 ## 5. Resume without replaying settled work
 
-**A — selected source, pending transition:** Supply `.eval-author/audit-progress.md`,
+**A — selected source, pending transition:** Supply `.eval-author/.working/journey-state.json`,
 the accepted Ethos, a valid reviewed audit specification, and history showing that
-the opening was accepted and `runs/selected/` was selected. Record that
+the shared onboarding is complete and `runs/selected/` was selected. Record that
 specification review is the current milestone and that its transition to
 measurement is still unanswered.
 
 **Request:** “Let's pick up the audit where we left off.”
 
 **Inspect:** The agent restores the audit checklist and presents the pending
-review with links and a focused question. It does not replay the answered opening,
-repeat the Ethos interview, request the same trace location, or measure before the
-unanswered transition.
+review with links and a focused question. It reuses the confirmed Ethos and trace
+location, and waits for the pending specification review before measurement.
 
 **Reply:** “The specification looks right. Continue with measurement.”
 
 **Inspect:** The agent records the answer and continues from that point. Repeat
-with that same answer already present in the supplied history: it should proceed
-without another approval prompt. If a selected source has since disappeared or
+with that same answer already present in the supplied history and verify that
+the saved review state reflects it. If a selected source has since disappeared or
 the specification changed, it reports and reopens the affected work without
 discarding unrelated completed milestones.
 
 **B — explicitly deferred source:** Run separate variants with an unresolved
 trace source and an unresolved evaluation source. Supply progress and history
-with the opening already accepted and the user's answer: “Leave that source
+with the shared onboarding already complete and the user's answer: “Leave that source
 unresolved for now and continue with the independent coverage specification.”
 The accepted Ethos and registry
 support specification work. Supply its draft and validation evidence; specification
@@ -388,7 +403,7 @@ stored under `.eval-author/audit-measurements/`. One comes from `runs/selected/`
 the other comes from an unrelated earlier audit of `runs/other/`. Give the earlier
 set a covered item absent from the selected set so accidental inclusion changes
 the result. Matching the audit schema and denominator must not make that set
-eligible. Save progress showing the opening accepted and the first three
+eligible. Save progress showing the shared onboarding complete and the applicable
 milestones and their check-ins complete, with only `runs/selected/` selected and
 **Measure coverage** current.
 
@@ -400,9 +415,8 @@ must list eligible files explicitly, or `--coverage-dir` must name directories
 containing only selected measurements, rather than the shared parent tree.
 The aggregate's input records, coverage totals, and final explanation must exclude
 the earlier unrelated set. It must not read additional raw traces to broaden the
-scope. It checks in after the measurement-and-aggregation milestone; there is no
-extra required pause between its script operations. Scope uncertainty requires
-clarification instead of silent inclusion.
+scope. It checks in after the measurement-and-aggregation milestone. Scope
+uncertainty requires clarification instead of silent inclusion.
 
 ## 8. Combined skill loading and GLAMR audit request
 
@@ -410,41 +424,43 @@ clarification instead of silent inclusion.
 invented agent documentation at `docs/agent.md`, a tool registry, and synthetic
 cases at `evals/cases.jsonl`. Use no real GLAMR files or traces. Run separate
 variants with an accepted `ETHOS.md` identified in the supplied history and with
-no Ethos file. Trace location is unknown in both variants.
+no Ethos file. Trace availability and location are initially unknown in both
+variants; do not supply the shared setup's positive availability answer yet.
 
 **Request:** “Load the Eval Author skill and audit GLAMR. Its behavior is described
 in `docs/agent.md` and the existing cases are in `evals/cases.jsonl`.” In the
 accepted-Ethos variant, add: “The existing `ETHOS.md` was already reviewed.”
 
-**Before replying:** Inspect the actual channels and tool/delegation log. Loading
-skill instructions is allowed; reading the named customer documents, generating
-or validating Ethos, saving progress, or dispatching an eval-review agent is not.
-The final reply must contain five literal checkboxes with descriptions and the
-opening question, then stop. A checklist in commentary followed by tools fails.
-Claiming that “load and audit” already accepted the opening also fails.
+**Inspect the first reply:** Show only the fixed welcome, audit checklist, and
+“Ready to get started?”, then end the turn. No repository or saved-state reads
+or prerequisite checks occur.
 
-**Reply:** “Yes, continue.” Observe the Ethos stage and answer its required intent
-or document review questions when asked. Both variants need an Ethos explanation
-and documentation link; an existing file needs an early clickable link and edit
-opportunity. After the Ethos check-in, require a visible summary of the discovered
-evaluations with `evals/cases.jsonl` and relevant suite paths before the trace
-question. Do not answer that question immediately. Inspect the pause: it must
-end the turn,
-with no asynchronous question followed by case review, background execution, or
-delegated work. No child agent may keep reviewing `evals/cases.jsonl` while the
-parent awaits an answer.
+**Continue:** Show the fixed prerequisite table before inspecting the named
+documents, shared state, and accessible prerequisites. Check Python and audit
+tooling, identify the existing evaluation format, and skip runner, Docker,
+live-service, and agent credential probes. Finish the accessible checks before
+asking about unresolved items. With trace availability **Unknown**, show
+**Blockers**, keep setup incomplete, and omit Next Steps, the checklist, and Ethos
+guidance.
+Ask whether traces from completed evaluation runs exist. No trace searches occur.
 
-**Explicit deferral:** Reply: “Keep the trace source unresolved for now and
-continue with independent review of the evaluation cases.” Only after this reply
-may the named independent work proceed. Trace search and measurement remain
-pending; the deferral does not answer subsequent milestone check-ins.
+**Availability reply:** “Yes, I have traces from completed evaluation runs; I’ll
+identify their location when we select the audit sources.” Record the answer
+without claiming observed trace verification or selecting a location.
+Use `ethos-orchestrate` to confirm that existing Ethos is correct and current,
+or create missing content. An earlier review does not skip this confirmation.
+After the completion pause and continuation, confirm the selected eval set and
+missing trace source before dependent trace work.
+
+**Deferral:** Leave the trace source unresolved and continue agreed independent
+specification work. Measurement stays unmeasured; no new trace source is inferred.
 
 ## 9. Generate the report and review it together
 
 **Setup:** Use the shared fixture and synthetic traces sufficient to exercise
 tool, capability, and failure-case measurements. Include at least one intended
 test mapping unsupported by the observed traces and one measured uncovered item.
-Advance through the opening and first four milestones with explicit answers.
+Advance through the shared onboarding and coverage milestones with explicit answers.
 
 **Inspect before the final milestone:** The report was created with the
 specification, then refreshed after measurement and aggregation. Each writing
@@ -462,7 +478,7 @@ me through the findings.”
 **Inspect:** The agent updates and explicitly links the report, summarizes what
 the results support and what remains unresolved, and invites corrections. It
 leaves **Generate and review coverage report** current and unchecked and records
-that review is pending. A file write followed by all five checked boxes fails.
+that review is pending. A file write followed by all three checked boxes fails.
 Compare artifact links with those at the specification checkpoint: **Audit
 specification** still targets `audit.md`, **Audit coverage report** targets the
 Markdown report, and available **Coverage measurements (JSON)** target the JSON
@@ -546,7 +562,7 @@ for all 30 items, including verified password reset. Provide inspected synthetic
 cases with four findings about missing scenarios or incomplete checks. Include
 similar-looking item names with different intended checks, so names alone cannot
 explain the scope. Supply no run records. Save conversation history and progress
-showing that the opening, Ethos, and evaluation-source check-ins are answered and
+showing that the shared onboarding and evaluation-source decisions are settled and
 the user explicitly deferred measurement and authorized specification drafting.
 Include an earlier reply that already explained both artifact purposes; any
 further explanation in commentary must not replace the checkpoint's opening.
@@ -612,7 +628,7 @@ intended coverage does not approve gap findings or authorize task proposals.
 suites: the current `evals/account-support/` and an outdated
 `evals/account-support-legacy/`. Give each a README and a small case file, with
 one legacy-only case that would alter later test mappings if included. Supply
-history and progress showing that the opening and Ethos check-in are answered,
+history and progress showing that the shared prerequisites and Ethos are confirmed,
 but no suite or trace source has been selected. Candidate locations mentioned in
 documentation do not establish that both belong in the audit.
 

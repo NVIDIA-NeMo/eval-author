@@ -52,7 +52,7 @@ the final handoff links this report. In the report, users may open a task's
 README or use the harbor viewer to review in full. Agents can start at the
 generated suite's root `README.md`.
 
-Standalone drafts use `.eval-author/task-drafts/<task-slug>/README.md`. Trace candidates use
+Standalone drafts use `.eval-author/tasks/<task-slug>/README.md`. Trace candidates use
 `<task-dir>/README.md`, and generated batches also have a collection-root guide.
 The guide is refreshed after runs and linked in the handoff, including when
 execution is blocked.
@@ -80,12 +80,12 @@ item rerun commands, and known execution blockers.
 
 ## First evaluations
 
-The plan in `.eval-author/first-eval.md` records the intended behavior, proposed
+The selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` records the intended behavior, proposed
 cases, and acceptance criteria. Task drafts and run results show which checks
 have actually completed. Use the [generated case review guide](#review-generated-cases)
 to inspect the authored cases and their available evidence.
 
-Task controls check the task and its verifier: Gym's known-correct and negative
+Task controls check the task and its verifier: NeMo Gym's known-correct and negative
 verifier fixtures, or Harbor's no-op baseline and reference solution. Results
 from running your actual agent are separate evidence of its performance.
 A valid task, a working environment, and a successful agent run are distinct
@@ -94,15 +94,15 @@ outcomes. See [Build your first evaluations](first-evals.md).
 ## Open readable cases and traces
 
 Start with the html report or the README.md for artifact paths and commands. Harbor
-tasks and recorded jobs use its native local viewer. For Gym JSONL and standalone
+tasks and recorded jobs use its native local viewer. For NeMo Gym JSONL and standalone
 ATIF, Eval Author includes an offline reader that creates a private `report.html`
 you can open directly in a browser; see [Local review](../skills/eval-author/references/local-review.md)
 for commands and supported formats.
 
-Gym reports keep model input separate from verifier and other row fields. The
+NeMo Gym reports keep model input separate from verifier and other row fields. The
 reader shows recorded messages, tool calls and results, and available rewards
 and errors, while preserving raw records and identifying missing or unsupported
-content. Select Gym records by their physical line numbers. Keep generated
+content. Select NeMo Gym records by their physical line numbers. Keep generated
 cases, source evidence, task controls, and actual-agent attempts in reports
 with their respective evidence roles; these are caller-supplied labels, not
 verified relationships.
@@ -122,7 +122,7 @@ The audit uses four artifact names consistently, regardless of review state:
 | **Audit specification** | `.eval-author/audit.md` | Intended checks and evidence requirements |
 | **Audit coverage report** | `.eval-author/audit-coverage-report.md` | Readable scope, test mappings, findings, limits, and next actions |
 | **Coverage measurements (JSON)** | `.eval-author/audit-coverage-report.json` | Generated measured results aggregated over the selected runs, when available |
-| **Audit progress** | `.eval-author/audit-progress.md` | Conversation state, selected paths, pending questions, and next action |
+| **Journey state (internal)** | `.eval-author/.working/journey-state.json` | Shared conversation state, selected paths, pending questions, and next action |
 
 Start with the Audit coverage report. It links the specification and available
 supporting evidence. A mapping to an existing test describes what that test is
@@ -194,7 +194,7 @@ behavior, issues, recoveries, and uncertainty. Review the cited trace evidence
 before treating an observation as a general pattern.
 
 The **experimental** trace-to-environment workflow writes a workspace under
-`.eval-author/trace-environments/` containing a summary and the evidence for its
+`.eval-author/.working/trace-environments/` containing a summary and the evidence for its
 candidate and validation decisions. A `no_candidate` result means the available
 evidence did not support a task.
 A generated candidate can still have an unproven environment or unresolved
@@ -207,18 +207,22 @@ coverage or validate a runnable evaluation task.
 
 ## Saved output
 
-These are typical paths relative to the repository being evaluated. An existing
-Ethos can be reused from a different location, and workflows may stop before
-producing every artifact when prerequisites are missing.
+Shared internal progress and agreed scope are stored in
+`.eval-author/.working/journey-state.json`; they are not a second report or plan.
+
+These are typical paths relative to the repository being evaluated. The shared
+prerequisite flow uses repository-root `ETHOS.md`; scoped utilities can use an explicit
+alternate path. Workflows may stop before producing every artifact when
+prerequisites are missing.
 
 | Workflow | Main outputs |
 | --- | --- |
-| First evaluations | `ETHOS.md`, `.eval-author/first-eval.md`, `.eval-author/README.md`, `.eval-author/task-drafts/`, and run results under `.eval-author/runs/` for Gym or `.eval-author/jobs/` for Harbor. Harbor suites also get `.eval-author/first-eval.yaml` when the agent integration supports it. |
+| First evaluations | `ETHOS.md`, `.eval-author/README.md`, `.eval-author/tasks/`, and run results under `.eval-author/runs/` for NeMo Gym or `.eval-author/jobs/` for Harbor. Harbor suites also get `.eval-author/run.yaml` when the agent integration supports it. |
 | Discovery and readiness | `.eval-author/discovery.md` |
 | Coverage audit | The four artifacts listed under [Coverage audits](#coverage-audits), plus supporting evidence in `.eval-author/audit-measurements/` |
 | Intake trace inspection | `.eval-author/traces/` |
-| Trace-derived environments (**experimental**) | A private, gitignored workspace per task under `.eval-author/trace-environments/`, with a root `README.md` for generated-case review and reruns; generated batches also have a collection-root guide. No-candidate outcomes do not create a suite guide. |
+| Trace-derived environments (**experimental**) | A private, gitignored workspace per task under `.eval-author/.working/trace-environments/`, with a root `README.md` for generated-case review and reruns; generated batches also have a collection-root guide. No-candidate outcomes do not create a suite guide. |
 | MLflow conversion | One `.atif.json` file per trace in the private output directory you select. |
 
-[Choose another workflow](../README.md#start-here) or review
+[Choose another workflow](../README.md#choose-your-journey) or review
 [runtime requirements](getting-started.md#requirements).

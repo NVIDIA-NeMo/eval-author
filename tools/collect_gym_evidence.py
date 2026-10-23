@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Run the credential-free native Gym panel and retain fail-closed CI evidence."""
+"""Run the credential-free native NeMo Gym panel and retain fail-closed CI evidence."""
 
 import argparse
 import hashlib
@@ -206,7 +206,7 @@ def run(output, gym_python, gym_root, gym_revision, timeout, source_root=ROOT, r
             if p.is_file() and p != summary
         }
         summary.write_text(json.dumps(report, indent=2) + "\n")
-    print(f"Gym controls: {report['status']} ({report['reason']})")
+    print(f"NeMo Gym controls: {report['status']} ({report['reason']})")
     return 0 if report["status"] == "passed" else 1
 
 

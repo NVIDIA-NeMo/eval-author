@@ -11,10 +11,11 @@ import os
 import re
 import shlex
 import stat
-import tempfile
 import tomllib
 from pathlib import Path
 from typing import Any
+
+from working_paths import scratch_directory
 
 from .fixture_compiler import (  # noqa: E402
     DECISIONS_SCHEMA,
@@ -185,22 +186,21 @@ def _write_bytes_once(path: Path, data: bytes) -> None:
     _chmod_private(path)
 
 
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    _write_text(path, json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+def _write_json(path: Path, payload: dict[str, Any], *, repo: Path | None = None) -> None:
+    _write_text(path, json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", repo=repo)
 
 
-def _write_text(path: Path, text: str) -> None:
+def _write_text(path: Path, text: str, *, repo: Path | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+    with scratch_directory(repo if repo is not None else _workspace_repo(path), prefix="trace-write-") as scratch:
+        temporary = scratch / "content"
+        with temporary.open("w", encoding="utf-8") as stream:
             stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
         _chmod_private(temporary)
         os.replace(temporary, path)
         _chmod_private(path)
-    finally:
-        temporary.unlink(missing_ok=True)
 
 
 def _load_json(path: Path, *, label: str, max_bytes: int = MAX_CANONICAL_BYTES) -> Any:
@@ -922,3 +922,10 @@ def _validate_task(task_dir: Path) -> dict[str, Any]:
 
 
 _REPAIR_RECEIPT = re.compile(r"repair-(\d+)\.json")
+
+
+def _workspace_repo(path: Path) -> Path:
+    for parent in path.resolve().parents:
+        if parent.name == ".eval-author":
+            return parent.parent
+    raise ContractError("internal writes require a .eval-author workspace")

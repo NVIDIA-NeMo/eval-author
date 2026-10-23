@@ -6,17 +6,17 @@
 
 Discovery helps the user orient themselves in an unfamiliar repository. The output
 helps a later model run the repository's evals without re-deriving how. This command
-finds the repository's Harbor and Gym artifacts and then validates them through four phases:
+finds the repository's Harbor and NeMo Gym artifacts and then validates them through four phases:
 
 1. **Probe**, using only the standard library:
     - Does the selected Harbor Python/CLI pair meet policy and discovery capabilities?
     - Can the shared locator select a compatible separate NeMo Gym Python/CLI pair?
-2. **Explore**: take stock of the inventory of Harbor and Gym tasks
+2. **Explore**: take stock of the inventory of Harbor and NeMo Gym tasks
     - Which config files and datasets exist in the repository?
     - How many tasks are there in each dataset? How many datasets?
     - Is there a common theme or pattern to the different datasets?
 3. **Judge.** Validate the contents of the inventory, each with the runtime that owns it:
-    - Harbor judges configs and datasets, after converting any Gym extension tasks
+    - Harbor judges configs and datasets, after converting any NeMo Gym extension tasks
       to Harbor tasks: schema, job resolution, agent, environment backend, CLI round
       trip, per-task validity, dropped-task coverage, and required host variables.
     - NeMo Gym judges manifests with ``gym env validate``: config, components, and
@@ -24,17 +24,17 @@ finds the repository's Harbor and Gym artifacts and then validates them through 
 4. **Solve.** Prove a sample of the evals actually runs:
     - Run up to 4 datasets and up to 4 tasks from each, picked the same way every run.
     - Harbor tasks run with Harbor's oracle agent, which needs Harbor and Docker.
-    - Gym manifests run their verifier fixture with ``gym env test``, which needs Gym.
+    - NeMo Gym manifests run their verifier fixture with ``gym env test``, which needs NeMo Gym.
     - A task runs if it finishes and earns a reward; the reward's value is advisory.
 
 Each provider's phases live under ``providers/<provider>/``. This module owns only
 argument parsing, phase order, report assembly, and the exit code.
 
-Explore runs whenever the Probe finds Harbor or Gym. Judge and Solve each run the
-half the installed runtimes allow: Harbor's half needs Harbor, and Gym's half needs
-Gym. Without Harbor, every Harbor finding is marked ``"proven": false`` and the
-report names the next steps to get Harbor working. Solve skips Gym extension tasks,
-because Gym has no runner for them yet.
+Explore runs whenever the Probe finds Harbor or NeMo Gym. Judge and Solve each run the
+half the installed runtimes allow: Harbor's half needs Harbor, and NeMo Gym's half needs
+NeMo Gym. Without Harbor, every Harbor finding is marked ``"proven": false`` and the
+report names the next steps to get Harbor working. Solve skips NeMo Gym extension tasks,
+because NeMo Gym has no runner for them yet.
 
 This skill carries no dependency of its own. Harbor is the one import beyond the
 standard library, and a repository holding Harbor evaluations has Harbor by
@@ -47,9 +47,9 @@ Usage:
     --repo PATH    Repository to inspect. Defaults to the working directory.
     --compact      Emit single-line JSON.
 
-Prints a JSON report on stdout. Converted Gym tasks and Harbor job output go to
-temporary directories that are removed before exit. The one write into the
-repository is Gym's: ``gym env test`` builds a resources server's venv at
+Prints a JSON report on stdout. Converted NeMo Gym tasks and Harbor job output go to
+temporary directories under ``.eval-author/.working/tmp`` that are removed before
+exit. NeMo Gym's ``gym env test`` also builds a resources server's venv at
 ``resources_servers/<name>/.venv``. ``SKILL.md`` tells the agent where to save the
 report.
 
@@ -67,7 +67,6 @@ import argparse
 import asyncio
 import json
 import sys
-import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -87,6 +86,7 @@ from providers.gym import _solve as gym_solve  # noqa: E402
 from providers.harbor import _probe  # noqa: E402
 from providers.harbor import _solve as harbor_solve  # noqa: E402
 from providers.harbor._explore import Dataset, RepositoryScan, scan_repository  # noqa: E402
+from working_paths import scratch_directory, working_path  # noqa: E402
 
 _SCHEMA_VERSION = 2
 _MIN_PYTHON = (3, 11)
@@ -98,7 +98,7 @@ _GYM_JUDGE_WORKERS = 8
 # Phase verdicts, then the Solve status of one dataset or manifest.
 _VALID, _INVALID, _SKIPPED = "valid", "invalid", "skipped"
 _PASSED, _FAILED, _NOT_SAMPLED = "passed", "failed", "not sampled"
-# A manifest Judge could not check because Gym itself is missing counts against Judge, unlike an ordinary skip.
+# A manifest Judge could not check because NeMo Gym itself is missing counts against Judge, unlike an ordinary skip.
 _BLOCKED = "blocked"
 
 
@@ -170,11 +170,11 @@ def _describe_dataset(dataset: Dataset, repo_root: Path) -> dict:
 
 
 def _judge_datasets(datasets: list[Dataset], described: list[dict], repo_root: Path) -> None:
-    """Convert each dataset's Gym extension tasks, then have Harbor judge every task."""
+    """Convert each dataset's NeMo Gym extension tasks, then have Harbor judge every task."""
     from providers.harbor import _judge as harbor_judge
 
     backend = harbor_judge.backend_check() if datasets else None
-    with tempfile.TemporaryDirectory(prefix="eval-author-gym-") as scratch_root:
+    with scratch_directory(repo_root, prefix="gym-conversion-") as scratch_root:
         for index, (dataset, entry) in enumerate(zip(datasets, described, strict=True)):
             label = entry["path"]
             tasks: list[harbor_judge.TaskUnderJudgment] = []
@@ -193,8 +193,8 @@ def _judge_datasets(datasets: list[Dataset], described: list[dict], repo_root: P
                             "gym-conversion",
                             "validation",
                             FAIL,
-                            "Cannot convert Gym task {}: {}".format(_display(task, repo_root), exc),
-                            hint="Fix the Gym task files this message names.",
+                            "Cannot convert NeMo Gym task {}: {}".format(_display(task, repo_root), exc),
+                            hint="Fix the NeMo Gym task files this message names.",
                         )
                     )
                     continue
@@ -213,9 +213,9 @@ def _judge_manifests(
 ) -> list[CheckResult]:
     """Have NeMo Gym validate every manifest whose data Explore found, several at a time.
 
-    Records a ``judge`` block on each entry. A manifest Gym cannot look up, or whose
+    Records a ``judge`` block on each entry. A manifest NeMo Gym cannot look up, or whose
     data is missing, is skipped with the reason, since validating it would only
-    rediscover what Explore already knows. Without a usable Gym, every manifest is
+    rediscover what Explore already knows. Without a usable NeMo Gym, every manifest is
     blocked instead, and a required check fails so the repo cannot pass unchecked.
     """
     missing = None if gym_probe.is_available(runtime) else runtime["gym_reason"]
@@ -227,7 +227,7 @@ def _judge_manifests(
                 "gym-unavailable",
                 "validation",
                 FAIL,
-                "{} Discovery could not check the repo's {} Gym manifest{}.".format(
+                "{} Discovery could not check the repo's {} NeMo Gym manifest{}.".format(
                     missing, len(manifests), "" if len(manifests) == 1 else "s"
                 ),
                 hint=gym_probe.INSTALL_HINT,
@@ -236,7 +236,7 @@ def _judge_manifests(
     ready: list[tuple[dict, gym_explore.GymManifest]] = []
     for item, entry in zip(manifests, entries, strict=True):
         if not gym_explore.is_cataloged(item):
-            reason = "Gym's catalog does not list this manifest, so Gym cannot find it by name."
+            reason = "NeMo Gym's catalog does not list this manifest, so NeMo Gym cannot find it by name."
         elif item.missing_data and item.kind == "benchmark":
             reason = "Its data is not downloaded ({}). Prepare it with `gym eval prepare --benchmark {}`.".format(
                 ", ".join(item.missing_data), item.name
@@ -270,7 +270,7 @@ def _judge_manifests(
                         "validation",
                         FAIL,
                         "NeMo Gym rejected {}: {}".format(entry["path"], run.error),
-                        hint="Reproduce it with `{}` and fix what Gym reports.".format(entry["judge"]["command"]),
+                        hint="Reproduce it with `{}` and fix what NeMo Gym reports.".format(entry["judge"]["command"]),
                     )
                 )
     if ready and not checks:
@@ -296,7 +296,7 @@ def _solve(
     """Run a sample of the judged evals end to end, each with the runtime that owns it.
 
     Picks at most ``_MAX_SOLVE_DATASETS`` datasets and manifests, sharing the picks
-    between Harbor and Gym when both have some, and at most ``_MAX_SOLVE_TASKS``
+    between Harbor and NeMo Gym when both have some, and at most ``_MAX_SOLVE_TASKS``
     tasks from each dataset. Returns the checks that belong to no dataset.
     """
     harbor_ready: list[tuple[dict, list[Path]]] = []
@@ -343,7 +343,7 @@ def _solve(
         print("solve {}/{}: {} with {}".format(started, total, label, runner), file=sys.stderr, flush=True)
 
     checks: list[CheckResult] = []
-    with tempfile.TemporaryDirectory(prefix="eval-author-solve-") as jobs_dir:
+    with scratch_directory(repo_root, prefix="discovery-solve-") as jobs_dir:
         for entry, tasks in harbor_plan:
             runs = []
             for task in tasks:
@@ -376,7 +376,9 @@ def _solve(
                 "NeMo Gym scored all {} verifier cases for {}.".format(len(cases), entry["path"])
                 if run.completed
                 else "NeMo Gym could not test {}: {}".format(entry["path"], run.error),
-                hint=None if run.completed else "Reproduce it with `{}` and fix what Gym reports.".format(reproduce),
+                hint=None
+                if run.completed
+                else "Reproduce it with `{}` and fix what NeMo Gym reports.".format(reproduce),
             )
         )
         entry["solve"] = _solve_block(
@@ -387,7 +389,7 @@ def _solve(
 
 
 def _gym_runner_checks(described: list[dict]) -> None:
-    """Note each judged dataset holding Gym extension tasks, which nothing can run as written yet.
+    """Note each judged dataset holding NeMo Gym extension tasks, which nothing can run as written yet.
 
     Advisory: the tasks pass Judge, and the user can do nothing about the missing runner.
     """
@@ -398,7 +400,7 @@ def _gym_runner_checks(described: list[dict]) -> None:
                     "gym-runner",
                     "solve",
                     WARN,
-                    "{} holds Gym extension tasks. They pass Harbor's checks once converted, "
+                    "{} holds NeMo Gym extension tasks. They pass Harbor's checks once converted, "
                     "but NeMo Gym has no runner for them yet.".format(entry["path"]),
                     severity=ADVISORY,
                     hint="Give each task a tests/test.sh so Harbor runs it as written, "
@@ -520,7 +522,7 @@ async def _main(argv: list[str] | None = None) -> int:
         description="Record whether a repository's Harbor and NeMo Gym evaluations are ready to run."
     )
     parser.add_argument("--repo", type=Path, default=Path(), help="Repository to inspect.")
-    parser.add_argument("--gym-cli", help="Exact Gym CLI selected by locate_runtime.py.")
+    parser.add_argument("--gym-cli", help="Exact NeMo Gym CLI selected by locate_runtime.py.")
     parser.add_argument("--compact", action="store_true", help="Emit single-line JSON.")
     parser.add_argument(
         "--task-max-depth",
@@ -552,12 +554,14 @@ async def _main(argv: list[str] | None = None) -> int:
     if not repo_root.is_dir():
         return _fail(
             "Not a directory: {}".format(repo_root),
-            "Pass the repository that holds your Harbor configs, Gym environments, or task directories.",
+            "Pass the repository that holds your Harbor configs, NeMo Gym environments, or task directories.",
         )
     repo_root = repo_root.resolve()
 
-    # Probe: Harbor or Gym must be installed to go further.
+    # Probe: Harbor or NeMo Gym must be installed to go further.
     try:
+        # Settle scratch ancestry before inventory so initial and resumed scans agree.
+        working_path(repo_root, "tmp", "placeholder")
         runtime = {**_probe.probe(repo_root), **gym_probe.probe(repo_root, args.gym_cli)}
     except (OSError, ValueError) as exc:
         return _fail(str(exc), "Resolve runtime declarations with locate_runtime.py before discovery.")
@@ -630,7 +634,7 @@ async def _main(argv: list[str] | None = None) -> int:
     # Judge: Harbor judges configs and datasets, NeMo Gym judges manifests, and either can run alone.
     harbor_found = bool(scan.configs or datasets)
     if not proven and not harbor_found and manifests and gym_probe.is_available(runtime):
-        # Nothing here needs Harbor: the evals are Gym manifests, and Gym is installed to judge and run them.
+        # Nothing here needs Harbor: the evals are NeMo Gym manifests, and NeMo Gym is installed to judge and run them.
         runtime_checks = [item for item in runtime_checks if item.name not in {"harbor", "harbor-cli"}]
     verdicts: list[bool] = []
     if proven and harbor_found:
@@ -642,7 +646,7 @@ async def _main(argv: list[str] | None = None) -> int:
         if not proven:
             _unproven(repository_checks)
     gym_judge_checks = _judge_manifests(manifests, manifest_entries, runtime, repo_root)
-    # A skipped manifest is left out, but a blocked one counts as failed: Gym is missing, not its data.
+    # A skipped manifest is left out, but a blocked one counts as failed: NeMo Gym is missing, not its data.
     verdicts += [
         entry["judge"]["status"] == _PASSED for entry in manifest_entries if entry["judge"]["status"] != _SKIPPED
     ]
@@ -650,7 +654,7 @@ async def _main(argv: list[str] | None = None) -> int:
         phases["judge"] = _VALID if all(verdicts) else _INVALID
 
     # Solve: run a sample of the datasets and manifests that passed Judge end to end, Harbor tasks with Harbor
-    # and Gym manifests with Gym. One failing dataset does not hold back the others; with none passing, Solve waits.
+    # and NeMo Gym manifests with NeMo Gym. One failing dataset does not hold back the others; with none passing, Solve waits.
     _gym_runner_checks(datasets)
     solve_checks: list[CheckResult] = []
     judged = [entry for entry in datasets if entry.get("_judged")] + [
@@ -681,13 +685,13 @@ async def _main(argv: list[str] | None = None) -> int:
             )
     for entry in datasets:
         entry["runnable"] = proven and not required_failures(entry["_checks"])
-        # Harbor cannot run Gym extension tasks as written, so only a plain Harbor dataset gets a run command.
+        # Harbor cannot run NeMo Gym extension tasks as written, so only a plain Harbor dataset gets a run command.
         if entry["runnable"] and not entry["formats"].keys() - {_HARBOR_FORMAT}:
             entry["run_command"] = "cd {} && harbor run -p {} -a <agent>".format(repo_root, entry["path"])
         entry["checks"] = [result.as_dict() for result in entry["_checks"]]
         entry.pop("_judged", None)
 
-    # Harbor configs and datasets need Harbor's verdict; manifests need Gym's.
+    # Harbor configs and datasets need Harbor's verdict; manifests need NeMo Gym's.
     runnable = (
         phases["explore"] == _VALID
         and phases["judge"] == _VALID

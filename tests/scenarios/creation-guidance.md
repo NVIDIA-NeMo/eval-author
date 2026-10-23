@@ -3,10 +3,10 @@
 
 # Creation guidance conversational acceptance scenarios
 
-Use this manual protocol to review ASE-1027 and ASE-1031 behavior. It is not an automated
-harness, an execution record, or a claim of passing evaluation. Use isolated
-synthetic workspaces with the sibling skills available, without customer data,
-production services, provider credentials, or paid model calls. Retain reply
+Use this manual protocol to review evaluation creation and source selection.
+It is not an automated harness, an execution record, or a claim of passing
+evaluation. Use isolated synthetic workspaces with the sibling skills available,
+without customer data, production services, provider credentials, or paid model calls. Retain reply
 channels, user answers, tool and delegation logs, and resulting artifacts. Check
 what the agent did, not only what its final answer says.
 
@@ -21,18 +21,18 @@ candidates in a named README: `traces/recent/`, `traces/archive/`, and a small
 scores. Counts in the README are claims to verify after selection, not evidence
 that every record is available or usable.
 
-For fresh starts, request first evals and follow the normal opening and milestone
+For fresh starts, request first evals and follow the shared entry and milestone
 check-ins. For staged tests, supply explicit conversation history showing the
-opening accepted, Ethos reviewed, selected-runtime readiness checked or explicitly deferred,
+shared prerequisites confirmed, Ethos reviewed, selected-runtime readiness verified,
 and the user's statement that no evals exist. State which milestone transition
 was answered and which source or scope choice remains open. File presence alone
 does not establish this history or runtime readiness. Reuse applicable history
 without restarting onboarding.
 
-At each checkpoint inspect the five-step checklist, current stage, unfinished
+At each checkpoint inspect the three-item checklist, current stage, unfinished
 work, and next question. Unanswered scope choices must stop fixture, instruction,
 and grader generation, including delegated work. Save decisions and progress in
-`.eval-author/first-eval.md`; audit-based proposals use
+the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json`; audit-based proposals use
 `.eval-author/proposals/dataset-recommendations.md`. Keep plans, task validation,
 actual agent performance, and measured coverage as separate claims. If execution
 is unavailable, exercise the partial-completion path; do not invent run evidence.
@@ -88,8 +88,7 @@ missing. Increasing attempts does not increase distinct-example counts; neither
 renaming an example nor reusing it under another behavior increases the unique
 total. A broad plan is not silently reduced to the pilot without this answer.
 Repeat with the cost preference and two-example scope already agreed in the
-conversation: the agent applies them and continues authorized preparation,
-without repeating the priorities question or adding another approval loop.
+conversation: the agent applies them to the preparation work.
 
 ## 3. Pilot, then meaningful expansion
 
@@ -129,8 +128,10 @@ excluded source or fabricating observed examples.
 **A — no traces:** At source selection, answer: “There are no traces. Use Ethos
 and synthetic examples.” Planning continues without a trace hunt or manufactured
 coverage report. The plan records the choice and marks examples as synthetic.
-Missing the selected runtime can leave a useful plan complete while scaffolding
-is blocked. Report prerequisites for the user's selected setup.
+For an explicitly requested planning-only variant, the selected runtime may be
+absent: keep the work scoped to the plan and do not scaffold or mark full
+authoring onboarding complete. A full creation or improvement request instead
+pauses before Ethos when the selected runtime is missing or incompatible.
 
 **B — question detour:** At the scope checkpoint, ask: “Explain why a repeated
 attempt is not another input example.” The agent answers, preserves existing
@@ -157,6 +158,13 @@ the missing work is resolved, the final reconciliation accounts for all examples
 their expected outcomes, checks, actual run evidence or remaining execution
 limits, and exclusions. Low agent scores are not hidden or changed into passes.
 
+**Acceptance and documentation variant:** Finish task README setup/run instructions
+before preparing the revision-bound controls and baseline evidence. Record Accepted
+only after reviewing evidence for that finalized revision. Update the outer suite
+README and report with results; task bytes and Accepted status remain unchanged.
+An optional Helix export goes outside the task tree and needs its own validation.
+An actual task edit still returns it to Draft until its revised evidence is reviewed.
+
 **Audit-based variant:** Supply reviewed audit/proposal history, a selected
 corpus, an eligible measured tool gap, and a request to create its task. Inspect
 the creation scope checkpoint and saved recommendations. One example with two
@@ -166,10 +174,10 @@ example work outside the generator's support stays explicitly pending. Repeat
 as a proposal-only request: recommendations remain provisional, with no creation
 checkpoint imposed, scaffolding, or execution.
 
-**Gym counting variant:** Use a Gym draft with four distinct selected dataset
+**NeMo Gym counting variant:** Use a NeMo Gym draft with four distinct selected dataset
 rows, one agent configuration, and two repeats per row. The scope review records
 one draft, four distinct examples, and eight planned agent executions. It must
-not apply Harbor task-attempt counts to the whole Gym draft or count repeats as
+not apply Harbor task-attempt counts to the whole NeMo Gym draft or count repeats as
 new examples. Provider selection and row selection precede the final cost estimate.
 
 ## Recorded walkthrough — 2026-09-28
@@ -180,6 +188,9 @@ not a paid model evaluation or proof of real-agent performance. The repository
 test suite separately passed 637 tests with 7 skips: three need a running Docker
 backend, one needs the optional Ethos plugin, one needs live model authorization,
 and two need extended-attribute support.
+
+This historical walkthrough predates the requirement to verify the selected
+runtime before full creation or improvement onboarding proceeds to Ethos.
 
 The walkthrough's README named `runs/selected/records.json` and
 `runs/archive/records.json`; an old note claimed 200 selected records. Its Ethos
@@ -206,7 +217,7 @@ Observed checkpoints and artifact changes:
    labeled 200 as unverified, and stopped without opening either export.
 2. The user selected all records actually present in the selected file and
    excluded every other source. The agent inspected eight records, saved IDs
-   and the source hash in `first-eval.md`, and reported eight rather than 200.
+   and the source hash in the shared journey state, and reported eight rather than 200.
    It proposed seven labeled examples and kept s8 pending; no tasks existed.
 3. The user chose s1/s4 as a two-example pilot, with one task and one attempt per
    example, and made cost a budget priority rather than a score. The agent
@@ -263,26 +274,27 @@ own skill contract checks passed. No live model evaluation was performed.
 ## Consistent provider selection
 
 **Start:** Supply the support agent with reviewed Ethos, no evals, no traces,
-and a working native Gym installation. Explicitly request Gym first evals.
+and a working native NeMo Gym installation. Explicitly request NeMo Gym first evals.
 Answer the existing milestone and scope questions.
 
-**Inspect:** The agent honors the choice, verifies Gym, and prepares native
+**Inspect:** The agent honors the choice, verifies NeMo Gym, and prepares native
 manifest, component, dataset, and verifier files with no audit report. Native
 validation and positive/negative controls remain separate from actual agent
 execution. A missing actual-agent integration is reported as a blocker, never
-replaced by a passing run of Gym's example agent. The suite README retains Gym
+replaced by a passing run of NeMo Gym's example agent. The suite README retains NeMo Gym
 commands, selected rows, agreed attempts, and fresh result paths.
 
 **Provider matrix:** Exercise the same selection cases for first-eval,
 audit-derived task creation with an eligible synthetic gap, and trace-derived
 creation with an eligible synthetic trace:
 
-- Explicit Gym or Harbor: honor the choice even when the existing suite differs.
-- No explicit choice, existing Gym or Harbor suite: preserve that provider.
-- No explicit choice or existing suite: default to Harbor, even for Gym traces.
-- Selected runtime missing: retain useful planning and report the setup need;
-  do not silently switch providers because another runtime is installed.
-- User selects Gym with Harbor: recognize compatibility, record each tool's role,
+- Explicit NeMo Gym or Harbor: honor the choice even when the existing suite differs.
+- No explicit choice, existing NeMo Gym or Harbor suite: preserve that provider.
+- No explicit choice or existing suite: default to Harbor, even for NeMo Gym traces.
+- Selected runtime missing or incompatible: preserve progress and report the setup
+  need without switching providers. Full creation or improvement onboarding stops
+  before Ethos with **Blockers**; explicit planning-only requests retain their scope.
+- User selects NeMo Gym with Harbor: recognize compatibility, record each tool's role,
   and check the requirements of that setup.
 
 For Harbor, retain native scaffolding and NOP/Oracle checks. For a mixed suite,
@@ -317,10 +329,10 @@ target-agent settings and native verifier results; the low agent score remains.
 Raw rewards and exceptions are preserved while infrastructure failures,
 blocked/missing trials and agent-quality failures are explained separately.
 
-Repeat the blocked variant with a native Gym suite. The reports lead with
-**Diagnostic only — Gym evaluation incomplete**, preserve rollout failure reasons
+Repeat the blocked variant with a native NeMo Gym suite. The reports lead with
+**Diagnostic only — NeMo Gym evaluation incomplete**, preserve rollout failure reasons
 and health records, and do not substitute a Harbor run or local grader for the
-requested Gym rollouts.
+requested NeMo Gym rollouts.
 
 This scenario tests recovery and reporting, not an allegation that the author
 fabricated application outputs. Static checks of this file do not establish

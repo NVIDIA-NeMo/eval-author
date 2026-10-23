@@ -215,6 +215,7 @@ def test_qualification_without_legacy_skill_or_workspace_orchestration(tmp_path)
     expected = helpers.validate(root, jobs)
     installed = tmp_path / "installed"
     shutil.copytree(ROOT / "skills/eval-author/scripts/eval_author_shared", installed / "eval_author_shared")
+    shutil.copy2(ROOT / "skills/eval-author/scripts/working_paths.py", installed / "working_paths.py")
     script = r"""
 import json, sys
 from pathlib import Path
@@ -378,3 +379,40 @@ def test_historical_trace_size_bound_and_cli_validation(tmp_path):
     helpers.save(path, value)
     with pytest.raises(construction.PlanError, match="size limit"):
         construction.load(path)
+
+
+@pytest.mark.parametrize("marker", ["{", "[" * 2000 + "0" + "]" * 2000, "null"], ids=["truncated", "nested", "null"])
+def test_malformed_active_marker_keeps_check_and_batch_structured(tmp_path, marker):
+    import argparse
+
+    from eval_author_shared import trace_workspace
+
+    helpers, root, _ = fresh_workspace(tmp_path)
+    value = construction.from_trace(root)
+    for requirement in value["requirements"]:
+        requirement["authority"] = {"basis": "specification", "reference": "Synthetic public requirement"}
+    contract = root / "private/active.json"
+    helpers.save(contract, value)
+    construction.activate(root, contract)
+    (root / "private/active-construction.json").write_text(marker)
+    summary = json.loads((root / "summary.json").read_text())
+    summary["status"] = "candidate"
+    helpers.save(root / "summary.json", summary)
+    trace_workspace._init(argparse.Namespace(root=root.parent, task_id="other-member"))
+    checked = trace_workspace._check(argparse.Namespace(task_dir=root))
+    assert checked["valid"] is False
+    assert checked["errors"]
+    manifest = root.parent / "batch.json"
+    helpers.save(
+        manifest,
+        {
+            "schema": trace_workspace.BATCH_SCHEMA,
+            "members": [
+                {"task_id": name, "atif": "unused.json", "source_kind": "atif"}
+                for name in [root.name, "other-member", "missing-member"]
+            ],
+        },
+    )
+    batch = trace_workspace._batch_status(argparse.Namespace(root=root.parent, manifest=manifest))
+    assert batch["counts"] == {"invalid": 1, "pending_unprepared": 1, "missing": 1}
+    assert len(batch["members"]) == 3

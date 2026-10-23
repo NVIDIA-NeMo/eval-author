@@ -42,7 +42,7 @@ fail.
 
 Name and describe each task by the behavior it actually tests. When a case
 changes while it is built, for example because the planned failure does not
-occur in the data, rename it and record the change in the plan and case
+occur in the data, rename it and record the change in shared scope and case
 inventory as a scope change. Task-create's slug is fixed by its selected gap, so
 there the draft must keep exercising that gap.
 
@@ -119,8 +119,12 @@ not resolve it. Fix confirmed defects under the existing revision/repair workflo
 
 Use `eval-author-task-create/scripts/task_evidence.py` with Python 3.11+; Harbor
 preparation also needs the same Harbor Python runtime used for execution. Finish
-the task, verifier, control implementations, and any result adapter before
-preparing evidence. Keep those files inside the task tree. Keep receipts, jobs,
+the task, verifier, control implementations, any result adapter, and the task
+README's setup and run instructions before preparing evidence. Keep those files
+inside the task tree. Put later results, evidence links, and rerun summaries in
+the outer suite README and report. A task-file edit requires evidence for that
+revised task before acceptance; recording a new status cannot make stale receipts
+current. Keep receipts, jobs,
 converted traces, and measurement outputs outside that tree under `.eval-author/`.
 
 Write a private contract identifying the task and native result checks. Each
@@ -171,7 +175,7 @@ For example, a Harbor contract begins:
 Inspect the installed runtime's actual result shape before choosing pointers.
 For Harbor, retain the trial's native `result.json`: the recorder additionally
 checks its task checksum and absence of exceptions against the prepared task.
-For Gym, use the maintained [native Gym evidence adapter](../../eval-author-task-create/references/gym-evidence.md).
+For NeMo Gym, use the maintained [native NeMo Gym evidence adapter](../../eval-author-task-create/references/gym-evidence.md).
 It reads native verifier-case reports separately from rollout JSONL and health
 artifacts; authors do not implement a result adapter. Prepare the selected dataset
 row, resolved configuration, runtime record, and reset plan before recording.
@@ -181,7 +185,7 @@ attest a remote service's deployed source.
 
 ```bash
 python <task_create_dir>/scripts/task_evidence.py prepare \
-  --task-dir .eval-author/task-drafts/cover-read \
+  --task-dir .eval-author/tasks/cover-read \
   --contract .eval-author/task-measurements/cover-read/contract.json \
   --construction-plan .eval-author/task-measurements/cover-read/construction-plan.json \
   --out .eval-author/task-measurements/cover-read/revision-1.json
@@ -209,14 +213,14 @@ python <task_create_dir>/scripts/task_evidence.py run \
   --case reference --run-id reference-1 \
   --result "$TRIALS/reference-1/result.json" \
   --out .eval-author/task-measurements/cover-read/reference-1.json \
-  -- harbor trial start -p .eval-author/task-drafts/cover-read -a oracle \
+  -- harbor trial start -p .eval-author/tasks/cover-read -a oracle \
   --trial-name reference-1 --trials-dir "$TRIALS"
 ```
 
 The command must produce the declared result. `harbor trial start` writes the
 trial's `result.json` and `agent/trajectory.json` under its `--trials-dir` and
 `--trial-name`, so they can be the declared `--result` and `--trace` without a
-copying wrapper; Harbor jobs name their trials randomly. Gym uses the maintained
+copying wrapper; Harbor jobs name their trials randomly. NeMo Gym uses the maintained
 adapter described above. The recorder runs argv directly without adding a shell
 and uses the current directory. Put wrappers and control sources in the prepared
 task tree, and pass the actual selected task/configuration. Never copy old job
@@ -227,7 +231,7 @@ environment, which the recorder forwards to the command; never put secret values
 in arguments such as Harbor's `--ae KEY=VALUE`.
 
 Run every declared control. For first-eval, recording the agent baseline is
-optional: each Gym manifest binds one dataset row and every receipt needs fresh
+optional: each NeMo Gym manifest binds one dataset row and every receipt needs fresh
 native output, so per-case baseline receipts multiply model runs. Retain the
 suite-level baseline run as native evidence instead. A recorded first-eval
 baseline uses `--purpose baseline`; it allows one attempt without ATIF and cannot

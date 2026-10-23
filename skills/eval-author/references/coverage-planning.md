@@ -4,11 +4,11 @@
 # Agree on the corpus and coverage
 
 Read this when planning first evals or proposing and creating additional coverage.
-Use the calling flow's existing plan: `.eval-author/first-eval.md` for a starter
-suite and its expansion, or `.eval-author/proposals/dataset-recommendations.md`
-for audit-based proposals. Keep one current agreement there, with links to any
-source manifest and case inventory. A proposal is provisional until the user
-settles its open choices; it is not permission to generate or run evaluations.
+Keep the current agreement in [shared workflow state](shared-prerequisites.md#save-and-resume),
+with links to any source manifest and case inventory. Audit-based proposals
+remain in `.eval-author/proposals/dataset-recommendations.md`.
+A proposal is provisional until the user settles its open choices; it is not
+permission to generate or run evaluations.
 
 ## Select trace evidence before using it
 
@@ -29,7 +29,7 @@ If inspection reveals materially different contents, unavailable inputs, or a
 need for another source, explain the change and settle the affected choice
 before using a substitute. Independent Ethos-based planning can continue.
 
-Record in the plan:
+Record in the selected journey scope:
 
 - Selected source paths or export identifiers, inclusion filters, time window
   or snapshot when relevant, and excluded sources; retain the user's selection.
@@ -55,12 +55,12 @@ Explain the counting units before discussing scope:
   file does not create another example. Preserve stable IDs and explain any
   transformation that makes a new example meaningfully different.
 - A **task** packages instructions, environment, and grading. A Harbor task can
-  exercise one example or several; a Gym draft can contain several dataset rows.
+  exercise one example or several; a NeMo Gym draft can contain several dataset rows.
   Map examples to the selected runner's tasks or rows; a draft count alone says
   little about breadth. An example reused across behaviors can appear in each
   behavior's mapping but counts once in the suite's unique total.
 - An **attempt** repeats an execution unit to observe variability: a Harbor task
-  or a selected Gym dataset row. Repeats and verifier controls do not add
+  or a selected NeMo Gym dataset row. Repeats and verifier controls do not add
   distinct examples or new scenarios.
 
 For each behavior, save a compact table or list containing:
@@ -118,7 +118,7 @@ distinct examples, task/draft count, and repeat settings separately:
 - For Harbor tasks indexed by `t`, planned agent trials are `sum(attempts[t])`;
   example executions are `sum(examples[t] * attempts[t])` when each task runs all
   its examples. State sampling or early-exit behavior if that assumption is false.
-- For Gym, count rollouts over the selected dataset rows and their configured
+- For NeMo Gym, count rollouts over the selected dataset rows and their configured
   repeats. One draft with four selected rows and two repeats means eight agent
   executions for one agent configuration, not two. Duplicate rows or repeated
   rollouts do not increase the distinct-example count.
@@ -156,7 +156,7 @@ the user already chose lower cost, say how the plan reflects that and invite
 changes to the specific remaining tradeoff; do not restart a preference interview
 or imply that cost must take priority. This is the existing scope checkpoint,
 not another approval step after an agreed plan. Put the explanation and feedback
-invitation in the review reply, even when they also appear in the saved plan.
+invitation in the review reply, even when they also appear in the saved scope in journey state.
 
 Wait for unresolved scope choices, incorporate feedback in the saved
 agreement, then generate the agreed cases. Before the first generation or
@@ -188,4 +188,4 @@ counts and attempts. Name omissions, substitutions, blocked work, and remaining
 gaps; a smaller delivered subset does not rewrite the agreement. Verification
 of one tool in repeated trials proves only that limited closure, not the full
 behavior scope. Keep the checklist honest about unfinished work and identify
-the next action from the saved plan.
+the next action from the saved scope in journey state.

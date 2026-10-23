@@ -47,7 +47,7 @@ specification,” “draft specification,” or “audit report.” In surroundi
 Call the generated aggregate **Coverage measurements (JSON)**
 (`audit-coverage-report.json`), keeping it distinct from the Markdown report even
 though their filename stems match. Link it only when it exists. **Audit progress**
-(`audit-progress.md`) records workflow state and is not a findings report.
+(`.working/journey-state.json`) records workflow state and is not a findings report.
 
 For example after creating the report and validating a draft:
 
@@ -154,11 +154,11 @@ link it, and walk through the main findings, evidence limits, and next actions.
 Ask for corrections or agreement and wait. Keep **Generate and review coverage
 report** incomplete while that review is pending; resolve requested corrections
 before completing it. Reuse an answered review. Record conversational review
-state in `audit-progress.md`.
+state in `.working/journey-state.json`.
 
 Every turn-ending response after creating or updating the report must call out
 that write and link it, including earlier specification and measurement
-check-ins. At the specification check-in, follow the [guided review](guided-audit.md#3-define-what-the-evals-should-cover):
+check-ins. At the specification check-in, follow the [guided review](guided-audit.md#2-define-what-the-evals-should-cover):
 explain both artifacts, preview the intended checks, and point directly to the
 complete **Intended coverage** section before requesting agreement. Keep that
 scope decision separate from the later review of findings and next actions.

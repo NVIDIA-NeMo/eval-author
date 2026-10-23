@@ -26,7 +26,7 @@ inspect-trace's privacy commands before handing its content to construction.
 This local-file path does not require Intake credentials or a CLI connection.
 
 ```bash
-python <inspect_trace_dir>/scripts/trace_privacy.py init --root .eval-author/trace-inputs --task-id <id>
+python <inspect_trace_dir>/scripts/trace_privacy.py init --root .eval-author/.working/trace-inputs --task-id <id>
 python <inspect_trace_dir>/scripts/trace_privacy.py prepare --task-dir <workspace> --atif <source> --source-kind atif
 python <inspect_trace_dir>/scripts/trace_privacy.py audit-evidence --task-dir <workspace>
 python <inspect_trace_dir>/scripts/trace_privacy.py review-privacy --task-dir <workspace> \
@@ -110,13 +110,16 @@ actual disposition and check the complete workspace:
 
 ```bash
 python <task_create_dir>/scripts/task_evidence.py workspace finalize \
-  --task-dir <workspace> --status <candidate|no_candidate>
+  --task-dir <workspace> --status <candidate|no_candidate> [--human-reviewed]
 python <task_create_dir>/scripts/task_evidence.py workspace check --task-dir <workspace>
 ```
 
-Resolve reported errors before publication. Finalization records measured status;
-it does not turn unrun or failed qualification into success. Gym uses its native
-reporting handoff instead of these Harbor finalization/export commands.
+Pass `--human-reviewed` only after an actual human review; finalization cannot be
+repeated to add that review later. Resolve reported errors before publication.
+Finalization records measured status;
+it does not turn unrun or failed qualification into success. Gym candidates use their
+native reporting handoff instead of these Harbor finalization/export commands; a Gym
+`no_candidate` still uses shared no-candidate finalization and `check`.
 
 ## Optional publication
 
@@ -134,8 +137,8 @@ selected-source denominator, including blocked and rejected sources. Pass the
 same root used at initialization; the compatibility default is a different path:
 
 ```bash
-python <inspect_trace_dir>/scripts/trace_privacy.py batch-prepare --manifest <manifest.json> --root .eval-author/trace-inputs
-python <inspect_trace_dir>/scripts/trace_privacy.py batch-status --manifest <manifest.json> --root .eval-author/trace-inputs
+python <inspect_trace_dir>/scripts/trace_privacy.py batch-prepare --manifest <manifest.json> --root .eval-author/.working/trace-inputs
+python <inspect_trace_dir>/scripts/trace_privacy.py batch-status --manifest <manifest.json> --root .eval-author/.working/trace-inputs
 ```
 
 Raw source paths and evidence remain private.

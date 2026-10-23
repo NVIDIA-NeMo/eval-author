@@ -6,8 +6,9 @@
 
 Python 3.11+, jsonschema, and markdown-it-py are required. Discovery is the shared file-only
 search, not the readiness workflow. Only selected local files are read. The
-report's embedded JSON retains reporting metadata; native evidence and task
-README sections remain authoritative. No separate state file is written.
+internal report snapshot retains reporting metadata and the last inventory;
+HTML and Markdown are projections. Native evidence and task README sections
+remain authoritative for their contents.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ import sys
 import tempfile
 import tomllib
 from contextlib import contextmanager
+from copy import deepcopy
 from datetime import datetime, timezone
 from html import escape
 from html.parser import HTMLParser
@@ -35,7 +37,10 @@ from urllib.parse import quote
 
 # Isolated Python invocations must resolve the bundled sibling, never cwd code.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from search_tasks import search_tasks  # noqa: E402
+from journey_state import load_state, task_lifecycle  # noqa: E402
+from journey_state import state_path as journey_state_path
+from search_tasks import search_tasks, within_task_scope  # noqa: E402
+from working_paths import working_path  # noqa: E402
 
 MAX_FILE_BYTES = 8 * 1024 * 1024
 MAX_REPORT_BYTES = 32 * 1024 * 1024
@@ -109,6 +114,12 @@ TASK_SCHEMA = obj(
         "status": {"enum": ["found", "unverified"]},
         "issues": array(TEXT),
     }
+)
+# Older v1 snapshots lack readiness. Refresh always derives it from journey state;
+# retained HTML, report metadata, and inventory status cannot establish acceptance.
+TASK_SCHEMA["properties"].update(
+    readiness={"enum": ["draft", "accepted", "unknown"]},
+    readiness_reason=TEXT,
 )
 ATTEMPT_SCHEMA = obj(
     {
@@ -261,6 +272,27 @@ def previous_report(path: Path) -> tuple[dict | None, bytes | None]:
     return payload, content
 
 
+def projection_version(path: Path) -> bytes | tuple[int, int, int, int] | None:
+    """Detect projection edits without loading an oversized disposable HTML file."""
+    if not path.exists():
+        return None
+    info = path.stat()
+    if info.st_size > MAX_REPORT_BYTES:
+        return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
+    return read_bytes(path, MAX_REPORT_BYTES)
+
+
+def previous_snapshot(path: Path, output: Path) -> tuple[dict | None, bytes | None, bytes | tuple | None]:
+    """Import legacy HTML once; subsequent refreshes trust only internal state."""
+    if not path.exists():
+        previous, html = previous_report(output)
+        return previous, None, html
+    raw = read_bytes(path, MAX_REPORT_BYTES)
+    previous = decode_json(raw)
+    validate(previous, REPORT_SCHEMA)
+    return previous, raw, projection_version(output)
+
+
 def readme_sections(text: str) -> dict[str, str | None]:
     """Read exact H2 sections; ignore headings in fenced code and reject duplicates."""
     names = ("Behavior under test", "Expected result")
@@ -332,7 +364,7 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
         search = search_tasks(root, provider="both", max_depth=max_depth, max_entries=max_entries)
         complete &= search["search"]["complete"]
         for exclusion in search["search"]["excluded"]:
-            if exclusion["reason"] == "nested-repository":
+            if exclusion["reason"] in {"nested-repository", "internal-or-legacy-artifacts"}:
                 excluded.add((root / exclusion["path"]).relative_to(repo).as_posix())
         for item in search["candidates"]:
             source = root / item["path"]
@@ -349,7 +381,7 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
             readme_html = None
             readme = directory / "README.md"
             if item["provider"] == "gym":
-                # Native Gym scaffolds keep the task README above environments/<name>.
+                # Native NeMo Gym scaffolds keep the task README above environments/<name>.
                 for parent in [directory, *directory.parents]:
                     if parent in {repo, repo / ".eval-author"}:
                         break
@@ -357,7 +389,7 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
                     if candidate.exists():
                         readme = candidate
                         break
-                issues.append("Gym workload candidate; native validation has not been run.")
+                issues.append("NeMo Gym workload candidate; native validation has not been run.")
             readme_path = readme.relative_to(repo).as_posix()
             if readme.exists():
                 try:
@@ -411,6 +443,48 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
     )
 
 
+def apply_task_readiness(repo: Path, tasks: list[dict]) -> list[str]:
+    """Project workflow acceptance without modifying task files or saved decisions."""
+    if not tasks:
+        return []
+    state = None
+    reason = "No task acceptance has been recorded."
+    warnings = []
+    try:
+        path = journey_state_path(repo)
+        if path.exists():
+            state = load_state(repo)
+    except (OSError, ValueError, TypeError, KeyError):
+        reason = "Shared workflow state is unavailable or invalid; task readiness is unknown."
+        warnings.append(reason)
+    for task in tasks:
+        try:
+            result = (
+                task_lifecycle(repo, state, task["path"])
+                if state is not None
+                else {"status": "unknown", "reason": reason}
+            )
+        except ValueError:
+            # Inventory supports a root task ("."); lifecycle records do not.
+            result = {"status": "unknown", "reason": "Task readiness is unavailable for this inventory path."}
+        task["readiness"] = result["status"]
+        task["readiness_reason"] = result["reason"]
+    return warnings
+
+
+def within_run_scope(path: Path, root: Path) -> bool:
+    """Exclude private working evidence unless selected, retaining historical runs."""
+    if not path.is_relative_to(root):
+        return False
+    return not any(
+        parent.name == ".working"
+        and parent.parent.name == ".eval-author"
+        and parent != root
+        and parent.is_relative_to(root)
+        for parent in (path, *path.parents)
+    )
+
+
 def run_files(repo: Path, roots: list[str], max_depth: int, max_entries: int) -> tuple[list[Path], bool]:
     """Bounded result/config inventory; do not follow links or nested checkouts."""
     files: set[Path] = set()
@@ -445,7 +519,7 @@ def run_files(repo: Path, roots: list[str], max_depth: int, max_entries: int) ->
                         continue
                     path = Path(entry.path)
                     if stat.S_ISDIR(info.st_mode) and entry.name not in excluded:
-                        if (path / ".git").exists():
+                        if (path / ".git").exists() or not within_run_scope(path, root):
                             continue
                         rel = path.relative_to(root)
                         if len(rel.parts) > max_depth:
@@ -691,7 +765,7 @@ def metadata_for(
     previous: dict | None, patch: dict, task_roots: list[str] | None, jobs_roots: list[str] | None
 ) -> dict:
     metadata: dict[str, Any] = (
-        previous["metadata"]
+        deepcopy(previous["metadata"])
         if previous
         else {
             "task_roots": ["."],
@@ -774,8 +848,8 @@ def render_markdown(data: dict) -> str:
                 [
                     "### " + markdown_text(parent.removeprefix(".eval-author/")),
                     "",
-                    "| Test case / grading | Behavior | Expected outcome | Actions |",
-                    "| --- | --- | --- | --- |",
+                    "| Test case / grading | Status | Behavior | Expected outcome | Actions |",
+                    "| --- | --- | --- | --- | --- |",
                 ]
             )
         grading = "Verifier not documented" if task["grading_kind"] == "unknown" else task["grading_kind"]
@@ -787,7 +861,7 @@ def render_markdown(data: dict) -> str:
             route = "task-definitions/" + quote(PurePosixPath(task["path"]).name, safe="")
             actions = [f"[View task](http://127.0.0.1:8081/{route})"]
         elif task["status"] == "found":
-            actions = [artifact_link("Gym source", task["path"])]
+            actions = [artifact_link("NeMo Gym source", task["path"])]
         else:
             actions = [artifact_link("Review saved artifacts", task["path"])]
         if task["readme_html"] is None:
@@ -798,6 +872,9 @@ def render_markdown(data: dict) -> str:
             actions.append(artifact_link("Task README", task["readme_path"]))
         cells = [
             "<br>".join(markdown_text(part) for part in name),
+            markdown_text(task.get("readiness", "unknown").capitalize())
+            + "<br>"
+            + markdown_text(task.get("readiness_reason", "No task acceptance has been recorded.")),
             markdown_text(task["behavior"] or "Not documented"),
             markdown_text(task["expected_outcome"] or "Not documented"),
             "<br>".join(actions),
@@ -912,11 +989,15 @@ def refresh(
     output = local(repo, ".eval-author/report.html")
     markdown_output = local(repo, ".eval-author/README.md")
     output.parent.mkdir(exist_ok=True)
-    lock = local(repo, ".eval-author/.report.lock")
+    try:
+        state_path = working_path(repo, "report", "state.json")
+        lock = working_path(repo, "report", ".report.lock")
+    except ValueError as exc:
+        raise ReportError(str(exc)) from exc
     with report_lock(lock):
         temporary_files = []
         try:
-            previous, old_bytes = previous_report(output)
+            previous, old_state, old_bytes = previous_snapshot(state_path, output)
             old_markdown = read_bytes(markdown_output, MAX_REPORT_BYTES) if markdown_output.exists() else None
             metadata = metadata_for(previous, patch or {}, task_roots, jobs_roots)
             tasks, tasks_complete, excluded = collect_tasks(repo, metadata, max_depth, max_entries)
@@ -926,6 +1007,15 @@ def refresh(
             job_paths = {run["path"] for run in runs}
             owned_trials = job_paths | {attempt["path"] for run in runs for attempt in run["attempts"]}
             warnings = []
+            for directory in excluded:
+                if Path(directory).name != "task-drafts" or any(
+                    Path(root).is_relative_to(Path(directory)) for root in metadata["task_roots"]
+                ):
+                    continue
+                warnings.append(
+                    f"Legacy task directory {directory} is excluded. To review or resume its retained tasks "
+                    f"without moving bound evidence, refresh with --task-root {directory}."
+                )
             for records, key, complete in [
                 (tasks, "tasks", tasks_complete),
                 (runs, "runs", runs_complete),
@@ -936,13 +1026,15 @@ def refresh(
                     warnings.append(f"{label} inventory is incomplete; retained entries may be unverified.")
                 current = {r["path"] for r in records}
                 roots = metadata["task_roots" if key == "tasks" else "jobs_roots"]
+                within_scope = within_task_scope if key == "tasks" else within_run_scope
                 for old in (previous or {}).get(key, []):
                     if key == "standalone_trials" and old["path"] in owned_trials:
                         continue
-                    in_scope = any(PurePosixPath(old["path"]).is_relative_to(PurePosixPath(root)) for root in roots)
+                    in_scope = any(within_scope(Path(old["path"]), Path(root)) for root in roots)
                     if old["path"] not in current and in_scope and not complete:
                         issues = sorted(set(old["issues"] + ["Source artifacts were not found in this scan."]))
                         records.append({**old, "status": "unverified", "issues": issues})
+            warnings.extend(apply_task_readiness(repo, tasks))
             tasks.sort(key=task_sort)
             runs.sort(key=run_sort)
             standalone_trials.sort(key=run_sort)
@@ -965,14 +1057,35 @@ def refresh(
             markdown_content = update_markdown(old_markdown, render_markdown(data))
             if max(len(content), len(markdown_content)) > MAX_REPORT_BYTES:
                 raise ReportError("Report exceeds the bounded output size; select smaller artifact roots.")
-            outputs = [(markdown_output, markdown_content, old_markdown), (output, content, old_bytes)]
-            # Prepare both projections before publishing either; a later refresh repairs
-            # an interrupted pair even when the HTML itself has not changed.
+            state_content = (
+                json.dumps(data, ensure_ascii=True, sort_keys=True, indent=2, allow_nan=False) + "\n"
+            ).encode()
+            if len(state_content) > MAX_REPORT_BYTES:
+                raise ReportError("Report state exceeds the bounded output size; select smaller artifact roots.")
+            outputs = [
+                (state_path, state_content, old_state),
+                (markdown_output, markdown_content, old_markdown),
+                (output, content, old_bytes),
+            ]
+            if old_state is None and previous is not None:
+                try:
+                    imported_path = working_path(repo, "report", "legacy-import.json")
+                except ValueError as exc:
+                    raise ReportError(str(exc)) from exc
+                if not imported_path.exists():
+                    imported = (
+                        json.dumps(previous, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n"
+                    ).encode()
+                    if len(imported) > MAX_REPORT_BYTES:
+                        raise ReportError("Legacy report snapshot exceeds the bounded output size.")
+                    outputs.insert(0, (imported_path, imported, None))
+            # Prepare every file before publishing. Preserve any import, then commit
+            # state before projections; a refresh repairs an interrupted publication.
             for destination, rendered, old in outputs:
                 if rendered == old:
                     continue
                 with tempfile.NamedTemporaryFile(
-                    dir=output.parent, prefix=".report-", suffix=".tmp", delete=False
+                    dir=state_path.parent, prefix=".report-", suffix=".tmp", delete=False
                 ) as stream:
                     temporary = Path(stream.name)
                     temporary_files.append((temporary, destination))
@@ -980,7 +1093,14 @@ def refresh(
                     stream.flush()
                     os.fsync(stream.fileno())
             for destination, _, old in outputs:
-                if (read_bytes(destination, MAX_REPORT_BYTES) if destination.exists() else None) != old:
+                current = (
+                    projection_version(destination)
+                    if destination == output
+                    else read_bytes(destination, MAX_REPORT_BYTES)
+                    if destination.exists()
+                    else None
+                )
+                if current != old:
                     raise ReportError("Report changed during refresh; retry without overwriting concurrent edits.")
             for temporary, destination in temporary_files:
                 os.replace(temporary, destination)
