@@ -316,6 +316,73 @@ def test_audit_without_authoring_provider_cannot_establish_authoring_readiness(s
     assert state.checklist(ready)[0]["complete"]
 
 
+@pytest.mark.parametrize("provider", ["gym", "harbor"])
+@pytest.mark.parametrize("journey", ["create", "expand"])
+@pytest.mark.parametrize("audit_status", ["in_progress", "complete"])
+@pytest.mark.parametrize("state_only", [False, True])
+@pytest.mark.parametrize("separate_selection", [False, True])
+def test_first_authoring_provider_preserves_audit_progress(
+    state, tmp_path, provider, journey, audit_status, state_only, separate_selection
+):
+    audit_ready(state, tmp_path, setup=None)
+    original = state.update(
+        tmp_path,
+        {
+            "scopes": {
+                "audit": {
+                    "framework": "NAT/DeepEval",
+                    "framework_source": "Existing suite documentation",
+                    "traces": ["selected.json"],
+                    "priorities": ["refund coverage"],
+                    "confirmed": True,
+                }
+            },
+            "journey_status": {"audit": audit_status},
+            "pending_question": "Review the selected audit findings?",
+            "next_handoff": "eval-author-audit",
+            "blockers": (
+                [{"id": "selected_source", "phase": "audit", "message": "Review selected-source access"}]
+                if audit_status == "in_progress"
+                else []
+            ),
+        },
+    )
+    if separate_selection:
+        state.initialize(tmp_path, journey=journey, state_only=state_only)
+    changed = state.initialize(tmp_path, journey=journey, setup=provider, state_only=state_only)
+    assert changed["journey"] == journey
+    assert changed["setup"] == provider
+    for field in ("scopes", "journey_status", "blockers"):
+        assert changed[field] == original[field]
+    for key, answer in original["prerequisites"].items():
+        assert changed["prerequisites"][key] == {
+            **answer,
+            "status": "unknown" if key in state.AUDIT_DEPENDENT else answer["status"],
+        }
+    assert changed["pending_question"] is None
+    assert changed["next_handoff"] is None
+    assert not state.checklist(changed, state_only=state_only)[0]["complete"]
+    assert state.load_state(tmp_path, state_only=state_only) == changed
+    policy = state.runtime_policy()["providers"][provider]
+    assert state.view(changed, state_only=state_only)["runtime_requirements"] == {
+        "runtime": policy["supported"]["authoring"],
+        "python": policy["python"],
+    }
+    reassessed = state.update(
+        tmp_path,
+        {
+            "prerequisites": {
+                key: {"status": "verified", "source": "Current authoring checks passed"}
+                for key in ("runtime", "python", "skills")
+            }
+        },
+        state_only=state_only,
+    )
+    assert state.checklist(reassessed, state_only=state_only)[0]["complete"]
+    for field in ("scopes", "journey_status", "blockers"):
+        assert reassessed[field] == original[field]
+
+
 @pytest.mark.parametrize("journey", ["create", "audit", "expand"])
 @pytest.mark.parametrize(
     "required", ["code_access", "file_writes", "command_execution", "skills", "ethos_skills", "python"]

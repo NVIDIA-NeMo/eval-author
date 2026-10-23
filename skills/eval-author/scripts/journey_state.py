@@ -577,9 +577,17 @@ def initialize(
             for key in AGENT_DEPENDENT & state["prerequisites"].keys():
                 state["prerequisites"][key]["status"] = "unknown"
         if setup is not None and setup != state["setup"]:
+            if state["setup"] is None:
+                # Selecting an authoring provider for the first time does not
+                # change existing audit work. Reassess readiness, keeping sources.
+                for key in PROVIDER_DEPENDENT & state["prerequisites"].keys():
+                    state["prerequisites"][key]["status"] = "unknown"
+            else:
+                state["prerequisites"] = {
+                    k: v for k, v in state["prerequisites"].items() if k not in PROVIDER_DEPENDENT
+                }
+                invalidate_scopes(state)
             state["setup"] = setup
-            state["prerequisites"] = {k: v for k, v in state["prerequisites"].items() if k not in PROVIDER_DEPENDENT}
-            invalidate_scopes(state)
             state["pending_question"] = None
             state["next_handoff"] = None
         if journey is not None and journey != state["journey"]:
