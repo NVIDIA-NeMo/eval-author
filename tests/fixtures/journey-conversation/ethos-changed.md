@@ -11,4 +11,4 @@ I found [ETHOS.md](</workspace/agent/ETHOS.md>).
 
 The agent helps users recover account access, confirms identity before changes, and escalates uncertain matches.
 
-ETHOS.md changed or is unavailable; review its intended behavior again.
+**ETHOS.md changed or is unavailable; review its intended behavior again.**
