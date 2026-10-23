@@ -23,7 +23,7 @@ def capture(tmp_path, report, index, code=1, **identity):
 
 @pytest.mark.parametrize("case", ["harbor", "gym", "mixed", "empty", "malformed", "ignored", "dropped", "missing-env"])
 def test_actual_discovery_repeats(tmp_path, monkeypatch, case):
-    """Run real Explore/Judge with installed Harbor and controlled fake Gym; no Solve tasks."""
+    """Run real Explore/Judge with installed Harbor and controlled fake NeMo Gym; no Solve tasks."""
     repo = tmp_path / "repo"
     repo.mkdir()
     if case not in {"gym", "empty"}:
@@ -72,6 +72,70 @@ def minimal():
         "sample": ["a", "c"],
         "discovered_at": "first",
     }
+
+
+def test_discovery_excludes_internal_configs_and_legacy_copies(tmp_path, monkeypatch):
+    from test_skill_contract import _import_discover
+
+    discover = _import_discover(monkeypatch)
+    current = tmp_path / ".eval-author/tasks/current"
+    _write_task(current)
+    for relative in (".working/trace-environments", "task-drafts", "archives"):
+        root = tmp_path / ".eval-author" / relative
+        _write_task(root / "copy")
+        (root / "run.yaml").write_text("tasks:\n  - path: copy\n")
+    scan = discover.scan_repository(tmp_path)
+    assert scan.configs == []
+    assert {item["path"] for item in scan.task_search["candidates"]} == {".eval-author/tasks/current"}
+    selected = discover.scan_repository(tmp_path / ".eval-author/task-drafts")
+    assert [item.path.name for item in selected.configs] == ["run.yaml"]
+    assert {item["path"] for item in selected.task_search["candidates"]} == {"copy"}
+
+
+def test_harbor_config_resolution_uses_selected_repository_for_scratch(tmp_path, monkeypatch):
+    import asyncio
+    import importlib
+
+    from test_skill_contract import _import_discover
+
+    pytest.importorskip("harbor")
+    _import_discover(monkeypatch)
+    judge = importlib.import_module("providers.harbor._judge")
+    outer = tmp_path / "outer"
+    (outer / ".git").mkdir(parents=True)
+    repo = outer / "selected"
+    _write_task(repo / "dataset/a")
+    config_path = repo / "job.yaml"
+    config_path.write_text("datasets:\n  - path: ./dataset\nagents:\n  - name: oracle\n")
+    candidate = judge.ConfigCandidate(
+        config_path, {"datasets": [{"path": "./dataset"}], "agents": [{"name": "oracle"}]}, True
+    )
+    outside = tmp_path / "launcher"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+    create = judge.Job.create
+    scratch_paths = []
+
+    async def capture_scratch(config):
+        scratch = Path(config.jobs_dir)
+        assert scratch.is_dir()
+        scratch_paths.append(scratch)
+        return await create(config)
+
+    monkeypatch.setattr(judge.Job, "create", capture_scratch)
+    monkeypatch.setattr(judge, "_check_backend", lambda config, outcome: None)
+    monkeypatch.setattr(judge, "_harbor_executable", lambda: None)
+
+    outcome = asyncio.run(judge.judge_config(candidate, repo))
+
+    assert next(check for check in outcome.checks if check.name == "resolution").status == "pass"
+    assert len(scratch_paths) == 1
+    assert scratch_paths[0].parent == repo / ".eval-author/.working/tmp"
+    assert not scratch_paths[0].exists()
+    assert not list((repo / ".eval-author/.working/tmp").iterdir())
+    assert not (outer / ".eval-author").exists()
+    assert not list(outside.iterdir())
+    assert Path.cwd() == outside
 
 
 def test_normalization_retains_samples_unknown_fields_and_duplicates(tmp_path):

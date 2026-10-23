@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Create a Gym-native draft using Gym's own scaffolder in its runtime environment."""
+"""Create a NeMo Gym-native draft using NeMo Gym's own scaffolder in its runtime environment."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 def scaffold(output: Path, name: str, instruction: Path, description: str, author: str) -> dict:
-    # Optional provider imports belong to the selected Gym interpreter, not Eval Author's env.
+    # Optional provider imports belong to the selected NeMo Gym interpreter, not Eval Author's env.
     native = importlib.import_module("nemo_gym.environment.scaffold")
     manifest_api = importlib.import_module("nemo_gym.environment.manifest")
     version = importlib.metadata.version("nemo-gym")
@@ -88,7 +88,7 @@ def main() -> int:
                 {
                     "written": False,
                     "error_type": type(exc).__name__,
-                    "error": "Gym scaffolding failed; check runtime, input, and fresh destination",
+                    "error": "NeMo Gym scaffolding failed; check runtime, input, and fresh destination",
                 }
             )
         )

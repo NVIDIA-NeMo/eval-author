@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Point at evaluation code that is neither a Harbor nor a Gym task.
+"""Point at evaluation code that is neither a Harbor nor a NeMo Gym task.
 
 Standard library only. These are leads for the agent to raise with the user, who
 decides whether to convert them. They never count as discovered evals, and a
@@ -24,7 +24,7 @@ import subprocess
 from collections.abc import Iterator
 from pathlib import Path
 
-from providers.harbor._explore import _PRUNE_DIR_NAMES, walk_dirs
+from providers.harbor._explore import _PRUNE_DIR_NAMES, walk_dirs, within_task_scope
 
 _CODE_SUFFIXES = frozenset({".py", ".ipynb", ".js", ".ts", ".sh"})
 # Data files count only for ATIF, so a package.json that merely lists a tracing SDK is not a lead.
@@ -99,7 +99,11 @@ def _git_files(repo_root: Path) -> list[Path] | None:
         return None
     names = sorted(name for name in completed.stdout.decode("utf-8", "replace").split("\0") if name)
     # Committed generated trees, such as a vendored node_modules, stay out as they do in the directory walk.
-    return [repo_root / name for name in names if not _PRUNE_DIR_NAMES.intersection(Path(name).parts[:-1])]
+    return [
+        repo_root / name
+        for name in names
+        if not _PRUNE_DIR_NAMES.intersection(Path(name).parts[:-1]) and within_task_scope(repo_root / name, repo_root)
+    ]
 
 
 def _entries(directory: Path) -> list[Path]:
@@ -110,7 +114,7 @@ def _entries(directory: Path) -> list[Path]:
 
 
 def _is_owned(directory: Path, owned_roots: set[Path], repo_root: Path) -> bool:
-    """Return whether a directory sits inside a Harbor or Gym path, checking its ancestors against a set."""
+    """Return whether a directory sits inside a Harbor or NeMo Gym path, checking its ancestors against a set."""
     for candidate in (directory, *directory.parents):
         if candidate in owned_roots:
             return True

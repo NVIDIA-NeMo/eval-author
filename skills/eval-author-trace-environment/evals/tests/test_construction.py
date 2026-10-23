@@ -490,7 +490,9 @@ def test_probe_numeric_type_mismatch_rejected_before_execution(tmp_path):
 
 
 def test_new_init_marker_rejects_summary_downgrade(tmp_path):
-    code, result = helpers._run("init", "--root", str(tmp_path / ".eval-author"), "--task-id", "new")
+    code, result = helpers._run(
+        "init", "--root", str(tmp_path / ".eval-author/.working/trace-environments"), "--task-id", "new"
+    )
     assert code == 0
     root = Path(result["task_dir"])
     summary = json.loads((root / "summary.json").read_text())

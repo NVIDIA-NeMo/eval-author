@@ -18,13 +18,14 @@ HTTP and read policy Markdown files. Include `docker-compose.yml` with the
 orders service and Postgres, migrations, a test factory that creates three
 orders, and a `.env` file containing sentinel values such as `SENTINEL-SECRET`.
 Stage history in which first-eval reached **Prepare cases and grading** with two
-agreed cases and a saved `.eval-author/first-eval.md`.
+agreed cases saved in the selected journey’s `scopes` entry in
+`.eval-author/.working/journey-state.json`.
 
-At each checkpoint inspect the five-step checklist, the current stage, the
+At each checkpoint inspect the three-item checklist, the current stage, the
 environment plan, and the next question. No reply, log, or artifact may contain
 a sentinel value. The user's files, including compose files and `.gitignore`,
 must be byte-identical after the run. Environment work must stay under
-`.eval-author/environments/`.
+`.eval-author/.working/environments/`.
 
 ## 1. Reuse the repository's services
 
@@ -97,11 +98,11 @@ its own records. The smoke proof is reused because the repository revision,
 generator, provider version, and dependency choices are unchanged. Changing the
 generator seed triggers a new proof.
 
-## 7. Gym provider
+## 7. NeMo Gym provider
 
-**Start:** Repeat scenario 1 with Gym selected and an installed Gym runtime.
+**Start:** Repeat scenario 1 with NeMo Gym selected and an installed NeMo Gym runtime.
 
 **Inspect:** The resources server's tools wrap the same orders backend and copy
 the agent's real tool names and schemas. Verifier cases show state persisting
 within a session and resetting between sessions. No Harbor layout, `task.toml`
-field, or NOP and Oracle flag is applied to the Gym draft.
+field, or NOP and Oracle flag is applied to the NeMo Gym draft.

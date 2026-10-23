@@ -3,7 +3,7 @@
 
 # Recorded evidence audit
 
-**Experimental.** After `prepare`, run this for either Harbor or Gym output:
+**Experimental.** After `prepare`, run this for either Harbor or NeMo Gym output:
 
 ```bash
 python <skill_dir>/scripts/trace_environment.py audit-evidence --task-dir <task-dir>
@@ -74,4 +74,4 @@ uv run --locked pytest -q tests/test_trace_environment.py tests/test_tool_call_f
 The skill-local tests include actual stdio replay with synthetic observations,
 parallel calls, repeated IDs, child scopes, unknown/malformed status, changed
 source digests and linked output paths. They do not execute a live agent or
-establish that a reconstructed task works in Harbor or Gym.
+establish that a reconstructed task works in Harbor or NeMo Gym.

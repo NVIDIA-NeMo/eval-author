@@ -32,7 +32,7 @@ without implying that this documentation exercise executed a real agent.
 ## Returning to a Harbor starter suite
 
 Prepare two authored tasks, `refund-policy` and `refund-reject`, plus an unrelated
-draft in the same parent. Save `first-eval.yaml` with explicit `tasks` entries for
+draft in the same parent. Save `run.yaml` with explicit `tasks` entries for
 only the two selected cases, a real-agent configuration, nondefault model
 settings, per-task overrides, and two attempts per case. Record fixture setup,
 credential variable names, and result locations in local documents. Map one
@@ -94,7 +94,7 @@ review. Inspect each user-facing reply separately from its linked README:
   service. CLI help alone does not become a claim that the viewer was opened.
 - The results reply explains that no native trajectory was captured and links
   the actual custom JSON artifact. It neither promises a populated Trajectory
-  tab nor invokes the Gym/ATIF reader on this unsupported format.
+  tab nor invokes the NeMo Gym/ATIF reader on this unsupported format.
 - The README retains the same review instructions. Passing file-link checks
   alone does not pass this scenario: a reply containing only the general guide
   link and an evaluation rerun command reproduces the discoverability failure.
@@ -106,14 +106,14 @@ instead of silently omitting review or inventing a viewer command.
 For a blocked or control-only run, it must mark the actual agent as not run and
 offer case review without inventing an actual-agent job or attempt.
 
-## Gym and trace-derived suites
+## NeMo Gym and trace-derived suites
 
-For Gym, supply an existing draft with a model composition, `reproducibility.md`,
+For NeMo Gym, supply an existing draft with a model composition, `reproducibility.md`,
 and JSONL rows containing both model input and verifier metadata. Request the
 same handoff. Follow the draft-root `README.md`: full and subset runs must use
-the selected Gym runtime and composition, retain verifier fields and row order,
+the selected NeMo Gym runtime and composition, retain verifier fields and row order,
 document server startup for `--no-serve`, reset state, and use fresh outputs.
-No Harbor-only selection or control flags may appear as Gym commands.
+No Harbor-only selection or control flags may appear as NeMo Gym commands.
 Also exercise the creation and saved-run review checks above: each selected row
 must have a readable input, expected outcome, and grading summary, with its
 dataset locator and links to available native evidence. Verifier metadata must

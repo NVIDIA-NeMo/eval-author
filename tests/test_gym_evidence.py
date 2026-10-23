@@ -61,7 +61,7 @@ def test_missing_execution_is_not_a_pass(tmp_path, marks, status):
 
 @pytest.mark.parametrize("route", collector.ROUTES)
 def test_preparation_regressions_are_failures_in_real_junit(tmp_path, route):
-    # Exercise the actual harness's fixture/test boundary without needing Gym.
+    # Exercise the actual harness's fixture/test boundary without needing NeMo Gym.
     harness = tmp_path / "test_gym_native.py"
     harness.write_bytes((collector.ROOT / "tests/test_gym_native.py").read_bytes())
     (tmp_path / "conftest.py").write_text(

@@ -29,8 +29,9 @@ Ask focused questions only about missing facts that affect the next work, and
 reuse earlier answers. Missing access or license provisioning can leave execution
 pending while task files and independent checks proceed.
 
-Keep the gathered requirements, progress, and next action in the selected
-sub-flow's existing human-readable findings or task README under `.eval-author/`.
+Keep progress and next action in `.eval-author/.working/journey-state.json`.
+Keep substantive requirements in the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` and
+final task behavior and rerun guidance in task READMEs.
 Do not overwrite generated evidence reports or require a new intake document
 before authoring. For read-only requests, explain findings in the reply within
 that sub-flow's reporting boundaries.

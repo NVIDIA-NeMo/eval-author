@@ -2,7 +2,7 @@
 name: eval-author-environment
 description: >-
   Required by Eval Author's first-eval and task-create flows before they write
-  a Harbor or Gym task's tests, and available to trace-environment: builds the
+  a Harbor or NeMo Gym task's tests, and available to trace-environment: builds the
   environment the task runs in, meaning the agent's databases, files, services,
   and tools, seeded realistic starting data, and how the end state is read back
   for grading. Checks provider fit, inventories the agent repository read-only,
@@ -35,10 +35,16 @@ allowed-tools: Bash Read Write Grep Glob
 
 # Eval Author: environment
 
+Consume the caller's shared prerequisite context and accepted case scope. Do not
+repeat agent, prerequisite, or Ethos onboarding. Real environment verification
+remains required here and is separate from prerequisite confirmation. Save
+workflow stage and pending decisions in shared journey state; the kit documents
+its dependency design and native evidence.
+
 ## Required outputs
 
 First-eval and task-create are not finished with an environment until the kit
-under `.eval-author/environments/<agent-slug>/` holds:
+under `.eval-author/.working/environments/<agent-slug>/` holds:
 
 - `environment-plan.md`, started from [the template](templates/environment-plan.md),
   with fit, inventory, dependency choices, fidelity card, and proof status;
@@ -90,7 +96,7 @@ Carry these from the calling flow instead of asking again:
 
 - the applicable Ethos path and the requirements the cases test;
 - the agreed cases, their expected outcomes, and any per-task records they name;
-- the provider (Harbor or Gym) and the existing suite layout;
+- the provider (Harbor or NeMo Gym) and the existing suite layout;
 - requirements recorded at scope with
   [Execution dependencies](../eval-author/references/execution-dependencies.md);
 - installation, execution, and spend authorizations already given.
@@ -98,9 +104,9 @@ Carry these from the calling flow instead of asking again:
 Build one environment kit per agent and reuse it for every task of that agent:
 
 ```text
-.eval-author/environments/<agent-slug>/
+.eval-author/.working/environments/<agent-slug>/
   environment-plan.md   fit, inventory, choices, data, export, isolation, fidelity card, proof
-  build/                base Dockerfile and docker-compose.yaml, or Gym backend code
+  build/                base Dockerfile and docker-compose.yaml, or NeMo Gym backend code
   data/                 seed generator, its seed, generated base data, integrity checks
   smoke/                the smoke task and its retained results
 ```
@@ -120,11 +126,11 @@ Ethos Harness section:
 | --- | --- | --- |
 | Runs inside a sandbox: coding, CLI, or computer-use agents | Direct | Files, services, and tools the agent uses live in the task container and its sidecars |
 | An application whose tools call backends, such as a framework agent | Good when the application runs in a container | Run the application as the agent in Harbor's `main` container; replace its backends with sidecars and point its clients at them |
-| A hosted agent acting on hosted product APIs, with no runnable code | Poor | Harbor's own guidance says it may not be the right fit; consider Gym, a runnable build, a vendor sandbox, or report the limit |
+| A hosted agent acting on hosted product APIs, with no runnable code | Poor | Harbor's own guidance says it may not be the right fit; consider NeMo Gym, a runnable build, a vendor sandbox, or report the limit |
 
 For the last shape, do not build a Harbor task that only forwards a request to
 a hosted endpoint and inspects a hosted result afterwards. It controls neither
-the starting state nor trial isolation, and it can write to production. Gym
+the starting state nor trial isolation, and it can write to production. NeMo Gym
 helps only if the agent's tool calls can be pointed at tools the environment
 provides. Record the decision and its evidence in the plan, and raise a fit
 problem in the calling flow's current check-in. A poor fit is a proposal under
@@ -150,7 +156,7 @@ tool and service the agreed cases exercise:
 
 This is read-only work. Read configuration variable names from examples,
 settings modules, and code; never open `.env` files or print secret values.
-Copy any file the kit needs into `.eval-author/environments/`; never edit, move,
+Copy any file the kit needs into `.eval-author/.working/environments/`; never edit, move,
 or reformat the user's files.
 
 ## Step 3: Choose how to provide each dependency
@@ -178,7 +184,7 @@ Provide backends, not tools. Harbor treats tools as part of the agent, so the
 agent's own tool code should reach the backend you supply, through configuration
 its client already supports;
 [Dependencies](references/dependencies.md#point-the-agents-clients-at-the-realization)
-covers clients that hard-code an endpoint. Gym's resources server owns the tool
+covers clients that hard-code an endpoint. NeMo Gym's resources server owns the tool
 surface instead; wrap the same backend in endpoints that copy the agent's real
 tool names, arguments, and errors.
 
@@ -221,8 +227,8 @@ generated identifiers, it should ignore.
 - **Harbor:** export state from the agent container and sidecars, then grade it
   in a separate, offline verifier. Follow
   [Harbor environments](references/harbor.md#export-the-end-state).
-- **Gym:** the verifier runs in the resources server and reads session state.
-  Follow [Gym environments](references/gym.md#state-and-verification).
+- **NeMo Gym:** the verifier runs in the resources server and reads session state.
+  Follow [NeMo Gym environments](references/gym.md#state-and-verification).
 
 A missing or unreadable export is an infrastructure failure, never evidence that
 the agent did or did not act. Each task's side-effect control in
@@ -255,9 +261,9 @@ are written:
   and its verifier checks that the exported state shows exactly those changes.
   Run NOP once and the reference solution twice; the second run passing shows
   each trial starts clean. See [Harbor environments](references/harbor.md#smoke-task).
-- **Gym:** add verifier cases for state that persists within a session and
+- **NeMo Gym:** add verifier cases for state that persists within a session and
   resets between sessions, then run the native validation in
-  [Gym environments](references/gym.md#prove-the-environment).
+  [NeMo Gym environments](references/gym.md#prove-the-environment).
 - **Agent-provided discovery:** Harbor passes MCP server configuration to the
   agent but does not prove the agent connected. Confirm discovery and calls in
   one run of the actual agent, which requires the existing authorization for
@@ -276,7 +282,7 @@ budget is separate from any task's revision chain, and diagnostic probes never
 complete the proof. Do not weaken a smoke check to make it pass. Record the
 outcome as `proven`, `unproven` (prerequisites missing or checks not run),
 `blocked` (a required dependency cannot be provided), or `failed`. `proven`
-requires the smoke task's own three jobs (for Gym, the persistence and reset
+requires the smoke task's own three jobs (for NeMo Gym, the persistence and reset
 cases) in the plan's proof table; without them the outcome is `unproven`.
 
 ## Step 8: Hand off the kit
@@ -291,7 +297,7 @@ cases) in the plan's proof table; without them the outcome is `unproven`.
 - Tell the calling flow how its tasks use the kit: a Harbor task copies the
   kit's build files and data into its own `environment/` (or uses a pushed image
   pinned by digest) and adds its own records, so it builds without the kit image
-  this session built; a Gym task reuses the backend and seeds its records per
+  this session built; a NeMo Gym task reuses the backend and seeds its records per
   session.
 - Return to the calling step. A proven environment shows the world works; it
   does not validate a task's grader or measure the agent.
@@ -299,7 +305,7 @@ cases) in the plan's proof table; without them the outcome is `unproven`.
 ## Prerequisites
 
 Planning and inventory need only repository access. Building and proving a
-Harbor environment needs the Harbor CLI and Docker with Compose; Gym needs its
+Harbor environment needs the Harbor CLI and Docker with Compose; NeMo Gym needs its
 separate runtime. Vendor sandboxes need the user's authorization and
 credentials, referenced by variable name. Agent runs used to prove tool
 discovery require authorization for execution and spend.

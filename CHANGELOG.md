@@ -25,25 +25,25 @@ To install exactly this version, clone the `v0.1.0` tag and follow the
   a starter suite in a proven environment, and validate each task before
   evaluating your agent. See [Build your first evaluations](docs/first-evals.md).
 - **Discovery and readiness checks.** Inventory the evaluations in a repository
-  and check whether its Gym and Harbor suites are ready to run. See
+  and check whether its NeMo Gym and Harbor suites are ready to run. See
   [Find existing evaluations](docs/getting-started.md#find-existing-evaluations)
   and [Check readiness](docs/existing-evals.md#check-readiness).
 - **Guided coverage audits.** Define what your evaluations should cover, measure
   coverage from ATIF traces, and review gaps in a readable Audit coverage report.
   See [Audit coverage](docs/existing-evals.md#audit-coverage).
 - **Proposals and task creation.** Turn audit findings into ranked
-  recommendations, and create a Gym or Harbor task for an eligible, measured
+  recommendations, and create a NeMo Gym or Harbor task for an eligible, measured
   tool-coverage gap. See
   [Propose new evaluations](docs/existing-evals.md#propose-new-evaluations) and
-  the [Gym task-authoring guide](skills/eval-author-task-create/references/gym-tasks.md).
+  the [NeMo Gym task-authoring guide](skills/eval-author-task-create/references/gym-tasks.md).
 - **Reviewable, rerunnable suites.** Each generated suite gets a `README.md` with
-  a case inventory and rerun commands, and Gym records and ATIF traces open in an
+  a case inventory and rerun commands, and NeMo Gym records and ATIF traces open in an
   offline HTML reader. See
   [Review generated cases](docs/results.md#review-generated-cases) and
   [Open readable cases and traces](docs/results.md#open-readable-cases-and-traces).
-- **Trace tools.** Explain a NeMo Intake trace and convert MLflow and Gym traces
+- **Trace tools.** Explain a NeMo Intake trace and convert MLflow and NeMo Gym traces
   to ATIF. See [Inspect an Intake trace](docs/traces.md#inspect-an-intake-trace)
   and [Convert local traces](docs/traces.md#convert-local-traces).
 - **Experimental trace-to-environment workflow**, which derives a private Harbor
-  or native Gym task from trace evidence. See
+  or native NeMo Gym task from trace evidence. See
   [Build an evaluation task](docs/traces.md#build-an-evaluation-task).

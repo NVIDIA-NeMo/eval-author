@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Run real Gym servers with a scripted policy control, never a model-performance claim."""
+"""Run real NeMo Gym servers with a scripted policy control, never a model-performance claim."""
 
 import argparse
 import asyncio
@@ -168,7 +168,7 @@ async def run(output, resources_app, dataset):
             )
         )
         (output / "executed-reset.json").write_text(json.dumps({"scenario": "stateless ledger"}))
-        # Exercise the documented native CLI against the same running Gym services.
+        # Exercise the documented native CLI against the same running NeMo Gym services.
         head = server_utils.HeadServer(config=server_utils.BaseServerConfig(host="127.0.0.1", port=1))
         head._cached_yaml = OmegaConf.to_yaml(config)
         head_port = await serve(head.setup_webserver(), stack)
@@ -240,13 +240,13 @@ async def run(output, resources_app, dataset):
                     "gym_version": importlib.metadata.version("nemo-gym"),
                     "model_performance_measured": False,
                     "transport": "HTTP",
-                    "agent": "Gym SimpleAgent",
+                    "agent": "NeMo Gym SimpleAgent",
                     "policy": "scripted reference/no-action/wrong-answer",
                 },
                 indent=2,
             )
         )
-        # Gym owns a process-wide aiohttp pool; close it on interpreter exit.
+        # NeMo Gym owns a process-wide aiohttp pool; close it on interpreter exit.
     return len(rows)
 
 

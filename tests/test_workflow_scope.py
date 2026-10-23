@@ -28,7 +28,7 @@ def capture(case):
         for offset, action in enumerate(contract["required_actions"]):
             call_id = f"{index}-{offset}"
             calls.append({"id": call_id, "tool": "fixture_" + action, "turn": index})
-            writes = [".eval-author/task-drafts/cover-read/task.toml"] if action == "scaffold" else []
+            writes = [".eval-author/tasks/cover-read/task.toml"] if action == "scaffold" else []
             events.append({"call_id": call_id, "action": action, "tool": "fixture_" + action, "write_paths": writes})
         turns.append(
             {
@@ -96,9 +96,88 @@ def test_scope_broadening_is_rejected(case, action):
     assert scope.check(CONTRACTS, evidence, raw)["status"] == "fail"
 
 
+@pytest.mark.parametrize(
+    "case,turn",
+    [
+        ("generic-help", 0),
+        ("explicit-audit", 0),
+        ("first-eval-opening", 0),
+        ("explicit-expansion", 0),
+        ("narrow-to-recommendations", 0),
+        ("broaden-after-inventory", 1),
+        ("continue-shared-entry", 0),
+        ("clarify-goal-before-setup", 0),
+        ("clarify-goal-before-setup", 1),
+    ],
+)
+@pytest.mark.parametrize("action", ["read_repository", "runtime_probe", "validate", "delegate", "write_artifact"])
+def test_shared_opening_rejects_prerequisite_work(case, turn, action):
+    evidence, raw = capture(case)
+    writes = [".eval-author/.working/journey-state.json"] if action == "write_artifact" else []
+    raw = add_call(evidence, raw, action=action, writes=writes, turn=turn)
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert report["status"] == "fail"
+    assert f"turn[{turn}]: forbidden action {action}" in report["violations"]
+    if writes:
+        assert f"turn[{turn}]: forbidden write attempt {writes[0]}" in report["violations"]
+
+
+@pytest.mark.parametrize("case,turn", [("continue-shared-entry", 1), ("clarify-goal-before-setup", 2)])
+def test_shared_setup_work_is_allowed_after_opening(case, turn):
+    evidence, raw = capture(case)
+    for action in ("read_repository", "runtime_probe", "validate", "write_artifact"):
+        writes = [".eval-author/.working/journey-state.json"] if action == "write_artifact" else []
+        raw = add_call(evidence, raw, action=action, writes=writes, turn=turn)
+    evidence["turns"][turn]["after"]["entries"] = {
+        ".eval-author": {"kind": "directory", "mode": 0o755},
+        ".eval-author/.working": {"kind": "directory", "mode": 0o755},
+        ".eval-author/.working/journey-state.json": {
+            "kind": "file",
+            "mode": 0o644,
+            "sha256": scope.digest(b"{}"),
+        },
+    }
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert report["status"] == "pass"
+    assert report["host_acceptance"] == "not_measured"
+
+
+@pytest.mark.parametrize("action", ["install", "execute", "read_trace", "scaffold"])
+def test_prerequisite_inspection_does_not_authorize_downstream_work(action):
+    evidence, raw = capture("continue-shared-entry")
+    raw = add_call(evidence, raw, action=action, turn=1)
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert f"turn[1]: forbidden action {action}" in report["violations"]
+
+
+@pytest.mark.parametrize(
+    "action", ["inventory", "runtime_probe", "read_trace", "propose", "scaffold", "execute", "delegate"]
+)
+def test_ethos_completion_waits_before_downstream_work(action):
+    evidence, raw = capture("ethos-completion-pause")
+    raw = add_call(evidence, raw, action=action)
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert f"turn[0]: forbidden action {action}" in report["violations"]
+
+
+def test_ethos_completion_can_save_state_but_cannot_create_evaluations():
+    evidence, raw = capture("ethos-completion-pause")
+    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/.working/journey-state.json"])
+    assert scope.check(CONTRACTS, evidence, raw)["status"] == "pass"
+    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/tasks/new-case/task.toml"])
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert "turn[0]: forbidden write attempt .eval-author/tasks/new-case/task.toml" in report["violations"]
+
+
+def test_ethos_completion_continuation_allows_source_scope_handoff():
+    evidence, raw = capture("ethos-completion-pause")
+    raw = add_call(evidence, raw, action="delegate", turn=1)
+    assert scope.check(CONTRACTS, evidence, raw)["status"] == "pass"
+
+
 def test_transient_write_is_rejected_even_if_snapshots_match():
     evidence, raw = capture("recommendations-only")
-    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/task-drafts/unauthorized/task.toml"])
+    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/tasks/unauthorized/task.toml"])
     report = scope.check(CONTRACTS, evidence, raw)
     assert report["status"] == "fail"
     assert any("write attempt" in v for v in report["violations"])
@@ -113,7 +192,7 @@ def test_noncanonical_destinations_are_rejected(path):
 
 
 def test_prefix_does_not_allow_similar_directory():
-    assert not scope.permitted(".eval-author/task-drafts-other/a", [".eval-author/task-drafts/"])
+    assert not scope.permitted(".eval-author/tasks-other/a", [".eval-author/tasks/"])
 
 
 @pytest.mark.parametrize("mutation", ["flow", "handoff", "context", "prompt"])

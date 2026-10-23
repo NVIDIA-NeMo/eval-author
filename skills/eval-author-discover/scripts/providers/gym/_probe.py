@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Adapt shared runtime selection evidence into discovery's Gym report fields.
+"""Adapt shared runtime selection evidence into discovery's NeMo Gym report fields.
 
 The locator owns runtime detection, compatibility, and selection. This module
 only formats that evidence for discovery. Judge and Solve use the selected CLI
-in its own environment; discovery never imports Gym.
+in its own environment; discovery never imports NeMo Gym.
 """
 
 from __future__ import annotations
@@ -21,14 +21,14 @@ from _checks import ADVISORY, PASS, WARN, CheckResult, check  # noqa: E402
 try:
     from locate_runtime import locate
 except ModuleNotFoundError as exc:
-    if exc.name not in {"locate_runtime", "runtime_policy"}:
+    if exc.name not in {"locate_runtime", "runtime_policy", "working_paths"}:
         raise
     raise SystemExit(
         "Incomplete skill installation: install the sibling eval-author skill alongside eval-author-discover."
     ) from None
 from runtime_policy import install_spec  # noqa: E402
 
-INSTALL_HINT = f"Locate an existing Gym runtime first; when setup is authorized, install {install_spec('gym')} in a separate environment meeting runtime-policy.json."
+INSTALL_HINT = f"Locate an existing NeMo Gym runtime first; when setup is authorized, install {install_spec('gym')} in a separate environment meeting runtime-policy.json."
 
 
 def probe(repo: Path | None = None, cli: str | None = None) -> dict:
@@ -46,12 +46,12 @@ def probe(repo: Path | None = None, cli: str | None = None) -> dict:
 
 
 def is_available(runtime: dict) -> bool:
-    """Return whether the shared locator selected a usable Gym runtime."""
+    """Return whether the shared locator selected a usable NeMo Gym runtime."""
     return bool(runtime["gym_available"])
 
 
 def probe_checks(runtime: dict, *, report_missing: bool) -> list[CheckResult]:
-    """Report Gym availability; report its absence only when it matters."""
+    """Report NeMo Gym availability; report its absence only when it matters."""
     if runtime["gym_available"]:
         return [
             check(

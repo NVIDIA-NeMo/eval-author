@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Synthetic Gym records shaped from upstream 676cf1f; no live agent or customer data."""
+"""Synthetic NeMo Gym records shaped from upstream 676cf1f; no live agent or customer data."""
 
 import copy
 import json
@@ -291,7 +291,7 @@ def test_prepare_accepts_gym_provenance_and_blocks_image_only_instruction(tmp_pa
             str(helper),
             "init",
             "--root",
-            str(tmp_path / ".eval-author" / "tasks"),
+            str(tmp_path / ".eval-author" / ".working" / "trace-environments"),
             "--task-id",
             "gym-image",
         ],
@@ -344,7 +344,7 @@ def test_batch_gym_provenance_and_resume(tmp_path):
             }
         )
     )
-    root = tmp_path / ".eval-author" / "batch"
+    root = tmp_path / ".eval-author" / ".working" / "batch"
     command = [
         sys.executable,
         str(TRACE_ENVIRONMENT_SCRIPTS / "trace_environment.py"),

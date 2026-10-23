@@ -13,10 +13,11 @@ import inspect
 import json
 import re
 import shlex
-import tempfile
 import tomllib
 from pathlib import Path
 from typing import Any
+
+from working_paths import scratch_directory
 
 
 def registration_payload(command: str) -> dict[str, Any] | None:
@@ -64,7 +65,7 @@ def registered_server(payload: dict[str, Any], name: str) -> dict[str, Any] | No
     return None
 
 
-def probe_registration(agent: str | None, servers: list[Any]) -> dict[str, Any]:
+def probe_registration(agent: str | None, servers: list[Any], *, repo: Path | None = None) -> dict[str, Any]:
     """Use Harbor's factory for built-ins/custom agents; do not run/install them.
 
     Construction imports trusted provider/custom code. Unknown APIs, unavailable
@@ -83,7 +84,7 @@ def probe_registration(agent: str | None, servers: list[Any]) -> dict[str, Any]:
         factory = importlib.import_module("harbor.agents.factory").AgentFactory
         config_model = importlib.import_module("harbor.models.trial.config").AgentConfig
         config = config_model.model_validate({"name": agent})
-        with tempfile.TemporaryDirectory(prefix="trace-mcp-registration-") as temporary:
+        with scratch_directory(repo, prefix="trace-mcp-registration-") as temporary:
             provider = factory.create_agent_from_config(config, logs_dir=Path(temporary), mcp_servers=servers)
             writer = getattr(provider, "_build_register_mcp_servers_command", None)
             if not callable(writer):

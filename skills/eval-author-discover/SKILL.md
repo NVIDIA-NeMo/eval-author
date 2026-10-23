@@ -3,8 +3,8 @@ name: eval-author-discover
 description: >-
   Record whether a repository's Harbor and NeMo Gym evaluations are ready to run,
   proven in four phases rather than guessed. Probe finds the installed runtimes,
-  Explore finds job configs, datasets, task directories, and Gym manifests, Judge
-  has Harbor and Gym validate them, and Solve runs a small sample end to end. Use
+  Explore finds job configs, datasets, task directories, and NeMo Gym manifests, Judge
+  has Harbor and NeMo Gym validate them, and Solve runs a small sample end to end. Use
   when the user wants to run an eval suite they did not write, hand a suite to a
   cheaper model, or asks "can I run these evals?", "why won't my Harbor config
   resolve?", "which env vars does this suite need?", "where are the evals in this
@@ -29,7 +29,7 @@ compatibility: >-
   runtime-policy.json discovery requirements, verified by the shared locator.
   If neither provider is compatible, discovery exits after Probe. Harbor must be importable for
   Judge and Solve on Harbor tasks, and Docker must be running for Judge's backend
-  check and Solve's oracle runs. That `gym` CLI runs Judge and Solve on Gym
+  check and Solve's oracle runs. That `gym` CLI runs Judge and Solve on NeMo Gym
   manifests.
 maturity: alpha
 license: Apache-2.0
@@ -51,19 +51,19 @@ one invocation; the runtime checks below can also be used without that script.
 
 1. **Probe.** Which of Harbor and NeMo Gym can this interpreter import? With
    neither, discovery stops here.
-2. **Explore.** Which configs, datasets, tasks, and Gym manifests does the
+2. **Explore.** Which configs, datasets, tasks, and NeMo Gym manifests does the
    repository own, how many tasks does each hold, and what are they about?
-3. **Judge.** Harbor validates each config and dataset, converting Gym extension
-   tasks first, and Gym runs `gym env validate` on each manifest whose data
+3. **Judge.** Harbor validates each config and dataset, converting NeMo Gym extension
+   tasks first, and NeMo Gym runs `gym env validate` on each manifest whose data
    exists. Either runtime can judge alone.
 4. **Solve.** Run up to 4 tasks from each of up to 4 datasets or manifests that
-   passed Judge, end to end: Harbor tasks with the `oracle` agent in Docker, Gym
+   passed Judge, end to end: Harbor tasks with the `oracle` agent in Docker, NeMo Gym
    manifests with `gym env test`. A task counts when it finishes with a reward.
 
 The report's `phases` field records each phase as `valid`, `invalid`, or
 `skipped`. Without Harbor, Harbor findings come back unproven, with a required
-failure naming what to install, unless the repository holds only Gym manifests
-and Gym is installed. [What Judge and Solve
+failure naming what to install, unless the repository holds only NeMo Gym manifests
+and NeMo Gym is installed. [What Judge and Solve
 run](references/troubleshooting.md#what-judge-and-solve-run) covers sampling,
 skips, and what Solve leaves behind.
 
@@ -71,32 +71,23 @@ skips, and what Solve leaves behind.
 
 ### Prerequisites
 
-Use `eval-author`'s entry routing to distinguish a file-only Explore from
-authoring setup and a full discovery run:
+Use the core's routing to distinguish inventory from readiness. Creation and
+improvement prerequisites check the selected runtime through the bounded locator;
+shared onboarding does not invoke this full readiness workflow. Audit onboarding
+checks its tooling without an evaluation runner. A scoped inventory request uses **Explore an uncertain
+starting point** below without probes. A scoped readiness request retains the
+provider-owned validation in Steps 1–6. A downstream authoring call reuses shared
+answers and verifies only the runtime capabilities its operation needs.
 
-- **Uncertain starting point:** use **Explore an uncertain starting point**
-  below before Ethos, runtime probes, or the authoring welcome. This entry uses
-  file inspection only; do not run the four phases in Steps 1–6.
-- **Harbor prerequisites:** when Harbor is selected during **Get the evaluation runtime ready**,
-  use only the runtime checks and optional assistant-skills check below. Return their findings to the
-  caller; do not run `discover.py`, explore eval sources, or ask which evals to
-  use at this stage.
-- **Understand the evaluation starting point:** after the Ethos and selected-runtime stage
-  check-ins, use Steps 1–6 for full discovery and source selection, reusing
-  applicable runtime evidence, only when the starting point remains unsettled.
-  Follow [Milestone check-ins](../eval-author/references/milestone-checkins.md)
-  for authoring transitions and deferred prerequisites.
-
-Requests only to find evals use the first entry and stop with their findings.
-Readiness-only requests and internal config validation use Steps 1–6 without
-adding authoring stages. A readiness-only request returns the report described
-in Step 5.
+Return actual runtime evidence separately from user-confirmed setup. Preserve
+source bounds and the selected provider. Save internal working inputs and scratch
+under `.eval-author/.working/`; discovery reports retain their deliverable paths.
 
 ## Explore an uncertain starting point
 
 Start with the supplied locations. Use the shared
 [file-only task search](../eval-author/references/task-search.md) for deterministic
-Harbor task and Gym workload candidates; retain its search limits and exclusions.
+Harbor task and NeMo Gym workload candidates; retain its search limits and exclusions.
 Then make a bounded inspection of the repository's
 README, evaluation documentation, CI/workflow commands, and likely test or eval
 directories. Look for Harbor configs and tasks as well as scripts, datasets,
@@ -129,7 +120,7 @@ Explain the candidates before asking a focused question to settle their use or a
 missing location. Reuse the user's explicit source selection or statement that
 they have no evals. An empty search or access failure alone does not prove absence;
 when no candidates are found, state the search limits and resolve whether the user
-keeps evals elsewhere or wants to start from scratch.
+keeps evals elsewhere or has none.
 
 Finish discovery with a user-facing summary: whether evals were found, their paths
 and purposes, how to run them, and what remains unverified or unresolved. A report
@@ -156,7 +147,7 @@ or repair without substituting an audit.
 
 ## Runtime prerequisite checks
 
-For Harbor readiness or the Harbor path of **Get the evaluation runtime ready**,
+For readiness or the [shared authoring prerequisite checks](../eval-author/references/shared-prerequisites.md#authoring-checks),
 read and follow [Runtime prerequisites](../eval-author/references/runtime-prerequisites.md) before
 probing tools. It contains the interpreter selection commands, verification
 criteria, setup recovery, and optional Harbor-skills check. Reuse still-current
@@ -187,8 +178,8 @@ explicit bounds when needed; an incomplete task inventory prevents a runnable ve
 ```
 
 Discovery never imports NeMo Gym in its own process; use the shared locator and
-pass its selected absolute CLI with `--gym-cli`. Gym stays in its own environment. Without Harbor,
-Judge and Solve cover only Gym manifests, and Harbor findings stay unproven. Keep
+pass its selected absolute CLI with `--gym-cli`. NeMo Gym stays in its own environment. Without Harbor,
+Judge and Solve cover only NeMo Gym manifests, and Harbor findings stay unproven. Keep
 the two runtimes in separate environments; see [Harbor and NeMo Gym
 environments](references/troubleshooting.md#harbor-and-nemo-gym-environments)
 for why, and for the Python version `nemo-gym` needs.
@@ -201,7 +192,7 @@ stdout in a temporary JSON file even when the exit code is 1. Save the report in
 
 The exit code carries the verdict, so check it:
 
-- `0` — every config, dataset, and Gym manifest Judge checked passed, and nothing Solve ran failed
+- `0` — every config, dataset, and NeMo Gym manifest Judge checked passed, and nothing Solve ran failed
 - `1` — a required check failed, a runtime a repository eval needs was unavailable, or the path was unusable
 
 **Only run this against a repository you trust.** Judge imports any agent
@@ -221,7 +212,7 @@ Read these four fields before any others.
 | `runnable` | Whether every config and dataset passed every required check, and nothing Solve ran failed |
 | `run_command` | The exact command to run the suite. Present only when the repository has exactly one config and it is runnable |
 | `configs[].runnable`, `datasets[].runnable` | The per-config and per-dataset verdicts. A dataset runs directly with its `run_command`, after the user picks an agent |
-| `gym_manifests[]` | Each manifest's data rows on disk (`task_count`), missing data files, and Gym's `judge` verdict: `passed`, `failed`, or `skipped` with a `reason` |
+| `gym_manifests[]` | Each manifest's data rows on disk (`task_count`), missing data files, and NeMo Gym's `judge` verdict: `passed`, `failed`, or `skipped` with a `reason` |
 | `datasets[].solve`, `gym_manifests[].solve` | `passed`, `failed`, `not sampled`, or `skipped` with a `reason`; `results` holds rewards, errors, and reproduce commands |
 
 A dataset that is `not sampled` passed Judge but was not run. Say so rather than
@@ -274,7 +265,7 @@ report describes the repository they meant:
    Explore finds no evals** handoff below rather than assuming the suite is missing.
 4. `task_count` and `datasets` are in the range they expect. A count of zero with a
    passing `tasks` check means the config resolves tasks from a registry, not from
-   disk. A parameterized Gym task counts one task per `tasks.jsonl` row.
+   disk. A parameterized NeMo Gym task counts one task per `tasks.jsonl` row.
 Keep `proven`, `runnable`, and check names in the evidence. When some configs pass
 and others fail, identify the ready configs without calling the whole suite ready.
 
@@ -288,10 +279,11 @@ basis of the final assistant reply:
 <python> <skill_dir>/scripts/render_report.py --summary <discovery-json-path>
 ```
 
-For onboarding, compose the reply using the shared milestone procedure's **Progress
-and resumption** rules. Use the formatter for evidence and the examples below for
-source-selection wording, not as a complete reply. When another sub-flow called
-discovery to validate a created config, return that config's checks to the caller.
+When discovery supports a selected evaluation flow, follow the core's
+[downstream progress](../eval-author/SKILL.md#downstream-progress) guidance. Use the
+formatter for evidence and the examples below for source-selection wording, not
+as a complete reply. When another sub-flow called discovery to validate a created
+config, return that config's checks to the caller.
 
 Include the optional Harbor-skills finding from **Before you start** alongside
 the summary; the formatter reports runtime readiness and does not perform this
@@ -335,7 +327,7 @@ An `error` result means discovery did not complete, not that Harbor is missing.
 ### When Explore finds no evals
 
 Use this conversation only after a completed Explore finds no configs, task files,
-dataset directories, or Gym manifests. Files that failed Judge or tasks without a
+dataset directories, or NeMo Gym manifests. Files that failed Judge or tasks without a
 config stay on the existing-suite path. Explore's depth and excluded directories
 limit what was inspected; a user-supplied location takes precedence over its
 absence. Explore also picks up configs by `tasks` or `datasets` keys. If source or
@@ -373,12 +365,15 @@ extraction, or task creation; candidate files alone do not settle that choice.
 Reuse an explicitly supplied source or earlier selection.
 
 Save discovery before handing off, even when Harbor is unavailable. Return the
-selected source, confirmed absence, or unresolved location to the core's **Route
-after the evaluation starting point** section, carrying any established Ethos
-and prior setup findings. The shared milestone
-procedure owns the next conversation. The summary formatter supplies the default
-question for when Explore finds nothing; adapt it to the selected source while retaining the saved
-report's original diagnostics and JSON.
+selected source, confirmed absence, or unresolved location to the selected flow,
+carrying established Ethos, prior setup findings, and pending decisions. Resume
+its first unfinished stage, including any unresolved source selection. Missing
+evals do not change the user's goal; existing suites remain existing suites when
+they fail checks or lack a config. If the goal is still unclear, use the core's
+[entry choices](../eval-author/SKILL.md#choose-the-entry-route). A discovery-only
+request remains inventory or readiness work and does not authorize task creation
+or an actual-agent run. Adapt any follow-up question to the selected source while
+retaining the saved report's original diagnostics and JSON.
 
 For example, when Judge's Docker preflight fails and host access has not been verified:
 
@@ -404,7 +399,7 @@ The saved report must be useful to a human first, and auditable second:
 The formatter starts with the discovery summary and next actions. The onboarding
 conversation also includes the shared progress display and current check-in.
 It distinguishes no evals found, task files without a config, unchecked configs,
-blocked configs, partly ready suites, ready suites, Gym manifests, and discovery
+blocked configs, partly ready suites, ready suites, NeMo Gym manifests, and discovery
 errors, and celebrates when all four phases pass. A checklist records each
 phase's verdict, checking the phases that passed. Tables and sections appear only when they have
 rows. The `Configs` table marks unproven readiness and credentials as `Not checked`.
@@ -441,7 +436,7 @@ point. Every script uses only the standard library except
 | `scripts/providers/harbor/_judge.py` | Judge: Harbor's validators, imported only after Probe finds Harbor |
 | `scripts/providers/harbor/_solve.py` | Solve: `harbor run -a oracle` |
 | `scripts/providers/gym/_probe.py` | Probe: does `gym --version` report NeMo Gym 0.6.0 or later? |
-| `scripts/providers/gym/_explore.py` | Explore: Gym manifests and extension tasks |
+| `scripts/providers/gym/_explore.py` | Explore: NeMo Gym manifests and extension tasks |
 | `scripts/providers/gym/_judge.py` | Judge: `gym env validate`, and extension tasks rendered for Harbor |
 | `scripts/providers/gym/_solve.py` | Solve: `gym env test` |
 

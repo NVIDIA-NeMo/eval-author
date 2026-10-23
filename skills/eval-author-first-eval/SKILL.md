@@ -1,10 +1,13 @@
 ---
 name: eval-author-first-eval
 description: >-
+  For a fresh start, read the eval-author core skill at ../eval-author/SKILL.md,
+  show its welcome, checklist, and call to action, and end the turn before
+  repository inspection or prerequisite work.
   Establish a required Ethos, plan evaluation cases, and build first evals or
-  expand a starter Gym or Harbor suite while explaining
+  expand a starter NeMo Gym or Harbor suite while explaining
   its parts. No prior traces or coverage reports are required. Missing selected
-  runtime blocks scaffolding and execution, not planning.
+  runtime blocks shared onboarding before Ethos and case planning.
 triggers:
   - help me build my first evals
   - my agent has no evals yet
@@ -17,7 +20,7 @@ not-for:
 compatibility: >-
   Ethos is required before evaluation design and is saved and checked locally
   in the user's repository. No NeMo service, account, platform CLI, or upload is needed.
-  Planning needs no evaluation runtime. Gym and Harbor authoring need the Python/CLI
+  Shared onboarding requires the selected runtime. NeMo Gym and Harbor authoring need the Python/CLI
   pairs verified by eval-author’s shared locator and runtime-policy.json.
   Keep their runtime environments separate. Execution may require Docker,
   an agent adapter, and provider credentials.
@@ -33,20 +36,17 @@ allowed-tools: Bash Read Write Grep Glob
 
 ## Purpose
 
-Read `eval-author` for the shared standard and boundaries. Follow
-[Milestone check-ins](../eval-author/references/milestone-checkins.md) throughout
-these ten internal stages; that procedure owns transitions, progress, and user
-check-ins. Display progress using the core's five-step checklist.
-For a direct invocation, use the core's first-eval entry route and authoring
-opening before repository work. The user's statement that there are no evals is
-enough to select this flow. When routed here from discovery inventory, carry its
-findings and prior answers forward, then start at the earliest unfinished
-milestone; inventory alone does not establish Ethos or selected-runtime readiness. Enter
-stage 4 only when the first three milestones and applicable check-ins are settled.
-Do not repeat completed work or restart an existing intent interview.
+Read the [eval-author core skill](../eval-author/SKILL.md) for the shared standard
+and boundaries. Direct invocations enter its shared prerequisite flow, consuming
+an applicable saved result on return. A fresh start follows the core's opening-only
+first response and ends
+the turn before repository reads, prerequisite checks, or Ethos work. Continue
+the stages below after the user replies; reuse the core's three-item checklist.
+A statement that no evals exist settles the starting point; no discovery is
+needed to prove absence. Reuse confirmed Ethos and prerequisite decisions.
 
 When the user asks to expand a starter suite created here, resume at scope
-planning for the affected behaviors. Reuse the saved plan, corpus, Ethos, setup,
+planning for the affected behaviors. Reuse the saved scope in journey state, corpus, Ethos, setup,
 and accepted cases; recheck prerequisites only where the change affects them.
 Do not restart onboarding or require an audit merely to add agreed examples.
 Requested coverage measurement still belongs to `eval-author-audit`.
@@ -59,20 +59,29 @@ repeated agent success, and trace-driven optimization are not prerequisites.
 Include difficult cases when relevant to the agreed behavior and purpose.
 A working suite and strong evaluation quality are separate claims.
 
-## 1. Establish the agent’s Ethos
+## 1. Reuse the confirmed Ethos
 
-Read and follow [Local Ethos](../eval-author/references/local-ethos.md) using the
-agent's documentation and intended behavior; this does not depend on discovering
-existing evals. Carry its result into the later case plan: the applicable checked
-Ethos path, established intent, completed content review when needed, and any
-unresolved prerequisite.
+Consume the path, confirmed digest, validation result, and unresolved intent from
+the core's [Ethos confirmation](../eval-author/references/ethos-confirmation.md)
+handoff after the user has confirmed the document and its current intent in the
+shared flow. A new shared entry does not skip that review because saved state was
+previously complete. After the handoff, reopen only changed or unresolved content; reuse the
+current confirmation without repeating the interview or writing another Ethos.
+When shared onboarding finishes, show the core's completion pause before source
+selection or evaluation work. Continue the stages below only after the user replies.
 
-## 2. Get the evaluation runtime ready
+## 2. Reuse prerequisites and verify when needed
 
-Follow the core's [provider-selection rule](../eval-author/SKILL.md#select-the-evaluation-provider),
-as audit-derived and trace-derived creation do. Both Gym and Harbor are supported.
-Follow the shared milestone procedure to explain the selected setup and verify
-the runtimes it uses.
+Preserve the selected NeMo Gym or Harbor setup and recorded prerequisite evidence
+and answers. Shared onboarding requires an available supported runtime before
+Ethos and case planning. Before scaffolding or another
+runtime-dependent operation, reuse applicable checks from shared prerequisites or
+use the shared runtime locator as described in
+[Runtime prerequisite checks](../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks). Record
+actual checks separately from user confirmation and reuse unchanged evidence.
+If the selected runtime becomes unavailable, preserve completed work and return
+to the shared prerequisite blocker before continuing the full flow. Other setup
+needs pause the operations that depend on them.
 
 ## 3. Understand the evaluation starting point
 
@@ -89,7 +98,7 @@ confirm the intended source and corpus, or reuse the user's explicit selection.
 Support proceeding without traces. Knowing there are no evals does not settle
 the trace choice. Carry the selected paths, bounds, exclusions, and inspected
 counts into the plan; repository examples must not become the full corpus by
-default. Save this selection and current progress in `.eval-author/first-eval.md`
+default. Save this selection and current progress in `.eval-author/.working/journey-state.json`
 as soon as established, even before the case plan is complete.
 
 Use “starter eval set” for the collection and “eval case” for each scenario.
@@ -119,13 +128,12 @@ and proven at stage 5, before any test. Raise a poor fit for the provider select
 at stage 2 in the scope checkpoint; if the user changes provider, verify that
 runtime as stage 2 describes before preparing cases.
 
-Save `.eval-author/first-eval.md` with the Ethos path and requirement references,
+Save the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` with the Ethos path and requirement references,
 selected corpus (or no-trace choice), per-behavior scope and example counts,
 outcomes and grading, priorities, exclusions, task/attempt mapping, cost
 implications, agent invocation, prerequisites, and unresolved questions.
 Separate proposed choices from the user's agreement and record subsequent feedback.
-This is an **evaluation plan**, not a coverage report
-or runnable evals.
+These are agreed planning decisions, not a coverage report or runnable evals.
 
 Use reproducible inputs and variations supported by Ethos and the agreed scope,
 including semantically justified difficult negatives where relevant. Grade an
@@ -137,15 +145,19 @@ tested with available resources, retain the original requirement as blocked.
 Explain the limitation; select a supported alternative only with the user,
 and record it as a scope change rather than completion of the original case.
 
-Without the selected runtime, the deliverable at this point is the evaluation
-plan; native task creation remains blocked on that runtime's setup.
+If the selected runtime becomes unavailable at this stage, preserve the agreed
+plan and return to the shared runtime blocker before continuing.
 
-Present the plan using the shared [scope checkpoint](../eval-author/references/milestone-checkins.md#scope-checkpoint).
+Present the plan using the shared [scope review](../eval-author/references/coverage-planning.md#explain-ongoing-cost-and-settle-the-plan).
 Settle unresolved scope choices and incorporate changes before preparing cases.
 When expanding, record retained and added examples and the new unique totals;
 the pilot's size does not determine the expansion's scope.
 
 ## 5. Prepare cases and grading
+
+After each native scaffold is created, record it as **Draft** using the shared
+[Task status](../eval-author/references/shared-prerequisites.md#task-status)
+procedure. Keep that status while completing and validating the task.
 
 Apply [Task validation and execution evidence](../eval-author/references/task-validation.md)
 for requirement-to-check review, declared verifier controls, and revision-bound
@@ -155,8 +167,8 @@ and side-effect cases. These are local task controls, not extra model repeats.
 Read the reference for each provider in the selected setup for the runtime-specific
 work in stages 5–9:
 
-- [Native Gym first evals](references/gym-first-eval.md): native scaffolding,
-  component configuration, verifier fixtures, and Gym execution.
+- [Native NeMo Gym first evals](references/gym-first-eval.md): native scaffolding,
+  component configuration, verifier fixtures, and NeMo Gym execution.
 - [Harbor first evals](references/harbor-first-eval.md): native task files,
   environment and agent setup, NOP/Oracle controls, and Harbor execution.
 
@@ -174,7 +186,7 @@ the generated data rather than by hand. Hand-typed fixtures of a few rows are
 not starting data.
 
 Create the agreed examples and map their stable IDs to native tasks or dataset
-rows. Keep source provenance and expected-label rationale in the plan or
+rows. Keep source provenance and expected-label rationale in shared scope or
 verifier-only data, outside the agent's starting environment. Start with one
 representative case and check its available parts before reusing the pattern.
 If its live environment or agent connection is pending, continue independent
@@ -213,7 +225,7 @@ selected provider reference to confirm each task's environment builds on that
 kit; rerun the smoke task if the kit changed after it passed. Keep solutions and
 verifier-only data outside the agent's initial environment. This milestone is complete only
 when the kit's `environment-plan.md`, seeded data generator, and smoke results
-exist under `.eval-author/environments/<agent-slug>/`; the tasks' own controls
+exist under `.eval-author/.working/environments/<agent-slug>/`; the tasks' own controls
 never count as environment proof, and without the smoke task's own jobs the
 plan's status stays `unproven`.
 Verify the selected backend and required application access before declaring
@@ -242,9 +254,13 @@ alone does not prove that the connection works.
 
 ## 8. Validate the evals
 
+Finalize each task's files and README run instructions before preparing
+[revision-bound evidence](../eval-author/references/task-validation.md#prepare-immutable-inputs)
+for these checks.
+
 Follow [Execution recovery](../eval-author/references/execution-recovery.md)
 for control and target-agent runs, compatibility repairs, and all result recaps.
-Confirm the current environment kit's proof (Harbor's smoke task or Gym's
+Confirm the current environment kit's proof (Harbor's smoke task or NeMo Gym's
 persistence and reset cases) passed first; a proof failure is an environment
 defect to fix, not a task or agent result. That proof is recorded in the kit's
 plan, not with the task evidence recorder below.
@@ -282,30 +298,32 @@ Recording this baseline with the evidence recorder is optional.
 
 ## 10. Review results and explain reruns
 
-For tasks that meet this workflow's working-suite criteria, follow
-[Promote accepted tasks at handoff](../eval-author/SKILL.md#promote-accepted-tasks-at-handoff).
-Use the final catalog for future suite runs. Keep the report scoped to the
-project so both draft and finalized tasks remain visible.
-Complete that handoff's on-disk checks before marking **Run and review** complete.
-For a new Harbor environment, `.eval-author/tasks/` must contain the accepted
-cases, the future suite config must resolve them there, and the report must
-list those final paths once. Include the verified catalog path and count in the
-final reply; do not finish with only a draft inventory and baseline results.
+Confirm the retained controls, configuration validation, actual-agent baseline,
+and completed result review describe the final task revision, including its README.
+Then record **Accepted** through [Task status](../eval-author/references/shared-prerequisites.md#task-status).
+Link the retained evidence; low agent
+scores do not prevent acceptance of a functioning evaluation. Keep incomplete
+tasks **Draft**.
+For accepted tasks, follow [Keep task paths stable](../eval-author/SKILL.md#keep-task-paths-stable).
+Acceptance updates status and suite membership without copying or moving task
+files. Verify the native config resolves exactly the accepted set and report
+links use those same paths. Keep unfinished tasks visible and exclude them from
+runnable suite configs. Include the accepted task count and location in the handoff.
 
-Update `.eval-author/first-eval.md` with exact commands, artifact paths, control
-results, per-task agent rewards and exceptions, and remaining blockers. Show how
-to rerun the suite, inspect one result, and add or modify a task. Finish and link
-the suite and task README run instructions for either provider and refresh
+Update `.eval-author/.working/journey-state.json` with artifact references, completion state, and blockers. Keep exact commands in the suite README and control
+results, per-task agent rewards, and exceptions in native evidence. Show how
+to rerun the suite, inspect one result, and add or modify a task. Maintain the
+suite README's run instructions and results links, link the finalized task READMEs, and refresh
 `.eval-author/report.html` and `.eval-author/README.md` following the shared report contract.
 Preserve the full-suite command and concrete commands for individual coverage items,
 following [Review and rerun guidance](../eval-author/references/suite-readme.md#review-and-rerun-guidance).
 
-Report refresh must not change the evaluation result or workflow state. When the report
-should be mentioned in a response, link `.eval-author/README.md` and `.eval-author/report.html`
-as the last lines of the response, after all other communication. Do not link
-`.eval-author/first-eval.md` in the run handoff unless asked.
+Report refresh must not change the evaluation result or workflow state. Follow
+the closing-sentence template in [Report generation](../eval-author/references/suite-readme.md#report-generation)
+when linking the report and suite README. Do not link
+the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` in the run handoff unless asked.
 
-Continue saving and updating `.eval-author/first-eval.md`
+Continue saving agreed scope and current progress in `.eval-author/.working/journey-state.json`
 through the existing workflow, including when HTML generation fails.
 Refresh the case inventory with links to control and actual-agent results and
 available execution traces, keeping source evidence and missing traces distinct.
@@ -316,7 +334,7 @@ When an actual-agent attempt exists, explain in the results reply how to open
 and inspect its saved evidence, using the shared
 [review walkthrough](../eval-author/references/suite-readme.md#show-the-user-how-to-review).
 For Harbor, give the run viewer's launch command and browser URL or a verified
-live link, and identify the saved job and case. For Gym, link the readable
+live link, and identify the saved job and case. For NeMo Gym, link the readable
 evidence for the selected dataset rows and identify the saved attempt.
 State what can be reviewed when the adapter emits no
 ATIF; captured actions and replies do not imply a native trajectory exists.
@@ -328,7 +346,7 @@ Reconcile agreed versus delivered examples per behavior using
 [Expand and reconcile](../eval-author/references/coverage-planning.md#expand-and-reconcile).
 Separate generated, validated, and executed counts and name omissions, changed
 fixtures, and remaining gaps. Repeated attempts never increase example totals.
-Render the final five-step checklist, checking every completed step and leaving
+Render the final three-item checklist, checking every completed step and leaving
 blocked or partial steps open with their next action.
 
 The working-suite deliverable is reached when the selected starter tasks execute
@@ -337,7 +355,7 @@ or checks are basic. A functioning case that the agent fails provides a useful
 baseline; do not weaken it to obtain success.
 
 Name each created eval case and explain the customer behavior it measures.
-Translate the recorded controls into their meaning. For Gym, explain the actual
+Translate the recorded controls into their meaning. For NeMo Gym, explain the actual
 positive and negative fixtures and observed rewards. For a Harbor binary action case,
 doing nothing failed and the prepared reference solution passed, so the grader
 distinguishes those examples. Do not call NOP an empty answer unless that is what
@@ -368,23 +386,23 @@ hand the established Ethos and actual ATIF to `eval-author-audit`, then use
 
 ## Prerequisites
 
-Establish local Ethos before case design. Planning needs agent documentation and
-intended behavior, not prior traces, coverage reports, or an evaluation runtime.
-Scaffolding and validation require the selected Gym or Harbor installation. Execution
+Shared onboarding requires the selected NeMo Gym or Harbor runtime before Ethos.
+Establish Ethos before case design; no prior traces or coverage reports are required.
+Scaffolding and validation use that selected installation. Execution
 needs the chosen backend, agent connection, and any configured provider access.
 Real-agent and paid-judge runs require authorization for execution and spend.
 
 ## Limitations
 
 A starter suite establishes a baseline for the selected cases, not comprehensive
-coverage. Gym verifier controls or Harbor NOP and Oracle validate task wiring
-and selected verifier behavior; they do not measure the real agent. Missing runtime access can leave useful
-plans and drafts complete while execution remains unproven.
+coverage. NeMo Gym verifier controls or Harbor NOP and Oracle validate task wiring
+and selected verifier behavior; they do not measure the real agent. If runtime
+access is lost, retain existing plans and drafts while the flow is blocked.
 
 ## Troubleshooting
 
-- Missing Ethos: resume the shared Local Ethos procedure before case design.
-- Selected runtime unavailable: retain the case plan and identify the Gym setup
+- Missing Ethos: resume the shared Ethos confirmation adapter before case design.
+- Selected runtime unavailable: retain the case plan and identify the NeMo Gym setup
   requirement or follow discovery's Harbor setup guidance. Install only when
   authorized, following the user's selected setup.
 - Oracle fails or NOP unexpectedly passes: inspect task state, reference solution,

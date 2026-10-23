@@ -110,7 +110,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
     if not isinstance(contract.get("native_run_id"), str) or not contract["native_run_id"].startswith("/"):
         raise EvidenceError("contract requires native_run_id JSON pointer")
     if contract["provider"] == "gym" and contract["native_run_id"] != "/native_run_id":
-        raise EvidenceError("Gym contracts use the maintained adapter and /native_run_id")
+        raise EvidenceError("NeMo Gym contracts use the maintained adapter and /native_run_id")
     cases = contract.get("cases")
     if not isinstance(cases, dict) or not cases:
         raise EvidenceError("contract requires cases")
@@ -264,13 +264,13 @@ def run(
         from gym_evidence import source_paths
 
         if gym_source is None:
-            raise EvidenceError("Gym recording requires --gym-source")
+            raise EvidenceError("NeMo Gym recording requires --gym-source")
         source = read(gym_source)
         for path in source_paths(source):
             if path.exists() or path.is_symlink() or path.resolve().is_relative_to(Path(manifest["task_dir"])):
-                raise EvidenceError("Gym native outputs must be fresh and outside the task")
+                raise EvidenceError("NeMo Gym native outputs must be fresh and outside the task")
     elif gym_source is not None:
-        raise EvidenceError("--gym-source applies only to Gym")
+        raise EvidenceError("--gym-source applies only to NeMo Gym")
     receipt: dict[str, Any] = {
         "schema": SCHEMA,
         "manifest": str(manifest_path.resolve()),
@@ -384,7 +384,7 @@ def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]
             retained_trace = Path(receipt["trace"]) if receipt.get("trace") else None
             rebuilt = build(receipt["gym_source"], manifest, case, "closure", retained_trace)
             if rebuilt != native:
-                raise EvidenceError("Gym native source artifacts changed")
+                raise EvidenceError("NeMo Gym native source artifacts changed")
         native_run_id = native_identity(native, manifest)
         if native_run_id != receipt.get("native_run_id") or native_run_id in seen_native_runs:
             raise EvidenceError("native run identity is changed or reused")

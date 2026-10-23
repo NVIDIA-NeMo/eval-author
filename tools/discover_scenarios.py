@@ -22,7 +22,7 @@ Before you start
 - uv on PATH: step 1 creates the venvs with it, and steps 2-3 install into them. Network access is
   needed to download harbor==0.23.0 (Python 3.12) and nemo-gym==0.6.0 (Python 3.13) from PyPI.
 - Docker Desktop: step 4 asks you to quit it, step 6 to start it again, and Solve runs containers.
-- A NeMo Gym checkout at GYM_REPO: step 1 copies the Gym workloads for the fixtures from it.
+- A NeMo Gym checkout at GYM_REPO: step 1 copies the NeMo Gym workloads for the fixtures from it.
 
 Everything is written under the work dir, an absolute path, so the script runs from any directory.
 Only discover.py and render_report.py are found relative to this file, in this repository's
@@ -33,7 +33,7 @@ Reports are saved to <work dir>/reports/step-NN.json and .md, and the running gr
 
 Environment:
     W         Work dir. Default: /tmp/eval-author-discover-steps
-    GYM_REPO  NeMo Gym checkout the Gym workloads are copied from. Default: ~/Documents/repos/gym
+    GYM_REPO  NeMo Gym checkout the NeMo Gym workloads are copied from. Default: ~/Documents/repos/gym
 """
 
 import json
@@ -302,7 +302,7 @@ def build_harbor_fixtures() -> None:
 
 
 def copy_from_checkout(relative: str, destination: str, *, skip_data: bool = False) -> None:
-    """Copy a Gym workload folder, dropping the manifest field nemo-gym 0.6.0 rejects."""
+    """Copy a NeMo Gym workload folder, dropping the manifest field nemo-gym 0.6.0 rejects."""
     ignore = shutil.ignore_patterns(".venv", ".venv.setup.lock", "__pycache__", *(["data"] if skip_data else []))
     target = FIXTURES / "gym" / destination
     shutil.copytree(GYM_CHECKOUT / relative, target, ignore=ignore)
@@ -388,7 +388,7 @@ def step_02() -> Result:
 
 
 def step_03() -> Result:
-    """Probe: Gym installed."""
+    """Probe: NeMo Gym installed."""
     install(VENV_GYM, GYM_PACKAGE)
     r = discover(VENV_GYM, HARBOR_REPO, 3)
     expect("Probe valid", lambda: r.report["phases"]["probe"] == "valid")
@@ -507,7 +507,7 @@ def step_12() -> Result:
 
 
 def step_13() -> Result:
-    """Gym manifest without its data."""
+    """NeMo Gym manifest without its data."""
     copy("gym/example-manifest", GYM_REPO_DIR / "environments" / EXAMPLE)
     r = discover(VENV_GYM, GYM_REPO_DIR, 13)
     manifest = lambda: r.manifest(EXAMPLE)  # noqa: E731
@@ -517,7 +517,7 @@ def step_13() -> Result:
 
 
 def step_14() -> Result:
-    """Gym resources server with a bad verifier fixture."""
+    """NeMo Gym resources server with a bad verifier fixture."""
     copy("gym/example-server-bad-fixture", GYM_REPO_DIR / "resources_servers" / EXAMPLE)
     r = discover(VENV_GYM, GYM_REPO_DIR, 14)
     expect("Judge valid (gym env validate)", lambda: r.manifest(EXAMPLE)["judge"]["status"] == "passed")
@@ -534,7 +534,10 @@ def step_15() -> Result:
     r = discover(VENV_GYM, GYM_REPO_DIR, 15)
     expect("Solve valid", lambda: r.manifest(EXAMPLE)["solve"]["status"] == "passed")
     expect("runnable, exit 0", lambda: r.report["runnable"] and r.exit_code == 0)
-    expect("no Harbor checks: Gym handles these manifests", lambda: not r.check("harbor") and not r.check("harbor-cli"))
+    expect(
+        "no Harbor checks: NeMo Gym handles these manifests",
+        lambda: not r.check("harbor") and not r.check("harbor-cli"),
+    )
     return r
 
 
@@ -551,7 +554,7 @@ def step_16() -> Result:
 
 
 def step_17() -> Result:
-    """Gym workload with partial data."""
+    """NeMo Gym workload with partial data."""
     copy("gym/indian_banking-manifest", GYM_REPO_DIR / "environments" / "indian_banking")
     copy("gym/indian_banking-server", GYM_REPO_DIR / "resources_servers" / "indian_banking")
     r = discover(VENV_GYM, GYM_REPO_DIR, 17)
@@ -562,7 +565,7 @@ def step_17() -> Result:
 
 
 def step_18() -> Result:
-    """Gym manifest with a broken config."""
+    """NeMo Gym manifest with a broken config."""
     copy("gym/example_second-broken", GYM_REPO_DIR / "environments" / "example_second")
     r = discover(VENV_GYM, GYM_REPO_DIR, 18)
     expect("example_second judged failed", lambda: r.manifest("example_second")["judge"]["status"] == "failed")
@@ -599,7 +602,7 @@ def step_20() -> Result:
     expect("Probe finds both", lambda: runtime["harbor_importable"] and runtime["gym_available"])
     expect("Judge valid for both halves", lambda: r.report["phases"]["judge"] == "valid")
     expect("Solve ran 2 Harbor datasets", lambda: len(ran(r, "datasets")) == 2)
-    expect("Solve ran 2 Gym manifests", lambda: len(ran(r, "gym_manifests")) == 2)
+    expect("Solve ran 2 NeMo Gym manifests", lambda: len(ran(r, "gym_manifests")) == 2)
     expect("runnable, exit 0: everything green", lambda: r.report["runnable"] and r.exit_code == 0)
     expect("celebration line: everything operational", lambda: ("🎉" in r.markdown_path.read_text()) is True)
     return r

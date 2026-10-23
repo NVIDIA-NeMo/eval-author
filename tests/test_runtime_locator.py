@@ -74,6 +74,27 @@ def test_project_beats_global_but_records_both(locator, tmp_path, monkeypatch):
     assert report["search"]["complete"]
 
 
+def test_probe_scratch_stays_in_selected_repo(locator, tmp_path, monkeypatch):
+    project = tmp_path / "project"
+    project.mkdir()
+    runtime(project / ".venv")
+    original_run = locator.subprocess.run
+    scratch_paths = []
+
+    def checked_run(*args, **kwargs):
+        scratch = Path(kwargs["cwd"])
+        assert scratch.is_relative_to(project / ".eval-author/.working/tmp")
+        assert scratch.is_dir()
+        scratch_paths.append(scratch)
+        return original_run(*args, **kwargs)
+
+    monkeypatch.setattr(locator.subprocess, "run", checked_run)
+    report = locator.locate(project, providers=("harbor",))
+    assert selected(report)
+    assert scratch_paths
+    assert all(not path.exists() for path in scratch_paths)
+
+
 def test_two_venvs_sharing_base_python_remain_ambiguous(locator, tmp_path):
     first, _ = runtime(tmp_path / ".venv")
     second, _ = runtime(tmp_path / "venv")

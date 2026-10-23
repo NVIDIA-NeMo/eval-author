@@ -26,7 +26,7 @@ It does not launch assistants or select their routes.
 
 The [contracts](../tests/fixtures/workflow-scope/contracts.json) pin their source
 revision and policy references. Cases cover broad help, explicit audit, inventory,
-readiness, narrow audit validation, first-eval opening, recommendations, task
+readiness, narrow audit validation, shared prerequisites and Ethos, recommendations, task
 drafting, trace inspection, and follow-ups that broaden or narrow scope.
 Each turn specifies exact prompt alternatives, prior context, selected flow,
 permitted and required actions, allowed writes, and terminal handoff.
@@ -339,7 +339,7 @@ uv run --locked pytest tests/test_workflow_scope.py tests/test_workflow_matrix.p
 ```
 
 These tests exercise mutations such as omitted calls, forbidden writes, stale
-inputs, copied evidence, missing turns and altered verdicts. Native Gym/Solve
+inputs, copied evidence, missing turns and altered verdicts. Native NeMo Gym/Solve
 runs, task-specific controls and repeated real-agent closure require separate
 execution evidence. Semantic batches require concrete models and a reviewed
 baseline. Cursor/Pi native adapters and full host/install/OS replay remain

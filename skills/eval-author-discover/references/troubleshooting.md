@@ -22,12 +22,12 @@ you fix an earlier one.
 |---|---|---|
 | Probe | `harbor` | Harbor is not importable by this interpreter. Re-run with the interpreter from **Before you start** |
 | Probe | `harbor-cli` | Advisory. No `harbor` executable exists on `PATH`, so Judge's `round-trip` check cannot run |
-| Probe | `gym` | Advisory. Whether a `gym` command next to the interpreter or on `PATH` reports NeMo Gym 0.6.0 or later. Gym alone lets discovery explore, judge, and solve Gym manifests; Harbor tasks still need Harbor |
+| Probe | `gym` | Advisory. Whether a `gym` command next to the interpreter or on `PATH` reports NeMo Gym 0.6.0 or later. NeMo Gym alone lets discovery explore, judge, and solve NeMo Gym manifests; Harbor tasks still need Harbor |
 | Explore | `config` | Required only when the repository holds neither a config nor a task. Confirm the location if an existing suite is expected. If the user has no evals and asked to build them, follow `eval-author-first-eval`. Advisory when datasets exist without a config, since each runs by path |
 | Explore | `config-parse` | A config file did not parse. Either PyYAML is missing, which means the wrong interpreter, or the file's YAML is broken. The hint says which |
 | Explore | `ethos` | Advisory. Explore did not find a readable root `ETHOS.md`. This check records file readability, not substantive Ethos validity |
 | Explore | `tasks-on-disk` | Advisory, and always unproven. A count of directories holding a `task.toml` |
-| Explore | `gym-manifests` | Advisory. Gym `manifest.yaml` environments and benchmarks use Gym's resources-server format, which Harbor cannot read. They are listed in `gym_manifests`, judged by Gym, and sampled by Solve. The message counts manifests with no data downloaded |
+| Explore | `gym-manifests` | Advisory. NeMo Gym `manifest.yaml` environments and benchmarks use NeMo Gym's resources-server format, which Harbor cannot read. They are listed in `gym_manifests`, judged by NeMo Gym, and sampled by Solve. The message counts manifests with no data downloaded |
 | Judge (Harbor) | `schema` | Harbor rejected the config's shape. The message carries the offending field path |
 | Judge (Harbor) | `resolution` | Harbor could not turn the config into a job. Usually a `datasets[].path` that does not exist. This fails before any container starts |
 | Judge (Harbor) | `tasks` | Some resolved directories are not valid Harbor tasks. A task directory needs a parseable `task.toml` and an `environment/` directory, even when the image is prebuilt |
@@ -38,24 +38,24 @@ you fix an earlier one.
 | Judge (Harbor) | `round-trip` | The Harbor CLI rejected the config file's bytes. This is the weakest Judge check: it round-trips the schema only, so it can pass while `resolution` fails |
 | Judge (Harbor) | `compatibility` | The installed Harbor does not expose the resolved task list, so `tasks`, `coverage`, and `credentials` cannot run. Install a Harbor version that exposes it |
 | Judge (Harbor) | `dataset-tasks` | Some tasks in a dataset are not valid Harbor tasks. The message names them |
-| Judge (Harbor) | `gym-conversion` | A Gym extension task could not be rendered as a Harbor task: both `tests/test.sh` and `tests/verifier.py`, a malformed `tasks.jsonl` row, or a template placeholder the row does not fill |
-| Judge (Gym) | `gym-validate` | `gym env validate` rejected a manifest. The message carries Gym's error; the hint holds the command that reproduces it |
-| Judge (Gym) | `gym-unavailable` | The repo holds Gym manifests, but NeMo Gym or its `gym` executable is missing, so none were checked. Each manifest's Judge status is `blocked`, and Judge is invalid until Gym is installed |
+| Judge (Harbor) | `gym-conversion` | A NeMo Gym extension task could not be rendered as a Harbor task: both `tests/test.sh` and `tests/verifier.py`, a malformed `tasks.jsonl` row, or a template placeholder the row does not fill |
+| Judge (NeMo Gym) | `gym-validate` | `gym env validate` rejected a manifest. The message carries NeMo Gym's error; the hint holds the command that reproduces it |
+| Judge (NeMo Gym) | `gym-unavailable` | The repo holds NeMo Gym manifests, but NeMo Gym or its `gym` executable is missing, so none were checked. Each manifest's Judge status is `blocked`, and Judge is invalid until NeMo Gym is installed |
 | Solve | `solve` | A sampled eval did not run end to end. The message names the task and the telling line of its error; the hint holds the command that reproduces it, and `solve.results[].error` holds the full error. As an advisory, it means Solve ran nothing, and says why |
 | Solve | `solve-reward` | Advisory. The reference solution ran but earned no reward. The machinery works, but `solution/solve.sh` and the tests disagree |
-| Solve | `gym-runner` | Advisory. A dataset holds Gym extension tasks. They pass Harbor's Judge checks once converted, but NeMo Gym has no runner for them yet, so the dataset gets no run command and Solve skips it |
+| Solve | `gym-runner` | Advisory. A dataset holds NeMo Gym extension tasks. They pass Harbor's Judge checks once converted, but NeMo Gym has no runner for them yet, so the dataset gets no run command and Solve skips it |
 
 ## Harbor and NeMo Gym environments
 
 Use the [shared runtime locator](../../eval-author/references/runtime-prerequisites.md) and its central policy
-for both providers. Pass the selected Gym CLI with `--gym-cli`; discovery executes
+for both providers. Pass the selected NeMo Gym CLI with `--gym-cli`; discovery executes
 it in its own Python environment. Missing or incompatible runtimes retain their
 candidate-specific errors. Installation guidance comes from the policy's exact
 install profile and must respect project requirements and setup authorization.
 
 ## What Judge and Solve run
 
-Judge checks every config, dataset, and manifest. It skips a Gym manifest whose
+Judge checks every config, dataset, and manifest. It skips a NeMo Gym manifest whose
 data files are missing, such as an unprepared benchmark, and names the command
 that prepares it.
 
@@ -67,11 +67,11 @@ on every run; the report marks the rest `not sampled`. Harbor tasks need a
 `solution/solve.sh` for the `oracle` agent to run. A task counts as run when it
 finishes and the verifier writes a reward; a zero reward is only an advisory,
 because Solve proves the eval machinery works, not that the reference solution is
-right. Datasets of Gym extension tasks are skipped, because NeMo Gym has no runner
+right. Datasets of NeMo Gym extension tasks are skipped, because NeMo Gym has no runner
 for them yet.
 
 Solve runs containers and can take several minutes on the first run while Docker
 builds task images. Harbor's job output goes to a temporary directory. Harbor is
 never allowed to auto-grant host-environment access; a task that asks for it
 fails with Harbor's message. `gym env test` builds the resources server's venv at
-`resources_servers/<name>/.venv`, where Gym always puts it.
+`resources_servers/<name>/.venv`, where NeMo Gym always puts it.

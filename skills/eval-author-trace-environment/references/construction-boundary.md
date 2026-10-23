@@ -11,7 +11,7 @@ task, or a proven environment. Decide these separately:
 | --- | --- | --- |
 | Does the benchmark need this scenario? | Reviewed intended behavior, inspected task inventory and audit results | Coverage or priority remains unknown; this alone does not block a separately requested trace-derived task. |
 | Can this task be constructed faithfully? | Complete source-backed instruction and capability-defining constraints, objectively testable outcome, and reproducible required software | Missing requirements or required unavailable software block candidacy. Missing original world state can permit explicit reconstruction. |
-| Does the generated task work? | Retained Harbor repeated NOP/Oracle runs and negative controls, or Gym native validation and repeated controls from the [Gym extension](gym-output.md) | Proof is unmeasured or failed. Artifact acceptance, diagnostic probes, and a proposed verifier do not establish executable success. |
+| Does the generated task work? | Retained Harbor repeated NOP/Oracle runs and negative controls, or NeMo Gym native validation and repeated controls from the [NeMo Gym extension](gym-output.md) | Proof is unmeasured or failed. Artifact acceptance, diagnostic probes, and a proposed verifier do not establish executable success. |
 
 ## Decide without changing the task to obtain a candidate
 

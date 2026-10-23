@@ -5,7 +5,7 @@
 
 Use this when the [runtime prerequisite checks](runtime-prerequisites.md#runtime-prerequisite-checks) cannot
 use Harbor. This reference owns installation remedies; the shared
-[Milestone check-ins](milestone-checkins.md) procedure owns
+[prerequisites and Ethos](shared-prerequisites.md) procedure owns
 explaining the prerequisite and deciding what work follows.
 
 ## Resolve the existing installation first

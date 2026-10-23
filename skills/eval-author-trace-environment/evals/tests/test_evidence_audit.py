@@ -164,7 +164,7 @@ def cli(*args):
 
 
 def workspace(tmp_path):
-    code, created = cli("init", "--root", tmp_path / ".eval-author/work", "--task-id", "evidence-case")
+    code, created = cli("init", "--root", tmp_path / ".eval-author/.working/work", "--task-id", "evidence-case")
     assert code == 0, created
     root = Path(created["task_dir"])
     source = tmp_path / "source.json"

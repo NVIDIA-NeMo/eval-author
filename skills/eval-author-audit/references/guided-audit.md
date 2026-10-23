@@ -1,140 +1,36 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Guided audit milestones
+# Audit milestones after prerequisites and Ethos
 
-Use the five visible labels and literal checkboxes from the [audit skill](../SKILL.md) for a full
-audit. The numbered script steps in that file are technical operations inside
-these milestones, not additional user check-ins. A focused generate, validate,
-measure, or aggregate request keeps its scope; the trace-source rule below still
-applies whenever traces would be searched or read. Focused operations do not
-require an eval inventory or suite confirmation unrelated to their supplied inputs.
+The shared prerequisite flow owns the opening checklist, prerequisite answers,
+Ethos confirmation, and shared resumption. A direct full audit uses that same flow. Afterward keep
+**Check what your existing evaluations cover** current in the three-item checklist while explaining the
+current coverage milestone. Reuse completed shared steps.
 
-## Opening before the first milestone
+## Decisions and progress
 
-For a fresh full audit, follow the audit skill's opening: show all five unchecked
-steps with their descriptions using literal `- [ ]` syntax, ask **“Ready to get
-started?”**, and end the turn in the final response. The completed opening is the
-user's opportunity to understand the workflow before its execution starts.
-Wait for acceptance before any repository inspection or Ethos validation or
-generation, including checks of a previously accepted Ethos. No progress file is
-needed to ask this question. After acceptance, begin **Understand your agent**
-and retain the response when saving progress. Reuse an answered opening on return
-to an audit already started; do not replay it before every milestone.
+Complete authorized work, explain the result and limits, and link its artifacts.
+Ask for missing source, scope, or content decisions; reuse prior answers. A
+pending source selection blocks reads from that source. A pending content review
+blocks dependent measurement. Retain explicit deferrals and continue independent
+work that is already authorized.
 
-## Check in and preserve progress
+Store suite and trace selections separately, including candidates, exclusions,
+and source bounds, in `.eval-author/.working/journey-state.json`. It also owns
+completed stages, accepted content, unanswered questions, deferrals, evidence
+references, and next action. Do not write an `audit-progress.md`. Import explicit
+legacy decisions once with provenance; a saved file alone is not confirmation.
+Keep findings in `audit-coverage-report.md` and measurements in their native
+artifacts. Link the Markdown report whenever it is created or updated.
 
-Finish the authorized work in the current milestone, explain its result and
-limits, link its artifacts, and refresh the checklist. Mark completed milestones
-`[x]`, leave partial or deferred work `[ ]`, and mark the current milestone
-**We're here**. Every deferred or unavailable milestone must include a short,
-specific reason on its checklist line, including on resume and in the final
-review: for example, `- [ ] **Measure coverage** — Deferred: selected trace directory is missing.`
-Do not shorten this to “deferred” even when the reason appears elsewhere.
-State the next action and ask one focused question about the
-result or the next milestone's missing input. Deliver that checkpoint in the
-turn-ending response (`final` when available) and wait for the user's answer.
-A commentary question or an asynchronous input widget followed by more work
-does not complete the handoff. Do not poll for an answer, keep inspecting files,
-or leave audit subagents working in the background. Finish or pause any delegated
-work before presenting the checkpoint. At the final milestone, invite questions or corrections and
-stop. Reuse answered check-ins; an answer accepting the result and named next
-milestone settles that transition. A generic request to resume does not approve
-a pending content review. A full-audit request alone does not waive check-ins.
-Known inputs settle input questions, not milestone transitions. Even with accepted
-Ethos and confirmed absence of evals and traces, explain the first milestone and
-wait at its check-in before completing the next milestone. Do not infer answered
-check-ins from the ability to do later work. This also applies when the next
-milestone needs no tool calls.
+On return, resume the pending decision or earliest unfinished, non-deferred
+stage. Changed Ethos, audit items, or traces reopen affected work and mark its
+findings stale or unmeasured. Preserve old measurements rather than altering them.
+The confirmed Ethos comes from [Ethos confirmation](../../eval-author/references/ethos-confirmation.md)
+and is not reviewed again unless relevant content changes.
 
-Before presenting a checkpoint, keep reads, writes, and delegation within the
-current milestone. Once its question has been presented, stop all audit work
-until the user replies, including otherwise independent source inspection.
-An input question can also serve as the transition check-in when the current
-milestone's result has been explained; do not follow a source-selection answer
-with a duplicate readiness question. The Ethos check-in offers edits before
-eval discovery; confirm the eval inventory before asking for trace selection.
-Show the checklist at the opening, milestone check-ins, source-selection replies, and
-resumption, rather than after every tool call. Explain what an input is needed
-for and what remains possible without it.
-
-Save candidate eval suites separately from the user-confirmed suite set, including
-exclusions and any pending selection question. Record eval selection and trace
-selection independently; an answer to one does not settle the other.
-Save the accepted opening, confirmed paths and source scope, completed work and
-supporting evidence, limitations, pending questions or answered transitions, and the next action in
-`.eval-author/audit-progress.md`. Record whether the result is a specification,
-partial measurement, or measured audit. Do not store conversation progress in
-Ethos or edit generated coverage JSON. For read-only requests or before a file
-can be saved, retain this state in the conversation. Progress notes are a memory
-of decisions, not evidence that a check passed or that an unanswered question
-was accepted. Keep the human-readable findings in `audit-coverage-report.md`;
-whenever it is created or updated, explicitly call out that write and link the
-report in the turn-ending response, even at an intermediate checkpoint.
-
-On return, reuse applicable answers and artifacts and resume the earliest
-unfinished, non-deferred milestone or its pending check-in. Preserve an explicit
-deferral and the agreed independent next step; revisit it when its missing input
-arrives or the user asks. A selected source stays selected until the user changes
-it; do not repeat its confirmation. Changed Ethos, audit items, or trace inputs
-reopen affected work and invalidate dependent measurements or judgments as
-appropriate. Recheck applicability without restarting the entire audit or
-searching beyond the selected source. Refresh the Markdown report to identify
-affected findings as stale or unmeasured until applicable evidence is available;
-do not present old counts or mappings as current after their inputs change.
-
-## 1. Understand your agent
-
-Input: the selected agent's intended purpose, boundaries, and success criteria.
-After the user accepts the opening, introduce Ethos before validation or authoring,
-including when an existing document can be reused. Explain what it is and why the
-audit needs it, with a link to the
-[ethos-explore skill](../../../team-skills/ethos/ethos-explore/SKILL.md).
-For example: “`ETHOS.md` describes what your agent should do, what it should
-avoid, and what a good result looks like. For this audit, we'll turn that intent
-into the behaviors, tools, and failure cases your evaluations should cover,
-then compare them with the existing tests and any selected run records.” Tie
-this to the selected agent; do not assume the user knows the term.
-
-Include this brief definition and explanation of its use in the first
-turn-ending Ethos check-in, before validation results or repair requests. Keep
-it in that reply even if an introduction appeared earlier in commentary, where
-it may be collapsed. A link or a summary of this agent's behavior alone does
-not explain what the document is for. Later check-ins can reuse this explanation
-without repeating it.
-
-Follow the audit skill's **Ethos Pre-flight**, reusing an applicable existing
-Ethos and its review state. Look for that document first using selected paths
-and directly named agent documentation, before inspecting implementation details.
-When found, promptly show a clickable link and a brief summary of its purpose,
-main behaviors, and boundaries. Limit initial checks to the document itself;
-do not delay this handoff for an exhaustive code comparison or begin rewriting
-it to match implementation. Include any document issues that need resolving in
-the same handoff, keep this milestone incomplete, and ask about the needed fixes
-before editing; an incomplete existing file is not a reason to create a replacement.
-For a format mismatch, first explain the document's purpose and audit use, then
-summarize the existing intent and the specific formatting issue. Explain the
-proposed repair in ordinary language before asking to make it; parser success
-or a list of missing headings should not lead this first handoff.
-Offer the user a chance to edit the existing intent before
-moving on, even if no edits are needed. This is the milestone check-in, not a
-fresh intent interview or a demand to rewrite an unchanged document.
-
-If no document exists, explain that one will capture the intended
-behavior, then follow the shared Local Ethos procedure to create and review it.
-This milestone does not require an eval inventory, traces, Harbor setup, or an
-evaluation run.
-
-Complete when the applicable Ethos has been checked and any new or revised
-content reviewed under the shared Local Ethos procedure. For an unchanged,
-usable document, end with the linked summary, refreshed checklist, and a question
-such as: “Would you like to edit anything in this Ethos, or use it as-is and look
-for existing evaluations next?” Wait for the reply. Reuse an answered edit
-opportunity and transition; do not add another readiness question. Existing Ethos
-does not by itself answer that check-in. Keep trace-location questions in the
-next milestone, after reporting and confirming the eval inventory.
-
-## 2. Confirm evals and traces
+## 1. Confirm evals and traces
 
 Inputs: the evaluations to audit, or the user's statement that none exist, and
 the source and location of any traces to use. Reuse paths and answers from the
@@ -230,7 +126,7 @@ specification work, keep this milestone incomplete and use the accepted Ethos
 and registry. Do not present candidate suites as selected or their findings as
 findings about the user's confirmed evaluation scope.
 
-## 3. Define what the evals should cover
+## 2. Define what the evals should cover
 
 Inputs: checked Ethos and authoritative tool names from the registry, agent
 configuration, or confirmed traces. Group the audit skill's **Steps 1–3** here:
@@ -294,7 +190,7 @@ evaluation suite that does not exist. Without run evidence, proceed with the
 specification alone. Unresolved tool names remain open questions; do not invent
 names, silently omit material behaviors, or call a partial specification complete.
 
-## 4. Measure coverage
+## 3. Measure coverage
 
 Inputs: the reviewed, validated specification and usable records from the
 user-confirmed source. Explain which trace set and measurement methods will be
@@ -317,10 +213,10 @@ the checklist, and check in before **Generate and review coverage report**.
 Reuse existing measurements only when their inputs still apply.
 
 If traces are absent, inaccessible, invalid, or unavailable in a supported format,
-name the specific limitation and needed evidence. Keep **Measure coverage**
-unchecked with the reason on its checklist line, such as “Deferred: selected
-trace directory is missing” or “Unavailable: run records need an ATIF export.”
-Preserve that reason in progress notes and every later checklist until resolved.
+name the specific limitation and needed evidence. Record measurement as deferred
+in shared state with its reason, such as “Selected trace directory is missing”
+or “Run records need an ATIF export.” Keep **Check what your existing evaluations cover** unfinished
+and explain that limitation beside the current coverage stage until resolved.
 Do not report 0% coverage, fabricate
 measurement files, or treat the lack of traces as uncovered behavior. The
 specification and its review can still finish. Record the limitation in the
@@ -329,7 +225,7 @@ as the next independent milestone and wait for the answer. Do not run evals or
 install dependencies just to fill the gap without the
 authorization required by the core.
 
-## 5. Generate and review coverage report
+## 4. Generate and review coverage report
 
 Generate or update the **Audit coverage report**
 (`.eval-author/audit-coverage-report.md`) following the
@@ -347,7 +243,7 @@ coverage report: first its Intended coverage section, now its findings, evidence
 limits, and next actions. Link the relevant saved sections and explicitly name
 those as the content to review; do not ask the user to reapprove intended checks.
 
-Keep this milestone unchecked and current while awaiting the user's review.
+Keep **Check what your existing evaluations cover** unchecked and current while awaiting the user's review.
 Ask whether the Audit coverage report's findings need correction and offer the
 recommended next step below, then end the turn. Mark it complete only after the
 user has reviewed the report and any requested corrections are resolved. A reply accepting the findings and

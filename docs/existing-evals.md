@@ -12,7 +12,7 @@ operation you choose.
 ## Find local tasks without running them
 
 The shared [task search](../skills/eval-author/references/task-search.md) finds
-Harbor task directories and Gym workload candidates from provider layouts
+Harbor task directories and NeMo Gym workload candidates from provider layouts
 and Eval Author's existing extension markers.
 It uses Python's standard library and reports stable paths, marker files, and
 search limits without importing providers or executing repository code. Matches
@@ -22,12 +22,12 @@ use readiness checks only when you want to validate or execute them.
 ## Check readiness
 
 ```text
-Check whether the Gym or Harbor evaluations in this repository are ready to run.
+Check whether the NeMo Gym or Harbor evaluations in this repository are ready to run.
 Explain any blockers and show the command for each suite you check.
 ```
 
 Eval Author uses provider-native checks: Harbor validates its configs and tasks,
-and Gym validates native manifests and runs verifier fixtures. Discovery also
+and NeMo Gym validates native manifests and runs verifier fixtures. Discovery also
 runs a bounded sample of Harbor tasks with Oracle. It saves findings and evidence
 in `.eval-author/discovery.md`.
 
@@ -46,36 +46,9 @@ available traces. Explain what is covered, what is missing, and what the
 evidence cannot establish.
 ```
 
-Eval Author opens a fresh full audit with five literal checkboxes and a brief
-description of each step:
+A full audit starts with the [shared setup and Ethos confirmation](getting-started.md).
 
-- [ ] **Understand your agent** — agree on what your agent should do, what it should avoid, and what a good result looks like.
-- [ ] **Confirm evals and traces** — confirm which evaluations to audit and locate traces (records of agent runs) so we can check what the evaluations actually exercised.
-- [ ] **Define what the evals should cover** — agree on the behaviors, tools, and failure cases to check.
-- [ ] **Measure coverage** — use the run records to see which of those items were exercised.
-- [ ] **Generate and review coverage report** — create or update `audit-coverage-report.md`, then review coverage, gaps, evidence limits, and next steps together.
-
-It then asks whether you want to continue and waits. This opening comes before
-the first milestone: no repository inspection, Ethos reading or validation, or
-progress-file reading or writing starts until you accept. An accepted existing
-Ethos or supplied trace location does not skip the opening. After your answer,
-Eval Author begins **Understand your agent** and checks in after each milestone.
-The checklist and opening question appear together in the reply that ends the
-turn. Requesting an audit, including asking to load the skill and audit together,
-does not answer that question.
-
-After acceptance, Eval Author explains **ETHOS.md**: the document recording what
-your agent should do, its boundaries, and what success means, which gives the
-audit its target. It links the [ethos-explore skill](../team-skills/ethos/ethos-explore/SKILL.md)
-even when a document already exists. An existing ETHOS.md is linked as soon as it is
-found, with a short explanation of its intent and an opportunity to request edits
-before it becomes the audit baseline.
-The first Ethos check-in explains both what the document is and how the audit
-uses it to define expected coverage before comparing with tests and run records.
-That explanation stays in the reply even when the file needs formatting repairs;
-it comes before validation details and the repair question.
-
-Opening, milestone, and source-selection questions hand the conversation back
+Milestone and source-selection questions hand the conversation back
 to you. Work stops while the answer is pending, including background work and
 delegated reviews. Independent work can finish before a checkpoint or continue
 after you explicitly defer the missing input and agree to that work; asking a
@@ -122,12 +95,11 @@ and failure cases and links directly to the full **Intended coverage** section.
 It asks which intended checks are missing or incorrect and names the next
 milestone. Agreeing to this scope does not approve the final report's findings.
 
-**Audit progress** (`.eval-author/audit-progress.md`) records conversation state:
+**Shared progress** (`.eval-author/.working/journey-state.json`) records conversation state:
 selected paths, limitations, answered or pending questions, and the next action.
-It is saved after acceptance. On return to an already-started audit, Eval Author
-reuses the answered opening and resumes unfinished milestones with completed work
-and prior answers intact. Requests only to validate a specification or measure
-or aggregate coverage stay within that scope.
+On return to an already-started audit, Eval Author resumes unfinished milestones
+with completed work and prior answers intact. Requests only to validate a
+specification or measure or aggregate coverage stay within that scope.
 
 Coverage measurement compares that specification with recorded ATIF traces.
 ATIF is a structured record of an agent's interaction. Measurements are saved

@@ -12,9 +12,9 @@ cases can still leave important behavior untested.
 NeMo Eval Author is a set of tools that guides your coding assistant to help you create evaluations
 and investigate gaps in behavior coverage for your custom evals. It provides skills that work with
 your agent's repository, its intended behavior, and any available execution traces
-(records of the steps your agent took). You can start without traces: build a
-first evaluation suite, audit existing evaluations, or plan new eval cases with your
-coding assistant.
+(records of the steps your agent took). You can build a first evaluation suite,
+plan new cases, or define an audit specification without traces. A full coverage
+audit requires saved traces from completed evaluation runs.
 
 For example, the results of an audit might report:
 
@@ -39,18 +39,28 @@ on task difficulty and authoring prompts.
 ## Prerequisites
 
 NeMo Eval Author has tested support for [NeMo Gym](https://docs.nvidia.com/nemo/gym/latest/) and
-[Harbor](https://docs.harborframework.com/) eval formats. Workflows default to Harbor when neither is specified. 
-Gym is compatible with Harbor, and the user has the final say. 
+[Harbor](https://docs.harborframework.com/) eval formats. Authoring defaults to Harbor when neither is specified.
+NeMo Gym is compatible with Harbor, and the user has the final say.
 
-Gym authoring needs Gym v0.6.0+ in its separate Python 3.13.14+ environment; Harbor authoring needs its
+NeMo Gym authoring needs NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment; Harbor authoring needs its
 CLI and supported Python environment. See the [first-eval guide](docs/first-evals.md)
 and [Harbor setup guide](skills/eval-author/references/harbor-setup.md).
-Repository inventory and case planning can start without either runtime.
+Full creation and improvement onboarding verifies the selected runtime before
+Ethos. Explicit inventory or planning-only requests do not require an evaluation runtime.
 
-First-evaluation design and coverage audits require a local **ETHOS.md file** describing
+All three journeys review or create a repository-root **ETHOS.md** describing
 your agent's purpose, boundaries, and success criteria. Install the
-[ethos skills](team-skills/ethos/ethos-orchestrate/README.md) to create one:
-`npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/team-skills/ethos --agent claude-code`.
+[Ethos skills](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md#how-to-use)
+to confirm an existing document or create one with you:
+
+```bash
+npx skills@latest add nvidia/skills \
+  --skill ethos-orchestrate --skill ethos-explore --skill ethos-write \
+  --agent claude-code --yes
+```
+
+Run from your agent's repository, replace `claude-code` with your assistant's
+identifier, and add `--global` for a global installation.
 
 The discovery helper requires Python 3.11+. Audit generation, validation, and
 aggregation require Python 3.11+, PyYAML, and jsonschema. Measuring coverage from
@@ -106,29 +116,63 @@ for scope, file locations, and troubleshooting.
 To install without Node.js, follow the
 [manual installation steps](docs/getting-started.md#manual-installation-without-nodejs).
 
-Open your agent's repository in a new session of the selected coding assistant
-and ask:
+## Choose your journey
+
+Eval Author supports three journeys: **build your first evaluations**, **audit
+your existing coverage**, and **improve your evaluation suite**. Each starts by
+checking the prerequisites for your goal and confirming how your agent should
+behave using `ETHOS.md`.
+
+Open your agent's repository in your coding assistant and copy the prompt for
+your goal. Replace the bracketed values; for creation, choose NeMo Gym or Harbor.
+
+### Build your first evaluations
+
+Start a suite for an agent that does not have evaluations yet. Have the selected
+NeMo Gym or Harbor runtime available; no existing suite, traces, or audit is required.
 
 ```text
-Use eval-author to help me with the evals for my agent.
+Use eval-author to build my first evaluations for [agent name] using [NeMo Gym or Harbor].
+I don't have evaluations yet.
 ```
 
-With no goal supplied, Eval Author welcomes you and asks whether you want to
-build first evals, improve an existing suite, or find out what's already here.
-Your answer starts guided authoring, a guided coverage audit, or discovery.
-It reuses a known goal or prior progress without repeating that question.
-If the assistant cannot find
-`eval-author`, follow the [availability check](docs/getting-started.md#verify-your-assistant-can-use-eval-author).
-If you know more about your scenario, try one of these:
+See [Build your first evaluations](docs/first-evals.md).
+
+### Audit your existing coverage
+
+Check what your existing evaluations cover against your agent's intended behavior.
+You need an existing suite and traces from completed evaluation runs. Eval Author
+confirms trace availability during prerequisites; you select the traces within the audit.
+
+```text
+Use eval-author to audit coverage of the existing evaluations for [agent name].
+The suite is in [path/to/evals]. I have traces from completed evaluation runs.
+```
+
+See [Audit coverage](docs/existing-evals.md#audit-coverage).
+
+### Improve your evaluation suite
+
+Add or strengthen evaluations in an existing NeMo Gym or Harbor suite. No prior
+audit or traces are required to start; the selected evaluation runtime must be available.
+
+```text
+Use eval-author to help me improve the existing evaluations for [agent name].
+The suite is in [path/to/evals].
+```
+
+Current authoring routes extend Eval Author starter suites or propose additions
+from reviewed audit findings. Broader suite expansion is still in development.
+
+### Other requests
+
+You can also ask for a specific operation:
 
 | Say to your coding assistant | Guide |
 | --- | --- |
 | "Find the evals in this repository and explain how to run them." | [Discover existing evaluations](docs/getting-started.md#find-existing-evaluations) |
-| "I don't have evals yet. Help me build my first ones." | [Build your first evaluations](docs/first-evals.md) |
-| "Help me onboard to expand my evals." | [Start a guided coverage audit](docs/existing-evals.md#audit-coverage), then propose additions from its findings |
-| "Check whether my Gym or Harbor evals are ready to run." | [Check readiness](docs/existing-evals.md#check-readiness) |
-| "Audit my evals against my agent's intended behavior using these traces." | [Audit coverage](docs/existing-evals.md#audit-coverage) |
-| "Create a Gym evaluation from this audit gap." | [Author and prove a Gym task](skills/eval-author-task-create/references/gym-tasks.md) |
+| "Check whether my NeMo Gym or Harbor evals are ready to run." | [Check readiness](docs/existing-evals.md#check-readiness) |
+| "Create a NeMo Gym evaluation from this audit gap." | [Author and prove a NeMo Gym task](skills/eval-author-task-create/references/gym-tasks.md) |
 | "Use this audit report to propose the next evals to add." | [Plan new or improved evaluations](docs/existing-evals.md#propose-new-evaluations) |
 | "Explain Intake trace TRACE_ID in workspace WORKSPACE." | [Inspect a trace](docs/traces.md#inspect-an-intake-trace) |
 | "Turn this local trace into a Harbor eval task." | **Experimental** · [Build a task from a trace](docs/traces.md#build-an-evaluation-task) |
@@ -141,8 +185,8 @@ Include the relevant file paths, trace IDs, or workspace names in your request.
 
 The [trace-environment workflow](docs/traces.md#build-an-evaluation-task) turns
 trace evidence into a private candidate task, validates it with Harbor's `nop`
-and `oracle` or Gym's native validation and repeated controls, and uses the findings
-to refine the task. Gym output uses a private native report; automated publication
+and `oracle` or NeMo Gym's native validation and repeated controls, and uses the findings
+to refine the task. NeMo Gym output uses a private native report; automated publication
 and readiness reporting remain Harbor-specific. It can start directly
 from a trace or be paired with [dataset proposals](docs/existing-evals.md#propose-new-evaluations):
 propose a useful scenario, construct it from supporting trace evidence, then

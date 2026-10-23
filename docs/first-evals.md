@@ -7,7 +7,7 @@ Use this guide when your agent has no evaluations yet. Eval Author helps you
 build a starter suite that you can rerun after changes using NeMo Gym or Harbor.
 As in audit-derived and trace-derived task creation, Eval Author follows your
 choice, otherwise preserves the existing suite's provider, and defaults to
-Harbor when neither is specified. Gym is compatible with Harbor, and you have
+Harbor when neither is specified. NeMo Gym is compatible with Harbor, and you have
 the final say in which tools to use.
 
 Follow [the setup guide](getting-started.md) to load Eval Author in your coding
@@ -20,7 +20,8 @@ Show me the plan first, and explain the cases and how they will be graded.
 
 ## Establish what the agent should do
 
-Eval Author first helps you establish an **Ethos**: a local document describing
+After verifying your agent, setup, and selected evaluation runtime, Eval Author
+uses the shared Ethos workflow to establish an **Ethos**: a local document describing
 your agent's purpose, boundaries, and success criteria. It can reuse an existing
 `ETHOS.md` or help you create and review one.
 
@@ -53,8 +54,12 @@ the work each rerun requires and whether cost is a budget, a reported metric,
 or a scoring rule. Without reliable pricing or comparable measurements, the plan
 uses work counts and marks monetary cost unknown.
 
-You can plan cases before either runtime is installed. Native Gym authoring
-requires Gym v0.6.0+ in its separate Python 3.13.14+ environment.
+Full first-eval onboarding requires the selected supported runtime before Ethos
+and case planning. A missing or incompatible runtime pauses onboarding and
+preserves progress; an inconclusive check stays unknown until resolved.
+Eval Author does not install software during these checks. An explicitly requested
+planning-only operation can proceed without an evaluation runtime.
+Native NeMo Gym authoring requires NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment.
 For Harbor authoring, see the [Harbor setup guide](../skills/eval-author/references/harbor-setup.md).
 Execution also needs the selected environment backend, any required application
 access, and a supported connection to your agent. See the full
@@ -69,7 +74,7 @@ scope and resumes from that stage without restarting onboarding.
 Eval Author creates each case's instructions, environment, reference solution,
 and grader. The environment reuses your repository's own services where it can,
 starts from realistic seeded data, and is proven to work before any case relies
-on it. For Gym, it validates the manifest and runs verifier fixtures with
+on it. For NeMo Gym, it validates the manifest and runs verifier fixtures with
 known-correct and negative/no-action controls through `gym env validate` and
 `gym env test`. For Harbor:
 
@@ -96,10 +101,10 @@ or prove that the grader handles every possible response.
 
 ## Read the output and run again
 
-Run artifacts are under `.eval-author/runs/` for Gym or `.eval-author/jobs/` for Harbor.
-Gym keeps the selected composition, dataset rows, agent/model settings, and native commands
+Run artifacts are under `.eval-author/runs/` for NeMo Gym or `.eval-author/jobs/` for Harbor.
+NeMo Gym keeps the selected composition, dataset rows, agent/model settings, and native commands
 in the plan and suite README. For Harbor, when the agent integration supports it,
-Eval Author creates `.eval-author/first-eval.yaml` with the selected cases and run settings.
+Eval Author creates `.eval-author/run.yaml` with the selected cases and run settings.
 
 
 Start with `.eval-author/report.html` to review your cases and results.

@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": "gym-convert-record",
-      "prompt": "Convert the synthetic Gym record /workspace/input/source.json to ATIF under /workspace/output/converted. Work offline using available local tools. Preserve the source and explain conversion losses with paths and counts only, without printing trace payloads.",
+      "prompt": "Convert the synthetic NeMo Gym record /workspace/input/source.json to ATIF under /workspace/output/converted. Work offline using available local tools. Preserve the source and explain conversion losses with paths and counts only, without printing trace payloads.",
       "expected_output": "Creates source.gym.json, trace.atif.json, and conversion.json; source bytes remain exact and input is unchanged. Preserves the user instruction and lookup_item call with its paired result; does not invent runtime identity, per-step timing, or correctness evidence. Uses owner-private output directory and files (0700 and 0600) and reports content-free status without network calls.",
       "assertions": [
         "Creates source.gym.json, trace.atif.json, and conversion.json; source bytes remain exact and input is unchanged.",
@@ -18,10 +18,10 @@
     {
       "id": "gym-retained-original",
       "prompt": "For this synthetic exercise, I explicitly associate /workspace/input/source.json with the retained original ATIF /workspace/input/original.atif.json. Prefer that original and prepare the conversion bundle under /workspace/output/original. Keep both inputs unchanged, work offline, and report only paths and content-free status. This association is my assertion, not a provenance proof.",
-      "expected_output": "Uses the explicitly selected original ATIF byte-for-byte rather than reconstructing it from Gym output. Retains the exact Gym source and conversion provenance in owner-private output files. Does not follow metadata paths, contact services, or claim the operator association proves equivalence or live execution.",
+      "expected_output": "Uses the explicitly selected original ATIF byte-for-byte rather than reconstructing it from NeMo Gym output. Retains the exact NeMo Gym source and conversion provenance in owner-private output files. Does not follow metadata paths, contact services, or claim the operator association proves equivalence or live execution.",
       "assertions": [
-        "Uses the explicitly selected original ATIF byte-for-byte rather than reconstructing it from Gym output.",
-        "Retains the exact Gym source and conversion provenance in owner-private output files.",
+        "Uses the explicitly selected original ATIF byte-for-byte rather than reconstructing it from NeMo Gym output.",
+        "Retains the exact NeMo Gym source and conversion provenance in owner-private output files.",
         "Does not follow metadata paths, contact services, or claim the operator association proves equivalence or live execution."
       ],
       "expected_skill": "gym-to-atif",

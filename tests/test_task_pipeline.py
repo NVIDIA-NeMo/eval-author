@@ -175,9 +175,9 @@ def test_select_returns_task_slug_and_paths(tmp_path: Path) -> None:
             "name": "read",
             "needed_tools": ["read"],
             "paths": {
-                "draft": ".eval-author/task-drafts/cover-read",
+                "draft": ".eval-author/tasks/cover-read",
                 "measurements": ".eval-author/task-measurements/cover-read",
-                "proposal": ".eval-author/proposals/cover-read-instruction.md",
+                "proposal": ".eval-author/.working/proposals/cover-read-instruction.md",
                 "task_id": "cover-read",
             },
             "reason": "not_covered_by_any_input_report",
@@ -215,11 +215,11 @@ def test_scaffold_uses_harbor_native_task_layout(tmp_path: Path) -> None:
     from audit_fixtures import bound_gap
 
     bound_gap(tmp_path, report, "read")
-    proposals = tmp_path / ".eval-author" / "proposals"
+    proposals = tmp_path / ".eval-author" / ".working" / "proposals"
     proposals.mkdir(parents=True)
     instruction = proposals / "cover-read-instruction.md"
     instruction.write_text("Read seed.txt and report its content.\n", encoding="utf-8")
-    draft = tmp_path / ".eval-author" / "task-drafts" / "cover-read"
+    draft = tmp_path / ".eval-author" / "tasks" / "cover-read"
 
     result = _run(
         "scaffold",
@@ -241,7 +241,7 @@ def test_scaffold_uses_harbor_native_task_layout(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     payload = json.loads(result.stdout)
     assert payload["task_slug"] == "cover-read"
-    assert payload["paths"]["proposal"] == ".eval-author/proposals/cover-read-instruction.md"
+    assert payload["paths"]["proposal"] == ".eval-author/.working/proposals/cover-read-instruction.md"
     assert (draft / "instruction.md").read_text(encoding="utf-8") == instruction.read_text(encoding="utf-8")
     task_toml = (draft / "task.toml").read_text(encoding="utf-8")
     assert 'schema_version = "1.3"' in task_toml
@@ -255,11 +255,11 @@ def test_scaffold_rejects_mismatched_proposal_filename(tmp_path: Path) -> None:
     """Scaffold rejects proposal filenames that do not match the assigned task slug."""
     report = tmp_path / "report.json"
     _write_report(report, covered=["write"], uncovered=["read"])
-    proposals = tmp_path / ".eval-author" / "proposals"
+    proposals = tmp_path / ".eval-author" / ".working" / "proposals"
     proposals.mkdir(parents=True)
     instruction = proposals / "read-file-instruction.md"
     instruction.write_text("Read seed.txt and report its content.\n", encoding="utf-8")
-    draft = tmp_path / ".eval-author" / "task-drafts" / "cover-read"
+    draft = tmp_path / ".eval-author" / "tasks" / "cover-read"
 
     result = _run(
         "scaffold",
@@ -288,10 +288,10 @@ def test_scaffold_rejects_mismatched_proposal_filename(tmp_path: Path) -> None:
 def test_scaffold_rejects_unbound_report_before_creating_a_draft(tmp_path, provider):
     report = tmp_path / "report.json"
     _write_report(report, covered=[], uncovered=["read"])
-    instruction = tmp_path / ".eval-author/proposals/cover-read-instruction.md"
+    instruction = tmp_path / ".eval-author/.working/proposals/cover-read-instruction.md"
     instruction.parent.mkdir(parents=True)
     instruction.write_text("Read the record.")
-    draft = tmp_path / ".eval-author/task-drafts/cover-read"
+    draft = tmp_path / ".eval-author/tasks/cover-read"
     result = _run(
         "scaffold",
         "--report",
@@ -314,6 +314,42 @@ def test_scaffold_rejects_unbound_report_before_creating_a_draft(tmp_path, provi
     assert result.returncode == 1
     assert "unbound legacy coverage" in json.loads(result.stdout)["error"]
     assert not draft.exists()
+
+
+@pytest.mark.parametrize("provider", ["harbor", "gym"])
+@pytest.mark.parametrize("legacy", ["task", "proposal"])
+def test_scaffold_rejects_new_artifacts_at_legacy_paths(tmp_path, provider, legacy):
+    report = tmp_path / "report.json"
+    _write_report(report, covered=[], uncovered=["read"])
+    task_root = ".eval-author/task-drafts" if legacy == "task" else ".eval-author/tasks"
+    proposal_root = ".eval-author/proposals" if legacy == "proposal" else ".eval-author/.working/proposals"
+    instruction = tmp_path / proposal_root / "cover-read-instruction.md"
+    instruction.parent.mkdir(parents=True)
+    instruction.write_text("Read the record.")
+    destination = tmp_path / task_root / "cover-read"
+    result = _run(
+        "scaffold",
+        "--report",
+        str(report),
+        "--target",
+        "read",
+        "--out",
+        str(destination),
+        "--task-name",
+        "example/cover-read",
+        "--description",
+        "Read fixture",
+        "--author",
+        "Test",
+        "--instruction-file",
+        str(instruction),
+        "--provider",
+        provider,
+    )
+    assert result.returncode == 1
+    required = ".eval-author/tasks/" if legacy == "task" else ".eval-author/.working/proposals/"
+    assert required in json.loads(result.stdout)["error"]
+    assert not destination.exists()
 
 
 def test_verify_rejects_single_after_report(tmp_path: Path) -> None:

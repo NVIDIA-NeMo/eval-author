@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Offline conversion of one Gym Responses record. Never fetch embedded paths/URLs.
+"""Offline conversion of one NeMo Gym Responses record. Never fetch embedded paths/URLs.
 
 Prefer --source-atif for Harbor-backed records. Output is private evidence, not
 publication approval, proof, or a claim of lossless round-trip conversion.
@@ -194,7 +194,7 @@ def read_source(path: Path, row: int | None = None) -> bytes:
 
 def envelope(record: Any) -> tuple[dict[str, Any], dict[str, Any]]:
     if not isinstance(record, dict):
-        raise ConversionError("one Gym rollout/response object is required")
+        raise ConversionError("one NeMo Gym rollout/response object is required")
     if "response" in record:
         response = record["response"]
         request = record.get("responses_create_params")
@@ -203,9 +203,9 @@ def envelope(record: Any) -> tuple[dict[str, Any], dict[str, Any]]:
     else:
         response, request = record, {}
         if record.get("object") != "response":
-            raise ConversionError("expected a Gym rollout envelope or standalone Responses object")
+            raise ConversionError("expected a NeMo Gym rollout envelope or standalone Responses object")
     if not isinstance(response, dict) or not isinstance(response.get("output"), list):
-        raise ConversionError("Gym response.output must be an array")
+        raise ConversionError("NeMo Gym response.output must be an array")
     return request, response
 
 
@@ -230,10 +230,12 @@ class Projection:
         self.results: set[str] = set()
         self.uncertainties = [
             "Agent implementation/version and per-item timing are not inferred from model names or response timestamps.",
-            "ATIF step segmentation follows Gym item order, not an inferred original LLM-call grouping.",
+            "ATIF step segmentation follows NeMo Gym item order, not an inferred original LLM-call grouping.",
             "ATIF session_id is derived from the source record digest, not a native session identifier.",
         ]
-        self.losses = ["Gym-specific fields not projected into ATIF remain in the exact private Gym source record."]
+        self.losses = [
+            "NeMo Gym-specific fields not projected into ATIF remain in the exact private NeMo Gym source record."
+        ]
         self.operations: list[str] = []
         self.bridge = isinstance(record.get("atif_conversion"), dict)
         self.last_type: str | None = None
@@ -325,10 +327,10 @@ class Projection:
 
     def item(self, item: Any, path: str) -> None:
         if not isinstance(item, dict):
-            raise ConversionError(f"Gym item must be an object at {path}")
+            raise ConversionError(f"NeMo Gym item must be an object at {path}")
         kind = item.get("type", "message" if "role" in item else None)
         if not isinstance(kind, str):
-            raise ConversionError(f"Gym item type must be text at {path}")
+            raise ConversionError(f"NeMo Gym item type must be text at {path}")
         if kind == "message":
             role = item.get("role")
             if not isinstance(role, str) or role not in {"user", "assistant", "system", "developer"}:
@@ -386,9 +388,11 @@ class Projection:
             step["extra"]["gym"]["reasoning_summary"] = copy.deepcopy(summary)
             self.uncertainties.append(f"Recorded reasoning summary is not treated as verbatim model reasoning: {path}")
             if item.get("encrypted_content") or item.get("content"):
-                self.losses.append(f"Additional/encrypted reasoning retained only in original Gym record: {path}")
+                self.losses.append(f"Additional/encrypted reasoning retained only in original NeMo Gym record: {path}")
         else:
-            raise ConversionError(f"unsupported Gym item type at {path}; supply original ATIF or an explicit adapter")
+            raise ConversionError(
+                f"unsupported NeMo Gym item type at {path}; supply original ATIF or an explicit adapter"
+            )
         self.last_type = kind
 
     def convert(self, output_scope: str = "auto") -> dict[str, Any]:
@@ -403,7 +407,7 @@ class Projection:
         if isinstance(incoming, str):
             incoming = [{"type": "message", "role": "user", "content": incoming}]
         if not isinstance(incoming, list):
-            raise ConversionError("Gym request.input must be text or an item array")
+            raise ConversionError("NeMo Gym request.input must be text or an item array")
         outgoing = response["output"]
         if output_scope == "auto":
             prefix = (
@@ -425,7 +429,7 @@ class Projection:
                 )
             else:
                 output_scope = "generated"
-        self.operations.append("Gym response output scope: " + output_scope)
+        self.operations.append("NeMo Gym response output scope: " + output_scope)
         items = [(p, f"$.response.output[{i}]") for i, p in enumerate(outgoing)]
         if output_scope == "generated":
             items = [(p, f"$.responses_create_params.input[{i}]") for i, p in enumerate(incoming)] + items
@@ -440,7 +444,7 @@ class Projection:
         for item, path in items:
             self.item(item, path)
         if not any(s["source"] == "user" for s in self.steps):
-            raise ConversionError("Gym record contains no root user instruction; it will not be invented")
+            raise ConversionError("NeMo Gym record contains no root user instruction; it will not be invented")
         if self.calls.keys() - self.results:
             self.uncertainties.append("Some recorded calls have no recorded result; no observations were invented")
         model = response.get("model") or request.get("model")
@@ -463,10 +467,10 @@ class Projection:
         if response.get("usage") is not None:
             source["aggregate_usage"] = copy.deepcopy(response["usage"])
         if response.get("status") not in (None, "completed"):
-            self.uncertainties.append("Gym response is not completed; status/reward do not establish task proof")
+            self.uncertainties.append("NeMo Gym response is not completed; status/reward do not establish task proof")
         if self.bridge:
             self.losses.append(
-                "Upstream ATIF-to-Gym conversion can omit metadata/subagent/tool-definition evidence; consult original ATIF"
+                "Upstream ATIF-to-NeMo Gym conversion can omit metadata/subagent/tool-definition evidence; consult original ATIF"
             )
         return {
             "schema_version": "ATIF-v1.7",
@@ -509,22 +513,22 @@ def normalize(
             d.get("session_id") for d in descriptions if isinstance(d, dict) and isinstance(d.get("session_id"), str)
         }
         if known_ids and payload.get("session_id") not in known_ids:
-            raise ConversionError("supplied ATIF session does not match advertised Gym trajectory metadata")
+            raise ConversionError("supplied ATIF session does not match advertised NeMo Gym trajectory metadata")
         canonical = source_atif
         basis = "provided_atif"
         uncertainties = [
-            "Gym/ATIF association is operator-supplied; session metadata is checked when available.",
+            "NeMo Gym/ATIF association is operator-supplied; session metadata is checked when available.",
             "Referenced media are not copied, fetched or validated; retain the original media alongside the ATIF.",
         ]
         if len(descriptions) > 1:
             uncertainties.append(
-                "One explicitly selected ATIF from a multi-step Harbor run is retained; Gym aggregate reward is not transferred."
+                "One explicitly selected ATIF from a multi-step Harbor run is retained; NeMo Gym aggregate reward is not transferred."
             )
         losses = []
     else:
         if bridge is not None and not allow_projection:
             raise ConversionError(
-                "Gym advertises source ATIF; supply --source-atif or explicitly opt into --allow-projection"
+                "NeMo Gym advertises source ATIF; supply --source-atif or explicitly opt into --allow-projection"
             )
         if isinstance(bridge, dict) and (
             len(bridge.get("trajectories", [])) > 1 or len(bridge.get("source_trajectory_paths", [])) > 1
@@ -590,7 +594,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--allow-projection",
         action="store_true",
-        help="Allow a lossy Gym projection when a source ATIF is advertised but unavailable",
+        help="Allow a lossy NeMo Gym projection when a source ATIF is advertised but unavailable",
     )
     parser.add_argument("--output-scope", choices=("auto", "full", "generated"), default="auto")
     parser.add_argument("--output-dir", type=Path, required=True)

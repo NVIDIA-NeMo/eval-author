@@ -18,7 +18,6 @@ import shutil
 import stat
 import subprocess
 import sys
-import tempfile
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -27,6 +26,7 @@ from urllib.parse import urlsplit
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
+sys.path.append(str(_SCRIPT_DIR.parents[1] / "eval-author/scripts"))
 
 import construction  # noqa: E402
 import solution_review  # noqa: E402
@@ -41,6 +41,7 @@ from fixture_compiler import (  # noqa: E402
 )
 from mock_registration import probe_registration  # noqa: E402
 from verifier_lint import uses_submission_capture, verifier_advisories  # noqa: E402
+from working_paths import scratch_directory, working_path  # noqa: E402
 
 SCHEMA = "nemo.eval_author.trace_environment_summary.v2"
 QUALIFIED_SUMMARY_SCHEMA = "nemo.eval_author.trace_environment_summary.v3"
@@ -257,22 +258,28 @@ def _write_bytes_once(path: Path, data: bytes) -> None:
     _chmod_private(path)
 
 
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    _write_text(path, json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+def _write_json(path: Path, payload: dict[str, Any], *, repo: Path | None = None) -> None:
+    _write_text(path, json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", repo=repo)
 
 
-def _write_text(path: Path, text: str) -> None:
+def _write_text(path: Path, text: str, *, repo: Path | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+    with scratch_directory(repo if repo is not None else _workspace_repo(path), prefix="trace-write-") as scratch:
+        temporary = scratch / "content"
+        with temporary.open("w", encoding="utf-8") as stream:
             stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
         _chmod_private(temporary)
         os.replace(temporary, path)
         _chmod_private(path)
-    finally:
-        temporary.unlink(missing_ok=True)
+
+
+def _workspace_repo(path: Path) -> Path:
+    for parent in path.resolve().parents:
+        if parent.name == ".eval-author":
+            return parent.parent
+    raise ContractError("internal writes require a .eval-author workspace")
 
 
 def _load_json(path: Path, *, label: str, max_bytes: int = MAX_CANONICAL_BYTES) -> Any:
@@ -400,9 +407,16 @@ def _ensure_task_dir(path: Path) -> Path:
 
 
 def _init(args: argparse.Namespace) -> dict[str, Any]:
-    root = args.root.resolve()
-    if ".eval-author" not in root.parts:
-        raise ContractError("task workspace root must stay under a .eval-author directory")
+    root = args.root.absolute()
+    if not any(root.parts[i : i + 2] == (".eval-author", ".working") for i in range(len(root.parts) - 1)):
+        raise ContractError("new task workspace roots must stay under .eval-author/.working/")
+    working_index = next(i for i in range(len(root.parts) - 1) if root.parts[i : i + 2] == (".eval-author", ".working"))
+    repo = Path(*root.parts[:working_index])
+    try:
+        working_path(repo, *root.parts[working_index + 2 :], ".path-check")
+    except ValueError as error:
+        raise ContractError(str(error)) from error
+    root = root.resolve()
     _mkdir_private(root)
     gitignore_path = root / ".gitignore"
     expected_gitignore = "*\n!.gitignore\n"
@@ -1232,7 +1246,7 @@ def _generate_mock_tool_calls(args: argparse.Namespace) -> dict[str, Any]:
         raise ContractError("refusing to replace existing generated mock tool calls")
     fixture_dir.parent.mkdir(parents=True, exist_ok=True)
     runtime_source = Path(__file__).with_name("replay_mcp_server.py")
-    with tempfile.TemporaryDirectory(prefix="tool-call-fixtures-", dir=task_dir / "private") as temporary:
+    with scratch_directory(_workspace_repo(task_dir), prefix="tool-call-fixtures-") as temporary:
         staged = Path(temporary) / "tool-call-fixtures"
         _mkdir_private(staged)
         _write_bytes_once(
@@ -2592,7 +2606,7 @@ def _check_runtime(args: argparse.Namespace) -> dict[str, Any]:
                         for server in task.config.environment.mcp_servers
                         if server.name == "trace-tool-call-replay"
                     ]
-                    registration = probe_registration(agent, servers)
+                    registration = probe_registration(agent, servers, repo=_workspace_repo(task_dir))
                     report["mock_integration"] = {
                         "adapter": "mcp",
                         "registration": registration,
@@ -3613,7 +3627,7 @@ def _write_publication(task_dir: Path, output_dir: Path) -> None:
         "reproducibility": reproducibility_summary,
         "technical_validation": validation_summary,
     }
-    _write_json(output_dir / "result.json", product)
+    _write_json(output_dir / "result.json", product, repo=_workspace_repo(task_dir))
     for path in output_dir.rglob("*"):
         if path.is_file():
             path.chmod(0o644 | (stat.S_IMODE(path.stat().st_mode) & 0o111))
@@ -3638,7 +3652,7 @@ def _prepare_publication(args: argparse.Namespace) -> dict[str, Any]:
     _mkdir_private(task_dir / "private")
     _mkdir_private(publications)
     # Keep each preview, including superseded ones, as private review evidence.
-    with tempfile.TemporaryDirectory(prefix="staging-", dir=publications) as temporary:
+    with scratch_directory(_workspace_repo(task_dir), prefix="publication-staging-") as temporary:
         preview = Path(temporary) / "product"
         _mkdir_private(preview)
         _write_publication(task_dir, preview)
@@ -3669,7 +3683,7 @@ def _review_publication(args: argparse.Namespace) -> dict[str, Any]:
     inventory = _publication_inventory(preview)
     if inventory["sha256"] != args.sha256 or preview.name != args.sha256.removeprefix("sha256:"):
         raise ContractError("publication preview does not match the reviewed digest")
-    with tempfile.TemporaryDirectory(dir=task_dir / "private") as temporary:
+    with scratch_directory(_workspace_repo(task_dir), prefix="publication-review-") as temporary:
         current = Path(temporary)
         _write_publication(task_dir, current)
         if _publication_inventory(current) != inventory:
@@ -3709,7 +3723,7 @@ def _export(args: argparse.Namespace) -> dict[str, Any]:
         or not review["note"].strip()
     ):
         raise ContractError("publication review does not match the versioned contract")
-    with tempfile.TemporaryDirectory(dir=task_dir / "private") as temporary:
+    with scratch_directory(_workspace_repo(task_dir), prefix="publication-export-") as temporary:
         staged = Path(temporary)
         _write_publication(task_dir, staged)
         if _publication_inventory(staged) != review["publication"]:
@@ -3758,7 +3772,7 @@ def _parser() -> argparse.ArgumentParser:
     runtime.set_defaults(run=_check_runtime)
 
     init = subparsers.add_parser("init", help="create one private, gitignored task workspace")
-    init.add_argument("--root", type=Path, default=Path(".eval-author/trace-environments"))
+    init.add_argument("--root", type=Path, default=Path(".eval-author/.working/trace-environments"))
     init.add_argument("--task-id", required=True, type=_validate_task_id)
     init.set_defaults(run=_init)
 
@@ -3905,12 +3919,12 @@ def _parser() -> argparse.ArgumentParser:
     check.set_defaults(run=_check)
 
     batch_prepare = subparsers.add_parser("batch-prepare", help="idempotently prepare every manifest member")
-    batch_prepare.add_argument("--root", type=Path, default=Path(".eval-author/trace-environments"))
+    batch_prepare.add_argument("--root", type=Path, default=Path(".eval-author/.working/trace-environments"))
     batch_prepare.add_argument("--manifest", required=True, type=Path)
     batch_prepare.set_defaults(run=_batch_prepare)
 
     batch_status = subparsers.add_parser("batch-status", help="report the complete manifest denominator")
-    batch_status.add_argument("--root", type=Path, default=Path(".eval-author/trace-environments"))
+    batch_status.add_argument("--root", type=Path, default=Path(".eval-author/.working/trace-environments"))
     batch_status.add_argument("--manifest", required=True, type=Path)
     batch_status.set_defaults(run=_batch_status)
 

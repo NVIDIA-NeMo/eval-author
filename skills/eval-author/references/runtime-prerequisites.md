@@ -3,7 +3,8 @@
 
 # Runtime prerequisites
 
-Read for readiness validation or the Harbor path of **Get the evaluation runtime ready**. A file-only
+Read for the [shared authoring prerequisite checks](shared-prerequisites.md#authoring-checks)
+or readiness validation. A file-only
 Explore stays in the discovery skill and does not run these probes.
 
 ## Contents
@@ -13,7 +14,7 @@ Explore stays in the discovery skill and does not run these probes.
 
 ## Runtime prerequisite checks
 
-Use the bundled locator for every runtime prerequisite check, for both providers.
+Use the bundled locator for evaluation runtime prerequisite checks, for both providers.
 It uses [runtime-policy.json](../scripts/runtime-policy.json) for supported package
 ranges, Python requirements, and flow-specific import/CLI capabilities. It does
 not install, activate, upgrade, scan evals, or execute jobs. It does execute
@@ -24,9 +25,14 @@ python3.11 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --prov
 python3.11 <skill_dir>/scripts/locate_runtime.py --repo /absolute/project --provider gym --flow authoring
 ```
 
-Use Python 3.11+ to run the locator. Select `--flow audit` for audit runtime
-requirements, `discovery` for readiness, and `authoring` for first-eval,
-task-create, environment, or trace-derived authoring. Use `--provider both` only
+Use Python 3.11+ to run the locator. Select `discovery` for readiness and
+`authoring` for creation/improvement prerequisites, first-eval, task-create,
+environment, or trace-derived authoring. Audit shared entry checks the existing
+Python environment and packages in `audit_tools` from the policy directly; it
+does not probe an evaluation runner. After ATIF evidence is selected for audit
+measurement, use `--provider harbor --flow audit` for the trajectory parser,
+including for converted NeMo Gym evidence. This does not change the suite's framework
+or require an evaluation environment. Use `--provider both` only
 when both runtimes are needed. File-only inventory never runs this command.
 Here `<skill_dir>` is the eval-author skill directory. The shared files ship in
 its `scripts/` directory; every flow uses this one locator and policy. If this
@@ -52,7 +58,7 @@ missing, broken, incompatible, ambiguous, or incomplete findings.
 
 The standalone locator does not add its invoking interpreter as a candidate;
 discovery explicitly supplies its own interpreter because Harbor validates in-process.
-Each Harbor probe has a 10-second timeout and each Gym probe 60 seconds.
+Each Harbor probe has a 10-second timeout and each NeMo Gym probe 60 seconds.
 Each provider has a separate 390-second cumulative probe budget; uv enumeration
 has a 10-second budget. This retains bounded execution without one provider
 consuming another's probe allowance. These limits are not cold-start performance
@@ -88,14 +94,15 @@ or `--gym-python` / `--gym-cli`. Do not edit customer configuration to resolve
 this. For unsupported requirements, report the limitation for explicit review.
 
 Preserve `selection.<provider>.selected.python` and `.cli` across shell sessions.
-Use that exact Python for Harbor discovery and pass the selected Gym CLI with
+Use that exact Python for Harbor discovery and pass the selected NeMo Gym CLI with
 `discover.py --gym-cli /absolute/gym`. Discovery rechecks runtime capabilities;
 its Harbor validators remain in-process, so launching it with an unrelated
 Python cannot borrow another installation's readiness evidence.
 
-When unresolved, explain the candidates and actual errors first, then ask only
+When unresolved, return the candidates and actual errors to the calling flow.
+Shared prerequisites complete the other accessible checks before asking only
 for the missing location or choice. If no usable installation exists, follow
-[Harbor setup](harbor-setup.md), or the selected project's Gym setup instructions,
+[Harbor setup](harbor-setup.md), or the selected project's NeMo Gym setup instructions,
 subject to existing setup authorization. Do not reinstall over a broken runtime.
 
 The policy's `test_profiles` identify pinned test configurations and their test
@@ -134,12 +141,19 @@ not installed. A subset is useful; do not require every skill in the collection.
 
 When presenting the runtime findings, briefly explain their purpose and
 observed availability. When missing or unconfirmed, recommend them and link the
-official collection. For example, when the search found none:
+official collection. In shared onboarding, use the
+[Recommendations section](shared-prerequisites.md#present-results-and-the-next-step),
+including its heading and introduction. For example, when the search found none:
 
-> Harbor also provides skills that guide your coding assistant through creating
-> and working with evals. I didn't find them in the locations I checked. They're
-> optional, but recommended: see [Harbor's skills](https://github.com/harbor-framework/harbor/tree/main/skills).
-> We can continue without them.
+```markdown
+### Recommendations
+
+These suggestions are optional and are not required to continue.
+
+- [Harbor's skills](https://github.com/harbor-framework/harbor/tree/main/skills)
+  guide your coding assistant through creating and working with evals; none were
+  found in the locations checked
+```
 
 When skills are available, name the relevant ones briefly instead of recommending
 another installation. Include this advisory with the runtime findings. Do not
