@@ -156,16 +156,30 @@ def test_task_heading_preserves_complete_readme_title(tmp_path, heading, display
 
 @pytest.mark.parametrize("kind", ["Custom code", "LLM-as-judge", "Custom code + LLM-as-judge"])
 @pytest.mark.parametrize("separator", ["\n", "\n\n"])
-def test_readme_grader_type_overrides_metadata_without_polluting_summary(tmp_path, kind, separator):
+def test_metadata_grader_type_wins_and_readme_type_is_fallback(tmp_path, kind, separator):
     summary = "Checks saved sources, catalog, chat history and tool requests."
     path = task(tmp_path, readme=f"# Import task\n\n## Grading\n\nType: {kind}{separator}{summary}")
-    item = report.refresh(tmp_path, patch={"tasks": {path: {"grading_kind": "model"}}})["tasks"][0]
+    item = report.refresh(tmp_path)["tasks"][0]
     assert item["grading_kind"] == kind
     assert item["grading_summary"] == summary
     assert f"{kind}<br>{summary}" in (tmp_path / ".eval-author/README.md").read_text()
     # A subsequent refresh must read the edited README rather than retain the old type.
     (tmp_path / path / "README.md").write_text("## Grading\n\nType: Custom code\n\n" + summary)
     assert report.refresh(tmp_path)["tasks"][0]["grading_kind"] == "Custom code"
+
+
+def test_metadata_grader_type_overrides_readme_type(tmp_path):
+    summary = "Checks saved sources, catalog, chat history and tool requests."
+    path = task(tmp_path, readme=f"# Import task\n\n## Grading\n\nType: Custom code\n\n{summary}")
+    item = report.refresh(tmp_path, patch={"tasks": {path: {"grading_kind": "LLM-as-judge"}}})["tasks"][0]
+    assert item["grading_kind"] == "LLM-as-judge"
+    assert item["grading_summary"] == summary
+    # Metadata persists, so a later README edit does not change the recorded type.
+    (tmp_path / path / "README.md").write_text("## Grading\n\nType: Custom code\n\n" + summary + " More.")
+    assert report.refresh(tmp_path)["tasks"][0]["grading_kind"] == "LLM-as-judge"
+    # An explicit "Not documented" record does not mask a README declaration.
+    item = report.refresh(tmp_path, patch={"tasks": {path: {"grading_kind": "unknown"}}})["tasks"][0]
+    assert item["grading_kind"] == "Custom code"
 
 
 @pytest.mark.parametrize(
