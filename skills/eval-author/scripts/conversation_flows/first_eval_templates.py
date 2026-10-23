@@ -12,6 +12,11 @@ TRACE_CHOICES = ("Start from ETHOS.md", "Use existing traces")
 PROPOSAL_INTRO = "Here are the proposed evaluation tasks."
 PROPOSAL_TABLE = "| Task | Input | Behavior under test | Expected result | Grading |\n|---|---|---|---|---|"
 FIRST_CHOICE = "I’ll build **{title}** first."
+PROPOSAL_PROCESS = (
+    "Proposed tasks: {tasks}; distinct input examples: {examples}. "
+    "After you approve the proposal, I’ll build only that first task and pause for your review "
+    "before building any remaining tasks."
+)
 PROPOSAL_QUESTION = (
     "Do these tasks make sense for your agent? Are we testing the right behaviors, "
     "with the right expected results and grading? Tell me what you’d change, add, "

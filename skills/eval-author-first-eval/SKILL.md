@@ -77,7 +77,11 @@ approval. Reuse applicable answers and authorization without restarting onboardi
 
 Use confirmed `ETHOS.md`, the agent entry point, tools, and usage documentation.
 Existing traces are optional. If the choice is unresolved, use `first_eval_traces`
-and its exact question-tool choices. Clarify locations, selected runs, bounds,
+and its exact choices as the final reply, then end the turn. Wait for the user's
+answer before trace inspection, task planning, environment work, or integration
+investigation. A nonblocking question tool returning does not supply that answer;
+do not keep working while it is pending. Reuse an already established choice.
+Clarify locations, selected runs, bounds,
 and exclusions before inspection, following [source selection](../eval-author/references/coverage-planning.md#select-trace-evidence-before-using-it).
 Do not search unselected traces or silently treat repository fixtures as the
 chosen corpus. Save the selected sources or explicit no-trace choice and mark
@@ -91,22 +95,37 @@ Missing run access does not prevent independent design or authoring.
 
 ## 2. Propose and agree on the tasks
 
+After the source answer is saved, propose a small starting subset: one to three
+tasks with one distinct input example per task by default. Choose fewer when
+that is sufficient; do not turn `ETHOS.md` into an exhaustive suite. A broader
+initial proposal requires the user's explicit request, retained as
+`plan.breadth_request.source`, rather than an inferred preference or invented
+approval. Keep additional ideas out of this initial agreement.
+
 Derive concrete requests, expected behavior, outcomes, and grading from `ETHOS.md`
 and selected evidence. Include useful positive, negative, difficult, and boundary
 examples at the agreed breadth. Explain why the tasks help, what remains untested,
 and which will be built first. Do not use a model's current answer as grading
 truth or replace subjective quality with brittle wording checks.
 
-Use [execution dependencies](../eval-author/references/execution-dependencies.md)
-and the inventory stages of [environment preparation](../eval-author-environment/SKILL.md)
-to check provider fit and observable results. Retain an untestable requirement
-as blocked; only the user can agree to changing its scope.
+Reuse prerequisite findings and the selected source to make the proposal.
+Read only the additional agent interface or selected evidence needed to describe
+its input, observable result, and grading. Defer adapter investigation, hook
+design, environment preparation, and runtime implementation until design approval;
+unresolved execution details do not prevent this design review. Consult
+[execution dependencies](../eval-author/references/execution-dependencies.md) and
+[environment preparation](../eval-author-environment/SKILL.md) when that work is due.
+Retain an untestable requirement as blocked; only the user can change its scope.
 
 Save the proposed design and render `first_eval_proposal`. The initial review
 contains the task table, scope explanation, chosen first task, and final feedback
 question defined by the template. It contains no execution-settings checklist,
 run-only blockers, or spending request. If a design blocker prevents a meaningful
 proposal, use `first_eval_blockers` instead of offering an approvable design.
+The template explains that approval leads to building the named first task and
+pausing for its review before the remainder. Emit this proposal as the final
+reply and end the turn. Do not continue inspection, delegate implementation,
+or generate task files while awaiting the user's response.
 
 Incorporate feedback until the design is approved. Record actual approval for the
 current plan digest before any scaffolding, fixtures, instructions, graders, or

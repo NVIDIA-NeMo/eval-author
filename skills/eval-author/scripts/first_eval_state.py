@@ -75,6 +75,14 @@ def record(state: dict) -> dict | None:
     return scope.get("first_eval") if isinstance(scope, dict) else None
 
 
+def trace_choice(state: dict) -> str | dict | None:
+    scope = state["scopes"].get("create", {})
+    if not isinstance(scope, dict):
+        return None
+    plan = (record(state) or {}).get("plan", {})
+    return plan.get("trace_choice") or scope.get("trace_choice")
+
+
 def validate(value: dict) -> None:
     """Validate the optional domain record; unstructured legacy scopes stay readable."""
     try:
@@ -97,6 +105,11 @@ def validate(value: dict) -> None:
         choice = value["plan"].get("trace_choice")
         if choice is not None and choice != "none" and (not isinstance(choice, dict) or not choice):
             raise ValueError("Trace selection must be none or an explicit bounded source selection")
+        breadth = value["plan"].get("breadth_request")
+        if breadth is not None:
+            if not isinstance(breadth, dict):
+                raise ValueError("A broader proposal requires the user's request provenance")
+            _text(breadth.get("source"))
         _decision(value["plan_approval"])
         for key, task in value["tasks"].items():
             _text(key)
@@ -471,7 +484,9 @@ def derive(state: dict, observed: object) -> dict | None:
     complete = bool(first_approved and validated and suite_complete and reviewed and review["run_id"] in selected_runs)
     first = tasks[value["first_task"]]
     stage = (
-        "proposal"
+        "traces"
+        if not trace_choice(state)
+        else "proposal"
         if not approved
         else "prepare_first"
         if not first["created"] or not first["environment_proven"]

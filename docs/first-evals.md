@@ -22,6 +22,9 @@ source choices and exclusions carry forward when you resume.
 You first receive a task proposal explaining the inputs, intended behaviors,
 expected results, grading, and remaining coverage gaps. You can change the
 proposal or approve it and the first task to build.
+The default starting proposal has one to three tasks, with one example each;
+you can request broader scope. Eval Author waits for your source choice and
+then your proposal approval before starting task construction.
 
 After design approval, Eval Author builds one task and presents its README and
 report for review. The review distinguishes whether its environment works,

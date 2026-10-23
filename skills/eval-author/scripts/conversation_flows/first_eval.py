@@ -133,11 +133,21 @@ def blocker_section(state: dict, facts: dict, stage: str) -> str | None:
 
 def proposal(record: dict) -> str:
     plan = record["plan"]
+    tasks = plan["tasks"]
+    breadth_request = plan.get("breadth_request")
+    if breadth_request is not None:
+        breadth_request = mapping(breadth_request, "broader proposal request", {"source"})
+        text(breadth_request.get("source"), "explicit broader proposal request source")
+    elif not 1 <= len(tasks) <= 3 or any(len(task["example_ids"]) != 1 for task in tasks):
+        raise ValueError(
+            "Propose 1–3 tasks with one distinct input example per task unless the user explicitly requested "
+            "a broader scope; retain that request in plan.breadth_request.source"
+        )
     presentation = plan.get("presentation", {})
     if not isinstance(presentation, dict):
         raise ValueError("Proposal presentation must be an object")
     rows = [copy.PROPOSAL_TABLE]
-    for task in plan["tasks"]:
+    for task in tasks:
         rows.append(
             "| "
             + " | ".join(
@@ -146,13 +156,15 @@ def proposal(record: dict) -> str:
             )
             + " |"
         )
-    first = next(task for task in plan["tasks"] if task["id"] == record["first_task"])
+    first = next(task for task in tasks if task["id"] == record["first_task"])
+    examples = len({example for task in tasks for example in task["example_ids"]})
     return "\n\n".join(
         [
             copy.PROPOSAL_INTRO,
             "\n".join(rows),
             literal(presentation.get("coverage_note"), "coverage_note"),
             copy.FIRST_CHOICE.format(title=literal(first.get("title"), "first task title")),
+            copy.PROPOSAL_PROCESS.format(tasks=len(tasks), examples=examples),
             copy.PROPOSAL_QUESTION,
         ]
     )
@@ -376,15 +388,20 @@ def render(payload: dict) -> str:
     if "access_ready" in facts and type(facts["access_ready"]) is not bool:
         raise ValueError("access_ready must be an observed boolean")
     stage = stage.removeprefix("first_eval_")
+    choice = first_eval_state.trace_choice(state)
+    if stage == "resume" and not choice:
+        stage = "traces"
     if stage == "traces":
-        scope = state["scopes"].get(state["journey"], {})
-        choice = scope.get("trace_choice") or scope.get("first_eval", {}).get("plan", {}).get("trace_choice")
         result = copy.TRACE_INTRO
         if not choice:
             result += "\n\n" + copy.TRACE_QUESTION + "\n\n" + "\n".join(f"- {label}" for label in copy.TRACE_CHOICES)
     elif stage == "blockers":
         return (blocker_section(state, facts, stage) or "") + "\n"
     else:
+        if stage == "proposal" and not choice:
+            raise ValueError("Save the user’s choice of existing traces or ETHOS.md before presenting a proposal")
+        if stage == "resume" and first_eval_state.record(state) is None:
+            raise ValueError("Save a small, concrete first-evaluation proposal before resuming the selected source")
         observed = facts.get("observations")
         if not isinstance(observed, dict):
             raise ValueError("Supply freshly observed task and evidence digests")
@@ -398,6 +415,8 @@ def render(payload: dict) -> str:
         if stage == "proposal":
             if progress["scope_approved"]:
                 raise ValueError("Scope is already approved; resume the saved next stage")
+            if not record["plan"].get("trace_choice"):
+                raise ValueError("Copy the saved source choice into the proposal before presenting its design")
             return proposal(record) + "\n"
         if stage == "execution_settings":
             if not progress["scope_approved"]:

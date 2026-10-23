@@ -225,6 +225,64 @@ def complete(modules, repo, provider="harbor", examples=None, repeats=1):
     return value
 
 
+@pytest.mark.parametrize("choice", ["none", {"paths": ["selected-run.json"], "exclusions": ["all other runs"]}])
+def test_interrupted_source_selection_resumes_before_proposal_approval(modules, tmp_path, choice):
+    value = start(modules, tmp_path)
+    value["plan"].pop("trace_choice")
+    save(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["next_stage"] == "traces"
+    approve(modules, tmp_path, value)
+    assert not facts(modules, tmp_path)["scope_approved"]
+    with pytest.raises(ValueError, match="task-design approval"):
+        author(modules, tmp_path, value, "refund")
+    value["tasks"] = {}
+    value["plan"]["trace_choice"] = choice
+    save(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["next_stage"] == "proposal"
+    assert not facts(modules, tmp_path)["scope_approved"]
+    approve(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["next_stage"] == "prepare_first"
+
+
+@pytest.mark.parametrize("plan_choice", [None, "none", {"paths": ["selected-run.json"]}])
+def test_saved_source_selection_is_reused_without_implicitly_approving_design(modules, tmp_path, plan_choice):
+    value = start(modules, tmp_path)
+    value["plan"]["trace_choice"] = plan_choice
+    saved = modules[0].update(
+        tmp_path,
+        {"scopes": {"create": {"trace_choice": "none", "first_eval": value}}},
+        expected_revision=modules[0].load_state(tmp_path)["revision"],
+    )
+    assert modules[1].trace_choice(saved) == (plan_choice or "none")
+    assert facts(modules, tmp_path)["next_stage"] == "proposal"
+    assert not facts(modules, tmp_path)["scope_approved"]
+    approve(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["scope_approved"] is (plan_choice is not None)
+    if plan_choice is None:
+        assert facts(modules, tmp_path)["next_stage"] == "proposal"
+
+
+def test_source_choice_before_any_proposal_is_read_only_and_does_not_invent_design(modules, tmp_path):
+    start(modules, tmp_path)
+    saved = modules[0].load_state(tmp_path)
+    saved["scopes"]["create"].pop("first_eval")
+    original = copy.deepcopy(saved)
+    assert modules[1].trace_choice(saved) is None
+    assert modules[1].derive(saved, {"tasks": {}, "files": {}}) is None
+    assert saved == original
+    saved["scopes"]["create"]["trace_choice"] = {"paths": ["selected.json"], "runs": ["run-1"]}
+    assert modules[1].trace_choice(saved) == {"paths": ["selected.json"], "runs": ["run-1"]}
+    assert modules[1].derive(saved, {"tasks": {}, "files": {}}) is None
+
+
+@pytest.mark.parametrize("breadth", [{}, {"source": " "}, "user wants many tasks"])
+def test_broader_proposal_request_requires_saved_user_provenance(modules, tmp_path, breadth):
+    value = start(modules, tmp_path)
+    value["plan"]["breadth_request"] = breadth
+    with pytest.raises(ValueError, match="provenance"):
+        save(modules, tmp_path, value)
+
+
 def test_saved_scope_and_first_task_reviews_gate_generation_without_execution_settings(modules, tmp_path):
     value = start(modules, tmp_path)
     with pytest.raises(ValueError, match="task-design approval"):

@@ -60,8 +60,23 @@ before use, not an automatic fallback.
 
 ## 2. Review task design before generation
 
+**Default-size variant:** Complete `ETHOS.md` confirmation without selecting
+traces. The first source question ends the turn; inspect tool logs to ensure no
+adapter investigation, task planning, or environment preparation continues while
+waiting. Answer “Start from ETHOS.md.” Inspect the next final reply: it proposes
+one to three tasks with one example each, states that one first task will be
+built and reviewed before the rest, and ends with the rendered design feedback
+question. No task files or integration implementation exist. Interrupt and
+resume at both unanswered questions; neither readiness nor the source answer
+counts as task-design approval.
+
+**Broader-request variant:** Explicitly ask for four tasks with two examples
+each before the proposal. The saved proposal retains that user request as
+breadth provenance and still waits for design approval; it does not silently
+shrink or treat the breadth request as approval.
+
 **Start:** Resume with scenario 1's confirmed source selection and `ETHOS.md`.
-Propose four complaint examples and two policy-answer examples, with concrete
+Explicitly request four complaint examples and two policy-answer examples, with concrete
 inputs, expected outcomes, grading, exclusions, and a chosen first task.
 
 **Inspect:** Use the [first-evaluation conversation contract](../../skills/eval-author/references/conversations/first-eval.md)

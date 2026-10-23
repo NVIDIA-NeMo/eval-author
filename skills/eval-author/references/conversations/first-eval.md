@@ -10,6 +10,32 @@ copy lives only in
 Present its output unchanged, following the shared contract for response order
 and any explanations separately required by the host.
 
+## Source and proposal pauses
+
+After the shared confirmation continuation, render `first_eval_traces` as the
+final response when no source choice is saved, then end the turn. Its canonical
+question and choices come from the template module. Do not continue planning or
+investigating integrations while the answer is pending, including after a
+nonblocking question tool returns. Reuse a saved choice instead of asking again.
+Use the rendered question and proposal as the checkpoint messages; do not add
+free-form previews of task scope or adapter implementation in commentary.
+
+Save the actual source answer and its provenance. For existing traces, resolve
+the selected location, runs, and exclusions before inspection. Then prepare only
+the bounded design needed for `first_eval_proposal`: by default one to three
+tasks with one example per task. Larger task or example counts require the
+user's explicit broader request in `plan.breadth_request.source`. This optional
+field binds the proposal to that request; it does not grant approval or spending
+authorization. Existing records remain readable and previously approved scope
+is retained.
+
+The proposal states the counts, shows the task table and coverage limitations,
+names the first task, and explains the one-task build/review pause before the
+remainder. Its fixed feedback question is the final content. End the turn and
+wait for actual design approval before implementation or further integration
+work. Source selection and readiness to continue do not approve the design.
+No additional planning document or approval checkpoint is needed.
+
 ## State and artifact authority
 
 All creation stages require the complete normal, artifact-reconciled state from
@@ -26,6 +52,13 @@ passes them as `facts.observations`. They contain actual task digests under
 completion, or progress booleans. Save decisions and actual results before
 presenting them. Rendering is read-only and cannot establish permission to build,
 run an agent, or spend money.
+
+Before a design record exists, `first_eval_resume` renders the source question
+when no choice is saved. Once the source is known, save the small concrete
+proposal before resuming; the renderer does not invent its task rows or insert
+another readiness question. Bind the saved choice in `plan.trace_choice` before
+presenting that design. An unanswered source choice resumes at `traces`, and an
+unapproved design resumes at `proposal`.
 
 ```json
 {

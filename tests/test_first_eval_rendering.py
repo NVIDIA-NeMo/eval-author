@@ -239,6 +239,8 @@ def test_proposal_is_concise_deterministic_and_read_only(creation):
         "| reject | Request &#124; with newline<br>continued | Respect policy | Correct disposition | Check state and response |\n\n"
         "These check refunds and rejection. Other regions remain untested.\n\n"
         "I’ll build **refund** first.\n\n"
+        "Proposed tasks: 2; distinct input examples: 2. After you approve the proposal, "
+        "I’ll build only that first task and pause for your review before building any remaining tasks.\n\n"
         "Do these tasks make sense for your agent? Are we testing the right behaviors, "
         "with the right expected results and grading? Tell me what you’d change, add, "
         "or prioritize—or approve the proposal as written.\n"
@@ -254,6 +256,45 @@ def test_proposal_is_concise_deterministic_and_read_only(creation):
     assert renderer.render(payload(creation, "proposal")) == output
 
 
+@pytest.mark.parametrize("task_count", [1, 3])
+def test_default_proposal_stays_small_and_explains_the_next_review(creation, task_count):
+    _, record, _, renderer, copy = creation
+    template = record["plan"]["tasks"][0]
+    record["plan"]["tasks"] = [
+        {**template, "id": f"task-{number}", "example_ids": [f"example-{number}"]} for number in range(task_count)
+    ]
+    record["first_task"] = "task-0"
+    output = renderer.render(payload(creation, "proposal"))
+    assert copy.PROPOSAL_PROCESS.format(tasks=task_count, examples=task_count) in output
+    assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
+    assert "Time/cost limits" not in output
+
+
+@pytest.mark.parametrize("broader_scope", ["more_tasks", "more_examples"])
+def test_broader_proposal_requires_an_explicit_user_request(creation, broader_scope):
+    state, record, helper, renderer, copy = creation
+    if broader_scope == "more_tasks":
+        template = record["plan"]["tasks"][0]
+        record["plan"]["tasks"].extend(
+            {**template, "id": f"extra-{number}", "example_ids": [f"extra-example-{number}"]} for number in range(2)
+        )
+    else:
+        record["plan"]["tasks"][0]["example_ids"].append("second-refund-example")
+    helper.validate(record)
+    with pytest.raises(ValueError, match="1–3 tasks with one distinct input example"):
+        renderer.render(payload(creation, "proposal"))
+    record["plan"]["breadth_request"] = {"source": "User message: include the broader routing scope"}
+    output = renderer.render(payload(creation, "proposal"))
+    assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
+    record["plan"]["breadth_request"]["source"] = " "
+    with pytest.raises(ValueError):
+        renderer.render(payload(creation, "proposal"))
+    record["plan"].pop("breadth_request")
+    approved(creation)
+    assert renderer.render(payload(creation, "resume")) == copy.FIRST_PROGRESS + "\n"
+    assert helper.derive(state, observations(record))["scope_approved"]
+
+
 def test_fixed_trace_options_and_saved_selection(creation):
     _, record, _, renderer, copy = creation
     record["plan"].pop("trace_choice")
@@ -267,6 +308,44 @@ def test_fixed_trace_options_and_saved_selection(creation):
     assert "synthetic" not in output
     record["plan"]["trace_choice"] = "none"
     assert renderer.render(payload(creation, "traces")) == copy.TRACE_INTRO + "\n"
+
+
+def test_source_answer_is_required_before_any_proposal(creation):
+    _, record, _, renderer, copy = creation
+    record["plan"].pop("trace_choice")
+    with pytest.raises(ValueError, match="choice of existing traces or ETHOS.md"):
+        renderer.render(payload(creation, "proposal"))
+    output = renderer.render(payload(creation, "resume"))
+    assert copy.TRACE_QUESTION in output
+    assert copy.PROPOSAL_TABLE not in output and copy.FIRST_PROGRESS not in output
+
+
+def test_resume_without_design_asks_for_sources_without_requiring_file_observations(creation):
+    state, _, _, renderer, copy = creation
+    state["scopes"]["create"] = {}
+    request = {"stage": "first_eval_resume", "state": state, "revision": state["revision"]}
+    assert renderer.render(request) == renderer.render({**request, "stage": "first_eval_traces"})
+    assert copy.TRACE_QUESTION in renderer.render(request)
+    request["revision"] -= 1
+    with pytest.raises(ValueError, match="revision differs"):
+        renderer.render(request)
+
+
+@pytest.mark.parametrize("choice", ["none", {"path": "traces/selected.json", "runs": ["chosen-run"]}])
+def test_saved_source_is_reused_and_does_not_create_a_proposal_or_approval(creation, choice):
+    state, record, helper, renderer, copy = creation
+    record["plan"].pop("trace_choice")
+    state["scopes"]["create"]["trace_choice"] = choice
+    with pytest.raises(ValueError, match="Copy the saved source choice into the proposal"):
+        renderer.render(payload(creation, "resume"))
+    record["plan"]["trace_choice"] = choice
+    output = renderer.render(payload(creation, "resume"))
+    assert copy.TRACE_QUESTION not in output and copy.PROPOSAL_QUESTION in output
+    assert not helper.derive(state, observations(record))["scope_approved"]
+    state["scopes"]["create"].pop("first_eval")
+    assert renderer.render(payload(creation, "traces")) == copy.TRACE_INTRO + "\n"
+    with pytest.raises(ValueError, match="Save a small, concrete first-evaluation proposal"):
+        renderer.render(payload(creation, "resume"))
 
 
 def test_saved_design_approval_leads_directly_to_first_authoring(creation):
