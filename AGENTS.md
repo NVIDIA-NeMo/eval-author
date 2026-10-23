@@ -31,4 +31,4 @@ Review every change for repeated content: instructions, setup steps, workflow li
 
 ## Copyright headers
 
-Every new `.md`, `.py`, `.sh`, `.toml`, `.yaml`, and `.yml` file needs the NVIDIA Apache-2.0 header. After creating NVIDIA-authored files, run `make update-copyright-headers`, then `make check-copyright-headers` to verify. In a `SKILL.md`, the header goes after the front matter. Don't add headers to the exceptions listed in `tools/check_copyright_headers.py`, such as signed NVSkills reports and templates copied into users' repos.
+Every new NVIDIA-authored source or markdown file needs the NVIDIA Apache-2.0 header, and CI fails without it. Follow [DEVELOPMENT.md](DEVELOPMENT.md) to add headers and [CONTRIBUTING.md](CONTRIBUTING.md) for the checks to run before opening a PR. Don't hand-write headers or copy them from this file.
