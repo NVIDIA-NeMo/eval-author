@@ -60,6 +60,35 @@ rejects nonzero exits even with valid stdout, and rejects malformed JSON includi
 duplicate keys, nonfinite values and unexpected fields. It does not log complete
 commands or helper output.
 
+Keep trusted imports, instrumentation setup, and observation parsing outside the
+submission exception handler. For trusted synchronous callbacks invoked during submission
+execution, use `checked_instrumentation` to retain callback failures even when an
+inner handler catches them. Emit the response only after leaving the guard:
+
+```python
+from verifier_helper import checked_instrumentation
+
+with checked_instrumentation(record_observation) as observe:
+    try:
+        output = execute_submission(observer=observe)
+    except KnownSubmissionFailure:
+        response = {"status": "submission_error", "reason": "submitted program failed"}
+    else:
+        response = {"status": "result", "value": output}
+# Parse trusted observations here, outside the submission handler.
+# Only now serialize response to stdout; the outer verifier owns reward emission.
+```
+
+Wrap only the trusted observation callback, not the submitted program. A callback
+should report an observed violation as data; an unexpected callback exception
+means the instrumentation failed. The guard re-raises a retained failure on exit,
+even if submission handling swallowed it or a later callback succeeded. It does
+not establish process isolation, detect swallowed exceptions inside the callback,
+or protect a grader that catches the guard's outer error and emits a score anyway.
+Self-test the installed instrumentation with known-valid and known-invalid inputs
+before grading, including the APIs it hooks. Correct code must not be rejected
+because the verifier inspected an object before initialization.
+
 Package helpers for their actual runtime identity. A root-readable source file
 may be unreadable after a UID change: Docker copies preserve file modes. Set
 explicit read/execute permissions on the necessary helpers and traverse permissions
@@ -77,7 +106,8 @@ and reject a meaningful invalid one before it can diagnose submissions.
 
 Before acceptance, exercise ordinary correct and incorrect submissions. When
 helper handling is uncertain, also test separate diagnostic copies with a missing
-helper, syntax error, missing startup import, and malformed output with both zero
+helper, syntax error, missing startup import, a callback failure caught by the
+submission handler, trusted observation parsing failure, and malformed output with both zero
 and nonzero exits. Bind each copy to the original task and exact mutation. Expect
 native verifier errors with no valid reward for these helper faults; a healthy
 negative is a fault-classification defect. Keep diagnostics separate from scored

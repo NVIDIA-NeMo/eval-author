@@ -11,10 +11,8 @@ from pathlib import Path
 
 import pytest
 
-SPEC = importlib.util.spec_from_file_location(
-    "verifier_helper",
-    Path(__file__).parents[1] / "skills/eval-author/scripts/verifier_helper.py",
-)
+HELPER_PATH = Path(__file__).parents[1] / "skills/eval-author/scripts/verifier_helper.py"
+SPEC = importlib.util.spec_from_file_location("verifier_helper", HELPER_PATH)
 assert SPEC is not None and SPEC.loader is not None
 helper = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(helper)
@@ -33,6 +31,70 @@ def test_transport_does_not_grade_values(value):
 def test_explicit_submission_failure_is_distinct():
     response = {"status": "submission_error", "reason": "submitted program timed out"}
     assert run(f"print({json.dumps(response)!r})") == response
+
+
+@pytest.mark.parametrize("submitted, expected", [(7, 1), (8, 0)])
+def test_instrumentation_preserves_healthy_grading(submitted, expected):
+    source = f"""
+import sys, json
+sys.path.insert(0, {str(HELPER_PATH.parent)!r})
+from verifier_helper import checked_instrumentation
+with checked_instrumentation(lambda value: value) as observe:
+    observed = observe({submitted!r})
+print(json.dumps({{"status": "result", "value": int(observed == 7)}}))
+"""
+    assert run(source) == {"status": "result", "value": expected}
+
+
+@pytest.mark.parametrize("fault", ["setup", "callback", "parse"])
+def test_instrumentation_fault_cannot_become_healthy_rejection(fault):
+    source = f"""
+import sys, json
+sys.path.insert(0, {str(HELPER_PATH.parent)!r})
+from verifier_helper import checked_instrumentation
+
+def trusted_probe(value):
+    if {fault!r} == "callback":
+        # Same failure class as inspecting a Path before its initialization.
+        return object()._raw_paths
+    return value
+
+if {fault!r} == "setup":
+    import nonexistent_instrumentation_dependency_741
+with checked_instrumentation(trusted_probe) as observe:
+    try:
+        value = observe(7)
+        response = {{"status": "result", "value": value}}
+    except Exception:
+        response = {{"status": "submission_error", "reason": "submission failed"}}
+if {fault!r} == "parse":
+    json.loads("malformed trusted observation")
+print(json.dumps(response))
+"""
+    with pytest.raises(helper.VerifierHelperError, match="exited unsuccessfully"):
+        run(source)
+
+
+def test_instrumentation_retains_first_fault_after_caught_exception():
+    failure = AttributeError("trusted probe not initialized")
+
+    def probe(value):
+        if value == 0:
+            raise failure
+        return value
+
+    with pytest.raises(helper.VerifierHelperError) as caught:
+        with helper.checked_instrumentation(probe) as observe:
+            with pytest.raises(helper.VerifierHelperError):
+                observe(0)
+            assert observe(7) == 7
+    assert caught.value.__cause__ is failure
+
+
+def test_submission_exception_is_not_reclassified_as_instrumentation_failure():
+    with pytest.raises(ValueError, match="invalid submitted input"):
+        with helper.checked_instrumentation(lambda value: value):
+            raise ValueError("invalid submitted input")
 
 
 @pytest.mark.parametrize(
