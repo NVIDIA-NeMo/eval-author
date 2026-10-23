@@ -18,6 +18,20 @@ results in the specification, reviewed fixtures, or independently validated
 reference execution, never the submission being graded. A source agent's answer
 is evidence to investigate, not ground truth by itself.
 
+Distinguish correctness authority (what makes an answer correct) from evidence
+that a required action occurred. If the request requires a particular tool or
+process, establish a trusted, task-bound observation channel before admitting
+the task. A coordinator receipt that the runtime never supplies cannot be a
+positive-reward prerequisite. Keep the task blocked until that requirement can
+be measured; do not drop it or substitute an artifact-only score for acceptance.
+
+Counterfactual probes must stay within the requested contract. A program may
+correctly reject an input whose required identity or constraints were changed.
+Test genuine loading or computation with supported variations, malformed-input
+rejection, or trusted action observations, without demanding success on an input
+the request requires rejecting. Retain substantive negative and shortcut controls
+when repairing a verifier; a higher solver pass rate is not the objective.
+
 Write the public instruction the way the requester would: the goal, the
 constraints, and the symptoms they can observe. Do not state the root cause, the
 fix, or results that only doing the work produces, such as corrected totals,

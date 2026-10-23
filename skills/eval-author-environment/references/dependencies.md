@@ -61,6 +61,14 @@ into the kit's `build/` directory, keeping their image versions. Run migrations
 and seeding when the image is built or the service starts, so every trial begins
 from the same state. Avoid named volumes that would carry state between trials.
 
+Separate image preparation from evaluation-time access. An offline verifier can
+use dependencies installed into its image during authorized preparation. Record
+pinned packages and the build recipe when that preparation is permitted; do not
+replace an executable recipe with an empty offline wheelhouse. If preparation
+must also be offline, require the actual package closure or a usable prebuilt
+image and retain a blocker until it is available. A proposed recipe still needs
+its build and smoke evidence before the environment is ready.
+
 ### Vendor sandboxes
 
 Use a vendor's test mode only after the user authorizes that account and any

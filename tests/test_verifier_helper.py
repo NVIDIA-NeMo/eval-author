@@ -74,6 +74,20 @@ def test_missing_helper_command():
         helper.run_helper(["/nonexistent-verifier-helper-741"])
 
 
+def test_missing_helper_script_is_not_a_submission_rejection(tmp_path):
+    with pytest.raises(helper.VerifierHelperError, match="exited unsuccessfully"):
+        helper.run_helper([sys.executable, "-I", str(tmp_path / "missing-driver.py")])
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX execute permission")
+def test_helper_permission_denied_is_not_a_submission_rejection(tmp_path):
+    driver = tmp_path / "driver"
+    driver.write_text("#!/bin/sh\nexit 0\n")
+    driver.chmod(0o600)
+    with pytest.raises(helper.VerifierHelperError, match="could not start"):
+        helper.run_helper([str(driver)])
+
+
 def test_helper_timeout():
     with pytest.raises(helper.VerifierHelperError, match="infrastructure timeout"):
         run("import time; time.sleep(30)", timeout_seconds=0.2)

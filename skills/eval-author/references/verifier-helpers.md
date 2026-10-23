@@ -60,6 +60,21 @@ rejects nonzero exits even with valid stdout, and rejects malformed JSON includi
 duplicate keys, nonfinite values and unexpected fields. It does not log complete
 commands or helper output.
 
+Package helpers for their actual runtime identity. A root-readable source file
+may be unreadable after a UID change: Docker copies preserve file modes. Set
+explicit read/execute permissions on the necessary helpers and traverse permissions
+on their directories, while keeping grading inputs and reward output protected
+from submission writes. Give reference outputs the access the evaluator needs;
+preserve any file modes that are themselves part of the task's requirements.
+Do not solve access failures by running untrusted submissions as root.
+
+Exercise helper startup and imports under the same UID, working directory and
+entry point used for grading. A parent-side import or syntax check does not cover
+that boundary. For verifier self-tests, report the names of failed checks without
+printing secrets. Parse tool output using its documented format, including labels
+and prefixes; a self-test must accept its own independently known-valid fixture
+and reject a meaningful invalid one before it can diagnose submissions.
+
 Before acceptance, exercise ordinary correct and incorrect submissions. When
 helper handling is uncertain, also test separate diagnostic copies with a missing
 helper, syntax error, missing startup import, and malformed output with both zero

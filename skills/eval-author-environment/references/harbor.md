@@ -193,6 +193,16 @@ that installs grading dependencies and runs `COPY . /tests/`, so grading never
 installs anything or reaches the network. Sidecar artifacts and collect hooks
 need a Compose-capable sandbox.
 
+Validate the built verifier image, not only its Dockerfile: its configured
+entry point (normally `/tests/test.sh`) and helper dependencies must exist and
+work under the intended identity. A generic prebuilt runtime image does not
+include task tests unless they were packaged into it. Exercise the complete
+export/import path with the reference and an incorrect control, preserving
+ownership and task-relevant modes. Follow the
+[helper permission and health boundary](../../eval-author/references/verifier-helpers.md)
+when the verifier drops privileges. Missing packaged files are verifier failures,
+not successful rejection of the submission.
+
 For tables the case must leave unchanged, the verifier recomputes their content
 digests from the export and compares them with the entries copied into the
 task's verifier files, as [Starting data](starting-data.md#digests-for-preservation-checks)
