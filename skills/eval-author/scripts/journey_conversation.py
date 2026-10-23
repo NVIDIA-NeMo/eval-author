@@ -343,6 +343,7 @@ def render(payload: dict) -> str:
         if journey not in copy.JOURNEYS and not (stage == "orientation" and journey is None):
             raise ValueError("Select create, audit, or expand")
         if stage == "prerequisites":
+            assert isinstance(journey, str)
             if payload.get("ready") is not True:
                 raise ValueError("Wait for the user's readiness reply before checking prerequisites")
             facts = mapping(payload.get("facts", {}), "prerequisite preview facts", {"rows"})
@@ -376,9 +377,7 @@ def render(payload: dict) -> str:
         pending_question(state, facts)  # Reject contradictory questions even on blocked turns.
     paragraphs = []
     if stage in {"prerequisite_results", "results"}:
-        paragraphs.extend(
-            [copy.PREREQUISITE_RESULTS_INTRO, prerequisite_table(state["journey"], facts, state=state)]
-        )
+        paragraphs.extend([copy.PREREQUISITE_RESULTS_INTRO, prerequisite_table(state["journey"], facts, state=state)])
     if (optional := recommendations(facts)) and stage != "ethos":
         paragraphs.append(optional)
     blocked = blocker_section(
