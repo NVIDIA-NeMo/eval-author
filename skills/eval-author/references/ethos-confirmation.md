@@ -52,9 +52,12 @@ afterward. Existing evaluations describe current coverage; they do not establish
 the agent's intended behavior.
 
 Reuse the shared prerequisite orientation. The
-shared prerequisite flow confirms repository-root `ETHOS.md`. Preserve existing
-alternate-path documents; do not silently copy, delete, or replace them. Resolve
-the intended root document with the user if needed. Explicitly scoped `--ethos`
+shared prerequisite flow confirms repository-root `ETHOS.md`, which must be a
+regular file, not a symlink. Preserve existing alternate-path documents; do not
+silently copy, delete, or replace them. If the intended document lives elsewhere,
+offer to move it to the repository root and, if its old path must remain usable,
+leave a symlink there pointing to the root document. Confirm the move and any
+symlink with the user before changing files. Explicitly scoped `--ethos`
 utilities can use their supplied path without claiming the shared prerequisite
 flow confirmed that document. Resolve ambiguous identity or conflicting intent
 before accepting it.
