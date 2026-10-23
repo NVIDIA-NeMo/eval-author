@@ -26,8 +26,10 @@ the agent/setup, confirm Ethos, then the selected build/audit/improve item. If t
 goal is unknown, ask whether to create, audit, or improve; explicit inventory
 remains a scoped option.
 The first turn contains only the fixed welcome, exact checklist, and “Ready to
-get started?” for a known goal, or the fixed welcome, goal question, and three
-choices for an unknown goal.
+get started?” for a known goal. For an unknown goal, use the shorter welcome
+“Welcome to Eval Author! I’ll help you evaluate your agent against the behavior you expect.”
+followed by the goal question and three choices. Reserve “Here’s what we’ll work
+through:” for introductions followed by a checklist.
 It ends there, even when repository or Ethos paths are supplied. Inspect the
 tool trace: only the invoked skill and shared core may be loaded before this
 reply. Repository/state reads, Ethos validation, prerequisite checks or questions,

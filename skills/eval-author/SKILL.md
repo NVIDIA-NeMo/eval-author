@@ -79,7 +79,7 @@ The first response to a new shared flow is orientation only. Determine the goal
 from the user's request and conversation already available, without inspecting the
 repository. If known, show only the fixed welcome, matching checklist, and call
 to action below.
-If unknown, show only that welcome, the goal question, and its three choices.
+If unknown, show only the shorter welcome below, the goal question, and its three choices.
 **End the turn immediately after that response.**
 
 When the user answers the goal question, show the fixed sentence for the selected
@@ -113,8 +113,11 @@ opening pause.
 | Audit coverage | `eval-author-audit`, continuing with eval and trace selection |
 | Improve or expand evals | Preserve the expansion goal and use the expansion handoff below; an audit is optional |
 
-When the goal is unclear, ask “What would you like to do?” and present these
-options as a bulleted list:
+When the goal is unclear, use this shorter welcome verbatim:
+
+Welcome to Eval Author! I’ll help you evaluate your agent against the behavior you expect.
+
+Then ask “What would you like to do?” and present these options as a bulleted list:
 
 - Build your first evaluations
 - Audit your existing coverage
@@ -161,7 +164,8 @@ After goal clarification, use exactly one of these sentences above the checklist
 For an audit, replace the third item with **Check what your existing evaluations cover**.
 For improvements, use **Improve, run, and review your existing evaluations**. These exact third-item
 labels, completed checkboxes, and the position of **We're here** are the only
-variations. Keep the welcome, checklist wording, order, and Ethos link unchanged.
+variations. Keep each opening's fixed introductory text, checklist wording, order,
+and Ethos link unchanged.
 Keep scope limits and other explanations outside the checklist items. For
 prerequisite results, use the **Next Steps** placement defined in the shared
 procedure. On resume, use the same checklist wording
