@@ -731,6 +731,7 @@ class Element {
   append(...children){this.children.push(...children);}
   replaceChildren(...children){this.children=children;}
   setAttribute(key,value){this.attrs=this.attrs||{};this.attrs[key]=value;}
+  addEventListener(){}
 }
 const ids={'case-tables':new Element('div'),search:{value:''},'no-cases':{}};
 const viewers=[],readmes=[];
@@ -746,7 +747,7 @@ function descendants(node){return [node,...node.children.flatMap(descendants)];}
 function taskRows(){return descendants(ids['case-tables']).filter(node=>node.tag==='tr'&&node.dataset.task);}
 for(const table of descendants(ids['case-tables']).filter(node=>node.tag==='table')){
   assert.deepEqual(table.children[0].children[0].children.map(node=>node.textContent),
-    ['Task','Status','Behavior','Expected outcome','Grader','Actions']);
+    ['Task','Status','Behavior','Expected outcome','Verifier','Actions']);
 }
 for(const row of taskRows()){
   const task=input.data.tasks.find(task=>task.id===row.dataset.task);
@@ -758,7 +759,7 @@ for(const row of taskRows()){
   assert.equal(row.children[1].children[1].attrs.role,'tooltip');
   assert.equal(row.children[1].children[0].attrs['aria-describedby'],row.children[1].children[1].id);
   assert.equal(row.children[4].children[0].textContent,task.grading_kind);
-  assert.equal(row.children[4].children[1].textContent,task.grading_summary||'No grader description documented in README.');
+  assert.equal(row.children[4].children[1].textContent,task.grading_summary||'No verifier description documented in README.');
 }
 assert(!descendants(ids['case-tables']).some(node=>String(node.textContent).includes('All state checks pass.')));
 const links=descendants(ids['case-tables']).filter(node=>node.tag==='a');
@@ -823,6 +824,7 @@ class Element {
   append(...children){this.children.push(...children);}
   replaceChildren(...children){this.children=children;}
   setAttribute(key,value){this.attrs=this.attrs||{};this.attrs[key]=value;}
+  addEventListener(){}
 }
 const ids={'case-tables':new Element('div'),search:{value:''},'no-cases':{}};
 const context={data:input.data,byId:id=>ids[id],
@@ -835,7 +837,7 @@ function descendants(node){return [node,...node.children.flatMap(descendants)];}
 function taskRows(){return descendants(ids['case-tables']).filter(node=>node.dataset.task);}
 vm.createContext(context);vm.runInContext(input.helper+'drawCases();',context);
 const headers=descendants(ids['case-tables']).filter(node=>node.tag==='th');
-assert.deepEqual(headers.map(node=>node.textContent),['Task','Status','Behavior','Expected outcome','Grader','Actions']);
+assert.deepEqual(headers.map(node=>node.textContent),['Task','Status','Behavior','Expected outcome','Verifier','Actions']);
 assert.equal(taskRows().length,3);
 for(const row of taskRows()){
   assert.equal(row.children.length,6);
@@ -1398,7 +1400,7 @@ def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path):
     for item in data["tasks"]:
         for field in ("title", "behavior", "expected_outcome"):
             assert item[field] in text
-    assert "| Task | Status | Behavior | Expected outcome | Grader | Actions |" in raw
+    assert "| Task | Status | Behavior | Expected outcome | Verifier | Actions |" in raw
     assert "| Custom code<br>" in raw
     assert "All state checks pass." not in text
     assert "| Not documented<br>" in raw

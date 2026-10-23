@@ -60,7 +60,7 @@ LEGACY_GRADING_KINDS = {
     "unknown": "Not documented",
 }
 GRADING_SUMMARY = {"type": "string", "maxLength": 200, "pattern": r"^\S+(?: \S+){4,9}$"}
-NO_GRADING_SUMMARY = "No grader description documented in README."
+NO_GRADING_SUMMARY = "No verifier description documented in README."
 
 
 def obj(properties: dict, required: list[str] | None = None) -> dict:
@@ -1016,7 +1016,7 @@ def render_markdown(data: dict) -> str:
                 [
                     "### " + markdown_text(parent.removeprefix(".eval-author/")),
                     "",
-                    "| Task | Status | Behavior | Expected outcome | Grader | Actions |",
+                    "| Task | Status | Behavior | Expected outcome | Verifier | Actions |",
                     "| --- | --- | --- | --- | --- | --- |",
                 ]
             )

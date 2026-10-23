@@ -10,14 +10,14 @@ Use this shared reporting contract for Harbor and NeMo Gym.
 `.eval-author/report.html` defines the case/run review content.
 Its Tasks tab lists discovered Harbor tasks and NeMo Gym workload definitions by directory,
 including tasks being authored and accepted tasks at their stable paths, with
-Task, Status, Behavior, Expected outcome, Grader, and Actions columns.
+Task, Status, Behavior, Expected outcome, Verifier, and Actions columns.
 Task shows the complete task README's first H1 title,
 including any ID prefix, such as `IMP-01: bare docs link`, in bold monospace,
 followed by its path in monospace. There is no separate ID header, additional task
 description, or provider label. The title falls back to the native task name when
 unavailable. Refresh also restores complete titles from saved README previews in
-older reports that split the ID and title. Grader shows the type of grader and the
-grader description as defined in the task README.
+older reports that split the ID and title. Verifier shows the type of verifier and the
+verifier description as defined in the task README.
 
 Its Runs tab lists one row per native Harbor job with date/time, the exact on-disk
 directory name and project-relative path, role, status, aggregate reward, and actions.
@@ -241,9 +241,9 @@ task's `grading_kind` from reporting metadata first. When none is recorded, it r
 from the task README's unique Grading section. Missing declarations display
 `Not documented`, as do invalid or ambiguous README declarations; refresh does not
 guess from prose. Recording the type in metadata does not change the task revision.
-The type line is excluded from the short grader description.
+The type line is excluded from the short verifier description.
 
-The grader description comes from a unique `## Grader summary` or
+The verifier description comes from a unique `## Grader summary` or
 `## Grading summary` section when present. Otherwise, an imported `grading_summary`
 may supply a 5–10 word summary derived from the task README, with that README
 listed in `source_refs`. Without either, refresh takes up to ten words from the
@@ -253,7 +253,7 @@ and `## Expected outcome and grading` sections are also readable. Refresh never
 calls a model to paraphrase the README. Put a concise 5–10 word sentence immediately after the type line in
 Grading for the best automatic description, or supply a sourced summary. Missing,
 unreadable, empty, ambiguous, or insufficient grading text shows
-"No grader description documented in README." Imported summaries are not displayed
+"No verifier description documented in README." Imported summaries are not displayed
 when the README is unavailable. Refresh after editing the task documentation.
 
 Native Oracle/NOP
@@ -335,7 +335,7 @@ no metadata type exists. Use `Custom code` for programmatic checks, `LLM-as-judg
 for model judging, and the combined label when both determine the score. Running
 an LLM as the agent under test does not make the verifier an LLM judge.
 Follow the type with a blank line and a task-specific 5–10 word description of
-what the grader checks; put clickable relative links in its body.
+what the verifier checks; put clickable relative links in its body.
 For example, link `tests/test.sh`, `tests/verify.py`, and `tests/expected.json`
 only when those files exist and are used. For model or hybrid grading, also link
 the judge implementation and rubric/configuration actually used. A deterministic
