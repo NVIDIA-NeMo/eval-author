@@ -15,8 +15,8 @@ triggers:
   - continue eval-author environment setup
 not-for:
   - eval-author (use for the standard, the boundaries, and to pick a sub-flow)
-  - eval-author-trace-environment (experimental; use to derive a whole task from one recorded trace)
-  - eval-author-task-create (use to propose dataset improvements and create audit-gap tasks)
+  - eval-author-trace-environment (experimental; use only for an explicit request or existing workspace)
+  - eval-author-task-create (use to propose dataset improvements and create audit-gap or ATIF-source tasks)
   - eval-author-first-eval (use to plan and build a starter suite)
   - eval-author-discover (use to check whether an existing suite runs)
 compatibility: >-
@@ -64,6 +64,23 @@ smoke task first, then derive every expected value with an independent reference
 query over that data. A few
 hand-typed fixture rows with hand-computed answers are not starting data, and a
 task's own NOP, Oracle, or verifier controls never prove the environment.
+
+## Trace-backed tools and integrity
+
+For an admitted trace source, follow the [ATIF environment handoff](../eval-author/references/trace-input.md).
+Preserve source-state provenance and reviewed real/mock/none decisions in the shared
+construction contract. The environment kit and its smoke handoff still precede
+task tests. Recorded replay covers only its declared interactions.
+
+### Available Scripts
+
+| Script | Purpose | Arguments |
+| --- | --- | --- |
+| `scripts/trace_tools.py` | Tool inventory/access, mocks, verifier lint, reproducibility/contamination checks and solution review | `<command>`; use `<command> --help` for workspace and review options |
+
+Invoke directly with `python <skill_dir>/scripts/trace_tools.py --help` to list
+commands; no `run_script()` wrapper is required. Commands emit JSON and return
+nonzero on contract errors.
 
 ## Purpose
 
@@ -220,6 +237,12 @@ Read [Starting data](references/starting-data.md) before generating records.
 
 ## Step 5: Make the end state readable
 
+At the calling task flow's [construction-plan handoff](../eval-author/references/construction-plan.md),
+supply the provenance and hashes of materialized starting inputs. Label authored
+state explicitly; a post-action trace snapshot cannot establish the pre-action
+state. Keep unresolved domain rules visible. Kit smoke evidence establishes setup
+health, not that a negative control reached the behavior it was meant to test.
+
 Graders need the resulting state, not the agent's account of it. Declare exactly
 what reaches the verifier and which volatile fields, such as timestamps and
 generated identifiers, it should ignore.
@@ -252,6 +275,11 @@ reads this export as its trusted observation.
   isolation is proven.
 
 ## Step 7: Prove the environment
+
+For trace-derived stateful or continuation environments, use the
+[transition and reset checks](../eval-author/references/trace-construction.md#when-state-spans-calls-or-turns)
+to distinguish tested sequences from broader fidelity. Keep those observations
+in the existing environment plan alongside the smoke evidence below.
 
 Prove the environment once, right after building it and before any task's tests
 are written:

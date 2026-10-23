@@ -1,15 +1,19 @@
 ---
 name: eval-author-task-create
 description: >-
-  Propose dataset improvements from Eval Author audit findings, then optionally
+  Create a task from a recorded interaction in ATIF source mode, without requiring
+  an audit gap. Or propose dataset improvements from Eval Author audit findings, then optionally
   create one NeMo Gym or Harbor task from one actionable uncovered tool. Prove it with
   NeMo Gym controls and native execution or Harbor's Oracle, then run it repeatedly
   with the repository's real agent when authorized, and accept it only when
-  measured ATIF closes the selected gap every time. Use when the user asks to
+  measured ATIF closes the selected gap every time in audit-gap mode. ATIF source
+  mode reports task qualification separately from audit closure. Use when the user asks to
   suggest dataset changes, fill an eval gap, turn audit uncovered_items into a
   NeMo Gym or Harbor task, or add missing tool coverage. Writes proposals, drafts, and
   measurements only under `.eval-author/`.
 triggers:
+  - create a task from a recorded interaction
+  - turn ATIF into a Harbor or NeMo Gym task
   - create a NeMo Gym task from an audit gap
   - create a Harbor task from an audit gap
   - fill an uncovered eval tool
@@ -39,6 +43,17 @@ allowed-tools: Bash Read Write Grep Glob
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
 # Eval Author: create task
+
+## ATIF source mode
+
+For a user-requested task from an ATIF trace, use the shared
+[ATIF source handoff](../eval-author/references/trace-input.md): privacy review,
+candidate admission, environment preparation, construction and native qualification.
+This source mode does not require an audit gap and does not claim coverage closure.
+Skip the audit selector and gap-only scaffold/acceptance steps; use the selected
+provider's native task initialization and the handoff's qualification procedure.
+For audit-gap requests, retain Steps 1–8 and their measured eligibility rules.
+Proposal-only requests still stop before construction.
 
 ## Purpose
 
@@ -94,6 +109,8 @@ with the selected runtime's Python; Harbor preparation imports Harbor.
 | Script | Purpose | Arguments |
 |---|---|---|
 | `scripts/task_evidence.py` | Record current-revision native controls and agent runs | `prepare --task-dir --contract --out`; `run --manifest --case --run-id --result --out [--trace] -- <command>` |
+| `scripts/candidate_admission.py` | Check trace candidacy, privacy and tool-access gates | `--task-dir [--out <private-receipt>]` |
+| `scripts/task_evidence.py workspace` | Retain trace-workspace evidence and finalize/check its status | `<probe\|record-run-inputs\|record-validation\|record-repair\|finalize\|check> --task-dir`; use `<command> --help` |
 | `scripts/task_pipeline.py` | Select, scaffold, and verify one audit-gap task | `select --report`; `scaffold --report --target` plus task metadata; `verify --before --after --target --evidence` |
 
 The three deterministic commands have these verdicts:
@@ -108,6 +125,11 @@ The script prints one JSON object. Exit code 0 is success; do not replace its
 verdict with model judgment.
 
 ## Step 1: propose dataset improvements
+
+Apply [private construction declarations](../eval-author/references/construction-plan.md)
+to each proposal: name grading authority, copied versus authored starting inputs,
+and the intended requirement-to-check mapping. Retain unresolved authority as an
+open design question; proposal-only work still stops here without scaffolding.
 
 Use the shared [Coverage planning](../eval-author/references/coverage-planning.md)
 procedure for source scope, priorities, and proposed example breadth. Reuse the
@@ -209,6 +231,12 @@ measurement directories. Use those paths verbatim for the rest of this flow.
 Do not invent alternate slugs or filenames.
 
 ## Step 3: design the smallest objective task
+
+After the scope checkpoint below and draft creation, materialize the private
+[construction plan](../eval-author/references/construction-plan.md), validate its
+input hashes and native check mappings, and bind it when preparing run evidence.
+Declare prerequisites only when they matter to the task; plan a bypass control
+that targets the dependent check. A declaration is not proof of necessity.
 
 Before generating task instructions, fixtures, or scaffolds, use the shared
 [coverage-planning checkpoint](../eval-author/references/coverage-planning.md).

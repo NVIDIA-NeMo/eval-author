@@ -35,12 +35,12 @@ triggers:
   - create an evaluation environment from a trace
   - which eval author step do I need
 not-for:
-  - eval-author-first-eval (use to establish Ethos and build first evals without prior coverage or traces)
+  - eval-author-first-eval (use to establish Ethos and build first evals without prior coverage)
   - eval-author-discover (use to run the discovery pass and get a runnable verdict)
   - eval-author-audit (use to generate, validate, measure, or aggregate audit.md coverage)
   - eval-author-task-create (use to propose dataset improvements; when task creation is requested, create and prove an eligible NeMo Gym or Harbor task)
   - eval-author-inspect-trace (use after this skill selects the trace sub-flow)
-  - eval-author-trace-environment (experimental; use to derive a Harbor or native NeMo Gym task from canonical ATIF evidence)
+  - eval-author-trace-environment (experimental; use only when explicitly requested or continuing its existing workspace)
   - eval-author-environment (use after an authoring sub-flow hands over its cases to build and prove their task environment)
   - nemo-intake (use to instrument agents, ingest telemetry, or query Intake outside Eval Author)
   - mlflow-to-atif (use to convert MLflow traces into canonical ATIF files)
@@ -112,6 +112,8 @@ opening pause.
 | Build first evals | `eval-author-first-eval`, continuing at the first unfinished authoring stage |
 | Audit coverage | `eval-author-audit`, continuing with eval and trace selection |
 | Improve or expand evals | Preserve the expansion goal and use the expansion handoff below; an audit is optional |
+| Create a task from a recorded interaction | [Task-create ATIF source mode](../eval-author-task-create/SKILL.md#atif-source-mode), or [first-eval](../eval-author-first-eval/SKILL.md#atif-as-a-starting-source) for a new suite; use the [shared ATIF handoff](references/trace-input.md), without requiring an audit gap |
+| Explicit trace-environment request or existing workspace continuation | [Trace environment](../eval-author-trace-environment/SKILL.md); retain existing artifacts and the compatibility workflow |
 
 When the goal is unclear, use this shorter welcome verbatim:
 
@@ -284,7 +286,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 | `eval-author-audit` | Generate and validate a finite `audit.md` coverage denominator, measure and aggregate trace coverage, and report findings |
 | `eval-author-task-create` | Propose concrete dataset improvements from audit findings; when task creation is requested, create one eligible NeMo Gym or Harbor task and prove it with native controls and repeated measured runs |
 | `eval-author-inspect-trace` | Understand one Intake trace without presuming that the trace contains a failure. Not user-invocable; this skill selects it |
-| `eval-author-trace-environment` | **Experimental.** Normalize one trace to ATIF, make a privacy-reviewed candidate decision, and build a private Harbor or native NeMo Gym task when evidence supports it |
+| `eval-author-trace-environment` | **Experimental.** Continue an existing trace-environment workspace or handle an explicit request for this compatibility workflow |
 | `eval-author-environment` | Build and prove the environment a Harbor or NeMo Gym task runs in: provider fit, how each dependency is provided, starting data and reset, end-state export, and isolation. Not user-invocable; first-eval and task-create hand it their agreed cases |
 
 `eval-author-audit` works one level above tasks: it generates and validates the
@@ -292,9 +294,10 @@ coverage denominator, measures traces against it, and aggregates deterministic
 coverage reports. `eval-author-task-create` owns the proposal step: prioritize
 dataset improvements from those findings across tools, capabilities, and failure
 cases while preserving their measured or unmeasured status. Proposal-only
-requests stop there. Its subsequent task-creation path consumes only actionable
+requests stop there. Its audit-gap task-creation mode consumes only actionable
 tool gaps and uses the selected NeMo Gym or Harbor native scaffolder rather than guessing a task
-layout. For a requested full workflow, proceed from audit to proposals even when
+layout. Its ATIF source mode instead applies privacy and candidate admission without
+requiring an audit gap. For a requested full workflow, proceed from audit to proposals even when
 there are no eligible tool gaps; an audit-only request ends with the findings.
 
 ## Select the evaluation provider
@@ -376,7 +379,9 @@ user, not to you.
   `.eval-author/.working/`; `eval-author-audit` writes only
   requested audit artifacts; `eval-author-task-create` writes only drafts,
   proposals, job outputs, and measurements there; `eval-author-trace-environment`
-  writes only private, gitignored task workspaces there.
+  writes only private, gitignored task workspaces there. For the shared ATIF flow,
+  inspect-trace, task-create and environment also write their owned artifacts
+  inside the selected private `.eval-author/.working/trace-inputs/` workspace.
   `eval-author-first-eval` writes plans, drafts, configs, and jobs there and uses
   the narrow Ethos write exception above. `eval-author-environment` writes
   environment kits, generated data, and smoke tasks under
@@ -425,6 +430,11 @@ keep task grading distinct from coverage auditing.
 For completed discovery, validation, or execution reports, lead with the verdict
 or outcome, then the evidence. This format does not apply to onboarding or an
 intent question while establishing Ethos.
+
+For proposal and task-construction evidence, use
+[private construction declarations](references/construction-plan.md) to connect
+authority, starting inputs, and native checks. Preserve the selected flow's scope
+and review checkpoints; proposal declarations do not authorize task scaffolding.
 
 For dataset proposals, follow `eval-author-task-create` Step 1: lead with concrete
 recommendations and their evidence, then supporting coverage counts and limits. An empty

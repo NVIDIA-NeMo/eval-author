@@ -28,10 +28,10 @@
     {
       "id": "router-contextual-trace",
       "prompt": "We previously discussed interpreting a failed run, but my request has changed: I now want to turn one recorded interaction into a private reproducible Harbor task. Only identify the right sub-flow and evidence needed before calling the result ready. Do not fetch traces or build anything.",
-      "expected_output": "Select eval-author-trace-environment rather than trace inspection. Trace evidence grounds the task; retained Harbor proof and required review establish readiness. A successful original trace alone is insufficient.",
+      "expected_output": "Select task-create ATIF source mode, or first-eval for a new suite, rather than the compatibility trace-environment route. Trace evidence grounds the task; retained Harbor proof and required review establish readiness. A successful original trace alone is insufficient.",
       "assertions": [
         "Honors the latest request to derive an environment.",
-        "Selects eval-author-trace-environment.",
+        "Selects eval-author-task-create ATIF source mode or eval-author-first-eval for a new suite.",
         "Does not invent successful proof or claim readiness."
       ],
       "expected_skill": "eval-author",

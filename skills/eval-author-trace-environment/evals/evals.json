@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": "trace-proposal-harbor",
-      "prompt": "Use /workspace/input/traces/lookup.atif.json and provenance.json in that directory to propose a private Harbor evaluation task for the synthetic inventory agent. Save a candidate proposal at /workspace/output/.eval-author/candidate-plan.md and show it for review. This turn authorizes a written proposal only; do not scaffold, validate, install, run a model, or export anything.",
+      "prompt": "Explicitly use eval-author-trace-environment. Use /workspace/input/traces/lookup.atif.json and provenance.json in that directory to propose a private Harbor evaluation task for the synthetic inventory agent. Save a candidate proposal at /workspace/output/.eval-author/candidate-plan.md and show it for review. This turn authorizes a written proposal only; do not scaffold, validate, install, run a model, or export anything.",
       "expected_output": "Writes an experimental private candidate proposal grounded in the recorded lookup_item call and BOLT-17 quantity observation. Names Harbor as the chosen output provider independently of the ATIF source format. Acknowledges hand-constructed synthetic evidence with no actual model/native task execution; a recorded answer is not independent ground truth. Describes needed independent grading and provider-native controls, then stops for review without claiming readiness or execution.",
       "assertions": [
         "Writes an experimental private candidate proposal grounded in the recorded lookup_item call and BOLT-17 quantity observation.",
@@ -18,7 +18,7 @@
     },
     {
       "id": "trace-proposal-gym",
-      "prompt": "Use /workspace/input/traces/lookup.atif.json and provenance.json in that directory to propose a private NeMo Gym evaluation task for the synthetic inventory agent. Save a candidate proposal at /workspace/output/.eval-author/candidate-plan.md and show it for review. This turn authorizes a written proposal only; do not scaffold, validate, install, run a model, or export anything.",
+      "prompt": "Explicitly use eval-author-trace-environment. Use /workspace/input/traces/lookup.atif.json and provenance.json in that directory to propose a private NeMo Gym evaluation task for the synthetic inventory agent. Save a candidate proposal at /workspace/output/.eval-author/candidate-plan.md and show it for review. This turn authorizes a written proposal only; do not scaffold, validate, install, run a model, or export anything.",
       "expected_output": "Writes an experimental private candidate proposal grounded in the recorded lookup_item call and BOLT-17 quantity observation. Names NeMo Gym as the chosen output provider independently of the ATIF source format. Acknowledges hand-constructed synthetic evidence with no actual model/native task execution; a recorded answer is not independent ground truth. Describes needed independent grading and provider-native controls, then stops for review without claiming readiness or execution.",
       "assertions": [
         "Writes an experimental private candidate proposal grounded in the recorded lookup_item call and BOLT-17 quantity observation.",
@@ -33,7 +33,7 @@
     },
     {
       "id": "trace-blocked-handoff",
-      "prompt": "Review this synthetic checkpoint: a private Harbor candidate was drafted from /workspace/input/traces/lookup.atif.json; its provenance is alongside it. Validation could not connect to Docker, Oracle did not run, and no real-agent trials or privacy export review occurred. Write /workspace/output/.eval-author/handoff.md explaining status and remaining evidence. Do not rerun, publish, or change the candidate.",
+      "prompt": "Explicitly use eval-author-trace-environment. Review this synthetic checkpoint: a private Harbor candidate was drafted from /workspace/input/traces/lookup.atif.json; its provenance is alongside it. Validation could not connect to Docker, Oracle did not run, and no real-agent trials or privacy export review occurred. Write /workspace/output/.eval-author/handoff.md explaining status and remaining evidence. Do not rerun, publish, or change the candidate.",
       "expected_output": "Writes a handoff identifying an experimental, unproven candidate blocked on Docker validation. Keeps native validity, Oracle, real-agent repeatability and privacy/export review explicitly unproven. Does not treat the source trace answer or draft as acceptance, and does not run or publish anything.",
       "assertions": [
         "Writes a handoff identifying an experimental, unproven candidate blocked on Docker validation.",

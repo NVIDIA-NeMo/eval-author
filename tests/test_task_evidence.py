@@ -515,3 +515,53 @@ def test_nop_cannot_be_the_realistic_incorrect_control(tmp_path, prepared):
         assert receipt["status"] == expected
         if kind == "incorrect":
             assert "wrong answer" in receipt["error"]
+
+
+def test_construction_binding_rechecked_and_historical_manifest_readable(prepared, tmp_path):
+    construction = importlib.import_module("construction_plan")
+    PLAN_SCHEMA = construction.SCHEMA
+    PlanError = construction.PlanError
+
+    task, contract_path, legacy_path = prepared
+    contract = evidence.read(contract_path)
+    plan = {
+        "schema": PLAN_SCHEMA,
+        "task_id": contract["task_id"],
+        "provider": "harbor",
+        "requirements": [
+            {
+                "id": "total",
+                "statement": "Return the correct total.",
+                "authority": {"basis": "specification", "reference": "Reviewed total rule"},
+            }
+        ],
+        "inputs": [],
+        "checks": [{"id": "total", "requirements": ["total"], "success": contract["cases"]["reference"]["checks"][0]}],
+        "cases": [
+            {"case": name, "observations": [{"check": "total", "expected": case["checks"][0]}]}
+            for name, case in contract["cases"].items()
+        ],
+        "prerequisites": [],
+    }
+    plan_path = write(tmp_path / "construction.json", plan)
+    bound_path = tmp_path / "bound.json"
+    evidence.prepare(task, contract_path, bound_path, construction_plan=plan_path)
+    assert evidence.manifest_at(bound_path)["construction"]["assessment"]["execution"] == "unmeasured"
+    receipts = complete(tmp_path, bound_path)
+    evidence.verify_receipts(receipts, contract["task_id"])
+    plan_path.write_text(json.dumps(plan, indent=2))
+    with pytest.raises(PlanError, match="changed"):
+        evidence.verify_receipts(receipts, contract["task_id"])
+    with pytest.raises(PlanError, match="changed"):
+        execute(tmp_path, bound_path, "reference", "changed-plan")
+    # Original v1 manifests did not carry construction claims or require a plan.
+    legacy = evidence.read(legacy_path)
+    legacy["schema"] = evidence.SCHEMA
+    del legacy["construction"]
+    write(legacy_path, legacy)
+    assert evidence.manifest_at(legacy_path) == legacy
+    # New manifests cannot silently omit their construction status.
+    legacy["schema"] = evidence.MANIFEST_SCHEMA
+    write(legacy_path, legacy)
+    with pytest.raises(PlanError):
+        evidence.manifest_at(legacy_path)
