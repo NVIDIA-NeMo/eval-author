@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Prepared smoke inputs. Coverage here is synthetic and only tests wiring.
+schema_version: 1
+benchmark_id: smoke
+revision: 1
+cases:
+- case_id: smoke-case
+  task_inventory:
+    benchmark:
+      deployment: local
+      benchmark_id: smoke-case
+      revision: 1
+    tasks:
+    - task_id: answer
+      revision: 1
+    - task_id: control
+      revision: 1
+  task_sources:
+    answer:
+      path: tasks/answer
+      kind: directory
+      sha256: sha256:75ff2464adae1444546cad5a1638987f418f4b95e1aa1368980affaa2aaa366c
+    control:
+      path: tasks/control
+      kind: directory
+      sha256: sha256:1fc2277b1737c7b6cf8650643298cb6c9555f27522f14fdfd0bdba911b2a93cc
+  case_description:
+    path: description.json
+    kind: file
+    sha256: sha256:b96589f78a625cd477241098b2b6a33a9cbba45e9f2cd43698d42aec2844c309
+  subsets:
+    path: subsets.json
+    kind: file
+    sha256: sha256:c7c9d31b71fcd7d940892bef08dd26b3547a2f4c9339297d1172323806b27e80
+  baseline:
+    agent_bundle_id: oracle
+    revision: harbor-0.20.0
+    harbor:
+      name: oracle
+  mutants:
+  - agent_bundle_id: nop
+    revision: harbor-0.20.0
+    harbor:
+      name: nop
+  coverage:
+    system_id: synthetic-subset-size
+    system_revision: '1'
+    command:
+    - /usr/bin/env
+    - python3
+    - -c
+    - 'import json; from pathlib import Path; r=json.loads(Path(''request.json'').read_text());
+      Path(''response.json'').write_text(json.dumps({''value'': len(r[''tasks''])
+      / 2}))'
