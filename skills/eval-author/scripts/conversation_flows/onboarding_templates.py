@@ -32,6 +32,13 @@ CONTINUATION_JOURNEYS = {
 PREREQUISITES_COMPLETE = "The prerequisites for reviewing ETHOS.md are complete."
 PREREQUISITE_PROGRESS_INTRO = "Here’s what I already know about your setup and what I’m checking before we continue."
 PREREQUISITE_RESULTS_INTRO = "Here’s what the prerequisite checks found, including anything that still needs attention."
+PREREQUISITE_STATE_FAILURE = (
+    "- **Save prerequisite findings:** {error} "
+    "**Needed:** Resolve the state helper error, then retry the prerequisite checks."
+)
+PREREQUISITE_UNSAVED_NOTICE = (
+    "These findings are retained only in this conversation. A fresh chat cannot resume them until they are saved."
+)
 TABLE_HEADER = "| Prerequisite | Status | Findings |\n|---|---|---|"
 AUTHORING_ROWS = (
     ("agent_repository", "Agent and repository"),

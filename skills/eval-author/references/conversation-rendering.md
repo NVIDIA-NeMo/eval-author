@@ -33,6 +33,10 @@ controls the journey, progress, blockers, confirmations, and pending decision;
 facts supply bounded findings and links, not alternate authority. Never
 construct a success state or maintain a separate saved checklist for display.
 
+If prerequisite state cannot be initialized, read, or saved, use onboarding's
+[nonpersistent failure response](conversations/onboarding.md#when-state-is-unavailable).
+It reports observed findings without a state snapshot or any completion claim.
+
 The caller owns source inspection, evidence provenance, freshness, and artifact
 reconciliation. Follow the selected flow's rules for obtaining the state
 snapshot; the renderer does not inspect files or digests to reconcile it. An

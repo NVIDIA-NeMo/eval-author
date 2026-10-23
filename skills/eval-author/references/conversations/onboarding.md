@@ -79,6 +79,50 @@ This guarantee covers skill-generated workflow messages. Mandatory host or tool
 UI instructions still apply and are outside the renderer's output contract.
 Do not generate an extra notice merely to satisfy a local skill convention.
 
+## When state is unavailable
+
+If a prerequisite `init`, `show`, or `update` fails, finish any independently
+accessible prerequisite checks and render `prerequisite_failure` directly as
+the final reply. This is the narrow fallback for unavailable state, including
+a fresh read-only repository. It does not require a state file or permission to
+write one. Preserve any existing state; do not fabricate a snapshot, reset it,
+or claim the failed operation succeeded.
+
+Pass the payload through `--input -` on stdin, without creating an input file:
+
+```json
+{
+  "stage": "prerequisite_failure",
+  "journey": "create",
+  "ready": true,
+  "facts": {
+    "state_error": "Permission denied while initializing shared progress.",
+    "rows": {
+      "access": {
+        "status": "missing",
+        "findings": "The repository is readable, but shared progress cannot be written.",
+        "source": "Observed state-helper permission error"
+      }
+    }
+  }
+}
+```
+
+Use the actual selected journey and readiness reply. Supply a bounded description
+of the observed helper error (at most 2,000 characters) in `facts.state_error`.
+Optional `facts.rows` contains observed findings and their sources. Unchecked rows remain Unknown;
+`checking` is not a final status. No `state`, `revision`, recommendations,
+custom blockers, Ethos, draft, or question inputs are accepted. This stage is
+not available through the no-input `--stage` preview mode.
+
+The renderer supplies the completed-results introduction, findings table, fixed
+state-error blocker, and notice that these findings remain in this conversation
+and cannot be resumed in a fresh chat until saved. It emits no checklist,
+approval, continuation invitation, or prerequisite-success claim. Stop before
+target Ethos inspection and downstream work. Once the state problem is resolved,
+reload any existing state, recheck affected facts, and record the prerequisite
+pass before using the normal stateful responses.
+
 ## Stateful responses
 
 During prerequisites, use `journey_state.py --state-only` for `init`, `show`, and
@@ -182,8 +226,9 @@ Row statuses are `verified`, `confirmed`, `missing`, `unknown`, and
 `not_required`. Only `environment`, `services_data`, and `agent_access` can be
 `not_required`. Except for the canonical audit trace blocker row described below,
 every non-Unknown row requires findings and an actual source; missing row facts
-render as Unknown. Never fill missing evidence with a success claim. Keep user-confirmed answers distinct from observed checks. Record each
-finding before displaying it: non-Unknown statuses for rows mapped by
+render as Unknown. Never fill missing evidence with a success claim. Keep
+user-confirmed answers distinct from observed checks. For stateful responses,
+record each finding before displaying it: non-Unknown statuses for rows mapped by
 `ROW_PREREQUISITES` in the [onboarding renderer](../../scripts/conversation_flows/onboarding.py) must match their saved prerequisites. Composite
 rows use this precedence: `missing`, `unknown`, `confirmed`, `verified`, then
 `not_required`; an absent prerequisite key counts as `unknown`. For example,

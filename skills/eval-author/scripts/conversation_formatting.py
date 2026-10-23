@@ -42,7 +42,9 @@ def link(target: object, label: str) -> str:
     if parsed.scheme:
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError("Links require an HTTP(S) URL or an absolute local path")
-    elif not target.startswith("/") or target.startswith("//"):
-        raise ValueError("Local links require a supplied absolute path")
-    target = quote(target, safe="/:#?&=%@+;,")
+        target = quote(target, safe="/:#?&=%@+;,")
+    else:
+        if not target.startswith("/") or target.startswith("//"):
+            raise ValueError("Local links require a supplied absolute path")
+        target = quote(target, safe="/")
     return f"[{literal(label, 'link label')}](<{target}>)"
