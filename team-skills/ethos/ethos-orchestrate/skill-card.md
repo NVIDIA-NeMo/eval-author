@@ -38,13 +38,13 @@ Mitigation: Review and scan skill before deployment. <br>
 **Other Properties Related to Output:** [Routing reads the local checkout only and works offline; writes are limited to the ETHOS.md file via sub-flows and nothing is committed automatically.] <br>
 
 ## Evaluation Agents Used: <br>
-- Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`) <br>
-- Codex (`openai/openai/gpt-5.5`) <br>
+- Claude Code (`aws/anthropic/bedrock-claude-opus-5-5`) <br>
+- Codex (`openai/openai/gpt-6.1-sol`) <br>
 
 
 
 ## Evaluation Tasks: <br>
-4 evaluation tasks (3 positive, 1 negative), 1 attempt per task, each run in an isolated sandbox pod (`k8s-sandbox`) and compared against a no-skill baseline; evaluator version 1.5.6, evaluated 2026-10-16. <br>
+4 evaluation tasks (3 positive, 1 negative), 1 attempt per task, each run in an isolated sandbox pod (`k8s-sandbox`) and compared against a no-skill baseline; evaluator version 1.5.6, evaluated 2026-10-23. <br>
 
 ## Evaluation Metrics Used: <br>
 Reported benchmark dimensions: <br>
@@ -68,15 +68,15 @@ Underlying evaluation signals used in this run: <br>
 ## Evaluation Results: <br>
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 95.7% (baseline not comparable; uplift unavailable) | 95.0% (baseline not comparable; uplift unavailable) |
-| Security | 75.0% → 100.0% (+25.0 points) | 100.0% → 100.0% (±0.0 points) |
-| Correctness | 70.0% → 100.0% (+30.0 points) | 70.0% → 95.0% (+25.0 points) |
-| Discoverability | 86.7% (baseline not comparable; uplift unavailable) | 91.7% (baseline not comparable; uplift unavailable) |
-| Effectiveness | 61.0% → 96.3% (+35.3 points) | 51.7% → 96.7% (+45.0 points) |
-| Efficiency | 95.5% (baseline not comparable; uplift unavailable) | 91.9% (baseline not comparable; uplift unavailable) |
+| Overall | 92.2% (baseline not comparable; uplift unavailable) | 93.7% (baseline not comparable; uplift unavailable) |
+| Security | 100.0% → 100.0% (±0.0 points) | 100.0% → 100.0% (±0.0 points) |
+| Correctness | 65.0% → 100.0% (+35.0 points) | 85.0% → 90.0% (+5.0 points) |
+| Discoverability | 76.7% (baseline not comparable; uplift unavailable) | 93.3% (baseline not comparable; uplift unavailable) |
+| Effectiveness | 56.0% → 93.1% (+37.1 points) | 64.8% → 89.2% (+24.4 points) |
+| Efficiency | 91.0% (baseline not comparable; uplift unavailable) | 96.0% (baseline not comparable; uplift unavailable) |
 
 ## Skill Version(s): <br>
-0.1.0 (source: pyproject.toml; git SHA 0b643fb, committed 2026-10-16) <br>
+0.1.0 (source: pyproject.toml; git SHA 97cd9ee, committed 2026-10-23) <br>
 
 ## Ethical Considerations: <br>
 NVIDIA believes Trustworthy AI is a shared responsibility and we have established policies and practices to enable development for a wide array of AI applications. When downloaded or used in accordance with our terms of service, developers should work with their internal team to ensure this skill meets requirements for the relevant industry and use case and addresses unforeseen product misuse. <br>
