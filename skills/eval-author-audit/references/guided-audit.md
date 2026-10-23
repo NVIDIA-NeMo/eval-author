@@ -4,9 +4,11 @@
 # Audit milestones after prerequisites and Ethos
 
 The shared prerequisite flow owns the opening checklist, prerequisite answers,
-Ethos confirmation, and shared resumption. A direct full audit uses that same flow. Afterward keep
-**Check what your existing evaluations cover** current in the three-item checklist while explaining the
-current coverage milestone. Reuse completed shared steps.
+Ethos confirmation, and shared resumption. A direct full audit uses that same
+flow. Afterward keep its audit item current while explaining the present
+milestone: reviewing coverage, identifying gaps, and recommending improvements.
+Use the [onboarding renderer](../../eval-author/references/conversations/onboarding.md)
+for canonical checklist wording and reuse completed shared steps.
 
 ## Decisions and progress
 
@@ -215,8 +217,9 @@ Reuse existing measurements only when their inputs still apply.
 If traces are absent, inaccessible, invalid, or unavailable in a supported format,
 name the specific limitation and needed evidence. Record measurement as deferred
 in shared state with its reason, such as “Selected trace directory is missing”
-or “Run records need an ATIF export.” Keep **Check what your existing evaluations cover** unfinished
-and explain that limitation beside the current coverage stage until resolved.
+or “Run records need an ATIF export.” Keep the shared audit checklist item
+unfinished and explain that limitation beside the current coverage stage until
+resolved.
 Do not report 0% coverage, fabricate
 measurement files, or treat the lack of traces as uncovered behavior. The
 specification and its review can still finish. Record the limitation in the
@@ -243,7 +246,8 @@ coverage report: first its Intended coverage section, now its findings, evidence
 limits, and next actions. Link the relevant saved sections and explicitly name
 those as the content to review; do not ask the user to reapprove intended checks.
 
-Keep **Check what your existing evaluations cover** unchecked and current while awaiting the user's review.
+Keep the shared audit checklist item unchecked and current while awaiting the
+user's review of coverage findings, gaps, and recommended next actions.
 Ask whether the Audit coverage report's findings need correction and offer the
 recommended next step below, then end the turn. Mark it complete only after the
 user has reviewed the report and any requested corrections are resolved. A reply accepting the findings and

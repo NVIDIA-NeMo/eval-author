@@ -255,6 +255,12 @@ improve a suite. It first confirms your setup and your agent's intended behavior
 in `ETHOS.md`, then continues with your selected goal. You can also use a
 [more specific starter prompt](../README.md#choose-your-journey).
 
+After you agree to begin, Eval Author checks your setup before reviewing
+`ETHOS.md`. Setup blockers must be resolved before that review or evaluation
+work can continue. If progress cannot be loaded or saved, work also pauses:
+findings remain in the current chat, and a fresh chat cannot resume them until
+they are saved.
+
 Full creation and improvement onboarding pauses before Ethos if the selected
 runtime is missing, incompatible, or cannot yet be verified. Progress is saved
 while you resolve setup; prerequisite checks do not install software. A full

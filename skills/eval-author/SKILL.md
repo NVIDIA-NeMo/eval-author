@@ -77,55 +77,47 @@ below for NeMo Gym and Harbor, including direct invocations of their skills.
 
 The first response to a new shared flow is orientation only. Determine the goal
 from the user's request and conversation already available, without inspecting the
-repository. If known, show only the fixed welcome, matching checklist, and call
-to action below.
-If unknown, show only the shorter welcome below, the goal question, and its three choices.
-**End the turn immediately after that response.**
+repository. Render `orientation` using the pure conversation renderer, with the
+known journey or no journey for goal selection, and use its Markdown as the
+entire final visible response. The unknown-goal opening uses the shorter welcome
+without a checklist introduction. **End the turn immediately after that response.**
+When the user selects a goal, render `goal_selected` with that journey and end
+the turn again. Selecting a goal does not establish readiness or start checks.
 
-When the user answers the goal question, show the fixed sentence for the selected
-goal below, followed by the matching three-item checklist and **Ready to get started?**
-as the entire final visible response, then end the turn. The welcome was already shown;
-use the same checklist wording and
-current-step marker as the known-goal opening. Selecting a goal does not skip
-this overview or start prerequisite checks.
+Before either orientation response, read only the entry skill, this core skill,
+the [conversation rendering contract](references/conversation-rendering.md), and
+the [onboarding reference](references/conversations/onboarding.md) as needed.
+The sole command exception is this renderer's no-input preview mode:
 
-Before either orientation response, read only the entry skill and this core skill
-as needed.
-Do not inspect repository files or saved state, validate Ethos, check prerequisites,
-run helper commands, write files, or delegate work. This also applies to direct
-first-eval and full-audit invocations. Prerequisite questions and findings belong
-to later turns. Only after the user replies to **Ready to get started?**, show the
-prerequisite table from the shared procedure, then finish the applicable checks
-and save findings using its `--state-only` mode. If no Blockers remain, visibly
-present the completed results table, any Recommendations, and **Next Steps** with
-the selected checklist before locating, reading, or validating the target
-`ETHOS.md` or starting any Ethos preflight. Reading installed Ethos instructions
-during checks establishes availability and compatibility only. Continue Ethos in
-the same turn after this presentation; it adds no user approval pause. If blocked,
-end with Blockers and omit Next Steps, the checklist, and Ethos guidance.
-This order applies to fresh flows, prerequisite resumes, goal switches, and
-direct flow invocations. Continuations reuse progress rather than repeating the
-opening pause.
+```bash
+python3 -B <skill_dir>/scripts/conversation_renderer.py --stage orientation --journey create
+```
+
+Replace the journey with `audit` or `expand`, or omit it for an undecided request.
+Use `--stage goal_selected --journey <selected-journey>` after goal selection.
+The renderer may load its own source dependencies, but must not inspect repository
+files or saved state, validate Ethos, check prerequisites, write files, or delegate
+work. No other helper commands are allowed before readiness. This also applies
+to direct first-eval and full-audit invocations.
+
+After the actual readiness reply, follow the
+[shared prerequisite procedure](references/shared-prerequisites.md#check-the-agent-and-setup).
+It owns the check sequence, state-failure handling, transition into Ethos, and
+final response for fresh flows, prerequisite resumes, goal switches, and direct
+invocations. Continuations follow its [saved-progress rules](references/shared-prerequisites.md#save-and-resume)
+instead of repeating orientation.
 
 | Request | Route after shared prerequisites and Ethos |
 |---|---|
 | Build first evals | `eval-author-first-eval`, continuing at the first unfinished authoring stage |
-| Audit coverage | `eval-author-audit`, continuing with eval and trace selection |
+| Audit coverage, gaps, and improvement opportunities | `eval-author-audit`, continuing with eval and trace selection |
 | Improve or expand evals | Preserve the expansion goal and use the expansion handoff below; an audit is optional |
 | Create a task from a recorded interaction | [Task-create ATIF source mode](../eval-author-task-create/SKILL.md#atif-source-mode), or [first-eval](../eval-author-first-eval/SKILL.md#atif-as-a-starting-source) for a new suite; use the [shared ATIF handoff](references/trace-input.md), without requiring an audit gap |
 | Explicit trace-environment request or existing workspace continuation | [Trace environment](../eval-author-trace-environment/SKILL.md); retain existing artifacts and the compatibility workflow |
 
-When the goal is unclear, use this shorter welcome verbatim:
-
-Welcome to Eval Author! I’ll help you evaluate your agent against the behavior you expect.
-
-Then ask “What would you like to do?” and present these options as a bulleted list:
-
-- Build your first evaluations
-- Audit your existing coverage
-- Improve your evaluation suite
-
-Reuse known context and ask only for the unresolved goal.
+When the goal is unclear, use `orientation` without a journey. Its shorter
+welcome and canonical goal choices ask only for the unresolved goal; reuse known
+context.
 
 Explicit inventory, planning-only, readiness, repair, trace inspection, supported NeMo Gym or MLflow
 trace conversion, trace-derived authoring, proposal-only, and audit
@@ -139,62 +131,15 @@ absent. Supported trace conversion retains its existing dedicated skills.
 
 ### Shared prerequisites and Ethos
 
-Copy this welcome, checklist, and call to action verbatim into the final user-facing
-response, rendered as Markdown. They are the entire opening response when the goal
-is known from the initial request; after goal clarification, replace the welcome
-with the selected goal's sentence below, followed by the checklist and call to
-action. Do not append findings or a prerequisite
-question. Progress or thinking messages alone
-do not satisfy this opening.
-
-Welcome to Eval Author! I’ll help you evaluate your agent against the behavior you expect. Here’s what we’ll work through:
-
-- [ ] **Check how your agent runs and how you’ll test it** — **We're here**
-- [ ] **Agree on how your agent behaves using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)**
-- [ ] **Build, run, and review your first evaluations**
-
-Ready to get started?
-
-After goal clarification, use exactly one of these sentences above the checklist:
-
-| Selected goal | Introductory sentence |
-|---|---|
-| First evaluations | We’ll build your first evaluations. Here’s what we’ll work through: |
-| Audit | We’ll check what your existing evaluations cover. Here’s what we’ll work through: |
-| Improvements | We’ll improve your existing evaluations. Here’s what we’ll work through: |
-
-For an audit, replace the third item with **Check what your existing evaluations cover**.
-For improvements, use **Improve, run, and review your existing evaluations**. These exact third-item
-labels, completed checkboxes, and the position of **We're here** are the only
-variations. Keep each opening's fixed introductory text, checklist wording, order,
-and Ethos link unchanged.
-Keep scope limits and other explanations outside the checklist items. For
-prerequisite results, use the **Next Steps** placement defined in the shared
-procedure. On resume, use the same checklist wording
-with saved progress and the pending question instead of the opening call to action;
-do not reset completed items.
-After the opening turn, explain findings and ask for missing decisions or content confirmation.
-Record user-confirmed prerequisites separately from runtime verification.
-Mark each step complete when its work and required review are finished.
-
 Read [Shared prerequisites and Ethos](references/shared-prerequisites.md) for
-the common procedure, shared state, resumption, and the exact handoff. It selects
-the prerequisite table and checks for [creation](references/pre-reqs/create.md),
-[audit](references/pre-reqs/audit.md), or [improvement](references/pre-reqs/improve.md).
-Keep the selected table fixed and reassess requirements when the goal changes.
-
-After that prerequisite transition, use `ethos-orchestrate` to review, create,
-or update `ETHOS.md`. Pass along the
-context and answers already collected. For an existing document, ask the user to
-confirm it is the right Ethos for this agent and accurately describes its current
-intended behavior. A saved confirmation from an earlier flow does not
-replace this review. When [Ethos confirmation](references/ethos-confirmation.md)
-is complete, show the [completion pause](references/shared-prerequisites.md#pause-after-ethos-confirmation)
+the common procedure, shared state, resumption, and exact handoff. It selects the
+flow-specific checks and calls the [Ethos adapter](references/ethos-confirmation.md),
+which owns document review, destination handling, and the canonical Ethos handoff.
+The [shared rendering contract](references/conversation-rendering.md) and
+[onboarding input/output contract](references/conversations/onboarding.md) own
+renderer use and canonical copy. Follow the shared procedure's
+[completion pause](references/shared-prerequisites.md#pause-after-ethos-confirmation)
 before resuming the selected evaluation flow.
-
-The shared prerequisite flow confirms repository-root `ETHOS.md`. Preserve supplied
-alternate-path documents and resolve the root requirement without silently copying
-or replacing them. Scoped utilities retain their explicit `--ethos` path behavior.
 
 ### Expansion handoff
 
@@ -202,8 +147,13 @@ An expansion request does not imply an audit. Carry supplied suite context,
 requested additions, confirmed Ethos, prerequisites, and pending decisions into
 the selected authoring flow. Resolve an unsupported suite format during
 [shared prerequisites](references/shared-prerequisites.md#check-the-agent-and-setup),
-before Ethos. If the suite uses an unsupported format, ask the user to convert
-it to NeMo Gym or Harbor before proceeding.
+before Ethos. For an unsupported suite, follow the
+[improvement prerequisite blocker](references/pre-reqs/improve.md#checks-and-blocking-conditions):
+the renderer supplies a copyable conversion handoff for a separate coding-agent
+chat. Keep the blocker until the converted suite's actual format is checked;
+Eval Author does not perform the conversion. Supply the exact loaded core skill
+link for the canonical blocker attribution and present the rendering unchanged,
+without appending another pause explanation.
 For a starter suite created by first-eval, resume its scope stage. For supplied
 reviewed audit findings, use `eval-author-task-create` proposals and its existing
 eligibility checks. If no supported authoring flow matches the supplied suite,
@@ -283,7 +233,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 |---|---|
 | `eval-author-first-eval` | Confirm prerequisites and Ethos, plan cases, and build or expand a starter suite at the agreed breadth while teaching the user how to run it |
 | `eval-author-discover` | Establish whether a repository's evaluations run, name the rung that fails, and get the exact command to run them |
-| `eval-author-audit` | Generate and validate a finite `audit.md` coverage denominator, measure and aggregate trace coverage, and report findings |
+| `eval-author-audit` | Define intended coverage in `audit.md`, measure selected trace coverage, identify gaps, and recommend improvements supported by the findings |
 | `eval-author-task-create` | Propose concrete dataset improvements from audit findings; when task creation is requested, create one eligible NeMo Gym or Harbor task and prove it with native controls and repeated measured runs |
 | `eval-author-inspect-trace` | Understand one Intake trace without presuming that the trace contains a failure. Not user-invocable; this skill selects it |
 | `eval-author-trace-environment` | **Experimental.** Continue an existing trace-environment workspace or handle an explicit request for this compatibility workflow |

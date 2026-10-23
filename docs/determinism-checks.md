@@ -17,7 +17,11 @@ Developer tools in `tools/` are not included in skill-only installations.
 
 Passing checker tests establishes checker behavior. Live workflow acceptance
 requires actual executions and reviewed evidence for the relevant inputs,
-hosts and environments. Exact prose and model trajectories need not be identical.
+hosts and environments. Workflow execution checks do not require identical model
+trajectories or free-form prose. The
+[conversation renderer](../skills/eval-author/scripts/conversation_renderer.py)
+separately requires byte-identical messages for identical rendering inputs;
+that presentation guarantee does not establish deterministic workflow execution.
 
 ## Workflow scope
 
