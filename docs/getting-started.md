@@ -255,18 +255,11 @@ improve a suite. It first confirms your setup and your agent's intended behavior
 in `ETHOS.md`, then continues with your selected goal. You can also use a
 [more specific starter prompt](../README.md#choose-your-journey).
 
-After you agree to begin, Eval Author shows a short introduction and a status
-table with what is already known and what needs checking. It completes those
-checks before proceeding to Ethos. The final reply introduces the completed
-findings table, followed by any recommendations, the progress checklist, and
-the document or question to review. If something blocks setup, the final reply
-contains the completed findings and required action, and Ethos work waits.
-The completed table appears in the final reply without a separate report in
-the middle of the turn.
-If progress cannot be loaded or saved, the final table still shows the observed
-findings and the state error. Those findings remain in the current chat; a fresh
-chat cannot resume them until saved. Ethos and evaluation work wait for the
-state problem to be resolved.
+After you agree to begin, Eval Author checks your setup before reviewing
+`ETHOS.md`. Setup blockers must be resolved before that review or evaluation
+work can continue. If progress cannot be loaded or saved, work also pauses:
+findings remain in the current chat, and a fresh chat cannot resume them until
+they are saved.
 
 Full creation and improvement onboarding pauses before Ethos if the selected
 runtime is missing, incompatible, or cannot yet be verified. Progress is saved

@@ -42,21 +42,14 @@ supported format.
 
 ## Convert a suite for expansion
 
-If expansion pauses because your existing suite uses an unsupported format, its
-Blockers section includes a copyable conversion prompt. Open a separate coding
-agent chat in the same repository, paste that prompt, and replace the suite path,
-current framework, and target placeholders. Choose either Harbor or NeMo Gym. The
-[onboarding template](../skills/eval-author/scripts/conversation_flows/onboarding_templates.py)
-contains the canonical conversion handoff prompt.
+If expansion pauses because your suite uses an unsupported format, Eval Author
+provides the [canonical conversion prompt](../skills/eval-author/scripts/conversation_flows/onboarding_templates.py).
+Paste it into a separate coding agent chat in the same repository. Fill in the
+suite path, current framework, and target format: Harbor or NeMo Gym.
 
-The prompt asks the coding agent to preserve your original tests and agent code,
-carry their scenarios and grading into a new output directory, and map converted
-cases and unresolved gaps. It requests offline validation and reports any live
-execution requirements separately. Return to Eval Author with the converted
-suite paths and validation results. Expansion resumes after Eval Author checks
-the actual format and resolves any remaining prerequisites. The blocked response
-links the skill instruction that requires this pause; the prompt does not clear
-the format requirement.
+Return to Eval Author with the converted suite paths and validation results.
+It checks the actual format and any remaining prerequisites before resuming
+expansion.
 
 ## Audit coverage
 
