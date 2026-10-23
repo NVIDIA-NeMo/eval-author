@@ -1,0 +1,14 @@
+{
+  "stage": "prerequisites",
+  "journey": "audit",
+  "ready": true,
+  "facts": {
+    "rows": {
+      "evaluation_framework": {
+        "status": "confirmed",
+        "findings": "You selected the custom evaluation suite.",
+        "source": "User reply 1"
+      }
+    }
+  }
+}
