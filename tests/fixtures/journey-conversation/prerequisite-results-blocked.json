@@ -1,0 +1,141 @@
+{
+  "stage": "prerequisite_results",
+  "revision": 7,
+  "state": {
+    "schema_version": 1,
+    "revision": 7,
+    "repository": "/workspace/agent",
+    "agent": "Account Support",
+    "journey": "create",
+    "setup": "gym",
+    "prerequisites": {
+      "agent_connection": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "code_access": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "command_execution": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "data": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "environment": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "ethos_skills": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "file_writes": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "model_credentials": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "python": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "runtime": {
+        "status": "missing",
+        "source": "Runtime lookup failed"
+      },
+      "services": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "skills": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      }
+    },
+    "ethos": {
+      "path": "ETHOS.md",
+      "stage": "complete",
+      "draft_confirmed": false,
+      "draft_source": null,
+      "draft": null,
+      "source_findings": [],
+      "prior_answers": [],
+      "confirmed_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "confirmation_source": "User confirmed current intent in reply 4",
+      "validation": "ethos-write validation passed",
+      "remaining_questions": []
+    },
+    "scopes": {},
+    "tasks": {},
+    "journey_status": {},
+    "blockers": [
+      {
+        "id": "runtime",
+        "phase": "setup",
+        "message": "The selected runtime is unavailable."
+      }
+    ],
+    "pending_question": "Is this still the correct ETHOS.md for the agent?",
+    "next_handoff": "eval-author-first-eval",
+    "legacy_imports": [],
+    "updated_at": "2026-10-23T12:00:00+00:00"
+  },
+  "facts": {
+    "rows": {
+      "agent_repository": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "evaluation_framework": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "skills": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "access": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "runtime": {
+        "status": "missing",
+        "findings": "The selected runtime is unavailable.",
+        "source": "Runtime lookup failed"
+      },
+      "environment": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "services_data": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "agent_access": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      }
+    },
+    "blockers": [
+      {
+        "id": "runtime",
+        "step": "Continue prerequisites",
+        "reason": "The selected runtime is unavailable.",
+        "needed": "Provide the supported NeMo Gym runtime before we continue."
+      }
+    ]
+  }
+}
