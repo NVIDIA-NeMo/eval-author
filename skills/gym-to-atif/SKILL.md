@@ -12,7 +12,8 @@ triggers:
   - normalize one NeMo Gym JSONL rollout line into ATIF
 not-for:
   - eval-author (use for the shared evidence standard and routing)
-  - eval-author-trace-environment (experimental; use after this skill emits ATIF to build a Harbor or native NeMo Gym task)
+  - eval-author-task-create (use ATIF source mode after conversion to build a task; first-eval owns a new suite)
+  - eval-author-trace-environment (use only for explicit requests or existing workspace continuations)
   - mlflow-to-atif (use only to normalize MLflow traces into ATIF)
 compatibility: >-
   Offline ATIF conversion uses Python 3.11+ and the standard library. The optional
@@ -229,3 +230,10 @@ installed location. Commands use the existing Python interpreter.
   protocol mapping. Do not flatten unknown content to pass conversion.
 - Output already exists: use a fresh private directory; the converter never
   overwrites retained evidence.
+
+## Handoff for task construction
+
+When this conversion supplies a new evaluation task, pass the retained ATIF to
+[inspect-trace privacy preparation](../eval-author-inspect-trace/SKILL.md#local-atif-privacy-handoff)
+before candidate admission or fixture generation. Preserve normalization losses
+and uncertainties. Conversion-only requests end with the canonical artifact.

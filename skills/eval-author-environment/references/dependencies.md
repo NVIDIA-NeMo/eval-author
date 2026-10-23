@@ -61,6 +61,14 @@ into the kit's `build/` directory, keeping their image versions. Run migrations
 and seeding when the image is built or the service starts, so every trial begins
 from the same state. Avoid named volumes that would carry state between trials.
 
+Separate image preparation from evaluation-time access. An offline verifier can
+use dependencies installed into its image during authorized preparation. Record
+pinned packages and the build recipe when that preparation is permitted; do not
+replace an executable recipe with an empty offline wheelhouse. If preparation
+must also be offline, require the actual package closure or a usable prebuilt
+image and retain a blocker until it is available. A proposed recipe still needs
+its build and smoke evidence before the environment is ready.
+
 ### Vendor sandboxes
 
 Use a vendor's test mode only after the user authorizes that account and any
@@ -89,7 +97,7 @@ request and response types, or recorded traces.
 Trace-environment's reviewed tool-call fixtures and its replay adapter serve
 read-only calls whose inputs the cases repeat exactly; that workflow calls this
 access state `mock`. See
-[Trace-derived tool-call access](../../eval-author-trace-environment/references/trace-derived-fixtures.md).
+[Trace-derived tool-call access](trace-derived-fixtures.md).
 Replay cannot reproduce side effects, so never use it for a write the verifier
 checks.
 

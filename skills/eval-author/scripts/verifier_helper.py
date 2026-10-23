@@ -14,6 +14,27 @@ class VerifierHelperError(RuntimeError):
     """Infrastructure or protocol failure; must not become a behavioral score."""
 
 
+@contextlib.contextmanager
+def checked_instrumentation(callback):
+    """Retain trusted callback failures even if submission handling catches them."""
+    failure = None
+
+    def observe(*args, **kwargs):
+        nonlocal failure
+        try:
+            return callback(*args, **kwargs)
+        except Exception as exc:
+            if failure is None:
+                failure = exc
+            raise VerifierHelperError("trusted instrumentation failed") from exc
+
+    try:
+        yield observe
+    finally:
+        if failure is not None:
+            raise VerifierHelperError("trusted instrumentation failed") from failure
+
+
 def _object(pairs):
     result = {}
     for key, value in pairs:

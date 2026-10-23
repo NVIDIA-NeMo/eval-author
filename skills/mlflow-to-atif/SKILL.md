@@ -152,3 +152,10 @@ supplied experiment and time range and do not change authentication.
   enabled; HTTP is supported only for loopback.
 - Existing output: use a fresh directory unless replacement of this same
   conversion is explicitly requested; only then use `--overwrite`.
+
+## Handoff for task construction
+
+When this conversion supplies a new evaluation task, pass the retained ATIF to
+[inspect-trace privacy preparation](../eval-author-inspect-trace/SKILL.md#local-atif-privacy-handoff)
+before candidate admission or fixture generation. Preserve normalization losses
+and uncertainties. Conversion-only requests end with the canonical artifact.

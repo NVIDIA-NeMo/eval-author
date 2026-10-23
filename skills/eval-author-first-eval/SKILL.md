@@ -15,7 +15,7 @@ triggers:
   - create an evaluation suite from scratch
 not-for:
   - eval-author (use for the shared standard and routing)
-  - eval-author-task-create (use for measured audit coverage gaps)
+  - eval-author-task-create (use for measured audit coverage gaps or ATIF-source tasks)
   - eval-author-discover (use to check an existing suite)
 compatibility: >-
   Ethos is required before evaluation design and is saved and checked locally
@@ -33,6 +33,13 @@ allowed-tools: Bash Read Write Grep Glob
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
 # Eval Author: first eval
+
+## ATIF as a starting source
+
+When the user supplies an ATIF trace for a new suite, follow the shared
+[ATIF source handoff](../eval-author/references/trace-input.md). Establish Ethos
+and admit the source before constructing its case; keep the usual environment-kit
+handoff. A rejected source is a retained outcome, not a reason to invent a case.
 
 ## Purpose
 
@@ -154,6 +161,12 @@ When expanding, record retained and added examples and the new unique totals;
 the pilot's size does not determine the expansion's scope.
 
 ## 5. Prepare cases and grading
+
+For each new case, use [private construction declarations](../eval-author/references/construction-plan.md)
+to record grading authority, authored or copied inputs, and observable checks.
+Validate and bind the private plan before recording native controls. Keep simple
+cases simple; preserve correct inaction and nonbinary rewards where the agreed
+requirements call for them. A healthy agent failure remains a valid baseline.
 
 After each native scaffold is created, record it as **Draft** using the shared
 [Task status](../eval-author/references/shared-prerequisites.md#task-status)

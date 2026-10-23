@@ -18,6 +18,20 @@ results in the specification, reviewed fixtures, or independently validated
 reference execution, never the submission being graded. A source agent's answer
 is evidence to investigate, not ground truth by itself.
 
+Distinguish correctness authority (what makes an answer correct) from evidence
+that a required action occurred. If the request requires a particular tool or
+process, establish a trusted, task-bound observation channel before admitting
+the task. A coordinator receipt that the runtime never supplies cannot be a
+positive-reward prerequisite. Keep the task blocked until that requirement can
+be measured; do not drop it or substitute an artifact-only score for acceptance.
+
+Counterfactual probes must stay within the requested contract. A program may
+correctly reject an input whose required identity or constraints were changed.
+Test genuine loading or computation with supported variations, malformed-input
+rejection, or trusted action observations, without demanding success on an input
+the request requires rejecting. Retain substantive negative and shortcut controls
+when repairing a verifier; a higher solver pass rate is not the objective.
+
 Write the public instruction the way the requester would: the goal, the
 constraints, and the symptoms they can observe. Do not state the root cause, the
 fix, or results that only doing the work produces, such as corrected totals,
@@ -78,11 +92,30 @@ passing result establishes comprehensive soundness, fairness, or difficulty.
 
 ## Prepare immutable inputs
 
-When grading delegates to a verifier-owned helper, follow
-[trusted verifier helpers](verifier-helpers.md): distinguish helper startup,
-protocol and runtime faults from explicit submitted-program failures. A helper
-failure must propagate through native verifier health, never become a healthy
-negative score. Preserve the original task and receipts when diagnosing faults.
+### Distinguish verifier faults from rejected submissions
+
+When a verifier delegates work to a verifier-owned helper, follow
+[trusted verifier helpers](verifier-helpers.md). An unexpected helper exit, missing
+dependency or malformed helper report is a verifier error, not evidence of a
+wrong answer. Check helper readiness independently of submission correctness and
+propagate unexpected failures through the native runtime's error path. Recognizing
+one reserved error code is insufficient if all other exits become healthy negative
+scores. Conversely, a malformed submission is a behavioral rejection when the
+public contract requires a valid format and the verifier itself remains healthy.
+A submitted program's exception or nonzero exit can likewise be a legitimate
+behavioral failure. Distinguish the submitted process from the verifier-owned
+driver; do not classify every child-process failure as broken infrastructure.
+
+If helper failure handling is uncertain, diagnose it on a private copy bound to
+the original task digest and the exact injected change. Exercise a missing helper,
+syntax/startup failure or malformed helper response as applicable; confirm a native
+verification error rather than reward zero with successful health. Do not alter
+an accepted task or its receipts in place. Keep these fault audits separate from
+normal controls: diagnostic receipts cannot establish acceptance or coverage
+closure. Record unresolved helper health explicitly; ordinary solver passes do
+not resolve it. Fix confirmed defects under the existing revision/repair workflow.
+
+### Bind the task and its controls
 
 Use `eval-author-task-create/scripts/task_evidence.py` with Python 3.11+; Harbor
 preparation also needs the same Harbor Python runtime used for execution. Finish
@@ -154,8 +187,13 @@ attest a remote service's deployed source.
 python <task_create_dir>/scripts/task_evidence.py prepare \
   --task-dir .eval-author/tasks/cover-read \
   --contract .eval-author/task-measurements/cover-read/contract.json \
+  --construction-plan .eval-author/task-measurements/cover-read/construction-plan.json \
   --out .eval-author/task-measurements/cover-read/revision-1.json
 ```
+
+For newly authored drafts, first validate the private
+[construction plan](construction-plan.md). This binds declarations, not execution
+proof; native controls below remain required.
 
 The manifest snapshots file bytes, paths, directories and permissions, excluding
 only `.git`, `.venv`, `__pycache__`, `.pytest_cache`, and `.ruff_cache`. Symlinks
