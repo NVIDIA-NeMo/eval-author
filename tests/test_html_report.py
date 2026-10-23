@@ -85,6 +85,7 @@ def test_bootstrap_and_documentation_are_deterministic(tmp_path):
     assert first["tasks"][0]["behavior"] == "Refund authorization."
     assert first["tasks"][0]["expected_outcome"] == "Only approved refunds are stored."
     assert first["tasks"][0]["name"] == "org/refund"
+    assert first["tasks"][0]["title"] == "Refund"
     assert first["runs"] == []
     output = tmp_path / ".eval-author/report.html"
     before = output.read_bytes()
@@ -101,7 +102,227 @@ def test_bootstrap_and_documentation_are_deterministic(tmp_path):
     updated = report.refresh(tmp_path)
     assert updated["tasks"][0]["behavior"] == "Updated behavior."
     assert updated["tasks"][0]["display_id"] == "R1"
+    assert updated["tasks"][0]["title"] is None
     assert updated["tasks"][0]["readme_revision"] != first["tasks"][0]["readme_revision"]
+
+
+@pytest.mark.parametrize(
+    "readme,title",
+    [
+        ("# Approve **refunds** with `policy` & [checks](checks.md)\n", "Approve refunds with policy & checks"),
+        ("Refund authorization\n====================\n", "Refund authorization"),
+        ("```md\n# Example title\n```\n# Actual task\n# Later heading\n", "Actual task"),
+        ("~~~md\n# Example title\n~~~\n# Actual task\n", "Actual task"),
+        ("## Behavior under test\nDocumented behavior.\n", None),
+        ("# \n", None),
+        ("# " + "x" * 2001 + "\n", None),
+        (None, None),
+    ],
+)
+def test_task_titles_use_readme_headings(tmp_path, readme, title):
+    task(tmp_path, readme=readme)
+    item = report.refresh(tmp_path)["tasks"][0]
+    assert item["title"] == title
+    assert item["name"] == "org/refund"
+
+
+@pytest.mark.parametrize(
+    "heading,display_id",
+    [
+        (
+            "T5 (Title): Reject instructions inside thread titles",
+            "T5",
+        ),
+        (
+            "N7: Attribute repeated feedback to one participant",
+            None,
+        ),
+        ("T5 (Title): Reject title injection", "Review-5"),
+        ("IMP-01: bare docs link", "IMP-01"),
+    ],
+)
+def test_task_heading_preserves_complete_readme_title(tmp_path, heading, display_id):
+    path = task(tmp_path, readme="# " + heading)
+    patch = {"tasks": {path: {"display_id": display_id}}} if display_id else {}
+    item = report.refresh(tmp_path, patch=patch)["tasks"][0]
+    assert "heading_id" not in item
+    assert item["title"] == heading
+    markdown = (tmp_path / ".eval-author/README.md").read_text()
+    assert "| <strong><code>" + report.markdown_text(heading) + "</code></strong><br>" in markdown
+    assert "<small>" not in markdown
+    assert "<code>tasks/refund</code>" in markdown
+    assert "<br>harbor<br>" not in markdown
+
+
+@pytest.mark.parametrize("kind", ["Custom code", "LLM-as-judge", "Custom code + LLM-as-judge"])
+@pytest.mark.parametrize("separator", ["\n", "\n\n"])
+def test_metadata_grader_type_wins_and_readme_type_is_fallback(tmp_path, kind, separator):
+    summary = "Checks saved sources, catalog, chat history and tool requests."
+    path = task(tmp_path, readme=f"# Import task\n\n## Grading\n\nType: {kind}{separator}{summary}")
+    item = report.refresh(tmp_path)["tasks"][0]
+    assert item["grading_kind"] == kind
+    assert item["grading_summary"] == summary
+    assert f"{kind}<br>{summary}" in (tmp_path / ".eval-author/README.md").read_text()
+    # A subsequent refresh must read the edited README rather than retain the old type.
+    (tmp_path / path / "README.md").write_text("## Grading\n\nType: Custom code\n\n" + summary)
+    assert report.refresh(tmp_path)["tasks"][0]["grading_kind"] == "Custom code"
+
+
+def test_metadata_grader_type_overrides_readme_type(tmp_path):
+    summary = "Checks saved sources, catalog, chat history and tool requests."
+    path = task(tmp_path, readme=f"# Import task\n\n## Grading\n\nType: Custom code\n\n{summary}")
+    item = report.refresh(tmp_path, patch={"tasks": {path: {"grading_kind": "LLM-as-judge"}}})["tasks"][0]
+    assert item["grading_kind"] == "LLM-as-judge"
+    assert item["grading_summary"] == summary
+    # Metadata persists, so a later README edit does not change the recorded type.
+    (tmp_path / path / "README.md").write_text("## Grading\n\nType: Custom code\n\n" + summary + " More.")
+    assert report.refresh(tmp_path)["tasks"][0]["grading_kind"] == "LLM-as-judge"
+    # An explicit "Not documented" record does not mask a README declaration.
+    item = report.refresh(tmp_path, patch={"tasks": {path: {"grading_kind": "unknown"}}})["tasks"][0]
+    assert item["grading_kind"] == "Custom code"
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        ("## Grading\nType: hybrid", "Custom code + LLM-as-judge"),
+        ("## Grading\n**Type:** LLM-as-judge", "LLM-as-judge"),
+        ("## Grading\nType: unsupported", "Not documented"),
+        ("## Grading\nType: Custom code\nType: LLM-as-judge", "Not documented"),
+        ("## Grading\nType: Custom code\n## Grading\nType: Custom code", "Not documented"),
+        ("## Input\nType: LLM-as-judge\n## Grading\nChecks state.", None),
+        ("## Grading\n```text\nType: LLM-as-judge\n```", None),
+        ("## Grading\n| Type | Value |\n| --- | --- |\n| Type: LLM-as-judge | Example |", None),
+        ("## Grading\nA deterministic offline verifier checks state.", None),
+    ],
+)
+def test_readme_grader_type_requires_unambiguous_declaration(source, expected):
+    assert report.readme_grading_kind(source) == expected
+
+
+@pytest.mark.parametrize(
+    "source,summary",
+    [
+        (
+            "## Grading\nChecks saved refund state against policy rules.",
+            "Checks saved refund state against policy rules.",
+        ),
+        (
+            "## Grading\nChecks **saved state** against [policy rules](tests/policy.py).",
+            "Checks saved state against policy rules.",
+        ),
+        (
+            "## Grading ([Verifier](tests/test.sh))\nChecks saved state against the documented success criteria.",
+            "Checks saved state against the documented success criteria.",
+        ),
+        (
+            "## Grading\nChecks whether the saved report quotes match the original source text and meet all criteria.",
+            "Checks whether the saved report quotes match the original source…",
+        ),
+        (
+            "## Expected outcome and grading\nChecks exact author filtering and summary presence.",
+            "Checks exact author filtering and summary presence.",
+        ),
+        (
+            "```md\n## Grading\nIgnore this example of grading prose.\n```\n## Grading\nChecks the actual saved state against expected outcomes.",
+            "Checks the actual saved state against expected outcomes.",
+        ),
+        (
+            "## Grading\nVerifier: [tests/verify.py](tests/verify.py).\n\nChecks the saved answer against reference data.",
+            "Checks the saved answer against reference data.",
+        ),
+        ("## Grading\n```python\nprint('Never use sample code as grading prose')\n```", None),
+        (
+            "## Grading\n| Check | Description |\n| --- | --- |\n| Saved | Grader checks saved state against expected outcome. |",
+            None,
+        ),
+        ("## Grading\nChecks saved state.", None),
+        ("# Existing task\nNo grading documentation.", None),
+        (
+            "## Grading\nChecks saved state against all documented criteria.\n## Grading\nChecks saved state against different criteria.",
+            None,
+        ),
+        (None, None),
+    ],
+)
+def test_grader_summary_is_derived_from_readme(tmp_path, source, summary):
+    path = task(tmp_path, readme=source)
+    item = report.refresh(tmp_path)["tasks"][0]
+    assert item["grading_summary"] == summary
+    if summary:
+        assert 5 <= len(summary.split()) <= 10
+        assert report.markdown_text(summary) in (tmp_path / ".eval-author/README.md").read_text()
+    else:
+        assert report.NO_GRADING_SUMMARY in (tmp_path / ".eval-author/README.md").read_text()
+    if source is not None:
+        assert (tmp_path / path / "README.md").read_text() == source
+
+
+def test_imported_grader_summary_requires_readme_and_yields_to_canonical_summary(tmp_path):
+    path = task(tmp_path, readme="# Existing task\n## Grading\nChecks saved state against all documented criteria.")
+    fields = {"grading_summary": "Checks exact author filtering and summary presence."}
+    with pytest.raises(report.ReportError, match="source_refs"):
+        report.refresh(tmp_path, patch={"tasks": {path: fields}})
+    fields["source_refs"] = [path + "/instruction.md"]
+    with pytest.raises(report.ReportError, match="task README"):
+        report.refresh(tmp_path, patch={"tasks": {path: fields}})
+    fields["source_refs"] = [path + "/README.md"]
+    assert (
+        report.refresh(tmp_path, patch={"tasks": {path: fields}})["tasks"][0]["grading_summary"]
+        == fields["grading_summary"]
+    )
+    write(tmp_path, path + "/README.md", "## Grader summary\nChecks saved refund state against policy rules.")
+    assert report.refresh(tmp_path)["tasks"][0]["grading_summary"] == "Checks saved refund state against policy rules."
+    write(tmp_path, path + "/README.md", "## Grader summary\nToo short.\n## Grader summary\nAlso ambiguous.")
+    assert report.refresh(tmp_path)["tasks"][0]["grading_summary"] is None
+    (tmp_path / path / "README.md").unlink()
+    assert report.refresh(tmp_path)["tasks"][0]["grading_summary"] is None
+
+
+@pytest.mark.parametrize("legacy,kind", list(report.LEGACY_GRADING_KINDS.items()))
+@pytest.mark.parametrize("storage", ["html", "state"])
+def test_legacy_grading_types_are_normalized_on_refresh(tmp_path, legacy, kind, storage):
+    path = task(tmp_path)
+    data = report.refresh(tmp_path, patch={"tasks": {path: {"grading_kind": legacy}}})
+    assert data["tasks"][0]["grading_kind"] == kind
+    assert data["metadata"]["tasks"][path]["grading_kind"] == kind
+    # Migrate both legacy HTML imports and existing JSON state when inventory is incomplete.
+    data["metadata"]["tasks"][path]["grading_kind"] = legacy
+    data["tasks"][0]["grading_kind"] = legacy
+    save_report_snapshot(tmp_path, data, storage)
+    retained = report.refresh(tmp_path, max_entries=1)
+    assert retained["tasks"][0]["status"] == "unverified"
+    assert retained["tasks"][0]["grading_kind"] == kind
+    assert retained["metadata"]["tasks"][path]["grading_kind"] == kind
+
+
+@pytest.mark.parametrize("storage", ["html", "state"])
+def test_existing_reports_without_titles_can_refresh_and_retain_tasks(tmp_path, storage):
+    task(tmp_path, readme="# Refund authorization\n")
+    legacy = report.refresh(tmp_path)
+    del legacy["tasks"][0]["title"]
+    del legacy["tasks"][0]["grading_summary"]
+    save_report_snapshot(tmp_path, legacy, storage)
+    retained = report.refresh(tmp_path, max_entries=1)["tasks"][0]
+    assert retained["status"] == "unverified"
+    assert "title" not in retained
+    assert report.refresh(tmp_path)["tasks"][0]["title"] == "Refund authorization"
+    # A report that previously split the ID restores the original saved H1.
+    legacy["tasks"][0].update(heading_id="R1", title="authorization")
+    save_report_snapshot(tmp_path, legacy, storage)
+    retained = report.refresh(tmp_path, max_entries=1)["tasks"][0]
+    assert retained["title"] == "Refund authorization"
+    assert "heading_id" not in retained
+
+
+def save_report_snapshot(root, data, storage):
+    internal = root / ".eval-author/.working/report/state.json"
+    if storage == "state":
+        internal.write_text(json.dumps(data), encoding="utf-8")
+    else:
+        internal.unlink(missing_ok=True)
+        template = (SCRIPTS / "report-template.html").read_text()
+        write(root, ".eval-author/report.html", template.replace(report.MARKER, json.dumps(data)))
 
 
 @pytest.mark.parametrize(
@@ -455,7 +676,11 @@ def test_harbor_and_gym_workloads_share_reports_without_harbor_links_for_gym(tmp
     harbor = task(tmp_path)
     draft = ".eval-author/tasks/gym-refund"
     readme = draft + "/README.md"
-    write(tmp_path, readme, "## Behavior under test\nNeMo Gym refunds.\n## Expected result\nRefund saved.")
+    write(
+        tmp_path,
+        readme,
+        "# NeMo Gym refund policy\n## Behavior under test\nNeMo Gym refunds.\n## Expected result\nRefund saved.",
+    )
     manifest = draft + "/environments/refund/manifest.yaml"
     write(tmp_path, manifest, "name: refund\n")
     write(tmp_path, draft + "/environments/refund/config.yaml", "components: {}\n")
@@ -469,6 +694,7 @@ def test_harbor_and_gym_workloads_share_reports_without_harbor_links_for_gym(tmp
     assert found[harbor]["provider"] == "harbor"
     assert found[manifest]["provider"] == found[parameterized]["provider"] == "gym"
     assert found[manifest]["behavior"] == "NeMo Gym refunds."
+    assert found[manifest]["title"] == "NeMo Gym refund policy"
     assert found[manifest]["readme_path"] == readme
     assert "Refund saved." in found[manifest]["readme_html"]
     raw = (tmp_path / ".eval-author/README.md").read_text()
@@ -479,29 +705,38 @@ def test_harbor_and_gym_workloads_share_reports_without_harbor_links_for_gym(tmp
     assert report.refresh(tmp_path) == data
 
 
-def test_browser_gym_actions_open_native_source_and_readme_without_harbor(tmp_path):
+@pytest.mark.parametrize("grading_kind", ["Custom code", "LLM-as-judge", "Custom code + LLM-as-judge"])
+def test_browser_task_titles_graders_and_gym_actions(tmp_path, grading_kind):
     node = shutil.which("node")
     if not node:
         pytest.skip("Node is needed to exercise task rendering")
-    task(tmp_path)
+    harbor_path = task(
+        tmp_path,
+        readme="# R1 (Policy): Approve **refunds**\n## Grading\nChecks saved refund state against policy rules.\n",
+    )
     source_path = "environments/gym case/manifest.yaml"
     write(tmp_path, source_path, "name: example\n")
     write(tmp_path, "environments/gym case/README.md", "## Behavior under test\nNeMo Gym.\n## Expected result\nSaved.")
-    data = report.refresh(tmp_path)
+    data = report.refresh(
+        tmp_path,
+        patch={"tasks": {harbor_path: {"grading_kind": grading_kind, "grading_rule": "All state checks pass."}}},
+    )
     source = (SCRIPTS / "report-template.html").read_text()
     helper = source[source.index("function drawCases()") : source.index("function runRow(")]
     program = r"""
 const assert=require('node:assert/strict'),vm=require('node:vm');
 const input=JSON.parse(require('node:fs').readFileSync(0,'utf8'));
 class Element {
-  constructor(tag,text){this.tag=tag;this.textContent=text;this.children=[];this.dataset={};}
+  constructor(tag,text,className){this.tag=tag;this.textContent=text;this.className=className;this.children=[];this.dataset={};}
   append(...children){this.children.push(...children);}
   replaceChildren(...children){this.children=children;}
+  setAttribute(key,value){this.attrs=this.attrs||{};this.attrs[key]=value;}
+  addEventListener(){}
 }
 const ids={'case-tables':new Element('div'),search:{value:''},'no-cases':{}};
 const viewers=[],readmes=[];
 const context={data:input.data,byId:id=>ids[id],
-  element:(tag,text)=>new Element(tag,text),
+  element:(tag,text,className)=>new Element(tag,text,className),
   parent:path=>path.includes('/')?path.slice(0,path.lastIndexOf('/')):'.',
   displayTaskPath:path=>path.replace(/^\.eval-author\//,''),
   viewerAction:(...args)=>{viewers.push(args);return new Element('button');},
@@ -509,6 +744,24 @@ const context={data:input.data,byId:id=>ids[id],
 };
 vm.createContext(context);vm.runInContext(input.helper+'drawCases();',context);
 function descendants(node){return [node,...node.children.flatMap(descendants)];}
+function taskRows(){return descendants(ids['case-tables']).filter(node=>node.tag==='tr'&&node.dataset.task);}
+for(const table of descendants(ids['case-tables']).filter(node=>node.tag==='table')){
+  assert.deepEqual(table.children[0].children[0].children.map(node=>node.textContent),
+    ['Task','Status','Behavior','Expected outcome','Verifier','Actions']);
+}
+for(const row of taskRows()){
+  const task=input.data.tasks.find(task=>task.id===row.dataset.task);
+  assert.equal(row.children.length,6);
+  assert.equal(row.children[0].children[0].textContent,task.title||task.name);
+  assert(!descendants(row.children[0]).some(node=>node.textContent===task.provider));
+  assert.equal(row.children[1].children[0].textContent,task.readiness[0].toUpperCase()+task.readiness.slice(1));
+  assert.equal(row.children[1].children[0].className,'badge badge-'+task.readiness);
+  assert.equal(row.children[1].children[1].attrs.role,'tooltip');
+  assert.equal(row.children[1].children[0].attrs['aria-describedby'],row.children[1].children[1].id);
+  assert.equal(row.children[4].children[0].textContent,task.grading_kind);
+  assert.equal(row.children[4].children[1].textContent,task.grading_summary||'No verifier description documented in README.');
+}
+assert(!descendants(ids['case-tables']).some(node=>String(node.textContent).includes('All state checks pass.')));
 const links=descendants(ids['case-tables']).filter(node=>node.tag==='a');
 assert.equal(viewers.length,1);
 assert.equal(viewers[0][0],'View task');
@@ -520,6 +773,16 @@ ids.search.value='gym case';viewers.length=0;
 vm.runInContext('drawCases();',context);
 assert.equal(viewers.length,0);
 assert.equal(ids['no-cases'].hidden,true);
+assert.equal(taskRows()[0].children[0].children[0].textContent,'gym case');
+ids.search.value='approve refunds';vm.runInContext('drawCases();',context);
+assert.equal(taskRows().length,1);
+assert.equal(taskRows()[0].children[0].children[0].textContent,'R1 (Policy): Approve refunds');
+const harbor=input.data.tasks.find(task=>task.provider==='harbor');
+ids.search.value=harbor.grading_kind;vm.runInContext('drawCases();',context);
+assert.equal(taskRows().length,1);
+delete harbor.title;
+vm.runInContext('drawCases();',context);
+assert.equal(taskRows()[0].children[0].children[0].textContent,'org/refund');
 """
     result = subprocess.run(
         [node, "-e", program],
@@ -557,13 +820,15 @@ def test_browser_task_status_is_separate_from_inventory_status(tmp_path):
 const assert=require('node:assert/strict'),vm=require('node:vm');
 const input=JSON.parse(require('node:fs').readFileSync(0,'utf8'));
 class Element {
-  constructor(tag,text){this.tag=tag;this.textContent=text;this.children=[];this.dataset={};}
+  constructor(tag,text,className){this.tag=tag;this.textContent=text;this.className=className;this.children=[];this.dataset={};}
   append(...children){this.children.push(...children);}
   replaceChildren(...children){this.children=children;}
+  setAttribute(key,value){this.attrs=this.attrs||{};this.attrs[key]=value;}
+  addEventListener(){}
 }
 const ids={'case-tables':new Element('div'),search:{value:''},'no-cases':{}};
 const context={data:input.data,byId:id=>ids[id],
-  element:(tag,text)=>new Element(tag,text),
+  element:(tag,text,className)=>new Element(tag,text,className),
   parent:path=>path.includes('/')?path.slice(0,path.lastIndexOf('/')):'.',
   displayTaskPath:path=>path.replace(/^\.eval-author\//,''),
   viewerAction:()=>new Element('button'),readmeAction:()=>new Element('button')
@@ -572,10 +837,10 @@ function descendants(node){return [node,...node.children.flatMap(descendants)];}
 function taskRows(){return descendants(ids['case-tables']).filter(node=>node.dataset.task);}
 vm.createContext(context);vm.runInContext(input.helper+'drawCases();',context);
 const headers=descendants(ids['case-tables']).filter(node=>node.tag==='th');
-assert.deepEqual(headers.map(node=>node.textContent),['Test case / grading','Status','Behavior','Expected outcome','Actions']);
+assert.deepEqual(headers.map(node=>node.textContent),['Task','Status','Behavior','Expected outcome','Verifier','Actions']);
 assert.equal(taskRows().length,3);
 for(const row of taskRows()){
-  assert.equal(row.children.length,5);
+  assert.equal(row.children.length,6);
   const inventory=descendants(row.children[0]);
   assert(inventory.some(node=>node.textContent==='Inventory unverified'));
   const status=row.children[1];
@@ -1108,7 +1373,7 @@ def markdown_tokens(tmp_path):
 def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path):
     path = task(
         tmp_path,
-        readme="## Behavior under test\nRefund authorization.\n## Expected result\nOnly approved refunds are stored.\n",
+        readme="# Refund policy\n## Behavior under test\nRefund authorization.\n## Expected result\nOnly approved refunds are stored.\n",
     )
     other = "evals/other suite/tasks/with # fragment"
     shutil.copytree(tmp_path / path, tmp_path / other)
@@ -1133,10 +1398,12 @@ def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path):
     # Compare rendered text to the HTML report's source records, not independently authored content.
     text = " ".join(child.content for token in tokens for child in token.children or [] if child.type == "text")
     for item in data["tasks"]:
-        for field in ("name", "behavior", "expected_outcome"):
+        for field in ("title", "behavior", "expected_outcome"):
             assert item[field] in text
-    assert "deterministic · All state checks pass." in text
-    assert "Verifier not documented · Grading not documented" in text
+    assert "| Task | Status | Behavior | Expected outcome | Verifier | Actions |" in raw
+    assert "| Custom code<br>" in raw
+    assert "All state checks pass." not in text
+    assert "| Not documented<br>" in raw
     assert "1/2 passed" in text
     assert "agent · completed" in text
     assert all(part in text for part in data["runs"][0]["date"].split("T"))
@@ -1231,7 +1498,9 @@ def test_markdown_text_cannot_inject_tables_headings_links_or_html(tmp_path):
         "| row\n## forged\n<script>alert(1)</script> [bad](javascript:alert(1)) ![remote](https://example.test/pixel)"
     )
     path = task(tmp_path)
-    report.refresh(tmp_path, patch={"tasks": {path: {"grading_rule": dangerous}}})
+    report.refresh(
+        tmp_path, patch={"tasks": {path: {"behavior": dangerous, "source_refs": [path + "/instruction.md"]}}}
+    )
     tokens = markdown_tokens(tmp_path)
     assert len([token for token in tokens if token.type == "tr_open"]) == 2  # Header and one task.
     assert not any(
