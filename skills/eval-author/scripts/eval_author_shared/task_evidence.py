@@ -802,6 +802,8 @@ def _record_repair(args: argparse.Namespace) -> dict[str, Any]:
     if archive.exists() or receipt_path.exists():
         raise _workspace.ContractError("repair archive already exists; retain it for recovery")
     _workspace._mkdir_private(archive.parent)
+    # Stage beside the private archive so rename stays atomic on the same filesystem,
+    # including when the task workspace and shared scratch storage use different mounts.
     with tempfile.TemporaryDirectory(prefix="repair-stage-", dir=archive.parent) as temporary:
         staged = Path(temporary)
         for name, data in snapshots.items():
