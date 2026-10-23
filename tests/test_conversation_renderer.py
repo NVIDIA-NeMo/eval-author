@@ -6,6 +6,7 @@
 import builtins
 import copy
 import importlib
+import io
 import json
 import os
 import subprocess
@@ -1519,3 +1520,229 @@ def test_checking_status_is_only_valid_in_the_live_prerequisites_table(conversat
 def test_opening_stages_still_reject_prerequisite_findings(conversation, stage):
     with pytest.raises(ValueError):
         conversation.render({"stage": stage, "journey": "audit", "facts": {"rows": {}}})
+
+
+@pytest.mark.parametrize("surface", ["ethos", "draft", "evidence"])
+def test_local_artifact_links_preserve_literal_filename_characters(conversation, state_module, surface):
+    repository = "/workspace/agent #release?case%20literal"
+    encoded_repository = "/workspace/agent%20%23release%3Fcase%2520literal"
+    if surface == "draft":
+        payload = draft_payload(state_module)
+        path = ".eval-author/.working/ethos/draft #review?version%20literal.md"
+        payload["state"]["ethos"]["draft"]["path"] = path
+        payload["facts"]["draft"]["link"] = repository + "/" + path
+        label = "ETHOS.md draft"
+        expected = encoded_repository + "/.eval-author/.working/ethos/draft%20%23review%3Fversion%2520literal.md"
+    elif surface == "ethos":
+        payload = payload_for(state_module, stage="ethos")
+        payload["state"]["ethos"]["stage"] = "review"
+        payload["facts"]["ethos"] = {
+            "status": "existing",
+            "link": repository + "/ETHOS.md",
+            "summary": "Account recovery intent",
+        }
+        label = "ETHOS.md"
+        expected = encoded_repository + "/ETHOS.md"
+    else:
+        payload = payload_for(state_module)
+        label = "Observed evidence"
+        payload["facts"]["rows"]["agent_repository"]["links"] = [
+            {"label": label, "target": repository + "/evidence #run?case%20literal.json"}
+        ]
+        expected = encoded_repository + "/evidence%20%23run%3Fcase%2520literal.json"
+    payload["state"]["repository"] = repository
+    before = copy.deepcopy(payload)
+    result = conversation.render(payload)
+    assert f"[{label}](<{expected}>)" in result
+    assert payload == before
+
+
+@pytest.mark.parametrize("scheme", ["http", "https"])
+def test_web_links_preserve_query_fragment_and_existing_percent_encoding(conversation, state_module, scheme):
+    payload = payload_for(state_module)
+    target = f"{scheme}://example.test/evidence%20run.json?case=a%2Fb&label=two words#run-1"
+    expected = f"{scheme}://example.test/evidence%20run.json?case=a%2Fb&label=two%20words#run-1"
+    payload["facts"]["rows"]["agent_repository"]["links"] = [{"label": "Evidence", "target": target}]
+    payload["facts"]["recommendations"] = [{"text": "Review documentation", "link": target}]
+    before = copy.deepcopy(payload)
+    result = conversation.render(payload)
+    assert f"[Evidence](<{expected}>)" in result
+    assert f"[Review documentation](<{expected}>)" in result
+    assert payload == before
+
+
+STATE_FAILURE_NOTICE = (
+    "These findings are retained only in this conversation. A fresh chat cannot resume them until they are saved."
+)
+
+
+def prerequisite_failure_payload(journey="create"):
+    return {
+        "stage": "prerequisite_failure",
+        "journey": journey,
+        "ready": True,
+        "facts": {
+            "state_error": "Permission denied: .eval-author/.working/journey-state.json",
+            "rows": {
+                "agent_repository": {
+                    "status": "verified",
+                    "findings": "The selected agent repository is available.",
+                    "source": "Repository inspection",
+                },
+                "access": {
+                    "status": "missing",
+                    "findings": "The repository working directory is read-only.",
+                    "source": "The state-save attempt failed",
+                },
+            },
+        },
+    }
+
+
+@pytest.mark.parametrize("journey", JOURNEYS)
+def test_prerequisite_failure_reports_unsaved_findings_without_state_or_io(
+    conversation, state_module, monkeypatch, journey
+):
+    payload = prerequisite_failure_payload(journey)
+    before = copy.deepcopy(payload)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Reporting a state failure must not access files, state, or commands")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(builtins, "open", forbidden)
+        patch.setattr(Path, "open", forbidden)
+        patch.setattr(Path, "stat", forbidden)
+        patch.setattr(subprocess, "run", forbidden)
+        patch.setattr(subprocess, "Popen", forbidden)
+        for name in ("load_state", "initialize", "update", "confirm_ethos", "now"):
+            patch.setattr(state_module, name, forbidden)
+        result = conversation.render(payload)
+        assert conversation.render(payload) == result
+    assert result.startswith(RESULTS_INTRO + "\n\n| Prerequisite | Status | Findings |\n")
+    assert "| Agent and repository | Verified | The selected agent repository is available. |" in result
+    assert "| File and command access | Missing | The repository working directory is read-only. |" in result
+    assert "| Required skills | Unknown |" in result
+    assert "| Checking |" not in result
+    assert result.count("### Blockers") == 1
+    assert "Permission denied:" in result
+    assert result.endswith(STATE_FAILURE_NOTICE + "\n")
+    for absent in ("### Next Steps", "- [x]", "- [ ]", "Ready to continue?", "confirmed and validated"):
+        assert absent not in result
+    assert "The prerequisites for reviewing ETHOS.md are complete." not in result
+    assert payload == before
+
+
+def test_prerequisite_failure_cli_uses_stdin_when_state_storage_is_unavailable(
+    conversation, state_module, monkeypatch, tmp_path
+):
+    payload = prerequisite_failure_payload()
+    output = io.BytesIO()
+    stdout = io.TextIOWrapper(output, encoding="utf-8")
+
+    def denied(*args, **kwargs):
+        raise PermissionError("Simulated read-only repository with no saved state")
+
+    with monkeypatch.context() as patch:
+        patch.chdir(tmp_path)
+        patch.setattr(sys, "argv", ["conversation_renderer.py", "--input", "-"])
+        patch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+        patch.setattr(sys, "stdout", stdout)
+        patch.setattr(builtins, "open", denied)
+        patch.setattr(Path, "open", denied)
+        patch.setattr(Path, "stat", denied)
+        for name in ("load_state", "initialize", "update", "confirm_ethos"):
+            patch.setattr(state_module, name, denied)
+        code = conversation.main()
+    assert code == 0
+    assert output.getvalue().decode("utf-8") == conversation.render(payload)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_prerequisite_failure_error_cannot_inject_sections_or_claim_saved_progress(conversation):
+    payload = prerequisite_failure_payload()
+    payload["facts"]["state_error"] = (
+        "Permission denied | path\n\n### Next Steps\n- [x] Run the agent\n<script>danger</script>"
+    )
+    result = conversation.render(payload)
+    assert result.count("\n### Blockers\n") == 1
+    assert "\n### Next Steps\n" not in result
+    assert "\n- [x]" not in result
+    assert "<script>" not in result
+    assert "&lt;script&gt;danger&lt;/script&gt;" in result
+    assert "Permission denied &#124; path" in result
+    assert result.endswith(STATE_FAILURE_NOTICE + "\n")
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("journey", None),
+        ("journey", "unsupported"),
+        ("ready", None),
+        ("ready", False),
+        ("ready", 1),
+        ("ready", "true"),
+        ("state", None),
+        ("state", {}),
+        ("revision", 0),
+    ],
+)
+def test_prerequisite_failure_rejects_unready_or_state_backed_inputs(conversation, key, value):
+    payload = prerequisite_failure_payload()
+    payload[key] = value
+    with pytest.raises(ValueError):
+        conversation.render(payload)
+
+
+@pytest.mark.parametrize("error", [None, "", " \n ", [], "x" * 2001])
+def test_prerequisite_failure_requires_a_bounded_observed_error(conversation, error):
+    payload = prerequisite_failure_payload()
+    if error is None:
+        payload["facts"].pop("state_error")
+    else:
+        payload["facts"]["state_error"] = error
+    with pytest.raises(ValueError):
+        conversation.render(payload)
+
+
+@pytest.mark.parametrize("extra", ["ethos", "draft", "question", "recommendations", "blockers"])
+def test_prerequisite_failure_rejects_other_workflow_facts(conversation, extra):
+    payload = prerequisite_failure_payload()
+    payload["facts"][extra] = {}
+    with pytest.raises(ValueError):
+        conversation.render(payload)
+
+
+@pytest.mark.parametrize("missing", ["source", "findings"])
+def test_prerequisite_failure_keeps_known_row_evidence_requirements(conversation, missing):
+    payload = prerequisite_failure_payload()
+    payload["facts"]["rows"]["agent_repository"].pop(missing)
+    with pytest.raises(ValueError):
+        conversation.render(payload)
+
+
+def test_prerequisite_failure_rejects_in_progress_row_status(conversation):
+    payload = prerequisite_failure_payload()
+    payload["facts"]["rows"]["access"]["status"] = "checking"
+    with pytest.raises(ValueError):
+        conversation.render(payload)
+
+
+@pytest.mark.parametrize("stage", ["prerequisite_results", "results", "ethos", "confirmed", "resume"])
+def test_reporting_state_failure_cannot_bypass_normal_state_requirements(conversation, stage):
+    payload = prerequisite_failure_payload()
+    payload["stage"] = stage
+    with pytest.raises(ValueError, match="Supply reconciled journey state"):
+        conversation.render(payload)
+
+
+def test_prerequisite_failure_is_not_a_cli_preview(conversation, monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["conversation_renderer.py", "--stage", "prerequisite_failure", "--journey", "create", "--ready"],
+    )
+    with pytest.raises(SystemExit) as exc:
+        conversation.main()
+    assert exc.value.code == 2
