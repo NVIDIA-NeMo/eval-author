@@ -33,7 +33,7 @@ goal is unknown, ask whether to create, audit, or improve; explicit inventory
 remains a scoped option.
 The first turn contains only the fixed welcome, exact checklist, and “Ready to
 get started?” for a known goal. For an unknown goal, use the shorter welcome
-“Welcome to Eval Author! I’ll help you evaluate your agent against the behavior you expect.”
+“Welcome to Eval Author! This skill helps you build, audit, and improve evaluations against your agent’s intended behavior.”
 followed by the goal question and three choices. Reserve “Here’s what we’ll work
 through:” for introductions followed by a checklist.
 It ends there, even when repository or Ethos paths are supplied. Inspect the
