@@ -91,6 +91,9 @@ TASK_METADATA = obj(
 RUN_METADATA = obj(
     {
         "role": {"enum": ["agent", "control", "diagnostic", "unknown"]},
+        "summary": TEXT,
+        "source_refs": array(PATH),
+        "expected_reward": {"type": "number"},
         "reward_key": TEXT,
         "pass_value": {"type": "number"},
         "reward_min": {"type": "number"},
@@ -107,6 +110,7 @@ METADATA_SCHEMA = obj(
         "runs": {"type": "object", "additionalProperties": RUN_METADATA},
     }
 )
+METADATA_SCHEMA["properties"]["control_roots"] = array(PATH)
 TASK_SCHEMA = obj(
     {
         "id": TEXT,
@@ -180,8 +184,48 @@ RUN_SCHEMA = obj(
         "issues": array(TEXT),
     }
 )
-JOB_SCHEMA = obj({**RUN_SCHEMA["properties"], "kind": {"const": "job"}})
-STANDALONE_SCHEMA = obj({**RUN_SCHEMA["properties"], "kind": {"enum": ["standalone_trial", "unknown"]}})
+COUNT = {"type": "integer", "minimum": 0}
+OUTCOME_KEYS = (
+    "passed",
+    "failed",
+    "expected_failures",
+    "errors",
+    "invalid",
+    "running",
+    "pending",
+    "cancelled",
+    "unscored",
+    "unknown",
+    "scored",
+)
+# Optional additions keep version-1 state and legacy HTML imports readable.
+RUN_SCHEMA["properties"].update(
+    summary=TEXT,
+    outcome_summary=TEXT,
+    outcomes=obj({key: COUNT for key in OUTCOME_KEYS}),
+    duration_seconds={"type": ["number", "null"], "minimum": 0},
+    retries={"type": ["integer", "null"], "minimum": 0},
+    expectation={"type": ["boolean", "null"]},
+    expected_reward=NUMBER,
+    detail_lines=array(TEXT),
+)
+JOB_SCHEMA = obj({**RUN_SCHEMA["properties"], "kind": {"const": "job"}}, RUN_SCHEMA["required"])
+STANDALONE_SCHEMA = obj(
+    {**RUN_SCHEMA["properties"], "kind": {"enum": ["standalone_trial", "unknown"]}}, RUN_SCHEMA["required"]
+)
+CONTROL_GROUP_SCHEMA = obj(
+    {
+        **RUN_SCHEMA["properties"],
+        "kind": {"const": "control_group"},
+        "member_paths": array(PATH),
+        "history_count": COUNT,
+        "expectations_met": COUNT,
+        "expectations_unmet": COUNT,
+        "revision": TEXT,
+    },
+    list(RUN_SCHEMA["required"])
+    + ["member_paths", "history_count", "expectations_met", "expectations_unmet", "revision"],
+)
 REPORT_SCHEMA = obj(
     {
         "schema_version": {"const": 1},
@@ -193,6 +237,7 @@ REPORT_SCHEMA = obj(
         "inventory": obj({"complete": {"type": "boolean"}, "excluded": array(PATH)}),
     }
 )
+REPORT_SCHEMA["properties"]["control_groups"] = array(CONTROL_GROUP_SCHEMA)
 
 
 class ReportError(ValueError):
@@ -829,6 +874,139 @@ def run_sort(run: dict) -> tuple:
     return (1, 0, run["path"])
 
 
+def native_count(value: Any) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+
+def elapsed_seconds(start: Any, finish: Any) -> float | None:
+    if not timestamp(start) or not timestamp(finish):
+        return None
+    try:
+        elapsed = (
+            datetime.fromisoformat(finish.replace("Z", "+00:00")) - datetime.fromisoformat(start.replace("Z", "+00:00"))
+        ).total_seconds()
+    except (ValueError, TypeError, OverflowError):
+        return None
+    return elapsed if math.isfinite(elapsed) and elapsed >= 0 else None
+
+
+def describe_outcomes(run: dict) -> str:
+    outcomes = run.get("outcomes")
+    if outcomes is None:
+        return "Refresh to calculate trial outcomes."
+    if run["status"] == "unverified":
+        return "Inventory unverified; saved counts need verification."
+    if run["passed"] is not None:
+        parts = [f"{outcomes['passed']} passed", f"{outcomes['failed']} failed"]
+    else:
+        parts = [f"{outcomes['scored']} scored; pass/fail unavailable"]
+    if outcomes["expected_failures"]:
+        parts.append(
+            f"{outcomes['expected_failures']} expected "
+            + ("failure" if outcomes["expected_failures"] == 1 else "failures")
+        )
+    parts.append(f"{outcomes['errors']} execution " + ("error" if outcomes["errors"] == 1 else "errors"))
+    for key, label in (
+        ("invalid", "invalid"),
+        ("running", "running"),
+        ("pending", "pending"),
+        ("cancelled", "cancelled"),
+        ("unscored", "completed without a score"),
+        ("unknown", "unverified"),
+    ):
+        if outcomes[key]:
+            parts.append(f"{outcomes[key]} {label}")
+    return " · ".join(parts)
+
+
+def annotate_run(repo: Path, run: dict, native: dict, metadata: dict) -> None:
+    """Keep trial outcomes, native lifecycle counts, and explanatory copy distinct."""
+    attempts = run["attempts"]
+    counts = dict.fromkeys(OUTCOME_KEYS, 0)
+    counts.update(errors=run["errors"], invalid=run["invalid"])
+    if run["passed"] is None:
+        counts["scored"] = run["scored"]
+    else:
+        counts.update(passed=run["passed"], failed=run["failed"])
+    counts["running"] = sum(a["execution"] == "pending" and not a["invalid_reason"] for a in attempts)
+    counts["unscored"] = sum(
+        a["execution"] == "completed" and not a["invalid_reason"] and run["reward_key"] not in a["rewards"]
+        for a in attempts
+    )
+    total = run["total"] if run["total"] is not None else len(attempts)
+    remaining = max(0, total - sum(counts.values()))
+    stats = mapping(native.get("stats"))
+    # Only native lifecycle counts can classify missing trial slots. Scores still
+    # require retained, completed, valid trial results and a documented pass rule.
+    for key, field in (
+        ("errors", "n_errored_trials"),
+        ("cancelled", "n_cancelled_trials"),
+        ("running", "n_running_trials"),
+        ("pending", "n_pending_trials"),
+    ):
+        reported = native_count(stats.get(field))
+        if reported is None:
+            continue
+        missing = max(0, reported - counts[key])
+        if missing > remaining:
+            run["issues"].append(f"Native {field} conflicts with retained trial outcomes.")
+        else:
+            counts[key] += missing
+            remaining -= missing
+            if key == "errors" and missing:
+                run["issues"].append("Some execution errors are reported by the job without retained trial results.")
+    counts["unknown"] = remaining
+    run["errors"] = counts["errors"]
+    run["unknown"] = sum(counts[k] for k in ("running", "pending", "cancelled", "unscored", "unknown"))
+    sources_available = True
+    if metadata.get("summary") or "expected_reward" in metadata:
+        for ref in metadata.get("source_refs", []):
+            try:
+                read_bytes(local(repo, ref))
+            except (OSError, ReportError):
+                sources_available = False
+                run["issues"].append(
+                    "A summary source is unavailable; its description and control expectation are not displayed."
+                )
+                break
+    expected = metadata.get("expected_reward") if sources_available else None
+    run["expected_reward"] = expected
+    run["expectation"] = None
+    if expected is not None and run["role"] == "control":
+        valid = [
+            a
+            for a in attempts
+            if a["execution"] == "completed" and not a["invalid_reason"] and run["reward_key"] in a["rewards"]
+        ]
+        met = sum(a["rewards"][run["reward_key"]] == expected for a in valid)
+        run["expectation"] = met == total if len(valid) == total else None
+        if run["passed"] is not None and expected != metadata.get("pass_value"):
+            counts["expected_failures"] = met
+            counts["failed"] = max(0, counts["failed"] - met)
+    run["outcomes"] = counts
+    run["outcome_summary"] = describe_outcomes(run)
+    run["retries"] = native_count(stats.get("n_retries"))
+    run["duration_seconds"] = elapsed_seconds(native.get("started_at"), native.get("finished_at"))
+    if run["duration_seconds"] is None and len(attempts) == 1:
+        run["duration_seconds"] = elapsed_seconds(attempts[0]["started_at"], attempts[0]["finished_at"])
+    summary = metadata.get("summary") if sources_available else None
+    if not summary:
+        if run["expectation"] is True:
+            summary = "Control expectation met; this checks task behavior rather than agent performance."
+        elif run["expectation"] is False:
+            summary = "Control expectation was not met; review the task and verifier before interpreting agent results."
+        elif run["role"] == "control":
+            summary = "Task control; expected behavior is not documented for this run."
+        elif run["role"] == "agent":
+            summary = "Agent evaluation; scores describe only the retained, scored trials."
+        elif run["role"] == "diagnostic":
+            summary = "Diagnostic run; interpret its results within the documented diagnostic scope."
+        else:
+            summary = "Run purpose is not documented."
+    run["summary"] = summary
+    run["issues"] = sorted(set(run["issues"]))
+
+
 def collect_runs(repo: Path, metadata: dict, max_depth: int, max_entries: int) -> tuple[list[dict], bool]:
     paths, complete = run_files(repo, metadata["jobs_roots"], max_depth, max_entries)
     folders: dict[str, dict] = {}
@@ -918,6 +1096,7 @@ def collect_runs(repo: Path, metadata: dict, max_depth: int, max_entries: int) -
                 "issues": sorted(set(issues)),
             }
         )
+        annotate_run(repo, runs[-1], data, override)
     return sorted(runs, key=run_sort), complete
 
 
@@ -934,6 +1113,7 @@ def metadata_for(
             "runs": {},
         }
     )
+    metadata.setdefault("control_roots", [".eval-author/task-measurements"])
     validate(patch, obj(METADATA_SCHEMA["properties"], []))
     for key, value in patch.items():
         if key in {"tasks", "runs"}:
@@ -945,7 +1125,7 @@ def metadata_for(
         metadata["task_roots"] = task_roots
     if jobs_roots is not None:
         metadata["jobs_roots"] = jobs_roots
-    for key in ("task_roots", "jobs_roots"):
+    for key in ("task_roots", "jobs_roots", "control_roots"):
         metadata[key] = sorted({relative(p) for p in metadata[key]})
     for key in ("tasks", "runs"):
         for path in metadata[key]:
@@ -955,7 +1135,13 @@ def metadata_for(
             raise ReportError("A run pass rule requires reward_key.")
         if ("reward_min" in fields) != ("reward_max" in fields):
             raise ReportError("A reward scale requires both reward_min and reward_max.")
-        for key in ("pass_value", "reward_min", "reward_max"):
+        if (fields.get("summary") or "expected_reward" in fields) and not fields.get("source_refs"):
+            raise ReportError("Run summaries and control expectations require source_refs.")
+        if "expected_reward" in fields and fields.get("role") != "control":
+            raise ReportError("An expected reward requires an explicit control role.")
+        for ref in fields.get("source_refs", []):
+            relative(ref)
+        for key in ("pass_value", "reward_min", "reward_max", "expected_reward"):
             if key in fields and not math.isfinite(fields[key]):
                 raise ReportError("Reward metadata requires finite numbers.")
         if "reward_min" in fields and fields["reward_min"] >= fields["reward_max"]:
@@ -971,6 +1157,197 @@ def metadata_for(
             relative(ref)
     validate(metadata, METADATA_SCHEMA)
     return metadata
+
+
+def collect_control_groups(
+    repo: Path, standalone: list[dict], metadata: dict, max_entries: int
+) -> tuple[list[dict], list[str]]:
+    """Group only controls bound to retained results by hashed evidence receipts.
+
+    Absolute paths in portable receipts are resolved by a matching local manifest
+    filename and digest, and a unique native result ID and digest. They never
+    authorize reading files outside the selected repository or executing commands.
+    """
+    by_id: dict[str, list[dict]] = {}
+    for run in standalone:
+        if run["status"] != "unverified":
+            by_id.setdefault(run["id"], []).append(run)
+    grouped: dict[str, list[tuple[dict, dict, dict, str, str]]] = {}
+    recorded_revisions: dict[str, dict[str, dict]] = {}
+    warnings = []
+    entries = 0
+    for root_name in metadata.get("control_roots", []):
+        try:
+            root = local(repo, root_name)
+            if not root.is_dir():
+                continue
+            # This format keeps receipts directly under each task's evidence folder.
+            # Do not enumerate trajectories, attempt journals, or unrelated trees.
+            for receipt_path in sorted(root.glob("*/*.json")):
+                entries += 1
+                if entries > max_entries:
+                    warnings.append("Control evidence inventory is incomplete; some controls remain individual trials.")
+                    return [], warnings
+                receipt_ref = receipt_path.relative_to(repo).as_posix()
+                receipt = decode_json(read_bytes(local(repo, receipt_ref)))
+                if (
+                    not isinstance(receipt, dict)
+                    or receipt.get("schema") != "nemo.eval_author.task_evidence.v1"
+                    or "case" not in receipt
+                ):
+                    continue
+                candidates = by_id.get(receipt.get("native_run_id"), [])
+                if len(candidates) != 1:
+                    result_ref = str(receipt.get("result", "")).replace("\\", "/")
+                    selected = any(
+                        root_name == "."
+                        or result_ref.startswith(root_name + "/")
+                        or ("/" + root_name + "/") in result_ref
+                        for root_name in metadata["jobs_roots"]
+                    )
+                    if not candidates and not selected:
+                        continue
+                manifest_name = Path(str(receipt.get("manifest", ""))).name
+                if not manifest_name:
+                    raise ReportError("Control receipt lacks a manifest.")
+                manifest_path = receipt_path.parent / manifest_name
+                manifest_ref = manifest_path.relative_to(repo).as_posix()
+                raw_manifest = read_bytes(local(repo, manifest_ref))
+                digest = hashlib.sha256(raw_manifest).hexdigest()
+                if digest != receipt.get("manifest_sha256"):
+                    raise ReportError("Control receipt manifest digest does not match.")
+                manifest = decode_json(raw_manifest)
+                contract = mapping(manifest.get("contract"))
+                case = mapping(mapping(contract.get("cases")).get(receipt.get("case")))
+                if case.get("kind") in {"agent", "diagnostic"}:
+                    continue
+                if len(candidates) != 1:
+                    raise ReportError("A selected control receipt has missing or ambiguous native results.")
+                run = candidates[0]
+                result_path = local(repo, run["path"] + "/result.json")
+                if hashlib.sha256(read_bytes(result_path)).hexdigest() != receipt.get("result_sha256"):
+                    raise ReportError("Control receipt result digest does not match retained evidence.")
+                attempts = run["attempts"]
+                if len(attempts) != 1 or attempts[0]["task_checksum"] != manifest.get("harbor_task_checksum"):
+                    raise ReportError("Control receipt task revision does not match the retained trial.")
+                parent = PurePosixPath(run["path"]).parent.as_posix()
+                recorded_revisions.setdefault(parent, {})[digest] = manifest
+                if case.get("kind") not in {"reference", "empty", "incorrect", "side_effect", "alternative"}:
+                    continue
+                checks = case.get("checks")
+                health = case.get("health")
+                # Keep unsupported contracts individual rather than guessing their meaning.
+                if not isinstance(checks, list) or len(checks) != 1 or not isinstance(health, list):
+                    continue
+                check = checks[0]
+                expected = check.get("min")
+                if check.get("pointer") != "/verifier_result/rewards/" + run["reward_key"] or expected != check.get(
+                    "max"
+                ):
+                    continue
+                if isinstance(expected, bool) or not isinstance(expected, (int, float)) or not math.isfinite(expected):
+                    continue
+                if any(h != {"pointer": "/exception_info", "equals": None} for h in health):
+                    continue
+                grouped.setdefault(parent, []).append((run, manifest, case, digest, receipt_ref))
+        except (OSError, ReportError, AttributeError, TypeError):
+            warnings.append(
+                f"Control evidence under {root_name} could not be verified; affected trials remain individual."
+            )
+            # Never silently fall back to an older revision after a newer receipt
+            # could not be verified. Keep the underlying trials visible instead.
+            return [], sorted(set(warnings))
+    output = []
+    for path, evidence in sorted(grouped.items()):
+        revisions = recorded_revisions[path]
+        superseded = {
+            repair.get("sha256")
+            for manifest in revisions.values()
+            for repair in manifest.get("repairs", [])
+            if isinstance(repair, dict)
+        }
+        latest = set(revisions) - superseded
+        if len(latest) != 1:
+            warnings.append(f"Control group {path} has ambiguous revisions; select or reconcile its evidence.")
+            continue
+        revision = latest.pop()
+        selected = [entry for entry in evidence if entry[3] == revision]
+        if len({entry[0]["id"] for entry in selected}) != len(selected):
+            warnings.append(f"Control group {path} has duplicate receipts; no aggregate inferred.")
+            continue
+        contract = mapping(revisions[revision].get("contract"))
+        required_cases = {
+            name
+            for name, value in mapping(contract.get("cases")).items()
+            if mapping(value).get("kind") in {"reference", "empty", "incorrect", "side_effect", "alternative"}
+        }
+        observed_cases = {
+            next((name for name, value in mapping(contract.get("cases")).items() if value == case), "")
+            for _, _, case, _, _ in selected
+        }
+        if not selected or required_cases != observed_cases:
+            warnings.append(
+                f"Control group {path} has incomplete latest-revision evidence; retained individual trials."
+            )
+            continue
+        fields = {"role": "control", **metadata["runs"].get(path, {})}
+        reference_rewards = {case["checks"][0]["min"] for _, _, case, _, _ in selected if case["kind"] == "reference"}
+        if len(reference_rewards) == 1:
+            fields.setdefault("pass_value", reference_rewards.pop())
+        fields.setdefault("reward_key", selected[0][0]["reward_key"])
+        attempts = [deepcopy(entry[0]["attempts"][0]) for entry in selected]
+        met = 0
+        expected_failures = 0
+        for run, _, case, _, _ in selected:
+            expected = case["checks"][0]["min"]
+            attempt = run["attempts"][0]
+            matches = (
+                attempt["execution"] == "completed"
+                and not attempt["invalid_reason"]
+                and attempt["rewards"].get(fields["reward_key"]) == expected
+            )
+            met += bool(matches)
+            expected_failures += bool(
+                matches and fields.get("pass_value") is not None and expected != fields["pass_value"]
+            )
+        score = score_run(attempts, len(attempts), fields)
+        group: dict = {
+            "id": path,
+            "path": path,
+            "name": PurePosixPath(path).name,
+            "kind": "control_group",
+            "role": "control",
+            "status": "completed" if all(a["execution"] in {"completed", "error"} for a in attempts) else "incomplete",
+            "date": max((a["finished_at"] or a["started_at"] or "" for a in attempts), default="") or None,
+            "total": len(attempts),
+            **score,
+            "viewer_root": PurePosixPath(path).parent.as_posix(),
+            "route": "jobs/" + quote(PurePosixPath(path).name, safe=""),
+            "attempts": attempts,
+            "issues": [],
+            "member_paths": sorted({entry[0]["path"] for entry in evidence}),
+            "history_count": len(evidence) - len(selected),
+            "expectations_met": met,
+            "expectations_unmet": len(selected) - met,
+            "revision": revision,
+        }
+        annotate_run(repo, group, {}, fields)
+        group["outcomes"]["expected_failures"] = expected_failures
+        group["outcomes"]["failed"] = max(0, group["failed"] - expected_failures)
+        group["outcome_summary"] = describe_outcomes(group)
+        group["expectation"] = met == len(selected)
+        group["duration_seconds"] = elapsed_seconds(
+            min((a["started_at"] for a in attempts if a["started_at"]), default=None),
+            max((a["finished_at"] for a in attempts if a["finished_at"]), default=None),
+        )
+        if not fields.get("summary"):
+            group["summary"] = (
+                "Control expectations met for the latest recorded revision."
+                if met == len(selected)
+                else "Some control expectations were not met; review the task before interpreting agent results."
+            )
+        output.append(group)
+    return sorted(output, key=run_sort), sorted(set(warnings))
 
 
 def markdown_text(value: str) -> str:
@@ -1058,9 +1435,23 @@ def render_markdown(data: dict) -> str:
     lines.extend(markdown_runs(data["runs"], "Job"))
     if not data["runs"]:
         lines.append("No recorded evaluation jobs.")
-    if data["standalone_trials"]:
+    control_groups = data.get("control_groups", [])
+    if control_groups:
+        lines.extend(
+            [
+                "",
+                "### Task controls",
+                "",
+                "Latest recorded control revisions; expected failures validate the task, not agent performance.",
+                "",
+            ]
+        )
+        lines.extend(markdown_runs(control_groups, "Control group"))
+    grouped = {path for group in control_groups for path in group["member_paths"]}
+    standalone = [run for run in data["standalone_trials"] if run["path"] not in grouped]
+    if standalone:
         lines.extend(["", "### Legacy trials", "", "Standalone trials are not evaluation jobs.", ""])
-        lines.extend(markdown_runs(data["standalone_trials"], "Trial"))
+        lines.extend(markdown_runs(standalone, "Trial"))
     lines.extend(["", README_END.decode()])
     return "\n".join(lines).rstrip() + "\n"
 
@@ -1123,26 +1514,46 @@ def report_lock(path: Path):
 def markdown_runs(runs: list[dict], identity: str) -> list[str]:
     if not runs:
         return []
-    lines = [f"| Date / time | {identity} | Reward | Actions |", "| --- | --- | --- | --- |"]
+    lines = [f"| Date / time | {identity} | Summary | Actions |", "| --- | --- | --- | --- |"]
     for run in runs:
         labels = ["Role not documented" if run["role"] == "unknown" else run["role"], run["status"]]
-        labels.append(f"{run['completed']} completed")
-        for key, label in (("errors", "execution errors"), ("invalid", "invalid"), ("unknown", "pending or unscored")):
-            if run[key]:
-                labels.append(f"{run[key]} {label}")
-        if run["passed"] is not None:
-            labels.append(f"{run['passed']}/{run['scored']} passed")
-            labels.append(f"{run['failed']} failed")
         action = artifact_link("Review saved artifacts", run["path"])
         if run["route"] and run["status"] != "unverified":
             action = f"[Harbor viewer](http://127.0.0.1:8080/{run['route']})"
         cells = [
             markdown_text(run["date"].replace("T", "\n") if run["date"] else "Date not recorded"),
-            "<br>".join(markdown_text(part) for part in [run["name"], run["path"], " · ".join(labels), *run["issues"]]),
-            markdown_text("Inventory unverified" if run["status"] == "unverified" else run["score_label"]),
+            "<br>".join(markdown_text(part) for part in [run["name"], run["path"], " · ".join(labels)]),
+            "<br>".join(
+                markdown_text(part)
+                for part in [
+                    describe_outcomes(run),
+                    run.get("summary", ""),
+                    *run.get("detail_lines", []),
+                    *run["issues"],
+                ]
+                if part
+            ),
             action,
         ]
         lines.append("| " + " | ".join(cells) + " |")
+    return lines
+
+
+def run_detail_lines(run: dict) -> list[str]:
+    if run["status"] == "unverified":
+        return ["Source artifacts could not be verified during the latest inventory."]
+    total = str(run["total"]) if run["total"] is not None else "unknown"
+    details = [f"{run['completed']}/{total} " + ("trial" if run["total"] == 1 else "trials") + " completed"]
+    if run.get("duration_seconds") is not None:
+        details.append(f"{run['duration_seconds']:.1f}s elapsed")
+    if run.get("retries"):
+        details.append(f"{run['retries']} " + ("retry" if run["retries"] == 1 else "retries"))
+    if run["kind"] == "control_group":
+        details.append(f"{run['expectations_met']}/{run['total']} control expectations met")
+        details.append(f"{run['history_count']} historical trials")
+    lines = [" · ".join(details)]
+    if run.get("reward_sum") is not None and run.get("score_max") is not None:
+        lines.append(run["score_label"])
     return lines
 
 
@@ -1205,6 +1616,11 @@ def refresh(
                         issues = sorted(set(old["issues"] + ["Source artifacts were not found in this scan."]))
                         records.append({**old, "status": "unverified", "issues": issues})
             warnings.extend(apply_task_readiness(repo, tasks))
+            control_groups, control_warnings = collect_control_groups(repo, standalone_trials, metadata, max_entries)
+            warnings.extend(control_warnings)
+            for run in [*runs, *standalone_trials, *control_groups]:
+                run["outcome_summary"] = describe_outcomes(run)
+                run["detail_lines"] = run_detail_lines(run)
             tasks.sort(key=task_sort)
             runs.sort(key=run_sort)
             standalone_trials.sort(key=run_sort)
@@ -1214,6 +1630,7 @@ def refresh(
                 "tasks": tasks,
                 "runs": runs,
                 "standalone_trials": standalone_trials,
+                "control_groups": control_groups,
                 "warnings": warnings,
                 "inventory": {"complete": tasks_complete and runs_complete, "excluded": excluded},
             }

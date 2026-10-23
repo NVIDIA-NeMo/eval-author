@@ -20,11 +20,56 @@ older reports that split the ID and title. Grader shows the type of grader and t
 grader description as defined in the task README.
 
 Its Runs tab lists one row per native Harbor job with date/time, the exact on-disk
-directory name and project-relative path, role, status, aggregate reward, and actions.
+directory name and project-relative path, role, status, summary, and actions.
 Its Harbor viewer action opens the job and its individual trials. Standalone results appear separately under
 the collapsed Legacy trials section; a folder of trials does not establish a
 single job or evaluation invocation. Both show available warnings
 and missing-data states. Settings configures browser viewer addresses only.
+
+The Runs tab currently reads native Harbor jobs only; it does not yet read NeMo
+Gym run directories (`rollouts.jsonl`, `rollout_verdicts.jsonl`, and
+`quality_summary.json` under `.eval-author/runs/`). Until it does, a Gym run has no
+row, and so no Summary, Harbor viewer link, or Legacy trials entry. Never infer a
+Gym run's status or score from the report. Record Gym run evidence, commands, and
+results in the maintained README, and open the run through the offline NeMo Gym
+reader in [Local review](local-review.md). The Summary described below is
+Harbor-specific: its trial outcome buckets, lifecycle counts, completion, and
+retries come from Harbor job fields that Gym runs do not have.
+
+Each Harbor run row has a Summary column with deterministic trial outcome counts, an
+optional sourced description, completion, elapsed time, retries when present,
+and visible evidence conflicts. Pass/fail requires the documented exact pass
+rule; missing rewards are unscored, and trial/step exceptions are execution
+errors rather than scored failures. Native job lifecycle counts identify
+running, pending, cancelled, and reported error slots whose trial results are
+missing; conflicts are shown for review. Missing cost and token data are not zero.
+The labeled categorical bar shows trial outcomes, including expected
+control failures, errors, invalid evidence, running, pending, cancelled,
+unscored, and unverified trials. Unverified inventory shows no bar. There is no
+Reward column. When the run metadata documents a reward range, the Summary cell
+adds a text label with the summed reward, that range, and scored coverage (for
+example `2 / 3 reward (66.7%) · 3/3 scored`), so partial credit stays visible.
+Without a documented range no label appears; native rewards remain in the saved
+report state and individual results.
+
+Verified standalone controls appear in a separate **Task controls** table, not
+as inferred evaluation jobs. The reader uses `nemo.eval_author.task_evidence.v1`
+receipts under `control_roots` (default `.eval-author/task-measurements`), checking
+the unique native result ID, result and manifest SHA-256 digests, and recorded
+task checksum. Supported contracts specify an exact reward and optional
+`exception_info == null` health check. Unsupported evidence remains individual.
+Absolute paths in relocated receipts never authorize external reads: a local
+sibling manifest must match the stored digest and a retained native result must
+match both ID and digest. Commands in receipts are never executed.
+
+Manifest repair links identify superseded revisions. Only an unambiguous,
+complete latest recorded control set is summarized; history counts and all
+underlying trial records are retained. Corrupt, incomplete, ambiguous, or
+unsupported latest evidence does not fall back to an older successful revision.
+These groups describe recorded controls, not current task acceptance or model
+performance. Their viewer links expose individual trials and history. Other
+standalone results remain in the collapsed Legacy trials section. Set
+`control_roots: []` in reporting metadata to disable control-group inspection.
 
 The same generator maintains a report section in `.eval-author/README.md` beside
 the HTML. It appends the section when absent and updates only the content between
@@ -36,7 +81,7 @@ publishing either output; repair the markers while preserving the content.
 
 Within that section, each report content tab becomes an H2 section in tab order
 (`## Tasks`, then `## Runs`); omit Settings. Directory groups become H3s,
-tables keep the same columns and ordering, and native score labels replace visual
+tables keep the same columns and ordering, and textual outcome counts replace visual
 bars. Legacy trials becomes an H3 under Runs. Preserve statuses, warnings,
 record diagnostics, and missing-data labels. Edit task documentation, native
 artifacts, or supported reporting metadata to update generated content, then
@@ -179,6 +224,34 @@ For example, using actual discovered paths and a documented reward range and bin
   }
 }
 ```
+
+Run metadata also accepts `summary` and `source_refs`. Use a short description of
+the run's purpose and evidence limits, backed by the named project-relative
+documentation or artifacts. Keep counts out of this text: the renderer computes
+them from results. Descriptions persist in the internal JSON state and appear in
+both HTML and Markdown; update them when their documented context changes.
+Missing sources suppress the description and show a diagnostic. For a control
+with one documented expected reward, `expected_reward` additionally requires
+`role: control` and `source_refs`. A matching zero reward is displayed as an
+expected failure while the underlying scored-failure count remains unchanged.
+Do not apply one expected reward to a mixed control group: its hashed contracts
+provide the per-case expectations.
+
+```json
+{
+  "runs": {
+    ".eval-author/jobs/refund-baseline": {
+      "role": "agent",
+      "summary": "Connection check using stand-in services; model behavior is outside this run's scope.",
+      "source_refs": [".eval-author/README.md"]
+    }
+  }
+}
+```
+
+These are optional version-1 report fields. Older HTML reports and JSON snapshots
+remain readable; refresh derives summaries and outcome bars from native evidence.
+No existing report needs a manual migration and no evaluation is rerun.
 
 At each run handoff, record its actual role, reward key, and documented reward
 range in this metadata patch before refreshing. Record a pass rule only when

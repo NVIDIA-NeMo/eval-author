@@ -22,9 +22,9 @@ th{font-size:12px;color:#65736b;background:#fafbf8}tr:last-child td{border-botto
 .case-table td:nth-child(3),.case-table td:nth-child(4){white-space:pre-line}
 .case-table th:nth-child(1){width:22%}.case-table th:nth-child(2){width:14%}.case-table th:nth-child(3){width:18%}.case-table th:nth-child(4){width:20%}.case-table th:nth-child(5){width:16%}.case-table th:nth-child(6){width:10%}
 .small{font-size:12px}.grader-kind{font-weight:650}.case-name{font-weight:650;font-family:ui-monospace,monospace}.text-link{font:inherit;color:#4b7400;text-decoration:underline;text-underline-offset:3px;border:0;background:none;padding:0;text-align:left;overflow-wrap:anywhere}
-.run-table{min-width:760px}.run-table th:first-child{width:22%}.run-table th:nth-child(2){width:40%}.run-date{white-space:pre-line;font-size:13px}.run-table td:nth-child(n+3),.run-table th:nth-child(n+3){text-align:center;vertical-align:middle}.run-table td{padding:24px 12px}
-.score{width:240px;max-width:100%;margin:auto}.score-track{height:6px;border-radius:3px;outline:1px solid #d2d7cf;background:transparent;overflow:hidden}.score-fill{display:block;height:100%;background:#76b900}
-.score-label{display:block;margin-top:8px;font-size:13px}.score-unavailable{font-size:13px;color:#65736b}.run-path{display:block;margin-top:6px;font:12px/1.5 ui-monospace,monospace;color:#65736b}.legacy-trials{margin-top:28px}.legacy-trials summary{cursor:pointer;font-weight:600}.status{display:block;margin-top:6px;font-size:12px;color:#65736b}.notice{padding:12px 16px;border-left:3px solid #ffb020;margin-bottom:16px;background:#fff3d6}
+.run-header{display:flex;align-items:center;justify-content:space-between;gap:24px}.run-header h2{margin:0}
+.run-table{min-width:920px;table-layout:fixed}.run-table th:nth-child(1){width:14%}.run-table th:nth-child(2){width:25%}.run-table th:nth-child(3){width:49%}.run-table th:nth-child(4){width:12%}.run-date{white-space:pre-line;font-size:12px}.run-table td{padding:24px 12px}.run-title{font:650 13px/1.6 ui-monospace,monospace}.run-summary{font-size:13px}.run-summary p{margin:10px 0}.outcome-counts{font-weight:600;line-height:1.7}.outcome-track{display:flex;height:7px;margin:10px 0 5px;border-radius:4px;overflow:hidden;background:#edf0eb;outline:1px solid #d2d7cf}.outcome-segment{height:100%;min-width:0}.outcome-segment+.outcome-segment{border-left:2px solid white}.outcome-legend{display:flex;gap:8px 18px;flex-wrap:wrap;justify-content:flex-end;max-width:75%;font-size:12px;color:#65736b;margin:0}.outcome-legend:empty{display:none}.outcome-key{display:inline-flex;align-items:center;gap:6px}.outcome-dot{width:8px;height:8px;border-radius:2px;display:inline-block}.outcome-passed{background:#76b900}.outcome-failed{background:#bd4c3c}.outcome-expected_failures{background:#5285a1}.outcome-errors{background:#c08026}.outcome-invalid{background:#8665a4}.outcome-running{background:#d2ad47}.outcome-pending{background:#a6b3be}.outcome-cancelled{background:#727e87}.outcome-unscored,.outcome-scored{background:#bcc7bd}.outcome-unknown{background:#e0e5df}.run-issue{color:#915116;border-left:2px solid #c08026;padding-left:9px}.control-heading{margin-top:32px}
+.run-path{display:block;margin-top:6px;font:12px/1.5 ui-monospace,monospace;color:#65736b}.legacy-trials{margin-top:28px}.legacy-trials summary{cursor:pointer;font-weight:600}.status{display:block;margin-top:6px;font-size:12px;color:#65736b}.notice{padding:12px 16px;border-left:3px solid #ffb020;margin-bottom:16px;background:#fff3d6}
 .settings-row{display:flex;gap:16px;align-items:end;flex-wrap:wrap}.settings-row label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}.settings-row>div{flex:1;min-width:220px}.settings-row input,.settings-row select{width:100%}.settings-row select{margin-top:8px}.action{padding:10px 16px;border:1px solid #bccbbf;border-radius:5px;background:rgb(239,247,223)}#settings-status:empty{display:none}
 dialog{width:min(680px,94vw);max-height:85vh;border:1px solid #bccbbf;border-radius:10px;padding:24px;color:#203029}dialog::backdrop{background:#17241d88}dialog h2{margin-top:0}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f6f1;padding:14px;font:13px/1.65 ui-monospace,monospace}.close{float:right}.empty{margin-top:20px}
 
@@ -39,9 +39,11 @@ dialog{width:min(680px,94vw);max-height:85vh;border:1px solid #bccbbf;border-rad
 <nav role="tablist" aria-label="Evaluation report"><button role="tab" id="tab-cases" aria-controls="cases" aria-selected="true" tabindex="0">Tasks</button><button role="tab" id="tab-runs" aria-controls="runs" aria-selected="false" tabindex="-1">Runs</button><button role="tab" id="tab-settings" aria-controls="settings" aria-selected="false" tabindex="-1">Settings</button></nav></header>
 <main><div id="warnings" role="status"></div>
 <section id="cases" role="tabpanel" aria-labelledby="tab-cases"><div class="section-header"><h2>Tasks</h2><input id="search" type="search" aria-label="Search tasks" placeholder="Search tasks…"></div><div id="case-tables"></div><p id="no-cases" class="empty muted" hidden>No tasks match.</p></section>
-<section id="runs" role="tabpanel" aria-labelledby="tab-runs" hidden><h2>Runs</h2><p class="muted">One row per evaluation job. Rewards combine the scored trials within that job.</p>
-<div class="card table-card"><table class="run-table"><thead><tr><th>Date / time</th><th>Job</th><th>Reward</th><th>Actions</th></tr></thead><tbody id="run-rows"></tbody></table></div><p id="no-runs" class="empty muted" hidden>No recorded evaluation jobs.</p>
-<details id="legacy-trials" class="legacy-trials" hidden><summary id="legacy-summary">Legacy trials</summary><p class="muted">Standalone trials are not evaluation jobs.</p><div class="card table-card"><table class="run-table"><thead><tr><th>Date / time</th><th>Trial</th><th>Reward</th><th>Actions</th></tr></thead><tbody id="legacy-rows"></tbody></table></div></details></section>
+<section id="runs" role="tabpanel" aria-labelledby="tab-runs" hidden><div class="run-header"><h2>Runs</h2>
+<div id="outcome-legend" class="outcome-legend" aria-label="Trial outcome colors"></div></div>
+<div class="card table-card"><table class="run-table"><thead><tr><th>Date / time</th><th>Job</th><th>Summary / trial outcomes</th><th>Actions</th></tr></thead><tbody id="run-rows"></tbody></table></div><p id="no-runs" class="empty muted" hidden>No recorded evaluation jobs.</p>
+<section id="control-groups" hidden><h2 class="control-heading">Task controls</h2><p class="muted">Latest recorded revision per control group. Expected failures check the verifier; these results do not measure agent performance. Open the viewer for individual trials and history.</p><div class="card table-card"><table class="run-table"><thead><tr><th>Date / time</th><th>Control group</th><th>Summary / trial outcomes</th><th>Actions</th></tr></thead><tbody id="control-rows"></tbody></table></div></section>
+<details id="legacy-trials" class="legacy-trials" hidden><summary id="legacy-summary">Legacy trials</summary><p class="muted">Standalone trials without verified control-group evidence. These are not evaluation jobs.</p><div class="card table-card"><table class="run-table"><thead><tr><th>Date / time</th><th>Trial</th><th>Summary / trial outcomes</th><th>Actions</th></tr></thead><tbody id="legacy-rows"></tbody></table></div></details></section>
 <section id="settings" role="tabpanel" aria-labelledby="tab-settings" hidden><h2>Harbor viewer settings</h2><form id="settings-form" class="card"><div class="settings-row"><div><label for="jobs-url">Jobs viewer URL</label><input id="jobs-url" type="url" required></div><div><label for="tasks-url">Task viewer URL</label><input id="tasks-url" type="url" required></div><button type="submit" class="action">Save settings</button></div><p id="settings-status" class="muted" role="status"></p></form></section>
 </main>
 <dialog id="viewer-help" aria-labelledby="viewer-help-title"><button class="action close" id="close-help">Close</button><h2 id="viewer-help-title">Open Harbor viewer</h2><p id="viewer-help-text"></p><pre id="viewer-command"></pre><button class="action" id="retry-viewer">Try again</button> <button class="action" id="configure-viewer">Configure viewer</button> <a class="text-link" id="open-viewer-directly" hidden>Open directly</a></dialog>
@@ -187,31 +189,39 @@ function runRow(run){
   const row=element('tr');row.dataset.path=run.path;row.dataset.kind=run.kind;
   const date=element('td',undefined,'run-date');
   if(run.date){const time=element('time',run.date.replace('T','\n'));time.dateTime=run.date;date.append(time);}else date.textContent='Date not recorded';
-  const name=element('td');name.append(viewerAction(run.name,'jobs',run.viewer_root,run.route,run.status!=='unverified',run),element('span',run.path,'run-path'));
-  const labels=[run.role==='unknown'?'Role not documented':run.role,run.status,run.completed+' completed'];
-  if(run.errors)labels.push(run.errors+' execution errors');
-  if(run.invalid)labels.push(run.invalid+' invalid');
-  if(run.unknown)labels.push(run.unknown+' pending or unscored');
-  if(run.passed!==null)labels.push(run.passed+'/'+run.scored+' passed',run.failed+' failed');
+  const name=element('td');const title=viewerAction(run.name,'jobs',run.viewer_root,run.route,run.status!=='unverified',run);title.className='text-link run-title';name.append(title,element('span',run.path,'run-path'));
+  const labels=[run.role==='unknown'?'Role not documented':run.role,run.status];
   name.append(element('span',labels.join(' · '),'status'));name.title=run.issues.join('\n');
-  const score=element('td');
-  if(run.reward_sum!==null&&run.score_min!==null&&run.score_max!==null&&run.status!=='unverified'){
-    const chart=element('div',undefined,'score');const track=element('div',undefined,'score-track');
-    track.setAttribute('role','meter');track.setAttribute('aria-label',run.reward_key+' total');
-    track.setAttribute('aria-valuemin',String(run.score_min));track.setAttribute('aria-valuemax',String(run.score_max));
-    track.setAttribute('aria-valuenow',String(run.reward_sum));track.setAttribute('aria-valuetext',run.score_label);
-    const fill=element('span',undefined,'score-fill');fill.style.width=(100*(run.reward_sum-run.score_min)/(run.score_max-run.score_min))+'%';
-    track.append(fill);chart.append(track,element('span',run.score_label,'score-label'));score.append(chart);
-  }else score.append(element('span',run.status==='unverified'?'Inventory unverified':run.score_label,'score-unavailable'));
+  const summary=element('td',undefined,'run-summary');
+  summary.append(element('div',run.status==='unverified'?'Inventory unverified':run.outcome_summary||'Refresh to calculate trial outcomes.','outcome-counts'));
+  const entries=outcomeEntries(run);const count=entries.reduce((sum,item)=>sum+item.count,0);
+  if(count&&run.status!=='unverified'&&!run.score_label.startsWith('Score unavailable (')){
+    const track=element('div',undefined,'outcome-track');track.setAttribute('role','img');track.setAttribute('aria-label','Trial outcomes: '+run.outcome_summary);
+    for(const item of entries){const segment=element('span',undefined,'outcome-segment outcome-'+item.key);segment.style.width=(100*item.count/count)+'%';segment.title=item.count+' '+item.label;track.append(segment);}
+    summary.append(track);
+  }
+  if(run.status!=='unverified'&&run.summary)summary.append(element('p',run.summary));
+  for(const detail of run.detail_lines||[])summary.append(element('p',detail,'small muted'));
+  for(const issue of run.issues)summary.append(element('p',issue,'small run-issue'));
   const action=element('td');action.append(viewerAction('Harbor viewer','jobs',run.viewer_root,run.route,run.status!=='unverified',run));
-  row.append(date,name,score,action);return row;
+  row.append(date,name,summary,action);return row;
+}
+function outcomeEntries(run){
+  const labels={passed:'Passed',failed:'Failed',expected_failures:'Expected failure',errors:'Execution error',invalid:'Invalid',running:'Running',pending:'Pending',cancelled:'Cancelled',unscored:'Unscored',unknown:'Unverified',scored:'Scored; pass/fail unavailable'};
+  return Object.entries(labels).filter(([key])=>run.outcomes?.[key]>0).map(([key,label])=>({key,label,count:run.outcomes[key]}));
 }
 function drawRuns(){
   const body=byId('run-rows');body.replaceChildren();byId('no-runs').hidden=data.runs.length>0;
   for(const run of data.runs)body.append(runRow(run));
-  const legacy=byId('legacy-rows');legacy.replaceChildren();byId('legacy-trials').hidden=data.standalone_trials.length===0;
-  byId('legacy-summary').textContent='Legacy trials ('+data.standalone_trials.length+')';
-  for(const trial of data.standalone_trials)legacy.append(runRow(trial));
+  const groups=data.control_groups||[];const controls=byId('control-rows');controls.replaceChildren();byId('control-groups').hidden=groups.length===0;
+  for(const group of groups)controls.append(runRow(group));
+  const grouped=new Set(groups.flatMap(group=>group.member_paths));const trials=data.standalone_trials.filter(trial=>!grouped.has(trial.path));
+  const legacy=byId('legacy-rows');legacy.replaceChildren();byId('legacy-trials').hidden=trials.length===0;
+  byId('legacy-summary').textContent='Legacy trials ('+trials.length+')';
+  for(const trial of trials)legacy.append(runRow(trial));
+  const legend=byId('outcome-legend');legend.replaceChildren();
+  const colors=new Map([...data.runs,...groups,...trials].filter(run=>run.status!=='unverified').flatMap(outcomeEntries).map(item=>[item.key,item.label]));
+  for(const [key,label] of colors){const item=element('span',undefined,'outcome-key');const dot=element('span',undefined,'outcome-dot outcome-'+key);dot.setAttribute('aria-hidden','true');item.append(dot,element('span',label));legend.append(item);}
 }
 byId('search').addEventListener('input',drawCases);drawCases();drawRuns();
 </script>

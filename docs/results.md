@@ -24,14 +24,25 @@ See the [Report generation](../skills/eval-author/references/suite-readme.md#rep
 for selected roots, metadata, and CLI usage. The report reads existing artifacts;
 it does not run evaluations. Missing task descriptions show `Not documented`.
 The Runs table has one row per native Harbor job, using its exact directory name
-and path. The reward graph combines scored trial rewards, including partial
-credit, using the documented reward range. Execution completion and scored trial
-counts appear separately; an incomplete job's score is labeled partial. Missing
-rewards do not become zeroes. Without a documented reward range, the numeric
-total appears without a graph. Native scores without a documented pass rule
-are not labeled passed or failed. Standalone controls and other individual trials
-remain accessible in the separate Legacy trials section and are not combined
-into inferred jobs.
+and path. Native scores without a documented pass rule are not labeled passed or
+failed, and missing rewards do not become zeroes. The table has no separate Reward
+column; when a reward range is documented, the Summary cell adds a text label
+with the summed reward and scored coverage so partial credit stays visible.
+Other individual trials remain accessible in the Legacy trials section and are
+not combined into inferred jobs.
+
+The Summary column shows trial passes, failures, execution errors, incomplete or
+unscored work, elapsed time, and relevant evidence issues. Its colored outcome
+bar shows trial categories rather than aggregate reward. Optional sourced descriptions explain the run's
+purpose and limitations. Individual assertions and trial logs remain in the viewer.
+
+When hashed control receipts and contracts are available, a separate Task controls
+table summarizes the latest complete recorded revision and its historical trial
+count. A negative control receiving zero can be an expected failure; it does not
+indicate an agent regression. Ambiguous or unverifiable controls remain individual
+with a warning. Task controls do not establish model performance or current task
+acceptance. Existing saved reports remain readable; refresh adds these summaries
+without running evaluations or changing their results.
 
 ## Discovery and readiness
 
@@ -98,6 +109,10 @@ tasks and recorded jobs use its native local viewer. For NeMo Gym JSONL and stan
 ATIF, Eval Author includes an offline reader that creates a private `report.html`
 you can open directly in a browser; see [Local review](../skills/eval-author/references/local-review.md)
 for commands and supported formats.
+
+The Runs tab currently reads native Harbor jobs only, and its Summary column
+(outcome counts, bar, completion, retries) uses Harbor job fields. A NeMo Gym run
+does not appear there yet; use the offline reader above for it.
 
 NeMo Gym reports keep model input separate from verifier and other row fields. The
 reader shows recorded messages, tool calls and results, and available rewards

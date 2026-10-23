@@ -562,7 +562,7 @@ def test_job_replacing_standalone_at_same_path_has_no_legacy_duplicate(tmp_path)
     assert updated["standalone_trials"] == []
 
 
-def test_browser_renders_job_reward_meter_and_separate_legacy_trials(tmp_path):
+def test_browser_renders_job_outcome_bar_and_separate_legacy_trials(tmp_path):
     node = shutil.which("node")
     if not node:
         pytest.skip("Node is needed to exercise report rendering")
@@ -596,10 +596,12 @@ const job=ids['run-rows'].children[0];
 assert.equal(job.dataset.kind,'job');
 const nodes=descendants(job);
 assert(nodes.some(n=>n.className==='run-path'&&n.textContent===input.data.runs[0].path));
-const meter=nodes.find(n=>n.attrs.role==='meter');
-assert.equal(meter.attrs['aria-valuenow'],'1.65');
-assert.equal(meter.attrs['aria-valuemax'],'3');
-assert.equal(nodes.find(n=>n.className==='score-fill').style.width,'55%');
+assert.equal(job.children.length,4);
+assert(!nodes.some(n=>n.attrs.role==='meter'));
+const bar=nodes.find(n=>n.attrs.role==='img');
+assert.equal(bar.children.length,2);
+assert.equal(bar.children[0].style.width,(100/3)+'%');
+assert.equal(bar.children[1].style.width,(200/3)+'%');
 assert(!descendants(ids['legacy-rows']).some(n=>n.attrs.role==='meter'));
 input.data.runs[0].status='unverified';
 vm.runInContext('drawRuns();',context);
@@ -628,7 +630,8 @@ def test_markdown_legacy_trials_mirrors_the_separate_html_section(tmp_path):
     report.refresh(tmp_path, patch=rule(path))
     raw = (tmp_path / ".eval-author/README.md").read_text()
     jobs, standalone = raw.split("### Legacy trials")
-    assert "| Job | Reward |" in jobs and "| Trial | Reward |" in standalone
+    assert "| Job | Summary | Actions |" in jobs and "| Trial | Summary | Actions |" in standalone
+    assert "| Reward |" not in raw
     assert legacy not in jobs and path not in standalone
     assert legacy in standalone and path in jobs
 
@@ -1383,7 +1386,7 @@ def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path):
     assert "| Custom code<br>" in raw
     assert "All state checks pass." not in text
     assert "| Not documented<br>" in raw
-    assert "1/2 passed" in text
+    assert "1 passed · 1 failed · 0 execution errors" in text
     assert "agent · completed" in text
     assert all(part in text for part in data["runs"][0]["date"].split("T"))
     template = (SCRIPTS / "report-template.html").read_text()
@@ -1500,7 +1503,8 @@ def test_markdown_preserves_warnings_missing_data_and_stale_status(tmp_path):
     report.refresh(tmp_path)
     raw = (tmp_path / ".eval-author/README.md").read_text()
     assert "Not documented" in raw
-    assert "reward: 0.65 total" in raw
+    assert "1 scored; pass/fail unavailable" in raw
+    assert "| Reward |" not in raw
     shutil.rmtree(tmp_path / path)
     shutil.rmtree(tmp_path / run_path)
     data = report.refresh(tmp_path, max_entries=1)
@@ -1527,7 +1531,7 @@ def test_markdown_runs_include_error_invalid_pending_and_dates(tmp_path):
     metadata["runs"][run_path]["invalid_attempts"] = {"invalid": "Invalid evidence"}
     report.refresh(tmp_path, patch=metadata)
     raw = (tmp_path / ".eval-author/README.md").read_text()
-    for label in ("1 execution errors", "1 invalid", "2 pending or unscored", "incomplete", "Score unavailable"):
+    for label in ("1 execution error", "1 invalid", "1 running", "1 unverified", "incomplete", "pass/fail unavailable"):
         assert label in raw
     assert "0/4 passed" not in raw
 
