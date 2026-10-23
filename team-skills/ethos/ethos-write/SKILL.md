@@ -15,6 +15,9 @@ compatibility: Writes one local markdown file, `ETHOS.md` at the repository root
 license: Apache-2.0
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash
+metadata:
+  author: Alec Khoury <akhoury@nvidia.com>
+  tags: [evaluation, ethos]
 ---
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
