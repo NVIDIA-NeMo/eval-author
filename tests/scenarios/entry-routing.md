@@ -129,6 +129,7 @@ appears.
   finish the other checks, explain what Docker blocks, and preserve independent planning
 - Commands or repository access are denied: record the limitation as unknown,
   check the remaining accessible rows, then ask for only the unresolved access
+  using `prerequisite_failure` if journey state cannot be loaded or saved
 - A saved pending question asks whether Python, Harbor, and Docker are installed:
   inspect only requirements applicable to the selected goal, then show completed
   findings once before deciding whether a question remains
@@ -194,7 +195,7 @@ Continue unblocked work in the same turn without an intermediate completed
 report or a new approval pause. Normal state reconciliation precedes the final
 `results` rendering, which includes the canonical completed-results sentence,
 completed table, optional Recommendations, Next Steps, one checklist, and the
-inspected Ethos/draft/question. If blocked at prerequisites, emit
+inspected Ethos/draft/question. If blocked at prerequisites with usable saved state, emit
 `prerequisite_results` directly as final once; do not show it in progress first
 or inspect target Ethos. That final has its canonical grounding sentence,
 completed table, optional Recommendations, and Blockers, without Next Steps,
@@ -397,8 +398,14 @@ Supply old first-eval and audit progress with explicit decisions, incomplete
 stages, and a pending question. Import with provenance, preserve disagreements,
 and never infer confirmation from file presence. New writes use shared state;
 no new `first-eval.md`, `audit-progress.md`, or separate intent notes appear.
-Malformed state does not silently restart or imply approval. A read-only workspace
-continues with conversation state and explains the fresh-chat resume limitation.
+Malformed state does not silently restart or imply approval. Repeat with failed
+state `init`, `show`, and `update`, including a fresh read-only workspace.
+Each failure uses `prerequisite_failure` through stdin without creating a payload
+file or inventing saved state. The final contains observed findings, the helper
+error, and the notice that these findings cannot resume in a fresh chat until
+saved; no checklist, confirmation, or continuation appears. Existing state is
+preserved, and Ethos and downstream work wait. After access is restored, reload
+existing state, recheck affected facts, and save the pass before continuing.
 
 ## 6. Stable tasks and canonical Ethos
 

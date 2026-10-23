@@ -112,6 +112,8 @@ Then perform bounded prerequisite checks. Use the state helper's `--state-only`
 mode for every prerequisite `init`, `show`, and `update`, including pending
 Ethos review bookkeeping. Keep findings in the completed response below rather
 than adding prose checking notices around the initial table.
+If prerequisite state cannot be initialized, read, or saved, use the
+[state failure response](references/conversations/onboarding.md#when-state-is-unavailable).
 
 Finish and record the prerequisite pass before locating, reading, or validating
 the target `ETHOS.md`, recovering its draft, or starting Ethos preflight. If

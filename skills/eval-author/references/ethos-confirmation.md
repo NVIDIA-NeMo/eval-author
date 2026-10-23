@@ -36,7 +36,9 @@ again.
 ## Enter the Ethos step
 
 Complete the applicable prerequisite checks and save findings with `--state-only`
-before entering or resuming Ethos from a prerequisite pass. If blocked, render
+before entering or resuming Ethos from a prerequisite pass. If state is unavailable,
+use the [state failure response](conversations/onboarding.md#when-state-is-unavailable) and stop.
+With saved state, if blocked, render
 [`prerequisite_results`](conversations/onboarding.md#stateful-responses) directly as
 the final response once and stop. Only after the pass is complete, saved, and
 unblocked locate, read, or validate the target `ETHOS.md`, recover draft content,

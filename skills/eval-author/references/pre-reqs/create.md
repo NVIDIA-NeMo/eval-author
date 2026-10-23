@@ -13,7 +13,8 @@ Use the [onboarding renderer](../conversations/onboarding.md) for journey
 grounding sentence above the initial status table. Use only facts already in
 conversation; do not read saved state or inspect the repository to populate it.
 Then complete and save bounded state-only checks before target Ethos inspection.
-If blocked, render `prerequisite_results` directly as final once. If unblocked,
+If state is unavailable, use the [state failure response](../conversations/onboarding.md#when-state-is-unavailable).
+With saved state, if blocked, render `prerequisite_results` directly as final once. If unblocked,
 continue Ethos without an intermediate completed report, then render `results`
 after normal reconciliation for the final completed table, Recommendations,
 checklist, and Ethos action.

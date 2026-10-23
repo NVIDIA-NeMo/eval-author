@@ -43,6 +43,7 @@ On prerequisite resume, use only findings already in context for the initial
 status table, then begin the remaining checks. Load saved metadata with
 `--state-only`; use that mode for every prerequisite `init`, `show`, and `update`,
 including pending-review bookkeeping.
+If a state operation fails, follow the [state failure response](conversations/onboarding.md#when-state-is-unavailable).
 
 Saved Ethos metadata is history, not proof a document exists, validates, or
 remains current. Defer target Ethos discovery, reads, validation, draft recovery,
@@ -175,6 +176,11 @@ remain blocked until [requirements are resolved].” These are required
 dependencies; do not present them as Recommendations.
 
 ## Present results and the next step
+
+If state initialization, reading, or saving failed, use
+[`prerequisite_failure`](conversations/onboarding.md#when-state-is-unavailable)
+with observed findings and the helper error through stdin, then stop. The normal
+saved-state procedure below applies only when those operations succeed.
 
 Finish every applicable prerequisite check and save its findings through
 `journey_state.py --state-only` before target Ethos inspection. Once required blockers are
@@ -349,9 +355,11 @@ tasks. Keep those tasks at their original paths, preserving bound evidence and
 relative assets; explicitly select the active legacy task root in the shared
 journey scope when continuing it. Do not treat historical duplicate copies as
 additional active tasks. New tasks use the stable task catalog. Old progress
-notes are import-only; never resume writing them. If the repository cannot
-be written, retain progress in conversation, explain that fresh-chat resume is
-unavailable, and continue independently possible work.
+notes are import-only; never resume writing them. If prerequisite state cannot
+be written or read, retain observed findings in conversation and use the
+[state failure response](conversations/onboarding.md#when-state-is-unavailable).
+Independent prerequisite checks may finish, but Ethos and downstream work wait
+until the pass can be saved. Preserve existing state rather than replacing it.
 
 ## Hand off
 

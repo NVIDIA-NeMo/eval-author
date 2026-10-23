@@ -263,6 +263,10 @@ the document or question to review. If something blocks setup, the final reply
 contains the completed findings and required action, and Ethos work waits.
 The completed table appears in the final reply without a separate report in
 the middle of the turn.
+If progress cannot be loaded or saved, the final table still shows the observed
+findings and the state error. Those findings remain in the current chat; a fresh
+chat cannot resume them until saved. Ethos and evaluation work wait for the
+state problem to be resolved.
 
 Full creation and improvement onboarding pauses before Ethos if the selected
 runtime is missing, incompatible, or cannot yet be verified. Progress is saved

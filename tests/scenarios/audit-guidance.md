@@ -37,7 +37,8 @@ checking notice, skill-use announcement, or interim progress summary. Finish
 and save the state-only prerequisite pass before target Ethos inspection.
 An unblocked final uses `results` for the canonical completed-results sentence,
 completed table, optional Recommendations, one checklist, and current review
-material. A blocked final uses `prerequisite_results` once, before any Ethos
+material. A blocked final uses `prerequisite_results` once when state was saved,
+or `prerequisite_failure` if state cannot be loaded or saved, before any Ethos
 inspection. There is no intermediate completed report or third table.
 Unselected trace reads and agent execution remain out of scope.
 

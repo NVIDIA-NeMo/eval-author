@@ -45,9 +45,9 @@ supported format.
 If expansion pauses because your existing suite uses an unsupported format, its
 Blockers section includes a copyable conversion prompt. Open a separate coding
 agent chat in the same repository, paste that prompt, and replace the suite path,
-current framework, and target placeholders. Choose either Harbor or NeMo Gym. See the
-[example conversion handoff](../tests/fixtures/journey-conversation/results-expand-blocked.md)
-for the rendered prompt.
+current framework, and target placeholders. Choose either Harbor or NeMo Gym. The
+[onboarding template](../skills/eval-author/scripts/conversation_flows/onboarding_templates.py)
+contains the canonical conversion handoff prompt.
 
 The prompt asks the coding agent to preserve your original tests and agent code,
 carry their scenarios and grading into a new output directory, and map converted
