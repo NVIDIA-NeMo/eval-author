@@ -115,6 +115,14 @@ instead of repeating orientation.
 | Create a task from a recorded interaction | [Task-create ATIF source mode](../eval-author-task-create/SKILL.md#atif-source-mode), or [first-eval](../eval-author-first-eval/SKILL.md#atif-as-a-starting-source) for a new suite; use the [shared ATIF handoff](references/trace-input.md), without requiring an audit gap |
 | Explicit trace-environment request or existing workspace continuation | [Trace environment](../eval-author-trace-environment/SKILL.md); retain existing artifacts and the compatibility workflow |
 
+Acceptance of the first-evaluation flow's audit invitation is a goal switch
+within the existing workflow. Follow its [saved handoff](references/conversations/first-eval.md)
+and reuse confirmed `ETHOS.md`, provider, task paths, exact run/attempt evidence,
+source choices, limitations, and preferences. Check only audit-specific or changed
+prerequisites and source needs. Missing audit evidence blocks only the audit;
+it does not reopen completed creation or authorize new runs. Offering the
+invitation or receiving a decline starts no audit work.
+
 When the goal is unclear, use `orientation` without a journey. Its shorter
 welcome and canonical goal choices ask only for the unresolved goal; reuse known
 context.

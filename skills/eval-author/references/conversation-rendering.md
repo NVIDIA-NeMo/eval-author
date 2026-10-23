@@ -74,11 +74,17 @@ preview permissions, row facts, blocker selection, and final-response ordering.
 Use it alongside [Shared prerequisites and Ethos](shared-prerequisites.md).
 Shared rendering guidance does not change those workflow gates.
 
+[First evaluation rendering](conversations/first-eval.md) continues creation
+with optional traces, design and first-task review, validation, execution
+settings, results, and the optional audit handoff. Its stages require reconciled
+saved state and use the `first_eval_` prefix; they have no stateless preview.
+
 [conversation_renderer.py](../scripts/conversation_renderer.py) dispatches through
 an explicit [journey/stage registry](../scripts/conversation_flows/__init__.py)
-to implemented flow renderers. Duplicate registrations are rejected. The current
-flow is [onboarding.py](../scripts/conversation_flows/onboarding.py), with its
-copy in [onboarding_templates.py](../scripts/conversation_flows/onboarding_templates.py).
+to implemented flow renderers. Duplicate registrations are rejected. Implemented
+flows are [onboarding.py](../scripts/conversation_flows/onboarding.py) and
+[first_eval.py](../scripts/conversation_flows/first_eval.py), with copy in their
+respective `_templates.py` modules.
 Shared formatting and escaping live in
 [conversation_formatting.py](../scripts/conversation_formatting.py).
 

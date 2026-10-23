@@ -3,22 +3,28 @@
 
 # Native NeMo Gym first evals
 
-Use this reference for the NeMo Gym-specific work in first-eval stages 5–9. Keep the
-parent skill's stage boundaries and shared deliverables. NeMo Gym is compatible with
-Harbor; follow the user's selected setup. No audit report, actionable tool gap,
-or measured gap closure is required.
+Use this reference for native NeMo Gym authoring, validation, and execution.
+The [parent skill](../SKILL.md) and [conversation contract](../../eval-author/references/conversations/first-eval.md)
+own design approval, first-task review, execution authorization, and handoff.
+A selected Gym–Harbor setup uses its verified configured bridge; this native
+path is not a substitute. Keep missing integration as an execution blocker
+without adding a production adapter. No audit gap or coverage closure applies.
 
-## 5. Prepare cases and grading
+## 5. Prepare tasks and grading
 
 Use the NeMo Gym Python/CLI pair selected by the
 [shared runtime locator](../../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks)
 with `--provider gym --flow authoring`. Its central policy owns version and
-Python requirements; keep NeMo Gym in its separate environment. Inspect its CLI help and native scaffolder before use. Create each
-planned draft in a fresh `.eval-author/tasks/<slug>/` directory using
+Python requirements; keep NeMo Gym in its separate environment. Inspect its CLI
+help and native scaffolder before use. Create only the
+approved first task directly in `.eval-author/tasks/<slug>/` using
 NeMo Gym's `nemo_gym.environment.scaffold.scaffold_environment(kind="environment",
 name=<module_name>, root=<task_path>)`. Use a valid Python module name for the
 NeMo Gym environment. Do not call the audit-driven `task_pipeline.py scaffold` route:
-first-eval has no coverage report or uncovered-tool selector.
+first evaluations require no coverage report or uncovered-tool selector.
+Do not create remaining task directories or rows before first-task review approval.
+One reviewed task may map to several explicitly agreed complete dataset rows;
+retain verifier metadata and count distinct examples separately from repeats.
 
 Follow [Complete the task without changing its intended capability](../../eval-author-task-create/references/gym-tasks.md#complete-the-task-without-changing-its-intended-capability)
 for the generated manifest, component configuration, resources server, dataset
@@ -26,9 +32,10 @@ rows, and verifier fixtures. Replace template tools, rewards, and fixtures with
 the agreed cases. Seed the resources server from the environment kit's generated
 data and pass the kit's persistence and reset cases before writing verifier
 fixtures, then derive expected rewards and end states with an independent
-reference over that data. Map stable case IDs to selected
+reference over that data. Map stable task/example IDs to selected
 dataset rows; keep expected answers and provenance outside model inputs. Start
-with one representative case before extending the pattern to the agreed breadth.
+with exactly the approved first task and wait for its review before extending
+the pattern to the agreed breadth.
 
 Document each case's reward contract and expected positive and negative control
 results before testing. Include a known-correct response or interaction and a
@@ -45,14 +52,15 @@ Prepare the generated resources, agent, and model components, dependency inputs,
 fixtures, and state reset. Build the backends the resources server wraps, their
 seeded session state, and its reset from the environment kit that
 [`eval-author-environment`](../../eval-author-environment/SKILL.md) built and
-proved at stage 5, following its [NeMo Gym environments](../../eval-author-environment/references/gym.md)
+proved before task grading, following its [NeMo Gym environments](../../eval-author-environment/references/gym.md)
 reference, and add each case's own records to its dataset row or session seed.
 Apply the [NeMo Gym version and rerun plan](../../eval-author-task-create/references/gym-tasks.md#version-and-rerun-plan)
 to the selected suite, recording it in the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` and the drafts'
 `reproducibility.md`; no dataset recommendation or audit proposal is required.
 Use the component packaging checks linked there for the selected runtime.
 Verify actual application access and component setup. Record missing credential
-variable names and blocked cases without recording secret values.
+variable names and blocked work without recording secret values. Defer run-only
+settings and blockers until execution is ready while independent authoring proceeds.
 
 ## 7. Connect the agent
 
@@ -107,8 +115,10 @@ managed execution using prepared splits.
 
 Run only with the established execution and spend authorization. Retain fresh
 outputs, rewards, errors, resolved settings, and exact commands for every selected
-case under `.eval-author/runs/`. Link these from the plan and suite README using
+task under `.eval-author/runs/`. Keep exact native run and attempt identities
+and readable selected-row evidence in the suite README, outside finalized task
+directories, using
 paths resolved from the documented working directory. A working suite requires
 native execution of the actual agent and recorded rewards, even when scores are
-low. Return to stage 10 for reconciliation and rerun instructions. Report NeMo Gym
+low. Return to the parent skill for reconciliation and linked rerun instructions. Report NeMo Gym
 control results in their own terms, without labeling them Harbor NOP/Oracle jobs.

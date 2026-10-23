@@ -329,6 +329,11 @@ into the existing scope. These observations persist even when prerequisites are
 blocked; case, corpus, and approval updates remain forbidden in this mode.
 
 Save agreed decisions in the selected journey's `scopes` entry.
+Creation uses the additive `scopes.create.first_eval` record described in the
+[first-evaluation conversation contract](conversations/first-eval.md). Normal
+`show` returns its reconciled progress and artifact observations; creation
+updates require the latest `--expected-revision`. These fields do not change
+the top-level schema or grant approvals to older records.
 Put final task behavior in task READMEs and audit checks
 in the audit report. Do not create a separate first-eval or expansion plan file.
 Retire `first-eval.md`, `audit-progress.md`, and intent notes as active writers.

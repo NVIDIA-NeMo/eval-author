@@ -3,146 +3,65 @@
 
 # Build your first evaluations
 
-Use this guide when your agent has no evaluations yet. Eval Author helps you
-build a starter suite that you can rerun after changes using NeMo Gym or Harbor.
-As in audit-derived and trace-derived task creation, Eval Author follows your
-choice, otherwise preserves the existing suite's provider, and defaults to
-Harbor when neither is specified. NeMo Gym is compatible with Harbor, and you have
-the final say in which tools to use.
-
-Follow [the setup guide](getting-started.md) to load Eval Author in your coding
-agent, with the repository you want to evaluate open. Then ask:
+Use Eval Author with an agent that has no evaluation suite, or expand a starter
+suite you already created. Follow [the setup guide](getting-started.md), open
+your agent's repository, and ask:
 
 ```text
-Help me build my first evaluations for this agent. I do not have evals yet.
-Show me the plan first, and explain the cases and how they will be graded.
+Use eval-author to build my first evaluations for [agent name] using [NeMo Gym or Harbor].
+I don't have evaluations yet.
 ```
 
-## Establish what the agent should do
+Eval Author confirms your setup and `ETHOS.md`, the local document describing
+how the agent should behave. Existing traces are optional: you can choose
+specific runs or start from `ETHOS.md` with generated input examples. Your
+source choices and exclusions carry forward when you resume.
 
-After verifying your agent, setup, and selected evaluation runtime, Eval Author
-uses the shared Ethos workflow to establish an **Ethos**: a local document describing
-your agent's purpose, boundaries, and success criteria. It can reuse an existing
-`ETHOS.md` or help you create and review one.
+## Review the design and first task
 
-If you have traces, Eval Author confirms which source and subset to use before
-searching or reading them. That selection and any exclusions carry into case
-creation and later expansion. You can also choose to plan from Ethos without
-traces; traces are not a prerequisite.
+You first receive a task proposal explaining the inputs, intended behaviors,
+expected results, grading, and remaining coverage gaps. You can change the
+proposal or approve it and the first task to build.
 
-Before generating cases, you review the priorities and breadth for each behavior:
-how many distinct input examples to include, their variations and difficulty,
-positive and negative scenarios, expected outcomes, grading, and exclusions.
-A **pilot** is a limited first set of examples to check the test setup and get an
-initial measure of performance on selected behaviors. Eval Author explains why
-it recommends that breadth, what you would learn, and what would remain untested
-even if every example passed. You can choose a minimal pilot or broader coverage;
-there is no fixed example quota. Difficult sentiment or complaint examples need
-labels justified by the intended meaning; a classifier score alone does not
-establish the answer.
+After design approval, Eval Author builds one task and presents its README and
+report for review. The review distinguishes whether its environment works,
+whether grading has been validated, and whether your actual agent has run.
+You can request revisions to that task before the remaining tasks are created.
 
-At the plan review, Eval Author explicitly asks what you want to change or
-prioritize: lower rerun cost, measuring the agent's cost or latency, broader
-coverage, harder cases, or another concern. It carries forward preferences you
-already gave. You can revise the
-proposal or accept it as written; your choices are saved before case generation.
+Task directories remain under `.eval-author/tasks/<task-slug>/`. The shared
+report is `.eval-author/report.html`, with a Markdown counterpart in
+`.eval-author/README.md`. Both link the task documentation and available evidence.
 
-Distinct examples, native tasks, and repeated attempts are counted separately.
-A task packages one or more examples with their environment and grading;
-repeating it does not add new examples. Discuss cost before generation, including
-the work each rerun requires and whether cost is a budget, a reported metric,
-or a scoring rule. Without reliable pricing or comparable measurements, the plan
-uses work counts and marks monetary cost unknown.
+## Run and inspect the suite
 
-Full first-eval onboarding requires the selected supported runtime before Ethos
-and case planning. A missing or incompatible runtime pauses onboarding and
-preserves progress; an inconclusive check stays unknown until resolved.
-Eval Author does not install software during these checks. An explicitly requested
-planning-only operation can proceed without an evaluation runtime.
-Native NeMo Gym authoring requires NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment.
-For Harbor authoring, see the [Harbor setup guide](../skills/eval-author/references/harbor-setup.md).
-Execution also needs the selected environment backend, any required application
-access, and a supported connection to your agent. See the full
-[runtime requirements](getting-started.md#requirements).
+After you approve the first task, Eval Author builds and validates the remainder.
+When agent runs or paid grading are ready, it presents the concrete settings,
+attempt counts, limits, and unresolved execution needs. Approving the design or
+first task does not authorize paid runs; applicable prior authorization is reused.
+Repeating an input adds attempts rather than new examples.
 
-The checklist shows the current stage and unfinished work at each checkpoint.
-If you detour to discuss grading, cost, or setup, Eval Author preserves the agreed
-scope and resumes from that stage without restarting onboarding.
+A supported runtime is required for full onboarding and authoring; see
+[runtime requirements](getting-started.md#requirements). Running your agent also
+requires a compatible connection, access, and the selected environment backend.
+A combined Gym–Harbor setup needs a configured bridge. Blocked work is explained
+with the action needed to continue, while completed work remains saved.
 
-## Check the cases and evaluate the agent
+The result summary separates measured agent failures from execution failures
+and missing attempts. It links an exact saved attempt and the suite README's
+rerun instructions, so you can inspect or repeat the same selection. Low agent
+scores can still provide a valid baseline; successful task checks alone do not
+measure your agent's performance. See [Read your results](results.md).
 
-Eval Author creates each case's instructions, environment, reference solution,
-and grader. The environment reuses your repository's own services where it can,
-starts from realistic seeded data, and is proven to work before any case relies
-on it. For NeMo Gym, it validates the manifest and runs verifier fixtures with
-known-correct and negative/no-action controls through `gym env validate` and
-`gym env test`. For Harbor:
+When the agreed suite is complete, Eval Author asks whether you want to audit
+its coverage and grading against `ETHOS.md`. The audit starts only if you accept;
+missing audit evidence does not undo the completed suite. You can decline and
+keep all artifacts, or later [request an audit](existing-evals.md#audit-coverage).
 
-- **NOP** runs a no-op baseline to check what happens when no work is done.
-- **Oracle** runs the prepared reference solution to check that the grader
-  recognizes the expected outcome.
-
-A realistic incorrect result must also be rejected. Where relevant, Eval Author
-checks a different valid solution and the actual state changes requested by the
-task. Instructions read like your own request, without the root cause, the fix,
-or the expected results; data a task must leave unchanged is checked by content
-rather than by row counts; and when a task requires an action, doing nothing
-earns no credit. It retains the task revision and run evidence, so editing a
-case requires fresh validation. Missing evidence and setup errors stay separate
-from behavior failures.
-
-These checks test the cases themselves. The agent's performance is measured by
-running your actual agent with its configured model and credentials. Eval Author
-reports that run separately, including scores and execution errors.
-
-A working suite can reveal that your agent performs poorly. Its value is giving
-you a repeatable baseline. A few passing cases do not establish broad coverage
-or prove that the grader handles every possible response.
-
-## Read the output and run again
-
-Run artifacts are under `.eval-author/runs/` for NeMo Gym or `.eval-author/jobs/` for Harbor.
-NeMo Gym keeps the selected composition, dataset rows, agent/model settings, and native commands
-in the plan and suite README. For Harbor, when the agent integration supports it,
-Eval Author creates `.eval-author/run.yaml` with the selected cases and run settings.
-
-
-Start with `.eval-author/report.html` to review your cases and results.
-Use **Tasks** to see what each case tests and its expected
-outcome. Open a task's README from **Actions** to inspect its input, grading
-criteria, verifier links, and setup and rerun instructions. Use **Runs** to
-compare scores, distinguish control runs from actual-agent evaluations, and
-open run evidence in the Harbor viewer. If your Harbor viewer uses a different address,
-update it in **Settings**.
-
-For a Markdown version of the task and run tables, open `.eval-author/README.md`.
-
-To update the report after changing cases or running evaluations, ask:
+To refresh the saved report, ask:
 
 ```text
 Refresh the evaluation report in .eval-author.
 ```
 
-The summary compares agreed and delivered examples for each behavior, separating
-what was generated, validated, and actually run. It links the examples to their
-tasks and names missing variations, substitutions, or blocked work. Passing a
-pilot does not mean the broader planned coverage is complete.
-
-If a dependency or agent connection is unavailable, the summary identifies the
-blocked work and what is needed to continue. See [Read your results](results.md)
-for the meaning of the saved outputs.
-
-To extend the suite, ask:
-
-```text
-Show me how to rerun this suite, inspect one result, and plan broader coverage.
-Update the rerun instructions and evaluation report when adding the agreed cases.
-```
-
-For expansion, review the added examples, difficulty, expected outcomes, and
-rerun cost before generation. Existing cases and the selected corpus carry
-forward; the updated plan distinguishes retained examples from new additions.
-
-Once you have run evidence, [audit coverage and propose new evaluations](existing-evals.md#audit-coverage).
-The [first-eval skill](../skills/eval-author-first-eval/SKILL.md) documents the
-complete workflow.
+The [first-evaluation skill](../skills/eval-author-first-eval/SKILL.md) defines the
+agent workflow and its [conversation contract](../skills/eval-author/references/conversations/first-eval.md).

@@ -58,54 +58,68 @@ Repeat with the same selection supplied in the opening request: no duplicate
 source question is needed. A newly discovered source requires a changed choice
 before use, not an automatic fallback.
 
-## 2. Review priorities, breadth, and cost before generation
+## 2. Review task design before generation
 
-**Start:** Resume at scope planning with scenario 1's confirmed corpus. Have the
-agent propose four complaint examples and two policy-answer examples, with
-variations, difficulty, expected outcomes, grading, and exclusions.
+**Start:** Resume with scenario 1's confirmed source selection and `ETHOS.md`.
+Propose four complaint examples and two policy-answer examples, with concrete
+inputs, expected outcomes, grading, exclusions, and a chosen first task.
 
-**Inspect before answering:** In the plan-review reply itself, the agent explains
-that a pilot is a limited first set of eval cases, what it is intended to help
-learn, what passing would and would not establish, and why the proposed breadth
-fits that purpose. Linking to a saved explanation is insufficient. The reply
-explicitly invites actionable feedback on priorities such as lower ongoing cost,
-broader coverage, difficult cases, or another user concern; a generic “does this
-look right?” alone is insufficient. Judge the meaning, not exact wording.
+**Inspect:** Use the [first-evaluation conversation contract](../../skills/eval-author/references/conversations/first-eval.md)
+and shared renderer's `first_eval_proposal` stage. Compare fixed structure and
+question copy against the template source rather than paraphrased expectations.
+The proposal ends with actionable design feedback/approval, with no execution
+settings, run-only blockers, or spending footer. No task files exist yet.
 
-**Reply at the scope checkpoint:** “Make rerun cost a priority. Start with one
-example per behavior, one task per example and one attempt per task. Cost is a
-budget consideration, not a passing score. Keep the rest as future expansion.”
+**Reply:** “Make rerun cost a priority. Start with one example per behavior and
+one task per example. Keep the rest as future expansion. I approve this design
+but have not authorized paid grading or actual-agent runs.”
 
-**Inspect:** The agreement changes to two distinct examples, two tasks, and two
-agent trials per rerun, with controls and any judge work accounted for separately.
-The agent explains what the pilot omits and asks only about unresolved choices.
-The saved plan retains the user's priorities and feedback before generation.
-Inspect the saved file immediately before the first fixture/scaffold write:
-accepted counts and attempt settings must already be current, not left as
-"pending" until handoff or recorded only in a conversation log.
-No monetary estimate is invented when pricing or comparable measurements are
-missing. Increasing attempts does not increase distinct-example counts; neither
-renaming an example nor reusing it under another behavior increases the unique
-total. A broad plan is not silently reduced to the pilot without this answer.
-Repeat with the cost preference and two-example scope already agreed in the
-conversation: the agent applies them to the preparation work.
+**Inspect:** Save actual approval for the current two-task design before any
+scaffolding or fixture write. The design explains remaining gaps and retains
+source exclusions. Resume goes directly to first-task preparation without six
+execution bullets or a new setup-approval stage. Unknown run credentials remain
+saved and block only dependent execution. A real unresolved environment/design
+choice is asked only when needed for current work. Repeats never increase the
+number of distinct examples; no monetary estimate is invented.
 
-## 3. Pilot, then meaningful expansion
+## 3. Review the first task, then build the remainder
 
-**Start:** Continue scenario 2 through the stages that can actually be exercised.
-Record the resulting tasks and available validation or execution evidence. A
-failed agent response remains a useful baseline when its task works.
+**Start:** Continue the approved design through first-task preparation. Create
+exactly one permanent `.eval-author/tasks/<slug>/` directory and record Draft.
+Prove its environment before writing its reference solution or grader. Retain
+construction declarations, source provenance, and native smoke evidence.
 
-**Reply:** “Retain both pilot examples. Add three distinct complaint inputs,
+**Inspect:** Generate HTML and Markdown review artifacts before
+`first_eval_review_first`. Link the actual Tasks view and task README, with input,
+expected result, grading, a meaningful limitation, and distinct environment,
+validation, and actual-agent execution findings. Formal grading controls may be
+pending. The second task is still planned and uncreated. Missing required report
+capabilities stay explicit; native Gym run evidence remains in the suite README.
+
+**Reply:** “Change the first task's input to include an ambiguous complaint. I
+haven't approved this revision yet.”
+
+**Inspect:** Edit the same directory, retain prior evidence, invalidate affected
+observations, refresh the report, and request first-task review again. An
+interruption resumes that pending review without repeated onboarding or a
+settings checklist. No remaining task is generated before current approval.
+
+**Reply:** “I approve the revised first task.”
+
+**Inspect:** Save approval of that revision, then build and validate the remainder
+without individual human review gates. Reference controls remain separate from
+actual-agent performance. When concrete paid checks or agent runs are ready,
+use `first_eval_execution_settings`; current prior settings and authorization
+are reused. Design or first-task approval alone does not authorize spending.
+
+**Expansion reply:** “Retain both tasks. Add three distinct complaint inputs,
 including confusable negatives, and one new policy question. Review the added
-coverage and ongoing cost with me before generating them.”
+coverage with me before generating them.”
 
-**Inspect:** The new plan maps two retained and four added examples to six unique
-inputs: four complaint and two policy-answer examples. It explains the new
-variation, difficulty, expected outcomes, and cost rather than copying the pilot
-size or counting repeats as expansion. Source exclusions and existing failing
-cases remain intact. Generation waits for the affected scope choices, then the
-handoff reconciles each agreed example against what was actually delivered.
+**Inspect:** Two retained and four added inputs total six examples. Preserve
+accepted tasks, source choices, and user priorities; reopen only affected design
+and task claims. Save the agreement before generating additions and reconcile
+agreed work against created, validated, and executed evidence.
 
 ## 4. Confusable negatives need semantic evidence
 
@@ -337,3 +351,34 @@ requested NeMo Gym rollouts.
 This scenario tests recovery and reporting, not an allegation that the author
 fabricated application outputs. Static checks of this file do not establish
 that a live author passed the scenario.
+
+## Deterministic continuation, results, and audit handoff
+
+Exercise the first-evaluation flow through the shared renderer, using normally
+reconciled state and its actual observations. Retain rendered input/output,
+user decisions, and evidence references. A side question never grants approval.
+Test interruption after design approval, first-task creation, requested changes,
+first-task approval, validation, and a partial run; resume the first unfinished
+step without repeating source choices or completed runs.
+
+Exercise passing, agent-quality-failing, infrastructure-failing, partial,
+controls-only, and missing-evidence outcomes. Keep prior evidence under fresh
+output names. Task edits reopen affected review and validation; configuration
+edits reopen affected execution claims. Explicitly selected recovery jobs may
+complete only missing authorized work; directory membership never selects tasks.
+Native Gym keeps complete agreed rows and repeats; a configured Gym–Harbor
+bridge is exercised as that path rather than direct Harbor conversion.
+
+For results, inspect one informative actual-agent attempt and name its exact run
+and attempt, observed response/actions, grade, verified evidence navigation,
+available model identity, and limitations. Create a later run and verify the
+reviewed identity remains stable. The suite README and reply link the real
+full-suite rerun section by its verified heading anchor. Task README bytes stay
+unchanged after their evidence is bound; later results live in the suite README.
+
+Only completed agreed creation receives the template's audit invitation, followed
+by the shared single closing report/README sentence. Accepting reuses confirmed
+`ETHOS.md`, provider, sources, exact runs, and preferences; audit-specific missing
+evidence produces Blockers for the audit alone. Declining starts nothing and is
+not repeatedly offered. Unfinished creation never receives a completed-stage
+audit handoff, and accepting an audit never authorizes new tasks or paid runs.
