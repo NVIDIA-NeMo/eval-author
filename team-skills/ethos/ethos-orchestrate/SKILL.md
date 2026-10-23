@@ -18,9 +18,8 @@ triggers:
 not-for:
   - ethos-explore (use to scan the agent and interview the user for intent)
   - ethos-write (use to render, validate, save, and review the file from agreed answers)
-  - eval-author (use to build, audit, or run evaluations; it calls this skill when it needs an ETHOS.md)
 compatibility: >-
-  Routing reads the local checkout only. Sub-flows write one local ETHOS.md;
+  Routing reads the local checkout only. Sub-flows write one ETHOS.md;
   validation needs Python 3.10+ and ethos-write's standard-library script.
   Works offline.
 license: Apache-2.0
@@ -38,7 +37,34 @@ Help a developer create and maintain their agent's `ETHOS.md`. Route each
 request to the narrow sub-flow that owns it, and carry what is already known
 into that sub-flow so the user is never asked twice.
 
+## Continue from prior context
+
+When a user or another workflow supplies an earlier Ethos conversation, reuse
+the selected repository, agent, file location, and requested operation. Skip
+the repeated opening and completed questions. Check that prior findings and
+answers still apply to this agent; distinguish source evidence from explicit
+user replies, retaining where each answer came from. Without usable prior
+context, use the standalone entry below.
+
+Resume the earliest unfinished work. Missing or conflicting intent goes to
+ethos-explore; completed intent goes to draft review or ethos-write as needed.
+Before writing, recover the exact accepted draft and the user's confirmation.
+If either is unavailable or the draft changed, review the draft again while
+retaining completed answers. Review a suitable existing file without rewriting
+it. Reuse an earlier saved-content review only when the contents are unchanged,
+the confirmation applies to this agent, and current findings reveal no conflict.
+
+On a pause or completion, report the file location, actual validation outcome,
+unresolved questions, and what the user confirmed or still needs to review.
+Carry relevant answers and draft context back to the invoking conversation or
+workflow, which owns any persistence. These skills write only ETHOS.md; they
+require no external state format. Missing validation or a required sub-flow
+must be reported as unfinished work, not completion.
+
 ## Choose the entry route
+
+For a continuation, use the context above. The following routing and opening
+apply to standalone requests.
 
 Locate an existing file first: the user's path, otherwise `ETHOS.md` at the
 repository root or at the root of the selected agent's package.
@@ -92,7 +118,7 @@ unfinished step instead of repeating the opening.
 | ETHOS.md | The agent's intent snapshot: front matter plus fourteen required `##` sections, schema version 1 |
 | Section | One required `##` heading from the [template](../ethos-write/references/templates/ETHOS.md). Extra headings are allowed and preserved |
 | Inferred | Drafted from source; shown to the user as an option, never final |
-| Confirmed | Answered or accepted by the user in this conversation |
+| Confirmed | Answered or accepted by the user in this conversation, or carried with explicit user-reply provenance in matching prior context |
 
 ## Sub-flows
 
@@ -109,8 +135,8 @@ This file carries the standard and the routing; the sub-flow carries the steps.
 - **Write only the ETHOS.md.** Never edit the agent's code, prompts, configs,
   or evals. The file goes at the user's path or the repository root, and
   nothing is committed automatically.
-- **Preserve what exists.** Keep custom sections, extra front-matter keys, and
-  `created_timestamp` on edits.
+- **Preserve what exists.** Keep custom sections, extra front-matter keys,
+  `author`, and `created_timestamp` on edits.
 - **Capture intent without authorizing application changes.** Do not ask
   optimization or change-permission questions in the interview, draft review,
   or completion checkpoint. Creating an ETHOS.md implies no follow-up to
@@ -129,7 +155,8 @@ This file carries the standard and the routing; the sub-flow carries the steps.
 Do not assume the user knows the term. Before the first question, explain in a
 sentence or two that ETHOS.md records what the agent should do, what it should
 avoid, and what a good result looks like, and that people and agents working on
-the agent read it first. Make the explanation concrete for this agent.
+the agent read it first. Make the explanation concrete for this agent. Reuse
+that explanation when it has already been given.
 
 Ask one question per message, prefer multiple choice grounded in what the scan
 found, and always allow "I don't know". When reporting an existing file, lead
@@ -143,7 +170,7 @@ needs Python 3.10+.
 ## Limitations
 
 ETHOS.md is a snapshot of intent; it does not prove the agent behaves that way.
-Measuring that belongs to evaluation tools such as Eval Author.
+Measuring that belongs to evaluation tools.
 
 ## Troubleshooting
 
@@ -164,7 +191,7 @@ Request: "Add a no-PII rule to Constraints in our ETHOS.md."
 Route: ethos-write, editing Constraints in place.
 Deliverable: the updated file, validated, with the change shown for review.
 
-Request: "We still have the ETHOS.md Eval Author made last month."
+Request: "We still have the ETHOS.md we wrote last month."
 Route: this skill, checking the existing file.
 Deliverable: the existing ETHOS.md with unchanged name and contents, validated.
 ```

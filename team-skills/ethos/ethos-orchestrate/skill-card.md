@@ -9,7 +9,7 @@ NVIDIA <br>
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers building AI agents use this skill with a coding assistant to find, explain, create or update their agent's ETHOS.md, routing each request to the ethos-explore or ethos-write sub-flow while ensuring the file records only user-confirmed intent. <br>
+Developers building AI agents use this skill with a coding assistant to find, explain, create or update their agent's ETHOS.md, routing each request to the ethos-explore or ethos-write sub-flow while ensuring the file records only user-confirmed intent. Interrupted conversations can resume from supported prior context without repeating completed questions or assuming unconfirmed approval. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
@@ -33,7 +33,7 @@ Mitigation: Review and scan skill before deployment. <br>
 
 ## Skill Output: <br>
 **Output Type(s):** [Analysis, Shell commands, Files] <br>
-**Output Format:** [Markdown with inline bash code blocks; routed sub-flows produce a single local ETHOS.md file] <br>
+**Output Format:** [Markdown with inline bash code blocks; routed sub-flows produce a single ETHOS.md file] <br>
 **Output Parameters:** [1D] <br>
 **Other Properties Related to Output:** [Routing reads the local checkout only and works offline; writes are limited to the ETHOS.md file via sub-flows and nothing is committed automatically.] <br>
 
