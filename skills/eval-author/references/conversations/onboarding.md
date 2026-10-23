@@ -1,30 +1,20 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Journey conversation rendering
+# Onboarding conversation rendering
 
-Use [journey_conversation.py](../scripts/journey_conversation.py) as the shared
-conversation renderer for all evaluation journeys. Its current stages cover
+Use the [shared conversation contract](../conversation-rendering.md) and
+[conversation_renderer.py](../../scripts/conversation_renderer.py) for
 orientation, prerequisites, and Ethos review and confirmation across creation,
-audit, and expansion. Extend this renderer and its shared templates as later
-workflow stages are implemented. Identify journeys and stages by descriptive
-names, never journey numbers.
+audit, and expansion. This reference defines the currently supported onboarding
+stages; it does not replace the [shared prerequisite procedure](../shared-prerequisites.md)
+or [Ethos adapter](../ethos-confirmation.md).
 
-Its pure `render(payload)` function returns Markdown; the CLI prints the same
-Markdown. Identical inputs produce byte-identical output without clocks,
-randomness, or repository reads.
-Canonical welcome text, goal choices, checklist labels, prerequisite tables,
-section text, and continuation questions live only in
-[journey_templates.py](../scripts/journey_templates.py). Present the rendered
-Markdown unchanged, with no additional opening, duplicate checklist, or appended
-next-step invitation.
-
-The renderer presents decisions; it never makes them. It does not inspect the
-repository, load or save journey state, probe prerequisites, validate files,
-delegate work, choose sources, run evaluations, or grant approval. Reading its
-output cannot establish readiness, Ethos confirmation, permission to continue,
-or authorization to spend. Persist actual user replies and observed findings
-through the existing state helper before rendering stateful responses.
+[conversation_templates.py](../../scripts/conversation_templates.py) owns shared
+journey and checklist labels, status labels, and generic headings.
+[onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py)
+owns onboarding copy and prerequisite rows. Use these canonical templates through
+the renderer; do not copy them into instructions or reconstruct their output.
 
 ## Orientation and prerequisite entry
 
@@ -34,9 +24,9 @@ bytecode writes. Do not pass a repository, state file, or input file, create a
 payload artifact, call the state helper, or inspect repository context.
 
 ```bash
-python3 -B <skill_dir>/scripts/journey_conversation.py --stage orientation
-python3 -B <skill_dir>/scripts/journey_conversation.py --stage orientation --journey create
-python3 -B <skill_dir>/scripts/journey_conversation.py --stage goal_selected --journey audit
+python3 -B <skill_dir>/scripts/conversation_renderer.py --stage orientation
+python3 -B <skill_dir>/scripts/conversation_renderer.py --stage orientation --journey create
+python3 -B <skill_dir>/scripts/conversation_renderer.py --stage goal_selected --journey audit
 ```
 
 Use one command appropriate to the current turn, replacing `<skill_dir>` with
@@ -52,7 +42,7 @@ After the user actually answers the readiness question, show the initial status
 table with its canonical grounding sentence as the first workflow output:
 
 ```bash
-python3 -B <skill_dir>/scripts/journey_conversation.py --stage prerequisites --journey create --ready
+python3 -B <skill_dir>/scripts/conversation_renderer.py --stage prerequisites --journey create --ready
 ```
 
 This stage emits the canonical progress sentence followed by the selected
@@ -79,7 +69,7 @@ answer can appear as Confirmed by you without claiming verification. The
 permission inferred by rendering.
 
 After displaying the table, perform the bounded
-[prerequisite checks](shared-prerequisites.md). Complete and record them before
+[prerequisite checks](../shared-prerequisites.md). Complete and record them before
 target Ethos inspection; present the completed table in the final reply as
 described below. Add no extra preamble, skill-use announcement, or prose checking
 notice around the canonical rendering. Apply this sequence to creation, audit,
@@ -176,15 +166,17 @@ are described below.
 | `confirmed` | Saved complete Ethos and applicable completed prerequisites, before downstream work has started; saved document confirmation and the selected continuation pause, unless a relevant blocker prevents continuing |
 | `resume` | Saved pending decision or unfinished work; current progress and question, without a welcome, initial readiness question, or invented continuation approval |
 
-`revision` must equal `state.revision`. State determines the journey, checkmarks,
-current step, blockers, confirmations, and pending decision. Facts provide bounded
-display findings and links, not alternate authority. Known continuation prompts
+Known continuation prompts
 from earlier wording retain the same gate and render with current canonical copy;
-rendering does not rewrite the saved question. Row IDs for creation and
+rendering does not rewrite the saved question.
+
+## Prerequisite row facts
+
+Row IDs for creation and
 expansion are `agent_repository`, `evaluation_framework`, `skills`, `access`,
 `runtime`, `environment`, `services_data`, and `agent_access`. Audit uses
 `agent_repository`, `evaluation_framework`, `traces`, `skills`, `access`, and
-`tooling`. Their order and display labels are defined in the template module.
+`tooling`. Their order and display labels are defined in [onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py).
 
 Row statuses are `verified`, `confirmed`, `missing`, `unknown`, and
 `not_required`. Only `environment`, `services_data`, and `agent_access` can be
@@ -192,7 +184,7 @@ Row statuses are `verified`, `confirmed`, `missing`, `unknown`, and
 every non-Unknown row requires findings and an actual source; missing row facts
 render as Unknown. Never fill missing evidence with a success claim. Keep user-confirmed answers distinct from observed checks. Record each
 finding before displaying it: non-Unknown statuses for rows mapped by
-`ROW_PREREQUISITES` in the renderer must match their saved prerequisites. Composite
+`ROW_PREREQUISITES` in the [onboarding renderer](../../scripts/conversation_flows/onboarding.py) must match their saved prerequisites. Composite
 rows use this precedence: `missing`, `unknown`, `confirmed`, `verified`, then
 `not_required`; an absent prerequisite key counts as `unknown`. For example,
 verified runtime availability with user-confirmed Python produces a Confirmed by
@@ -200,11 +192,13 @@ you runtime row, while missing Python makes that row Missing. Unknown display
 is allowed when a finding is unavailable; it cannot justify an invented
 non-Unknown status.
 
-Findings and questions are plain text, escaped by the renderer. Supply links
-separately through optional row `links` entries with `label` and `target`, a
-recommendation's `link`, or the Ethos `link`. Targets must be caller-verified
-absolute local paths or HTTP(S) URLs; the renderer does not inspect them. For
-Ethos facts, use `existing`, `absent`, or `unknown`. An existing Ethos link must
+Supply links separately through optional row `links` entries with `label` and
+`target`, a recommendation's `link`, or the Ethos `link`, following the
+[shared escaping and link contract](../conversation-rendering.md#facts-and-links).
+
+## Ethos and draft facts
+
+For Ethos facts, use `existing`, `absent`, or `unknown`. An existing Ethos link must
 point to the exact repository-root `ETHOS.md` from state. Supply a grounded
 summary for an existing-document review. File presence or successful structural
 validation is not current intent confirmation.
@@ -218,6 +212,8 @@ content. The caller must recover and verify the exact draft returned by
 the renderer does not inspect its path or bytes. This is the existing canonical
 draft workflow, not another authoring path. Omit draft facts when no saved draft
 is being presented, and never treat rendering a draft as its approval.
+
+## Blockers
 
 Supply structured blocker inputs for exactly the active saved blocker IDs.
 The renderer selects active blockers from state:
@@ -282,32 +278,26 @@ question in its `needed` fact when it accompanies a canonical blocker. Clearing 
 workflow's recheck and state update, not omission from a rendering payload.
 
 The canonical expansion-format blocker also includes the conversion handoff from
-[journey_templates.py](../scripts/journey_templates.py) inside Blockers. It
+[onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py) inside Blockers. It
 provides instructions and a copyable prompt for repository engineering work in a
 separate coding-agent chat, with placeholders for the suite path, current
 framework, and Harbor or NeMo Gym target. Supply its saved blocker and loaded
 core skill link; do not duplicate the prompt. Other blockers, phases, and
 journeys do not trigger this handoff. Rendering neither executes conversion nor
 clears the blocker; follow the
-[format recheck](pre-reqs/improve.md#checks-and-blocking-conditions) when the user
+[format recheck](../pre-reqs/improve.md#checks-and-blocking-conditions) when the user
 returns with converted paths and validation results. No state or schema revision
 is introduced by these display specifications.
 
-Use stdin to avoid an extra artifact, or place an input payload under the existing
-`.eval-author/.working/tmp/` directory after readiness:
+## Render and continue
 
-```bash
-python3 -B <skill_dir>/scripts/journey_conversation.py --input -
-python3 -B <skill_dir>/scripts/journey_conversation.py --input /absolute/repository/.eval-author/.working/tmp/conversation.json
-```
-
-Supply the complete JSON through stdin for the first form. Do not pipe a raw
-`show` response directly into the renderer: wrap its `state` with the stage,
-matching revision, and factual display inputs. Use state-only output only for
-`prerequisite_results`; normal artifact reconciliation precedes other stateful
-stages. The renderer returns errors
-for invalid payloads; resolve the actual state or missing input rather than
-falling back to a hand-built success response.
+Follow the [shared input contract](../conversation-rendering.md#input-envelope)
+when passing the payload to the renderer. Use stdin to avoid an extra artifact,
+or place an input payload under the existing `.eval-author/.working/tmp/`
+directory after readiness. Do not pipe a raw `show` response directly into the
+renderer: wrap its `state` with the stage, matching revision, and factual display
+inputs. Use state-only output only for `prerequisite_results`; normal artifact
+reconciliation precedes other stateful stages.
 
 After the user answers, persist the real reply and follow the existing handoff.
 Rendering `confirmed` alone cannot start downstream work, and rendering `resume`

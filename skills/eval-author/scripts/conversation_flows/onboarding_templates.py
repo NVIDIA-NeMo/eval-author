@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Canonical journey conversation copy shared by state presentation and rendering."""
+"""Canonical copy for orientation, prerequisites, and Ethos onboarding."""
 
 WELCOME = "Welcome to Eval Author! I’ll help you evaluate your agent against the behavior you expect."
 WELCOME_WITH_CHECKLIST = WELCOME + " Here’s what we’ll work through:"
@@ -18,16 +18,6 @@ GOAL_INTROS = {
     ),
     "expand": "We’ll improve your existing evaluations. Here’s what we’ll work through:",
 }
-JOURNEYS = {
-    "create": "Build, run, and review your first evaluations",
-    "audit": "Review evaluation coverage, identify gaps, and recommend improvements",
-    "expand": "Improve, run, and review your existing evaluations",
-}
-CHECKLIST_LABELS = (
-    "Check how your agent runs and how you’ll test it",
-    "Agree on how your agent behaves using "
-    "[ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)",
-)
 READY = "Ready to get started?"
 CONTINUATION = {
     "create": "We’re ready to build your evaluation suite. Ready to continue?",
@@ -63,16 +53,6 @@ TRACE_FINDING = (
     "This audit requires saved traces from evaluations that have already run. "
     "Their availability must be confirmed before we continue."
 )
-STATUS_LABELS = {
-    "verified": "Verified",
-    "confirmed": "Confirmed by you",
-    "missing": "Missing",
-    "unknown": "Unknown",
-    "not_required": "Not needed now",
-}
-RECOMMENDATIONS = "### Recommendations\n\nThese suggestions are optional and are not required to continue."
-BLOCKERS = "### Blockers\n\nThese items need to be resolved before we can continue."
-HANDOFF_BLOCKERS = "### Blockers\n\nThese items prevent us from continuing with your evaluations."
 AUDIT_TRACE_BLOCKER = {
     "step": "Saved evaluation traces",
     "reason": (
@@ -108,7 +88,6 @@ BLOCKER_TEMPLATES = {
         },
     },
 }
-BLOCKER_PAUSE = "The {skill} requires “{quote}”. This prerequisite must be resolved before we continue."
 CONVERSION_HANDOFF = """Start a separate chat with your coding agent in the same repository to convert the suite. Replace the three placeholders below with your suite path, current framework, and chosen target: NeMo Gym or Harbor.
 
 ```text
@@ -138,7 +117,6 @@ checks actually performed, and any remaining gaps or dependencies.
 ```
 
 Return here with the converted suite path and validation results so Eval Author can recheck prerequisites."""
-NEXT_STEPS = "### Next Steps"
 ETHOS_ABSENT = "ETHOS.md records what the agent should do, what it should avoid, and what a good result looks like."
 ETHOS_UNKNOWN = "ETHOS.md has not been checked yet."
 ETHOS_FOUND = "I found {document}."

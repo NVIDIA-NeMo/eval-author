@@ -1,31 +1,23 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Render journey conversations from supplied state and observed facts, without side effects.
+"""Render orientation, prerequisites, and Ethos without advancing their workflow.
 
-The caller owns readiness, inspection, digest reconciliation, and recording actual
-replies through journey_state. Rendering neither obtains approval nor advances work.
-Only prerequisite_results accepts state with artifact checks still deferred.
-The CLI reads only its explicit input (or stdin), never a repository or saved state.
+The caller supplies state and evidence; only prerequisite_results accepts state
+whose artifact checks are still deferred.
 """
 
 from __future__ import annotations
 
-import argparse
-import html
-import json
-import re
-import sys
-from pathlib import Path
-from urllib.parse import quote, urlsplit
+from urllib.parse import urlsplit
 
-# Even the initial orientation must not create bytecode caches beside the skill.
-sys.dont_write_bytecode = True
+import conversation_templates as shared
+import journey_state
+from conversation_formatting import link, literal, mapping, text
 
-import journey_state  # noqa: E402
-import journey_templates as copy  # noqa: E402
+from . import onboarding_templates as copy
 
+JOURNEYS = (None, *shared.JOURNEYS)
 PREVIEWS = {"orientation", "goal_selected", "prerequisites"}
 STAGES = PREVIEWS | {"prerequisite_results", "results", "ethos", "confirmed", "resume"}
 ROW_PREREQUISITES = {
@@ -40,44 +32,6 @@ ROW_PREREQUISITES = {
 }
 
 
-def text(value: object, label: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{label} must be nonempty text")
-    return value.replace("\r\n", "\n").replace("\r", "\n").strip()
-
-
-def literal(value: object, label: str, *, table: bool = False) -> str:
-    """Keep supplied prose inside its cell/paragraph, never as Markdown structure."""
-    value = text(value, label)
-    lines = [" ".join(line.split()) for line in value.split("\n")]
-    value = "\n".join(lines) if table else " ".join(line for line in lines if line)
-    value = html.escape(value, quote=False)
-    value = re.sub(r"([\\`*\[\]_{}#!])", r"\\\1", value).replace("|", "&#124;")
-    value = re.sub(r"^([-+]|[0-9]+[.)])(?= )", r"\\\1", value)
-    return value.replace("\n", "<br>")
-
-
-def mapping(value: object, label: str, keys: set[str]) -> dict:
-    if not isinstance(value, dict) or set(value) - keys:
-        raise ValueError(f"{label} must be an object with only {', '.join(sorted(keys))}")
-    return value
-
-
-def link(target: object, label: str) -> str:
-    """Format a caller-verified destination; never resolve or inspect it here."""
-    target = text(target, "link")
-    if any(ord(char) < 32 or char in "<>" for char in target):
-        raise ValueError("Links must not contain control characters or angle brackets")
-    parsed = urlsplit(target)
-    if parsed.scheme:
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError("Links require an HTTP(S) URL or an absolute local path")
-    elif not target.startswith("/") or target.startswith("//"):
-        raise ValueError("Local links require a supplied absolute path")
-    target = quote(target, safe="/:#?&=%@+;,")
-    return f"[{literal(label, 'link label')}](<{target}>)"
-
-
 def checklist(journey: str, state: dict | None = None, *, state_only: bool = False) -> str:
     rows = (
         journey_state.checklist(
@@ -86,7 +40,7 @@ def checklist(journey: str, state: dict | None = None, *, state_only: bool = Fal
         if state is not None
         else [
             {"label": label, "complete": False, "current": index == 0}
-            for index, label in enumerate((*copy.CHECKLIST_LABELS, copy.JOURNEYS[journey]))
+            for index, label in enumerate((*shared.CHECKLIST_LABELS, shared.JOURNEYS[journey]))
         ]
     )
     return "\n".join(
@@ -113,7 +67,7 @@ def canonical_blocker(state: dict, blocker: dict) -> dict | None:
 def prerequisite_table(journey: str, facts: dict, *, state: dict | None = None, checking: bool = False) -> str:
     rows = copy.AUDIT_ROWS if journey == "audit" else copy.AUTHORING_ROWS
     supplied = mapping(facts.get("rows", {}), "rows", {key for key, _ in rows})
-    labels = {**copy.STATUS_LABELS, "checking": "Checking"} if checking else copy.STATUS_LABELS
+    labels = {**shared.STATUS_LABELS, "checking": "Checking"} if checking else shared.STATUS_LABELS
     lines = [copy.TABLE_HEADER]
     for key, label in rows:
         default = {"status": "unknown", "findings": copy.TRACE_FINDING} if checking and key == "traces" else {}
@@ -169,7 +123,7 @@ def recommendations(facts: dict) -> str | None:
         raise ValueError("Recommendations must be a list")
     if not entries:
         return None
-    lines = [copy.RECOMMENDATIONS, ""]
+    lines = [shared.RECOMMENDATIONS, ""]
     for item in entries:
         item = mapping(item, "recommendation", {"text", "link"})
         label = text(item.get("text"), "recommendation text")
@@ -206,7 +160,7 @@ def blocker_section(state: dict, facts: dict, *, confirmed: bool, state_only: bo
         raise ValueError("Supply an explanation for every relevant saved blocker, and no others")
     if not active:
         return None
-    lines = [copy.HANDOFF_BLOCKERS if confirmed else copy.BLOCKERS, ""]
+    lines = [shared.HANDOFF_BLOCKERS if confirmed else shared.BLOCKERS, ""]
     templates = {item["id"]: canonical_blocker(state, item) for item in active}
     pauses = []
     # IDs provide a stable order independent of JSON mapping or state-list insertion order.
@@ -220,7 +174,7 @@ def blocker_section(state: dict, facts: dict, *, confirmed: bool, state_only: bo
             target = text(by_id[key].get("skill_link"), f"blocker {key} skill_link")
             if not urlsplit(target).path.endswith("/SKILL.md"):
                 raise ValueError("A canonical blocker's skill_link must identify the actual loaded SKILL.md")
-            pauses.append(copy.BLOCKER_PAUSE.format(skill=link(target, item["skill_label"]), quote=item["quote"]))
+            pauses.append(shared.BLOCKER_PAUSE.format(skill=link(target, item["skill_label"]), quote=item["quote"]))
     if state["pending_question"] and not state_only and not any(templates.values()):
         # An old continuation CTA cannot escape a newly recorded blocker.
         if state["pending_question"] not in copy.CONTINUATION_JOURNEYS:
@@ -282,7 +236,7 @@ def next_steps(state: dict, facts: dict, stage: str) -> str:
         raise ValueError("Confirmation pause requires confirmed ETHOS.md and no started downstream work or intent gaps")
     if stage == "confirmed" and question not in {None, copy.CONTINUATION[journey]}:
         raise ValueError("Clear the answered review question before presenting the confirmation pause")
-    paragraphs = [copy.NEXT_STEPS, checklist(journey, state)]
+    paragraphs = [shared.NEXT_STEPS, checklist(journey, state)]
     if confirmed:
         if state["ethos"]["remaining_questions"]:
             raise ValueError("Resolve the saved intent questions before presenting confirmed ETHOS.md")
@@ -331,16 +285,13 @@ def next_steps(state: dict, facts: dict, stage: str) -> str:
 
 def render(payload: dict) -> str:
     """Pure rendering: no clocks, filesystem access, state writes, or workflow execution."""
-    payload = mapping(payload, "input", {"stage", "journey", "ready", "state", "revision", "facts"})
-    stage = payload.get("stage")
-    if stage not in STAGES:
-        raise ValueError("Unknown conversation stage")
+    stage = payload["stage"]
     if stage in PREVIEWS:
         allowed = {"stage", "journey", "ready"} | ({"facts"} if stage == "prerequisites" else set())
         if set(payload) - allowed:
             raise ValueError("Only prerequisite previews accept row facts; previews never accept saved state")
         journey = payload.get("journey")
-        if journey not in copy.JOURNEYS and not (stage == "orientation" and journey is None):
+        if journey not in shared.JOURNEYS and not (stage == "orientation" and journey is None):
             raise ValueError("Select create, audit, or expand")
         if stage == "prerequisites":
             assert isinstance(journey, str)
@@ -392,30 +343,3 @@ def render(payload: dict) -> str:
     else:
         paragraphs.append(next_steps(state, facts, stage))
     return "\n\n".join(paragraphs) + "\n"
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--input", help="Presentation JSON file, or - for stdin; never a repository path")
-    mode.add_argument("--stage", choices=sorted(PREVIEWS), help="Render a stateless orientation or table preview")
-    parser.add_argument("--journey", choices=tuple(copy.JOURNEYS))
-    parser.add_argument("--ready", action="store_true", help="The user has actually answered the readiness prompt")
-    args = parser.parse_args()
-    try:
-        if args.input:
-            if args.journey or args.ready:
-                raise ValueError("--input cannot be combined with preview options")
-            raw = sys.stdin.read() if args.input == "-" else Path(args.input).read_text(encoding="utf-8")
-            payload = json.loads(raw, object_pairs_hook=journey_state._pairs)
-        else:
-            payload = {"stage": args.stage, "journey": args.journey, "ready": args.ready}
-        sys.stdout.buffer.write(render(payload).encode("utf-8"))
-        return 0
-    except (OSError, ValueError, TypeError, KeyError) as exc:
-        print(json.dumps({"error": str(exc), "persisted": False}, ensure_ascii=False), file=sys.stderr)
-        return 2
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from journey_templates import CHECKLIST_LABELS, JOURNEYS  # noqa: E402
+from conversation_templates import CHECKLIST_LABELS, JOURNEYS  # noqa: E402
 from runtime_policy import load as runtime_policy  # noqa: E402
 from working_paths import (  # noqa: E402
     atomic_write,
