@@ -44,7 +44,7 @@ def ethos_ready(state, repo):
     "journey,label",
     [
         ("create", "Build, run, and review your first evaluations"),
-        ("audit", "Check what your existing evaluations cover"),
+        ("audit", "Review evaluation coverage, identify gaps, and recommend improvements"),
         ("expand", "Improve, run, and review your existing evaluations"),
     ],
 )
@@ -92,7 +92,9 @@ def test_downstream_resume_preserves_progress_and_audit_switch_reopens_applicabi
     assert resumed["scopes"]["create"]["confirmed"]
     assert resumed["journey_status"]["create"] == "in_progress"
     assert resumed["pending_question"] is None
-    assert state.checklist(resumed)[2]["label"] == "Check what your existing evaluations cover"
+    assert state.checklist(resumed)[2]["label"] == (
+        "Review evaluation coverage, identify gaps, and recommend improvements"
+    )
 
 
 def audit_ready(state, repo, *, setup="gym"):
