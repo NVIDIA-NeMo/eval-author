@@ -1,7 +1,12 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Journey conversation fixtures
+# Conversation rendering fixtures
+
+These inputs exercise the onboarding flows through the shared
+`conversation_renderer.py` API and CLI. The [renderer contract](../../../skills/eval-author/references/conversation-rendering.md)
+describes routing; the [onboarding contract](../../../skills/eval-author/references/conversations/onboarding.md)
+defines the stages represented here.
 
 Each JSON input has a matching Markdown response. The stateful examples contain a
 fixed, synthetic repository path and timestamp so replay never depends on a live
@@ -10,7 +15,7 @@ agent repository. Rendering must preserve the input and must not open that path.
 Replay any example from the repository root:
 
 ```bash
-python3 skills/eval-author/scripts/journey_conversation.py \
+python3 skills/eval-author/scripts/conversation_renderer.py \
   --input tests/fixtures/journey-conversation/results-audit-existing-ethos.json
 ```
 
@@ -19,7 +24,7 @@ results, optional recommendations, blocking requirements, missing/existing/chang
 Ethos, confirmation pauses, and resumed decisions. The goal-switch example retains
 an authoring blocker as history while resuming the current audit decision.
 
-`tests/test_journey_conversation.py` compares both the pure renderer and CLI output
+`tests/test_conversation_renderer.py` compares both the pure renderer and CLI output
 with every Markdown file. Changes to wording or layout require reviewing the
 resulting Markdown alongside the workflow contract before updating expectations.
 
@@ -29,7 +34,7 @@ The tests remove that exact header before comparing renderer bytes. To compare a
 CLI replay with its fixture in Bash or Zsh:
 
 ```bash
-python3 skills/eval-author/scripts/journey_conversation.py \
+python3 skills/eval-author/scripts/conversation_renderer.py \
   --input tests/fixtures/journey-conversation/ethos-draft-review.json | \
   diff - <(tail -n +4 tests/fixtures/journey-conversation/ethos-draft-review.md)
 ```
