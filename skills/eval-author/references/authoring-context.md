@@ -66,6 +66,7 @@ Explain unfamiliar terms such as rubric, judge, weights, or partial credit befor
 asking about them. A checklist status or file link cannot replace that explanation.
 
 Grading asks how an attempt performed against the task's criteria. A coverage
-audit asks which intended agent behaviors the evaluation evidence covers. Explain
+audit examines which intended agent behaviors the evaluation evidence covers,
+identifies gaps, and recommends improvements based on those findings. Explain
 that distinction when offering the existing audit flow; the audit does not finish
 a task's grader or supply its runtime access.

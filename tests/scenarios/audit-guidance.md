@@ -27,16 +27,24 @@ statement that traces from completed evaluation runs exist. This confirms
 availability without selecting their source or location.
 
 Every fresh full audit uses the core's three-item shared prerequisite checklist with
-**Check what your existing evaluations cover** selected. Repeat with NeMo Gym and
+**Review evaluation coverage, identify gaps, and recommend improvements** selected. Repeat with NeMo Gym and
 Harbor, missing Ethos, and unchanged confirmed Ethos. User-confirmed prerequisites
-remain distinct from observed checks. On continuation, show the fixed prerequisite
-table before bounded checks, finish accessible checks, then ask only about
-unresolved findings. Unselected trace reads and agent execution remain out of scope.
+remain distinct from observed checks. On continuation, render `prerequisites`
+with its canonical grounding sentence and initial status table using only
+current conversation facts, then begin bounded accessible checks. Do not read
+state or repository files to fill the initial table. Add no separate preamble,
+checking notice, skill-use announcement, or interim progress summary. Finish
+and save the state-only prerequisite pass before target Ethos inspection.
+An unblocked final uses `results` for the canonical completed-results sentence,
+completed table, optional Recommendations, one checklist, and current review
+material. A blocked final uses `prerequisite_results` once, before any Ethos
+inspection. There is no intermediate completed report or third table.
+Unselected trace reads and agent execution remain out of scope.
 
 Use the fixed six-row audit table: **Agent and repository**, **Evaluation
 framework**, **Traces from completed evaluation runs**, **Required skills**,
 **File and command access**, and **Audit tooling**, in that order.
-The trace row explains that coverage measurement requires traces
+The initial and completed trace rows explain that coverage measurement requires traces
 from evaluations that have already run. Reuse supplied availability answers,
 otherwise leave it **Unknown**, finish accessible checks, and ask whether those
 traces exist before continuing to Ethos. Confirm agent and
@@ -45,13 +53,12 @@ and file/command access, and check Python 3.11 or newer with PyYAML and jsonsche
 for audit tooling. The **Audit tooling** row reports those checks.
 Do not probe Harbor or NeMo Gym runners, Docker, live agent services, or agent
 credentials. **Evaluation environment**, **Required services and data**, and
-**Agent connection and credentials** are absent from both the initial and results
-tables. Trace selection remains in the audit flow; only after selection check its
+**Agent connection and credentials** are absent from the completed audit table. Trace selection remains in the audit flow; only after selection check its
 applicable conversion and parser dependencies.
 
 Repeat with unknown availability and with the user confirming no evaluation
 traces exist. Show **Unknown** or **Missing** in the trace row and **Blockers**
-after the results table. Keep setup incomplete and omit Next Steps, the checklist,
+after the completed table, directly in final once. Keep setup incomplete and omit Next Steps, the checklist,
 and Ethos guidance. Do not say prerequisites passed or ask again whether traces
 exist after confirmed absence. Evaluation definitions and scores alone do not
 satisfy this prerequisite. A later explicit specification-only request keeps that
@@ -80,7 +87,7 @@ before canonical writes. Missing skills are a dependency limitation, not a reaso
 to create another fallback interview. Preserve custom sections and creation
 metadata. A substantive format mismatch stays explicit for the canonical workflow.
 
-Afterward, keep **Check what your existing evaluations cover** current while naming the present coverage
+Afterward, keep **Review evaluation coverage, identify gaps, and recommend improvements** current while naming the present coverage
 stage. Ask about missing suite, source, or content decisions and wait before the
 dependent operation; reuse decisions already supplied. Independent source-safe
 work can proceed while measurement inputs are unavailable.
@@ -149,7 +156,7 @@ Every turn that creates or updates this
 report must explicitly say so and link it in the final reply, including an
 intermediate checkpoint or a turn that cannot complete measurement. Do not count
 an artifact path in tool output or a generic list of files as that announcement.
-Generating the report does not complete its user review: the Check what your existing evaluations cover checkbox
+Generating the report does not complete its user review: the Review evaluation coverage, identify gaps, and recommend improvements checkbox
 remains pending until the user has reviewed the findings and any corrections
 have been addressed. Progress records that review state; it does not replace the
 report.
@@ -435,13 +442,15 @@ accepted-Ethos variant, add: “The existing `ETHOS.md` was already reviewed.”
 “Ready to get started?”, then end the turn. No repository or saved-state reads
 or prerequisite checks occur.
 
-**Continue:** Show the fixed prerequisite table before inspecting the named
-documents, shared state, and accessible prerequisites. Check Python and audit
+**Continue:** Show the canonical grounding sentence and initial status table
+using only current conversation facts. Then begin bounded inspection of the
+named documents, state-only metadata, and accessible prerequisites, without an
+extra workflow preamble, checking notice, or interim summary. Check Python and audit
 tooling, identify the existing evaluation format, and skip runner, Docker,
 live-service, and agent credential probes. Finish the accessible checks before
-asking about unresolved items. With trace availability **Unknown**, show
-**Blockers**, keep setup incomplete, and omit Next Steps, the checklist, and Ethos
-guidance.
+asking about unresolved items. With trace availability **Unknown**, show the
+completed table and canonical **Blockers** directly in final once. Keep setup
+incomplete and omit Next Steps, the checklist, and Ethos guidance.
 Ask whether traces from completed evaluation runs exist. No trace searches occur.
 
 **Availability reply:** “Yes, I have traces from completed evaluation runs; I’ll

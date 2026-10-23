@@ -8,16 +8,18 @@ for when to show this table, how to inspect prerequisites, and how to present re
 
 ## Prerequisite table
 
-| Prerequisite | Status | Findings |
-|---|---|---|
-| Agent and repository | Checking | — |
-| Evaluation framework | Checking | — |
-| Required skills | Checking | — |
-| File and command access | Checking | — |
-| Python and evaluation runtime | Checking | — |
-| Evaluation environment | Checking | — |
-| Required services and data | Checking | — |
-| Agent connection and credentials | Needed before agent runs | — |
+Use the [conversation renderer](../journey-conversation.md) for journey
+`create`. After the user's readiness reply, show `prerequisites` with its canonical
+grounding sentence above the initial status table. Use only facts already in
+conversation; do not read saved state or inspect the repository to populate it.
+Then complete and save bounded state-only checks before target Ethos inspection.
+If blocked, render `prerequisite_results` directly as final once. If unblocked,
+continue Ethos without an intermediate completed report, then render `results`
+after normal reconciliation for the final completed table, Recommendations,
+checklist, and Ethos action.
+Table labels, order, and default statuses belong only to
+[journey_templates.py](../../scripts/journey_templates.py); supply findings by
+row ID and retain every row.
 
 ## Checks and blocking conditions
 

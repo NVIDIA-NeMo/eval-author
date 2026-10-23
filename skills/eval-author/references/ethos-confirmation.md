@@ -35,21 +35,25 @@ again.
 
 ## Enter the Ethos step
 
-The caller completes all applicable prerequisite checks and saves findings with
-`--state-only` before entering or resuming Ethos. With no Blockers remaining, it
-visibly presents the completed results table, any Recommendations, and **Next
-Steps** with the shared checklist from
-[Present results and the next step](shared-prerequisites.md#present-results-and-the-next-step).
-Only then locate, read, or validate the target `ETHOS.md`, recover draft content,
-or run the orchestrator's preflight. During prerequisite checks, reading installed
-skill instructions establishes only their availability and compatibility. This order also applies
-to resumes, goal switches, and direct flow invocations. Continue in the same turn
-after the visible transition; no new approval pause is required. Repeat the
-results table and checklist with the Ethos explanation or question in the final
-reply. A blocked response ends with Blockers and omits Next Steps, the checklist,
-and Ethos guidance. Eval Author owns this ordering; the Ethos skills own the work
-afterward. Existing evaluations describe current coverage; they do not establish
-the agent's intended behavior.
+Complete the applicable prerequisite checks and save findings with `--state-only`
+before entering or resuming Ethos from a prerequisite pass. If blocked, render
+[`prerequisite_results`](journey-conversation.md#stateful-responses) directly as
+the final response once and stop. Only after the pass is complete, saved, and
+unblocked locate, read, or validate the target `ETHOS.md`, recover draft content,
+or run the orchestrator's preflight. Reading installed skill instructions during
+checks establishes only availability and compatibility. This order applies to
+prerequisite resumes, goal switches, and direct flow calls.
+
+Continue in the same turn without publishing an intermediate completed report
+or adding an approval pause. Save returned findings and the pending question,
+reload normally reconciled state, and render `results` in the final reply with
+the canonical grounding sentence, completed prerequisite table, optional
+Recommendations, Next Steps, one checklist, and current Ethos action. Use `ethos`
+for a subsequent Ethos-only action or `resume` for its saved pending decision
+when no new prerequisite pass is needed. A blocked response ends with
+Blockers and omits all next-step guidance. Eval Author owns this ordering; the
+Ethos skills own the content afterward. Existing evaluations describe coverage;
+they do not establish intended behavior.
 
 Reuse the shared prerequisite orientation. The
 shared prerequisite flow confirms repository-root `ETHOS.md`, which must be a
@@ -71,7 +75,7 @@ matching digest does not
 establish that this is still the correct document or that its intent is current.
 Reuse the content, source findings, and prior answers to make the review brief.
 
-Before displaying the prerequisite transition checklist, use
+Before completing the prerequisite pass and inspecting target artifacts, use
 `journey_state.py --repo <repository> --state-only update` to mark a required
 review pending when supplied context or saved metadata identifies an existing
 document: set `ethos.stage` to `review`, save the pending action or question, and
@@ -81,25 +85,16 @@ creation as the pending action without looking for the file yet. Keep Ethos
 unchecked and current when prerequisites are complete; preserve prior content
 bindings, provenance, scope, and completed flows as history.
 
-After the transition is visible, invoke the orchestrator to locate and read the
-document and confirm its identity and current intended behavior. Include this
-complete **Next Steps** section in the final
-reply after the results table and any Recommendations:
+After the prerequisite pass is complete, saved, and unblocked, invoke the orchestrator to locate and read the
+document and confirm its identity and current intended behavior. Supply the
+renderer with `facts.ethos.status: existing`, the actual file link, and a brief
+summary grounded in the document's intended behavior, boundaries, and success
+criteria. Render `results` in the final reply after normal state reconciliation,
+including the completed prerequisite findings and any Recommendations. The
+existing-document review includes its heading, checklist, link, summary, and
+current review question exactly once. Later Ethos-only replies use `ethos`.
 
-```markdown
-### Next Steps
-
-[Shared three-item checklist from the core, with saved progress]
-
-I found [ETHOS.md](path-to-the-document).
-
-[Brief summary of this agent's intended behavior, boundaries, and success criteria]
-
-Is this the right ETHOS.md for [agent], and does it accurately describe how the agent should behave today?
-```
-
-Replace placeholders with the actual file link, agent, and a summary grounded in
-the document. Wait for the user's answer before marking Ethos complete or
+Wait for the user's answer before marking Ethos complete or
 offering to continue with evaluations. Keep uncertainty in `review` and return to
 the orchestrator for clarification. A wrong document or confirmed change in intent
 starts the appropriate `explore`, `interview`, or `draft` stage, invalidating the
@@ -124,7 +119,7 @@ do not treat the former agent's document or draft approval as current permission
 
 During prerequisite work, load and save shared journey metadata only with
 `--state-only init`, `--state-only show`, and `--state-only update`. After the
-visible prerequisite transition, load normal shared state before each Ethos call,
+prerequisite pass is complete, saved, and unblocked, load normal shared state before each Ethos call,
 including a fresh chat or a switch between create, audit, and expand. Eval Author
 owns the selected journey, checklist, state layout, and return routing; Ethos needs
 none of those details.
@@ -159,8 +154,12 @@ handing back the conversation. These lists replace their stored values, so retai
 previous entries while adding new findings or answers. Eval Author stages the
 canonical workflow’s returned draft content under `.eval-author/.working/` and
 records its path and digest; the orchestrator does not own that staging artifact.
-It is proposed Ethos content, not another progress
-or planning document. Keep canonical `ETHOS.md` unchanged until its draft is
+For a saved draft in stage `draft` or `write`, reload reconciled state and supply
+`facts.draft` to the conversation renderer with its exact absolute link and
+recorded digest. The renderer shows this reviewable draft before the pending
+question. Recover and verify the canonical workflow's exact content before
+supplying it; rendering performs no file inspection and provides no approval.
+It is proposed Ethos content, not another progress or planning document. Keep canonical `ETHOS.md` unchanged until its draft is
 confirmed. Record the actual confirmation reply in `draft_source` and set
 `draft_confirmed` only for the matching recoverable draft. The `write` stage
 requires that confirmation; inferred intent or a checksum alone does not supply
@@ -191,7 +190,7 @@ a digest. Use only the
 confirmed exact content for downstream cases or audit items. Validation alone
 is not intent confirmation. Present the returned path and unresolved gaps, then follow the
 shared [completion pause](shared-prerequisites.md#pause-after-ethos-confirmation).
-End the turn after Next Steps, the updated checklist, and the continuation question.
+End the turn after the rendered `confirmed` response with its continuation question.
 Do not begin source selection or delegate evaluation work until the user continues.
 If Blockers remain, use the blocked response instead.
 

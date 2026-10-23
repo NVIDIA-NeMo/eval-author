@@ -36,7 +36,27 @@ The report explains what passed, failed, or remains unverified for each suite.
 These checks do not measure the actual agent's performance or evaluation quality.
 
 Discovery can also describe other evaluation formats and their documented run
-commands. General conversion of those suites is currently unsupported.
+commands. Eval Author does not convert those suites; use the
+[conversion handoff](#convert-a-suite-for-expansion) when expansion requires a
+supported format.
+
+## Convert a suite for expansion
+
+If expansion pauses because your existing suite uses an unsupported format, its
+Blockers section includes a copyable conversion prompt. Open a separate coding
+agent chat in the same repository, paste that prompt, and replace the suite path,
+current framework, and target placeholders. Choose either Harbor or NeMo Gym. See the
+[example conversion handoff](../tests/fixtures/journey-conversation/results-expand-blocked.md)
+for the rendered prompt.
+
+The prompt asks the coding agent to preserve your original tests and agent code,
+carry their scenarios and grading into a new output directory, and map converted
+cases and unresolved gaps. It requests offline validation and reports any live
+execution requirements separately. Return to Eval Author with the converted
+suite paths and validation results. Expansion resumes after Eval Author checks
+the actual format and resolves any remaining prerequisites. The blocked response
+links the skill instruction that requires this pause; the prompt does not clear
+the format requirement.
 
 ## Audit coverage
 
@@ -47,6 +67,10 @@ evidence cannot establish.
 ```
 
 A full audit starts with the [shared setup and Ethos confirmation](getting-started.md).
+If saved trace availability is unresolved or traces are absent, the prerequisite
+response explains the required action and links the audit skill instruction
+that requires the pause. Unknown availability and confirmed absence are shown
+separately; neither is a claim about measured coverage.
 
 Milestone and source-selection questions hand the conversation back
 to you. Work stops while the answer is pending, including background work and

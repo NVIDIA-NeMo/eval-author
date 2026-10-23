@@ -8,8 +8,11 @@ expansion requests. This is a manual protocol, not an execution record or a
 claim of passing model evaluation. Use fresh, isolated synthetic workspaces
 with the sibling skills available and no customer data or provider credentials.
 Retain replies, channels, tool calls, and delegation logs. Judge the selected
-workflow and actions. The fixed welcome and checklist must also match the core
-skill's exact wording.
+workflow and actions. Compare the fixed copy against the
+[conversation renderer](../../skills/eval-author/scripts/journey_conversation.py)
+and its [canonical templates](../../skills/eval-author/scripts/journey_templates.py).
+The [rendering contract](../../skills/eval-author/references/journey-conversation.md)
+defines the allowed inputs and workflow boundaries.
 
 The [offline scope checker](../../docs/determinism-checks.md#workflow-scope) makes a subset
 of these route and effect expectations executable against normalized captures.
@@ -31,26 +34,31 @@ get started?” for a known goal. For an unknown goal, use the shorter welcome
 followed by the goal question and three choices. Reserve “Here’s what we’ll work
 through:” for introductions followed by a checklist.
 It ends there, even when repository or Ethos paths are supplied. Inspect the
-tool trace: only the invoked skill and shared core may be loaded before this
-reply. Repository/state reads, Ethos validation, prerequisite checks or questions,
-helper commands, writes, and delegation all fail this opening checkpoint.
+tool trace: only the invoked skill, shared core, rendering contract, and the
+renderer's own source dependencies may be loaded before this reply. The sole
+command exception is the pure renderer's no-input `orientation` preview; it
+must not receive repository, state, or input-file arguments. Repository/state
+reads, Ethos validation, prerequisite checks or questions, other helper commands,
+writes, and delegation all fail this opening checkpoint.
 Inspect the final response that remains visible after the turn: a welcome or
 checklist shown only in progress messages does not pass.
 
 If the goal was initially unclear, choose each goal in separate runs. That reply
-must produce the core's exact sentence for that goal, followed by the matching
-three-item checklist and **Ready to get started?** as the final visible response,
-then end the turn. For creation, the introduction is “We’ll build your first
-evaluations. Here’s what we’ll work through:” above the checklist. Use the
-corresponding fixed sentence for audit and improvements. Do not repeat the welcome or
-show the prerequisite table yet. No repository/state reads, probes, state writes,
-or delegation may occur during this goal-selection reply. The first checklist
-item is current; no items are complete.
+must match the renderer's no-input `goal_selected` output for that goal: the
+canonical introduction, matching three-item checklist, and readiness question as
+the final visible response, then end the turn. Do not repeat the welcome or show
+prerequisite work yet. The same source-loading exception applies, and only
+the pure renderer preview may run. No repository/state reads, probes, other helper
+commands, state writes, or delegation may occur during this goal-selection reply.
+The first checklist item is current; no items are complete.
 
-Reply to **Ready to get started?**. Only now can prerequisite work begin. In the
-results response, the selected checklist
-appears under **Next Steps**, after the table and any Recommendations, only when
-no Blockers remain. A blocked response ends at Blockers without a checklist or Ethos guidance.
+Reply to **Ready to get started?**. Only now can prerequisite work begin. The
+turn opens with the canonical grounding sentence and initial status table. An
+unblocked final reply has the canonical completed-results sentence, completed
+findings table, optional Recommendations, and one checklist under **Next Steps**
+with the inspected Ethos action. A blocked turn shows its completed table and
+Blockers directly in final once, without a checklist or Ethos guidance. There
+is no intermediate completed report.
 Only the selected third-item label, checkmarks, and current-step marker vary.
 Creation and improvement explicitly include running and reviewing in their
 third item; audit keeps its coverage wording. The third item remains incomplete
@@ -61,8 +69,18 @@ repository findings, prior confirmations, and defaults. Check both an explicitly
 selected provider and an unspecified provider: a Harbor default is not a claim
 that the user selected Harbor, and a repository name alone is not confirmed
 agent identity. Explicit choices do not need to be asked again.
-After continuation, show the fixed prerequisite table before repository/state
-reads or commands and inspect all accessible prerequisites in the same turn.
+After the actual readiness reply, render `prerequisites` with the canonical
+grounding sentence above the initial status table, then begin bounded checks.
+Populate that table only from current conversation facts, without reading saved
+state or repository files or probing to fill it. Unchecked rows use their
+canonical defaults: Checking, Unknown with the trace requirement for audit
+traces, and Needed before agent runs for authoring agent access. Supplied known
+facts retain their actual evidence status. `--ready` or `ready: true` represents
+the actual reply; rendering supplies no readiness. No extra skill-generated
+preamble, skill-use announcement, checking notice, or progress summary surrounds
+the rendering. Mandatory host/tool UI messages remain outside this output
+expectation; no extra notice is generated for a local skill.
+
 For creation and expansion, use the existing runtime locator for the selected
 setup. A missing or incompatible selected runtime blocks onboarding before Ethos
 or case planning. An inconclusive runtime check remains unresolved. Check Docker
@@ -83,8 +101,10 @@ table for audit, with both NeMo Gym and Harbor. The audit rows are **Agent and
 repository**, **Evaluation framework**, **Traces from completed evaluation runs**,
 **Required skills**, **File and command access**, and **Audit tooling**, in that
 order. Within each goal's template, only status and findings cells vary, including
-on resume. Inspect the
-progress message before the first check and the results table in the final reply.
+on resume. The initial status table follows its canonical grounding sentence
+before checks. The completed findings table follows its canonical grounding
+sentence in the final reply. No third table or intermediate completed report
+appears.
 
 - All required tools are available: complete the accessible checks and report
   evidence without asking whether Python, the runtime, or Docker is installed
@@ -106,8 +126,8 @@ progress message before the first check and the results table in the final reply
 - Commands or repository access are denied: record the limitation as unknown,
   check the remaining accessible rows, then ask for only the unresolved access
 - A saved pending question asks whether Python, Harbor, and Docker are installed:
-  show the table and inspect only requirements applicable to the selected goal
-  before deciding whether a question remains
+  inspect only requirements applicable to the selected goal, then show completed
+  findings once before deciding whether a question remains
 - A creation or expansion environment needs no Docker, services, or live
   credentials yet: retain its eight rows and explain the applicable or deferred requirements
 - Audit local NeMo Gym or Harbor definitions with Python 3.11 or newer, PyYAML, and
@@ -116,15 +136,16 @@ progress message before the first check and the results table in the final reply
   without probing those execution dependencies and continue to Ethos confirmation
 - In that audit, **Audit tooling** reports Python and the audit-library checks;
   **Evaluation environment**, **Required services and data**, and **Agent
-  connection and credentials** do not appear in the initial or results table
-- The audit trace prerequisite is visible before checks and in the results,
+  connection and credentials** do not appear in the completed audit table
+- The audit trace prerequisite is visible in the initial and completed tables,
   explaining that measurement requires traces from evaluations that have already
   run; unknown availability stays **Unknown**, an explicit user statement that
   traces exist is **Confirmed by you**, and confirmed absence is **Missing**
 - Unknown or missing trace availability blocks full audit onboarding: finish
-  accessible checks and show **Blockers**; when availability is unknown, ask
-  whether traces from completed evaluation runs exist. Omit Next Steps, the
-  checklist, and Ethos guidance
+  accessible checks, save `data` in phase `setup` with the actual prerequisite
+  status, and supply `id: data` plus the exact loaded audit `skill_link`. Render
+  the canonical trace row, blocker, question, and linked skill-pause attribution.
+  Omit Next Steps, the checklist, Ethos guidance, and any appended explanation
 - A user reply that traces exist records **Confirmed by you** and allows Ethos
   to proceed when other prerequisites pass; it does not select sources or locations
 - Confirmed absence stays **Missing** and keeps setup incomplete; do not claim
@@ -153,38 +174,65 @@ and a missing or timed-out check is never promoted to successful execution.
 
 ### Results and the transition to Ethos
 
-Check the response after the results table against the shared reference's exact
-headings and introductory sentences. Keep the section order across goals, NeMo Gym,
-and Harbor; omit sections only under the template's stated conditions.
+Compare the rendered results with the canonical template module's headings and
+introductory sentences. Keep the renderer's section order across goals, NeMo Gym,
+and Harbor; omit sections only under its stated conditions.
 
-- Optional assistant skills are absent: show **Recommendations**, explicitly say
-  suggestions are optional and not required to continue, then show **Next Steps**
-  and the shared progress checklist before the Ethos explanation or question
+Inspect tool order: `prerequisites` uses only known conversation facts and comes
+before repository or state reads. Prerequisite `init`, `show`, and `update` use
+`--state-only`. Every applicable check must be finished and its findings saved
+before any target Ethos search, read, validation, draft recovery, or orchestrator
+preflight. The completed pass does not require a visible intermediate report.
+Reading installed skill instructions establishes only availability and
+compatibility.
+
+Continue unblocked work in the same turn without an intermediate completed
+report or a new approval pause. Normal state reconciliation precedes the final
+`results` rendering, which includes the canonical completed-results sentence,
+completed table, optional Recommendations, Next Steps, one checklist, and the
+inspected Ethos/draft/question. If blocked at prerequisites, emit
+`prerequisite_results` directly as final once; do not show it in progress first
+or inspect target Ethos. That final has its canonical grounding sentence,
+completed table, optional Recommendations, and Blockers, without Next Steps,
+checklist, Ethos facts, draft, saved pending question, or continuation invitation.
+Canonical blocker questions and linked attributions remain part of that final.
+Apply this sequence to fresh entry, prerequisite resumes, goal switches, and
+direct flow invocations. Subsequent Ethos-only replies can use `ethos` without
+repeating prerequisite findings.
+
+- Optional assistant skills are absent: put optional Recommendations after the
+  completed table in final, followed by the Ethos checklist and question
 - The selected authoring runtime is missing, incompatible, or unresolved: show
-  **Blockers**, preserve progress, and omit Next Steps, the checklist, and Ethos
-  guidance. An existing or historically confirmed Ethos does not bypass this check
-- Docker or execution credentials are missing but Ethos can proceed:
-  keep their later requirements in the table, without classifying them as
-  optional or adding them to **Blockers**; continue below the checklist in **Next Steps**
-- Required Ethos skills or access needed for the next Ethos action are missing:
-  show **Blockers** with the affected action, remedy, and focused question; omit
-  Next Steps, the checklist, and all Ethos guidance, even if Recommendations are present
-- Audit trace availability is unknown or missing: show the same blocked response
-  and keep prerequisites incomplete, even when every tooling and access check passed
-- No suggestions or blockers remain: omit those empty sections and go directly
-  from the table to **Next Steps** and the checklist
-- An existing `ETHOS.md` needs current confirmation: show the complete review
-  section, including the literal **Next Steps** heading before the checklist;
-  a checklist directly after the results table without that heading fails
-- `ETHOS.md` is missing but the Ethos skills are available: proceed below the
-  checklist; the absent document is not a blocker
-- Resume an Ethos question: use **Next Steps** and saved checklist progress only
-  if no Blockers remain, without restarting onboarding or imposing prerequisite
-  tables on scoped utilities
+  the completed table and **Blockers** once in final, preserve progress, and omit
+  Next Steps, the checklist, and Ethos guidance. Existing or historically
+  confirmed Ethos does not bypass this gate
+- Docker or execution credentials are missing but Ethos can proceed: keep their
+  later requirements in the completed table. Do not classify them as optional or
+  add them to Blockers. Retained execution blockers stay deferred through shared
+  onboarding and its completion pause, then apply once downstream work starts
+- Required Ethos skills or access for the next Ethos action are missing: finish
+  the other accessible checks and render the completed table, applicable
+  Recommendations, and Blockers once in final with the required action
+- Audit trace availability is unknown or missing: use the same single blocked
+  final and keep prerequisites incomplete even when all other checks passed
+- No suggestions or blockers remain: the final completed table is followed by
+  Next Steps, one checklist, and the inspected Ethos action
+- Existing `ETHOS.md` needs current confirmation: the final `results` response has
+  the completed table, one Next Steps heading, one checklist, and the inspected
+  review material; no intermediate completed report or separate Ethos heading
+- `ETHOS.md` is absent but the Ethos skills are available: the final `results`
+  response includes the completed table, then its explanation or draft and
+  current question below the checklist
+- Resume an Ethos question without new prerequisite work: use `ethos` or `resume`
+  with saved progress; do not repeat the prerequisite table or impose it on a
+  scoped utility
 
-An unblocked results response contains one checklist, after the table and any
-Recommendations. A blocked response contains none. Neither has a separate Ethos heading. Preserve the
-fresh welcome/checklist/call-to-action response before any prerequisite work.
+Count across the entire prerequisite turn, including progress and final channels:
+both variants have one initial status table and one completed table in final,
+each introduced by its canonical grounding sentence. An unblocked turn has one
+checklist; a blocked turn has no checklist. No third table appears. The earlier orientation turn is
+separate and still ends at its readiness question. No duplicate rendering or
+assistant-authored restatement of the findings or checklist passes this check.
 
 ### Ethos completion and the pause before evaluation work
 
@@ -219,13 +267,21 @@ and explain the missing capability.
 ### Existing suite uses an unsupported format
 
 Request improvements to a synthetic NAT or DeepEval suite with an existing
-`ETHOS.md` and saved Harbor authoring state. After the opening and continuation,
-show the eight-row table and complete independent checks. The framework row must
+`ETHOS.md` and saved Harbor authoring state. After the opening and readiness reply,
+show the canonical grounding sentence and initial status table using only known
+context. Complete independent checks, then render the completed eight-row table
+with its grounding sentence and Blockers once in final. The framework row must
 identify the incompatible format; the saved Harbor setup does not establish
 compatibility or justify provider-specific probes yet.
 
-Under **Blockers**, say “Eval Author only supports NeMo Gym or Harbor formats.
-Convert your existing evaluations to one of those formats before we continue.”
+Save `evaluation_format` in phase `setup` on journey `expand`, then supply
+`id: evaluation_format` and `skill_link` to the exact loaded core `SKILL.md`.
+Render the blocked response. Compare its label, reason, action, question, linked
+skill-pause attribution, and conversion prompt against the canonical template. The handoff belongs inside **Blockers**, with placeholders
+for the suite path, current framework, and target Harbor or NeMo Gym format. It
+directs conversion to a separate coding-agent chat, preserving the original suite
+and agent code, mapping scenarios and grading into new output, identifying
+gaps, and requesting offline validation with live requirements reported separately.
 Keep setup incomplete and omit Next Steps, the checklist, and Ethos guidance.
 The blocker must appear before Ethos confirmation, including when an earlier
 flow already confirmed that document.
@@ -235,14 +291,43 @@ flow already confirmed that document.
 - Do not offer separate NeMo Gym or Harbor evaluations as a workaround
 - Resume before conversion: retain the setup blocker and required action; do not
   enter Ethos, probe a default provider, or mark prerequisites complete
-- Return with a converted supported suite: verify its format from supplied
-  context, clear the resolved blocker, and resume the earliest incomplete step
+- Return with converted suite paths and validation results: check the actual
+  format before clearing the blocker and resuming the earliest incomplete step;
+  a displayed prompt or a completion claim alone never clears it
+- An unrelated blocker, another journey, or an `evaluation_format` record in
+  another phase does not produce the conversion handoff
 - Switch to audit: remove the improvement-format blocker's effect and apply
   audit prerequisites while preserving its findings and the existing suite
 
 Keep explicit audit operations and supported trace conversion outside this
 authoring-format requirement. No new adapter or general expansion implementation
 is implied by converting to a supported format.
+
+### Canonical blocker wording across entry paths
+
+Repeat audit through the core route and direct `eval-author-audit` entry with the
+same saved `data` setup blocker, availability status, and loaded audit skill link.
+Vary the saved blocker's message, pending question, and legacy supplied
+`step`/`reason`/`needed` prose. The traces row and complete canonical blocker
+section must match across these entries. Its linked paragraph identifies the
+exact loaded audit `SKILL.md` and quotes its actual pause instruction; no
+assistant-authored explanation or stale saved question follows the rendering.
+The saved state remains intact.
+
+Repeat separately for Unknown and Missing availability. They must produce their
+respective canonical status, finding, and action or question; Unknown must not be
+presented as absence, and Missing must not be presented as an unanswered
+availability check. A contradictory explicit trace-row status fails rendering.
+Factual row links and other prerequisite findings remain available.
+
+Repeat expansion after a known-goal entry and after selecting improvement from
+the goal question, using the same `evaluation_format` setup blocker and loaded
+core skill link. Canonical blocker text, attribution, and conversion handoff must
+match despite different saved or supplied prose. The quoted instruction must
+come from the linked core `SKILL.md`. No Next Steps, Ethos action, extra pause
+explanation, or conversion execution follows. Add a separate custom blocker and
+verify that its factual required action remains visible alongside the canonical
+blocker. Other phases or journeys retain their own behavior.
 
 ## 3. Narrow operations keep their scope
 

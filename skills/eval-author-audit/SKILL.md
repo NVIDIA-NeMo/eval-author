@@ -2,9 +2,10 @@
 name: eval-author-audit
 description: >-
   For a fresh full audit, read the eval-author core skill at ../eval-author/SKILL.md,
-  show its welcome, checklist, and call to action, and end the turn before
+  use its pure conversation renderer for orientation and end the turn before
   repository inspection or prerequisite work.
-  Guide coverage audits with milestone check-ins and user-confirmed eval and trace sources.
+  Review evaluation coverage, identify gaps, and recommend improvements with
+  milestone check-ins and user-confirmed eval and trace sources.
   Generate, validate, measure, and report on an audit-spec coverage denominator
   for Eval Author. Use when the user wants a hand-editable audit.md file derived
   from Ethos, needs schema enforcement for declared tools, capabilities, failure
@@ -48,22 +49,31 @@ Read the [eval-author core skill](../eval-author/SKILL.md) for the shared standa
 vocabulary, and boundaries. This sub-flow generates and validates a finite
 coverage denominator from `<ethos_path>` and
 reviewed audit items, then can measure ATIF traces and aggregate coverage reports
-against it. It also writes a human-readable `audit-coverage-report.md` and reviews
-the findings with the user. It does not generate tasks yet.
+against it. It identifies coverage gaps and recommends improvements grounded in
+the findings and evidence limits, then writes a human-readable
+`audit-coverage-report.md` and reviews it with the user. Detailed task proposals
+and task creation remain in the separate improvement handoff.
 
 ## Start a guided audit
 
 A full audit enters the core's shared prerequisite flow, including direct
-invocation. For a fresh audit, show only its fixed welcome, three-item checklist
-with **Check what your existing evaluations cover** selected, and call to action,
-then end the turn.
-Read only this skill and the core before that response; repository inspection,
-Ethos validation, prerequisite questions, and state writes wait until the user
-continues. Reuse confirmed agent, prerequisites, and Ethos on continuation.
+invocation. For a fresh audit, use the core's
+[conversation renderer](../eval-author/references/journey-conversation.md) for
+`orientation` with journey `audit`, then end the turn. Read only this skill,
+the core, and that renderer contract as needed before the response; the core's
+narrow pure-renderer command exception applies. Repository inspection, Ethos
+validation, prerequisite questions, and state writes wait for the actual readiness
+reply. Complete and save the core's state-only prerequisite pass before
+any target Ethos inspection, then reconcile artifacts and include the completed
+findings in the final `results` response. Reuse
+confirmed agent, prerequisites, and Ethos on continuation.
 Apply the shared flow's audit checks: local audit tooling and source access,
 without evaluation runner, Docker, live agent service, or credential probes.
 Confirm that traces from completed evaluations exist before continuing to Ethos;
 unknown or missing availability pauses onboarding under **Blockers**.
+Follow the [canonical trace blocker](../eval-author/references/pre-reqs/audit.md#traces-from-completed-evaluation-runs),
+supplying the exact loaded audit skill link for its renderer-owned attribution;
+do not append a separate pause explanation.
 Check conversion and trajectory-parser dependencies only after evidence selection.
 
 After shared onboarding's completion pause and the user's continuation, follow
