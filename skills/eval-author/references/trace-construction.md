@@ -21,6 +21,9 @@ disappears during construction, record the change and reassess the proposal; a
 runnable task about another behavior does not close the original gap. An
 unresolved answer rule calls for evidence or a user decision, not an invented
 expected answer. A proposal may remain useful while construction is blocked.
+Keep unresolved authority in the private plan or block construction, rather than
+shipping it as a runtime grading prerequisite; a shipped verifier must emit a
+reward for the submission or report an actual verifier execution error.
 
 Preserve the calling flow's eligibility rules. A capability or failure-case
 finding does not become an automatically actionable tool gap because a trace

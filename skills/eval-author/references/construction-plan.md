@@ -7,6 +7,9 @@ New construction uses `nemo.eval_author.construction.v2`, for Harbor and Gym.
 Keep `construction.json` private, outside the task tree. Trace workspaces use
 `private/construction.json`. Proposals may leave authority unresolved; a draft
 must identify the rule or independent evidence that defines correctness.
+Unresolved authority stays in the private plan and blocks construction where
+needed, never becoming a runtime grading prerequisite: a shipped verifier must
+emit a reward for the submission or report an actual verifier execution error.
 
 The same contract serves first-eval, task-create and trace-derived construction.
 Provider adapters interpret native observations; they do not define another
