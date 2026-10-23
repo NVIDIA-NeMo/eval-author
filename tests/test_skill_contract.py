@@ -2104,7 +2104,8 @@ def test_ethos_confirmation_handoff_resources_resolve() -> None:
     [
         "skills/eval-author/SKILL.md",
         "skills/eval-author/references/shared-prerequisites.md",
-        "skills/eval-author/references/journey-conversation.md",
+        "skills/eval-author/references/conversation-rendering.md",
+        "skills/eval-author/references/conversations/onboarding.md",
         "skills/eval-author/references/pre-reqs/create.md",
         "skills/eval-author/references/pre-reqs/audit.md",
         "skills/eval-author/references/pre-reqs/improve.md",

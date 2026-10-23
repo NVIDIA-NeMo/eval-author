@@ -48,7 +48,7 @@ def golden_output(path):
 @pytest.fixture
 def conversation(monkeypatch):
     monkeypatch.syspath_prepend(str(SCRIPTS))
-    return importlib.import_module("journey_conversation")
+    return importlib.import_module("conversation_renderer")
 
 
 @pytest.fixture
@@ -130,7 +130,7 @@ def test_golden_conversations_are_reproducible(conversation, fixture):
 @pytest.mark.parametrize("fixture", sorted(FIXTURES.glob("*.json")), ids=lambda path: path.stem)
 def test_golden_inputs_replay_through_cli(fixture):
     result = subprocess.run(
-        [sys.executable, str(SCRIPTS / "journey_conversation.py"), "--input", str(fixture)],
+        [sys.executable, str(SCRIPTS / "conversation_renderer.py"), "--input", str(fixture)],
         capture_output=True,
         text=True,
         check=False,
@@ -168,6 +168,18 @@ def test_orientation_does_not_need_state(conversation, journey):
     assert result.endswith("Ready to get started?\n")
     assert "### Next Steps" not in result
     assert "| Prerequisite |" not in result
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"stage": "unregistered", "journey": "create"},
+        {"stage": "orientation", "journey": "unregistered"},
+    ],
+)
+def test_renderer_rejects_unregistered_routes(conversation, payload):
+    with pytest.raises(ValueError):
+        conversation.render(payload)
 
 
 @pytest.mark.parametrize("journey", JOURNEYS)
@@ -384,13 +396,13 @@ def test_cli_accepts_stateless_arguments_and_stdin(conversation):
     payload = {"stage": "orientation", "journey": "audit"}
     expected = conversation.render(payload)
     arguments = subprocess.run(
-        [sys.executable, str(SCRIPTS / "journey_conversation.py"), "--stage", "orientation", "--journey", "audit"],
+        [sys.executable, str(SCRIPTS / "conversation_renderer.py"), "--stage", "orientation", "--journey", "audit"],
         capture_output=True,
         text=True,
         check=False,
     )
     stdin = subprocess.run(
-        [sys.executable, str(SCRIPTS / "journey_conversation.py"), "--input", "-"],
+        [sys.executable, str(SCRIPTS / "conversation_renderer.py"), "--input", "-"],
         input=json.dumps(payload),
         capture_output=True,
         text=True,
@@ -627,7 +639,7 @@ def test_composite_rows_keep_user_confirmation_distinct(conversation, state_modu
 def test_cli_writes_utf8_even_when_terminal_encoding_is_ascii(conversation):
     payload = {"stage": "orientation", "journey": "create"}
     result = subprocess.run(
-        [sys.executable, str(SCRIPTS / "journey_conversation.py"), "--stage", "orientation", "--journey", "create"],
+        [sys.executable, str(SCRIPTS / "conversation_renderer.py"), "--stage", "orientation", "--journey", "create"],
         capture_output=True,
         check=False,
         env={**os.environ, "PYTHONIOENCODING": "ascii"},
