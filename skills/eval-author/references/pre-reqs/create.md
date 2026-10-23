@@ -3,24 +3,11 @@
 
 # Creation prerequisites
 
-Use for building first evaluations. Follow the [shared procedure](../shared-prerequisites.md#check-the-agent-and-setup)
-for when to show this table, how to inspect prerequisites, and how to present results.
+Use for building first evaluations.
 
 ## Prerequisite table
 
-Use the [onboarding renderer](../conversations/onboarding.md) for journey
-`create`. After the user's readiness reply, show `prerequisites` with its canonical
-grounding sentence above the initial status table. Use only facts already in
-conversation; do not read saved state or inspect the repository to populate it.
-Then complete and save bounded state-only checks before target Ethos inspection.
-If state is unavailable, use the [state failure response](../conversations/onboarding.md#when-state-is-unavailable).
-With saved state, if blocked, render `prerequisite_results` directly as final once. If unblocked,
-continue Ethos without an intermediate completed report, then render `results`
-after normal reconciliation for the final completed table, Recommendations,
-checklist, and Ethos action.
-Table labels, order, and default statuses belong only to
-[onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py); supply findings by
-row ID and retain every row.
+Journey `create`; follow the [shared prerequisite procedure](../shared-prerequisites.md#check-the-agent-and-setup).
 
 ## Checks and blocking conditions
 

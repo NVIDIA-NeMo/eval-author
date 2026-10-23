@@ -3,8 +3,10 @@
 
 # Shared prerequisites and Ethos
 
-The core owns orientation and goal selection. This procedure owns the common
-entry for creating, auditing, and improving evals, including direct skill calls.
+The core owns orientation and goal selection. This is the canonical operational
+procedure after readiness for creating, auditing, and improving evals, including
+direct skill calls. The [onboarding rendering contract](conversations/onboarding.md)
+defines stage inputs and outputs; it does not duplicate this sequence.
 It supports NeMo Gym and Harbor through the same flow. Scoped operations retain their
 existing input requirements and do not acquire a full onboarding checklist.
 For a new flow, begin this procedure only after the selected goal's rendered
@@ -31,6 +33,9 @@ conversation; do not perform reads or probes to populate the preview. Supply
 known findings through the [preview contract](conversations/onboarding.md#orientation-and-prerequisite-entry),
 leaving unchecked items at their canonical initial statuses. Add no separate
 preamble, skill-use announcement, or prose checking notice.
+This applies to skill-generated messages; mandatory host or tool UI instructions
+remain outside the rendered-output contract. Do not add a notice merely to
+satisfy a local skill convention.
 
 Then complete bounded checks in the same turn. Finish accessible checks before
 asking about unresolved items; do not ask the user to attest to software that
@@ -39,11 +44,10 @@ and row order for NeMo Gym and Harbor; never add, rename, reorder, or omit rows.
 Keep completed findings for the final reply, following the procedure below.
 Do not publish an intermediate completed report before Ethos inspection.
 
-On prerequisite resume, use only findings already in context for the initial
-status table, then begin the remaining checks. Load saved metadata with
-`--state-only`; use that mode for every prerequisite `init`, `show`, and `update`,
-including pending-review bookkeeping.
-If a state operation fails, follow the [state failure response](conversations/onboarding.md#when-state-is-unavailable).
+Use `--state-only` for every prerequisite `init`, `show`, and `update`, including
+pending-review bookkeeping. On resume, load saved metadata only after the initial
+status table, then continue the remaining checks from applicable records.
+If a state operation fails, follow [state-failure handling](#when-prerequisite-state-is-unavailable).
 
 Saved Ethos metadata is history, not proof a document exists, validates, or
 remains current. Defer target Ethos discovery, reads, validation, draft recovery,
@@ -177,9 +181,8 @@ dependencies; do not present them as Recommendations.
 
 ## Present results and the next step
 
-If state initialization, reading, or saving failed, use
-[`prerequisite_failure`](conversations/onboarding.md#when-state-is-unavailable)
-with observed findings and the helper error through stdin, then stop. The normal
+If state initialization, reading, or saving failed, follow
+[state-failure handling](#when-prerequisite-state-is-unavailable). The normal
 saved-state procedure below applies only when those operations succeed.
 
 Finish every applicable prerequisite check and save its findings through
@@ -199,7 +202,8 @@ If unblocked, continue Ethos in the same turn without an intermediate completed
 report or a new approval pause. The completed, saved state-only pass is required
 before the first target Ethos search, read, validation, draft recovery, or
 orchestrator preflight; a visible completed report is not required at that point.
-Use normal state reads to reconcile artifacts, save returned Ethos findings and
+Use normal state reads to reconcile artifacts before each call through the
+[Ethos adapter](ethos-confirmation.md). Save returned Ethos findings and
 the pending question, then reload normal state and render `results` in the final
 reply. Supply the completed prerequisite findings, optional Recommendations,
 and applicable Ethos, draft, question, and blocker facts. The final owns the
@@ -211,6 +215,21 @@ the final reply. An unblocked final includes one checklist; a blocked final
 includes no checklist. Do not add a third table or repeat the completed report in
 progress. Subsequent actions can use `ethos` or `resume` when no new prerequisite
 pass is needed.
+
+### When prerequisite state is unavailable
+
+If a prerequisite `init`, `show`, or `update` fails, finish independently
+accessible prerequisite checks and render
+[`prerequisite_failure`](conversations/onboarding.md#when-state-is-unavailable)
+directly as the final reply through stdin, without creating a payload file.
+Preserve existing state; do not fabricate a snapshot, reset it, or claim the
+failed operation succeeded. Keep the observed findings in the current
+conversation and present the renderer's notice that they cannot be resumed in
+a fresh chat until saved. Stop before target Ethos inspection and downstream
+work. After resolving the state problem, reload any existing state, recheck
+affected facts, and save the prerequisite pass before using normal responses.
+
+### Findings and the Ethos action
 
 - Recommendations are optional suggestions with their benefit and relevant
   link; they never prevent continuing.
@@ -357,7 +376,7 @@ journey scope when continuing it. Do not treat historical duplicate copies as
 additional active tasks. New tasks use the stable task catalog. Old progress
 notes are import-only; never resume writing them. If prerequisite state cannot
 be written or read, retain observed findings in conversation and use the
-[state failure response](conversations/onboarding.md#when-state-is-unavailable).
+[state-failure procedure](#when-prerequisite-state-is-unavailable).
 Independent prerequisite checks may finish, but Ethos and downstream work wait
 until the pass can be saved. Preserve existing state rather than replacing it.
 

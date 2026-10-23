@@ -100,42 +100,12 @@ files or saved state, validate Ethos, check prerequisites, write files, or deleg
 work. No other helper commands are allowed before readiness. This also applies
 to direct first-eval and full-audit invocations.
 
-Only after the user answers the rendered readiness question, render
-`prerequisites` for the selected journey with readiness established. Its table
-and canonical grounding sentence are the first workflow output. Add no separate
-preamble or skill-use announcement. Include only already-known facts from the current conversation;
-do not read repository files or saved state to fill this initial table. Use the
-[preview input contract](references/conversations/onboarding.md#orientation-and-prerequisite-entry)
-for known findings and default checking statuses.
-
-Then perform bounded prerequisite checks. Use the state helper's `--state-only`
-mode for every prerequisite `init`, `show`, and `update`, including pending
-Ethos review bookkeeping. Keep findings in the completed response below rather
-than adding prose checking notices around the initial table.
-If prerequisite state cannot be initialized, read, or saved, use the
-[state failure response](references/conversations/onboarding.md#when-state-is-unavailable).
-
-Finish and record the prerequisite pass before locating, reading, or validating
-the target `ETHOS.md`, recovering its draft, or starting Ethos preflight. If
-blocked, render `prerequisite_results` from a fresh state-only snapshot directly
-as the final response once, then stop before target Ethos inspection. Reading
-installed Ethos instructions during checks establishes availability and
-compatibility only.
-
-When unblocked, continue Ethos work in the same turn without publishing an
-intermediate completed report or adding an approval pause. Reconcile artifacts
-with a normal state read, save the Ethos findings and pending question, then
-reload normal state and render `results` for the final reply. It includes the
-canonical grounding sentence, completed table, optional Recommendations, Next
-Steps, one checklist, and the inspected Ethos action. The turn has an initial
-status table and a final completed table, with no third table. Use `ethos` for
-later Ethos-only replies. The renderer owns the fixed copy and structure; do not
-reconstruct or repeat them in prose.
-
-This order applies to fresh flows, prerequisite resumes, goal switches, and
-direct flow invocations. Continuations reuse progress rather than repeating
-orientation. Use `resume` for an existing pending decision only after any required
-prerequisite pass and normal artifact reconciliation.
+After the actual readiness reply, follow the
+[shared prerequisite procedure](references/shared-prerequisites.md#check-the-agent-and-setup).
+It owns the check sequence, state-failure handling, transition into Ethos, and
+final response for fresh flows, prerequisite resumes, goal switches, and direct
+invocations. Continuations follow its [saved-progress rules](references/shared-prerequisites.md#save-and-resume)
+instead of repeating orientation.
 
 | Request | Route after shared prerequisites and Ethos |
 |---|---|
@@ -161,41 +131,15 @@ absent. Supported trace conversion retains its existing dedicated skills.
 
 ### Shared prerequisites and Ethos
 
-Follow the [shared rendering contract](references/conversation-rendering.md) and
-[onboarding reference](references/conversations/onboarding.md) for orientation,
-prerequisites, and Ethos responses across creation, audit, and improvement.
-[conversation_templates.py](scripts/conversation_templates.py) owns shared
-journey and checklist labels, status labels, and generic headings;
-[onboarding_templates.py](scripts/conversation_flows/onboarding_templates.py)
-owns onboarding copy and prerequisite rows. Render them through
-[conversation_renderer.py](scripts/conversation_renderer.py); use its Markdown
-unchanged instead of copying or paraphrasing templates. Progress messages alone
-do not satisfy a required final response or completion pause.
-
-State and user replies determine progress. The renderer only presents supplied
-facts and reconciled shared state; it does not confirm prerequisites, approve
-Ethos, choose sources, authorize execution, or advance a journey. Record actual
-answers and checks through the state helper, distinguishing user confirmation
-from runtime verification. Mark work complete only after its required review.
-
 Read [Shared prerequisites and Ethos](references/shared-prerequisites.md) for
-the common procedure, shared state, resumption, and the exact handoff. It selects
-the prerequisite table and checks for [creation](references/pre-reqs/create.md),
-[audit](references/pre-reqs/audit.md), or [improvement](references/pre-reqs/improve.md).
-Keep the selected table fixed and reassess requirements when the goal changes.
-
-After completing and recording an unblocked prerequisite pass, use `ethos-orchestrate` to review, create,
-or update `ETHOS.md`. Pass along the
-context and answers already collected. For an existing document, ask the user to
-confirm it is the right Ethos for this agent and accurately describes its current
-intended behavior. A saved confirmation from an earlier flow does not
-replace this review. When [Ethos confirmation](references/ethos-confirmation.md)
-is complete, show the [completion pause](references/shared-prerequisites.md#pause-after-ethos-confirmation)
+the common procedure, shared state, resumption, and exact handoff. It selects the
+flow-specific checks and calls the [Ethos adapter](references/ethos-confirmation.md),
+which owns document review, destination handling, and the canonical Ethos handoff.
+The [shared rendering contract](references/conversation-rendering.md) and
+[onboarding input/output contract](references/conversations/onboarding.md) own
+renderer use and canonical copy. Follow the shared procedure's
+[completion pause](references/shared-prerequisites.md#pause-after-ethos-confirmation)
 before resuming the selected evaluation flow.
-
-The shared prerequisite flow confirms repository-root `ETHOS.md`. Preserve supplied
-alternate-path documents and resolve the root requirement without silently copying
-or replacing them. Scoped utilities retain their explicit `--ethos` path behavior.
 
 ### Expansion handoff
 

@@ -35,30 +35,14 @@ again.
 
 ## Enter the Ethos step
 
-Complete the applicable prerequisite checks and save findings with `--state-only`
-before entering or resuming Ethos from a prerequisite pass. If state is unavailable,
-use the [state failure response](conversations/onboarding.md#when-state-is-unavailable) and stop.
-With saved state, if blocked, render
-[`prerequisite_results`](conversations/onboarding.md#stateful-responses) directly as
-the final response once and stop. Only after the pass is complete, saved, and
-unblocked locate, read, or validate the target `ETHOS.md`, recover draft content,
-or run the orchestrator's preflight. Reading installed skill instructions during
-checks establishes only availability and compatibility. This order applies to
-prerequisite resumes, goal switches, and direct flow calls.
-
-Continue in the same turn without publishing an intermediate completed report
-or adding an approval pause. Save returned findings and the pending question,
-reload normally reconciled state, and render `results` in the final reply with
-the canonical grounding sentence, completed prerequisite table, optional
-Recommendations, Next Steps, one checklist, and current Ethos action. Use `ethos`
-for a subsequent Ethos-only action or `resume` for its saved pending decision
-when no new prerequisite pass is needed. A blocked response ends with
-Blockers and omits all next-step guidance. Eval Author owns this ordering; the
-Ethos skills own the content afterward. Existing evaluations describe coverage;
+Enter this adapter through the shared procedure's
+[results and Ethos transition](shared-prerequisites.md#present-results-and-the-next-step).
+That procedure owns prerequisite ordering, state-failure and blocker handling,
+artifact reconciliation, and final response selection. This adapter owns the
+Ethos work and confirmation rules below. Existing evaluations describe coverage;
 they do not establish intended behavior.
 
-Reuse the shared prerequisite orientation. The
-shared prerequisite flow confirms repository-root `ETHOS.md`, which must be a
+The shared prerequisite flow confirms repository-root `ETHOS.md`, which must be a
 regular file, not a symlink. Preserve existing alternate-path documents; do not
 silently copy, delete, or replace them. If the intended document lives elsewhere,
 offer to move it to the repository root and, if its old path must remain usable,
@@ -87,14 +71,13 @@ creation as the pending action without looking for the file yet. Keep Ethos
 unchecked and current when prerequisites are complete; preserve prior content
 bindings, provenance, scope, and completed flows as history.
 
-After the prerequisite pass is complete, saved, and unblocked, invoke the orchestrator to locate and read the
-document and confirm its identity and current intended behavior. Supply the
-renderer with `facts.ethos.status: existing`, the actual file link, and a brief
-summary grounded in the document's intended behavior, boundaries, and success
-criteria. Render `results` in the final reply after normal state reconciliation,
-including the completed prerequisite findings and any Recommendations. The
-existing-document review includes its heading, checklist, link, summary, and
-current review question exactly once. Later Ethos-only replies use `ethos`.
+At the shared procedure's Ethos transition, invoke the orchestrator to locate
+and read the document and confirm its identity and current intended behavior.
+Return its actual file link and a grounded summary of intended behavior,
+boundaries, and success criteria through the
+[Ethos facts contract](conversations/onboarding.md#ethos-and-draft-facts).
+The shared procedure selects the final response; do not add a second review
+heading, checklist, or question.
 
 Wait for the user's answer before marking Ethos complete or
 offering to continue with evaluations. Keep uncertainty in `review` and return to
@@ -119,12 +102,9 @@ do not treat the former agent's document or draft approval as current permission
 
 ## Call and return
 
-During prerequisite work, load and save shared journey metadata only with
-`--state-only init`, `--state-only show`, and `--state-only update`. After the
-prerequisite pass is complete, saved, and unblocked, load normal shared state before each Ethos call,
-including a fresh chat or a switch between create, audit, and expand. Eval Author
-owns the selected journey, checklist, state layout, and return routing; Ethos needs
-none of those details.
+Follow the [shared procedure](shared-prerequisites.md#present-results-and-the-next-step)
+for state loading before each call. Eval Author owns the selected journey,
+checklist, state layout, and return routing; Ethos needs none of those details.
 Pass the selected `repository`, `agent`, root `ethos_path` as the explicit
 destination, the requested operation, and only the Ethos context needed to continue:
 
