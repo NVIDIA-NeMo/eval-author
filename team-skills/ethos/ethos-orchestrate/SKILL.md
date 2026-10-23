@@ -25,6 +25,10 @@ compatibility: >-
 license: Apache-2.0
 user-invocable: true
 allowed-tools: Read Grep Glob
+metadata:
+  owner: NVIDIA-NeMo/ase_team
+  owner_url: https://github.com/orgs/NVIDIA-NeMo/teams/ase_team
+  tags: [evaluation, ethos]
 ---
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
