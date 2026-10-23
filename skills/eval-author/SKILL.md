@@ -79,7 +79,7 @@ The first response to a new shared flow is orientation only. Determine the goal
 from the user's request and conversation already available, without inspecting the
 repository. If known, show only the fixed welcome, matching checklist, and call
 to action below.
-If unknown, show only that welcome, the goal question, and its three choices.
+If unknown, show only the shorter welcome below, the goal question, and its three choices.
 **End the turn immediately after that response.**
 
 When the user answers the goal question, show the fixed sentence for the selected
@@ -95,12 +95,17 @@ Do not inspect repository files or saved state, validate Ethos, check prerequisi
 run helper commands, write files, or delegate work. This also applies to direct
 first-eval and full-audit invocations. Prerequisite questions and findings belong
 to later turns. Only after the user replies to **Ready to get started?**, show the
-prerequisite table from the shared procedure, then inspect the accessible prerequisites before asking about
-anything unresolved. If no Blockers remain, show the selected checklist under
-**Next Steps** after the results table and any Recommendations. If blocked, end with the
-Blockers and omit Next Steps, the checklist, and Ethos guidance.
-Continuations and goal switches within an existing shared flow reuse progress
-rather than repeating this pause.
+prerequisite table from the shared procedure, then finish the applicable checks
+and save findings using its `--state-only` mode. If no Blockers remain, visibly
+present the completed results table, any Recommendations, and **Next Steps** with
+the selected checklist before locating, reading, or validating the target
+`ETHOS.md` or starting any Ethos preflight. Reading installed Ethos instructions
+during checks establishes availability and compatibility only. Continue Ethos in
+the same turn after this presentation; it adds no user approval pause. If blocked,
+end with Blockers and omit Next Steps, the checklist, and Ethos guidance.
+This order applies to fresh flows, prerequisite resumes, goal switches, and
+direct flow invocations. Continuations reuse progress rather than repeating the
+opening pause.
 
 | Request | Route after shared prerequisites and Ethos |
 |---|---|
@@ -108,8 +113,11 @@ rather than repeating this pause.
 | Audit coverage | `eval-author-audit`, continuing with eval and trace selection |
 | Improve or expand evals | Preserve the expansion goal and use the expansion handoff below; an audit is optional |
 
-When the goal is unclear, ask “What would you like to do?” and present these
-options as a bulleted list:
+When the goal is unclear, use this shorter welcome verbatim:
+
+Welcome to Eval Author! I’ll help you evaluate your agent against the behavior you expect.
+
+Then ask “What would you like to do?” and present these options as a bulleted list:
 
 - Build your first evaluations
 - Audit your existing coverage
@@ -141,7 +149,7 @@ Welcome to Eval Author! I’ll help you evaluate your agent against the behavior
 
 - [ ] **Check how your agent runs and how you’ll test it** — **We're here**
 - [ ] **Agree on how your agent behaves using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)**
-- [ ] **Create your first evaluations**
+- [ ] **Build, run, and review your first evaluations**
 
 Ready to get started?
 
@@ -154,9 +162,10 @@ After goal clarification, use exactly one of these sentences above the checklist
 | Improvements | We’ll improve your existing evaluations. Here’s what we’ll work through: |
 
 For an audit, replace the third item with **Check what your existing evaluations cover**.
-For improvements, use **Improve your existing evaluations**. These exact third-item
+For improvements, use **Improve, run, and review your existing evaluations**. These exact third-item
 labels, completed checkboxes, and the position of **We're here** are the only
-variations. Keep the welcome, checklist wording, order, and Ethos link unchanged.
+variations. Keep each opening's fixed introductory text, checklist wording, order,
+and Ethos link unchanged.
 Keep scope limits and other explanations outside the checklist items. For
 prerequisite results, use the **Next Steps** placement defined in the shared
 procedure. On resume, use the same checklist wording
@@ -172,7 +181,8 @@ the prerequisite table and checks for [creation](references/pre-reqs/create.md),
 [audit](references/pre-reqs/audit.md), or [improvement](references/pre-reqs/improve.md).
 Keep the selected table fixed and reassess requirements when the goal changes.
 
-Use `ethos-orchestrate` to review, create, or update `ETHOS.md`. Pass along the
+After that prerequisite transition, use `ethos-orchestrate` to review, create,
+or update `ETHOS.md`. Pass along the
 context and answers already collected. For an existing document, ask the user to
 confirm it is the right Ethos for this agent and accurately describes its current
 intended behavior. A saved confirmation from an earlier flow does not
@@ -204,6 +214,9 @@ Once prerequisites and Ethos are confirmed, present the completion pause and wai
 for the user to continue before following the selected skill's stages.
 Keep the selected third checklist item current. Reuse completed shared steps.
 Keep scope and evidence reviews, source selection, and execution authorization.
+For creation and improvement, that item covers building the agreed cases or
+changes, running them, and reviewing results. Leave it incomplete while required
+execution or review remains blocked or unfinished.
 
 When the user asks a side question, answer it, then resume the pending decision
 or unfinished work. A side question does not confirm pending content.

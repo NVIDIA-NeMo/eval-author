@@ -26,8 +26,10 @@ the agent/setup, confirm Ethos, then the selected build/audit/improve item. If t
 goal is unknown, ask whether to create, audit, or improve; explicit inventory
 remains a scoped option.
 The first turn contains only the fixed welcome, exact checklist, and “Ready to
-get started?” for a known goal, or the fixed welcome, goal question, and three
-choices for an unknown goal.
+get started?” for a known goal. For an unknown goal, use the shorter welcome
+“Welcome to Eval Author! I’ll help you evaluate your agent against the behavior you expect.”
+followed by the goal question and three choices. Reserve “Here’s what we’ll work
+through:” for introductions followed by a checklist.
 It ends there, even when repository or Ethos paths are supplied. Inspect the
 tool trace: only the invoked skill and shared core may be loaded before this
 reply. Repository/state reads, Ethos validation, prerequisite checks or questions,
@@ -50,6 +52,9 @@ results response, the selected checklist
 appears under **Next Steps**, after the table and any Recommendations, only when
 no Blockers remain. A blocked response ends at Blockers without a checklist or Ethos guidance.
 Only the selected third-item label, checkmarks, and current-step marker vary.
+Creation and improvement explicitly include running and reviewing in their
+third item; audit keeps its coverage wording. The third item remains incomplete
+after case files are built if required runs or result review are still pending.
 On resume, keep the same wording with saved progress. When naming the agent
 and setup on subsequent turns, distinguish explicit requests,
 repository findings, prior confirmations, and defaults. Check both an explicitly

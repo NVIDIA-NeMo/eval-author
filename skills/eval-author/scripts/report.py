@@ -618,9 +618,15 @@ def apply_task_readiness(repo: Path, tasks: list[dict]) -> list[str]:
         reason = "Shared workflow state is unavailable or invalid; task readiness is unknown."
         warnings.append(reason)
     for task in tasks:
-        result = (
-            task_lifecycle(repo, state, task["path"]) if state is not None else {"status": "unknown", "reason": reason}
-        )
+        try:
+            result = (
+                task_lifecycle(repo, state, task["path"])
+                if state is not None
+                else {"status": "unknown", "reason": reason}
+            )
+        except ValueError:
+            # Inventory supports a root task ("."); lifecycle records do not.
+            result = {"status": "unknown", "reason": "Task readiness is unavailable for this inventory path."}
         task["readiness"] = result["status"]
         task["readiness_reason"] = result["reason"]
     return warnings

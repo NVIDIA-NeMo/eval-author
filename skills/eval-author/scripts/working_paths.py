@@ -72,9 +72,13 @@ def atomic_write(path: Path, payload: bytes) -> None:
             temporary.unlink(missing_ok=True)
 
 
+def json_bytes(value: object) -> bytes:
+    """Use the same exact UTF-8 representation for size checks and persisted JSON."""
+    return (json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
+
+
 def atomic_write_json(path: Path, value: object) -> None:
-    payload = (json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
-    atomic_write(path, payload)
+    atomic_write(path, json_bytes(value))
 
 
 @contextmanager

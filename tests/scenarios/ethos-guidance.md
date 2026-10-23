@@ -89,14 +89,31 @@ and computes the saved content digest itself.
 An existing document is linked and summarized for the user's confirmation that
 it is correct and current on shared entry, even when an earlier flow confirmed unchanged
 content. After that reply, continuations reuse it without another interview.
+Start a fresh flow after completed creation and confirm the unchanged saved
+document again. Its prior scope and completion survive the pending review and
+reconfirmation. Changed content or rejected intent reopens affected agreements.
 The three-item shared prerequisite orientation is not repeated inside Ethos.
 
-## 3. Missing canonical Ethos skills
+## 3. Unusable canonical Ethos skills and recovery
 
-Make `ethos-orchestrate` unavailable. Report the dependency and installation
-location, preserve answers in shared state or conversation, and continue useful
-independent planning. Do not fall back to an Eval Author-owned interview or writer.
-A runtime probe or provider installation does not repair missing skill access.
+Test a missing `ethos-orchestrate/SKILL.md`, a listed skill whose symlink target
+was removed, and a readable `ethos-write/SKILL.md` with its required validator
+missing. The prerequisite pass detects each before Ethos confirmation, finishes
+other accessible checks, and shows **Blockers** with the actual cause. Denied
+access is Unknown rather than proof of a missing file. Keep setup incomplete and
+omit Next Steps and Ethos guidance. Provide the canonical NVIDIA skills link and
+installation command for all three Ethos skills, with the actual assistant and
+installation scope. Do not install during checks or use a fallback interview or writer.
+
+**Recovery variant:** Resume a current flow where the user already confirmed the
+exact document or draft and destination before skill access failed. Repair the
+skill installation without changing that content. Recheck its files and resources,
+retain the confirmation reply and reviewed content binding, and resume canonical
+validation without asking for the same approval again. A listing alone is not
+enough to clear the blocker. Missing validation still prevents completion. If the
+document, agent, destination, or material validation findings change during repair,
+reopen the affected review. A runtime probe or provider installation does not
+repair missing skill access.
 
 ## 4. Preserve a legacy permission section during a targeted update
 

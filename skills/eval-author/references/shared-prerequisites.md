@@ -38,8 +38,14 @@ now**; do not add, rename, reorder, or omit rows from the selected template.
 Update the cells as evidence becomes available and repeat the table with results
 in the final reply so it remains visible alongside questions.
 On resume, reuse findings already in context; show the table before loading saved
-state, then update it from applicable records. Do not keep a second progress record.
-Recheck affected facts when the environment changes.
+state with `--state-only`, then update it from applicable records. Use that mode
+for every prerequisite `init`, `show`, and `update`, including pending-review
+bookkeeping. Saved Ethos metadata is history, not proof a document exists,
+validates, or remains current. Defer target Ethos discovery, reads, validation,
+and preflight until the [visible prerequisite transition](#present-results-and-the-next-step).
+Apply this order to fresh flows, prerequisite resumes, goal switches, and direct
+flow calls; scoped utilities retain their existing boundaries. Do not keep a
+second progress record. Recheck affected facts when the environment changes.
 
 Follow the selected reference's checks and blocking conditions, using the common
 checks below. Creation and improvement also use the shared authoring checks;
@@ -47,7 +53,8 @@ audit uses its own tooling checks instead.
 
 ### Common checks
 
-Read the repository's supplied agent files and documentation with bounded reads.
+Read the repository's supplied agent files and documentation with bounded reads,
+excluding the target `ETHOS.md` until the prerequisite transition below.
 Reuse known identity, repository paths, runtime choice, and answers. When naming
 the agent or setup, make its basis clear: the user's request, repository documentation,
 the existing suite, or a previously confirmed answer. Describe inferred identity
@@ -55,18 +62,46 @@ and default choices as such; neither is a user confirmation. Reuse explicit
 choices without asking the user to select them again. Do not enumerate or read
 traces before the user selects their source and location.
 
-Honor the user's NeMo Gym or Harbor choice, otherwise preserve the selected suite's
-setup, otherwise use the existing Harbor default. Keep format compatibility
+For creation and improvements, honor the user's NeMo Gym or Harbor choice,
+otherwise preserve the selected suite's setup, otherwise use the existing Harbor
+default. For audit, record the actual framework using the
+[audit prerequisite rules](pre-reqs/audit.md#checks-and-blocking-conditions).
+Keep format compatibility
 separate from availability. Explain unsupported material without converting it or
 switching the selected runtime. Apply the selected reference's format requirements
 before checking a provider's runtime or starting Ethos.
 
 Select checks by the requested work. The common checks are:
 
-- Find required Eval Author and Ethos skills in the available catalog and supplied
-  skill locations; distinguish files found from skills available to the assistant
+- Read each required Eval Author and Ethos skill's `SKILL.md` from its supplied or
+  installed location, following symlinks to verify readable targets. Check the
+  local resources needed for this flow relative to the loaded skill directory,
+  including `scripts/validate_ethos.py` relative to the loaded `ethos-write`
+  directory. Check all three Ethos skills:
+  `ethos-orchestrate`, `ethos-explore`, and `ethos-write`. A catalog entry or symlink
+  alone does not establish usability. Inspect these installed resources only for
+  availability and compatibility; do not run their file-location, validation,
+  interview, or other Ethos preflight steps during prerequisite checks
+- Verify that the installed Ethos skills meet the
+  [required handoff capabilities](ethos-confirmation.md#required-handoff-capabilities),
+  including preserving the explicit repository-root `ETHOS.md` destination. A
+  version that renames it to lowercase or overrides that path is incompatible;
+  record the conflicting resource as an `ethos_skills` blocker before delegation
 - Establish file and command access from host permissions and actual bounded
   reads or commands; keep any write probe under `.eval-author/.working/`
+
+If a required skill or resource is missing, broken, incompatible, or inaccessible, finish the
+other accessible checks, then show **Blockers** before Ethos. Record the actual
+reason under `skills` or `ethos_skills`, keep setup incomplete, and preserve
+answers and confirmations. Save the blocker in phase `setup`, its repair action
+as `pending_question`, and `eval-author` as `next_handoff`.
+Use the [Ethos recovery instructions](ethos-confirmation.md#recovery)
+for Ethos dependencies. For Eval Author dependencies, link the
+[installation guide](https://github.com/NVIDIA-NeMo/eval-author/blob/main/docs/getting-started.md#install-eval-author-with-npx)
+and provide `npx skills@latest add NVIDIA-NeMo/eval-author --skill '*' --agent claude-code --yes`,
+substituting the current assistant's identifier and adding `--global` when repairing
+a global installation. Provide the command without running it during checks;
+after repair, recheck the files and resources before clearing the blocker.
 
 ### Authoring checks
 
@@ -113,6 +148,11 @@ observed checks, **Confirmed by you** for user answers without matching executio
 evidence, **Missing** for established unavailable or incompatible prerequisites,
 **Unknown** for unresolved checks, and **Not needed now** where applicable. A
 successful runtime probe does not prove the suite or agent is ready to run.
+Use a single status per row and distinguish individual findings for grouped
+checks in Findings. For a missing or unresolved later requirement, name the
+operation it blocks and the needed action there, such as “Agent runs blocked:
+[missing requirement and resolution].” Keep known missing dependencies explicit
+when reusing saved progress.
 
 After this pass, ask only for unresolved information or decisions needed to
 continue, such as the selected runtime's location, the supported format for improvements, audit trace availability,
@@ -124,14 +164,32 @@ confuse them with the runtime prerequisite above. Do not ask the
 user to confirm facts already established by checks. Preserve progress; a saved availability question must go
 through these checks before it is asked again.
 
+When later requirements remain, summarize readiness for Ethos separately from
+readiness to run evaluations. For example: “We can review ETHOS.md. Agent runs
+remain blocked until [requirements are resolved].” These are required
+dependencies; do not present them as Recommendations.
+
 ## Present results and the next step
+
+Finish every applicable prerequisite check and save its findings with
+`--state-only` before this transition. Once required blockers are resolved, save
+the pending Ethos action using supplied context or saved metadata only; mark any
+required existing-document review pending without checking the file.
+
+Visibly present the completed results table and applicable sections below through
+the Next Steps checklist before the first target Ethos search, read, validation,
+or orchestrator preflight. Use a progress message for this transition, then
+continue Ethos in the same turn without a new approval pause. The final reply
+repeats the required results table and checklist alongside the Ethos outcome or
+question.
 
 After the results table, use the following template in order, with these exact
 headings and introductory sentences. Replace the bracketed content with findings
 or the next action; do not display the placeholders.
 
-- Include **Recommendations** only when there are optional suggestions, such as
-  Harbor assistant skills; these do not prevent continuing
+- When offering optional suggestions, render `### Recommendations` and its
+  introductory sentence from the template. Put suggestions such as Harbor
+  assistant skills under that heading
 - Include **Blockers** when creation or improvement lacks an available supported
   runtime or Python environment, an improvement's supported format is unresolved,
   an audit's required trace availability is unknown or missing, or another
@@ -139,12 +197,14 @@ or the next action; do not display the placeholders.
   the affected action and the answer or change needed, with relevant documentation
 - If **Blockers** is present, end with the required action or focused question
   in that section; omit Next Steps, the checklist, and all Ethos guidance
-- Include **Next Steps** only when no Blockers remain, after the table and any
-  Recommendations, followed by the shared three-item checklist with current progress
+- When no Blockers remain, render `### Next Steps` after the table and any
+  Recommendations, immediately before the shared three-item checklist. Keep this
+  heading when resuming saved progress or reviewing an existing Ethos
 - Copy the checklist wording, Ethos link, and selected goal's third item from the
   core; derive checkmarks and the current-step marker from shared state, and do
   not repeat the checklist before the table
-- When unblocked, continue below the checklist through `ethos-orchestrate`
+- After the unblocked transition is visible, continue through `ethos-orchestrate`;
+  keep its explanation and question below the checklist in the final reply,
   without a separate Ethos heading
 
 ```markdown
@@ -185,11 +245,14 @@ without displaying the checklist or starting dependent Ethos work.
 
 ## Confirm Ethos
 
-Invoke [Ethos confirmation](ethos-confirmation.md) for repository-root `ETHOS.md`.
+After the visible prerequisite transition, invoke
+[Ethos confirmation](ethos-confirmation.md) for repository-root `ETHOS.md`.
 Reuse content and prior answers, but have the user confirm an existing document
 is the right one and still accurate, even when saved state records an earlier
-confirmation. Before rendering the results checklist, mark that review pending
-as described in the adapter; keep Ethos unchecked until the user answers.
+confirmation. Before the transition checklist, use `--state-only update` to mark
+a required review pending from supplied context or saved metadata, as described
+in the adapter; this does not require locating or reading the document. Keep
+Ethos unchecked until its required review is complete.
 Record the returned path, validation result, confirmed digest, remaining intent
 questions, and stage. Do not infer content approval from file presence,
 structural validity, or an implemented behavior. Do not write the canonical
@@ -238,10 +301,22 @@ only the work they actually block.
 `.eval-author/.working/journey-state.json` is the sole authority for workflow
 stage, prerequisite findings and answers, confirmations, task status, pending questions, and next action.
 Use `scripts/journey_state.py --repo <repository> <command>` for `show`, `init`,
-`update`, `confirm-ethos`, `record-task`, and `import-legacy`; inspect its help for command inputs.
+`update`, `confirm-ethos`, `record-task`, `import-legacy`, and `rebind`; inspect its help for command inputs.
 Its validation and atomic writes are allowed bounded local commands, not runtime
 probes. State identifies the repository, agent, goal, selected setup, answer
 provenance, Ethos path/digest, and journey-specific progress. Never store secrets.
+
+During prerequisites, use only `init`, `show`, and `update` with `--state-only`.
+This mode validates saved JSON and persists metadata without reading canonical
+Ethos, draft, or task-evidence artifacts; `artifact_checks_deferred: true` records
+that boundary. It cannot establish content approval or task acceptance. Treat
+saved approvals as historical, and defer reports, task-readiness checks, and
+artifact inspection. After presenting the completed prerequisite transition,
+omit `--state-only` so normal commands reconcile current content and evidence.
+While the current journey is `audit`, `--state-only update` also merges the
+nonempty strings `scopes.audit.framework` and `scopes.audit.framework_source`
+into the existing scope. These observations persist even when prerequisites are
+blocked; case, corpus, and approval updates remain forbidden in this mode.
 
 Save agreed decisions in the selected journey's `scopes` entry.
 Put final task behavior in task READMEs and audit checks
@@ -266,6 +341,17 @@ source findings, answers, exact draft content/reference, and the pending questio
 at each Ethos pause; reload them before resuming or switching journeys. Existing
 downstream evidence is retained and marked stale when
 appropriate, never rewritten to match new decisions.
+
+Changing the agent retains cases, traces, Ethos findings, answers, draft references,
+and unresolved blockers while reopening the affected approvals. Agent-dependent
+prerequisite evidence keeps its source with status `unknown` for reassessment.
+For a change from a previously named agent, the helper retains the prior state in
+a content-hashed snapshot under `.eval-author/.working/history/agents/`, referenced
+by `ethos.source_findings`. This preserves the former agent identity, approval
+provenance, completion records, and pending work as historical evidence;
+`journey-state.json` remains the authoritative resume record. Review applicability
+before using that context for the new agent. Reuse the same agent identifier on
+resume; different spellings do not establish that two agents are equivalent.
 
 All new working files, intermediate inputs, and temporary files live under
 `.eval-author/.working/`. Historical evidence with bound paths remains readable.
@@ -295,18 +381,30 @@ Replace `<skill_dir>` with the core skill directory. Keep update payloads under
 replacing newer decisions.
 
 ```bash
-python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository show
-python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository init \
+python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository --state-only show
+python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository --state-only init \
   --agent account-support --journey create --setup gym
-python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository update \
+python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository --state-only update \
   --input /absolute/repository/.eval-author/.working/tmp/answers.json \
   --expected-revision 1
 ```
 
 `--journey` accepts `create`, `audit`, or `expand`; `--setup` accepts `gym` or
-`harbor`. `init` reuses state and invalidates affected facts when identity or
-setup changes, or when switching between audit and authoring. `show` derives checklist status without writing. Do not maintain
-a separate saved checklist.
+`harbor` for an authoring setup. Audit does not require `--setup`; record its actual
+framework and provenance with `--state-only update` in `scopes.audit.framework`
+and `scopes.audit.framework_source`, independently of any retained authoring
+choice. `init` reuses state and invalidates affected facts when identity or
+setup changes, or when switching between audit and authoring. The examples above
+use prerequisite mode: Ethos and evaluation checklist items remain unchecked
+until normal artifact checks resume after the visible transition. `show` derives
+checklist status without writing. Do not maintain a separate saved checklist.
+
+Setup completion requires agent identity, code/file/command access, usable required
+skills, and the applicable Python tooling. Creation and improvements also require
+a selected authoring setup and its runtime; audit instead requires confirmed or
+verified availability of completed-evaluation traces. Later environment, services,
+and authoring data findings do not delay this checklist step. Any explicit setup
+blocker still prevents completion, including access needed for the next Ethos action.
 
 An update is a partial JSON mapping. Allowed fields are `prerequisites`, `ethos`,
 `scopes`, `journey_status`, `blockers`, `pending_question`, and `next_handoff`.
@@ -351,6 +449,40 @@ clear a blocker only when the new evidence resolves it or establishes that it
 does not apply. Review legacy blockers without these IDs explicitly rather
 than treating them as current requirements automatically. Pending question and next handoff
 are strings or null. Reopening a dependency must not silently erase old evidence.
+
+### Recover after moving or copying a repository
+
+The saved absolute repository path prevents another checkout from silently
+reusing this checkout's approvals. After a rename, move, new worktree, or clone
+that includes `.eval-author/`, run `--state-only show` in the destination. Its mismatch error
+reports the saved path and revision. For an intentional relocation, use those
+exact values to recover without deleting or hand-editing state:
+
+```bash
+python3 <skill_dir>/scripts/journey_state.py --repo /new/absolute/repository rebind \
+  --from-repository /previous/absolute/repository --expected-revision 12
+python3 <skill_dir>/scripts/journey_state.py --repo /new/absolute/repository --state-only show
+```
+
+`rebind` is the explicit state-recovery exception: it clears approvals without
+inspecting Ethos or task evidence. Resume prerequisite commands with `--state-only`.
+It retains the exact previous state in a content-hashed snapshot under
+`.eval-author/.working/history/repositories/`, referenced by
+`ethos.source_findings`; `journey-state.json` remains the authoritative resume
+record. Existing agent history, findings, answers, draft and evidence references,
+scope choices, priorities, legacy imports, and unresolved blockers survive.
+Historical artifacts and paths inside them are not rewritten. Inspect any
+absolute references and recheck access in the destination before reusing them.
+
+All prerequisite statuses become `unknown` with their sources retained. Ethos
+and draft approval reopen, scopes require review, and journey completion resets.
+Accepted tasks become `draft`, keeping task and evidence hashes; their previous
+acceptance provenance remains in the snapshot. Recheck applicable prerequisites,
+review the saved intent and scope, and complete the existing acceptance workflow
+before recording acceptance again. A rebind does not establish that the agent,
+environment, or task still works. `init` resumes normally after recovery; use its
+agent selection if the intended agent also changed. A stale revision or a
+different saved path is rejected without replacing state.
 
 ### Task status
 
@@ -408,7 +540,12 @@ During Ethos work, the `ethos` update accepts:
 These shared Ethos fields survive journey switches. Lists replace prior lists
 on update; preserve earlier findings and answers when recording new ones. Save
 returned findings, answers, and the current draft at each pause. Load them on
-resume instead of reconstructing intent or repeating answered questions. The
+resume instead of reconstructing intent or repeating answered questions.
+Only `complete` establishes current Ethos confirmation. During `review`, the prior
+digest and provenance remain as history so file changes can still be detected.
+Opening review preserves agreed scopes and completed flows; reconfirming unchanged
+content retains them. Changed content or an intent-revision stage invalidates
+those agreements while preserving their source material. The
 `write` stage requires confirmed draft content. `show` invalidates approval of
 a changed or missing draft while retaining prior answers. Changed canonical
 Ethos similarly reopens its review without discarding the intent history.

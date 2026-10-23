@@ -1077,6 +1077,31 @@ def test_task_readiness_is_projected_without_changing_tasks_or_suite_selection(t
     assert report.refresh(tmp_path) == accepted
 
 
+def test_repository_root_task_keeps_unknown_readiness_without_hiding_other_tasks(tmp_path):
+    import journey_state
+
+    write(tmp_path, "task.toml", '[task]\nname = "root-task"\n')
+    write(tmp_path, "instruction.md", "Repository-root task")
+    path = task(tmp_path)
+    journey_state.initialize(tmp_path)
+    journey_state.record_task(tmp_path, task=path, status="draft", source="Case creation in progress")
+    state_path = journey_state.state_path(tmp_path)
+    before_state = state_path.read_bytes()
+
+    data = report.refresh(tmp_path)
+
+    rows = {row["path"]: row for row in data["tasks"]}
+    assert rows["."]["readiness"] == "unknown"
+    assert rows["."]["status"] == "found"
+    assert "readiness" in rows["."]["readiness_reason"].lower()
+    assert rows[path]["readiness"] == "draft"
+    assert rows[path]["readiness_reason"] == "Case creation in progress"
+    assert report.previous_report(tmp_path / ".eval-author/report.html")[0]["tasks"] == data["tasks"]
+    assert "Unknown<br>" in (tmp_path / ".eval-author/README.md").read_text()
+    assert state_path.read_bytes() == before_state
+    assert report.refresh(tmp_path) == data
+
+
 @pytest.mark.parametrize("change", ["task", "evidence", "missing-evidence"])
 def test_report_reopens_changed_acceptance_without_rewriting_provenance(tmp_path, change):
     import journey_state

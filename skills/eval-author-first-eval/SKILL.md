@@ -254,6 +254,10 @@ alone does not prove that the connection works.
 
 ## 8. Validate the evals
 
+Finalize each task's files and README run instructions before preparing
+[revision-bound evidence](../eval-author/references/task-validation.md#prepare-immutable-inputs)
+for these checks.
+
 Follow [Execution recovery](../eval-author/references/execution-recovery.md)
 for control and target-agent runs, compatibility repairs, and all result recaps.
 Confirm the current environment kit's proof (Harbor's smoke task or NeMo Gym's
@@ -294,9 +298,10 @@ Recording this baseline with the evidence recorder is optional.
 
 ## 10. Review results and explain reruns
 
-Record **Accepted** through [Task status](../eval-author/references/shared-prerequisites.md#task-status)
-after the existing workflow's controls, configuration validation, actual-agent
-baseline, and result review are complete. Link the retained evidence; low agent
+Confirm the retained controls, configuration validation, actual-agent baseline,
+and completed result review describe the final task revision, including its README.
+Then record **Accepted** through [Task status](../eval-author/references/shared-prerequisites.md#task-status).
+Link the retained evidence; low agent
 scores do not prevent acceptance of a functioning evaluation. Keep incomplete
 tasks **Draft**.
 For accepted tasks, follow [Keep task paths stable](../eval-author/SKILL.md#keep-task-paths-stable).
@@ -307,15 +312,15 @@ runnable suite configs. Include the accepted task count and location in the hand
 
 Update `.eval-author/.working/journey-state.json` with artifact references, completion state, and blockers. Keep exact commands in the suite README and control
 results, per-task agent rewards, and exceptions in native evidence. Show how
-to rerun the suite, inspect one result, and add or modify a task. Finish and link
-the suite and task README run instructions for either provider and refresh
+to rerun the suite, inspect one result, and add or modify a task. Maintain the
+suite README's run instructions and results links, link the finalized task READMEs, and refresh
 `.eval-author/report.html` and `.eval-author/README.md` following the shared report contract.
 Preserve the full-suite command and concrete commands for individual coverage items,
 following [Review and rerun guidance](../eval-author/references/suite-readme.md#review-and-rerun-guidance).
 
-Report refresh must not change the evaluation result or workflow state. When the report
-should be mentioned in a response, link `.eval-author/README.md` and `.eval-author/report.html`
-as the last lines of the response, after all other communication. Do not link
+Report refresh must not change the evaluation result or workflow state. Follow
+the closing-sentence template in [Report generation](../eval-author/references/suite-readme.md#report-generation)
+when linking the report and suite README. Do not link
 the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` in the run handoff unless asked.
 
 Continue saving agreed scope and current progress in `.eval-author/.working/journey-state.json`

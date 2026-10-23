@@ -155,10 +155,16 @@ python3 ../ethos-write/scripts/validate_ethos.py /path/to/ETHOS.md
 To revise an existing ETHOS.md, ask for the edit directly; `ethos-write` updates the
 relevant sections in place and sets `updated_timestamp`.
 
-## Using ETHOS.md with Eval Author
+## Resuming Ethos work
 
-Eval Author's first evaluations and coverage audits use ETHOS.md as their target
-and hand off to these skills to create or revise it. Installing Eval Author
-(`npx skills add NVIDIA-NeMo/eval-author --skill '*'`) does not install
-them; follow [How to use](#how-to-use) to add all three from
-`nvidia/skills`.
+To continue an interrupted conversation, pass the selected repository, agent,
+file location, source findings, explicit user replies, and unfinished work to
+`ethos-orchestrate`. Its [continuation guidance](SKILL.md#continue-from-prior-context)
+also applies when another workflow invokes it. Matching prior context avoids
+repeating the opening and completed interview; it does not bypass draft
+confirmation, validation, or saved-file review.
+
+The Ethos skills report the file location, validation outcome, unresolved
+questions, and what has been confirmed. The invoking conversation or workflow
+owns persistence; no integration-specific format or file location is required.
+Install all three skills as described in [How to use](#how-to-use).

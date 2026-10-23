@@ -69,7 +69,10 @@ deployment compatibility.
 Apply this section only when the user selects Helix Evaluator as the consumer.
 Confirm the target Helix revision's contract before packaging. Keep the native
 NeMo Gym draft and local verifier fixtures intact; prepare a separate export under
-`.eval-author/tasks/<task-slug>/exports/helix/` with its own file digests.
+`.eval-author/exports/<task-slug>/helix/` with its own file digests. Keep it outside
+the native task directory so export preparation does not change the task revision
+bound to execution evidence and acceptance. Native task acceptance does not
+establish this export's validation or deployment readiness.
 
 At the source revision below, Evaluator accepts `native-v1` and `wheels-v1`:
 

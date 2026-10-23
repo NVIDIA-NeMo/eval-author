@@ -59,7 +59,7 @@ For native NeMo Gym scaffolds, the report finds the nearest task README above th
 environment definition. Document dataset paths, selected rows, and each case's
 input, expected result, and grading there; a workload row does not imply a
 single dataset example or native validation. NeMo Gym run evidence remains linked
-from the maintained README; the Runs table reads native Harbor jobs only.
+from the suite README; the Runs table reads native Harbor jobs only.
 Harbor actions use the HTML's default viewer URLs; Markdown cannot read browser
 settings or probe a viewer. Use the linked HTML report for configured addresses
 and connection help.
@@ -99,10 +99,15 @@ explicitly selected.
 
 Refresh after cases are authored, after additions or edits, and after validation
 or actual-agent runs, including failed runs. Refresh again at the final handoff
-and link the report. When the report needs to be mentioned, always link
-`.eval-author/README.md` and `.eval-author/report.html` as the last lines of the
-response, after all other communication with a note like: Reivew (test cases|runs)
-created in this session in the `.eval-author/report.html` or `.eval-author/README.md`.
+and link the report. When mentioning the report, end the response with one
+sentence containing each artifact link once:
+
+```markdown
+Review your evaluations in [the report](<report-path>) or [the suite README](<readme-path>).
+```
+
+Use the actual paths to `.eval-author/report.html` and `.eval-author/README.md`,
+and keep both links in that closing sentence.
 
 Present evaluation findings and report links to the user; describe generation internals
 only when asked. Reuse the settled scope and authorization: a missing report is not
@@ -329,7 +334,10 @@ For example, link `tests/test.sh`, `tests/verify.py`, and `tests/expected.json`
 only when those files exist and are used. For model or hybrid grading, also link
 the judge implementation and rubric/configuration actually used. A deterministic
 verifier still needs code and criteria links; it does not need an invented judge.
-Check that all README links resolve before the authoring handoff.
+Finish the task README and its setup/run instructions, checking its links, before
+[preparing validation evidence](task-validation.md#prepare-immutable-inputs).
+Maintain later run results and evidence links in the outer suite README so
+reporting does not change the validated task revision.
 
 Do not combine expected results
 and grading under `Expected outcome and grading`, or replace an existing
@@ -365,8 +373,8 @@ entry point. Multi-task suites need a suite guide in addition to individual task
 READMEs.
 
 Use the suite's existing root under `.eval-author/`: for first-eval this is
-`.eval-author/README.md`; for a standalone task,
-extend `.eval-author/tasks/<task-slug>/README.md`. For trace-derived work,
+`.eval-author/README.md`; use that outer guide for a standalone task too, linking
+its finalized `.eval-author/tasks/<task-slug>/README.md`. For trace-derived work,
 use `<task-dir>/README.md`, beside `task/`; a generated batch also needs a README
 at its collection root. Keep the trace task's required `task/README.md` intact.
 When an existing generated suite has an uppercase `README.md` at the same

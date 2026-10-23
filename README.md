@@ -39,7 +39,7 @@ on task difficulty and authoring prompts.
 ## Prerequisites
 
 NeMo Eval Author has tested support for [NeMo Gym](https://docs.nvidia.com/nemo/gym/latest/) and
-[Harbor](https://docs.harborframework.com/) eval formats. Workflows default to Harbor when neither is specified. 
+[Harbor](https://docs.harborframework.com/) eval formats. Authoring defaults to Harbor when neither is specified.
 NeMo Gym is compatible with Harbor, and the user has the final say.
 
 NeMo Gym authoring needs NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment; Harbor authoring needs its
@@ -50,9 +50,17 @@ Ethos. Explicit inventory or planning-only requests do not require an evaluation
 
 All three journeys review or create a repository-root **ETHOS.md** describing
 your agent's purpose, boundaries, and success criteria. Install the
-[Ethos skills](team-skills/ethos/ethos-orchestrate/README.md) to confirm an existing
-document or create one with you:
-`npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/team-skills/ethos --agent claude-code`.
+[Ethos skills](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md#how-to-use)
+to confirm an existing document or create one with you:
+
+```bash
+npx skills@latest add nvidia/skills \
+  --skill ethos-orchestrate --skill ethos-explore --skill ethos-write \
+  --agent claude-code --yes
+```
+
+Run from your agent's repository, replace `claude-code` with your assistant's
+identifier, and add `--global` for a global installation.
 
 The discovery helper requires Python 3.11+. Audit generation, validation, and
 aggregation require Python 3.11+, PyYAML, and jsonschema. Measuring coverage from

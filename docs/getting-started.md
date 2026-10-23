@@ -16,10 +16,19 @@ together: skills load sibling skills and their bundled scripts, schemas,
 templates, and references. The set includes the **experimental**
 trace-to-environment workflow.
 
-First evaluations and coverage audits also need the ethos skills (`ethos-orchestrate`,
-`ethos-explore`, and `ethos-write`), which install separately:
-`npx skills add https://github.com/NVIDIA-NeMo/eval-author/tree/main/team-skills/ethos`.
-See the [ETHOS.md guide](../team-skills/ethos/ethos-orchestrate/README.md).
+All three journeys also need the Ethos skills (`ethos-orchestrate`,
+`ethos-explore`, and `ethos-write`), which install separately from the NVIDIA
+skills catalog. Use the [installation command](../README.md#prerequisites) for
+your assistant and scope; see the
+[ETHOS.md guide](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md#how-to-use).
+
+Eval Author uses only repository-root `ETHOS.md`. The linked catalog guide
+describes lowercase `ethos.md` and renaming uppercase files; those published
+instructions conflict with Eval Author's required destination. Use a catalog
+version that preserves an explicitly supplied uppercase path, and verify the
+installed skills before starting Ethos. Incompatible instructions block the
+handoff; reinstalling the same version does not resolve the mismatch. See the
+[required handoff capabilities](../skills/eval-author/references/ethos-confirmation.md#required-handoff-capabilities).
 
 Neither installation path installs Harbor, Python dependencies, a coding
 assistant, or NeMo services. Those have [workflow-specific requirements](#requirements).
@@ -208,7 +217,7 @@ discovery in the assistant.
    and references.
 
 3. Start your request with this text, replacing `<entry-skill-path>` with the
-   path printed above. Add your goal from one of the [workflow guides](../README.md#start-here):
+   path printed above. Add your goal from one of the [workflow guides](../README.md#choose-your-journey):
 
    ```text
    Use Eval Author at <entry-skill-path> in this repository.
@@ -244,7 +253,7 @@ Use eval-author to help me with the evals for my agent.
 Eval Author helps you build your first evaluations, audit existing coverage, or
 improve a suite. It first confirms your setup and your agent's intended behavior
 in `ETHOS.md`, then continues with your selected goal. You can also use a
-[more specific starter prompt](../README.md#start-here).
+[more specific starter prompt](../README.md#choose-your-journey).
 
 Full creation and improvement onboarding pauses before Ethos if the selected
 runtime is missing, incompatible, or cannot yet be verified. Progress is saved

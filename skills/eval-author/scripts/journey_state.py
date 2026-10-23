@@ -28,29 +28,27 @@ from runtime_policy import load as runtime_policy  # noqa: E402
 from working_paths import (  # noqa: E402
     atomic_write,
     atomic_write_json,
+    json_bytes,
     repository_root,
     working_lock,
     working_path,
 )
 
 JOURNEYS = {
-    "create": "Create your first evaluations",
+    "create": "Build, run, and review your first evaluations",
     "audit": "Check what your existing evaluations cover",
-    "expand": "Improve your existing evaluations",
+    "expand": "Improve, run, and review your existing evaluations",
 }
 STAGES = {"explore", "interview", "draft", "write", "review", "complete"}
-PREREQUISITES = {
+COMMON_PREREQUISITES = {
     "code_access",
     "file_writes",
     "command_execution",
     "skills",
     "ethos_skills",
-    "runtime",
     "python",
-    "environment",
-    "services",
-    "data",
 }
+PREREQUISITES = COMMON_PREREQUISITES | {"runtime", "environment", "services", "data"}
 DEFERRED = {"agent_connection", "model_credentials"}
 PROVIDER_DEPENDENT = {"runtime", "python", "environment", "services", "data", *DEFERRED}
 AGENT_DEPENDENT = {"services", "data", *DEFERRED}
@@ -186,14 +184,7 @@ def validate(state: dict) -> None:
         }:
             raise ValueError(f"Invalid prerequisite answer: {key}")
         _text(answer["source"], f"{key}.source")
-        if answer["status"] == "not_required" and key in {
-            "code_access",
-            "file_writes",
-            "command_execution",
-            "skills",
-            "ethos_skills",
-            "python",
-        }:
+        if answer["status"] == "not_required" and key in COMMON_PREREQUISITES:
             raise ValueError(f"{key} is required for the shared prerequisite flow")
         if answer["status"] == "not_required" and key == "runtime" and state["journey"] != "audit":
             raise ValueError("runtime is required when creating or improving evaluations")
@@ -240,8 +231,10 @@ def validate(state: dict) -> None:
     confirmed = ethos["confirmed_digest"]
     if confirmed is not None and (not isinstance(confirmed, str) or not DIGEST.fullmatch(confirmed)):
         raise ValueError("Invalid Ethos content digest")
-    if (ethos["stage"] == "complete") != (confirmed is not None):
+    if ethos["stage"] == "complete" and confirmed is None:
         raise ValueError("Complete Ethos requires a reviewed content digest")
+    if confirmed is not None and ethos["stage"] not in {"complete", "review"}:
+        raise ValueError("Historical Ethos confirmation is retained only during review")
     if confirmed and (not ethos["confirmation_source"] or not ethos["validation"]):
         raise ValueError("Ethos confirmation requires review and validation provenance")
     for field in ("scopes", "journey_status"):
@@ -270,7 +263,7 @@ def validate(state: dict) -> None:
             raise ValueError("Invalid legacy import status or digest")
         _text(item["source"], "legacy source")
         _text(item["archive"], "legacy archive")
-    encoded = json.dumps(state, allow_nan=False).encode()
+    encoded = json_bytes(state)
     if len(encoded) > MAX_BYTES:
         raise ValueError("Journey state is too large; link domain artifacts instead of embedding them")
 
@@ -327,12 +320,20 @@ def invalidate_scopes(state: dict) -> None:
     state["journey_status"] = {}
 
 
-def load_state(repo: Path) -> dict:
+def load_state(repo: Path, *, state_only: bool = False) -> dict:
     state = read_json(state_path(repo))
     validate(state)
     state.setdefault("tasks", {})
     if state["repository"] != str(repo):
-        raise ValueError("Journey state belongs to another repository; do not reuse its approvals")
+        raise ValueError(
+            f"Journey state belongs to another repository: {state['repository']!r} (revision {state['revision']}). "
+            f"For an intentional relocation to {str(repo)!r}, use rebind --from-repository "
+            f"{state['repository']!r} --expected-revision {state['revision']}; this reopens saved approvals."
+        )
+    if state_only:
+        # Prerequisite collection may reuse stored provenance, but must not look
+        # up Ethos or its draft before the visible transition into Ethos work.
+        return state
     confirmed = state["ethos"]["confirmed_digest"]
     if confirmed:
         try:
@@ -351,7 +352,11 @@ def load_state(repo: Path) -> dict:
             invalidate_scopes(state)
             state["next_handoff"] = "ethos-orchestrate"
             state["pending_question"] = "ETHOS.md changed or is unavailable; review its intended behavior again."
-    if state["ethos"]["draft_confirmed"] and state["ethos"]["stage"] != "complete":
+    if (
+        state["ethos"]["draft_confirmed"]
+        and state["ethos"]["stage"] != "complete"
+        and state["ethos"]["confirmed_digest"] is None
+    ):
         draft = state["ethos"]["draft"]
         try:
             current = draft_digest(repo, draft)
@@ -470,21 +475,19 @@ def task_lifecycle(repo: Path, state: dict, task_path: str) -> dict:
     return {"status": "unknown", "reason": "No task acceptance decision is recorded"}
 
 
-def checklist(state: dict) -> list[dict]:
+def checklist(state: dict, *, state_only: bool = False) -> list[dict]:
     blocked = {item["phase"] for item in state["blockers"]}
     journey = state["journey"]
+    # Readiness for Ethos differs from readiness for later execution.
+    # Audit needs completed-run traces, not an authoring provider or runner.
+    required = COMMON_PREREQUISITES | {"data" if journey == "audit" else "runtime"}
     setup_done = (
-        bool(state["agent"] and state["setup"])
-        and all(
-            state["prerequisites"].get(key, {}).get("status") in ("verified", "confirmed", "not_required")
-            for key in PREREQUISITES
-        )
-        # Full audit onboarding needs traces from completed evaluation runs.
-        # Legacy exemptions remain readable, but cannot establish readiness.
-        and (journey != "audit" or state["prerequisites"].get("data", {}).get("status") in ("verified", "confirmed"))
+        bool(state["agent"])
+        and (journey == "audit" or bool(state["setup"]))
+        and all(state["prerequisites"].get(key, {}).get("status") in ("verified", "confirmed") for key in required)
         and "setup" not in blocked
     )
-    ethos_done = state["ethos"]["stage"] == "complete" and "ethos" not in blocked
+    ethos_done = not state_only and state["ethos"]["stage"] == "complete" and "ethos" not in blocked
     completed = state["journey_status"].get(journey) == "complete" and journey not in blocked
     rows = [
         {
@@ -516,7 +519,7 @@ def checklist(state: dict) -> list[dict]:
     return rows
 
 
-def view(state: dict) -> dict:
+def view(state: dict, *, state_only: bool = False) -> dict:
     policy = runtime_policy()
     provider = policy["providers"].get(state["setup"])
     if state["journey"] == "audit":
@@ -527,38 +530,64 @@ def view(state: dict) -> dict:
         requirements = None
     return {
         "state": state,
-        "task_readiness": {
-            task: task_lifecycle(Path(state["repository"]), state, task) for task in state.get("tasks", {})
-        },
-        "checklist": checklist(state) if state["journey"] else [],
+        "artifact_checks_deferred": state_only,
+        "task_readiness": (
+            None
+            if state_only
+            else {task: task_lifecycle(Path(state["repository"]), state, task) for task in state.get("tasks", {})}
+        ),
+        "checklist": checklist(state, state_only=state_only) if state["journey"] else [],
         "runtime_requirements": requirements,
         "confirmation_is_runtime_evidence": False,
     }
 
 
 def save(repo: Path, state: dict) -> None:
-    state["revision"] += 1
-    state["updated_at"] = now()
-    validate(state)
-    atomic_write_json(working_path(repo, "journey-state.json"), state)
+    proposed = {**state, "revision": state["revision"] + 1, "updated_at": now()}
+    validate(proposed)
+    atomic_write_json(working_path(repo, "journey-state.json"), proposed)
+    state.update(proposed)
 
 
-def initialize(repo: Path, *, agent: str | None = None, journey: str | None = None, setup: str | None = None) -> dict:
+def initialize(
+    repo: Path,
+    *,
+    agent: str | None = None,
+    journey: str | None = None,
+    setup: str | None = None,
+    state_only: bool = False,
+) -> dict:
     with working_lock(working_path(repo, "journey-state.lock")):
-        state = load_state(repo) if state_path(repo).exists() else new_state(repo)
-        if agent is not None and agent != state["agent"]:
+        state = load_state(repo, state_only=state_only) if state_path(repo).exists() else new_state(repo)
+        previous_agent = state["agent"]
+        previous_context = None
+        if agent is not None and agent != previous_agent:
+            if previous_agent is not None:
+                previous_context = state_path(repo).read_bytes()
             state["agent"] = agent
-            state["ethos"] = empty_ethos()
-            state["scopes"] = {}
-            state["journey_status"] = {}
-            state["prerequisites"] = {k: v for k, v in state["prerequisites"].items() if k not in AGENT_DEPENDENT}
-            state["blockers"] = [item for item in state["blockers"] if item["phase"] == "setup"]
-            state["pending_question"] = None
-            state["next_handoff"] = None
-        if setup is not None and setup != state["setup"]:
-            state["setup"] = setup
-            state["prerequisites"] = {k: v for k, v in state["prerequisites"].items() if k not in PROVIDER_DEPENDENT}
+            state["ethos"].update(
+                stage="review" if previous_agent is not None else "explore",
+                draft_confirmed=False,
+                draft_source=None,
+                confirmed_digest=None,
+                confirmation_source=None,
+                validation=None,
+            )
             invalidate_scopes(state)
+            for key in AGENT_DEPENDENT & state["prerequisites"].keys():
+                state["prerequisites"][key]["status"] = "unknown"
+        if setup is not None and setup != state["setup"]:
+            if state["setup"] is None:
+                # Selecting an authoring provider for the first time does not
+                # change existing audit work. Reassess readiness, keeping sources.
+                for key in PROVIDER_DEPENDENT & state["prerequisites"].keys():
+                    state["prerequisites"][key]["status"] = "unknown"
+            else:
+                state["prerequisites"] = {
+                    k: v for k, v in state["prerequisites"].items() if k not in PROVIDER_DEPENDENT
+                }
+                invalidate_scopes(state)
+            state["setup"] = setup
             state["pending_question"] = None
             state["next_handoff"] = None
         if journey is not None and journey != state["journey"]:
@@ -577,14 +606,97 @@ def initialize(repo: Path, *, agent: str | None = None, journey: str | None = No
             state["journey"] = journey
             state["pending_question"] = None
             state["next_handoff"] = None
+        if previous_context is not None:
+            # Preserve the old identity, approvals, and pending work as evidence,
+            # without treating them as approval for the newly selected agent.
+            name = f"{digest(previous_context)}.json"
+            state["ethos"]["source_findings"].append(
+                {
+                    "path": f".eval-author/.working/history/agents/{name}",
+                    "summary": f"Historical context for agent {previous_agent!r}; reassess for the selected agent.",
+                }
+            )
+            state["pending_question"] = (
+                f"Agent changed from {previous_agent!r} to {agent!r}; review which saved context and decisions still apply."
+            )
+            state["next_handoff"] = "eval-author"
+            validate(state)
+            atomic_write(working_path(repo, "history", "agents", name), previous_context)
         save(repo, state)
         return state
 
 
-def update(repo: Path, patch: dict, *, expected_revision: int | None = None) -> dict:
+def rebind(repo: Path, *, previous_repository: str, expected_revision: int) -> dict:
+    """Explicitly recover relocated state, retaining its prior approvals only as history."""
+    with working_lock(working_path(repo, "journey-state.lock")):
+        state = read_json(state_path(repo))
+        validate(state)
+        if state["repository"] == str(repo):
+            raise ValueError("Journey state is already bound to this repository; use show or init to resume")
+        if previous_repository != state["repository"]:
+            raise ValueError("Saved repository differs from --from-repository; use the path reported by show")
+        if expected_revision != state["revision"]:
+            raise ValueError("State changed; reload before rebinding")
+        previous_context = state_path(repo).read_bytes()
+        name = f"{digest(previous_context)}.json"
+        history_path = f".eval-author/.working/history/repositories/{name}"
+        state.setdefault("tasks", {})
+        state["repository"] = str(repo)
+        for answer in state["prerequisites"].values():
+            answer["status"] = "unknown"
+        state["ethos"].update(
+            stage="review",
+            draft_confirmed=False,
+            draft_source=None,
+            confirmed_digest=None,
+            confirmation_source=None,
+            validation=None,
+        )
+        state["ethos"]["source_findings"].append(
+            {
+                "path": history_path,
+                "summary": f"Historical context from repository {previous_repository!r}; reassess after relocation.",
+            }
+        )
+        invalidate_scopes(state)
+        for record in state["tasks"].values():
+            if record["status"] == "accepted":
+                record.update(
+                    status="draft",
+                    source=f"Repository relocated; reassess acceptance. Prior decision and provenance: {history_path}",
+                    updated_at=now(),
+                )
+        state["pending_question"] = (
+            f"Repository changed from {previous_repository!r} to {str(repo)!r}; "
+            "recheck prerequisites and review which saved context and decisions still apply."
+        )
+        state["next_handoff"] = "eval-author"
+        validate(state)
+        atomic_write(working_path(repo, "history", "repositories", name), previous_context)
+        save(repo, state)
+        return state
+
+
+def update(repo: Path, patch: dict, *, expected_revision: int | None = None, state_only: bool = False) -> dict:
     allowed = {"prerequisites", "ethos", "scopes", "journey_status", "blockers", "pending_question", "next_handoff"}
     if not isinstance(patch, dict) or set(patch) - allowed:
         raise ValueError("Update accepts workflow fields only; use init to select agent, journey, or setup")
+    if state_only and (
+        set(patch) - {"prerequisites", "ethos", "scopes", "blockers", "pending_question", "next_handoff"}
+        or ("ethos" in patch and patch["ethos"] != {"stage": "review"})
+    ):
+        raise ValueError("State-only updates accept prerequisites, blockers, routing, and ethos.stage=review only")
+    if state_only and "scopes" in patch:
+        scopes = patch["scopes"]
+        if (
+            not isinstance(scopes, dict)
+            or set(scopes) != {"audit"}
+            or not isinstance(scopes["audit"], dict)
+            or set(scopes["audit"]) != {"framework", "framework_source"}
+        ):
+            raise ValueError("State-only updates accept only audit framework and framework_source scope observations")
+        for field, value in scopes["audit"].items():
+            _text(value, f"scopes.audit.{field}")
     if "ethos" in patch:
         if (
             not isinstance(patch["ethos"], dict)
@@ -602,28 +714,45 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None) -> 
         ):
             raise ValueError("Use confirm-ethos to record approval of the exact saved content")
     with working_lock(working_path(repo, "journey-state.lock")):
-        state = load_state(repo)
+        state = load_state(repo, state_only=state_only)
         if expected_revision is not None and expected_revision != state["revision"]:
             raise ValueError("State changed; reload before updating")
+        if state_only and "scopes" in patch:
+            if state["journey"] != "audit":
+                raise ValueError("State-only framework observations require the audit journey")
+            if not isinstance(state["scopes"].get("audit", {}), dict):
+                raise ValueError("Saved audit scope must be a mapping; preserve it for review before updating")
         prior_draft = copy.deepcopy(state["ethos"]["draft"])
         for field, value in patch.items():
-            if field in {"prerequisites", "ethos", "scopes", "journey_status"}:
+            if state_only and field == "scopes":
+                # These are prerequisite observations, not a new scope agreement.
+                # Preserve every existing trace, selection, approval, and source.
+                state["scopes"].setdefault("audit", {}).update(copy.deepcopy(value["audit"]))
+            elif field in {"prerequisites", "ethos", "scopes", "journey_status"}:
                 if not isinstance(value, dict):
                     raise ValueError(f"{field} must be a mapping")
                 state[field].update(copy.deepcopy(value))
             else:
                 state[field] = copy.deepcopy(value)
-        if state["ethos"]["draft"] != prior_draft:
-            proposed = patch.get("ethos", {})
+        proposed = patch.get("ethos", {})
+        revising_intent = proposed.get("stage", "complete") not in {"complete", "review"}
+        if state["ethos"]["draft"] != prior_draft or (revising_intent and state["ethos"]["confirmed_digest"]):
             if not (proposed.get("draft_confirmed") is True and proposed.get("draft_source")):
                 state["ethos"].update(draft_confirmed=False, draft_source=None)
-        if "ethos" in patch and patch["ethos"].get("stage", "complete") != "complete":
+        # A fresh review pauses confirmation without discarding its historical
+        # content binding or completed work. load_state still detects file changes.
+        if revising_intent:
             state["ethos"]["confirmed_digest"] = None
             state["ethos"]["confirmation_source"] = None
             state["ethos"]["validation"] = None
             invalidate_scopes(state)
         validate(state)
-        if state["ethos"]["draft_confirmed"] and state["ethos"]["stage"] != "complete":
+        if (
+            not state_only
+            and state["ethos"]["draft_confirmed"]
+            and state["ethos"]["stage"] != "complete"
+            and state["ethos"]["confirmed_digest"] is None
+        ):
             draft = state["ethos"]["draft"]
             if draft["digest"] != draft_digest(repo, draft):
                 raise ValueError("Draft differs from the agreed content; review before writing")
@@ -695,12 +824,22 @@ def import_legacy(repo: Path) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path.cwd())
+    parser.add_argument(
+        "--state-only",
+        action="store_true",
+        help="Prerequisite init/show/update only; retain saved provenance without reading Ethos, drafts, or task evidence",
+    )
     commands = parser.add_subparsers(dest="command", required=True)
     init = commands.add_parser("init", help="Initialize or resume; selectively invalidate changed identity/setup")
     init.add_argument("--agent")
     init.add_argument("--journey", choices=JOURNEYS)
     init.add_argument("--setup", choices=("gym", "harbor"))
     commands.add_parser("show", help="Read state and derive checklist without writing")
+    relocation = commands.add_parser(
+        "rebind", help="Recover relocated state and reopen approvals; preserve prior context"
+    )
+    relocation.add_argument("--from-repository", required=True, help="Exact saved repository path reported by show")
+    relocation.add_argument("--expected-revision", required=True, type=int)
     patch = commands.add_parser("update", help="Apply observed checks and user answers from a JSON mapping")
     patch.add_argument("--input", type=Path, required=True)
     patch.add_argument("--expected-revision", type=int)
@@ -716,11 +855,19 @@ def main() -> int:
     commands.add_parser("import-legacy", help="Import old notes without assuming their approvals")
     args = parser.parse_args()
     try:
+        if args.state_only and args.command not in {"init", "show", "update"}:
+            raise ValueError("--state-only supports prerequisite init, show, and update only")
         repo = repository_root(args.repo)
         if args.command == "init":
-            state = initialize(repo, agent=args.agent, journey=args.journey, setup=args.setup)
+            state = initialize(
+                repo, agent=args.agent, journey=args.journey, setup=args.setup, state_only=args.state_only
+            )
+        elif args.command == "rebind":
+            state = rebind(repo, previous_repository=args.from_repository, expected_revision=args.expected_revision)
         elif args.command == "update":
-            state = update(repo, read_json(args.input), expected_revision=args.expected_revision)
+            state = update(
+                repo, read_json(args.input), expected_revision=args.expected_revision, state_only=args.state_only
+            )
         elif args.command == "confirm-ethos":
             state = confirm_ethos(repo, reviewed_digest=args.digest, source=args.source, validation=args.validation)
         elif args.command == "record-task":
@@ -728,8 +875,8 @@ def main() -> int:
         elif args.command == "import-legacy":
             state = import_legacy(repo)
         else:
-            state = load_state(repo)
-        print(json.dumps(view(state), indent=2))
+            state = load_state(repo, state_only=args.state_only)
+        print(json.dumps(view(state, state_only=args.state_only), indent=2))
         return 0
     except (OSError, ValueError, TypeError, KeyError) as exc:
         print(json.dumps({"error": str(exc), "persisted": False}), file=sys.stderr)

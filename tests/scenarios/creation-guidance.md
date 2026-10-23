@@ -158,6 +158,13 @@ the missing work is resolved, the final reconciliation accounts for all examples
 their expected outcomes, checks, actual run evidence or remaining execution
 limits, and exclusions. Low agent scores are not hidden or changed into passes.
 
+**Acceptance and documentation variant:** Finish task README setup/run instructions
+before preparing the revision-bound controls and baseline evidence. Record Accepted
+only after reviewing evidence for that finalized revision. Update the outer suite
+README and report with results; task bytes and Accepted status remain unchanged.
+An optional Helix export goes outside the task tree and needs its own validation.
+An actual task edit still returns it to Draft until its revised evidence is reviewed.
+
 **Audit-based variant:** Supply reviewed audit/proposal history, a selected
 corpus, an eligible measured tool gap, and a request to create its task. Inspect
 the creation scope checkpoint and saved recommendations. One example with two
