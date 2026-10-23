@@ -90,6 +90,9 @@ both providers.
 
 Display **Draft**, **Accepted**, or **Unknown** and any status reason in the Tasks
 table in both outputs, using [Task status](shared-prerequisites.md#task-status).
+In the HTML, each status is a badge (Draft grey, Accepted green, Unknown amber)
+and the reason appears in a popover on hover or keyboard focus; Markdown prints
+the reason as text.
 Shared journey state owns these decisions; reporting metadata and native run
 scores cannot override them. **Draft** means acceptance is pending or its task
 revision or evidence changed; **Unknown** means no valid task status is available.
@@ -305,11 +308,12 @@ Report grading types are `Custom code`, `LLM-as-judge`,
 `Custom code + LLM-as-judge`, and `Not documented`. Refresh accepts the legacy
 `deterministic`, `model`, `hybrid`, and `unknown` values and normalizes both stored
 metadata and task rows to the clearer names, including retained unverified rows.
-These are reporting descriptions, not runtime verifier settings. Refresh reads
+These are reporting descriptions, not runtime verifier settings. Refresh uses the
+task's `grading_kind` from reporting metadata first. When none is recorded, it reads
 `Type: Custom code`, `Type: LLM-as-judge`, or `Type: Custom code + LLM-as-judge`
-from the task README's unique Grading section before consulting imported metadata.
-Missing declarations fall back to metadata, then `Not documented`. Invalid or
-ambiguous declarations display `Not documented`; refresh does not guess from prose.
+from the task README's unique Grading section. Missing declarations display
+`Not documented`, as do invalid or ambiguous README declarations; refresh does not
+guess from prose. Recording the type in metadata does not change the task revision.
 The type line is excluded from the short grader description.
 
 The grader description comes from a unique `## Grader summary` or
@@ -396,9 +400,11 @@ inputs, describe the input shape and link the complete source. Link `instruction
 and the actual fixtures with relative Markdown links, not bare code paths. Keep
 expected answers in Expected result and verifier-only data, outside Input.
 
-Keep the `Grading` heading plain. Start with a standalone `Type:` paragraph using
-`Custom code`, `LLM-as-judge`, or `Custom code + LLM-as-judge`, based on the actual
-verifier implementation. Use `Custom code` for programmatic checks, `LLM-as-judge`
+Keep the `Grading` heading plain. Record the grading type as `grading_kind` in the
+reporting metadata patch using `Custom code`, `LLM-as-judge`, or
+`Custom code + LLM-as-judge`, based on the actual verifier implementation. A
+standalone `Type:` paragraph with the same values is read only as a fallback when
+no metadata type exists. Use `Custom code` for programmatic checks, `LLM-as-judge`
 for model judging, and the combined label when both determine the score. Running
 an LLM as the agent under test does not make the verifier an LLM judge.
 Follow the type with a blank line and a task-specific 5–10 word description of

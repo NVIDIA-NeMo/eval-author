@@ -632,7 +632,11 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
                 "title": title,
                 "behavior": behavior,
                 "expected_outcome": outcome,
-                "grading_kind": grading_kind or overrides.get("grading_kind", "Not documented"),
+                "grading_kind": (
+                    overrides["grading_kind"]
+                    if overrides.get("grading_kind", "Not documented") != "Not documented"
+                    else grading_kind or "Not documented"
+                ),
                 "grading_rule": overrides.get("grading_rule"),
                 "grading_summary": grading_summary,
                 "readme_revision": revision,
