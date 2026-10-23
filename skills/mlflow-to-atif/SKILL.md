@@ -24,6 +24,9 @@ maturity: alpha
 license: Apache-2.0
 user-invocable: true
 allowed-tools: Bash Read Write
+metadata:
+  author: Alec Khoury <akhoury@nvidia.com>
+  tags: [evaluation, traces]
 ---
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
