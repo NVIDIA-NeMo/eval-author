@@ -139,6 +139,11 @@ observed checks, **Confirmed by you** for user answers without matching executio
 evidence, **Missing** for established unavailable or incompatible prerequisites,
 **Unknown** for unresolved checks, and **Not needed now** where applicable. A
 successful runtime probe does not prove the suite or agent is ready to run.
+Use a single status per row and distinguish individual findings for grouped
+checks in Findings. For a missing or unresolved later requirement, name the
+operation it blocks and the needed action there, such as “Agent runs blocked:
+[missing requirement and resolution].” Keep known missing dependencies explicit
+when reusing saved progress.
 
 After this pass, ask only for unresolved information or decisions needed to
 continue, such as the selected runtime's location, the supported format for improvements, audit trace availability,
@@ -149,6 +154,11 @@ and when they must be resolved. Do not label those later requirements optional o
 confuse them with the runtime prerequisite above. Do not ask the
 user to confirm facts already established by checks. Preserve progress; a saved availability question must go
 through these checks before it is asked again.
+
+When later requirements remain, summarize readiness for Ethos separately from
+readiness to run evaluations. For example: “We can review ETHOS.md. Agent runs
+remain blocked until [requirements are resolved].” These are required
+dependencies; do not present them as Recommendations.
 
 ## Present results and the next step
 
