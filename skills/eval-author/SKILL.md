@@ -95,12 +95,17 @@ Do not inspect repository files or saved state, validate Ethos, check prerequisi
 run helper commands, write files, or delegate work. This also applies to direct
 first-eval and full-audit invocations. Prerequisite questions and findings belong
 to later turns. Only after the user replies to **Ready to get started?**, show the
-prerequisite table from the shared procedure, then inspect the accessible prerequisites before asking about
-anything unresolved. If no Blockers remain, show the selected checklist under
-**Next Steps** after the results table and any Recommendations. If blocked, end with the
-Blockers and omit Next Steps, the checklist, and Ethos guidance.
-Continuations and goal switches within an existing shared flow reuse progress
-rather than repeating this pause.
+prerequisite table from the shared procedure, then finish the applicable checks
+and save findings using its `--state-only` mode. If no Blockers remain, visibly
+present the completed results table, any Recommendations, and **Next Steps** with
+the selected checklist before locating, reading, or validating the target
+`ETHOS.md` or starting any Ethos preflight. Reading installed Ethos instructions
+during checks establishes availability and compatibility only. Continue Ethos in
+the same turn after this presentation; it adds no user approval pause. If blocked,
+end with Blockers and omit Next Steps, the checklist, and Ethos guidance.
+This order applies to fresh flows, prerequisite resumes, goal switches, and
+direct flow invocations. Continuations reuse progress rather than repeating the
+opening pause.
 
 | Request | Route after shared prerequisites and Ethos |
 |---|---|
@@ -172,7 +177,8 @@ the prerequisite table and checks for [creation](references/pre-reqs/create.md),
 [audit](references/pre-reqs/audit.md), or [improvement](references/pre-reqs/improve.md).
 Keep the selected table fixed and reassess requirements when the goal changes.
 
-Use `ethos-orchestrate` to review, create, or update `ETHOS.md`. Pass along the
+After that prerequisite transition, use `ethos-orchestrate` to review, create,
+or update `ETHOS.md`. Pass along the
 context and answers already collected. For an existing document, ask the user to
 confirm it is the right Ethos for this agent and accurately describes its current
 intended behavior. A saved confirmation from an earlier flow does not

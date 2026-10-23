@@ -38,8 +38,14 @@ now**; do not add, rename, reorder, or omit rows from the selected template.
 Update the cells as evidence becomes available and repeat the table with results
 in the final reply so it remains visible alongside questions.
 On resume, reuse findings already in context; show the table before loading saved
-state, then update it from applicable records. Do not keep a second progress record.
-Recheck affected facts when the environment changes.
+state with `--state-only`, then update it from applicable records. Use that mode
+for every prerequisite `init`, `show`, and `update`, including pending-review
+bookkeeping. Saved Ethos metadata is history, not proof a document exists,
+validates, or remains current. Defer target Ethos discovery, reads, validation,
+and preflight until the [visible prerequisite transition](#present-results-and-the-next-step).
+Apply this order to fresh flows, prerequisite resumes, goal switches, and direct
+flow calls; scoped utilities retain their existing boundaries. Do not keep a
+second progress record. Recheck affected facts when the environment changes.
 
 Follow the selected reference's checks and blocking conditions, using the common
 checks below. Creation and improvement also use the shared authoring checks;
@@ -47,7 +53,8 @@ audit uses its own tooling checks instead.
 
 ### Common checks
 
-Read the repository's supplied agent files and documentation with bounded reads.
+Read the repository's supplied agent files and documentation with bounded reads,
+excluding the target `ETHOS.md` until the prerequisite transition below.
 Reuse known identity, repository paths, runtime choice, and answers. When naming
 the agent or setup, make its basis clear: the user's request, repository documentation,
 the existing suite, or a previously confirmed answer. Describe inferred identity
@@ -72,7 +79,9 @@ Select checks by the requested work. The common checks are:
   including `scripts/validate_ethos.py` relative to the loaded `ethos-write`
   directory. Check all three Ethos skills:
   `ethos-orchestrate`, `ethos-explore`, and `ethos-write`. A catalog entry or symlink
-  alone does not establish usability; do not start the Ethos interview during checks
+  alone does not establish usability. Inspect these installed resources only for
+  availability and compatibility; do not run their file-location, validation,
+  interview, or other Ethos preflight steps during prerequisite checks
 - Verify that the installed Ethos skills meet the
   [required handoff capabilities](ethos-confirmation.md#required-handoff-capabilities),
   including preserving the explicit repository-root `ETHOS.md` destination. A
@@ -162,6 +171,18 @@ dependencies; do not present them as Recommendations.
 
 ## Present results and the next step
 
+Finish every applicable prerequisite check and save its findings with
+`--state-only` before this transition. Once required blockers are resolved, save
+the pending Ethos action using supplied context or saved metadata only; mark any
+required existing-document review pending without checking the file.
+
+Visibly present the completed results table and applicable sections below through
+the Next Steps checklist before the first target Ethos search, read, validation,
+or orchestrator preflight. Use a progress message for this transition, then
+continue Ethos in the same turn without a new approval pause. The final reply
+repeats the required results table and checklist alongside the Ethos outcome or
+question.
+
 After the results table, use the following template in order, with these exact
 headings and introductory sentences. Replace the bracketed content with findings
 or the next action; do not display the placeholders.
@@ -182,7 +203,8 @@ or the next action; do not display the placeholders.
 - Copy the checklist wording, Ethos link, and selected goal's third item from the
   core; derive checkmarks and the current-step marker from shared state, and do
   not repeat the checklist before the table
-- When unblocked, continue below the checklist through `ethos-orchestrate`
+- After the unblocked transition is visible, continue through `ethos-orchestrate`;
+  keep its explanation and question below the checklist in the final reply,
   without a separate Ethos heading
 
 ```markdown
@@ -223,11 +245,14 @@ without displaying the checklist or starting dependent Ethos work.
 
 ## Confirm Ethos
 
-Invoke [Ethos confirmation](ethos-confirmation.md) for repository-root `ETHOS.md`.
+After the visible prerequisite transition, invoke
+[Ethos confirmation](ethos-confirmation.md) for repository-root `ETHOS.md`.
 Reuse content and prior answers, but have the user confirm an existing document
 is the right one and still accurate, even when saved state records an earlier
-confirmation. Before rendering the results checklist, mark that review pending
-as described in the adapter; keep Ethos unchecked until the user answers.
+confirmation. Before the transition checklist, use `--state-only update` to mark
+a required review pending from supplied context or saved metadata, as described
+in the adapter; this does not require locating or reading the document. Keep
+Ethos unchecked until its required review is complete.
 Record the returned path, validation result, confirmed digest, remaining intent
 questions, and stage. Do not infer content approval from file presence,
 structural validity, or an implemented behavior. Do not write the canonical
@@ -280,6 +305,18 @@ Use `scripts/journey_state.py --repo <repository> <command>` for `show`, `init`,
 Its validation and atomic writes are allowed bounded local commands, not runtime
 probes. State identifies the repository, agent, goal, selected setup, answer
 provenance, Ethos path/digest, and journey-specific progress. Never store secrets.
+
+During prerequisites, use only `init`, `show`, and `update` with `--state-only`.
+This mode validates saved JSON and persists metadata without reading canonical
+Ethos, draft, or task-evidence artifacts; `artifact_checks_deferred: true` records
+that boundary. It cannot establish content approval or task acceptance. Treat
+saved approvals as historical, and defer reports, task-readiness checks, and
+artifact inspection. After presenting the completed prerequisite transition,
+omit `--state-only` so normal commands reconcile current content and evidence.
+While the current journey is `audit`, `--state-only update` also merges the
+nonempty strings `scopes.audit.framework` and `scopes.audit.framework_source`
+into the existing scope. These observations persist even when prerequisites are
+blocked; case, corpus, and approval updates remain forbidden in this mode.
 
 Save agreed decisions in the selected journey's `scopes` entry.
 Put final task behavior in task READMEs and audit checks
@@ -344,20 +381,23 @@ Replace `<skill_dir>` with the core skill directory. Keep update payloads under
 replacing newer decisions.
 
 ```bash
-python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository show
-python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository init \
+python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository --state-only show
+python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository --state-only init \
   --agent account-support --journey create --setup gym
-python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository update \
+python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository --state-only update \
   --input /absolute/repository/.eval-author/.working/tmp/answers.json \
   --expected-revision 1
 ```
 
 `--journey` accepts `create`, `audit`, or `expand`; `--setup` accepts `gym` or
 `harbor` for an authoring setup. Audit does not require `--setup`; record its actual
-framework and provenance in `scopes.audit`, independently of any retained authoring
+framework and provenance with `--state-only update` in `scopes.audit.framework`
+and `scopes.audit.framework_source`, independently of any retained authoring
 choice. `init` reuses state and invalidates affected facts when identity or
-setup changes, or when switching between audit and authoring. `show` derives checklist status without writing. Do not maintain
-a separate saved checklist.
+setup changes, or when switching between audit and authoring. The examples above
+use prerequisite mode: Ethos and evaluation checklist items remain unchecked
+until normal artifact checks resume after the visible transition. `show` derives
+checklist status without writing. Do not maintain a separate saved checklist.
 
 Setup completion requires agent identity, code/file/command access, usable required
 skills, and the applicable Python tooling. Creation and improvements also require
@@ -414,17 +454,19 @@ are strings or null. Reopening a dependency must not silently erase old evidence
 
 The saved absolute repository path prevents another checkout from silently
 reusing this checkout's approvals. After a rename, move, new worktree, or clone
-that includes `.eval-author/`, run `show` in the destination. Its mismatch error
+that includes `.eval-author/`, run `--state-only show` in the destination. Its mismatch error
 reports the saved path and revision. For an intentional relocation, use those
 exact values to recover without deleting or hand-editing state:
 
 ```bash
 python3 <skill_dir>/scripts/journey_state.py --repo /new/absolute/repository rebind \
   --from-repository /previous/absolute/repository --expected-revision 12
-python3 <skill_dir>/scripts/journey_state.py --repo /new/absolute/repository show
+python3 <skill_dir>/scripts/journey_state.py --repo /new/absolute/repository --state-only show
 ```
 
-`rebind` retains the exact previous state in a content-hashed snapshot under
+`rebind` is the explicit state-recovery exception: it clears approvals without
+inspecting Ethos or task evidence. Resume prerequisite commands with `--state-only`.
+It retains the exact previous state in a content-hashed snapshot under
 `.eval-author/.working/history/repositories/`, referenced by
 `ethos.source_findings`; `journey-state.json` remains the authoritative resume
 record. Existing agent history, findings, answers, draft and evidence references,

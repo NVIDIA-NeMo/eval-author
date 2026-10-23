@@ -35,13 +35,21 @@ again.
 
 ## Enter the Ethos step
 
-Enter or resume Ethos in the shared flow only when no Blockers remain. Use **Next Steps** and the
-shared progress checklist from [Present results and the next step](shared-prerequisites.md#present-results-and-the-next-step)
-before its explanation, review, or question. If prerequisite results are included,
-place that section after the table and any Recommendations. A blocked response
-ends with Blockers and omits Next Steps, the checklist, and Ethos guidance. Keep this
-orientation in Eval Author; the Ethos skills own the content that follows. Existing evaluations describe
-current coverage; they do not establish the agent's intended behavior.
+The caller completes all applicable prerequisite checks and saves findings with
+`--state-only` before entering or resuming Ethos. With no Blockers remaining, it
+visibly presents the completed results table, any Recommendations, and **Next
+Steps** with the shared checklist from
+[Present results and the next step](shared-prerequisites.md#present-results-and-the-next-step).
+Only then locate, read, or validate the target `ETHOS.md`, recover draft content,
+or run the orchestrator's preflight. During prerequisite checks, reading installed
+skill instructions establishes only their availability and compatibility. This order also applies
+to resumes, goal switches, and direct flow invocations. Continue in the same turn
+after the visible transition; no new approval pause is required. Repeat the
+results table and checklist with the Ethos explanation or question in the final
+reply. A blocked response ends with Blockers and omits Next Steps, the checklist,
+and Ethos guidance. Eval Author owns this ordering; the Ethos skills own the work
+afterward. Existing evaluations describe current coverage; they do not establish
+the agent's intended behavior.
 
 Reuse the shared prerequisite orientation. The
 shared prerequisite flow confirms repository-root `ETHOS.md`. Preserve existing
@@ -60,14 +68,20 @@ matching digest does not
 establish that this is still the correct document or that its intent is current.
 Reuse the content, source findings, and prior answers to make the review brief.
 
-Before displaying the results checklist, use `journey_state.py update` to set
-`ethos.stage` to `review`, save the question as `pending_question`, and set
-`next_handoff` to `ethos-orchestrate`. Keep the Ethos item unchecked and current
-when prerequisites are complete. This pending review retains the previous content
-binding and provenance as history, along with agreed scope and completed flows.
-Pass the orchestrator the existing content and
-ask it to confirm both document identity and current intended behavior. Use this
-complete **Next Steps** section after the results table and any Recommendations:
+Before displaying the prerequisite transition checklist, use
+`journey_state.py --repo <repository> --state-only update` to mark a required
+review pending when supplied context or saved metadata identifies an existing
+document: set `ethos.stage` to `review`, save the pending action or question, and
+set `next_handoff` to `ethos-orchestrate`. This bookkeeping does not establish file
+presence or current contents. When no document is known, retain discovery or
+creation as the pending action without looking for the file yet. Keep Ethos
+unchecked and current when prerequisites are complete; preserve prior content
+bindings, provenance, scope, and completed flows as history.
+
+After the transition is visible, invoke the orchestrator to locate and read the
+document and confirm its identity and current intended behavior. Include this
+complete **Next Steps** section in the final
+reply after the results table and any Recommendations:
 
 ```markdown
 ### Next Steps
@@ -105,9 +119,12 @@ do not treat the former agent's document or draft approval as current permission
 
 ## Call and return
 
-Load shared journey state before each call, including a fresh chat or a switch
-between create, audit, and expand. Eval Author owns the selected journey,
-checklist, state layout, and return routing; Ethos needs none of those details.
+During prerequisite work, load and save shared journey metadata only with
+`--state-only init`, `--state-only show`, and `--state-only update`. After the
+visible prerequisite transition, load normal shared state before each Ethos call,
+including a fresh chat or a switch between create, audit, and expand. Eval Author
+owns the selected journey, checklist, state layout, and return routing; Ethos needs
+none of those details.
 Pass the selected `repository`, `agent`, root `ethos_path` as the explicit
 destination, the requested operation, and only the Ethos context needed to continue:
 

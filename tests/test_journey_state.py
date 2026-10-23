@@ -1816,3 +1816,377 @@ def test_replacing_draft_reference_does_not_reuse_prior_content_approval(state, 
         state.update(tmp_path, {"ethos": {"stage": "write"}})
     accepted = state.update(tmp_path, {"ethos": {"stage": "write", "draft_confirmed": True, "draft_source": "reply 7"}})
     assert accepted["ethos"]["draft_confirmed"]
+
+
+def prerequisite_history(state, repo, *, draft_only=False):
+    """Retain prior approvals that prerequisite collection must not inspect or replace."""
+    task, evidence = task_fixture(state, repo)
+    setup_ready(state, repo)
+    draft = repo / ".eval-author/.working/draft.md"
+    draft.write_text("# Agreed intent\n")
+    state.update(
+        repo,
+        {
+            "ethos": {
+                "stage": "write",
+                "draft": {"path": draft.relative_to(repo).as_posix(), "digest": state.digest(draft.read_bytes())},
+                "draft_confirmed": True,
+                "draft_source": "Earlier draft approval",
+                "prior_answers": [
+                    {"topic": "purpose", "question": "What goal?", "answer": "Refunds", "source": "reply 2"}
+                ],
+            }
+        },
+    )
+    if not draft_only:
+        ethos_ready(state, repo)
+    state.record_task(repo, task=task, status="accepted", source="Earlier acceptance", evidence=[evidence])
+    saved = state.update(
+        repo,
+        {
+            "scopes": {"create": {"cases": ["refund"], "confirmed": True}},
+            "journey_status": {"create": "complete"},
+            "pending_question": "Earlier pending question",
+            "next_handoff": "eval-author-first-eval",
+        },
+    )
+    return saved, [repo / "ETHOS.md", draft, repo / task, repo / evidence]
+
+
+def forbid_artifact_checks(state, monkeypatch, paths):
+    def fail(*args, **kwargs):
+        raise AssertionError("Prerequisite state-only command checked an artifact")
+
+    for name in ("ethos_digest", "draft_digest", "task_digest", "task_lifecycle", "_file_digest"):
+        monkeypatch.setattr(state, name, fail)
+    for name in ("open", "stat", "lstat"):
+        original = getattr(Path, name)
+
+        def guard(path, *args, _original=original, **kwargs):
+            if any(path == target or path.is_relative_to(target) for target in paths):
+                fail()
+            return _original(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, name, guard)
+
+
+@pytest.mark.parametrize("draft_only", [False, True])
+def test_state_only_resume_and_pending_review_never_check_artifacts(state, tmp_path, monkeypatch, draft_only):
+    original, artifacts = prerequisite_history(state, tmp_path, draft_only=draft_only)
+    before = state.state_path(tmp_path).read_bytes()
+    forbid_artifact_checks(state, monkeypatch, artifacts)
+    assert state.load_state(tmp_path, state_only=True) == original
+    assert state.state_path(tmp_path).read_bytes() == before
+    resumed = state.initialize(tmp_path, agent="assistant", journey="create", setup="gym", state_only=True)
+    assert resumed["revision"] == original["revision"] + 1
+    for field in ("ethos", "tasks", "scopes", "journey_status", "pending_question", "next_handoff"):
+        assert resumed[field] == original[field]
+    pending = state.update(
+        tmp_path,
+        {
+            "ethos": {"stage": "review"},
+            "prerequisites": {"runtime": {"status": "unknown", "source": "Current probe is pending"}},
+            "blockers": [{"id": "runtime", "phase": "setup", "message": "Finish the runtime check"}],
+            "pending_question": "Resolve the runtime location",
+            "next_handoff": "eval-author",
+        },
+        expected_revision=resumed["revision"],
+        state_only=True,
+    )
+    assert pending["revision"] == resumed["revision"] + 1
+    assert pending["ethos"] == {**original["ethos"], "stage": "review"}
+    for field in ("tasks", "scopes", "journey_status"):
+        assert pending[field] == original[field]
+    output = state.view(pending, state_only=True)
+    assert output["artifact_checks_deferred"] is True
+    assert output["task_readiness"] is None
+    assert not any(row["complete"] for row in output["checklist"])
+    assert not any(row["current"] for row in output["checklist"])
+    assert state.load_state(tmp_path, state_only=True) == pending
+
+
+def test_state_only_fresh_init_and_identity_changes_only_touch_state(state, tmp_path, monkeypatch):
+    (tmp_path / "ETHOS.md").write_text("Historical intent\n")
+    forbid_artifact_checks(state, monkeypatch, [tmp_path / "ETHOS.md"])
+    first = state.initialize(tmp_path, agent="first-agent", journey="create", setup="gym", state_only=True)
+    assert first["revision"] == 1 and first["ethos"]["stage"] == "explore"
+    before = state.state_path(tmp_path).read_bytes()
+    changed = state.initialize(tmp_path, agent="second-agent", journey="audit", state_only=True)
+    assert changed["agent"] == "second-agent" and changed["journey"] == "audit"
+    archive = tmp_path / changed["ethos"]["source_findings"][-1]["path"]
+    assert archive.read_bytes() == before
+    assert changed["ethos"]["confirmed_digest"] is None
+
+
+@pytest.mark.parametrize("draft_only", [False, True])
+@pytest.mark.parametrize("command", ["init", "show", "update"])
+def test_state_only_cli_defers_artifacts_and_current_approval(
+    state, tmp_path, monkeypatch, capsys, draft_only, command
+):
+    original, artifacts = prerequisite_history(state, tmp_path, draft_only=draft_only)
+    payload = tmp_path / ".eval-author/.working/prerequisite-update.json"
+    payload.write_text(json.dumps({"ethos": {"stage": "review"}, "pending_question": "Review intent after checks"}))
+    before = state.state_path(tmp_path).read_bytes()
+    arguments = ["journey_state.py", "--repo", str(tmp_path), "--state-only", command]
+    if command == "init":
+        arguments += ["--agent", "assistant", "--journey", "create", "--setup", "gym"]
+    elif command == "update":
+        arguments += ["--input", str(payload), "--expected-revision", str(original["revision"])]
+    monkeypatch.setattr(sys, "argv", arguments)
+    forbid_artifact_checks(state, monkeypatch, artifacts)
+    assert state.main() == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["artifact_checks_deferred"] is True
+    assert output["task_readiness"] is None
+    assert [row["complete"] for row in output["checklist"]] == [True, False, False]
+    assert output["checklist"][1]["current"]
+    assert output["state"]["tasks"] == original["tasks"]
+    assert output["state"]["scopes"] == original["scopes"]
+    assert output["state"]["ethos"] == {
+        **original["ethos"],
+        "stage": "review" if command == "update" else original["ethos"]["stage"],
+    }
+    if command == "show":
+        assert state.state_path(tmp_path).read_bytes() == before
+    else:
+        assert output["state"]["revision"] == original["revision"] + 1
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"ethos": {"stage": "complete"}},
+        {"ethos": {"stage": "write"}},
+        {"ethos": {"stage": "draft"}},
+        {"ethos": {"stage": "review", "draft_confirmed": True, "draft_source": "Invented approval"}},
+        {"ethos": {"draft": {"path": ".eval-author/.working/invented.md", "digest": "0" * 64}}},
+        {"ethos": {"confirmed_digest": "0" * 64}},
+        {"ethos": {"confirmation_source": "Invented approval"}},
+        {"ethos": {"validation": "Invented validation"}},
+        {"ethos": {"prior_answers": []}},
+        {"ethos": None},
+        {"scopes": {"create": {"confirmed": True}}},
+        {"scopes": {}},
+        {"journey_status": {"create": "complete"}},
+        {"tasks": {}},
+    ],
+)
+def test_state_only_rejects_approval_or_content_updates(state, tmp_path, monkeypatch, patch):
+    original, artifacts = prerequisite_history(state, tmp_path)
+    before = state.state_path(tmp_path).read_bytes()
+    forbid_artifact_checks(state, monkeypatch, artifacts)
+    with pytest.raises(ValueError, match="State-only updates|workflow fields"):
+        state.update(tmp_path, patch, state_only=True)
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert state.load_state(tmp_path, state_only=True) == original
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["confirm-ethos", "--digest", "0" * 64, "--source", "Invented", "--validation", "Invented"],
+        ["record-task", "--task", "invented", "--status", "accepted", "--source", "Invented"],
+        ["import-legacy"],
+        ["rebind", "--from-repository", "/previous", "--expected-revision", "1"],
+    ],
+)
+def test_state_only_cli_rejects_unsupported_commands_without_writes(state, tmp_path, monkeypatch, capsys, arguments):
+    original, artifacts = prerequisite_history(state, tmp_path)
+    before = state.state_path(tmp_path).read_bytes()
+    forbid_artifact_checks(state, monkeypatch, artifacts)
+    monkeypatch.setattr(sys, "argv", ["journey_state.py", "--repo", str(tmp_path), "--state-only", *arguments])
+    assert state.main() == 2
+    output = json.loads(capsys.readouterr().err)
+    assert "--state-only supports prerequisite init, show, and update only" in output["error"]
+    assert output["persisted"] is False
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert state.load_state(tmp_path, state_only=True) == original
+
+
+@pytest.mark.parametrize("artifact", ["ethos", "draft", "evidence"])
+@pytest.mark.parametrize("change", ["edit", "delete"])
+def test_normal_refresh_after_state_only_still_invalidates_changed_artifacts(state, tmp_path, artifact, change):
+    original, artifacts = prerequisite_history(state, tmp_path, draft_only=artifact == "draft")
+    selected = artifacts[{"ethos": 0, "draft": 1, "evidence": 3}[artifact]]
+    if change == "delete":
+        selected.unlink()
+    else:
+        selected.write_text("Changed artifact\n")
+    pending = state.update(tmp_path, {"ethos": {"stage": "review"}}, state_only=True)
+    assert pending["ethos"] == {**original["ethos"], "stage": "review"}
+    assert state.load_state(tmp_path, state_only=True) == pending
+    before = state.state_path(tmp_path).read_bytes()
+    refreshed = state.load_state(tmp_path)
+    output = state.view(refreshed)
+    assert output["artifact_checks_deferred"] is False
+    if artifact == "ethos":
+        assert refreshed["ethos"]["confirmed_digest"] is None
+        assert not refreshed["ethos"]["draft_confirmed"]
+        assert refreshed["scopes"]["create"] == {"cases": ["refund"], "confirmed": False, "needs_review": True}
+        assert not refreshed["journey_status"]
+    elif artifact == "draft":
+        assert refreshed["ethos"]["stage"] == "draft"
+        assert not refreshed["ethos"]["draft_confirmed"]
+        assert refreshed["ethos"]["draft_source"] is None
+    else:
+        task = next(iter(original["tasks"]))
+        assert output["task_readiness"][task]["status"] == "draft"
+        assert refreshed["tasks"] == original["tasks"]
+    assert refreshed["ethos"]["prior_answers"] == original["ethos"]["prior_answers"]
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+def test_state_only_updates_keep_revision_and_atomic_storage_guards(state, tmp_path, monkeypatch):
+    original, artifacts = prerequisite_history(state, tmp_path, draft_only=True)
+    before = state.state_path(tmp_path).read_bytes()
+    forbid_artifact_checks(state, monkeypatch, artifacts)
+    patch = {"pending_question": "Current runtime question", "ethos": {"stage": "review"}}
+    with pytest.raises(ValueError, match="State changed"):
+        state.update(tmp_path, patch, expected_revision=original["revision"] - 1, state_only=True)
+    assert state.state_path(tmp_path).read_bytes() == before
+    paths = importlib.import_module("working_paths")
+
+    def failed_replace(*args):
+        raise OSError("Storage unavailable")
+
+    with monkeypatch.context() as failing:
+        failing.setattr(paths.os, "replace", failed_replace)
+        with pytest.raises(OSError, match="Storage unavailable"):
+            state.update(tmp_path, patch, expected_revision=original["revision"], state_only=True)
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert not list(state.state_path(tmp_path).parent.glob(".journey-state.json-*"))
+    updated = state.update(tmp_path, patch, expected_revision=original["revision"], state_only=True)
+    assert updated["revision"] == original["revision"] + 1
+    assert state.load_state(tmp_path, state_only=True) == updated
+
+
+@pytest.mark.parametrize("invalid", ["schema", "repository", "duplicate"])
+def test_state_only_still_validates_saved_json_and_repository(state, tmp_path, invalid):
+    original = state.initialize(tmp_path, agent="assistant", journey="create", setup="gym", state_only=True)
+    if invalid == "schema":
+        original["schema_version"] = 2
+    elif invalid == "repository":
+        original["repository"] = "/another/repository"
+    state.state_path(tmp_path).write_text(
+        '{"schema_version": 1, "schema_version": 2}' if invalid == "duplicate" else json.dumps(original)
+    )
+    before = state.state_path(tmp_path).read_bytes()
+    for operation in (state.load_state, state.initialize):
+        with pytest.raises(ValueError):
+            operation(tmp_path, state_only=True)
+        assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("existing_scope", [False, True])
+@pytest.mark.parametrize("via_cli", [False, True])
+def test_state_only_audit_framework_observation_survives_blocked_setup(
+    state, tmp_path, monkeypatch, capsys, existing_scope, via_cli
+):
+    _, artifacts = prerequisite_history(state, tmp_path)
+    audit_scope = {
+        "framework": "Earlier framework observation",
+        "framework_source": "Earlier observation source",
+        "cases": ["refund"],
+        "traces": ["selected.json"],
+        "confirmed": True,
+        "needs_review": False,
+        "status": "in_progress",
+        "selection_source": "Earlier user scope approval",
+    }
+    if existing_scope:
+        state.update(tmp_path, {"scopes": {"audit": audit_scope}})
+    original = state.initialize(tmp_path, journey="audit", state_only=True)
+    observation = {"framework": "NeMo Gym", "framework_source": "User framework answer, reply 8"}
+    patch = {
+        "scopes": {"audit": observation},
+        "prerequisites": {"data": {"status": "unknown", "source": "Completed-run trace availability is unresolved"}},
+        "blockers": [{"id": "data", "phase": "setup", "message": "Confirm completed-run traces exist"}],
+        "pending_question": "Are traces from completed evaluations available?",
+        "next_handoff": "eval-author",
+    }
+    payload = tmp_path / ".eval-author/.working/framework-observation.json"
+    payload.write_text(json.dumps(patch))
+    forbid_artifact_checks(state, monkeypatch, artifacts)
+    if via_cli:
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["journey_state.py", "--repo", str(tmp_path), "--state-only", "update", "--input", str(payload)],
+        )
+        assert state.main() == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["artifact_checks_deferred"] is True and output["task_readiness"] is None
+        saved = output["state"]
+    else:
+        saved = state.update(tmp_path, patch, state_only=True, expected_revision=original["revision"])
+    assert saved["revision"] == original["revision"] + 1
+    assert saved["scopes"]["audit"] == {**(audit_scope if existing_scope else {}), **observation}
+    assert saved["scopes"]["create"] == original["scopes"]["create"]
+    assert saved["ethos"] == original["ethos"]
+    assert saved["tasks"] == original["tasks"]
+    assert not state.checklist(saved, state_only=True)[0]["complete"]
+    assert state.checklist(saved, state_only=True)[0]["blocked"]
+    assert state.load_state(tmp_path, state_only=True) == saved
+
+
+@pytest.mark.parametrize("extra", ["confirmed", "needs_review", "status", "cases", "traces", "corpus", "suite"])
+def test_state_only_audit_framework_observation_cannot_launder_scope_approval(state, tmp_path, extra):
+    original = state.initialize(tmp_path, agent="assistant", journey="audit", state_only=True)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="State-only updates accept only audit framework"):
+        state.update(
+            tmp_path,
+            {"scopes": {"audit": {"framework": "Harbor", "framework_source": "Probe evidence", extra: True}}},
+            state_only=True,
+        )
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert state.load_state(tmp_path, state_only=True) == original
+
+
+@pytest.mark.parametrize(
+    "scopes",
+    [
+        {"audit": {"framework": "Harbor"}},
+        {"audit": {"framework_source": "Probe evidence"}},
+        {"audit": {"framework": "", "framework_source": "Probe evidence"}},
+        {"audit": {"framework": "Harbor", "framework_source": "  "}},
+        {"audit": {"framework": {"confirmed": True}, "framework_source": "Probe evidence"}},
+        {"audit": {"framework": "Harbor", "framework_source": None}},
+        {"audit": {"framework": "Harbor", "framework_source": "Probe evidence"}, "create": {"confirmed": True}},
+        {"create": {"framework": "Harbor", "framework_source": "Probe evidence"}},
+    ],
+)
+def test_state_only_audit_framework_observation_requires_both_text_fields(state, tmp_path, scopes):
+    state.initialize(tmp_path, agent="assistant", journey="audit", state_only=True)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="State-only updates|scopes.audit"):
+        state.update(tmp_path, {"scopes": scopes}, state_only=True)
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("journey", [None, "create", "expand"])
+def test_state_only_framework_observation_requires_current_audit_journey(state, tmp_path, journey):
+    original = state.initialize(tmp_path, agent="assistant", journey=journey, setup="gym", state_only=True)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="require the audit journey"):
+        state.update(
+            tmp_path,
+            {"scopes": {"audit": {"framework": "Harbor", "framework_source": "Probe evidence"}}},
+            state_only=True,
+        )
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert state.load_state(tmp_path, state_only=True) == original
+
+
+def test_state_only_framework_observation_never_replaces_nonmapping_history(state, tmp_path):
+    state.initialize(tmp_path, agent="assistant", journey="audit", state_only=True)
+    original = state.update(tmp_path, {"scopes": {"audit": "Historical scope requiring review"}})
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="Saved audit scope must be a mapping"):
+        state.update(
+            tmp_path,
+            {"scopes": {"audit": {"framework": "Harbor", "framework_source": "Probe evidence"}}},
+            state_only=True,
+        )
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert state.load_state(tmp_path, state_only=True) == original
