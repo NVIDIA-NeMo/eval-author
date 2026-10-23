@@ -95,12 +95,9 @@ and prove the kit before the calling flow writes any test; Step 8 hands it off.
 It builds the world those tasks run in and proves that world works before any
 task depends on it.
 
-A task is only as informative as its environment. When the starting data holds
-just the records a case needs, the agent succeeds without searching, choosing,
-or checking anything. When dependencies are faked to always succeed, the agent
-never meets the failures it sees in production. When the end state cannot be
-read back, nothing confirms the agent did the work. Each step below exists to
-prevent one of those outcomes.
+Starting data must require searching and choosing; dependencies must expose realistic
+failures; and the verifier must read back the resulting state. The steps below
+establish these properties before tasks depend on the environment.
 
 This sub-flow owns provider fit, how each dependency is provided, the starting
 data and its reset, how the end state reaches the verifier, isolation, the
