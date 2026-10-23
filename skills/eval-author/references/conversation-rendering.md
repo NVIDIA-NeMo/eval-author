@@ -11,7 +11,13 @@ or writes. This guarantee concerns rendered messages. It does not make workflow
 execution, model decisions, tool results, or evaluations deterministic.
 
 Present rendered Markdown unchanged, with no additional opening, duplicate
-checklist, or appended next-step invitation. Canonical shared journey and
+checklist, or appended next-step invitation. Copy the renderer's output verbatim
+into the workflow response, preserving heading markers, order, links, and
+escaping. Its headings are required workflow structure, not optional prose
+formatting: Recommendations remains a heading even when there are no active
+Blockers, and Next Steps remains a heading above its checklist. Before sending,
+compare the response body with the final renderer output; do not remove headings
+while shortening or reformatting the reply. Canonical shared journey and
 checklist labels, status labels, and generic headings live in
 [conversation_templates.py](../scripts/conversation_templates.py). Flow-specific
 copy belongs to that flow's template module, not a second prose template.

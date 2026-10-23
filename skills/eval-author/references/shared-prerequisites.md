@@ -208,7 +208,8 @@ the pending question, then reload normal state and render `results` in the final
 reply. Supply the completed prerequisite findings, optional Recommendations,
 and applicable Ethos, draft, question, and blocker facts. The final owns the
 canonical grounding sentence, completed table, Next Steps, one state-derived
-checklist, and the inspected Ethos action.
+checklist, and the inspected Ethos action. Preserve the renderer's headings and
+Markdown in that final response under the [shared output contract](conversation-rendering.md).
 
 Each prerequisite turn shows an initial status table and one completed table in
 the final reply. An unblocked final includes one checklist; a blocked final
