@@ -37,7 +37,7 @@ again.
 
 Complete the applicable prerequisite checks and save findings with `--state-only`
 before entering or resuming Ethos from a prerequisite pass. If blocked, render
-[`prerequisite_results`](journey-conversation.md#stateful-responses) directly as
+[`prerequisite_results`](conversations/onboarding.md#stateful-responses) directly as
 the final response once and stop. Only after the pass is complete, saved, and
 unblocked locate, read, or validate the target `ETHOS.md`, recover draft content,
 or run the orchestrator's preflight. Reading installed skill instructions during

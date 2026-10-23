@@ -9,7 +9,7 @@ to show this table, how to inspect prerequisites, and how to present results.
 
 ## Prerequisite table
 
-Use the [conversation renderer](../journey-conversation.md) for journey
+Use the [onboarding renderer](../conversations/onboarding.md) for journey
 `expand`. After the user's readiness reply, show `prerequisites` with its canonical
 grounding sentence above the initial status table. Use only facts already in
 conversation; do not read saved state or inspect the repository to populate it.
@@ -19,7 +19,7 @@ continue Ethos without an intermediate completed report, then render `results`
 after normal reconciliation for the final completed table, Recommendations,
 checklist, and Ethos action.
 Table labels, order, and default statuses belong only to
-[journey_templates.py](../../scripts/journey_templates.py); supply findings by
+[onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py); supply findings by
 row ID and retain every row.
 
 ## Checks and blocking conditions
@@ -39,12 +39,12 @@ Save an `evaluation_format` blocker in phase `setup`, the conversion request as
 `pending_question`, and `eval-author` as `next_handoff`.
 
 Render the blocked response through the
-[conversation helper](../journey-conversation.md). For this active blocker on
+[onboarding renderer](../conversations/onboarding.md#blockers). For this active blocker on
 journey `expand`, supply `id: evaluation_format` and `skill_link` to the exact
 loaded core `eval-author/SKILL.md`, using a caller-verified absolute path or
 HTTP(S) URL. The renderer owns the blocker explanation, action, question, linked
 skill-pause attribution, and conversion handoff in
-[journey_templates.py](../../scripts/journey_templates.py). Legacy custom prose
+[onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py). Legacy custom prose
 does not override them. Present the rendering unchanged, without an additional
 pause explanation or manually appended prompt. The handoff directs repository
 engineering work to a separate coding-agent chat. It is a remedy within

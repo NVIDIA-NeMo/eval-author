@@ -11,7 +11,7 @@ For a new flow, begin this procedure only after the selected goal's rendered
 checklist and readiness question have been shown and the user replies to that
 question. A goal-choice reply triggers `goal_selected`, not this procedure.
 Do not load repository context or save state in preparation for either
-orientation turn. The [conversation renderer](journey-conversation.md) has a
+orientation turn. The [onboarding renderer](conversations/onboarding.md#orientation-and-prerequisite-entry) has a
 narrow no-input command exception for those turns; other helpers remain deferred.
 
 ## Check the agent and setup
@@ -28,7 +28,7 @@ After the actual readiness reply, render `prerequisites` with its canonical
 grounding sentence above the initial status table before inspecting the
 repository or saved state. Reuse facts already in
 conversation; do not perform reads or probes to populate the preview. Supply
-known findings through the [preview contract](journey-conversation.md#orientation-and-prerequisite-entry),
+known findings through the [preview contract](conversations/onboarding.md#orientation-and-prerequisite-entry),
 leaving unchecked items at their canonical initial statuses. Add no separate
 preamble, skill-use announcement, or prose checking notice.
 
@@ -183,7 +183,7 @@ only; mark any required existing-document review pending without checking the
 file. Load a fresh state-only snapshot to establish the completed pass.
 
 If blocked, pass its state, exact revision, and bounded prerequisite findings to
-[`prerequisite_results`](journey-conversation.md#stateful-responses), then emit
+[`prerequisite_results`](conversations/onboarding.md#stateful-responses), then emit
 the rendering directly as the final response once: the canonical grounding
 sentence, completed table, optional Recommendations, and Blockers. Do not first
 show the same report in progress or inspect target Ethos artifacts. Canonical
@@ -211,7 +211,7 @@ pass is needed.
 - Blockers describe the affected step, reason, and needed action or answer.
   Save each blocker in the phase of the work it actually prevents. Supply the
   renderer only the IDs active under its
-  [blocker selection rules](journey-conversation.md#stateful-responses); deferred
+  [blocker selection rules](conversations/onboarding.md#blockers); deferred
   execution requirements remain findings and retained records. Canonical audit
   trace and expansion-format blockers require the exact loaded `skill_link`
   instead of custom wording. Their renderer-owned paragraph supplies the required
@@ -261,7 +261,7 @@ confirmed, persist completion using `confirm-ethos`. A draft approval or file
 write alone does not complete this step. Save the selected journey's canonical
 continuation question as `pending_question`, with the selected downstream skill
 as `next_handoff`; obtain that question from
-[journey_templates.py](../scripts/journey_templates.py), not a parallel prose
+[onboarding_templates.py](../scripts/conversation_flows/onboarding_templates.py), not a parallel prose
 template. Preserve confirmed Ethos and prerequisite findings.
 
 Reload reconciled state and render `confirmed`, including the real saved Ethos

@@ -10,7 +10,7 @@ to show this table, how to inspect prerequisites, and how to present results.
 
 ## Prerequisite table
 
-Use the [conversation renderer](../journey-conversation.md) for journey
+Use the [onboarding renderer](../conversations/onboarding.md) for journey
 `audit`. After the user's readiness reply, show `prerequisites` with its canonical
 grounding sentence above the initial status table. Use only facts already in
 conversation; do not read saved state or inspect the repository to populate it.
@@ -20,7 +20,7 @@ continue Ethos without an intermediate completed report, then render `results`
 after normal reconciliation for the final completed table, Recommendations,
 checklist, and Ethos action.
 Table labels, order, and default statuses belong only to
-[journey_templates.py](../../scripts/journey_templates.py); supply findings by
+[onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py); supply findings by
 row ID and retain every row.
 
 ## Checks and blocking conditions
@@ -53,7 +53,7 @@ other accessible checks, record the actual `data` status and a `data` blocker in
 phase `setup`, then render **Blockers** and pause before Ethos. Supply its
 `facts.blockers` entry as `id: data` plus `skill_link` to the exact loaded
 `eval-author-audit/SKILL.md`, using a caller-verified absolute path or HTTP(S) URL.
-The [canonical blocker specification](../journey-conversation.md#stateful-responses)
+The [canonical blocker specification](../conversations/onboarding.md#blockers)
 owns the traces-row finding and status, blocker explanation, action, question,
 and linked skill-pause attribution. It distinguishes unresolved availability
 from confirmed absence; do not replace that wording with caller prose or append

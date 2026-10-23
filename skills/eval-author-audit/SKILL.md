@@ -58,9 +58,9 @@ and task creation remain in the separate improvement handoff.
 
 A full audit enters the core's shared prerequisite flow, including direct
 invocation. For a fresh audit, use the core's
-[conversation renderer](../eval-author/references/journey-conversation.md) for
+[onboarding renderer](../eval-author/references/conversations/onboarding.md) for
 `orientation` with journey `audit`, then end the turn. Read only this skill,
-the core, and that renderer contract as needed before the response; the core's
+the core, the shared rendering contract, and that onboarding reference as needed before the response; the core's
 narrow pure-renderer command exception applies. Repository inspection, Ethos
 validation, prerequisite questions, and state writes wait for the actual readiness
 reply. Complete and save the core's state-only prerequisite pass before

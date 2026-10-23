@@ -9,10 +9,13 @@ claim of passing model evaluation. Use fresh, isolated synthetic workspaces
 with the sibling skills available and no customer data or provider credentials.
 Retain replies, channels, tool calls, and delegation logs. Judge the selected
 workflow and actions. Compare the fixed copy against the
-[conversation renderer](../../skills/eval-author/scripts/journey_conversation.py)
-and its [canonical templates](../../skills/eval-author/scripts/journey_templates.py).
-The [rendering contract](../../skills/eval-author/references/journey-conversation.md)
-defines the allowed inputs and workflow boundaries.
+[conversation renderer](../../skills/eval-author/scripts/conversation_renderer.py),
+[shared templates](../../skills/eval-author/scripts/conversation_templates.py), and
+[onboarding templates](../../skills/eval-author/scripts/conversation_flows/onboarding_templates.py).
+The [shared rendering contract](../../skills/eval-author/references/conversation-rendering.md)
+defines message determinism and input authority; the
+[onboarding reference](../../skills/eval-author/references/conversations/onboarding.md)
+defines the stage inputs and workflow boundaries.
 
 The [offline scope checker](../../docs/determinism-checks.md#workflow-scope) makes a subset
 of these route and effect expectations executable against normalized captures.
@@ -34,8 +37,9 @@ get started?” for a known goal. For an unknown goal, use the shorter welcome
 followed by the goal question and three choices. Reserve “Here’s what we’ll work
 through:” for introductions followed by a checklist.
 It ends there, even when repository or Ethos paths are supplied. Inspect the
-tool trace: only the invoked skill, shared core, rendering contract, and the
-renderer's own source dependencies may be loaded before this reply. The sole
+tool trace: only the invoked skill, shared core, shared rendering contract,
+onboarding reference, and the renderer's own source dependencies may be loaded
+before this reply. The sole
 command exception is the pure renderer's no-input `orientation` preview; it
 must not receive repository, state, or input-file arguments. Repository/state
 reads, Ethos validation, prerequisite checks or questions, other helper commands,
@@ -174,7 +178,7 @@ and a missing or timed-out check is never promoted to successful execution.
 
 ### Results and the transition to Ethos
 
-Compare the rendered results with the canonical template module's headings and
+Compare the rendered results with the shared and onboarding templates' headings and
 introductory sentences. Keep the renderer's section order across goals, NeMo Gym,
 and Harbor; omit sections only under its stated conditions.
 

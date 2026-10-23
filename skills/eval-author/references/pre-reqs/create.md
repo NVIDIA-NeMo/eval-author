@@ -8,7 +8,7 @@ for when to show this table, how to inspect prerequisites, and how to present re
 
 ## Prerequisite table
 
-Use the [conversation renderer](../journey-conversation.md) for journey
+Use the [onboarding renderer](../conversations/onboarding.md) for journey
 `create`. After the user's readiness reply, show `prerequisites` with its canonical
 grounding sentence above the initial status table. Use only facts already in
 conversation; do not read saved state or inspect the repository to populate it.
@@ -18,7 +18,7 @@ continue Ethos without an intermediate completed report, then render `results`
 after normal reconciliation for the final completed table, Recommendations,
 checklist, and Ethos action.
 Table labels, order, and default statuses belong only to
-[journey_templates.py](../../scripts/journey_templates.py); supply findings by
+[onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py); supply findings by
 row ID and retain every row.
 
 ## Checks and blocking conditions

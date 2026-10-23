@@ -7,7 +7,7 @@ The shared prerequisite flow owns the opening checklist, prerequisite answers,
 Ethos confirmation, and shared resumption. A direct full audit uses that same
 flow. Afterward keep its audit item current while explaining the present
 milestone: reviewing coverage, identifying gaps, and recommending improvements.
-Use the [conversation renderer](../../eval-author/references/journey-conversation.md)
+Use the [onboarding renderer](../../eval-author/references/conversations/onboarding.md)
 for canonical checklist wording and reuse completed shared steps.
 
 ## Decisions and progress

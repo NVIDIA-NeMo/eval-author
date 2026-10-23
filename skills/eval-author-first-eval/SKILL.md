@@ -46,7 +46,7 @@ handoff. A rejected source is a retained outcome, not a reason to invent a case.
 Read the [eval-author core skill](../eval-author/SKILL.md) for the shared standard
 and boundaries. Direct invocations enter its shared prerequisite flow, consuming
 an applicable saved result on return. A fresh start uses the core's
-[conversation renderer](../eval-author/references/journey-conversation.md) for
+[onboarding renderer](../eval-author/references/conversations/onboarding.md) for
 `orientation`, then ends the turn before repository reads, prerequisite checks,
 or Ethos work. The core's narrow pure-renderer command exception applies;
 rendering never supplies readiness. Continue through shared onboarding after the

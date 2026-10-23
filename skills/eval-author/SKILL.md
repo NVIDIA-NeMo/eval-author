@@ -85,11 +85,12 @@ When the user selects a goal, render `goal_selected` with that journey and end
 the turn again. Selecting a goal does not establish readiness or start checks.
 
 Before either orientation response, read only the entry skill, this core skill,
-and the [conversation rendering contract](references/journey-conversation.md)
-as needed. The sole command exception is this renderer's no-input preview mode:
+the [conversation rendering contract](references/conversation-rendering.md), and
+the [onboarding reference](references/conversations/onboarding.md) as needed.
+The sole command exception is this renderer's no-input preview mode:
 
 ```bash
-python3 -B <skill_dir>/scripts/journey_conversation.py --stage orientation --journey create
+python3 -B <skill_dir>/scripts/conversation_renderer.py --stage orientation --journey create
 ```
 
 Replace the journey with `audit` or `expand`, or omit it for an undecided request.
@@ -104,7 +105,7 @@ Only after the user answers the rendered readiness question, render
 and canonical grounding sentence are the first workflow output. Add no separate
 preamble or skill-use announcement. Include only already-known facts from the current conversation;
 do not read repository files or saved state to fill this initial table. Use the
-[preview input contract](references/journey-conversation.md#orientation-and-prerequisite-entry)
+[preview input contract](references/conversations/onboarding.md#orientation-and-prerequisite-entry)
 for known findings and default checking statuses.
 
 Then perform bounded prerequisite checks. Use the state helper's `--state-only`
@@ -158,12 +159,14 @@ absent. Supported trace conversion retains its existing dedicated skills.
 
 ### Shared prerequisites and Ethos
 
-Use [Journey conversation rendering](references/journey-conversation.md) for
-orientation, prerequisites, and Ethos responses across creation, audit, and
-improvement. [journey_templates.py](scripts/journey_templates.py) is the
-single owner of the welcome, goal choices, checklist labels, table rows, fixed
-section text, and continuation questions. Render them through
-[journey_conversation.py](scripts/journey_conversation.py); use its Markdown
+Follow the [shared rendering contract](references/conversation-rendering.md) and
+[onboarding reference](references/conversations/onboarding.md) for orientation,
+prerequisites, and Ethos responses across creation, audit, and improvement.
+[conversation_templates.py](scripts/conversation_templates.py) owns shared
+journey and checklist labels, status labels, and generic headings;
+[onboarding_templates.py](scripts/conversation_flows/onboarding_templates.py)
+owns onboarding copy and prerequisite rows. Render them through
+[conversation_renderer.py](scripts/conversation_renderer.py); use its Markdown
 unchanged instead of copying or paraphrasing templates. Progress messages alone
 do not satisfy a required final response or completion pause.
 
