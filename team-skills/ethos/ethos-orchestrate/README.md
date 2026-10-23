@@ -129,7 +129,7 @@ Verify the installation from the same directory with the same assistant value:
 npx skills@latest list --agent claude-code
 ```
 
-For a global installation, add `--global` to this check too. Confirm that
+For a global installation, add `--global` to this check as well. Confirm that
 `ethos-orchestrate`, `ethos-explore`, and `ethos-write` are listed.
 
 ## Create an ETHOS.md
