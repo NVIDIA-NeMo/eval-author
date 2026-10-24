@@ -70,7 +70,7 @@ BUILD_SKILLS = {
     "validation": "eval-author-first-eval",
     "artifacts": "eval-author-first-eval, eval-author",
 }
-BUILD_ROW = "- [{checked}] {label} ({skill}) — {status}"
+BUILD_ROW = "- [{checked}] {label} (skill in use: {skill}) — {status}"
 BUILD_TASK_COUNTS = "{label}: {completed}/{total} tasks"
 REMAINING_HEADING = "**Remaining tasks**"
 REMAINING_STEPS = {
