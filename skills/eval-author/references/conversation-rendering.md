@@ -11,7 +11,13 @@ or writes. This guarantee concerns rendered messages. It does not make workflow
 execution, model decisions, tool results, or evaluations deterministic.
 
 Present rendered Markdown unchanged, with no additional opening, duplicate
-checklist, or appended next-step invitation. Canonical shared journey and
+checklist, or appended next-step invitation. Copy the renderer's output verbatim
+into the workflow response, preserving heading markers, order, links, and
+escaping. Its headings are required workflow structure, not optional prose
+formatting: Recommendations remains a heading even when there are no active
+Blockers, and Next Steps remains a heading above its checklist. Before sending,
+compare the response body with the final renderer output; do not remove headings
+while shortening or reformatting the reply. Canonical shared journey and
 checklist labels, status labels, and generic headings live in
 [conversation_templates.py](../scripts/conversation_templates.py). Flow-specific
 copy belongs to that flow's template module, not a second prose template.
@@ -74,11 +80,17 @@ preview permissions, row facts, blocker selection, and final-response ordering.
 Use it alongside [Shared prerequisites and Ethos](shared-prerequisites.md).
 Shared rendering guidance does not change those workflow gates.
 
+[First evaluation rendering](conversations/first-eval.md) continues creation
+with optional traces, design and first-task review, validation, execution
+settings, results, and the optional audit handoff. Its stages require reconciled
+saved state and use the `first_eval_` prefix; they have no stateless preview.
+
 [conversation_renderer.py](../scripts/conversation_renderer.py) dispatches through
 an explicit [journey/stage registry](../scripts/conversation_flows/__init__.py)
-to implemented flow renderers. Duplicate registrations are rejected. The current
-flow is [onboarding.py](../scripts/conversation_flows/onboarding.py), with its
-copy in [onboarding_templates.py](../scripts/conversation_flows/onboarding_templates.py).
+to implemented flow renderers. Duplicate registrations are rejected. Implemented
+flows are [onboarding.py](../scripts/conversation_flows/onboarding.py) and
+[first_eval.py](../scripts/conversation_flows/first_eval.py), with copy in their
+respective `_templates.py` modules.
 Shared formatting and escaping live in
 [conversation_formatting.py](../scripts/conversation_formatting.py).
 

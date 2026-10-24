@@ -206,7 +206,11 @@ direct flow invocations. Subsequent Ethos-only replies can use `ethos` without
 repeating prerequisite findings.
 
 - Optional assistant skills are absent: put optional Recommendations after the
-  completed table in final, followed by the Ethos checklist and question
+  completed table in final, followed by Next Steps with the Ethos checklist and
+  question. Inspect the actual final reply against renderer stdout: both section
+  headings and the optional-suggestions introduction must survive even when
+  there are no active Blockers. A reply that drops the headings fails this check
+  even when the renderer output was correct
 - The selected authoring runtime is missing, incompatible, or unresolved: show
   the completed table and **Blockers** once in final, preserve progress, and omit
   Next Steps, the checklist, and Ethos guidance. Existing or historically

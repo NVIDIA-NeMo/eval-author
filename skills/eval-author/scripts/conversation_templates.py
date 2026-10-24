@@ -25,3 +25,4 @@ BLOCKERS = "### Blockers\n\nThese items need to be resolved before we can contin
 HANDOFF_BLOCKERS = "### Blockers\n\nThese items prevent us from continuing with your evaluations."
 BLOCKER_PAUSE = "The {skill} requires “{quote}”. This prerequisite must be resolved before we continue."
 NEXT_STEPS = "### Next Steps"
+REPORTS = "Review your evaluations in {report} or {readme}."
