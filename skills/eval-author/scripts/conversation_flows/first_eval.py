@@ -29,6 +29,7 @@ STAGES = {
         "build_progress",
         "review_first",
         "prepare_remaining",
+        "remaining_progress",
         "ready_to_run",
         "results",
         "resume",
@@ -247,29 +248,46 @@ def execution_settings(record: dict) -> str:
     return "\n\n".join([copy.SETTINGS_INTRO, bullets, copy.SETTINGS_NOTICE])
 
 
-def build_checklist(record: dict, progress: dict, facts: dict) -> str:
-    build = progress["first_task_build"]
-    steps = build["steps"]
-    first = next(task for task in record["plan"]["tasks"] if task["id"] == record["first_task"])
+def build_rows(labels: dict, steps: dict, facts: dict, *, counts: dict | None = None) -> str:
     blocked = None
     if facts.get("blockers"):
-        blocked = next((step for step in copy.BUILD_STEPS if steps[step] == "in_progress"), None)
-        blocked = blocked or next((step for step in copy.BUILD_STEPS if steps[step] != "complete"), None)
+        blocked = next((step for step in labels if steps[step] == "in_progress"), None)
+        blocked = blocked or next((step for step in labels if steps[step] != "complete"), None)
     rows = []
-    for key, label in copy.BUILD_STEPS.items():
+    for key, label in labels.items():
         status = "blocked" if key == blocked else steps[key]
-        if key == "grading" and record["provider"] == "gym":
-            label = copy.GYM_BUILD_GRADING
+        if counts and key in counts:
+            label = copy.BUILD_TASK_COUNTS.format(label=label, **counts[key])
         rows.append(
             copy.BUILD_ROW.format(
-                checked="x" if status == "complete" else " ", label=label, status=copy.BUILD_STATUSES[status]
+                checked="x" if status == "complete" else " ",
+                label=label,
+                skill=copy.BUILD_SKILLS[key],
+                status=copy.BUILD_STATUSES[status],
             )
         )
+    return "\n".join(rows)
+
+
+def build_checklist(record: dict, progress: dict, facts: dict) -> str:
+    first = next(task for task in record["plan"]["tasks"] if task["id"] == record["first_task"])
+    labels = dict(copy.BUILD_STEPS)
+    if record["provider"] == "gym":
+        labels["grading"] = copy.GYM_BUILD_GRADING
     return (
         copy.BUILD_HEADING.format(title=literal(first.get("title") or first["id"], "first task title"))
         + "\n\n"
-        + "\n".join(rows)
+        + build_rows(labels, progress["first_task_build"]["steps"], facts)
     )
+
+
+def remaining_checklist(progress: dict, facts: dict) -> str:
+    build = progress["remaining_build"]
+    parts = [copy.REMAINING_HEADING]
+    if not build["task_ids"]:
+        parts.append(copy.NO_REMAINING_TASKS)
+    parts.append(build_rows(copy.REMAINING_STEPS, build["steps"], facts, counts=build["counts"]))
+    return "\n\n".join(parts)
 
 
 def first_review(record: dict, progress: dict, facts: dict) -> str:
@@ -555,7 +573,14 @@ def render(payload: dict) -> str:
         elif stage == "prepare_remaining":
             if not progress["first_task_approved"]:
                 raise ValueError("Save first-task approval before preparing remaining tasks")
-            result = copy.REMAINDER_PROGRESS
+            result = copy.REMAINDER_PROGRESS if progress["remaining_build"]["task_ids"] else copy.NO_REMAINDER_PROGRESS
+            result += "\n\n" + remaining_checklist(progress, facts)
+        elif stage == "remaining_progress":
+            if not progress["first_task_approved"]:
+                raise ValueError("Save first-task approval before reporting remaining-task build progress")
+            if not record.get("remaining_build") or not progress["remaining_build"]["current"]:
+                raise ValueError("Save build progress for the current remaining tasks and approved first task")
+            result = remaining_checklist(progress, facts)
         elif stage == "ready_to_run":
             if progress["next_stage"] == "execution_settings":
                 raise ValueError("Display and save execution settings before announcing execution")

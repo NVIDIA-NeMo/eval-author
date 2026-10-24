@@ -30,8 +30,8 @@ you can request broader scope. Eval Author waits for your source choice and
 then your proposal approval before starting task construction.
 
 After design approval, Eval Author builds one task and presents its README and
-report for review. A compact build checklist shows completed, active, pending,
-and blocked steps while the task is being prepared. The review distinguishes
+report for review. Compact build checklists show completed, active, pending,
+and blocked steps, with the responsible skill beside each item. The review distinguishes
 whether its environment works,
 whether grading has been validated, and whether your actual agent has run.
 You can request revisions to that task before the remaining tasks are created.
@@ -43,6 +43,8 @@ report is `.eval-author/report.html`, with a Markdown counterpart in
 ## Run and inspect the suite
 
 After you approve the first task, Eval Author builds and validates the remainder.
+Its checklist shows task counts and progress through environment checks, grader
+validation, and the README/report refresh.
 When agent runs or paid grading are ready, it presents the concrete settings,
 attempt counts, limits, and unresolved execution needs. Approving the design or
 first task does not authorize paid runs; applicable prior authorization is reused.

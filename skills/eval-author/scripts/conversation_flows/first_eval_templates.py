@@ -62,7 +62,24 @@ BUILD_STEPS = {
 }
 GYM_BUILD_GRADING = "Add the reference fixtures and native Gym verifier"
 BUILD_STATUSES = {"complete": "Complete", "in_progress": "In progress", "pending": "Pending", "blocked": "Blocked"}
-BUILD_ROW = "- [{checked}] {label} — {status}"
+BUILD_SKILLS = {
+    "environment": "eval-author-environment",
+    "environment_check": "eval-author-environment",
+    "grading": "eval-author-first-eval",
+    "tasks": "eval-author-first-eval",
+    "validation": "eval-author-first-eval",
+    "artifacts": "eval-author-first-eval, eval-author",
+}
+BUILD_ROW = "- [{checked}] {label} ({skill}) — {status}"
+BUILD_TASK_COUNTS = "{label}: {completed}/{total} tasks"
+REMAINING_HEADING = "**Remaining tasks**"
+REMAINING_STEPS = {
+    "tasks": "Build remaining tasks",
+    "environment_check": "Check task environments",
+    "validation": "Validate all task graders",
+    "artifacts": "Refresh README and report",
+}
+NO_REMAINING_TASKS = "No additional tasks agreed."
 FIRST_REVIEW_INTRO = (
     "Your first task, **{title}**, is ready for review. It follows your approved design and confirmed `ETHOS.md`."
 )
@@ -77,6 +94,7 @@ REMAINDER_PROGRESS = (
     "I’ll use the approved pattern to build the remaining tasks, then check that their graders "
     "accept reference results and reject relevant incorrect results."
 )
+NO_REMAINDER_PROGRESS = "I’ll check the approved task’s grader, then refresh the README and report."
 SETTINGS_INTRO = "Here are the settings for running the approved tasks."
 SETTINGS_NOTICE = "Agent runs and paid grading require authorization within these limits."
 SETTINGS_LABELS = ("Agent/model", "Tasks and examples", "Attempts", "Validation", "Time/cost limits", "Open questions")

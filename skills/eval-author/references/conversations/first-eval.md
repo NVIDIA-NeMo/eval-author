@@ -100,8 +100,10 @@ Render `first_eval_prepare_first` before work. It includes the provider's initia
 explanation and fixed build checklist. During the build, use
 `first_eval_build_progress` for subsequent commentary snapshots instead of
 free-form build narration. Keep the same rows and ordering; the template owns
-their labels and short statuses. Refresh after a status changes and keep a
-snapshot visible during long-running checks. Yield while waiting for those
+their labels, responsible skills in parentheses, and short statuses. Refresh
+after a status changes and keep a snapshot visible during long-running checks.
+Delegated workers should return milestone results as they finish so the
+coordinating agent can refresh the checklist. Yield while waiting for those
 checks so progress can be shown. Do not append deliberation, speculative next
 steps, command transcripts, or another checklist. Retain verbose command output
 in evidence logs and surface its outcome through the checklist. Capture state-helper
@@ -136,6 +138,50 @@ Completing this checklist means the task is ready for its existing review
 checkpoint. It does not establish grading validation, agent performance, or
 human approval. Keep those separate in `first_eval_review_first`. After the
 first task is approved, later report refreshes do not restart this build.
+
+## Remaining-task build progress
+
+After saving approval of the current first-task revision, initialize
+`remaining_build` through the existing revision-checked update interface:
+
+```json
+{
+  "plan_digest": "<current derived plan_digest>",
+  "first_task_sha256": "<approved first-task revision>",
+  "active_step": "tasks",
+  "source": "<actual started remaining-task activity reference>",
+  "artifacts": null
+}
+```
+
+Choose the actual current step from `tasks`, `environment_check`, `validation`,
+and `artifacts`; completed prior work may make a later step the right starting
+point. Render `first_eval_prepare_remaining` initially, then
+`first_eval_remaining_progress` for subsequent snapshots. Follow the same compact
+commentary and evidence-output rules as the first-task checklist. Both checklists
+include the responsible skill names beside each item, owned by the template.
+Do not add individual approval pauses for later tasks.
+
+Record task creation, environment proof, and grading validation through the
+existing task/evidence records. The renderer derives their counts from current
+evidence. Creation and environment rows count only remaining agreed tasks;
+validation counts all agreed tasks, including any pending first-task controls.
+Tasks can progress individually, so the active row need not follow a global
+sequence. An empty remaining set creates no new tasks. Reuse compatible
+environment proof; only changed or additional environment work needs rebuilding.
+
+After refreshing both report artifacts, save `artifacts` as
+`{digest, source, evidence}`. Its `digest` is the current derived
+`remaining_build_digest`; its evidence names the actual `.eval-author/report.html`
+and `.eval-author/README.md` with their byte digests. This binds the refresh to
+current task revisions and check results. Missing or stale artifacts stay pending;
+later refreshes during execution do not restart completed authoring.
+
+Pass only blockers affecting current build or validation work. Run-only access
+does not block independent authoring. When paid validation needs authorization,
+use the existing execution-settings checkpoint for the missing decision, then
+continue the checklist; task or first-task approval does not authorize spending.
+The checklist never supplies validation evidence or agent performance claims.
 
 ## State and artifact authority
 
@@ -280,7 +326,8 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_prepare_first` | Previously saved design approval; initial provider explanation and compact build checklist. Author exactly one task in its permanent directory, prove its environment before writing its grader, and return for review. No execution checklist is required for local authoring. |
 | `first_eval_build_progress` | Saved approved first-task build activity and fresh observations; the same fixed checklist with short completed, active, pending, or blocked statuses. Use commentary during work, without adding narration or requesting approval. |
 | `first_eval_review_first` | Current first-task files, saved environment proof, and refreshed HTML and Markdown artifacts. Lead with the approved task's name and grounding in `ETHOS.md`, then direct the user to review the HTML report's Tasks view or mirrored README. Follow with input, expected result, grading with a meaningful limitation, and separate environment, grading-validation, and execution status. Link the task README and end with the first-task approval question. |
-| `first_eval_prepare_remaining` | Saved approval of the current first-task revision and environment proof. Build the remaining agreed tasks and check reference results and relevant incorrect-result controls. |
+| `first_eval_prepare_remaining` | Saved approval of the current first-task revision and environment proof. Initial explanation and skill-labeled checklist for building the remainder, checking environments, validating all graders, and refreshing artifacts. |
+| `first_eval_remaining_progress` | Current remaining-build activity after first-task approval; compact checklist with evidence-derived task counts, responsible skills, short statuses, and current build blockers. |
 | `first_eval_execution_settings` | Saved design and first-task approval, when actual agent execution or paid grading is being prepared. Display six settings bullets, separately counting distinct examples and repeated attempts, plus relevant run blockers. This display never supplies spending authorization. |
 | `first_eval_ready_to_run` | Current validation of every selected task and a saved applicable settings display. Clarify that reference checks establish working tasks, not agent performance. Announce execution only with applicable explicit authorization, access, and no blocking dependency; otherwise ask one focused question about the missing setting or authorization. |
 | `first_eval_results` | Review an exact retained current actual-agent attempt when its evidence is available; otherwise present the incomplete inventory and missing-evidence blocker. Separate completed, quality-failing, infrastructure-failing, missing, and unavailable-evidence outcomes. Link verified evidence and rerun instructions, reconcile delivered work, and show completion only when justified. |

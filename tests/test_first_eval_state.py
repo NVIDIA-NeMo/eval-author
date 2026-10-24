@@ -248,6 +248,194 @@ def finish_build_step(modules, repo, value, step):
     return save(modules, repo, value)
 
 
+def start_remaining(modules, repo, value):
+    progress = facts(modules, repo)
+    value["remaining_build"] = {
+        "plan_digest": progress["plan_digest"],
+        "first_task_sha256": value["tasks"][value["first_task"]]["sha256"],
+        "active_step": next(
+            (key for key, status in progress["remaining_build"]["steps"].items() if status != "complete"), None
+        ),
+        "source": "Started remaining tasks after the first-task review",
+        "artifacts": None,
+    }
+    return save(modules, repo, value)
+
+
+def refresh_remaining_artifacts(modules, repo, value):
+    value["remaining_build"]["artifacts"] = {
+        "digest": facts(modules, repo)["remaining_build_digest"],
+        "source": "Refreshed and inspected the suite report and Markdown mirror",
+        "evidence": [
+            evidence(repo, ".eval-author/report.html", "Current task report"),
+            evidence(repo, ".eval-author/README.md", "Current Markdown mirror"),
+        ],
+    }
+    value["remaining_build"]["active_step"] = None
+    return save(modules, repo, value)
+
+
+def test_remaining_build_progress_uses_actual_counts_and_retains_resume_without_authority_gain(modules, tmp_path):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    author(modules, tmp_path, value, "refund")
+    check(modules, tmp_path, value, "refund", "environment")
+    review_first(modules, tmp_path, value)
+    start_remaining(modules, tmp_path, value)
+    progress = facts(modules, tmp_path)
+    assert progress["next_stage"] == "remaining_progress"
+    assert progress["remaining_build"]["task_ids"] == ["policy"]
+    assert progress["remaining_build"]["counts"] == {
+        "tasks": {"completed": 0, "total": 1},
+        "environment_check": {"completed": 0, "total": 1},
+        "validation": {"completed": 0, "total": 2},
+    }
+    assert progress["remaining_build"]["steps"]["tasks"] == "in_progress"
+    saved_bytes = modules[0].state_path(tmp_path).read_bytes()
+    assert facts(modules, tmp_path) == progress
+    assert modules[0].state_path(tmp_path).read_bytes() == saved_bytes
+    author(modules, tmp_path, value, "policy")
+    value["remaining_build"]["active_step"] = "environment_check"
+    save(modules, tmp_path, value)
+    check(modules, tmp_path, value, "policy", "environment")
+    check(modules, tmp_path, value, "refund", "validation")
+    assert facts(modules, tmp_path)["remaining_build"]["counts"]["validation"] == {"completed": 1, "total": 2}
+    check(modules, tmp_path, value, "policy", "validation")
+    refresh_remaining_artifacts(modules, tmp_path, value)
+    progress = facts(modules, tmp_path)
+    assert progress["remaining_build"]["complete"]
+    assert progress["remaining_build"]["artifacts_current"]
+    assert progress["next_stage"] == "execution_settings"
+    assert not progress["execution_authorized"] and not progress["complete"]
+    assert not any(task["executed"] for task in progress["tasks"].values())
+
+
+def test_remaining_build_empty_set_still_validates_first_task(modules, tmp_path):
+    value = start(modules, tmp_path, examples=[{"id": "refund", "example_ids": ["refund-1"]}])
+    approve(modules, tmp_path, value)
+    author(modules, tmp_path, value, "refund")
+    check(modules, tmp_path, value, "refund", "environment")
+    review_first(modules, tmp_path, value)
+    start_remaining(modules, tmp_path, value)
+    progress = facts(modules, tmp_path)["remaining_build"]
+    assert progress["task_ids"] == []
+    assert progress["counts"]["tasks"] == progress["counts"]["environment_check"] == {"completed": 0, "total": 0}
+    assert progress["steps"] == {
+        "tasks": "complete",
+        "environment_check": "complete",
+        "validation": "in_progress",
+        "artifacts": "pending",
+    }
+    with pytest.raises(ValueError, match="after authoring, environment proof, and validation"):
+        refresh_remaining_artifacts(modules, tmp_path, value)
+    value["remaining_build"]["artifacts"] = None
+    check(modules, tmp_path, value, "refund", "validation")
+    refresh_remaining_artifacts(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["remaining_build"]["complete"]
+
+
+def test_remaining_build_requires_prior_first_task_approval_and_never_creates_it(modules, tmp_path):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    author(modules, tmp_path, value, "refund")
+    check(modules, tmp_path, value, "refund", "environment")
+    with pytest.raises(ValueError, match="Save first-task approval"):
+        start_remaining(modules, tmp_path, value)
+    value["tasks"]["refund"]["review"] = {
+        "sha256": value["tasks"]["refund"]["sha256"],
+        "decision": "approved",
+        "source": "Task approval in the same unsaved update",
+    }
+    with pytest.raises(ValueError, match="Save first-task approval"):
+        save(modules, tmp_path, value)
+    assert not facts(modules, tmp_path)["first_task_approved"]
+
+
+def test_remaining_build_allows_interleaving_and_run_credentials_do_not_block_local_work(modules, tmp_path):
+    value = start(
+        modules,
+        tmp_path,
+        examples=[{"id": key, "example_ids": [f"{key}-1"]} for key in ("refund", "policy", "billing")],
+    )
+    approve(modules, tmp_path, value)
+    author(modules, tmp_path, value, "refund")
+    check(modules, tmp_path, value, "refund", "environment")
+    review_first(modules, tmp_path, value)
+    start_remaining(modules, tmp_path, value)
+    modules[0].update(
+        tmp_path, {"blockers": [{"id": "credentials", "phase": "create", "message": "Agent API key missing"}]}
+    )
+    author(modules, tmp_path, value, "policy")
+    value["remaining_build"]["active_step"] = "environment_check"
+    save(modules, tmp_path, value)
+    progress = facts(modules, tmp_path)
+    assert progress["remaining_build"]["counts"]["tasks"] == {"completed": 1, "total": 2}
+    assert progress["remaining_build"]["steps"]["environment_check"] == "in_progress"
+    check(modules, tmp_path, value, "policy", "environment")
+    author(modules, tmp_path, value, "billing")
+    assert facts(modules, tmp_path)["remaining_build"]["counts"]["tasks"]["completed"] == 2
+    assert not facts(modules, tmp_path)["execution_authorized"]
+
+
+def test_remaining_artifacts_bind_validation_and_report_changes_without_restarting_execution(modules, tmp_path):
+    value = ready(modules, tmp_path)
+    start_remaining(modules, tmp_path, value)
+    refresh_remaining_artifacts(modules, tmp_path, value)
+    prior_digest = facts(modules, tmp_path)["remaining_build_digest"]
+    value["tasks"]["policy"]["validation"]["source"] = "Inspected fresh passing controls"
+    save(modules, tmp_path, value)
+    progress = facts(modules, tmp_path)
+    assert progress["remaining_build_digest"] != prior_digest
+    assert not progress["remaining_build"]["artifacts_current"]
+    assert progress["next_stage"] == "remaining_progress"
+    select(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["next_stage"] == "remaining_progress"
+    refresh_remaining_artifacts(modules, tmp_path, value)
+    (tmp_path / ".eval-author/report.html").write_text("Later agent results report")
+    progress = facts(modules, tmp_path)
+    assert not progress["remaining_build"]["artifacts_current"]
+    assert progress["next_stage"] == "ready_to_run"
+    value["tasks"]["policy"]["validation"]["status"] = "failed"
+    save(modules, tmp_path, value)
+    progress = facts(modules, tmp_path)
+    assert progress["next_stage"] == "remaining_progress"
+    assert progress["remaining_build"]["counts"]["validation"]["completed"] == 1
+
+
+def test_remaining_build_plan_changes_and_first_task_changes_reopen_the_right_stage(modules, tmp_path):
+    value = ready(modules, tmp_path)
+    start_remaining(modules, tmp_path, value)
+    refresh_remaining_artifacts(modules, tmp_path, value)
+    value["plan"]["presentation"]["coverage_note"] = "Revised agreement"
+    save(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["next_stage"] == "proposal"
+    approve(modules, tmp_path, value)
+    progress = facts(modules, tmp_path)
+    assert not progress["remaining_build"]["current"]
+    assert progress["next_stage"] == "prepare_remaining"
+    start_remaining(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["next_stage"] == "remaining_progress"
+    (tmp_path / ".eval-author/tasks/refund/README.md").write_text("Changed first task")
+    progress = facts(modules, tmp_path)
+    assert not progress["first_task_approved"] and not progress["remaining_build"]["current"]
+    assert progress["next_stage"] == "prepare_first"
+
+
+@pytest.mark.parametrize("missing", [".eval-author/report.html", ".eval-author/README.md"])
+def test_remaining_artifact_receipt_requires_both_current_review_files(modules, tmp_path, missing):
+    value = ready(modules, tmp_path)
+    start_remaining(modules, tmp_path, value)
+    refresh_remaining_artifacts(modules, tmp_path, value)
+    (tmp_path / missing).unlink()
+    assert not facts(modules, tmp_path)["remaining_build"]["artifacts_current"]
+    assert facts(modules, tmp_path)["next_stage"] == "remaining_progress"
+    value["remaining_build"]["artifacts"]["evidence"] = [
+        ref for ref in value["remaining_build"]["artifacts"]["evidence"] if ref["path"] != missing
+    ]
+    with pytest.raises(ValueError, match="actual suite report and its Markdown mirror"):
+        save(modules, tmp_path, value)
+
+
 def test_first_task_build_progress_is_optional_and_starting_does_not_complete_work(modules, tmp_path):
     value = start(modules, tmp_path)
     approve(modules, tmp_path, value)

@@ -14,6 +14,7 @@ from copy import deepcopy
 from pathlib import PurePosixPath
 
 BUILD_STEPS = ("environment", "environment_check", "grading", "artifacts")
+REMAINING_STEPS = ("tasks", "environment_check", "validation", "artifacts")
 
 
 def fingerprint(value: object) -> str:
@@ -146,6 +147,32 @@ def validate(value: dict) -> None:
                     raise ValueError("First-task build receipts require provenance and retained evidence")
                 _text(receipt["source"])
                 _evidence(receipt["evidence"])
+        remaining = value.get("remaining_build")
+        if remaining is not None:
+            if not isinstance(remaining, dict) or set(remaining) != {
+                "plan_digest",
+                "first_task_sha256",
+                "active_step",
+                "source",
+                "artifacts",
+            }:
+                raise ValueError("Remaining-task progress requires its approved design, activity, and review artifacts")
+            _digest(remaining["plan_digest"])
+            _digest(remaining["first_task_sha256"])
+            _text(remaining["source"])
+            if remaining["active_step"] is not None and remaining["active_step"] not in REMAINING_STEPS:
+                raise ValueError("Unknown remaining-task build step")
+            artifacts = remaining["artifacts"]
+            if artifacts is not None:
+                if not isinstance(artifacts, dict) or set(artifacts) != {"digest", "source", "evidence"}:
+                    raise ValueError("Remaining-task artifact refresh requires provenance and retained evidence")
+                _decision(artifacts)
+                _evidence(artifacts["evidence"])
+                if len(artifacts["evidence"]) != 2 or {ref["path"] for ref in artifacts["evidence"]} != {
+                    ".eval-author/report.html",
+                    ".eval-author/README.md",
+                }:
+                    raise ValueError("Retain both the actual suite report and its Markdown mirror")
         for key, task in value["tasks"].items():
             _text(key)
             _path(task["path"])
@@ -260,6 +287,9 @@ def _sources(value: dict) -> tuple[dict, set]:
     tasks, files = {}, set()
     for receipt in (value.get("first_task_build") or {}).get("receipts", {}).values():
         files.update(ref["path"] for ref in receipt["evidence"])
+    artifacts = (value.get("remaining_build") or {}).get("artifacts")
+    if artifacts:
+        files.update(ref["path"] for ref in artifacts["evidence"])
     for task_id, task in value["tasks"].items():
         tasks[task_id] = task["path"]
         for field in ("environment", "validation"):
@@ -324,6 +354,63 @@ def _build_progress(value: dict, observed: dict, plan_digest: str) -> dict:
                 steps[step] = "in_progress"
             prior_complete = completed
     return {"current": current, "steps": steps, "complete": all(status == "complete" for status in steps.values())}
+
+
+def _remaining_progress(
+    value: dict, observed: dict, plan_digest: str, tasks: dict, first_approved: bool
+) -> tuple[dict, str]:
+    build = value.get("remaining_build")
+    remaining = [key for key in tasks if key != value["first_task"]]
+    first_digest = value["tasks"].get(value["first_task"], {}).get("sha256")
+    digest = fingerprint(
+        {
+            "plan_digest": plan_digest,
+            "first_task_sha256": first_digest,
+            "tasks": {
+                key: {
+                    "record": {
+                        field: value["tasks"].get(key, {}).get(field)
+                        for field in ("path", "sha256", "environment", "validation")
+                    },
+                    "current": {field: task[field] for field in ("created", "environment_proven", "validated")},
+                }
+                for key, task in tasks.items()
+            },
+        }
+    )
+    current = bool(
+        build and first_approved and build["plan_digest"] == plan_digest and build["first_task_sha256"] == first_digest
+    )
+    counts = {
+        "tasks": {"completed": sum(tasks[key]["created"] for key in remaining), "total": len(remaining)},
+        "environment_check": {
+            "completed": sum(tasks[key]["environment_proven"] for key in remaining),
+            "total": len(remaining),
+        },
+        "validation": {
+            "completed": sum(task["validated"] and task["environment_proven"] for task in tasks.values()),
+            "total": len(tasks),
+        },
+    }
+    artifacts = (build or {}).get("artifacts")
+    artifacts_current = bool(
+        current
+        and artifacts
+        and artifacts["digest"] == digest
+        and all(observed["files"].get(ref["path"]) == ref["digest"] for ref in artifacts["evidence"])
+    )
+    steps = {key: "complete" if count["completed"] == count["total"] else "pending" for key, count in counts.items()}
+    steps["artifacts"] = "complete" if artifacts_current else "pending"
+    if current and build["active_step"] is not None and steps[build["active_step"]] != "complete":
+        steps[build["active_step"]] = "in_progress"
+    return {
+        "current": current,
+        "task_ids": remaining,
+        "steps": steps,
+        "counts": counts,
+        "complete": current and all(status == "complete" for status in steps.values()),
+        "artifacts_current": artifacts_current,
+    }, digest
 
 
 def derive(state: dict, observed: object) -> dict | None:
@@ -392,7 +479,8 @@ def derive(state: dict, observed: object) -> dict | None:
             else []
         )
         tasks[key] = facts
-    first_approved = tasks[value["first_task"]]["reviewed"] and tasks[value["first_task"]]["environment_proven"]
+    first_approved = bool(tasks[value["first_task"]]["reviewed"] and tasks[value["first_task"]]["environment_proven"])
+    remaining, remaining_digest = _remaining_progress(value, observed, plan_digest, tasks, first_approved)
     settings_digest = fingerprint({"plan_digest": plan_digest, "settings": execution_settings(value)})
     settings = execution_settings(value)
     settings_resolved = bool(_settings_fields(settings) and not settings["open_questions"])
@@ -544,6 +632,17 @@ def derive(state: dict, observed: object) -> dict | None:
     }
     validated = all(task["validated"] and task["environment_proven"] for task in tasks.values())
     complete = bool(first_approved and validated and suite_complete and reviewed and review["run_id"] in selected_runs)
+    artifact_receipt = (value.get("remaining_build") or {}).get("artifacts")
+    remaining_work = bool(
+        remaining["current"]
+        and not remaining["complete"]
+        and (
+            any(remaining["steps"][step] != "complete" for step in REMAINING_STEPS[:-1])
+            or not artifact_receipt
+            or artifact_receipt["digest"] != remaining_digest
+            or not (settings_shown or selected_runs)
+        )
+    )
     first = tasks[value["first_task"]]
     stage = (
         "saved_design"
@@ -561,6 +660,10 @@ def derive(state: dict, observed: object) -> dict | None:
         else "review_first"
         if not first_approved
         else "prepare_remaining"
+        if value.get("remaining_build") and not remaining["current"]
+        else "remaining_progress"
+        if remaining_work
+        else "prepare_remaining"
         if not validated
         else "execution_settings"
         if not settings_shown
@@ -574,6 +677,8 @@ def derive(state: dict, observed: object) -> dict | None:
         "plan_digest": plan_digest,
         "saved_design_review_needed": saved_review_needed,
         "first_task_build": build,
+        "remaining_build": remaining,
+        "remaining_build_digest": remaining_digest,
         "settings_digest": settings_digest,
         "execution_settings_presented": settings_shown,
         "execution_settings_resolved": settings_resolved,
@@ -682,6 +787,25 @@ def transition(repo, previous: dict, updated: dict) -> None:
         active = build["active_step"]
         if active is not None and now["first_task_build"]["steps"][active] != "in_progress":
             raise ValueError("Only the earliest incomplete first-task build step may be active")
+    remaining = after.get("remaining_build")
+    prior_remaining = (before or {}).get("remaining_build")
+    if prior_remaining is not None and remaining is None:
+        raise ValueError("Retain remaining-task build progress and its evidence")
+    if remaining != prior_remaining:
+        assert remaining is not None
+        if not (old and old["first_task_approved"] and now["first_task_approved"]):
+            raise ValueError("Save first-task approval before recording remaining-task build progress")
+        if not now["remaining_build"]["current"]:
+            raise ValueError("Bind remaining-task progress to the current design and approved first task")
+        artifacts = remaining["artifacts"]
+        if artifacts and artifacts != (prior_remaining or {}).get("artifacts"):
+            if not now["remaining_build"]["artifacts_current"] or any(
+                now["remaining_build"]["steps"][step] != "complete" for step in REMAINING_STEPS[:-1]
+            ):
+                raise ValueError("Refresh current suite artifacts after authoring, environment proof, and validation")
+        active = remaining["active_step"]
+        if active is not None and now["remaining_build"]["steps"][active] != "in_progress":
+            raise ValueError("Only an incomplete remaining-task build step may be active")
     if before and "execution_settings" in before and "execution_settings" not in after:
         raise ValueError("Retain adopted execution settings; revise them instead of removing them")
     if before != after and updated["ethos"]["stage"] != "complete":

@@ -127,7 +127,8 @@ construction declarations, source provenance, and native smoke evidence.
 **Build-progress variant:** Inspect commentary during a slow environment build
 and smoke check. The initial provider explanation includes the renderer's compact
 build checklist; subsequent snapshots keep the same four rows and short statuses
-without paragraphs of implementation deliberation. Completed preparation remains
+with the responsible skill in parentheses beside each item, without paragraphs
+of implementation deliberation. Completed preparation remains
 visible while checks run. A failed smoke check leaves environment checking
 unfinished, with **Blockers** only when dependent work is blocked. Missing
 run-only credentials do not mark the build blocked. Interrupt and resume:
@@ -160,6 +161,17 @@ without individual human review gates. Reference controls remain separate from
 actual-agent performance. When concrete paid checks or agent runs are ready,
 use `first_eval_execution_settings`; current prior settings and authorization
 are reused. Design or first-task approval alone does not authorize spending.
+
+**Remaining-build variant:** The initial explanation includes a new renderer
+checklist; later snapshots show counts and current status for creation,
+environments, all-task grader validation, and artifact refresh. Each row includes
+the responsible skill. A control failure or stale evidence stays unfinished;
+missing run-only credentials do not block authoring. Interrupt and resume without
+losing completed work or repeating approval. If first-task controls were deferred,
+the validation count includes them. Refreshing a report after execution starts
+does not send the conversation back to task authoring. Repeat with one agreed
+task: no additional tasks are created, and any pending first-task validation is
+still tracked.
 
 **Expansion reply:** “Retain both tasks. Add three distinct complaint inputs,
 including confusable negatives, and one new policy question. Review the added

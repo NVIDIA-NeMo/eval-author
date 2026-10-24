@@ -198,6 +198,9 @@ Only after current first-task approval, render `first_eval_prepare_remaining`
 and build the remaining agreed tasks with the approved pattern. Reuse applicable
 proof and controls, refreshing the report after authoring, revisions, and validation.
 Keep task paths stable; a blocked first task never unlocks remaining authoring.
+Follow the [remaining-task build checklist](../eval-author/references/conversations/first-eval.md#remaining-task-build-progress)
+for saved activity and compact renderer snapshots throughout this work, including
+delegation. Keep the skill labels beside each checklist item.
 
 Follow [task validation](../eval-author/references/task-validation.md) and
 [execution recovery](../eval-author/references/execution-recovery.md). Finalize

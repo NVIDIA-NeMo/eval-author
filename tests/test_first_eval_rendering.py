@@ -74,6 +74,8 @@ def observations(record):
     files = {}
     for receipt in (record.get("first_task_build") or {}).get("receipts", {}).values():
         files.update({ref["path"]: ref["digest"] for ref in receipt["evidence"]})
+    for ref in ((record.get("remaining_build") or {}).get("artifacts") or {}).get("evidence", []):
+        files[ref["path"]] = ref["digest"]
     for task in record["tasks"].values():
         for field in ("environment", "validation"):
             files.update({ref["path"]: ref["digest"] for ref in (task.get(field) or {}).get("evidence", [])})
@@ -159,6 +161,26 @@ def built(creation, *, all_tasks=False, reviewed=False, validated=False):
             "environment": check,
             "validation": deepcopy(check) if validated else None,
             "limitations": ["Other regions untested"],
+        }
+
+
+def remaining_started(creation, *, active="tasks", artifacts=False):
+    state, record, helper, *_ = creation
+    record["remaining_build"] = {
+        "plan_digest": helper.derive(state, observations(record))["plan_digest"],
+        "first_task_sha256": record["tasks"][record["first_task"]]["sha256"],
+        "active_step": active,
+        "source": "Observed remaining-task preparation",
+        "artifacts": None,
+    }
+    if artifacts:
+        record["remaining_build"]["artifacts"] = {
+            "digest": helper.derive(state, observations(record))["remaining_build_digest"],
+            "source": "Observed suite artifact refresh",
+            "evidence": [
+                {"path": ".eval-author/report.html", "digest": SHA},
+                {"path": ".eval-author/README.md", "digest": SHA},
+            ],
         }
 
 
@@ -401,10 +423,10 @@ def test_initial_first_task_message_has_the_fixed_build_checklist(creation):
         "Then I’ll add the [reference solution](https://docs.harborframework.com/tasks/solution) "
         "and [grader](https://docs.harborframework.com/tasks/verifier).\n\n"
         "**First task: refund**\n\n"
-        "- [ ] Prepare starting data and environment — In progress\n"
-        "- [ ] Check the environment — Pending\n"
-        "- [ ] Add the reference solution and grader — Pending\n"
-        "- [ ] Prepare README and report — Pending\n"
+        "- [ ] Prepare starting data and environment (eval-author-environment) — In progress\n"
+        "- [ ] Check the environment (eval-author-environment) — Pending\n"
+        "- [ ] Add the reference solution and grader (eval-author-first-eval) — Pending\n"
+        "- [ ] Prepare README and report (eval-author-first-eval, eval-author) — Pending\n"
     )
 
 
@@ -433,10 +455,10 @@ def test_repeated_build_progress_is_only_the_checklist_and_preserves_state(creat
     output = renderer.render(request)
     assert output == (
         "**First task: refund**\n\n"
-        "- [x] Prepare starting data and environment — Complete\n"
-        "- [ ] Check the environment — In progress\n"
-        "- [ ] Add the reference solution and grader — Pending\n"
-        "- [ ] Prepare README and report — Pending\n"
+        "- [x] Prepare starting data and environment (eval-author-environment) — Complete\n"
+        "- [ ] Check the environment (eval-author-environment) — In progress\n"
+        "- [ ] Add the reference solution and grader (eval-author-first-eval) — Pending\n"
+        "- [ ] Prepare README and report (eval-author-first-eval, eval-author) — Pending\n"
     )
     assert output == renderer.render(request) == renderer.render(payload(creation, "resume"))
     assert copy.FIRST_PROGRESS not in output and "http" not in output and "report.html" not in output
@@ -452,8 +474,8 @@ def test_stale_build_receipts_reopen_the_affected_checklist_without_false_comple
     request["facts"]["observations"]["files"][evidence["path"]] = None
     output = renderer.render(request)
     assert "[x]" not in output
-    assert "Prepare starting data and environment — Pending" in output
-    assert "Check the environment — Complete" not in output
+    assert "Prepare starting data and environment (eval-author-environment) — Pending" in output
+    assert "Check the environment (eval-author-environment) — Complete" not in output
 
 
 @pytest.mark.parametrize("step_number", range(5))
@@ -469,7 +491,8 @@ def test_build_checklist_transitions_check_only_evidenced_complete_steps(creatio
     assert output.count("— In progress") == (step_number < len(steps))
     assert output.count("- [ ]") == len(steps) - step_number
     if step_number < len(steps):
-        assert copy.BUILD_STEPS[steps[step_number]] + " — In progress" in output
+        step = steps[step_number]
+        assert f"{copy.BUILD_STEPS[step]} ({copy.BUILD_SKILLS[step]}) — In progress" in output
 
 
 @pytest.mark.parametrize("active", ["environment", None])
@@ -487,7 +510,7 @@ def test_current_build_blockers_mark_only_the_active_or_earliest_incomplete_step
     ]
     output = renderer.render(payload(creation, "build_progress", blockers=entries))
     assert output.count("— Blocked") == 1
-    assert "Prepare starting data and environment — Blocked" in output
+    assert "Prepare starting data and environment (eval-author-environment) — Blocked" in output
     assert "### Blockers" in output and "**Needed:** Start the selected container runtime." in output
     assert "[x]" not in output
 
@@ -497,7 +520,7 @@ def test_run_only_blockers_do_not_interrupt_first_task_progress(creation):
     build_started(creation)
     state["blockers"] = [{"id": "credentials", "phase": "create", "message": "No live-run credential"}]
     output = renderer.render(payload(creation, "build_progress"))
-    assert "Prepare starting data and environment — In progress" in output
+    assert "Prepare starting data and environment (eval-author-environment) — In progress" in output
     assert "Blocked" not in output and "### Blockers" not in output
 
 
@@ -527,9 +550,184 @@ def test_first_task_review_waits_for_the_saved_build_checklist(creation):
     }
     with pytest.raises(ValueError, match="Complete the current first-task build checklist"):
         renderer.render(payload(creation, "review_first", **facts))
-    assert "Prepare README and report — In progress" in renderer.render(payload(creation, "resume"))
+    assert "Prepare README and report (eval-author-first-eval, eval-author) — In progress" in renderer.render(
+        payload(creation, "resume")
+    )
     build_started(creation, active=None, completed=("environment", "environment_check", "grading", "artifacts"))
     assert copy.FIRST_QUESTION in renderer.render(payload(creation, "resume", **facts))
+
+
+def test_remaining_task_initial_message_has_counts_and_responsible_skills(creation):
+    _, _, _, renderer, _ = creation
+    built(creation, reviewed=True)
+    remaining_started(creation)
+    assert renderer.render(payload(creation, "prepare_remaining")) == (
+        "I’ll use the approved pattern to build the remaining tasks, then check that their graders "
+        "accept reference results and reject relevant incorrect results.\n\n"
+        "**Remaining tasks**\n\n"
+        "- [ ] Build remaining tasks: 0/1 tasks (eval-author-first-eval) — In progress\n"
+        "- [ ] Check task environments: 0/1 tasks (eval-author-environment) — Pending\n"
+        "- [ ] Validate all task graders: 0/2 tasks (eval-author-first-eval) — Pending\n"
+        "- [ ] Refresh README and report (eval-author-first-eval, eval-author) — Pending\n"
+    )
+
+
+@pytest.mark.parametrize("stage", ["prepare_remaining", "remaining_progress"])
+def test_remaining_checklist_requires_the_first_task_approval(creation, stage):
+    _, _, _, renderer, _ = creation
+    approved(creation)
+    with pytest.raises(ValueError, match="first-task approval"):
+        renderer.render(payload(creation, stage))
+    built(creation)
+    with pytest.raises(ValueError, match="first-task approval"):
+        renderer.render(payload(creation, stage))
+
+
+def test_legacy_remaining_checklist_reports_observed_counts_without_inventing_activity(creation):
+    _, _, _, renderer, _ = creation
+    built(creation, reviewed=True)
+    output = renderer.render(payload(creation, "prepare_remaining"))
+    assert "Build remaining tasks: 0/1 tasks (eval-author-first-eval) — Pending" in output
+    assert "In progress" not in output and "[x]" not in output
+    with pytest.raises(ValueError, match="Save build progress for the current remaining tasks"):
+        renderer.render(payload(creation, "remaining_progress"))
+
+
+def test_remaining_progress_is_a_pure_repeatable_snapshot_and_survives_resume(creation, monkeypatch):
+    state, _, _, renderer, copy = creation
+    built(creation, reviewed=True)
+    remaining_started(creation)
+    request = payload(creation, "remaining_progress")
+    before = json.dumps(state, sort_keys=True)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Rendering remaining-task progress must not inspect files or clocks")
+
+    monkeypatch.setattr(Path, "read_text", forbidden)
+    monkeypatch.setattr(Path, "read_bytes", forbidden)
+    monkeypatch.setattr(importlib.import_module("journey_state"), "now", forbidden)
+    output = renderer.render(request)
+    assert output == (
+        "**Remaining tasks**\n\n"
+        "- [ ] Build remaining tasks: 0/1 tasks (eval-author-first-eval) — In progress\n"
+        "- [ ] Check task environments: 0/1 tasks (eval-author-environment) — Pending\n"
+        "- [ ] Validate all task graders: 0/2 tasks (eval-author-first-eval) — Pending\n"
+        "- [ ] Refresh README and report (eval-author-first-eval, eval-author) — Pending\n"
+    )
+    assert output == renderer.render(request) == renderer.render(payload(creation, "resume"))
+    assert copy.REMAINDER_PROGRESS not in output and "?" not in output and "report.html" not in output
+    assert json.dumps(state, sort_keys=True) == before
+
+
+def test_remaining_checklist_advances_from_task_evidence_through_the_artifact_refresh(creation):
+    _, record, _, renderer, _ = creation
+    built(creation, all_tasks=True, reviewed=True)
+    record["tasks"]["reject"]["review"] = None
+    remaining_started(creation, active="validation")
+    output = renderer.render(payload(creation, "remaining_progress"))
+    assert "Build remaining tasks: 1/1 tasks (eval-author-first-eval) — Complete" in output
+    assert "Check task environments: 1/1 tasks (eval-author-environment) — Complete" in output
+    assert "Validate all task graders: 0/2 tasks (eval-author-first-eval) — In progress" in output
+    assert output.count("[x]") == 2
+    for task in record["tasks"].values():
+        task["validation"] = deepcopy(task["environment"])
+    record["remaining_build"]["active_step"] = "artifacts"
+    output = renderer.render(payload(creation, "resume"))
+    assert "Validate all task graders: 2/2 tasks (eval-author-first-eval) — Complete" in output
+    assert "Refresh README and report (eval-author-first-eval, eval-author) — In progress" in output
+    assert output.count("[x]") == 3
+    remaining_started(creation, active=None, artifacts=True)
+    output = renderer.render(payload(creation, "remaining_progress"))
+    assert output.count("[x]") == 4
+    assert output.count("— Complete") == 4
+
+
+@pytest.mark.parametrize("failure", ["failed_controls", "stale_controls", "missing_task"])
+def test_failed_or_stale_remaining_evidence_does_not_complete_validation(creation, failure):
+    _, record, _, renderer, _ = creation
+    built(creation, all_tasks=True, reviewed=True, validated=True)
+    remaining_started(creation, active="validation")
+    if failure == "failed_controls":
+        record["tasks"]["reject"]["validation"]["status"] = "failed"
+    request = payload(creation, "remaining_progress")
+    if failure == "stale_controls":
+        path = record["tasks"]["reject"]["validation"]["evidence"][0]["path"]
+        request["facts"]["observations"]["files"][path] = None
+    elif failure == "missing_task":
+        request["facts"]["observations"]["tasks"]["reject"] = None
+    output = renderer.render(request)
+    assert "Validate all task graders: 1/2 tasks (eval-author-first-eval) — In progress" in output
+    assert "Refresh README and report (eval-author-first-eval, eval-author) — Complete" not in output
+    assert output.count("[x]") < 4
+
+
+def test_stale_remaining_report_is_pending_and_cannot_be_supplied_as_a_fact(creation):
+    _, record, _, renderer, _ = creation
+    built(creation, all_tasks=True, reviewed=True, validated=True)
+    remaining_started(creation, active=None, artifacts=True)
+    request = payload(creation, "remaining_progress")
+    request["facts"]["observations"]["files"][".eval-author/report.html"] = None
+    output = renderer.render(request)
+    assert "Refresh README and report (eval-author-first-eval, eval-author) — Pending" in output
+    assert output.count("[x]") == 3
+    record["remaining_build"]["first_task_sha256"] = "b" * 64
+    with pytest.raises(ValueError, match="current remaining tasks"):
+        renderer.render(payload(creation, "remaining_progress"))
+    with pytest.raises(ValueError, match="creation facts"):
+        renderer.render(payload(creation, "remaining_progress", remaining_build={"complete": True}))
+
+
+def test_zero_remaining_tasks_are_complete_without_claiming_additional_work(creation):
+    _, record, _, renderer, copy = creation
+    record["plan"]["tasks"] = record["plan"]["tasks"][:1]
+    built(creation, reviewed=True)
+    remaining_started(creation, active="validation")
+    output = renderer.render(payload(creation, "prepare_remaining"))
+    assert output.startswith(copy.NO_REMAINDER_PROGRESS + "\n\n**Remaining tasks**")
+    assert copy.NO_REMAINING_TASKS in output and copy.REMAINDER_PROGRESS not in output
+    assert "Build remaining tasks: 0/0 tasks (eval-author-first-eval) — Complete" in output
+    assert "Check task environments: 0/0 tasks (eval-author-environment) — Complete" in output
+    assert "Validate all task graders: 0/1 tasks (eval-author-first-eval) — In progress" in output
+    assert output.count("[x]") == 2
+
+
+@pytest.mark.parametrize("provider", ["harbor", "gym"])
+def test_both_build_checklists_show_canonical_responsible_skills(creation, provider):
+    state, record, _, renderer, _ = creation
+    state["setup"] = record["provider"] = provider
+    build_started(creation)
+    first = renderer.render(payload(creation, "build_progress"))
+    assert first.count("(eval-author-environment)") == 2
+    assert first.count("(eval-author-first-eval)") == 1
+    assert first.count("(eval-author-first-eval, eval-author)") == 1
+    built(creation, reviewed=True)
+    remaining_started(creation)
+    remaining = renderer.render(payload(creation, "remaining_progress"))
+    assert remaining.count("(eval-author-environment)") == 1
+    assert remaining.count("(eval-author-first-eval)") == 2
+    assert remaining.count("(eval-author-first-eval, eval-author)") == 1
+
+
+def test_remaining_build_only_surfaces_current_step_blockers(creation):
+    state, _, _, renderer, _ = creation
+    built(creation, reviewed=True)
+    remaining_started(creation)
+    state["blockers"] = [{"id": "credentials", "phase": "create", "message": "No live-run credential"}]
+    output = renderer.render(payload(creation, "remaining_progress"))
+    assert "Blocked" not in output and "### Blockers" not in output
+    state["blockers"].append({"id": "data", "phase": "create", "message": "Required input unavailable"})
+    entries = [
+        {
+            "id": "data",
+            "step": "Build remaining tasks",
+            "reason": "Input missing.",
+            "needed": "Provide the selected input.",
+        }
+    ]
+    output = renderer.render(payload(creation, "remaining_progress", blockers=entries))
+    assert "Build remaining tasks: 0/1 tasks (eval-author-first-eval) — Blocked" in output
+    assert "### Blockers" in output and "Provide the selected input." in output
+    assert "No live-run credential" not in output
 
 
 def test_saved_design_overview_is_a_deterministic_decision_before_resume(creation):
@@ -567,6 +765,7 @@ def test_saved_design_overview_is_a_deterministic_decision_before_resume(creatio
         "build_progress",
         "review_first",
         "prepare_remaining",
+        "remaining_progress",
         "execution_settings",
         "ready_to_run",
         "results",
@@ -871,8 +1070,8 @@ def test_native_gym_author_progress_and_rows_are_retained(creation):
     approved(creation)
     output = renderer.render(payload(creation, "resume"))
     assert output.startswith(copy.GYM_PROGRESS + "\n\n**First task:")
-    assert "Add the reference fixtures and native Gym verifier — Pending" in output
-    assert "Add the reference solution and grader — Pending" not in output
+    assert "Add the reference fixtures and native Gym verifier (eval-author-first-eval) — Pending" in output
+    assert "Add the reference solution and grader (eval-author-first-eval) — Pending" not in output
     assert "native Gym verifier" in copy.GYM_PROGRESS and "harborframework" not in copy.GYM_PROGRESS
 
 
