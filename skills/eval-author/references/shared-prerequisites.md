@@ -307,6 +307,13 @@ with the saved context. Do not repeat this pause when resuming downstream work
 that has already started. Keep later execution requirements explicit and pause
 only the work they actually block.
 
+For creation, this continuation and `ETHOS.md` confirmation do not choose a
+previously saved task design. On a fresh request, hand off to the first-eval
+[saved-design checkpoint](../../eval-author-first-eval/SKILL.md#confirm-a-saved-design-before-reusing-it)
+before resuming that design. Existing metadata can identify this pending choice
+during the state-only pass; save its creation record only through normal updates
+after the shared prerequisites and `ETHOS.md` confirmation are complete.
+
 ## Save and resume
 
 `.eval-author/.working/journey-state.json` is the sole authority for workflow

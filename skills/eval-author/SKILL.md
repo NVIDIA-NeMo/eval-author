@@ -109,7 +109,7 @@ instead of repeating orientation.
 
 | Request | Route after shared prerequisites and Ethos |
 |---|---|
-| Build first evals | `eval-author-first-eval`, continuing at the first unfinished authoring stage |
+| Build first evals | `eval-author-first-eval`; confirm reuse of any saved design on a fresh request before continuing its unfinished stage |
 | Audit coverage, gaps, and improvement opportunities | `eval-author-audit`, continuing with eval and trace selection |
 | Improve or expand evals | Preserve the expansion goal and use the expansion handoff below; an audit is optional |
 | Create a task from a recorded interaction | [Task-create ATIF source mode](../eval-author-task-create/SKILL.md#atif-source-mode), or [first-eval](../eval-author-first-eval/SKILL.md#atif-as-a-starting-source) for a new suite; use the [shared ATIF handoff](references/trace-input.md), without requiring an audit gap |

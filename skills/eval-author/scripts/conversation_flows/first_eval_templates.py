@@ -9,6 +9,28 @@ TRACE_INTRO = (
 )
 TRACE_QUESTION = "Would you like to use existing traces, or start from `ETHOS.md`?"
 TRACE_CHOICES = ("Start from ETHOS.md", "Use existing traces")
+SAVED_DESIGN_INTRO = "I found a saved design for your evaluation tasks."
+SAVED_DESIGN_COUNTS = "Saved design: {tasks} tasks; {examples} distinct input examples."
+SAVED_DESIGN_TABLE = "| Task | Behavior under test |\n|---|---|"
+SAVED_DESIGN_SOURCE = "**Source:** {source}"
+SAVED_SOURCE_ETHOS = "`ETHOS.md`, with no selected traces."
+SAVED_SOURCE_TRACES = "`ETHOS.md` with previously selected traces."
+SAVED_SOURCE_UNKNOWN = "Not recorded; the source choice still needs confirmation."
+SAVED_DESIGN_APPROVAL = "**Saved design approval:** {approval}"
+SAVED_APPROVAL_CURRENT = "Previously recorded for this design."
+SAVED_APPROVAL_STALE = "Recorded for an earlier design revision; this design still needs approval."
+SAVED_APPROVAL_UNKNOWN = "Not recorded; continuing still requires proposal approval."
+SAVED_DESIGN_PROGRESS = (
+    "**Saved progress:** {created}/{tasks} tasks created; {validated}/{tasks} validated; "
+    "{executed}/{tasks} with agreed executions complete."
+)
+SAVED_BEHAVIOR_UNKNOWN = "Not recorded"
+SAVED_DESIGN_CHOICES = (
+    "**Continue:** Resume this saved design, reusing applicable approvals and evidence.",
+    "**Revise:** Change this design before continuing.",
+    "**Start a new proposal:** Set this design aside and choose sources for a new proposal.",
+)
+SAVED_DESIGN_QUESTION = "Would you like to continue this saved design, revise it, or start a new proposal?"
 PROPOSAL_INTRO = "Here are the proposed evaluation tasks."
 PROPOSAL_TABLE = "| Task | Input | Behavior under test | Expected result | Grading |\n|---|---|---|---|---|"
 FIRST_CHOICE = "I’ll build **{title}** first."

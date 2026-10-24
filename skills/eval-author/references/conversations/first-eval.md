@@ -10,6 +10,49 @@ copy lives only in
 Present its output unchanged, following the shared contract for response order
 and any explanations separately required by the host.
 
+## Saved-design checkpoint
+
+A fresh creation request may find an earlier design without asking to resume it.
+After the shared prerequisites, `ETHOS.md` confirmation, and completion
+continuation, register this unresolved choice before using its source selection
+or proceeding with authoring. Use normal revision-checked updates, preserving the
+existing record and artifacts. Set its optional `saved_design_review` to:
+
+```json
+{
+  "digest": "<current derived plan_digest>",
+  "decision": "pending",
+  "request_source": "<actual fresh request reference>",
+  "source": null
+}
+```
+
+Render `first_eval_saved_design` as the final response and end the turn. The
+renderer summarizes the saved tasks, distinct examples, source selection,
+historical design approval, and evidence-backed progress before its fixed
+choice. It does not inspect trace contents or require execution settings.
+Neither `ETHOS.md` confirmation nor the shared continuation answers this choice.
+Do not turn a historical continuation reference into a reply in the current chat.
+
+Save the actual response in `source` and change `decision` to `continue`,
+`revise`, or `new`. Continuing must refer to the same current `plan_digest`;
+if it changes before the answer, present the updated saved design again.
+Continuing reuses applicable approvals, evidence, and authorization; it grants
+no new spending permission. Revising reopens proposal approval while retaining
+the source choice. A new proposal also reopens source selection. Both retain
+prior task and run records and historical evidence; choose stable new task IDs
+and directories when building new tasks rather than overwriting earlier work.
+Retire any old audit invitation and handoff into history when revising or
+starting a new proposal, so it cannot route or suppress the new completion handoff.
+Source changes and a replacement plan still require their ordinary checkpoints.
+
+Skip this choice when the current user request explicitly identifies the saved
+design to resume, or when it was already answered during ongoing work. Do not
+re-prompt on every turn or treat every legacy record as unapproved. Missing
+`saved_design_review` remains readable, but it does not establish the user's
+intent on a fresh request. Once pending, the state helper and renderer block
+dependent stages until the saved-design choice is resolved.
+
 ## Source and proposal pauses
 
 After the shared confirmation continuation, render `first_eval_traces` as the
@@ -173,6 +216,7 @@ that reply's source. The existing handoff state controls entering the audit.
 
 | Stage | Required context and rendered response |
 |---|---|
+| `first_eval_saved_design` | A pending saved-design choice on a fresh request; compact saved scope, historical approval, and current progress, then a fixed continue/revise/new-proposal question. End the turn before any dependent work. |
 | `first_eval_traces` | Confirmed `ETHOS.md`; fixed optional-source question and choices unless the source decision is already saved in the creation scope or plan. Inspect only selected traces after resolving their location, runs, and exclusions. |
 | `first_eval_proposal` | Saved proposed task designs; five-column task table, concise coverage and limitations, first-task choice, and fixed design feedback question. The question is the last content. Execution settings and run-only blockers remain deferred. |
 | `first_eval_prepare_first` | Previously saved design approval; progress for the selected provider. Author exactly one task in its permanent directory, prove its environment before writing its grader, and return for review. No execution checklist is required for local authoring. |
@@ -181,7 +225,7 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_execution_settings` | Saved design and first-task approval, when actual agent execution or paid grading is being prepared. Display six settings bullets, separately counting distinct examples and repeated attempts, plus relevant run blockers. This display never supplies spending authorization. |
 | `first_eval_ready_to_run` | Current validation of every selected task and a saved applicable settings display. Clarify that reference checks establish working tasks, not agent performance. Announce execution only with applicable explicit authorization, access, and no blocking dependency; otherwise ask one focused question about the missing setting or authorization. |
 | `first_eval_results` | Review an exact retained current actual-agent attempt when its evidence is available; otherwise present the incomplete inventory and missing-evidence blocker. Separate completed, quality-failing, infrastructure-failing, missing, and unavailable-evidence outcomes. Link verified evidence and rerun instructions, reconcile delivered work, and show completion only when justified. |
-| `first_eval_resume` | Derive the pending creation stage from saved decisions and fresh artifact observations. Reuse prior answers and applicable authorization. It emits no welcome or initial readiness question. |
+| `first_eval_resume` | Derive the pending creation stage from saved decisions and fresh artifact observations, including an unresolved saved-design choice. Reuse applicable answers and authorization after that choice. It emits no welcome or initial readiness question. |
 | `first_eval_blockers` | One or more saved blockers preventing the current action, with specific reasons and needed actions. Preserve independent progress. |
 
 The proposal uses the saved plan's `presentation.coverage_note` for its usefulness,

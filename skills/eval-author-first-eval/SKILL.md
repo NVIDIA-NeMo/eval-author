@@ -73,6 +73,14 @@ The conversation contract defines the additive record and observed facts used
 by its stages. Save actual user decisions before acting; a side question is not
 approval. Reuse applicable answers and authorization without restarting onboarding.
 
+### Confirm a saved design before reusing it
+
+When a fresh request finds a saved creation design, first establish whether the
+user wants that design. Follow the [saved-design checkpoint](../eval-author/references/conversations/first-eval.md#saved-design-checkpoint)
+after the shared completion pause and continuation. It owns the separate user
+decision, renderer pause, retained artifacts, and revision-checked updates.
+Confirmation of `ETHOS.md` does not select a saved design.
+
 ## 1. Select the task sources
 
 Use confirmed `ETHOS.md`, the agent entry point, tools, and usage documentation.
@@ -295,4 +303,5 @@ blocked action, and specific needed answer or action. Retain run-only limitation
 without presenting them during independent first-task preparation and review.
 Pause only dependent work. Do not request secret values or fabricate approval,
 delivery, validation, or execution observations. Resume from current saved progress
-with applicable source choices, task revisions, and authorization intact.
+with applicable source choices, task revisions, and authorization intact after
+the saved-design choice above when entering from a fresh request.

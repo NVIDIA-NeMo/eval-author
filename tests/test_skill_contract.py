@@ -955,6 +955,21 @@ def test_environment_kit_records_digests_for_preservation_checks() -> None:
     assert "per-table content digests" in body
 
 
+def test_first_eval_fresh_request_confirms_saved_design_before_reuse() -> None:
+    _, body = _frontmatter_and_body(_FIRST_EVAL_DIR)
+    checkpoint = body.split("### Confirm a saved design before reusing it", 1)[1].split("\n## ", 1)[0]
+    checkpoint = " ".join(checkpoint.split())
+    assert "fresh request" in checkpoint and "#saved-design-checkpoint" in checkpoint
+    assert "Confirmation of `ETHOS.md` does not select a saved design" in checkpoint
+    contract = (_CORE_DIR / "references" / "conversations" / "first-eval.md").read_text(encoding="utf-8")
+    saved = " ".join(contract.split("## Saved-design checkpoint", 1)[1].split("\n## ", 1)[0].split())
+    assert '"decision": "pending"' in saved
+    assert "Render `first_eval_saved_design` as the final response and end the turn" in saved
+    assert "Neither `ETHOS.md` confirmation nor the shared continuation answers this choice" in saved
+    assert "current user request explicitly identifies the saved design to resume" in saved
+    assert "block dependent stages until the saved-design choice is resolved" in saved
+
+
 def test_first_eval_builds_and_proves_the_kit_before_tests() -> None:
     """First-task grading cannot precede environment smoke proof."""
     _, body = _frontmatter_and_body(_FIRST_EVAL_DIR)

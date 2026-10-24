@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import PurePosixPath
 
 import conversation_templates as shared
@@ -21,6 +22,7 @@ STAGES = {
     "first_eval_" + stage
     for stage in (
         "traces",
+        "saved_design",
         "proposal",
         "execution_settings",
         "prepare_first",
@@ -166,6 +168,61 @@ def proposal(record: dict) -> str:
             copy.FIRST_CHOICE.format(title=literal(first.get("title"), "first task title")),
             copy.PROPOSAL_PROCESS.format(tasks=len(tasks), examples=examples),
             copy.PROPOSAL_QUESTION,
+        ]
+    )
+
+
+def saved_design(state: dict, record: dict, observed: dict) -> str:
+    historical = deepcopy(state)
+    prior_record = first_eval_state.record(historical)
+    assert prior_record is not None
+    prior_record.pop("saved_design_review", None)
+    prior = first_eval_state.derive(historical, observed)
+    assert prior is not None
+    tasks = record["plan"]["tasks"]
+    rows = [copy.SAVED_DESIGN_TABLE]
+    rows.extend(
+        "| "
+        + literal(task.get("title") or task["id"], "saved task title", table=True)
+        + " | "
+        + literal(task.get("behavior") or copy.SAVED_BEHAVIOR_UNKNOWN, "saved task behavior", table=True)
+        + " |"
+        for task in tasks
+    )
+    choice = first_eval_state.trace_choice(state)
+    source = (
+        copy.SAVED_SOURCE_ETHOS
+        if choice == "none"
+        else copy.SAVED_SOURCE_TRACES
+        if choice
+        else copy.SAVED_SOURCE_UNKNOWN
+    )
+    approval = record["plan_approval"]
+    approval_status = (
+        copy.SAVED_APPROVAL_CURRENT
+        if approval and approval["digest"] == prior["plan_digest"]
+        else copy.SAVED_APPROVAL_STALE
+        if approval
+        else copy.SAVED_APPROVAL_UNKNOWN
+    )
+    return "\n\n".join(
+        [
+            copy.SAVED_DESIGN_INTRO,
+            copy.SAVED_DESIGN_COUNTS.format(
+                tasks=len(tasks), examples=len({example for task in tasks for example in task["example_ids"]})
+            ),
+            "\n".join(rows),
+            copy.SAVED_DESIGN_SOURCE.format(source=source),
+            copy.SAVED_DESIGN_APPROVAL.format(approval=approval_status),
+            copy.SAVED_DESIGN_PROGRESS.format(
+                tasks=len(tasks),
+                **{
+                    key: sum(task[key] for task in prior["tasks"].values())
+                    for key in ("created", "validated", "executed")
+                },
+            ),
+            "\n".join("- " + choice for choice in copy.SAVED_DESIGN_CHOICES),
+            copy.SAVED_DESIGN_QUESTION,
         ]
     )
 
@@ -388,6 +445,26 @@ def render(payload: dict) -> str:
     if "access_ready" in facts and type(facts["access_ready"]) is not bool:
         raise ValueError("access_ready must be an observed boolean")
     stage = stage.removeprefix("first_eval_")
+    record = first_eval_state.record(state)
+    progress = None
+    if record and (record.get("saved_design_review") or stage == "saved_design") and stage != "blockers":
+        observed = facts.get("observations")
+        if not isinstance(observed, dict):
+            raise ValueError("Supply freshly observed task and evidence digests")
+        progress = first_eval_state.derive(state, observed)
+        assert progress is not None
+        if progress["saved_design_review_needed"]:
+            if stage == "resume":
+                stage = "saved_design"
+            elif stage != "saved_design":
+                raise ValueError("Confirm how to proceed with the saved design before continuing")
+    if stage == "saved_design":
+        if record is None:
+            raise ValueError("Save the discovered task design before asking whether to resume it")
+        observed = facts.get("observations")
+        if not isinstance(observed, dict):
+            raise ValueError("Supply freshly observed task and evidence digests")
+        return saved_design(state, record, observed) + "\n"
     choice = first_eval_state.trace_choice(state)
     if stage == "resume" and not choice:
         stage = "traces"
@@ -405,7 +482,7 @@ def render(payload: dict) -> str:
         observed = facts.get("observations")
         if not isinstance(observed, dict):
             raise ValueError("Supply freshly observed task and evidence digests")
-        progress = first_eval_state.derive(state, observed)
+        progress = progress or first_eval_state.derive(state, observed)
         if progress is None:
             raise ValueError("Save a first-evaluation proposal record before rendering")
         record = first_eval_state.record(state)

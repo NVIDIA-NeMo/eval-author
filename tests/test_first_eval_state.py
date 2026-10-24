@@ -589,3 +589,175 @@ def test_open_execution_questions_cannot_authorize_runs_and_fallback_fields_stay
     assert not modules[1].derive(state, observed)["execution_authorized"]
     legacy["plan"]["presentation"].update(settings)
     assert modules[1].derive(state, observed)["execution_settings_resolved"]
+
+
+def saved_design_question(modules, repo, value, request="Fresh first-evaluations request"):
+    value["saved_design_review"] = {
+        "digest": facts(modules, repo)["plan_digest"],
+        "decision": "pending",
+        "request_source": request,
+        "source": None,
+    }
+    return save(modules, repo, value)
+
+
+@pytest.mark.parametrize("prepared", [False, True])
+def test_saved_design_question_preserves_history_but_stops_automatic_authoring(modules, tmp_path, prepared):
+    value = ready(modules, tmp_path) if prepared else start(modules, tmp_path)
+    if not prepared:
+        approve(modules, tmp_path, value)
+    prior = copy.deepcopy(value)
+    saved = saved_design_question(modules, tmp_path, value)
+    derived = facts(modules, tmp_path)
+    assert derived["next_stage"] == "saved_design" and derived["saved_design_review_needed"]
+    assert not any(derived[key] for key in ("scope_approved", "first_task_approved", "execution_authorized"))
+    retained = saved["scopes"]["create"]["first_eval"]
+    assert all(retained[key] == prior[key] for key in ("plan_approval", "tasks", "runs"))
+    assert retained["history"][-1]["record"]["plan_approval"] == prior["plan_approval"]
+    with pytest.raises(ValueError, match="saved-design choice"):
+        author(modules, tmp_path, value, "refund")
+
+
+@pytest.mark.parametrize("already_authorized", [False, True])
+def test_continue_saved_design_retains_only_existing_authority_and_does_not_ask_again(
+    modules, tmp_path, already_authorized
+):
+    value = ready(modules, tmp_path)
+    if already_authorized:
+        select(modules, tmp_path, value)
+    prior = facts(modules, tmp_path)
+    selection = copy.deepcopy(value["selection"])
+    saved_design_question(modules, tmp_path, value)
+    value["saved_design_review"].update(decision="continue", source="User chooses to continue the saved design")
+    save(modules, tmp_path, value)
+    current = facts(modules, tmp_path)
+    assert not current["saved_design_review_needed"]
+    assert current["next_stage"] == prior["next_stage"] and current["first_task_approved"]
+    assert current["execution_authorized"] is already_authorized
+    assert value["selection"] == selection
+    save(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["next_stage"] == current["next_stage"]
+    value["saved_design_review"].update(decision="pending", source=None)
+    with pytest.raises(ValueError, match="already answered"):
+        save(modules, tmp_path, value)
+
+
+@pytest.mark.parametrize("source", ["Fresh first-evaluations request", "Current intent approval", " "])
+def test_saved_design_continue_requires_its_own_actual_user_answer(modules, tmp_path, source):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    saved_design_question(modules, tmp_path, value)
+    value["saved_design_review"].update(decision="continue", source=source)
+    with pytest.raises(ValueError, match="actual saved-design answer|nonempty text"):
+        save(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["next_stage"] == "saved_design"
+
+
+def test_saved_design_confirmation_cannot_be_invented_or_removed(modules, tmp_path):
+    value = start(modules, tmp_path)
+    value["saved_design_review"] = {
+        "digest": facts(modules, tmp_path)["plan_digest"],
+        "decision": "continue",
+        "request_source": "Fresh request",
+        "source": "Assumed from ETHOS.md confirmation",
+    }
+    with pytest.raises(ValueError, match="Ask about the saved design"):
+        save(modules, tmp_path, value)
+    saved_design_question(modules, tmp_path, value)
+    del value["saved_design_review"]
+    with pytest.raises(ValueError, match="Retain the saved-design review"):
+        save(modules, tmp_path, value)
+
+
+@pytest.mark.parametrize("decision", ["revise", "new"])
+def test_saved_design_revise_or_new_preserves_artifacts_runs_and_reopens_the_right_choices(modules, tmp_path, decision):
+    value = complete(modules, tmp_path)
+    modules[0].update(
+        tmp_path,
+        {"scopes": {"create": {"trace_choice": "none"}}},
+        expected_revision=modules[0].load_state(tmp_path)["revision"],
+    )
+    prior = copy.deepcopy(value)
+    task_bytes = {
+        key: (tmp_path / task["path"] / "instruction.md").read_bytes() for key, task in value["tasks"].items()
+    }
+    saved_design_question(modules, tmp_path, value)
+    value["saved_design_review"].update(decision=decision, source=f"User chooses {decision}")
+    updated = save(modules, tmp_path, value)
+    retained = updated["scopes"]["create"]["first_eval"]
+    assert retained["plan_approval"] is None
+    assert all(retained[key] == prior[key] for key in ("tasks", "runs", "selection", "run_review"))
+    assert all(
+        (tmp_path / prior["tasks"][key]["path"] / "instruction.md").read_bytes() == payload
+        for key, payload in task_bytes.items()
+    )
+    assert facts(modules, tmp_path)["next_stage"] == ("traces" if decision == "new" else "proposal")
+    assert not facts(modules, tmp_path)["execution_authorized"]
+    assert (modules[1].trace_choice(updated) is None) is (decision == "new")
+    retained.pop("history", None)
+    retained["plan"]["trace_choice"] = "none"
+    save(modules, tmp_path, retained)
+    approve(modules, tmp_path, retained)
+    save(modules, tmp_path, retained)
+    assert facts(modules, tmp_path)["scope_approved"]
+
+
+@pytest.mark.parametrize("decision", ["revise", "new"])
+@pytest.mark.parametrize("audit_status", ["pending", "accepted", "declined"])
+def test_replacing_saved_design_retires_prior_audit_invitation_without_losing_history(
+    modules, tmp_path, decision, audit_status
+):
+    value = complete(modules, tmp_path)
+    previous_invitation = {"status": audit_status, "source": "Previous suite audit answer"}
+    value["audit_invitation"] = previous_invitation
+    save(modules, tmp_path, value)
+    saved_design_question(modules, tmp_path, value)
+    value["saved_design_review"].update(decision=decision, source=f"User chooses {decision}")
+    updated = save(modules, tmp_path, value)
+    retained = updated["scopes"]["create"]["first_eval"]
+    assert retained["audit_invitation"] is None and updated["next_handoff"] is None
+    assert facts(modules, tmp_path)["audit_decision"] is None
+    assert retained["history"][-1]["record"]["audit_invitation"] == previous_invitation
+    retained.pop("history")
+    retained["plan"]["trace_choice"] = "none"
+    save(modules, tmp_path, retained)
+    approve(modules, tmp_path, retained)
+    retained["audit_invitation"] = {"status": "pending"}
+    updated = save(modules, tmp_path, retained)
+    assert facts(modules, tmp_path)["audit_decision"] == "pending" and updated["next_handoff"] is None
+
+
+def test_changed_saved_design_must_be_presented_again_before_continue(modules, tmp_path):
+    value = ready(modules, tmp_path)
+    saved_design_question(modules, tmp_path, value)
+    value["plan"]["tasks"][0]["example_ids"] = ["revised-input"]
+    save(modules, tmp_path, value)
+    value["saved_design_review"].update(decision="continue", source="User chooses the earlier displayed design")
+    with pytest.raises(ValueError, match="saved design changed"):
+        save(modules, tmp_path, value)
+    saved_design_question(modules, tmp_path, value)
+    value["saved_design_review"].update(decision="continue", source="User chooses the newly displayed revision")
+    save(modules, tmp_path, value)
+    assert not facts(modules, tmp_path)["scope_approved"]
+    assert facts(modules, tmp_path)["next_stage"] == "proposal"
+
+
+def test_continuing_unapproved_design_does_not_supply_proposal_approval(modules, tmp_path):
+    value = start(modules, tmp_path)
+    saved_design_question(modules, tmp_path, value)
+    value["saved_design_review"].update(decision="continue", source="User chooses the saved design")
+    save(modules, tmp_path, value)
+    assert not facts(modules, tmp_path)["scope_approved"]
+    assert facts(modules, tmp_path)["next_stage"] == "proposal"
+
+
+def test_design_changes_after_continue_reopen_proposal_without_repeating_resume_question(modules, tmp_path):
+    value = ready(modules, tmp_path)
+    saved_design_question(modules, tmp_path, value)
+    value["saved_design_review"].update(decision="continue", source="User chooses the saved design")
+    save(modules, tmp_path, value)
+    value["plan"]["tasks"][0]["example_ids"] = ["new-input"]
+    save(modules, tmp_path, value)
+    current = facts(modules, tmp_path)
+    assert not current["saved_design_review_needed"] and not current["scope_approved"]
+    assert current["next_stage"] == "proposal"

@@ -111,6 +111,17 @@ def validate(value: dict) -> None:
                 raise ValueError("A broader proposal requires the user's request provenance")
             _text(breadth.get("source"))
         _decision(value["plan_approval"])
+        saved_review = value.get("saved_design_review")
+        if saved_review is not None:
+            _digest(saved_review["digest"])
+            _text(saved_review["request_source"])
+            if saved_review["decision"] not in {"pending", "continue", "revise", "new"}:
+                raise ValueError("Unknown saved-design review decision")
+            if saved_review["decision"] == "pending":
+                if saved_review.get("source") is not None:
+                    raise ValueError("Pending saved-design review cannot imply a user answer")
+            else:
+                _text(saved_review["source"])
         for key, task in value["tasks"].items():
             _text(key)
             _path(task["path"])
@@ -290,6 +301,8 @@ def derive(state: dict, observed: object) -> dict | None:
 
     planned = {task["id"]: task["example_ids"] for task in value["plan"]["tasks"]}
     plan_digest = fingerprint({key: value[key] for key in ("plan", "first_task", "provider", "ethos_digest")})
+    saved_review = value.get("saved_design_review")
+    saved_review_needed = bool(saved_review and saved_review["decision"] == "pending")
     approved = bool(
         state["ethos"]["stage"] == "complete"
         and state["ethos"]["confirmed_digest"] == value["ethos_digest"]
@@ -298,6 +311,7 @@ def derive(state: dict, observed: object) -> dict | None:
         and value["plan"].get("trace_choice")
         and value["plan_approval"]
         and value["plan_approval"]["digest"] == plan_digest
+        and not saved_review_needed
     )
     tasks = {}
     for key in planned:
@@ -484,7 +498,9 @@ def derive(state: dict, observed: object) -> dict | None:
     complete = bool(first_approved and validated and suite_complete and reviewed and review["run_id"] in selected_runs)
     first = tasks[value["first_task"]]
     stage = (
-        "traces"
+        "saved_design"
+        if saved_review_needed
+        else "traces"
         if not trace_choice(state)
         else "proposal"
         if not approved
@@ -504,6 +520,7 @@ def derive(state: dict, observed: object) -> dict | None:
         "scope_approved": approved,
         "plan_approved": approved,
         "plan_digest": plan_digest,
+        "saved_design_review_needed": saved_review_needed,
         "settings_digest": settings_digest,
         "execution_settings_presented": settings_shown,
         "execution_settings_resolved": settings_resolved,
@@ -534,6 +551,47 @@ def transition(repo, previous: dict, updated: dict) -> None:
         raise ValueError("Retain structured creation progress and its evidence")
     if after is None:
         return
+    saved_review = after.get("saved_design_review")
+    prior_review = (before or {}).get("saved_design_review")
+    replacing_design = False
+    if prior_review is not None and saved_review is None:
+        raise ValueError("Retain the saved-design review and its user decision")
+    if saved_review and saved_review != prior_review:
+        design_digest = fingerprint({key: after[key] for key in ("plan", "first_task", "provider", "ethos_digest")})
+        if saved_review["decision"] == "pending":
+            if saved_review["digest"] != design_digest:
+                raise ValueError("Present the current saved design before asking to resume it")
+            if (
+                prior_review
+                and prior_review["decision"] != "pending"
+                and prior_review["request_source"] == saved_review["request_source"]
+                and prior_review["digest"] == saved_review["digest"]
+            ):
+                raise ValueError("The saved-design choice for this request is already answered")
+        else:
+            if not (
+                prior_review
+                and prior_review["decision"] == "pending"
+                and prior_review["request_source"] == saved_review["request_source"]
+                and prior_review["digest"] == saved_review["digest"]
+            ):
+                raise ValueError("Ask about the saved design before recording its user decision")
+            if saved_review["source"] in {
+                saved_review["request_source"],
+                updated["ethos"].get("confirmation_source"),
+            }:
+                raise ValueError("Record the actual saved-design answer, not the request or ETHOS.md confirmation")
+            if saved_review["decision"] == "continue" and saved_review["digest"] != design_digest:
+                raise ValueError("The saved design changed; review its current revision before continuing")
+            if saved_review["decision"] in {"revise", "new"}:
+                replacing_design = True
+                after["plan_approval"] = None
+                after["audit_invitation"] = None
+                if updated["next_handoff"] == "eval-author-audit":
+                    updated["next_handoff"] = None
+            if saved_review["decision"] == "new":
+                after["plan"].pop("trace_choice", None)
+                updated["scopes"]["create"].pop("trace_choice", None)
     old = progress(repo, previous) if before else None
     now = progress(repo, updated)
     assert now is not None
@@ -541,6 +599,16 @@ def transition(repo, previous: dict, updated: dict) -> None:
         raise ValueError("Retain adopted execution settings; revise them instead of removing them")
     if before != after and updated["ethos"]["stage"] != "complete":
         raise ValueError("Confirm ETHOS.md before changing creation decisions or evidence")
+    if (
+        now["saved_design_review_needed"]
+        and after["plan_approval"]
+        and after["plan_approval"] != (before or {}).get("plan_approval")
+    ):
+        raise ValueError("Confirm the saved-design choice before recording task-design approval")
+    if now["saved_design_review_needed"] and any(
+        after[key] != (before or {}).get(key, {} if key == "tasks" else []) for key in ("tasks", "runs")
+    ):
+        raise ValueError("Confirm the saved-design choice before changing tasks or adding run evidence")
     prior_tasks = (before or {}).get("tasks", {})
     if not prior_tasks.keys() <= after["tasks"].keys() or not {run["id"] for run in (before or {}).get("runs", [])} <= {
         run["id"] for run in after["runs"]
@@ -586,7 +654,11 @@ def transition(repo, previous: dict, updated: dict) -> None:
         raise ValueError("Save task-design approval before creating tasks")
     if added - {after["first_task"]} and not (old and old["first_task_approved"] and now["first_task_approved"]):
         raise ValueError("Approve the first task before creating the remainder")
-    if after["audit_invitation"] != (before or {}).get("audit_invitation") and not now["complete"]:
+    if (
+        after["audit_invitation"] != (before or {}).get("audit_invitation")
+        and not now["complete"]
+        and not replacing_design
+    ):
         raise ValueError("Complete creation before offering or answering its audit invitation")
     if after["audit_invitation"] != (before or {}).get("audit_invitation"):
         if after["audit_invitation"] and after["audit_invitation"]["status"] == "accepted":

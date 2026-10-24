@@ -60,6 +60,26 @@ before use, not an automatic fallback.
 
 ## 2. Review task design before generation
 
+**Saved-design variant:** Start a fresh first-evaluations request in a workspace
+with a previously approved design, selected source, and one drafted task. Follow
+the shared prerequisites and reconfirm `ETHOS.md`. Inspect the next downstream
+checkpoint: the agent summarizes the saved scope and progress and asks whether
+to continue, revise, or start a new proposal using `first_eval_saved_design`.
+No source inspection, environment work, authoring, controls, or execution may
+resume while that choice is pending. The earlier approval and continuation
+reference remain historical; `ETHOS.md` approval does not answer this question.
+Interrupt and resume here: the same choice remains pending.
+
+Answer “Continue this saved design”: applicable approvals and evidence are
+reused without a duplicate proposal approval or new spending permission. Repeat
+with “Revise it”: retain the selected source and review the changed proposal
+before authoring. Repeat with “Start a new proposal”: ask for source selection
+before a small new proposal; keep old task files and evidence. Change the design
+after the question but before a continue answer: review the updated design
+instead of applying an answer to a different revision. An opening request that
+explicitly chooses the saved design to resume skips this question; an ordinary
+turn within confirmed ongoing work does not trigger it again.
+
 **Default-size variant:** Complete `ETHOS.md` confirmation without selecting
 traces. The first source question ends the turn; inspect tool logs to ensure no
 adapter investigation, task planning, or environment preparation continues while

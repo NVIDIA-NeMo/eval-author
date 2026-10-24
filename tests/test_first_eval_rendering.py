@@ -110,6 +110,16 @@ def approved(creation):
     }
 
 
+def saved_design_pending(creation):
+    state, record, helper, *_ = creation
+    record["saved_design_review"] = {
+        "digest": helper.derive(state, observations(record))["plan_digest"],
+        "decision": "pending",
+        "request_source": "Fresh user request: build my first evaluations",
+        "source": None,
+    }
+
+
 def built(creation, *, all_tasks=False, reviewed=False, validated=False):
     _, record, *_ = creation
     approved(creation)
@@ -360,6 +370,143 @@ def test_saved_design_approval_leads_directly_to_first_authoring(creation):
     assert "[grader](https://docs.harborframework.com/tasks/verifier)" in copy.FIRST_PROGRESS
     with pytest.raises(ValueError, match="Review and approve the first task"):
         renderer.render(payload(creation, "execution_settings"))
+
+
+def test_saved_design_overview_is_a_deterministic_decision_before_resume(creation):
+    state, _, _, renderer, copy = creation
+    approved(creation)
+    saved_design_pending(creation)
+    before = json.dumps(state, sort_keys=True)
+    output = renderer.render(payload(creation, "resume"))
+    assert output == (
+        "I found a saved design for your evaluation tasks.\n\n"
+        "Saved design: 2 tasks; 2 distinct input examples.\n\n"
+        "| Task | Behavior under test |\n|---|---|\n"
+        "| refund | Respect policy |\n| reject | Respect policy |\n\n"
+        "**Source:** `ETHOS.md`, with no selected traces.\n\n"
+        "**Saved design approval:** Previously recorded for this design.\n\n"
+        "**Saved progress:** 0/2 tasks created; 0/2 validated; 0/2 with agreed executions complete.\n\n"
+        "- **Continue:** Resume this saved design, reusing applicable approvals and evidence.\n"
+        "- **Revise:** Change this design before continuing.\n"
+        "- **Start a new proposal:** Set this design aside and choose sources for a new proposal.\n\n"
+        "Would you like to continue this saved design, revise it, or start a new proposal?\n"
+    )
+    assert output == renderer.render(payload(creation, "saved_design"))
+    assert output.endswith(copy.SAVED_DESIGN_QUESTION + "\n")
+    assert copy.PROPOSAL_TABLE not in output and "Agent/model" not in output
+    assert copy.FIRST_PROGRESS not in output and "Blockers" not in output
+    assert json.dumps(state, sort_keys=True) == before
+
+
+@pytest.mark.parametrize(
+    "stage",
+    [
+        "traces",
+        "proposal",
+        "prepare_first",
+        "review_first",
+        "prepare_remaining",
+        "execution_settings",
+        "ready_to_run",
+        "results",
+    ],
+)
+def test_saved_design_decision_blocks_direct_stage_bypasses_even_with_prior_approval(creation, stage):
+    _, _, _, renderer, _ = creation
+    finished(creation)
+    saved_design_pending(creation)
+    with pytest.raises(ValueError, match="Confirm how to proceed with the saved design"):
+        renderer.render(payload(creation, stage, access_ready=True))
+
+
+def test_saved_design_overview_preserves_progress_and_exact_selection_without_inspection(creation, monkeypatch):
+    state, record, _, renderer, _ = creation
+    finished(creation)
+    saved_design_pending(creation)
+    request = payload(creation, "resume")
+    before = json.dumps(state, sort_keys=True)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Saved-design presentation must not inspect artifacts or selected traces")
+
+    monkeypatch.setattr(Path, "read_text", forbidden)
+    monkeypatch.setattr(Path, "read_bytes", forbidden)
+    output = renderer.render(request)
+    assert "2/2 tasks created; 2/2 validated; 2/2 with agreed executions complete" in output
+    assert record["run_review"]["run_id"] == "baseline-job"
+    assert record["run_review"]["attempt_id"] == "refund-1"
+    assert json.dumps(state, sort_keys=True) == before
+
+
+def test_saved_design_accepts_a_legacy_broad_plan_and_unknown_approval(creation):
+    _, record, _, renderer, _ = creation
+    record["plan"]["tasks"] = [
+        {
+            "id": f"task-{number}",
+            "example_ids": [f"example-{number}-{example}" for example in range(number % 4 + 1)],
+            "title": f"Task {number}",
+            "behavior": "Keep the saved behavior",
+        }
+        for number in range(7)
+    ]
+    record["first_task"] = "task-0"
+    record["plan"]["trace_choice"] = {"paths": ["selected.json"], "runs": ["known-run"], "exclusions": ["private"]}
+    historical = renderer.render(payload(creation, "saved_design"))
+    saved_design_pending(creation)
+    output = renderer.render(payload(creation, "resume"))
+    assert output == historical
+    assert "Saved design: 7 tasks; 16 distinct input examples." in output
+    assert "Not recorded; continuing still requires proposal approval." in output
+    assert "`ETHOS.md` with previously selected traces." in output
+    assert "selected.json" not in output and "known-run" not in output and "private" not in output
+    assert record["plan"]["trace_choice"]["runs"] == ["known-run"]
+    assert "| Task 6 | Keep the saved behavior |" in output
+
+
+def test_saved_design_missing_source_and_fields_remain_unknown(creation):
+    _, record, _, renderer, _ = creation
+    record["plan"].pop("trace_choice")
+    record["plan"]["tasks"][0].pop("title")
+    record["plan"]["tasks"][0].pop("behavior")
+    saved_design_pending(creation)
+    output = renderer.render(payload(creation, "resume"))
+    assert "| refund | Not recorded |" in output
+    assert "Not recorded; the source choice still needs confirmation." in output
+    assert "Would you like to use existing traces" not in output
+
+
+def test_explicit_continue_reuses_approval_without_reasking_on_every_resume(creation):
+    _, record, _, renderer, copy = creation
+    approved(creation)
+    saved_design_pending(creation)
+    record["saved_design_review"].update(decision="continue", source="User reply: continue the saved design")
+    assert renderer.render(payload(creation, "resume")) == copy.FIRST_PROGRESS + "\n"
+    assert renderer.render(payload(creation, "resume")) == copy.FIRST_PROGRESS + "\n"
+
+
+def test_saved_design_changes_before_the_answer_explain_old_approval(creation):
+    _, record, _, renderer, copy = creation
+    approved(creation)
+    saved_design_pending(creation)
+    record["plan"]["tasks"][0]["behavior"] = "Changed behavior"
+    output = renderer.render(payload(creation, "resume"))
+    assert copy.SAVED_APPROVAL_STALE in output
+    assert "| refund | Changed behavior |" in output
+    assert output.endswith(copy.SAVED_DESIGN_QUESTION + "\n")
+    with pytest.raises(ValueError, match="Confirm how to proceed with the saved design"):
+        renderer.render(payload(creation, "prepare_first"))
+
+
+def test_changes_after_continue_reopen_proposal_approval_without_reasking_to_resume(creation):
+    _, record, _, renderer, copy = creation
+    approved(creation)
+    saved_design_pending(creation)
+    record["saved_design_review"].update(decision="continue", source="User reply: continue the saved design")
+    record["plan"]["tasks"][0]["behavior"] = "Changed behavior"
+    output = renderer.render(payload(creation, "resume"))
+    assert copy.SAVED_DESIGN_QUESTION not in output
+    assert "Changed behavior" in output
+    assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
 
 
 def test_review_separates_proof_validation_execution_and_requires_links(creation):
