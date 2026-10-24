@@ -266,6 +266,8 @@ def validate(value: dict) -> None:
             if not set(value["selected_run_ids"]) <= {run["id"] for run in runs}:
                 raise ValueError("Select retained native run identities")
         _decision(value.get("execution_settings_presented"))
+        _decision(value.get("suite_review_presented"))
+        _decision(value.get("suite_approval"))
         if "execution_settings" in value and not _settings_fields(value["execution_settings"]):
             raise ValueError(
                 "Execution settings require agent_model, attempts, validation, limits, and a list of open_questions"
@@ -481,11 +483,31 @@ def derive(state: dict, observed: object) -> dict | None:
         tasks[key] = facts
     first_approved = bool(tasks[value["first_task"]]["reviewed"] and tasks[value["first_task"]]["environment_proven"])
     remaining, remaining_digest = _remaining_progress(value, observed, plan_digest, tasks, first_approved)
+    suite_digest = fingerprint(
+        {
+            "plan_digest": plan_digest,
+            "tasks": {key: value["tasks"].get(key, {}).get("sha256") for key in planned},
+        }
+    )
+    suite_files_current = bool(
+        first_approved and all(task["created"] and task["environment_proven"] for task in tasks.values())
+    )
+    suite_review_ready = suite_files_current and remaining["artifacts_current"]
+    suite_presented = bool(
+        suite_files_current
+        and value.get("suite_review_presented")
+        and value["suite_review_presented"]["digest"] == suite_digest
+    )
+    suite_approved = bool(
+        suite_presented and value.get("suite_approval") and value["suite_approval"]["digest"] == suite_digest
+    )
     settings_digest = fingerprint({"plan_digest": plan_digest, "settings": execution_settings(value)})
     settings = execution_settings(value)
     settings_resolved = bool(_settings_fields(settings) and not settings["open_questions"])
     settings_shown = bool(
-        value.get("execution_settings_presented") and value["execution_settings_presented"]["digest"] == settings_digest
+        suite_approved
+        and value.get("execution_settings_presented")
+        and value["execution_settings_presented"]["digest"] == settings_digest
     )
     selection = value["selection"]
     selection_digest = (
@@ -513,7 +535,8 @@ def derive(state: dict, observed: object) -> dict | None:
         and (value["plan"].get("execution_path") != "gym_harbor" or bridge_current)
     )
     authorized = bool(
-        selection_current
+        suite_approved
+        and selection_current
         and settings_shown
         and settings_resolved
         and selection.get("authorization")
@@ -631,7 +654,7 @@ def derive(state: dict, observed: object) -> dict | None:
         "job_errors": job_errors,
     }
     validated = all(task["validated"] and task["environment_proven"] for task in tasks.values())
-    complete = bool(first_approved and validated and suite_complete and reviewed and review["run_id"] in selected_runs)
+    complete = bool(suite_approved and validated and suite_complete and reviewed and review["run_id"] in selected_runs)
     artifact_receipt = (value.get("remaining_build") or {}).get("artifacts")
     remaining_work = bool(
         remaining["current"]
@@ -661,12 +684,18 @@ def derive(state: dict, observed: object) -> dict | None:
         if not first_approved
         else "prepare_remaining"
         if value.get("remaining_build") and not remaining["current"]
+        else "review_suite"
+        if suite_review_ready and not suite_approved
+        else "remaining_progress"
+        if value.get("remaining_build") and not suite_approved
+        else "prepare_remaining"
+        if not suite_approved
+        else "execution_settings"
+        if not settings_shown
         else "remaining_progress"
         if remaining_work
         else "prepare_remaining"
         if not validated
-        else "execution_settings"
-        if not settings_shown
         else "results"
         if selected_runs
         else "ready_to_run"
@@ -679,6 +708,10 @@ def derive(state: dict, observed: object) -> dict | None:
         "first_task_build": build,
         "remaining_build": remaining,
         "remaining_build_digest": remaining_digest,
+        "suite_digest": suite_digest,
+        "suite_review_ready": suite_review_ready,
+        "suite_review_presented": suite_presented,
+        "suite_approved": suite_approved,
         "settings_digest": settings_digest,
         "execution_settings_presented": settings_shown,
         "execution_settings_resolved": settings_resolved,
@@ -800,9 +833,9 @@ def transition(repo, previous: dict, updated: dict) -> None:
         artifacts = remaining["artifacts"]
         if artifacts and artifacts != (prior_remaining or {}).get("artifacts"):
             if not now["remaining_build"]["artifacts_current"] or any(
-                now["remaining_build"]["steps"][step] != "complete" for step in REMAINING_STEPS[:-1]
+                now["remaining_build"]["steps"][step] != "complete" for step in REMAINING_STEPS[:2]
             ):
-                raise ValueError("Refresh current suite artifacts after authoring, environment proof, and validation")
+                raise ValueError("Refresh current suite artifacts after authoring and environment proof")
         active = remaining["active_step"]
         if active is not None and now["remaining_build"]["steps"][active] != "in_progress":
             raise ValueError("Only an incomplete remaining-task build step may be active")
@@ -842,17 +875,40 @@ def transition(repo, previous: dict, updated: dict) -> None:
             and now["tasks"][first]["environment_proven"]
         ):
             raise ValueError("Save the first task and its proven environment before recording its review approval")
+    presentation = after.get("suite_review_presented")
+    if presentation and presentation != (before or {}).get("suite_review_presented"):
+        if not (old and old["suite_review_ready"] and now["suite_review_ready"] and now["suite_review_presented"]):
+            raise ValueError(
+                "Save current suite files, environment proof, and review artifacts before recording review"
+            )
+    suite_approval = after.get("suite_approval")
+    if suite_approval and suite_approval != (before or {}).get("suite_approval"):
+        if not (
+            old
+            and old["suite_review_ready"]
+            and old["suite_review_presented"]
+            and now["suite_review_ready"]
+            and now["suite_approved"]
+        ):
+            raise ValueError("Present the current full suite before recording its approval")
+        if suite_approval["source"] in {
+            (after["plan_approval"] or {}).get("source"),
+            (first_review or {}).get("source"),
+            (presentation or {}).get("source"),
+        }:
+            raise ValueError(
+                "Record the actual suite approval, not task-design, first-task, or presentation provenance"
+            )
     shown = after.get("execution_settings_presented")
     if shown and shown != (before or {}).get("execution_settings_presented"):
-        if not (
-            old and old["first_task_approved"] and now["first_task_approved"] and now["execution_settings_presented"]
-        ):
-            raise ValueError("Approve the first task before recording current execution settings display")
+        if not (old and old["suite_approved"] and now["suite_approved"] and now["execution_settings_presented"]):
+            raise ValueError("Approve the full suite before recording current execution settings display")
     authorization = (after["selection"] or {}).get("authorization")
     if authorization and authorization != ((before or {}).get("selection") or {}).get("authorization"):
         if not (
             old
-            and old["first_task_approved"]
+            and old["suite_approved"]
+            and now["suite_approved"]
             and old["execution_settings_presented"]
             and now["execution_settings_presented"]
             and now["execution_authorized"]

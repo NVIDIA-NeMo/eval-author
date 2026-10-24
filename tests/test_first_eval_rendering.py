@@ -184,9 +184,18 @@ def remaining_started(creation, *, active="tasks", artifacts=False):
         }
 
 
+def suite_approved(creation):
+    state, record, helper, *_ = creation
+    remaining_started(creation, active=None, artifacts=True)
+    digest = helper.derive(state, observations(record))["suite_digest"]
+    record["suite_review_presented"] = {"digest": digest, "source": "Delivered suite review message"}
+    record["suite_approval"] = {"digest": digest, "source": "User approved the authored suite"}
+
+
 def selected(creation):
     state, record, helper, *_ = creation
     built(creation, all_tasks=True, reviewed=True, validated=True)
+    suite_approved(creation)
     derived = helper.derive(state, observations(record))
     record["execution_settings_presented"] = {
         "digest": derived["settings_digest"],
@@ -731,6 +740,155 @@ def test_remaining_build_only_surfaces_current_step_blockers(creation):
     assert "No live-run credential" not in output
 
 
+def test_suite_review_is_a_linked_deterministic_checkpoint_before_execution_choices(creation):
+    state, _, _, renderer, copy = creation
+    built(creation, all_tasks=True, reviewed=True)
+    remaining_started(creation, active=None, artifacts=True)
+    state["blockers"] = [{"id": "credentials", "phase": "create", "message": "No live-run credential"}]
+    before = json.dumps(state, sort_keys=True)
+    output = renderer.render(payload(creation, "review_suite", links=links(creation)))
+    root = state["repository"]
+    assert output == (
+        "Your evaluation suite is ready for review: 2 tasks; 2 distinct input examples. "
+        "It follows your approved design and confirmed `ETHOS.md`.\n\n"
+        f"Review your tasks in the [HTML report’s Tasks view](<{root}/.eval-author/report.html#cases>) "
+        f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
+        "| Task | Behavior under test | Expected result | Grading |\n|---|---|---|---|\n"
+        "| refund | Respect policy | Correct disposition | Check state and response |\n"
+        "| reject | Respect policy | Correct disposition | Check state and response |\n\n"
+        "**Status:** Environment proof: 2/2 passed. Grading validation: 0/2 passed. "
+        "Agent execution: 0/2 tasks complete.\n\n"
+        "Limitations: Other regions untested\n\n"
+        "Do these tasks look good? Approve the suite or tell me what to change before we choose how to run it.\n"
+    )
+    assert output == renderer.render(payload(creation, "resume", links=links(creation)))
+    assert output.index("HTML report’s Tasks view") < output.index(copy.SUITE_REVIEW_TABLE)
+    assert output.endswith(copy.SUITE_QUESTION + "\n")
+    assert "### Blockers" not in output and "No live-run credential" not in output
+    assert "Agent/model" not in output and "Time/cost limits" not in output
+    assert "settings" not in output and "SKILL.md" not in output
+    assert "Review your evaluations in" not in output
+    assert json.dumps(state, sort_keys=True) == before
+
+
+@pytest.mark.parametrize("stage", ["execution_settings", "ready_to_run"])
+def test_suite_approval_is_required_before_any_execution_question(creation, stage):
+    _, record, helper, renderer, _ = creation
+    built(creation, all_tasks=True, reviewed=True, validated=True)
+    remaining_started(creation, active=None, artifacts=True)
+    with pytest.raises(ValueError, match="approve the suite"):
+        renderer.render(payload(creation, stage, access_ready=True))
+    record["suite_review_presented"] = {
+        "digest": helper.derive(creation[0], observations(record))["suite_digest"],
+        "source": "Delivered suite review message",
+    }
+    with pytest.raises(ValueError, match="approve the suite"):
+        renderer.render(payload(creation, stage, access_ready=True))
+
+
+def test_suite_review_allows_pending_or_failed_grading_and_does_not_grant_execution(creation):
+    state, record, helper, renderer, copy = creation
+    built(creation, all_tasks=True, reviewed=True, validated=True)
+    record["tasks"]["reject"]["validation"]["status"] = "failed"
+    remaining_started(creation, active=None, artifacts=True)
+    output = renderer.render(payload(creation, "review_suite", links=links(creation)))
+    assert "Grading validation: 1/2 passed" in output
+    assert output.endswith(copy.SUITE_QUESTION + "\n")
+    assert not helper.derive(state, observations(record))["suite_approved"]
+    assert not helper.derive(state, observations(record))["execution_authorized"]
+    suite_approved(creation)
+    assert renderer.render(payload(creation, "execution_settings")).startswith(copy.SETTINGS_INTRO)
+
+
+def test_suite_review_requires_actual_tasks_environments_and_refreshed_artifacts(creation):
+    _, record, _, renderer, _ = creation
+    built(creation, reviewed=True)
+    with pytest.raises(ValueError, match="Suite review requires"):
+        renderer.render(payload(creation, "review_suite", links=links(creation)))
+    built(creation, all_tasks=True, reviewed=True)
+    with pytest.raises(ValueError, match="Suite review requires"):
+        renderer.render(payload(creation, "review_suite", links=links(creation)))
+    remaining_started(creation, active=None, artifacts=True)
+    request = payload(creation, "review_suite", links=links(creation))
+    request["facts"]["observations"]["files"][".eval-author/README.md"] = None
+    with pytest.raises(ValueError, match="Suite review requires"):
+        renderer.render(request)
+    record["tasks"]["reject"]["environment"]["status"] = "blocked"
+    with pytest.raises(ValueError, match="Suite review requires"):
+        renderer.render(payload(creation, "review_suite", links=links(creation)))
+
+
+def test_task_revision_reopens_suite_review_while_preserving_historical_approval(creation):
+    state, record, helper, renderer, copy = creation
+    built(creation, all_tasks=True, reviewed=True, validated=True)
+    suite_approved(creation)
+    old_approval = deepcopy(record["suite_approval"])
+    changed = record["tasks"]["reject"]
+    changed["sha256"] = "b" * 64
+    changed["environment"]["sha256"] = "b" * 64
+    changed["validation"]["sha256"] = "b" * 64
+    remaining_started(creation, active=None, artifacts=True)
+    assert not helper.derive(state, observations(record))["suite_approved"]
+    assert record["suite_approval"] == old_approval
+    output = renderer.render(payload(creation, "resume", links=links(creation)))
+    assert output.endswith(copy.SUITE_QUESTION + "\n")
+    with pytest.raises(ValueError, match="approve the suite"):
+        renderer.render(payload(creation, "execution_settings"))
+
+
+def test_validation_changes_do_not_reopen_unchanged_suite_approval(creation):
+    state, record, helper, renderer, copy = creation
+    built(creation, all_tasks=True, reviewed=True, validated=True)
+    suite_approved(creation)
+    record["tasks"]["reject"]["validation"]["status"] = "failed"
+    assert helper.derive(state, observations(record))["suite_approved"]
+    assert renderer.render(payload(creation, "execution_settings")).startswith(copy.SETTINGS_INTRO)
+
+
+def test_suite_review_uses_current_plan_content_and_deduplicates_task_limitations(creation, monkeypatch):
+    state, record, _, renderer, _ = creation
+    record["plan"]["tasks"][1]["behavior"] = "Do not [dispatch](https://unselected.example) | queue\n### forged"
+    built(creation, all_tasks=True, reviewed=True)
+    remaining_started(creation, active=None, artifacts=True)
+    request = payload(creation, "review_suite", links=links(creation))
+    before = json.dumps(state, sort_keys=True)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Rendering suite review must not read files or clocks")
+
+    monkeypatch.setattr(Path, "read_text", forbidden)
+    monkeypatch.setattr(Path, "read_bytes", forbidden)
+    monkeypatch.setattr(importlib.import_module("journey_state"), "now", forbidden)
+    output = renderer.render(request)
+    assert "Do not \\[dispatch\\]" in output and "&#124; queue<br>\\#\\#\\# forged" in output
+    assert output.count("Other regions untested") == 1
+    assert json.dumps(state, sort_keys=True) == before
+
+
+def test_suite_review_keeps_approval_question_last_and_blocker_details_separate(creation):
+    state, _, _, renderer, _ = creation
+    built(creation, all_tasks=True, reviewed=True)
+    remaining_started(creation, active=None, artifacts=True)
+    state["blockers"] = [{"id": "inputs", "phase": "create", "message": "Source input missing"}]
+    entries = [{"id": "inputs", "step": "Review tasks", "reason": "Input missing.", "needed": "Provide input."}]
+    with pytest.raises(ValueError, match="Resolve task-review blockers"):
+        renderer.render(payload(creation, "review_suite", links=links(creation), blockers=entries))
+
+
+def test_legacy_run_results_remain_readable_without_new_suite_approval(creation):
+    _, record, _, renderer, copy = creation
+    finished(creation)
+    record.pop("suite_approval")
+    record.pop("suite_review_presented")
+    output = renderer.render(payload(creation, "results", **result_facts(creation)))
+    assert output.startswith(copy.SUITE_APPROVAL_PENDING)
+    assert "Reviewed run: **baseline-job**. Attempt: **refund-1**" in output
+    assert "2/2 completed attempts with grades" in output
+    assert copy.SUITE_REVIEW_BLOCKER in output
+    assert "run completion" not in output and "selected executions remain unfinished" not in output
+    assert copy.REVIEW_UNAVAILABLE not in output and copy.AUDIT_QUESTION not in output
+
+
 def test_saved_design_overview_is_a_deterministic_decision_before_resume(creation):
     state, _, _, renderer, copy = creation
     approved(creation)
@@ -767,6 +925,7 @@ def test_saved_design_overview_is_a_deterministic_decision_before_resume(creatio
         "review_first",
         "prepare_remaining",
         "remaining_progress",
+        "review_suite",
         "execution_settings",
         "ready_to_run",
         "results",
@@ -933,6 +1092,7 @@ def test_review_intro_uses_the_approved_first_task_title_as_literal_text(creatio
 def test_late_settings_and_explicit_execution_authorization(creation):
     _, record, helper, renderer, copy = creation
     built(creation, all_tasks=True, reviewed=True, validated=True)
+    suite_approved(creation)
     output = renderer.render(payload(creation, "resume"))
     assert output.startswith(copy.SETTINGS_INTRO)
     assert [row.split("**")[1].rstrip(":") for row in output.splitlines() if row.startswith("- **")] == list(
@@ -960,7 +1120,7 @@ def test_run_readiness_checks_only_current_dependencies_and_resolved_settings(cr
         assert copy.RUN_PROGRESS in renderer.render(payload(creation, "ready_to_run", access_ready=True))
     elif dependency == "later_environment":
         record["tasks"]["reject"]["environment"]["status"] = "failed"
-        with pytest.raises(ValueError, match="current environment proof"):
+        with pytest.raises(ValueError, match="approve the suite"):
             renderer.render(payload(creation, "ready_to_run", access_ready=True))
     else:
         question = "Which maximum dollar amount should this run use?"
@@ -976,6 +1136,7 @@ def test_blockers_are_saved_and_only_interrupt_dependent_steps(creation):
     approved(creation)
     assert renderer.render(payload(creation, "resume")).startswith(copy.FIRST_PROGRESS + "\n\n**First task:")
     built(creation, all_tasks=True, reviewed=True, validated=True)
+    suite_approved(creation)
     with pytest.raises(ValueError, match="Saved blockers"):
         renderer.render(payload(creation, "execution_settings"))
     entries = [

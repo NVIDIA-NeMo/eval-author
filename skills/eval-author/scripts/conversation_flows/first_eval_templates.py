@@ -95,6 +95,17 @@ REMAINDER_PROGRESS = (
     "accept reference results and reject relevant incorrect results."
 )
 NO_REMAINDER_PROGRESS = "I’ll check the approved task’s grader, then refresh the README and report."
+SUITE_REVIEW_INTRO = (
+    "Your evaluation suite is ready for review: {tasks} tasks; {examples} distinct input examples. "
+    "It follows your approved design and confirmed `ETHOS.md`."
+)
+SUITE_REVIEW_ACTION = "Review your tasks in the {report} or {readme}."
+SUITE_REVIEW_TABLE = "| Task | Behavior under test | Expected result | Grading |\n|---|---|---|---|"
+SUITE_REVIEW_STATUS = (
+    "**Status:** Environment proof: {environments}/{tasks} passed. Grading validation: {validated}/{tasks} passed. "
+    "Agent execution: {executed}/{tasks} tasks complete."
+)
+SUITE_QUESTION = "Do these tasks look good? Approve the suite or tell me what to change before we choose how to run it."
 SETTINGS_INTRO = "Here are the settings for running the approved tasks."
 SETTINGS_NOTICE = "Agent runs and paid grading require authorization within these limits."
 SETTINGS_LABELS = ("Agent/model", "Tasks and examples", "Attempts", "Validation", "Time/cost limits", "Open questions")
@@ -117,6 +128,7 @@ VALIDATION_PENDING = "pending or requiring attention"
 EXECUTION_COMPLETED = "completed"
 EXECUTION_PENDING = "not completed for the agreed settings"
 INCOMPLETE = "Your first evaluations remain incomplete. Tasks with unfinished work: {tasks}."
+SUITE_APPROVAL_PENDING = "Your evaluations are awaiting suite review and approval. Their retained validation and execution evidence remains available."
 PENDING_RUN = "run completion"
 TASK_STATUS = "- **{task}:** Created: {created}; validated: {validated}; agreed executions complete: {executed}."
 YES = "yes"
@@ -148,6 +160,10 @@ INCOMPLETE_EXECUTION_BLOCKER = (
     "- **Complete the agreed evaluations:** Task validation or the selected executions remain unfinished. "
     "**Needed:** Resolve the unfinished work listed above, reusing applicable approval and obtaining "
     "authorization before additional paid work."
+)
+SUITE_REVIEW_BLOCKER = (
+    "- **Review the suite:** Current suite approval has not been recorded. "
+    "**Needed:** Review the authored tasks in the HTML report or mirrored README, then approve the suite or request changes."
 )
 JOB_ERRORS = (
     "Retained jobs with execution errors: {runs}. Successful attempts from these jobs count only where their "

@@ -123,6 +123,7 @@ def ready(modules, repo, provider="harbor", examples=None):
         author(modules, repo, value, planned["id"])
         check(modules, repo, value, planned["id"], "environment")
         check(modules, repo, value, planned["id"], "validation")
+    approve_suite(modules, repo, value)
     return value
 
 
@@ -275,6 +276,126 @@ def refresh_remaining_artifacts(modules, repo, value):
     return save(modules, repo, value)
 
 
+def present_suite(modules, repo, value):
+    value["suite_review_presented"] = {
+        "digest": facts(modules, repo)["suite_digest"],
+        "source": "Displayed all current tasks with report and README links",
+    }
+    return save(modules, repo, value)
+
+
+def approve_suite(modules, repo, value):
+    if not facts(modules, repo)["remaining_build"]["current"]:
+        start_remaining(modules, repo, value)
+    refresh_remaining_artifacts(modules, repo, value)
+    present_suite(modules, repo, value)
+    value["suite_approval"] = {
+        "digest": facts(modules, repo)["suite_digest"],
+        "source": "User approved all current evaluation tasks",
+    }
+    return save(modules, repo, value)
+
+
+def test_full_suite_review_precedes_settings_with_paid_validation_still_pending(modules, tmp_path):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    author(modules, tmp_path, value, "refund")
+    check(modules, tmp_path, value, "refund", "environment")
+    review_first(modules, tmp_path, value)
+    author(modules, tmp_path, value, "policy")
+    check(modules, tmp_path, value, "policy", "environment")
+    start_remaining(modules, tmp_path, value)
+    refresh_remaining_artifacts(modules, tmp_path, value)
+    progress = facts(modules, tmp_path)
+    assert progress["suite_review_ready"] and not progress["suite_approved"]
+    assert progress["next_stage"] == "review_suite"
+    assert progress["remaining_build"]["counts"]["validation"] == {"completed": 0, "total": 2}
+    value["execution_settings_presented"] = {
+        "digest": progress["settings_digest"],
+        "source": "Premature run settings before all-task approval",
+    }
+    with pytest.raises(ValueError, match="Approve the full suite"):
+        save(modules, tmp_path, value)
+    value.pop("execution_settings_presented")
+    approve_suite(modules, tmp_path, value)
+    progress = facts(modules, tmp_path)
+    assert progress["suite_approved"]
+    assert progress["next_stage"] == "execution_settings"
+    assert not progress["execution_authorized"]
+    assert not any(task["validated"] or task["executed"] for task in progress["tasks"].values())
+
+
+@pytest.mark.parametrize("source", ["design", "first", "presentation"])
+def test_suite_approval_requires_its_actual_answer_after_a_separately_saved_review(modules, tmp_path, source):
+    value = ready(modules, tmp_path)
+    value.pop("suite_approval")
+    value.pop("suite_review_presented")
+    save(modules, tmp_path, value)
+    value["suite_approval"] = {"digest": facts(modules, tmp_path)["suite_digest"], "source": "Unpresented approval"}
+    with pytest.raises(ValueError, match="Present the current full suite"):
+        save(modules, tmp_path, value)
+    value["suite_review_presented"] = {
+        "digest": facts(modules, tmp_path)["suite_digest"],
+        "source": "Review and answer in one unsaved update",
+    }
+    with pytest.raises(ValueError, match="Present the current full suite"):
+        save(modules, tmp_path, value)
+    value.pop("suite_approval")
+    present_suite(modules, tmp_path, value)
+    sources = {
+        "design": value["plan_approval"]["source"],
+        "first": value["tasks"]["refund"]["review"]["source"],
+        "presentation": value["suite_review_presented"]["source"],
+    }
+    value["suite_approval"] = {"digest": facts(modules, tmp_path)["suite_digest"], "source": sources[source]}
+    with pytest.raises(ValueError, match="actual suite approval"):
+        save(modules, tmp_path, value)
+
+
+def test_suite_approval_is_revision_bound_but_survives_validation_and_report_refresh(modules, tmp_path):
+    value = ready(modules, tmp_path)
+    digest = facts(modules, tmp_path)["suite_digest"]
+    value["tasks"]["policy"]["validation"]["status"] = "failed"
+    save(modules, tmp_path, value)
+    (tmp_path / ".eval-author/report.html").write_text("Later validation results")
+    progress = facts(modules, tmp_path)
+    assert progress["suite_digest"] == digest
+    assert progress["suite_approved"] and not progress["suite_review_ready"]
+    assert not progress["tasks"]["policy"]["validated"]
+    (tmp_path / ".eval-author/tasks/policy/README.md").write_text("Revised task grading")
+    progress = facts(modules, tmp_path)
+    assert not progress["suite_approved"]
+    assert progress["first_task_approved"]
+    assert progress["next_stage"] == "remaining_progress"
+
+
+def test_suite_review_approval_needs_the_current_report_and_markdown_mirror(modules, tmp_path):
+    value = ready(modules, tmp_path)
+    value["suite_approval"] = None
+    save(modules, tmp_path, value)
+    (tmp_path / ".eval-author/README.md").write_text("Changed after the review request")
+    value["suite_approval"] = {"digest": facts(modules, tmp_path)["suite_digest"], "source": "New actual task approval"}
+    with pytest.raises(ValueError, match="Present the current full suite"):
+        save(modules, tmp_path, value)
+    assert not facts(modules, tmp_path)["suite_approved"]
+
+
+def test_legacy_execution_evidence_is_inspectable_without_inferring_suite_approval(modules, tmp_path):
+    complete(modules, tmp_path)
+    state = modules[0].load_state(tmp_path)
+    value = state["scopes"]["create"]["first_eval"]
+    value.pop("suite_approval")
+    value.pop("suite_review_presented")
+    observed = modules[1].observe(tmp_path, state)
+    original = copy.deepcopy(state)
+    progress = modules[1].derive(state, observed)
+    assert not progress["suite_approved"] and not progress["execution_authorized"]
+    assert not progress["execution_settings_presented"]
+    assert progress["runs"]["baseline"]["reviewable"] and progress["reviewed_run_current"]
+    assert not progress["complete"]
+    assert state == original
+
+
 def test_remaining_build_progress_uses_actual_counts_and_retains_resume_without_authority_gain(modules, tmp_path):
     value = start(modules, tmp_path)
     approve(modules, tmp_path, value)
@@ -305,7 +426,8 @@ def test_remaining_build_progress_uses_actual_counts_and_retains_resume_without_
     progress = facts(modules, tmp_path)
     assert progress["remaining_build"]["complete"]
     assert progress["remaining_build"]["artifacts_current"]
-    assert progress["next_stage"] == "execution_settings"
+    assert progress["next_stage"] == "review_suite"
+    assert progress["suite_review_ready"] and not progress["suite_approved"]
     assert not progress["execution_authorized"] and not progress["complete"]
     assert not any(task["executed"] for task in progress["tasks"].values())
 
@@ -326,9 +448,10 @@ def test_remaining_build_empty_set_still_validates_first_task(modules, tmp_path)
         "validation": "in_progress",
         "artifacts": "pending",
     }
-    with pytest.raises(ValueError, match="after authoring, environment proof, and validation"):
-        refresh_remaining_artifacts(modules, tmp_path, value)
-    value["remaining_build"]["artifacts"] = None
+    refresh_remaining_artifacts(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["suite_review_ready"]
+    assert facts(modules, tmp_path)["next_stage"] == "review_suite"
+    assert not facts(modules, tmp_path)["remaining_build"]["complete"]
     check(modules, tmp_path, value, "refund", "validation")
     refresh_remaining_artifacts(modules, tmp_path, value)
     assert facts(modules, tmp_path)["remaining_build"]["complete"]
@@ -387,7 +510,7 @@ def test_remaining_artifacts_bind_validation_and_report_changes_without_restarti
     progress = facts(modules, tmp_path)
     assert progress["remaining_build_digest"] != prior_digest
     assert not progress["remaining_build"]["artifacts_current"]
-    assert progress["next_stage"] == "remaining_progress"
+    assert progress["next_stage"] == "execution_settings"
     select(modules, tmp_path, value)
     assert facts(modules, tmp_path)["next_stage"] == "remaining_progress"
     refresh_remaining_artifacts(modules, tmp_path, value)
@@ -428,7 +551,7 @@ def test_remaining_artifact_receipt_requires_both_current_review_files(modules, 
     refresh_remaining_artifacts(modules, tmp_path, value)
     (tmp_path / missing).unlink()
     assert not facts(modules, tmp_path)["remaining_build"]["artifacts_current"]
-    assert facts(modules, tmp_path)["next_stage"] == "remaining_progress"
+    assert facts(modules, tmp_path)["next_stage"] == "execution_settings"
     value["remaining_build"]["artifacts"]["evidence"] = [
         ref for ref in value["remaining_build"]["artifacts"]["evidence"] if ref["path"] != missing
     ]
@@ -883,6 +1006,7 @@ def test_gym_harbor_requires_current_bridge_evidence_not_just_converted_tasks(mo
     value["plan"]["execution_path"] = "gym_harbor"
     save(modules, tmp_path, value)
     approve(modules, tmp_path, value)
+    approve_suite(modules, tmp_path, value)
     with pytest.raises(ValueError, match="execution authorization"):
         select(modules, tmp_path, value)
     assert not facts(modules, tmp_path)["bridge_current"]
@@ -910,7 +1034,7 @@ def test_display_and_spending_authority_require_reviewed_task_and_current_receip
         "digest": facts(modules, tmp_path)["settings_digest"],
         "source": "Premature display",
     }
-    with pytest.raises(ValueError, match="Approve the first task"):
+    with pytest.raises(ValueError, match="Approve the full suite"):
         save(modules, tmp_path, value)
     value = complete(modules, tmp_path)
     state = modules[0].load_state(tmp_path)

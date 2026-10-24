@@ -30,6 +30,7 @@ STAGES = {
         "review_first",
         "prepare_remaining",
         "remaining_progress",
+        "review_suite",
         "ready_to_run",
         "results",
         "resume",
@@ -322,6 +323,51 @@ def first_review(record: dict, progress: dict, facts: dict) -> str:
     )
 
 
+def suite_review(record: dict, progress: dict, facts: dict) -> str:
+    if not progress["suite_review_ready"]:
+        raise ValueError(
+            "Suite review requires the approved first task, current task files and environments, and report artifacts"
+        )
+    if facts.get("blockers"):
+        raise ValueError("Resolve task-review blockers before presenting the suite for approval")
+    tasks = record["plan"]["tasks"]
+    rows = [copy.SUITE_REVIEW_TABLE]
+    for task in tasks:
+        rows.append(
+            "| "
+            + " | ".join(
+                literal(task.get(key), key, table=True) for key in ("title", "behavior", "expected_result", "grading")
+            )
+            + " |"
+        )
+    statuses = progress["tasks"].values()
+    parts = [
+        copy.SUITE_REVIEW_INTRO.format(
+            tasks=len(tasks), examples=len({example for task in tasks for example in task["example_ids"]})
+        ),
+        copy.SUITE_REVIEW_ACTION.format(
+            report=named_link(facts, "tasks_view", fragment=True, label=copy.FIRST_REVIEW_REPORT_LABEL),
+            readme=named_link(facts, "readme", label=copy.FIRST_REVIEW_README_LABEL),
+        ),
+        "\n".join(rows),
+        copy.SUITE_REVIEW_STATUS.format(
+            tasks=len(tasks),
+            environments=sum(status["environment_proven"] for status in statuses),
+            validated=sum(status["validated"] for status in statuses),
+            executed=sum(status["executed"] for status in statuses),
+        ),
+    ]
+    limitations = list(
+        dict.fromkeys(item for task in tasks for item in record["tasks"][task["id"]].get("limitations", []))
+    )
+    if limitations:
+        parts.append(
+            copy.LIMITATIONS.format(limitations="; ".join(literal(item, "task limitation") for item in limitations))
+        )
+    parts.append(copy.SUITE_QUESTION)
+    return "\n\n".join(parts)
+
+
 def evidence_links(facts: dict, key: str, references: list[dict], identity: str) -> str:
     links = mapping(facts.get("links", {}), "links", LINK_FIELDS)
     targets = links.get(key)
@@ -332,6 +378,19 @@ def evidence_links(facts: dict, key: str, references: list[dict], identity: str)
     )
 
 
+def pending_suite_review(progress: dict) -> bool:
+    return bool(
+        not progress["suite_approved"]
+        and progress["first_task_approved"]
+        and progress["suite"]["complete"]
+        and progress["reviewed_run_current"]
+        and all(
+            all(status[field] for field in ("created", "validated", "executed"))
+            for status in progress["tasks"].values()
+        )
+    )
+
+
 def incomplete_inventory(progress: dict) -> list[str]:
     pending = [
         key
@@ -339,7 +398,9 @@ def incomplete_inventory(progress: dict) -> list[str]:
         if not all(status[field] for field in ("created", "validated", "executed"))
     ]
     return [
-        copy.INCOMPLETE.format(tasks=literal(", ".join(pending) or copy.PENDING_RUN, "unfinished tasks")),
+        copy.SUITE_APPROVAL_PENDING
+        if pending_suite_review(progress)
+        else copy.INCOMPLETE.format(tasks=literal(", ".join(pending) or copy.PENDING_RUN, "unfinished tasks")),
         "\n".join(
             copy.TASK_STATUS.format(
                 task=literal(task_id, "task id"),
@@ -472,7 +533,12 @@ def results(record: dict, progress: dict, facts: dict, journey: str) -> str:
         if progress["audit_decision"] == "pending":
             parts.append(copy.AUDIT_QUESTION)
     elif not facts.get("blockers"):
-        parts.extend([shared.HANDOFF_BLOCKERS, copy.INCOMPLETE_EXECUTION_BLOCKER])
+        parts.extend(
+            [
+                shared.HANDOFF_BLOCKERS,
+                copy.SUITE_REVIEW_BLOCKER if pending_suite_review(progress) else copy.INCOMPLETE_EXECUTION_BLOCKER,
+            ]
+        )
     return "\n\n".join(parts)
 
 
@@ -556,6 +622,8 @@ def render(payload: dict) -> str:
                 raise ValueError("Save scope approval before displaying execution settings")
             if not progress["first_task_approved"]:
                 raise ValueError("Review and approve the first task before displaying execution settings")
+            if not progress["suite_approved"]:
+                raise ValueError("Review and approve the suite before choosing how to run it")
             result = execution_settings(record)
         elif stage == "prepare_first":
             if not progress["scope_approved"]:
@@ -581,7 +649,11 @@ def render(payload: dict) -> str:
             if not record.get("remaining_build") or not progress["remaining_build"]["current"]:
                 raise ValueError("Save build progress for the current remaining tasks and approved first task")
             result = remaining_checklist(progress, facts)
+        elif stage == "review_suite":
+            return suite_review(record, progress, facts) + "\n"
         elif stage == "ready_to_run":
+            if not progress["suite_approved"]:
+                raise ValueError("Review and approve the suite before choosing how to run it")
             if progress["next_stage"] == "execution_settings":
                 raise ValueError("Display and save execution settings before announcing execution")
             if not progress["first_task_approved"] or not all(

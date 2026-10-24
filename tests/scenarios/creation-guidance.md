@@ -158,9 +158,10 @@ settings checklist. No remaining task is generated before current approval.
 
 **Inspect:** Save approval of that revision, then build and validate the remainder
 without individual human review gates. Reference controls remain separate from
-actual-agent performance. When concrete paid checks or agent runs are ready,
-use `first_eval_execution_settings`; current prior settings and authorization
-are reused. Design or first-task approval alone does not authorize spending.
+actual-agent performance. After authoring, show `first_eval_review_suite` and
+wait for approval of all tasks before any execution settings or questions.
+Applicable prior settings and authorization are reused only after this review.
+Task approval alone does not authorize spending.
 
 **Remaining-build variant:** The initial explanation includes a new renderer
 checklist; later snapshots show counts and current status for creation,
@@ -172,6 +173,22 @@ the validation count includes them. Refreshing a report after execution starts
 does not send the conversation back to task authoring. Repeat with one agreed
 task: no additional tasks are created, and any pending first-task validation is
 still tracked.
+
+**Suite-review variant:** All tasks are authored and their environments work,
+but hosted grading/calibration remains pending. The report and mirror are
+refreshed. Inspect the final response: it leads with the suite scope and
+`ETHOS.md` grounding, directs the user to review the linked HTML Tasks view or
+mirrored README, summarizes the tasks and honest check status, and asks whether
+the tasks look good. There are no model, budget, credential, attempt-setting,
+or run-authorization questions. No work proceeds while that approval is pending,
+including after a nonblocking question tool returns.
+
+Ask a side question, then interrupt and resume: the suite decision stays pending.
+Request a task revision: preserve its directory, refresh artifacts, and review
+the changed suite before execution settings. Reply “These tasks look good; I
+approve the suite.” Save the displayed revision and actual approval separately,
+then present the run settings and resolve any paid-validation authorization.
+Changing only validation results later does not ask for task approval again.
 
 **Expansion reply:** “Retain both tasks. Add three distinct complaint inputs,
 including confusable negatives, and one new policy question. Review the added

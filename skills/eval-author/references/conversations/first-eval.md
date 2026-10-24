@@ -170,18 +170,51 @@ Tasks can progress individually, so the active row need not follow a global
 sequence. An empty remaining set creates no new tasks. Reuse compatible
 environment proof; only changed or additional environment work needs rebuilding.
 
-After refreshing both report artifacts, save `artifacts` as
+After authoring all tasks and proving their environments, refresh both report
+artifacts and save `artifacts` as
 `{digest, source, evidence}`. Its `digest` is the current derived
 `remaining_build_digest`; its evidence names the actual `.eval-author/report.html`
 and `.eval-author/README.md` with their byte digests. This binds the refresh to
-current task revisions and check results. Missing or stale artifacts stay pending;
+current task revisions and available check results; paid validation may still be
+pending. Missing or stale artifacts stay pending;
 later refreshes during execution do not restart completed authoring.
 
 Pass only blockers affecting current build or validation work. Run-only access
-does not block independent authoring. When paid validation needs authorization,
-use the existing execution-settings checkpoint for the missing decision, then
+does not block independent authoring. After the suite review below, when paid
+validation needs authorization, use the execution-settings checkpoint, then
 continue the checklist; task or first-task approval does not authorize spending.
 The checklist never supplies validation evidence or agent performance claims.
+
+## Review the authored suite before execution settings
+
+When every agreed task is authored, its environment is proven, and the refreshed
+HTML report and Markdown mirror are current, render `first_eval_review_suite`.
+Use its grounding in the approved design and `ETHOS.md`, leading review links,
+task summaries, honest validation/execution status, limitations, and final
+approval question. Paid grading or calibration can remain pending. Task review
+does not require choosing a model, credentials, limits, or how to execute it.
+Keep those questions and run-only blockers out of this review. Do not append a
+generic report footer or routine pause explanation.
+
+Emit the rendering as the final response and end the turn. A nonblocking
+question-tool return does not answer it. Do not proceed with execution settings,
+paid validation, or agent runs while the suite decision is pending. Revise tasks
+in place, refresh their evidence and artifacts, and request review again when
+needed. A side question or first-task approval does not approve the whole suite.
+
+Save `suite_review_presented` as `{digest, source}`, using the derived
+`suite_digest` and the actual delivered review message reference. After the
+user explicitly approves, save `suite_approval` with that digest and the actual
+approval reference in a separate revision-checked update. If the host ends the
+turn when delivering the review, record its presentation from the prior message
+at the start of the response turn, before recording the user's decision.
+
+The digest binds the approved plan and exact task revisions. Changed task files
+or design reopen approval; later validation results or report refreshes alone
+do not. Missing legacy fields remain unknown, rather than implied approval.
+Historical evidence stays readable. Only after current suite approval, present
+the execution-settings checklist and resolve missing run decisions. Suite approval
+authorizes the task design, not spending or extra evaluations.
 
 ## State and artifact authority
 
@@ -290,7 +323,8 @@ file digests from SHA-256 of their actual bytes. Never invent a digest from a
 filename, intended result, or approval. The state helper enforces previously saved checkpoints, so approval cannot be
 combined with the dependent generation in one update.
 
-When preparing execution, save `execution_settings`; after presenting it, record
+After current suite approval, when preparing execution, save `execution_settings`;
+after presenting it, record
 `execution_settings_presented` with the current derived `settings_digest` and
 the actual delivered message reference. `selection` retains the explicit config
 reference, selected `cases`, agent/model identity, source, and applicable
@@ -328,8 +362,9 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_review_first` | Current first-task files, saved environment proof, and refreshed HTML and Markdown artifacts. Lead with the approved task's name and grounding in `ETHOS.md`, then direct the user to review the HTML report's Tasks view or mirrored README. Follow with input, expected result, grading with a meaningful limitation, and separate environment, grading-validation, and execution status. Link the task README and end with the first-task approval question. |
 | `first_eval_prepare_remaining` | Saved approval of the current first-task revision and environment proof. Initial explanation and skill-labeled checklist for building the remainder, checking environments, validating all graders, and refreshing artifacts. |
 | `first_eval_remaining_progress` | Current remaining-build activity after first-task approval; compact checklist with evidence-derived task counts, responsible skills, short statuses, and current build blockers. |
-| `first_eval_execution_settings` | Saved design and first-task approval, when actual agent execution or paid grading is being prepared. Display six settings bullets, separately counting distinct examples and repeated attempts, plus relevant run blockers. This display never supplies spending authorization. |
-| `first_eval_ready_to_run` | Current validation of every selected task and a saved applicable settings display. Clarify that reference checks establish working tasks, not agent performance. Announce execution only with applicable explicit authorization, access, and no blocking dependency; otherwise ask one focused question about the missing setting or authorization. |
+| `first_eval_review_suite` | All authored task revisions and environments plus current report artifacts. Ground the summary in the approved design and `ETHOS.md`, link the HTML Tasks view or mirrored README, summarize each task and current validation/execution evidence, and end with the explicit suite-approval question. No run settings or run-only blockers. |
+| `first_eval_execution_settings` | Current authored-suite approval, when actual agent execution or paid grading is being prepared. Display six settings bullets, separately counting distinct examples and repeated attempts, plus relevant run blockers. This display never supplies spending authorization. |
+| `first_eval_ready_to_run` | Current suite approval, validation of every selected task, and a saved applicable settings display. Clarify that reference checks establish working tasks, not agent performance. Announce execution only with applicable explicit authorization, access, and no blocking dependency; otherwise ask one focused question about the missing setting or authorization. |
 | `first_eval_results` | Review an exact retained current actual-agent attempt when its evidence is available; otherwise present the incomplete inventory and missing-evidence blocker. Separate completed, quality-failing, infrastructure-failing, missing, and unavailable-evidence outcomes. Link verified evidence and rerun instructions, reconcile delivered work, and show completion only when justified. |
 | `first_eval_resume` | Derive the pending creation stage from saved decisions and fresh artifact observations, including an unresolved saved-design choice. Reuse applicable answers and authorization after that choice. It emits no welcome or initial readiness question. |
 | `first_eval_blockers` | One or more saved blockers preventing the current action, with specific reasons and needed actions. Preserve independent progress. |
@@ -389,8 +424,9 @@ local target containing `#` names that literal file; supply a navigation fragmen
 in the separate field. The renderer formats these verified values without
 reading files or proving that navigation exists.
 
-Review requires `readme`, `tasks_view` with its actual `cases` fragment, and
-`task_readme`. Results require `report`, `readme`, and `rerun` with a verified
+Both task reviews require `readme` and `tasks_view` with its actual `cases`
+fragment; first-task review also requires `task_readme`. Results require
+`report`, `readme`, and `rerun` with a verified
 fragment. Optional `task_rerun` also requires a verified fragment. Do not hard-code
 a heading slug without checking the generated README.
 
@@ -401,7 +437,7 @@ Later runs do not replace that saved review identity. Inspect the actual attempt
 before supplying its input, actions, and grading explanation; configured identity
 alone does not establish the observed backend model or model health.
 
-First-task review puts its report and mirrored README links in the leading
+First-task and full-suite review put their report and mirrored README links in the leading
 review action, before the item summaries. Do not append the generic report footer
 or routine skill-pause explanation to that rendering; separately required host
 attribution still applies. Results use the single canonical closing sentence in

@@ -970,6 +970,16 @@ def test_first_eval_fresh_request_confirms_saved_design_before_reuse() -> None:
     assert "block dependent stages until the saved-design choice is resolved" in saved
 
 
+def test_first_eval_waits_for_suite_review_before_execution_questions() -> None:
+    _, body = _frontmatter_and_body(_FIRST_EVAL_DIR)
+    remainder = " ".join(body.split("## 4. Build and validate the remainder", 1)[1].split("\n## ", 1)[0].split())
+    assert "Render `first_eval_review_suite` as the final reply and end the turn" in remainder
+    assert "Wait for approval of the whole suite before discussing models, budgets, credentials" in remainder
+    assert "Formal checks requiring paid models may remain pending at this review" in remainder
+    execution = " ".join(body.split("## 5. Agree on and execute concrete runs", 1)[1].split("\n## ", 1)[0].split())
+    assert "Use `first_eval_execution_settings` only after approval of the authored suite" in execution
+
+
 def test_first_eval_builds_and_proves_the_kit_before_tests() -> None:
     """First-task grading cannot precede environment smoke proof."""
     _, body = _frontmatter_and_body(_FIRST_EVAL_DIR)

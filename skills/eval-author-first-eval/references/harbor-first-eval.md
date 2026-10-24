@@ -5,7 +5,7 @@
 
 Use this reference for native Harbor authoring, validation, and execution.
 The [parent skill](../SKILL.md) and [conversation contract](../../eval-author/references/conversations/first-eval.md)
-own design approval, first-task review, execution authorization, and handoff.
+own design approval, first-task and suite review, execution authorization, and handoff.
 A configured Gym–Harbor path must execute through its verified bridge; converted
 tasks run directly by Harbor do not prove that path. Keep missing integration
 as an execution blocker without substituting an agent or adding a new adapter.

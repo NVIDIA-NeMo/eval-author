@@ -214,19 +214,30 @@ Preserve failed and superseded evidence under fresh output names. Task changes
 reopen affected approval and validation; configuration changes reopen affected
 execution claims. Unknown or missing evidence never establishes completion.
 
+Once all agreed tasks are authored and their environments are proven, refresh
+the report and Markdown mirror and use the [suite review checkpoint](../eval-author/references/conversations/first-eval.md#review-the-authored-suite-before-execution-settings).
+Render `first_eval_review_suite` as the final reply and end the turn. Wait for
+approval of the whole suite before discussing models, budgets, credentials,
+attempt settings, or run authorization. First-task approval does not approve the
+remaining authored tasks. Revisions reopen the affected review.
+
+Formal checks requiring paid models may remain pending at this review. State
+their status and limitations; do not ask how to run them before suite approval
+or claim that review-ready tasks are fully validated or already executed.
+
 ## 5. Agree on and execute concrete runs
 
-Use `first_eval_execution_settings` only after first-task review approval when
+Use `first_eval_execution_settings` only after approval of the authored suite when
 concrete agent runs or paid grading are ready. The conversation contract owns its
 settings checklist; record the actual target/model, task/example mapping, repeats,
 validation work, time/cost bounds, and unresolved questions. Mark costs unknown
 without supported estimates. Settings are separate from design and never gate
-first-task generation or review. They may precede paid validation when needed;
+task generation or either task review. They may precede paid validation when needed;
 otherwise finish local validation first. Reuse applicable previously displayed
 settings and prior authorization without another generic approval gate.
 
 Paid work requires explicit authorization within its concrete displayed bounds.
-Design approval, first-task approval, or positive feedback alone grants no spending
+Design approval, task approval, or positive feedback alone grants no spending
 consent. Ask only about the missing authorization or execution setting, preserving
 independent work. Do not ask again when current authorization already covers it.
 

@@ -45,9 +45,11 @@ report is `.eval-author/report.html`, with a Markdown counterpart in
 After you approve the first task, Eval Author builds and validates the remainder.
 Its checklist shows task counts and progress through environment checks, grader
 validation, and the README/report refresh.
-When agent runs or paid grading are ready, it presents the concrete settings,
+You then review the whole authored suite in the HTML report or mirrored README
+and approve the tasks or request changes. Paid grading may still be pending.
+After you approve the suite, Eval Author presents the concrete settings,
 attempt counts, limits, and unresolved execution needs. Approving the design or
-first task does not authorize paid runs; applicable prior authorization is reused.
+tasks does not authorize paid runs; applicable prior authorization is reused.
 Repeating an input adds attempts rather than new examples.
 
 A supported runtime is required for full onboarding and authoring; see

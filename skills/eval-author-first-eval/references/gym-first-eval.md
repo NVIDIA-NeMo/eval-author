@@ -5,7 +5,7 @@
 
 Use this reference for native NeMo Gym authoring, validation, and execution.
 The [parent skill](../SKILL.md) and [conversation contract](../../eval-author/references/conversations/first-eval.md)
-own design approval, first-task review, execution authorization, and handoff.
+own design approval, first-task and suite review, execution authorization, and handoff.
 A selected Gym–Harbor setup uses its verified configured bridge; this native
 path is not a substitute. Keep missing integration as an execution blocker
 without adding a production adapter. No audit gap or coverage closure applies.

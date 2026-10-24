@@ -102,7 +102,7 @@ explicitly selected.
 
 Refresh after cases are authored, after additions or edits, and after validation
 or actual-agent runs, including failed runs. Refresh again at the final handoff
-and link the report. For the [first-task review](conversations/first-eval.md#stages-and-review-boundaries),
+and link the report. For [first-task and full-suite review](conversations/first-eval.md#stages-and-review-boundaries),
 use the renderer's leading review action and artifact links before its summaries,
 without a repeated report footer. For other report handoffs, end the response with the
 canonical `REPORTS` sentence in [conversation_templates.py](../scripts/conversation_templates.py),
