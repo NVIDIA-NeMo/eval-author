@@ -279,7 +279,7 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_proposal` | Saved proposed task designs; five-column task table, concise coverage and limitations, first-task choice, and fixed design feedback question. The question is the last content. Execution settings and run-only blockers remain deferred. |
 | `first_eval_prepare_first` | Previously saved design approval; initial provider explanation and compact build checklist. Author exactly one task in its permanent directory, prove its environment before writing its grader, and return for review. No execution checklist is required for local authoring. |
 | `first_eval_build_progress` | Saved approved first-task build activity and fresh observations; the same fixed checklist with short completed, active, pending, or blocked statuses. Use commentary during work, without adding narration or requesting approval. |
-| `first_eval_review_first` | Current first-task files, saved environment proof, and refreshed HTML and Markdown artifacts. Show input, expected result, grading with a meaningful limitation, and separate environment, grading-validation, and execution status; link the actual Tasks view and task README, then ask for first-task approval. |
+| `first_eval_review_first` | Current first-task files, saved environment proof, and refreshed HTML and Markdown artifacts. Lead with the approved task's name and grounding in `ETHOS.md`, then direct the user to review the HTML report's Tasks view or mirrored README. Follow with input, expected result, grading with a meaningful limitation, and separate environment, grading-validation, and execution status. Link the task README and end with the first-task approval question. |
 | `first_eval_prepare_remaining` | Saved approval of the current first-task revision and environment proof. Build the remaining agreed tasks and check reference results and relevant incorrect-result controls. |
 | `first_eval_execution_settings` | Saved design and first-task approval, when actual agent execution or paid grading is being prepared. Display six settings bullets, separately counting distinct examples and repeated attempts, plus relevant run blockers. This display never supplies spending authorization. |
 | `first_eval_ready_to_run` | Current validation of every selected task and a saved applicable settings display. Clarify that reference checks establish working tasks, not agent performance. Announce execution only with applicable explicit authorization, access, and no blocking dependency; otherwise ask one focused question about the missing setting or authorization. |
@@ -342,7 +342,7 @@ local target containing `#` names that literal file; supply a navigation fragmen
 in the separate field. The renderer formats these verified values without
 reading files or proving that navigation exists.
 
-Review requires `report`, `readme`, `tasks_view` with its actual `cases` fragment, and
+Review requires `readme`, `tasks_view` with its actual `cases` fragment, and
 `task_readme`. Results require `report`, `readme`, and `rerun` with a verified
 fragment. Optional `task_rerun` also requires a verified fragment. Do not hard-code
 a heading slug without checking the generated README.
@@ -354,10 +354,12 @@ Later runs do not replace that saved review identity. Inspect the actual attempt
 before supplying its input, actions, and grading explanation; configured identity
 alone does not establish the observed backend model or model health.
 
-Whenever report links are shown, the renderer ends with the single canonical
-closing sentence in [conversation_templates.py](../../scripts/conversation_templates.py).
-Follow [suite review guidance](../suite-readme.md); do not add another report-link
-footer.
+First-task review puts its report and mirrored README links in the leading
+review action, before the item summaries. Do not append the generic report footer
+or routine skill-pause explanation to that rendering; separately required host
+attribution still applies. Results use the single canonical closing sentence in
+[conversation_templates.py](../../scripts/conversation_templates.py).
+Follow [suite review guidance](../suite-readme.md); do not duplicate artifact links.
 
 ## Blockers and the audit invitation
 

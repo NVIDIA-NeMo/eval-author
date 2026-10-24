@@ -671,9 +671,10 @@ def test_changes_after_continue_reopen_proposal_approval_without_reasking_to_res
     assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
 
 
-def test_review_separates_proof_validation_execution_and_requires_links(creation):
-    _, _, _, renderer, copy = creation
-    built(creation)
+@pytest.mark.parametrize("validated", [False, True])
+def test_review_leads_with_grounding_and_action_before_item_summaries(creation, validated):
+    state, _, _, renderer, copy = creation
+    built(creation, validated=validated)
     facts = {
         "links": links(creation),
         "input": "Refund request",
@@ -683,10 +684,24 @@ def test_review_separates_proof_validation_execution_and_requires_links(creation
     }
     output = renderer.render(payload(creation, "review_first", **facts))
     assert output == renderer.render(payload(creation, "resume", **facts))
-    assert "Environment proof: passed. Grading validation: pending" in output
+    root = state["repository"]
+    assert output.startswith(
+        "Your first task, **refund**, is ready for review. "
+        "It follows your approved design and confirmed `ETHOS.md`.\n\n"
+        f"Review your first task in the [HTML report’s Tasks view](<{root}/.eval-author/report.html#cases>) "
+        f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
+    )
+    positions = [output.index(label) for label in ("- **Input:", "- **Expected result:", "- **Grading:", "- **Status:")]
+    assert positions == sorted(positions)
+    validation_status = "passed" if validated else "pending or requiring attention"
+    assert f"Environment proof: passed. Grading validation: {validation_status}" in output
     assert "Agent execution: not completed" in output and copy.FIRST_QUESTION in output
     assert "report.html#cases>)" in output and "/tasks/refund/README.md>)" in output
-    assert output.endswith("/README.md>).\n")
+    assert output.count("/.eval-author/report.html") == 1
+    assert output.count("/.eval-author/README.md") == 1
+    assert output.count("/.eval-author/tasks/refund/README.md") == 1
+    assert output.endswith(copy.FIRST_QUESTION + "\n")
+    assert "Review your evaluations in" not in output and "skill" not in output
     assert "- **Agent/model:" not in output
     changed = payload(creation, "review_first", **facts)
     changed["facts"]["observations"]["tasks"]["refund"] = "b" * 64
@@ -695,6 +710,24 @@ def test_review_separates_proof_validation_execution_and_requires_links(creation
     facts["links"]["task_readme"]["target"] = "/unrelated/README.md"
     with pytest.raises(ValueError, match="actual saved repository artifact"):
         renderer.render(payload(creation, "review_first", **facts))
+
+
+def test_review_intro_uses_the_approved_first_task_title_as_literal_text(creation):
+    _, record, _, renderer, _ = creation
+    record["plan"]["tasks"][0]["title"] = "Preserve *explicit* choices"
+    built(creation)
+    output = renderer.render(
+        payload(
+            creation,
+            "review_first",
+            links=links(creation),
+            input="Coding request",
+            expected_result="Preserve requested choices",
+            grading="Inspect decisions",
+            grading_limitation="Live tool effects excluded",
+        )
+    )
+    assert output.startswith("Your first task, **Preserve \\*explicit\\* choices**, is ready for review.")
 
 
 def test_late_settings_and_explicit_execution_authorization(creation):

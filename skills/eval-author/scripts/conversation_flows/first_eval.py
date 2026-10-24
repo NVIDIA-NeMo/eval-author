@@ -58,9 +58,9 @@ def target_link(value: object, label: str, *, fragment: bool = False) -> str:
     return link(value.get("target"), label, fragment=anchor)
 
 
-def named_link(facts: dict, key: str, *, fragment: bool = False) -> str:
+def named_link(facts: dict, key: str, *, fragment: bool = False, label: str | None = None) -> str:
     links = mapping(facts.get("links", {}), "links", LINK_FIELDS)
-    return target_link(links.get(key), copy.LINK_LABELS[key], fragment=fragment)
+    return target_link(links.get(key), label or copy.LINK_LABELS[key], fragment=fragment)
 
 
 def reports(facts: dict) -> str:
@@ -289,10 +289,16 @@ def first_review(record: dict, progress: dict, facts: dict) -> str:
         validation=copy.VALIDATION_PASSED if status["validated"] else copy.VALIDATION_PENDING,
         execution=copy.EXECUTION_COMPLETED if status["executed"] else copy.EXECUTION_PENDING,
     )
+    first = next(task for task in record["plan"]["tasks"] if task["id"] == record["first_task"])
     return "\n\n".join(
         [
+            copy.FIRST_REVIEW_INTRO.format(title=literal(first.get("title") or first["id"], "first task title")),
+            copy.FIRST_REVIEW_ACTION.format(
+                report=named_link(facts, "tasks_view", fragment=True, label=copy.FIRST_REVIEW_REPORT_LABEL),
+                readme=named_link(facts, "readme", label=copy.FIRST_REVIEW_README_LABEL),
+            ),
             copy.FIRST_REVIEW.format(**values),
-            named_link(facts, "tasks_view", fragment=True) + " · " + named_link(facts, "task_readme"),
+            named_link(facts, "task_readme"),
             copy.FIRST_QUESTION,
         ]
     )
@@ -588,6 +594,6 @@ def render(payload: dict) -> str:
             )
     if blocked := blocker_section(state, facts, stage):
         result += "\n\n" + blocked
-    if stage in {"review_first", "results"}:
+    if stage == "results":
         result += "\n\n" + reports(facts)
     return result + "\n"

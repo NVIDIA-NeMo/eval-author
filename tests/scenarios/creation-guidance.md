@@ -136,7 +136,10 @@ rows, and adding the grader does not erase completed environment preparation.
 No build receipt establishes formal grading validation or agent execution.
 
 **Inspect:** Generate HTML and Markdown review artifacts before
-`first_eval_review_first`. Link the actual Tasks view and task README, with input,
+`first_eval_review_first`. Lead with which task is ready and its approved design
+and `ETHOS.md` grounding. The next paragraph directs the user to the linked HTML
+Tasks view or mirrored README before the item summaries. Each artifact is linked
+once, without a duplicate report footer. Link the task README, with input,
 expected result, grading, a meaningful limitation, and distinct environment,
 validation, and actual-agent execution findings. Formal grading controls may be
 pending. The second task is still planned and uncreated. Missing required report

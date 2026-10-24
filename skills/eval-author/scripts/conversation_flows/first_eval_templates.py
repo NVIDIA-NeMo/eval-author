@@ -63,6 +63,12 @@ BUILD_STEPS = {
 GYM_BUILD_GRADING = "Add the reference fixtures and native Gym verifier"
 BUILD_STATUSES = {"complete": "Complete", "in_progress": "In progress", "pending": "Pending", "blocked": "Blocked"}
 BUILD_ROW = "- [{checked}] {label} — {status}"
+FIRST_REVIEW_INTRO = (
+    "Your first task, **{title}**, is ready for review. It follows your approved design and confirmed `ETHOS.md`."
+)
+FIRST_REVIEW_ACTION = "Review your first task in the {report} or {readme}."
+FIRST_REVIEW_REPORT_LABEL = "HTML report’s Tasks view"
+FIRST_REVIEW_README_LABEL = "mirrored README"
 FIRST_QUESTION = (
     "Does this represent the behavior you want to test, and would its grading judge the agent fairly? "
     "Approve the first task or tell me what to change before I build the remaining tasks."
