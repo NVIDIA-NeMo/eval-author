@@ -79,6 +79,64 @@ wait for actual design approval before implementation or further integration
 work. Source selection and readiness to continue do not approve the design.
 No additional planning document or approval checkpoint is needed.
 
+## First-task build progress
+
+After saving design approval, initialize `first_task_build` in the existing
+creation record through a normal revision-checked update. Bind it to the derived
+`plan_digest` and agreed `first_task`, set `active_step` to `environment`, and
+record the actual started activity in `source`:
+
+```json
+{
+  "plan_digest": "<current derived plan_digest>",
+  "task_id": "<agreed first task ID>",
+  "active_step": "environment",
+  "source": "<actual started build activity reference>",
+  "receipts": {}
+}
+```
+
+Render `first_eval_prepare_first` before work. It includes the provider's initial
+explanation and fixed build checklist. During the build, use
+`first_eval_build_progress` for subsequent commentary snapshots instead of
+free-form build narration. Keep the same rows and ordering; the template owns
+their labels and short statuses. Refresh after a status changes and keep a
+snapshot visible during long-running checks. Yield while waiting for those
+checks so progress can be shown. Do not append deliberation, speculative next
+steps, command transcripts, or another checklist. Retain verbose command output
+in evidence logs and surface its outcome through the checklist. Capture state-helper
+output for subsequent operations instead of printing full state and history.
+A focused
+question is still appropriate when work needs a user decision.
+
+The ordered step keys are `environment`, `environment_check`, `grading`, and
+`artifacts`. Update `active_step` when the corresponding work starts. Save a
+receipt under `receipts.<step>` only after that checkpoint succeeds, with
+`{source, evidence: [{path, digest}]}` identifying inspected artifacts or command
+results. Preparation retains the actual environment files and starting data;
+environment checking retains successful smoke/reset evidence; grading retains
+the authored reference and grader files; artifacts retains the finalized task
+README, HTML report, and Markdown mirror. Use scoped file digests, so adding a
+grader does not invalidate environment preparation. Failed or merely started
+checks never receive a completion receipt. Preserve their logs and keep the
+step in progress or explain its blocker.
+
+Reload normal state and observations before each snapshot. The helper derives
+completed rows from current receipts; a changed or missing receipt reopens its
+row and dependent work. A changed plan or first task requires rebinding build
+progress with empty receipts, then re-recording any still-applicable evidence.
+When replacing an earlier receipt, clear its dependent later receipts before
+recording their renewed checkpoints; earlier evidence remains in history.
+Absent legacy receipts remain pending. Pass only current build blockers
+in `facts.blockers`; the active row shows Blocked and the usual **Blockers**
+section explains the needed action. Missing agent credentials or later run
+integration do not block independent authoring.
+
+Completing this checklist means the task is ready for its existing review
+checkpoint. It does not establish grading validation, agent performance, or
+human approval. Keep those separate in `first_eval_review_first`. After the
+first task is approved, later report refreshes do not restart this build.
+
 ## State and artifact authority
 
 All creation stages require the complete normal, artifact-reconciled state from
@@ -219,7 +277,8 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_saved_design` | A pending saved-design choice on a fresh request; compact saved scope, historical approval, and current progress, then a fixed continue/revise/new-proposal question. End the turn before any dependent work. |
 | `first_eval_traces` | Confirmed `ETHOS.md`; fixed optional-source question and choices unless the source decision is already saved in the creation scope or plan. Inspect only selected traces after resolving their location, runs, and exclusions. |
 | `first_eval_proposal` | Saved proposed task designs; five-column task table, concise coverage and limitations, first-task choice, and fixed design feedback question. The question is the last content. Execution settings and run-only blockers remain deferred. |
-| `first_eval_prepare_first` | Previously saved design approval; progress for the selected provider. Author exactly one task in its permanent directory, prove its environment before writing its grader, and return for review. No execution checklist is required for local authoring. |
+| `first_eval_prepare_first` | Previously saved design approval; initial provider explanation and compact build checklist. Author exactly one task in its permanent directory, prove its environment before writing its grader, and return for review. No execution checklist is required for local authoring. |
+| `first_eval_build_progress` | Saved approved first-task build activity and fresh observations; the same fixed checklist with short completed, active, pending, or blocked statuses. Use commentary during work, without adding narration or requesting approval. |
 | `first_eval_review_first` | Current first-task files, saved environment proof, and refreshed HTML and Markdown artifacts. Show input, expected result, grading with a meaningful limitation, and separate environment, grading-validation, and execution status; link the actual Tasks view and task README, then ask for first-task approval. |
 | `first_eval_prepare_remaining` | Saved approval of the current first-task revision and environment proof. Build the remaining agreed tasks and check reference results and relevant incorrect-result controls. |
 | `first_eval_execution_settings` | Saved design and first-task approval, when actual agent execution or paid grading is being prepared. Display six settings bullets, separately counting distinct examples and repeated attempts, plus relevant run blockers. This display never supplies spending authorization. |

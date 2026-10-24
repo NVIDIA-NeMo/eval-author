@@ -40,6 +40,9 @@ repeat agent, prerequisite, or Ethos onboarding. Real environment verification
 remains required here and is separate from prerequisite confirmation. Save
 workflow stage and pending decisions in shared journey state; the kit documents
 its dependency design and native evidence.
+When called for the first task in a creation flow, carry forward its
+[build-progress checklist](../eval-author/references/conversations/first-eval.md#first-task-build-progress)
+while preparing and proving the environment.
 
 ## Required outputs
 

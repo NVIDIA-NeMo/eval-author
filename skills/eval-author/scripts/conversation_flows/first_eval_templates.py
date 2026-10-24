@@ -53,6 +53,16 @@ GYM_PROGRESS = (
     "I’m preparing the first task’s starting data and checking that its environment works. "
     "Then I’ll add the reference fixtures and native Gym verifier."
 )
+BUILD_HEADING = "**First task: {title}**"
+BUILD_STEPS = {
+    "environment": "Prepare starting data and environment",
+    "environment_check": "Check the environment",
+    "grading": "Add the reference solution and grader",
+    "artifacts": "Prepare README and report",
+}
+GYM_BUILD_GRADING = "Add the reference fixtures and native Gym verifier"
+BUILD_STATUSES = {"complete": "Complete", "in_progress": "In progress", "pending": "Pending", "blocked": "Blocked"}
+BUILD_ROW = "- [{checked}] {label} — {status}"
 FIRST_QUESTION = (
     "Does this represent the behavior you want to test, and would its grading judge the agent fairly? "
     "Approve the first task or tell me what to change before I build the remaining tasks."

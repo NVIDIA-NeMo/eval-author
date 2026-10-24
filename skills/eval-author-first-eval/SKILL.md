@@ -146,6 +146,10 @@ retained tasks and source choices and reviews only affected design changes.
 After design approval, proceed directly to `first_eval_prepare_first`; ask only
 about unresolved environment or design choices needed for this work. No new
 setup-approval stage or execution-settings display precedes authoring.
+Initialize the saved build activity and use the [build-progress contract](../eval-author/references/conversations/first-eval.md#first-task-build-progress)
+for concise renderer checklists throughout authoring, including environment work
+and delegated work. These progress updates continue the build; they are not
+additional approval pauses.
 
 Read the selected [Harbor](references/harbor-first-eval.md) or [native Gym](references/gym-first-eval.md)
 reference. Create exactly the agreed first task directly in its permanent

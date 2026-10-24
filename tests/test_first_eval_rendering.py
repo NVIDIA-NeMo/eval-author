@@ -72,6 +72,8 @@ def creation(monkeypatch, tmp_path):
 
 def observations(record):
     files = {}
+    for receipt in (record.get("first_task_build") or {}).get("receipts", {}).values():
+        files.update({ref["path"]: ref["digest"] for ref in receipt["evidence"]})
     for task in record["tasks"].values():
         for field in ("environment", "validation"):
             files.update({ref["path"]: ref["digest"] for ref in (task.get(field) or {}).get("evidence", [])})
@@ -117,6 +119,24 @@ def saved_design_pending(creation):
         "decision": "pending",
         "request_source": "Fresh user request: build my first evaluations",
         "source": None,
+    }
+
+
+def build_started(creation, *, active="environment", completed=()):
+    state, record, helper, *_ = creation
+    approved(creation)
+    record["first_task_build"] = {
+        "plan_digest": helper.derive(state, observations(record))["plan_digest"],
+        "task_id": record["first_task"],
+        "active_step": active,
+        "source": "Observed first-task preparation",
+        "receipts": {
+            step: {
+                "source": f"Observed {step} result",
+                "evidence": [{"path": f".eval-author/task-measurements/build-{step}.json", "digest": SHA}],
+            }
+            for step in completed
+        },
     }
 
 
@@ -301,7 +321,7 @@ def test_broader_proposal_requires_an_explicit_user_request(creation, broader_sc
         renderer.render(payload(creation, "proposal"))
     record["plan"].pop("breadth_request")
     approved(creation)
-    assert renderer.render(payload(creation, "resume")) == copy.FIRST_PROGRESS + "\n"
+    assert renderer.render(payload(creation, "resume")).startswith(copy.FIRST_PROGRESS + "\n\n**First task:")
     assert helper.derive(state, observations(record))["scope_approved"]
 
 
@@ -365,11 +385,151 @@ def test_saved_design_approval_leads_directly_to_first_authoring(creation):
     with pytest.raises(ValueError, match="first-task approval"):
         renderer.render(payload(creation, "prepare_remaining"))
     approved(creation)
-    assert renderer.render(payload(creation, "resume")) == copy.FIRST_PROGRESS + "\n"
+    assert renderer.render(payload(creation, "resume")).startswith(copy.FIRST_PROGRESS + "\n\n**First task:")
     assert "[reference solution](https://docs.harborframework.com/tasks/solution)" in copy.FIRST_PROGRESS
     assert "[grader](https://docs.harborframework.com/tasks/verifier)" in copy.FIRST_PROGRESS
     with pytest.raises(ValueError, match="Review and approve the first task"):
         renderer.render(payload(creation, "execution_settings"))
+
+
+def test_initial_first_task_message_has_the_fixed_build_checklist(creation):
+    _, _, _, renderer, _ = creation
+    build_started(creation)
+    output = renderer.render(payload(creation, "prepare_first"))
+    assert output == (
+        "I’m preparing the first task’s starting data and checking that its environment works. "
+        "Then I’ll add the [reference solution](https://docs.harborframework.com/tasks/solution) "
+        "and [grader](https://docs.harborframework.com/tasks/verifier).\n\n"
+        "**First task: refund**\n\n"
+        "- [ ] Prepare starting data and environment — In progress\n"
+        "- [ ] Check the environment — Pending\n"
+        "- [ ] Add the reference solution and grader — Pending\n"
+        "- [ ] Prepare README and report — Pending\n"
+    )
+
+
+def test_legacy_first_task_progress_does_not_invent_started_or_completed_work(creation):
+    _, _, _, renderer, _ = creation
+    approved(creation)
+    output = renderer.render(payload(creation, "prepare_first"))
+    assert output.count("— Pending") == 4
+    assert "In progress" not in output and "[x]" not in output
+    with pytest.raises(ValueError, match="Save build progress for the current first task"):
+        renderer.render(payload(creation, "build_progress"))
+
+
+def test_repeated_build_progress_is_only_the_checklist_and_preserves_state(creation, monkeypatch):
+    state, record, _, renderer, copy = creation
+    build_started(creation, active="environment_check", completed=("environment",))
+    request = payload(creation, "build_progress")
+    before = json.dumps(state, sort_keys=True)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Rendering build progress must not inspect files or clocks")
+
+    monkeypatch.setattr(Path, "read_text", forbidden)
+    monkeypatch.setattr(Path, "read_bytes", forbidden)
+    monkeypatch.setattr(importlib.import_module("journey_state"), "now", forbidden)
+    output = renderer.render(request)
+    assert output == (
+        "**First task: refund**\n\n"
+        "- [x] Prepare starting data and environment — Complete\n"
+        "- [ ] Check the environment — In progress\n"
+        "- [ ] Add the reference solution and grader — Pending\n"
+        "- [ ] Prepare README and report — Pending\n"
+    )
+    assert output == renderer.render(request) == renderer.render(payload(creation, "resume"))
+    assert copy.FIRST_PROGRESS not in output and "http" not in output and "report.html" not in output
+    assert json.dumps(state, sort_keys=True) == before
+    assert record["first_task_build"]["active_step"] == "environment_check"
+
+
+def test_stale_build_receipts_reopen_the_affected_checklist_without_false_completion(creation):
+    _, record, _, renderer, _ = creation
+    build_started(creation, active="environment_check", completed=("environment",))
+    request = payload(creation, "build_progress")
+    evidence = record["first_task_build"]["receipts"]["environment"]["evidence"][0]
+    request["facts"]["observations"]["files"][evidence["path"]] = None
+    output = renderer.render(request)
+    assert "[x]" not in output
+    assert "Prepare starting data and environment — Pending" in output
+    assert "Check the environment — Complete" not in output
+
+
+@pytest.mark.parametrize("step_number", range(5))
+def test_build_checklist_transitions_check_only_evidenced_complete_steps(creation, step_number):
+    _, _, _, renderer, copy = creation
+    steps = list(copy.BUILD_STEPS)
+    build_started(
+        creation, active=steps[step_number] if step_number < len(steps) else None, completed=steps[:step_number]
+    )
+    output = renderer.render(payload(creation, "build_progress"))
+    assert output.count("- [x]") == step_number
+    assert output.count("— Complete") == step_number
+    assert output.count("— In progress") == (step_number < len(steps))
+    assert output.count("- [ ]") == len(steps) - step_number
+    if step_number < len(steps):
+        assert copy.BUILD_STEPS[steps[step_number]] + " — In progress" in output
+
+
+@pytest.mark.parametrize("active", ["environment", None])
+def test_current_build_blockers_mark_only_the_active_or_earliest_incomplete_step(creation, active):
+    state, _, _, renderer, _ = creation
+    build_started(creation, active=active)
+    state["blockers"] = [{"id": "container", "phase": "create", "message": "Local container unavailable"}]
+    entries = [
+        {
+            "id": "container",
+            "step": "Check the environment",
+            "reason": "The selected container runtime is unavailable.",
+            "needed": "Start the selected container runtime.",
+        }
+    ]
+    output = renderer.render(payload(creation, "build_progress", blockers=entries))
+    assert output.count("— Blocked") == 1
+    assert "Prepare starting data and environment — Blocked" in output
+    assert "### Blockers" in output and "**Needed:** Start the selected container runtime." in output
+    assert "[x]" not in output
+
+
+def test_run_only_blockers_do_not_interrupt_first_task_progress(creation):
+    state, _, _, renderer, _ = creation
+    build_started(creation)
+    state["blockers"] = [{"id": "credentials", "phase": "create", "message": "No live-run credential"}]
+    output = renderer.render(payload(creation, "build_progress"))
+    assert "Prepare starting data and environment — In progress" in output
+    assert "Blocked" not in output and "### Blockers" not in output
+
+
+def test_build_progress_requires_approved_current_task_and_cannot_override_progress(creation):
+    _, record, _, renderer, _ = creation
+    with pytest.raises(ValueError, match="scope approval"):
+        renderer.render(payload(creation, "build_progress"))
+    build_started(creation)
+    record["first_task_build"]["task_id"] = "reject"
+    with pytest.raises(ValueError, match="current first task"):
+        renderer.render(payload(creation, "build_progress"))
+    record["first_task_build"]["task_id"] = "refund"
+    with pytest.raises(ValueError, match="creation facts"):
+        renderer.render(payload(creation, "build_progress", first_task_build={"complete": True}))
+
+
+def test_first_task_review_waits_for_the_saved_build_checklist(creation):
+    _, _, _, renderer, copy = creation
+    built(creation)
+    build_started(creation, active="artifacts", completed=("environment", "environment_check", "grading"))
+    facts = {
+        "links": links(creation),
+        "input": "Refund request",
+        "expected_result": "Refund allowed",
+        "grading": "Inspect state",
+        "grading_limitation": "Other regions untested",
+    }
+    with pytest.raises(ValueError, match="Complete the current first-task build checklist"):
+        renderer.render(payload(creation, "review_first", **facts))
+    assert "Prepare README and report — In progress" in renderer.render(payload(creation, "resume"))
+    build_started(creation, active=None, completed=("environment", "environment_check", "grading", "artifacts"))
+    assert copy.FIRST_QUESTION in renderer.render(payload(creation, "resume", **facts))
 
 
 def test_saved_design_overview_is_a_deterministic_decision_before_resume(creation):
@@ -404,6 +564,7 @@ def test_saved_design_overview_is_a_deterministic_decision_before_resume(creatio
         "traces",
         "proposal",
         "prepare_first",
+        "build_progress",
         "review_first",
         "prepare_remaining",
         "execution_settings",
@@ -480,8 +641,9 @@ def test_explicit_continue_reuses_approval_without_reasking_on_every_resume(crea
     approved(creation)
     saved_design_pending(creation)
     record["saved_design_review"].update(decision="continue", source="User reply: continue the saved design")
-    assert renderer.render(payload(creation, "resume")) == copy.FIRST_PROGRESS + "\n"
-    assert renderer.render(payload(creation, "resume")) == copy.FIRST_PROGRESS + "\n"
+    output = renderer.render(payload(creation, "resume"))
+    assert output.startswith(copy.FIRST_PROGRESS + "\n\n**First task:")
+    assert output == renderer.render(payload(creation, "resume"))
 
 
 def test_saved_design_changes_before_the_answer_explain_old_approval(creation):
@@ -579,7 +741,7 @@ def test_blockers_are_saved_and_only_interrupt_dependent_steps(creation):
     state, _, _, renderer, copy = creation
     state["blockers"] = [{"id": "credentials", "phase": "create", "message": "Missing credential"}]
     approved(creation)
-    assert renderer.render(payload(creation, "resume")) == copy.FIRST_PROGRESS + "\n"
+    assert renderer.render(payload(creation, "resume")).startswith(copy.FIRST_PROGRESS + "\n\n**First task:")
     built(creation, all_tasks=True, reviewed=True, validated=True)
     with pytest.raises(ValueError, match="Saved blockers"):
         renderer.render(payload(creation, "execution_settings"))
@@ -674,7 +836,10 @@ def test_native_gym_author_progress_and_rows_are_retained(creation):
     state, record, _, renderer, copy = creation
     state["setup"] = record["provider"] = "gym"
     approved(creation)
-    assert renderer.render(payload(creation, "resume")) == copy.GYM_PROGRESS + "\n"
+    output = renderer.render(payload(creation, "resume"))
+    assert output.startswith(copy.GYM_PROGRESS + "\n\n**First task:")
+    assert "Add the reference fixtures and native Gym verifier — Pending" in output
+    assert "Add the reference solution and grader — Pending" not in output
     assert "native Gym verifier" in copy.GYM_PROGRESS and "harborframework" not in copy.GYM_PROGRESS
 
 

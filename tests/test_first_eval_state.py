@@ -225,6 +225,202 @@ def complete(modules, repo, provider="harbor", examples=None, repeats=1):
     return value
 
 
+def start_build(modules, repo, value):
+    value["first_task_build"] = {
+        "plan_digest": facts(modules, repo)["plan_digest"],
+        "task_id": value["first_task"],
+        "active_step": "environment",
+        "source": "Started the first task environment",
+        "receipts": {},
+    }
+    return save(modules, repo, value)
+
+
+def finish_build_step(modules, repo, value, step):
+    steps = modules[1].BUILD_STEPS
+    build = value["first_task_build"]
+    build["receipts"][step] = {
+        "source": f"Inspected completed {step} work",
+        "evidence": [evidence(repo, f".eval-author/.working/build-{step}.txt", f"Completed {step}")],
+    }
+    build["source"] = f"Finished {step} and started the next step"
+    build["active_step"] = steps[steps.index(step) + 1] if step != steps[-1] else None
+    return save(modules, repo, value)
+
+
+def test_first_task_build_progress_is_optional_and_starting_does_not_complete_work(modules, tmp_path):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    before = facts(modules, tmp_path)
+    assert before["first_task_build"] == {
+        "current": False,
+        "steps": dict.fromkeys(modules[1].BUILD_STEPS, "pending"),
+        "complete": False,
+    }
+    assert before["next_stage"] == "prepare_first"
+    start_build(modules, tmp_path, value)
+    progress = facts(modules, tmp_path)
+    assert progress["next_stage"] == "build_progress"
+    assert progress["first_task_build"]["steps"] == {
+        "environment": "in_progress",
+        "environment_check": "pending",
+        "grading": "pending",
+        "artifacts": "pending",
+    }
+    assert not progress["first_task_build"]["complete"]
+    saved = modules[0].load_state(tmp_path)
+    original = copy.deepcopy(saved)
+    assert modules[1].derive(saved, modules[1].observe(tmp_path, saved)) == progress
+    assert saved == original
+
+
+def test_first_task_build_checkpoints_progress_without_granting_other_claims(modules, tmp_path):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    start_build(modules, tmp_path, value)
+    for index, step in enumerate(modules[1].BUILD_STEPS):
+        finish_build_step(modules, tmp_path, value, step)
+        progress = facts(modules, tmp_path)
+        assert all(
+            progress["first_task_build"]["steps"][prior] == "complete" for prior in modules[1].BUILD_STEPS[: index + 1]
+        )
+        assert not progress["tasks"]["refund"]["environment_proven"]
+        assert not progress["tasks"]["refund"]["validated"]
+        assert not progress["first_task_approved"]
+        assert not progress["execution_authorized"]
+        assert not progress["complete"]
+    assert progress["first_task_build"]["complete"]
+    assert progress["next_stage"] == "prepare_first"
+    assert value["first_task_build"]["active_step"] is None
+    assert modules[0].load_state(tmp_path)["scopes"]["create"]["first_eval"]["history"]
+
+
+def test_first_task_build_retains_scoped_evidence_when_grader_changes(modules, tmp_path):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    start_build(modules, tmp_path, value)
+    finish_build_step(modules, tmp_path, value, "environment")
+    finish_build_step(modules, tmp_path, value, "environment_check")
+    author(modules, tmp_path, value, "refund")
+    evidence(tmp_path, ".eval-author/tasks/refund/verifier.py", "new grader")
+    progress = facts(modules, tmp_path)
+    assert progress["first_task_build"]["steps"]["environment_check"] == "complete"
+    assert not progress["tasks"]["refund"]["created"]
+    assert progress["next_stage"] == "build_progress"
+
+
+def test_changed_or_missing_build_evidence_reopens_affected_and_later_steps(modules, tmp_path):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    start_build(modules, tmp_path, value)
+    for step in modules[1].BUILD_STEPS:
+        finish_build_step(modules, tmp_path, value, step)
+    (tmp_path / ".eval-author/.working/build-grading.txt").unlink()
+    progress = facts(modules, tmp_path)
+    assert progress["first_task_build"]["steps"] == {
+        "environment": "complete",
+        "environment_check": "complete",
+        "grading": "pending",
+        "artifacts": "pending",
+    }
+    assert progress["next_stage"] == "build_progress"
+    (tmp_path / ".eval-author/.working/build-environment.txt").write_text("changed starting data")
+    assert set(facts(modules, tmp_path)["first_task_build"]["steps"].values()) == {"pending"}
+
+
+def test_replacing_earlier_build_receipt_requires_rebuilding_dependent_checkpoints(modules, tmp_path):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    start_build(modules, tmp_path, value)
+    for step in modules[1].BUILD_STEPS:
+        finish_build_step(modules, tmp_path, value, step)
+    build = value["first_task_build"]
+    build["receipts"]["environment"]["evidence"] = [
+        evidence(tmp_path, ".eval-author/.working/repaired-environment.txt", "repaired starting data")
+    ]
+    with pytest.raises(ValueError, match="Reopen later first-task build steps"):
+        save(modules, tmp_path, value)
+    build["receipts"] = {"environment": build["receipts"]["environment"]}
+    build["active_step"] = "environment_check"
+    save(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["first_task_build"]["steps"] == {
+        "environment": "complete",
+        "environment_check": "in_progress",
+        "grading": "pending",
+        "artifacts": "pending",
+    }
+
+
+@pytest.mark.parametrize("change", ["plan", "first_task"])
+def test_stale_build_design_cannot_reuse_receipts_or_skip_to_old_review(modules, tmp_path, change):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    start_build(modules, tmp_path, value)
+    for step in modules[1].BUILD_STEPS:
+        finish_build_step(modules, tmp_path, value, step)
+    author(modules, tmp_path, value, "refund")
+    check(modules, tmp_path, value, "refund", "environment")
+    if change == "plan":
+        value["plan"]["presentation"]["coverage_note"] = "Changed intended coverage"
+    else:
+        value["first_task"] = "policy"
+    save(modules, tmp_path, value)
+    approve(modules, tmp_path, value)
+    progress = facts(modules, tmp_path)
+    assert not progress["first_task_build"]["current"]
+    assert set(progress["first_task_build"]["steps"].values()) == {"pending"}
+    assert progress["next_stage"] == "prepare_first"
+    value["first_task_build"]["plan_digest"] = progress["plan_digest"]
+    value["first_task_build"]["task_id"] = value["first_task"]
+    with pytest.raises(ValueError, match="Reopen first-task build receipts"):
+        save(modules, tmp_path, value)
+    start_build(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["first_task_build"]["steps"]["environment"] == "in_progress"
+
+
+def test_build_receipts_require_saved_approval_and_earlier_saved_checkpoints(modules, tmp_path):
+    value = start(modules, tmp_path)
+    with pytest.raises(ValueError, match="Save task-design approval"):
+        start_build(modules, tmp_path, value)
+    value.pop("first_task_build")
+    approve(modules, tmp_path, value)
+    start_build(modules, tmp_path, value)
+    with pytest.raises(ValueError, match="earlier first-task build steps"):
+        finish_build_step(modules, tmp_path, value, "environment_check")
+    value["first_task_build"]["receipts"]["environment"] = {
+        "source": "Completed environment in the same unsaved update",
+        "evidence": [evidence(tmp_path, ".eval-author/.working/environment.txt")],
+    }
+    with pytest.raises(ValueError, match="earlier first-task build steps"):
+        save(modules, tmp_path, value)
+    value["first_task_build"]["receipts"] = {}
+    value["first_task_build"]["active_step"] = "grading"
+    with pytest.raises(ValueError, match="earliest incomplete"):
+        save(modules, tmp_path, value)
+
+
+def test_failed_checks_do_not_complete_build_and_later_report_refresh_preserves_approved_stage(modules, tmp_path):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    start_build(modules, tmp_path, value)
+    author(modules, tmp_path, value, "refund")
+    check(modules, tmp_path, value, "refund", "environment")
+    value["tasks"]["refund"]["environment"]["status"] = "failed"
+    save(modules, tmp_path, value)
+    assert not facts(modules, tmp_path)["tasks"]["refund"]["environment_proven"]
+    assert not facts(modules, tmp_path)["first_task_build"]["complete"]
+    for step in modules[1].BUILD_STEPS:
+        finish_build_step(modules, tmp_path, value, step)
+    check(modules, tmp_path, value, "refund", "environment")
+    assert facts(modules, tmp_path)["next_stage"] == "review_first"
+    review_first(modules, tmp_path, value)
+    (tmp_path / ".eval-author/.working/build-artifacts.txt").write_text("refreshed report for later work")
+    progress = facts(modules, tmp_path)
+    assert not progress["first_task_build"]["complete"]
+    assert progress["first_task_approved"]
+    assert progress["next_stage"] == "prepare_remaining"
+
+
 @pytest.mark.parametrize("choice", ["none", {"paths": ["selected-run.json"], "exclusions": ["all other runs"]}])
 def test_interrupted_source_selection_resumes_before_proposal_approval(modules, tmp_path, choice):
     value = start(modules, tmp_path)

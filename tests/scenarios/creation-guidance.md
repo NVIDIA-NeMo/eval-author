@@ -124,6 +124,17 @@ exactly one permanent `.eval-author/tasks/<slug>/` directory and record Draft.
 Prove its environment before writing its reference solution or grader. Retain
 construction declarations, source provenance, and native smoke evidence.
 
+**Build-progress variant:** Inspect commentary during a slow environment build
+and smoke check. The initial provider explanation includes the renderer's compact
+build checklist; subsequent snapshots keep the same four rows and short statuses
+without paragraphs of implementation deliberation. Completed preparation remains
+visible while checks run. A failed smoke check leaves environment checking
+unfinished, with **Blockers** only when dependent work is blocked. Missing
+run-only credentials do not mark the build blocked. Interrupt and resume:
+completed checkpoints survive, missing or changed evidence reopens affected
+rows, and adding the grader does not erase completed environment preparation.
+No build receipt establishes formal grading validation or agent execution.
+
 **Inspect:** Generate HTML and Markdown review artifacts before
 `first_eval_review_first`. Link the actual Tasks view and task README, with input,
 expected result, grading, a meaningful limitation, and distinct environment,

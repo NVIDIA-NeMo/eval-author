@@ -13,6 +13,8 @@ from collections import Counter
 from copy import deepcopy
 from pathlib import PurePosixPath
 
+BUILD_STEPS = ("environment", "environment_check", "grading", "artifacts")
+
 
 def fingerprint(value: object) -> str:
     return hashlib.sha256(
@@ -122,6 +124,28 @@ def validate(value: dict) -> None:
                     raise ValueError("Pending saved-design review cannot imply a user answer")
             else:
                 _text(saved_review["source"])
+        build = value.get("first_task_build")
+        if build is not None:
+            if not isinstance(build, dict) or set(build) != {
+                "plan_digest",
+                "task_id",
+                "active_step",
+                "source",
+                "receipts",
+            }:
+                raise ValueError("First-task build progress requires its design, activity, and retained receipts")
+            _digest(build["plan_digest"])
+            _text(build["task_id"])
+            _text(build["source"])
+            if build["active_step"] is not None and build["active_step"] not in BUILD_STEPS:
+                raise ValueError("Unknown first-task build step")
+            if not isinstance(build["receipts"], dict) or set(build["receipts"]) - set(BUILD_STEPS):
+                raise ValueError("First-task build receipts require fixed step identities")
+            for receipt in build["receipts"].values():
+                if not isinstance(receipt, dict) or set(receipt) != {"source", "evidence"}:
+                    raise ValueError("First-task build receipts require provenance and retained evidence")
+                _text(receipt["source"])
+                _evidence(receipt["evidence"])
         for key, task in value["tasks"].items():
             _text(key)
             _path(task["path"])
@@ -234,6 +258,8 @@ def validate(value: dict) -> None:
 
 def _sources(value: dict) -> tuple[dict, set]:
     tasks, files = {}, set()
+    for receipt in (value.get("first_task_build") or {}).get("receipts", {}).values():
+        files.update(ref["path"] for ref in receipt["evidence"])
     for task_id, task in value["tasks"].items():
         tasks[task_id] = task["path"]
         for field in ("environment", "validation"):
@@ -279,6 +305,27 @@ def execution_settings(value: dict) -> dict:
     return value.get("execution_settings", value["plan"].get("presentation", {}))
 
 
+def _build_progress(value: dict, observed: dict, plan_digest: str) -> dict:
+    build = value.get("first_task_build")
+    current = bool(build and build["plan_digest"] == plan_digest and build["task_id"] == value["first_task"])
+    steps = dict.fromkeys(BUILD_STEPS, "pending")
+    if current:
+        prior_complete = True
+        for step in BUILD_STEPS:
+            receipt = build["receipts"].get(step)
+            completed = bool(
+                prior_complete
+                and receipt
+                and all(observed["files"].get(ref["path"]) == ref["digest"] for ref in receipt["evidence"])
+            )
+            if completed:
+                steps[step] = "complete"
+            elif prior_complete and build["active_step"] == step:
+                steps[step] = "in_progress"
+            prior_complete = completed
+    return {"current": current, "steps": steps, "complete": all(status == "complete" for status in steps.values())}
+
+
 def derive(state: dict, observed: object) -> dict | None:
     """Pure applicability: byte observations never supply approval or native result claims."""
     value = record(state)
@@ -301,6 +348,7 @@ def derive(state: dict, observed: object) -> dict | None:
 
     planned = {task["id"]: task["example_ids"] for task in value["plan"]["tasks"]}
     plan_digest = fingerprint({key: value[key] for key in ("plan", "first_task", "provider", "ethos_digest")})
+    build = _build_progress(value, observed, plan_digest)
     saved_review = value.get("saved_design_review")
     saved_review_needed = bool(saved_review and saved_review["decision"] == "pending")
     approved = bool(
@@ -505,6 +553,10 @@ def derive(state: dict, observed: object) -> dict | None:
         else "proposal"
         if not approved
         else "prepare_first"
+        if value.get("first_task_build") and not first_approved and not build["current"]
+        else "build_progress"
+        if value.get("first_task_build") and not first_approved and not build["complete"]
+        else "prepare_first"
         if not first["created"] or not first["environment_proven"]
         else "review_first"
         if not first_approved
@@ -521,6 +573,7 @@ def derive(state: dict, observed: object) -> dict | None:
         "plan_approved": approved,
         "plan_digest": plan_digest,
         "saved_design_review_needed": saved_review_needed,
+        "first_task_build": build,
         "settings_digest": settings_digest,
         "execution_settings_presented": settings_shown,
         "execution_settings_resolved": settings_resolved,
@@ -595,6 +648,40 @@ def transition(repo, previous: dict, updated: dict) -> None:
     old = progress(repo, previous) if before else None
     now = progress(repo, updated)
     assert now is not None
+    build = after.get("first_task_build")
+    prior_build = (before or {}).get("first_task_build")
+    if prior_build is not None and build is None:
+        raise ValueError("Retain first-task build progress and its evidence")
+    if build != prior_build:
+        assert build is not None
+        if not (old and old["scope_approved"] and now["scope_approved"]):
+            raise ValueError("Save task-design approval before recording first-task build progress")
+        if not now["first_task_build"]["current"]:
+            raise ValueError("Bind first-task build progress to the current design and first task")
+        if (
+            prior_build
+            and any(build[key] != prior_build[key] for key in ("plan_digest", "task_id"))
+            and build["receipts"]
+        ):
+            raise ValueError("Reopen first-task build receipts when binding a changed design or first task")
+        for index, step in enumerate(BUILD_STEPS):
+            receipt = build["receipts"].get(step)
+            prior_receipt = (prior_build or {}).get("receipts", {}).get(step)
+            if receipt != prior_receipt and prior_receipt:
+                if any(later in build["receipts"] for later in BUILD_STEPS[index + 1 :]):
+                    raise ValueError("Reopen later first-task build steps when replacing earlier evidence")
+            if receipt != prior_receipt and receipt:
+                if any(
+                    old["first_task_build"]["steps"][prior] != "complete"
+                    or now["first_task_build"]["steps"][prior] != "complete"
+                    for prior in BUILD_STEPS[:index]
+                ):
+                    raise ValueError("Save completed earlier first-task build steps before recording later receipts")
+                if now["first_task_build"]["steps"][step] != "complete":
+                    raise ValueError("Save current artifact evidence for a completed first-task build step")
+        active = build["active_step"]
+        if active is not None and now["first_task_build"]["steps"][active] != "in_progress":
+            raise ValueError("Only the earliest incomplete first-task build step may be active")
     if before and "execution_settings" in before and "execution_settings" not in after:
         raise ValueError("Retain adopted execution settings; revise them instead of removing them")
     if before != after and updated["ethos"]["stage"] != "complete":

@@ -26,6 +26,7 @@ STAGES = {
         "proposal",
         "execution_settings",
         "prepare_first",
+        "build_progress",
         "review_first",
         "prepare_remaining",
         "ready_to_run",
@@ -246,10 +247,41 @@ def execution_settings(record: dict) -> str:
     return "\n\n".join([copy.SETTINGS_INTRO, bullets, copy.SETTINGS_NOTICE])
 
 
+def build_checklist(record: dict, progress: dict, facts: dict) -> str:
+    build = progress["first_task_build"]
+    steps = build["steps"]
+    first = next(task for task in record["plan"]["tasks"] if task["id"] == record["first_task"])
+    blocked = None
+    if facts.get("blockers"):
+        blocked = next((step for step in copy.BUILD_STEPS if steps[step] == "in_progress"), None)
+        blocked = blocked or next((step for step in copy.BUILD_STEPS if steps[step] != "complete"), None)
+    rows = []
+    for key, label in copy.BUILD_STEPS.items():
+        status = "blocked" if key == blocked else steps[key]
+        if key == "grading" and record["provider"] == "gym":
+            label = copy.GYM_BUILD_GRADING
+        rows.append(
+            copy.BUILD_ROW.format(
+                checked="x" if status == "complete" else " ", label=label, status=copy.BUILD_STATUSES[status]
+            )
+        )
+    return (
+        copy.BUILD_HEADING.format(title=literal(first.get("title") or first["id"], "first task title"))
+        + "\n\n"
+        + "\n".join(rows)
+    )
+
+
 def first_review(record: dict, progress: dict, facts: dict) -> str:
     status = progress["tasks"][record["first_task"]]
     if not progress["scope_approved"] or not status["created"] or not status["environment_proven"]:
         raise ValueError("First-task review requires saved scope approval, current task files, and environment proof")
+    if (
+        record.get("first_task_build")
+        and not progress["first_task_approved"]
+        and not (progress["first_task_build"]["current"] and progress["first_task_build"]["complete"])
+    ):
+        raise ValueError("Complete the current first-task build checklist before requesting first-task review")
     values = {
         key: literal(facts.get(key), key) for key in ("input", "expected_result", "grading", "grading_limitation")
     }
@@ -505,6 +537,13 @@ def render(payload: dict) -> str:
             if not progress["scope_approved"]:
                 raise ValueError("Save scope approval before preparing the first task")
             result = copy.FIRST_PROGRESS if record["provider"] == "harbor" else copy.GYM_PROGRESS
+            result += "\n\n" + build_checklist(record, progress, facts)
+        elif stage == "build_progress":
+            if not progress["scope_approved"]:
+                raise ValueError("Save scope approval before reporting first-task build progress")
+            if not record.get("first_task_build") or not progress["first_task_build"]["current"]:
+                raise ValueError("Save build progress for the current first task and approved design")
+            result = build_checklist(record, progress, facts)
         elif stage == "review_first":
             result = first_review(record, progress, facts)
         elif stage == "prepare_remaining":

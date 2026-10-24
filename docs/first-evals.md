@@ -30,7 +30,9 @@ you can request broader scope. Eval Author waits for your source choice and
 then your proposal approval before starting task construction.
 
 After design approval, Eval Author builds one task and presents its README and
-report for review. The review distinguishes whether its environment works,
+report for review. A compact build checklist shows completed, active, pending,
+and blocked steps while the task is being prepared. The review distinguishes
+whether its environment works,
 whether grading has been validated, and whether your actual agent has run.
 You can request revisions to that task before the remaining tasks are created.
 
