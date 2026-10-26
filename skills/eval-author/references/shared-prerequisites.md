@@ -3,16 +3,18 @@
 
 # Shared prerequisites and Ethos
 
-The core owns orientation and goal selection. This procedure owns the common
-entry for creating, auditing, and improving evals, including direct skill calls.
+The core owns orientation and goal selection. This is the canonical operational
+procedure after readiness for creating, auditing, and improving evals, including
+direct skill calls. The [onboarding rendering contract](conversations/onboarding.md)
+defines stage inputs and outputs; it does not duplicate this sequence.
 It supports NeMo Gym and Harbor through the same flow. Scoped operations retain their
 existing input requirements and do not acquire a full onboarding checklist.
-For a new flow, begin this procedure only after the selected goal's three-item
-checklist and **Ready to get started?** have been shown and the user replies to
-that call to action. If the goal was initially unclear, the goal-choice reply
-triggers the selected goal's introductory sentence, checklist, and call to action,
-not this procedure. Do not load
-repository context or save state in preparation for either orientation turn.
+For a new flow, begin this procedure only after the selected goal's rendered
+checklist and readiness question have been shown and the user replies to that
+question. A goal-choice reply triggers `goal_selected`, not this procedure.
+Do not load repository context or save state in preparation for either
+orientation turn. The [onboarding renderer](conversations/onboarding.md#orientation-and-prerequisite-entry) has a
+narrow no-input command exception for those turns; other helpers remain deferred.
 
 ## Check the agent and setup
 
@@ -21,31 +23,39 @@ After the user continues, load only the selected goal's prerequisite reference:
 | Goal | Prerequisite table and flow-specific checks |
 |---|---|
 | Create first evaluations | [Creation prerequisites](pre-reqs/create.md) |
-| Audit existing coverage | [Audit prerequisites](pre-reqs/audit.md) |
+| Audit coverage, gaps, and improvement opportunities | [Audit prerequisites](pre-reqs/audit.md) |
 | Improve existing evaluations | [Improvement prerequisites](pre-reqs/improve.md) |
 
-Show this introduction and the selected reference's table
-before repository inspection or commands. Send it as a visible progress message,
-then perform the checks in the same turn; do not stop for an answer or ask the
-user to attest to installed software.
+After the actual readiness reply, render `prerequisites` with its canonical
+grounding sentence above the initial status table before inspecting the
+repository or saved state. Reuse facts already in
+conversation; do not perform reads or probes to populate the preview. Supply
+known findings through the [preview contract](conversations/onboarding.md#orientation-and-prerequisite-entry),
+leaving unchecked items at their canonical initial statuses. Add no separate
+preamble, skill-use announcement, or prose checking notice.
+This applies to skill-generated messages; mandatory host or tool UI instructions
+remain outside the rendered-output contract. Do not add a notice merely to
+satisfy a local skill convention.
 
-I’ll check the prerequisites below, then explain anything that’s missing or unclear.
+Then complete bounded checks in the same turn. Finish accessible checks before
+asking about unresolved items; do not ask the user to attest to software that
+can be inspected. The renderer owns both tables' column headings, row labels,
+and row order for NeMo Gym and Harbor; never add, rename, reorder, or omit rows.
+Keep completed findings for the final reply, following the procedure below.
+Do not publish an intermediate completed report before Ethos inspection.
 
-Use the selected reference's table for both NeMo Gym and Harbor. Copy the introduction, column
-headings, row labels, and row order exactly for the selected goal. Change only the
-status and findings cells. Keep every row, including those marked **Not needed
-now**; do not add, rename, reorder, or omit rows from the selected template.
-Update the cells as evidence becomes available and repeat the table with results
-in the final reply so it remains visible alongside questions.
-On resume, reuse findings already in context; show the table before loading saved
-state with `--state-only`, then update it from applicable records. Use that mode
-for every prerequisite `init`, `show`, and `update`, including pending-review
-bookkeeping. Saved Ethos metadata is history, not proof a document exists,
-validates, or remains current. Defer target Ethos discovery, reads, validation,
-and preflight until the [visible prerequisite transition](#present-results-and-the-next-step).
+Use `--state-only` for every prerequisite `init`, `show`, and `update`, including
+pending-review bookkeeping. On resume, load saved metadata only after the initial
+status table, then continue the remaining checks from applicable records.
+If a state operation fails, follow [state-failure handling](#when-prerequisite-state-is-unavailable).
+
+Saved Ethos metadata is history, not proof a document exists, validates, or
+remains current. Defer target Ethos discovery, reads, validation, draft recovery,
+and preflight until the [prerequisite pass is complete and saved](#present-results-and-the-next-step).
 Apply this order to fresh flows, prerequisite resumes, goal switches, and direct
-flow calls; scoped utilities retain their existing boundaries. Do not keep a
-second progress record. Recheck affected facts when the environment changes.
+flow calls; scoped utilities retain their existing boundaries. Later `resume`
+responses use normal reconciled state without repeating orientation. Keep no
+second progress record or saved checklist; recheck affected environment facts.
 
 Follow the selected reference's checks and blocking conditions, using the common
 checks below. Creation and improvement also use the shared authoring checks;
@@ -54,7 +64,7 @@ audit uses its own tooling checks instead.
 ### Common checks
 
 Read the repository's supplied agent files and documentation with bounded reads,
-excluding the target `ETHOS.md` until the prerequisite transition below.
+excluding the target `ETHOS.md` until the prerequisite pass is complete and saved.
 Reuse known identity, repository paths, runtime choice, and answers. When naming
 the agent or setup, make its basis clear: the user's request, repository documentation,
 the existing suite, or a previously confirmed answer. Describe inferred identity
@@ -171,85 +181,96 @@ dependencies; do not present them as Recommendations.
 
 ## Present results and the next step
 
-Finish every applicable prerequisite check and save its findings with
-`--state-only` before this transition. Once required blockers are resolved, save
-the pending Ethos action using supplied context or saved metadata only; mark any
-required existing-document review pending without checking the file.
+If state initialization, reading, or saving failed, follow
+[state-failure handling](#when-prerequisite-state-is-unavailable). The normal
+saved-state procedure below applies only when those operations succeed.
 
-Visibly present the completed results table and applicable sections below through
-the Next Steps checklist before the first target Ethos search, read, validation,
-or orchestrator preflight. Use a progress message for this transition, then
-continue Ethos in the same turn without a new approval pause. The final reply
-repeats the required results table and checklist alongside the Ethos outcome or
-question.
+Finish every applicable prerequisite check and save its findings through
+`journey_state.py --state-only` before target Ethos inspection. Once required blockers are
+resolved, save the pending Ethos action using supplied context or saved metadata
+only; mark any required existing-document review pending without checking the
+file. Load a fresh state-only snapshot to establish the completed pass.
 
-After the results table, use the following template in order, with these exact
-headings and introductory sentences. Replace the bracketed content with findings
-or the next action; do not display the placeholders.
+If blocked, pass its state, exact revision, and bounded prerequisite findings to
+[`prerequisite_results`](conversations/onboarding.md#stateful-responses), then emit
+the rendering directly as the final response once: the canonical grounding
+sentence, completed table, optional Recommendations, and Blockers. Do not first
+show the same report in progress or inspect target Ethos artifacts. Canonical
+blockers retain their own prerequisite question and linked pause attribution.
 
-- When offering optional suggestions, render `### Recommendations` and its
-  introductory sentence from the template. Put suggestions such as Harbor
-  assistant skills under that heading
-- Include **Blockers** when creation or improvement lacks an available supported
-  runtime or Python environment, an improvement's supported format is unresolved,
-  an audit's required trace availability is unknown or missing, or another
-  unresolved issue prevents the next Ethos action; explain
-  the affected action and the answer or change needed, with relevant documentation
-- If **Blockers** is present, end with the required action or focused question
-  in that section; omit Next Steps, the checklist, and all Ethos guidance
-- When no Blockers remain, render `### Next Steps` after the table and any
-  Recommendations, immediately before the shared three-item checklist. Keep this
-  heading when resuming saved progress or reviewing an existing Ethos
-- Copy the checklist wording, Ethos link, and selected goal's third item from the
-  core; derive checkmarks and the current-step marker from shared state, and do
-  not repeat the checklist before the table
-- After the unblocked transition is visible, continue through `ethos-orchestrate`;
-  keep its explanation and question below the checklist in the final reply,
-  without a separate Ethos heading
+If unblocked, continue Ethos in the same turn without an intermediate completed
+report or a new approval pause. The completed, saved state-only pass is required
+before the first target Ethos search, read, validation, draft recovery, or
+orchestrator preflight; a visible completed report is not required at that point.
+Use normal state reads to reconcile artifacts before each call through the
+[Ethos adapter](ethos-confirmation.md). Save returned Ethos findings and
+the pending question, then reload normal state and render `results` in the final
+reply. Supply the completed prerequisite findings, optional Recommendations,
+and applicable Ethos, draft, question, and blocker facts. The final owns the
+canonical grounding sentence, completed table, Next Steps, one state-derived
+checklist, and the inspected Ethos action.
 
-```markdown
-### Recommendations
+Each prerequisite turn shows an initial status table and one completed table in
+the final reply. An unblocked final includes one checklist; a blocked final
+includes no checklist. Do not add a third table or repeat the completed report in
+progress. Subsequent actions can use `ethos` or `resume` when no new prerequisite
+pass is needed.
 
-These suggestions are optional and are not required to continue.
+### When prerequisite state is unavailable
 
-- [Suggestion, benefit, and relevant link]
+If a prerequisite `init`, `show`, or `update` fails, finish independently
+accessible prerequisite checks and render
+[`prerequisite_failure`](conversations/onboarding.md#when-state-is-unavailable)
+directly as the final reply through stdin, without creating a payload file.
+Preserve existing state; do not fabricate a snapshot, reset it, or claim the
+failed operation succeeded. Keep the observed findings in the current
+conversation and present the renderer's notice that they cannot be resumed in
+a fresh chat until saved. Stop before target Ethos inspection and downstream
+work. After resolving the state problem, reload any existing state, recheck
+affected facts, and save the prerequisite pass before using normal responses.
 
-### Blockers
+### Findings and the Ethos action
 
-These items need to be resolved before we can continue.
+- Recommendations are optional suggestions with their benefit and relevant
+  link; they never prevent continuing.
+- Blockers describe the affected step, reason, and needed action or answer.
+  Save each blocker in the phase of the work it actually prevents. Supply the
+  renderer only the IDs active under its
+  [blocker selection rules](conversations/onboarding.md#blockers); deferred
+  execution requirements remain findings and retained records. Canonical audit
+  trace and expansion-format blockers require the exact loaded `skill_link`
+  instead of custom wording. Their renderer-owned paragraph supplies the required
+  skill-pause attribution; do not append another explanation. Any active saved
+  blocker suppresses Next Steps, the checklist, Ethos guidance, and the
+  continuation question. Present the whole blocked rendering unchanged.
+- When no blocker remains, the final `results` rendering owns Next Steps,
+  checkmarks, current position, and the canonical Ethos action, without a
+  separate Ethos heading.
 
-- [Blocked action, reason, and the action or answer needed]
+Creation and improvement require their selected supported runtime and Python
+environment before continuing shared onboarding. Supported improvement format
+and audit trace availability are also prerequisites. Agent connection and
+credentials remain requirements for later actual-agent runs. Missing Ethos
+skills can block the next action; missing `ETHOS.md` alone does not, because the
+Ethos skills can create it.
 
-[Focused question needed to resolve a blocker; end the blocked response here]
-
-### Next Steps
-
-[Shared three-item checklist from the core, with saved progress]
-
-[Ethos explanation and next action]
-```
-
-Omit empty Recommendations and Blockers sections. Creation and improvement require
-their selected runtime before continuing shared onboarding; agent connection and
-credentials remain requirements for later actual-agent runs. Supported improvement
-format and audit trace availability are also prerequisites for continuing shared
-onboarding.
-Missing Ethos skills can block this step; missing `ETHOS.md` alone does not,
-because the Ethos skills can create it.
-For an existing document, use the complete **Next Steps** section from the
-[existing Ethos review](ethos-confirmation.md#review-an-existing-document), including
-its heading and checklist once. For a missing document, explain that `ETHOS.md` records what
-the agent should do, what it should avoid, and what a good result looks like, then
-present the orchestrator's next question. If blocked, preserve progress
-without displaying the checklist or starting dependent Ethos work.
+For an existing document, first save the pending review described by
+[existing Ethos review](ethos-confirmation.md#review-an-existing-document) using
+state-only metadata. After the prerequisite pass is complete and saved and the document is inspected, supply
+its real link and a grounded summary as `facts.ethos` with status `existing`. For a missing document, use status `absent` and supply the
+orchestrator's current question. Use `unknown` when presence is unresolved.
+Keep explanations grounded in the supplied findings. The renderer produces the
+canonical explanation or review question; it cannot start an interview or
+establish approval. If blocked, preserve progress without starting dependent
+Ethos work.
 
 ## Confirm Ethos
 
-After the visible prerequisite transition, invoke
+After completing and saving the unblocked prerequisite pass, invoke
 [Ethos confirmation](ethos-confirmation.md) for repository-root `ETHOS.md`.
 Reuse content and prior answers, but have the user confirm an existing document
 is the right one and still accurate, even when saved state records an earlier
-confirmation. Before the transition checklist, use `--state-only update` to mark
+confirmation. Before target-artifact inspection, use `--state-only update` to mark
 a required review pending from supplied context or saved metadata, as described
 in the adapter; this does not require locating or reading the document. Keep
 Ethos unchecked until its required review is complete.
@@ -261,35 +282,24 @@ document before its content is confirmed.
 ## Pause after Ethos confirmation
 
 After the saved `ETHOS.md` has been validated and its content reviewed and
-confirmed, link the file and briefly report that result. A draft approval or file
-write alone does not complete this step. If an issue blocks the selected next
-step, show **Blockers** with “These items prevent us from continuing with your
-evaluations.” and omit Next Steps, the checklist, and readiness language.
+confirmed, persist completion using `confirm-ethos`. A draft approval or file
+write alone does not complete this step. Save the selected journey's canonical
+continuation question as `pending_question`, with the selected downstream skill
+as `next_handoff`; obtain that question from
+[onboarding_templates.py](../scripts/conversation_flows/onboarding_templates.py), not a parallel prose
+template. Preserve confirmed Ethos and prerequisite findings.
 
-Otherwise, show this in the final visible response, then **end the turn**:
+Reload reconciled state and render `confirmed`, including the real saved Ethos
+link in `facts.ethos`. Use its Markdown as the final visible response, then
+**end the turn**. The renderer derives the complete shared steps and current
+journey step from state. A relevant blocker produces only the blocked action
+instead of a continuation invitation. The invitation indicates readiness to
+begin the selected flow, not proof that execution is configured or successful.
 
-```markdown
-### Next Steps
-
-[Shared three-item checklist with saved progress]
-
-We’re ready to build your evaluation suite. Ready to continue?
-```
-
-Use the core's exact checklist wording and selected third item. Mark prerequisites
-and Ethos complete only when their work is complete; leave the selected evaluation
-step unchecked and derive the current marker from shared state. When the first
-two steps are complete, the third is current. For audit, use “We’re ready to check what your existing
-evaluations cover. Ready to continue?” For expansion, use “We’re ready to improve
-your existing evaluations. Ready to continue?” This indicates readiness to begin
-that flow, not proof that agent execution is configured or has succeeded.
-
-Save this continuation question as `pending_question` and the selected downstream
-skill as `next_handoff`. Preserve confirmed Ethos and prerequisite findings. Do
-not ask source-selection or case-planning questions, inspect new suite or trace
-sources, probe runtimes, create evaluations, or delegate downstream work in this
-turn. The pause must remain visible after tools finish; commentary alone is not
-sufficient.
+Do not ask source-selection or case-planning questions, inspect new suite or
+trace sources, probe runtimes, create evaluations, or delegate downstream work in
+this turn. The pause must remain visible after tools finish; commentary alone is
+not sufficient. Rendering the pause does not supply the user's continuation.
 
 After the user continues, clear the pending continuation question and hand off
 with the saved context. Do not repeat this pause when resuming downstream work
@@ -311,7 +321,7 @@ This mode validates saved JSON and persists metadata without reading canonical
 Ethos, draft, or task-evidence artifacts; `artifact_checks_deferred: true` records
 that boundary. It cannot establish content approval or task acceptance. Treat
 saved approvals as historical, and defer reports, task-readiness checks, and
-artifact inspection. After presenting the completed prerequisite transition,
+artifact inspection. After completing and saving an unblocked prerequisite pass,
 omit `--state-only` so normal commands reconcile current content and evidence.
 While the current journey is `audit`, `--state-only update` also merges the
 nonempty strings `scopes.audit.framework` and `scopes.audit.framework_source`
@@ -327,7 +337,11 @@ imported decisions before applying them; old notes never establish approval
 automatically, even when they describe a prior approval. Preserve conflicts and malformed
 records for resolution; do not replace them with fresh success state.
 
-Resume the pending question or earliest unfinished, non-deferred step. A goal
+When prerequisite work must resume, complete and save the state-only pass before
+reading target artifacts. Include its completed findings in the final `results`
+response. When no new pass is needed, render `resume` from normally reconciled
+state to present the pending question or earliest unfinished,
+non-deferred step; never regenerate the welcome or readiness question. A goal
 change reuses applicable common decisions. Switching between audit and authoring
 reopens runtime, Python tooling, environment, service/data, execution access, and
 flow-specific skill checks; previous sources remain available for reassessment.
@@ -360,9 +374,11 @@ tasks. Keep those tasks at their original paths, preserving bound evidence and
 relative assets; explicitly select the active legacy task root in the shared
 journey scope when continuing it. Do not treat historical duplicate copies as
 additional active tasks. New tasks use the stable task catalog. Old progress
-notes are import-only; never resume writing them. If the repository cannot
-be written, retain progress in conversation, explain that fresh-chat resume is
-unavailable, and continue independently possible work.
+notes are import-only; never resume writing them. If prerequisite state cannot
+be written or read, retain observed findings in conversation and use the
+[state-failure procedure](#when-prerequisite-state-is-unavailable).
+Independent prerequisite checks may finish, but Ethos and downstream work wait
+until the pass can be saved. Preserve existing state rather than replacing it.
 
 ## Hand off
 
@@ -396,8 +412,13 @@ and `scopes.audit.framework_source`, independently of any retained authoring
 choice. `init` reuses state and invalidates affected facts when identity or
 setup changes, or when switching between audit and authoring. The examples above
 use prerequisite mode: Ethos and evaluation checklist items remain unchecked
-until normal artifact checks resume after the visible transition. `show` derives
-checklist status without writing. Do not maintain a separate saved checklist.
+until normal artifact checks resume after the prerequisite pass is complete and
+saved. `show` derives
+checklist status without writing. Use its state-only `state` and matching revision
+for `prerequisite_results`; use normal reconciled state for later rendering.
+Never maintain a separate saved checklist. Rendering does not save a readiness
+answer, confirmation, or continuation, and does not replace normal `show`
+reconciliation of changed Ethos or draft content.
 
 Setup completion requires agent identity, code/file/command access, usable required
 skills, and the applicable Python tooling. Creation and improvements also require

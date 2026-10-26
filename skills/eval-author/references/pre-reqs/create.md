@@ -3,21 +3,11 @@
 
 # Creation prerequisites
 
-Use for building first evaluations. Follow the [shared procedure](../shared-prerequisites.md#check-the-agent-and-setup)
-for when to show this table, how to inspect prerequisites, and how to present results.
+Use for building first evaluations.
 
 ## Prerequisite table
 
-| Prerequisite | Status | Findings |
-|---|---|---|
-| Agent and repository | Checking | — |
-| Evaluation framework | Checking | — |
-| Required skills | Checking | — |
-| File and command access | Checking | — |
-| Python and evaluation runtime | Checking | — |
-| Evaluation environment | Checking | — |
-| Required services and data | Checking | — |
-| Agent connection and credentials | Needed before agent runs | — |
+Journey `create`; follow the [shared prerequisite procedure](../shared-prerequisites.md#check-the-agent-and-setup).
 
 ## Checks and blocking conditions
 

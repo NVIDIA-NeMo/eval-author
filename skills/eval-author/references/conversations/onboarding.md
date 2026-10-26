@@ -7,8 +7,9 @@ Use the [shared conversation contract](../conversation-rendering.md) and
 [conversation_renderer.py](../../scripts/conversation_renderer.py) for
 orientation, prerequisites, and Ethos review and confirmation across creation,
 audit, and expansion. This reference defines the currently supported onboarding
-stages; it does not replace the [shared prerequisite procedure](../shared-prerequisites.md)
-or [Ethos adapter](../ethos-confirmation.md).
+stage inputs and outputs. Follow the [shared prerequisite procedure](../shared-prerequisites.md)
+for the operational sequence and response channels, and the
+[Ethos adapter](../ethos-confirmation.md) for document work.
 
 [conversation_templates.py](../../scripts/conversation_templates.py) owns shared
 journey and checklist labels, status labels, and generic headings.
@@ -18,10 +19,10 @@ the renderer; do not copy them into instructions or reconstruct their output.
 
 ## Orientation and prerequisite entry
 
-Before readiness, the only allowed command is this renderer's no-input preview
-mode. It may load its own source dependencies. Use Python's `-B` flag to prevent
-bytecode writes. Do not pass a repository, state file, or input file, create a
-payload artifact, call the state helper, or inspect repository context.
+`orientation` and `goal_selected` use the no-input preview mode under the
+[core entry rules](../../SKILL.md#choose-the-entry-route). They accept no repository,
+state, revision, facts, or input-file context. Source dependencies may be loaded;
+use Python's `-B` flag to prevent bytecode writes.
 
 ```bash
 python3 -B <skill_dir>/scripts/conversation_renderer.py --stage orientation
@@ -35,11 +36,10 @@ the core skill directory. Journeys are `create`, `audit`, and `expand`.
 without introducing a checklist. With a known journey it shows the full welcome,
 matching checklist, and readiness question. `goal_selected`
 shows the selected goal's introduction, checklist, and readiness question, without
-repeating the welcome. Use the output as the entire final visible response and
-end the turn. Selecting a goal does not answer the readiness question.
+repeating the welcome. Selecting a goal does not establish readiness; the core
+owns the orientation and goal-selection pauses.
 
-After the user actually answers the readiness question, show the initial status
-table with its canonical grounding sentence as the first workflow output:
+`prerequisites` requires the selected journey and the actual readiness reply:
 
 ```bash
 python3 -B <skill_dir>/scripts/conversation_renderer.py --stage prerequisites --journey create --ready
@@ -52,9 +52,9 @@ Checking. The audit traces row defaults to Unknown with the canonical
 agent runs. The trace requirement stays visible without selecting a trace
 source or authorizing trace inspection.
 
-Include already-known facts from the current conversation through `facts.rows`.
-Do not read saved state, repository files, or other sources to fill the preview,
-and do not probe first. The CLI form above uses defaults; `--input -` can receive
+`facts.rows` accepts only already-known facts from the current conversation;
+[the shared procedure](../shared-prerequisites.md#check-the-agent-and-setup)
+controls when inspection may begin. The CLI form above uses defaults; `--input -` can receive
 an inline JSON payload with `stage: prerequisites`, the selected `journey`,
 `ready: true`, and optional `facts: {rows: ...}`. No state or revision is supplied.
 The only allowed preview facts are rows: no Recommendations, Blockers, Ethos,
@@ -68,25 +68,11 @@ answer can appear as Confirmed by you without claiming verification. The
 `--ready` flag or `ready: true` represents the actual readiness reply, never
 permission inferred by rendering.
 
-After displaying the table, perform the bounded
-[prerequisite checks](../shared-prerequisites.md). Complete and record them before
-target Ethos inspection; present the completed table in the final reply as
-described below. Add no extra preamble, skill-use announcement, or prose checking
-notice around the canonical rendering. Apply this sequence to creation, audit,
-expansion, and prerequisite resumes.
-
-This guarantee covers skill-generated workflow messages. Mandatory host or tool
-UI instructions still apply and are outside the renderer's output contract.
-Do not generate an extra notice merely to satisfy a local skill convention.
-
 ## When state is unavailable
 
-If a prerequisite `init`, `show`, or `update` fails, finish any independently
-accessible prerequisite checks and render `prerequisite_failure` directly as
-the final reply. This is the narrow fallback for unavailable state, including
-a fresh read-only repository. It does not require a state file or permission to
-write one. Preserve any existing state; do not fabricate a snapshot, reset it,
-or claim the failed operation succeeded.
+`prerequisite_failure` is the stateless response selected by the shared
+[state-failure procedure](../shared-prerequisites.md#when-prerequisite-state-is-unavailable).
+It requires no state file or write access and accepts no fabricated snapshot.
 
 Pass the payload through `--input -` on stdin, without creating an input file:
 
@@ -118,50 +104,25 @@ not available through the no-input `--stage` preview mode.
 The renderer supplies the completed-results introduction, findings table, fixed
 state-error blocker, and notice that these findings remain in this conversation
 and cannot be resumed in a fresh chat until saved. It emits no checklist,
-approval, continuation invitation, or prerequisite-success claim. Stop before
-target Ethos inspection and downstream work. Once the state problem is resolved,
-reload any existing state, recheck affected facts, and record the prerequisite
-pass before using the normal stateful responses.
+approval, continuation invitation, or prerequisite-success claim. Recovery and
+the boundary before Ethos work remain owned by the linked procedure.
 
 ## Stateful responses
 
-During prerequisites, use `journey_state.py --state-only` for `init`, `show`, and
-`update`. Record findings, relevant blockers, and the pending Ethos action from
-supplied context or saved metadata without inspecting target artifacts. Read a
-fresh `--state-only show` snapshot and extract its `state` to establish the
-completed pass before locating, reading, or validating the target `ETHOS.md`,
-recovering a draft, or starting Ethos preflight.
+Use the [shared presentation sequence](../shared-prerequisites.md#present-results-and-the-next-step)
+to select the stage and response channel. `prerequisite_results` accepts the
+`state` extracted from a fresh `journey_state.py --state-only show` response and
+its exact revision. Its facts are limited to rows, Recommendations, and active
+Blockers. It accepts no Ethos, draft, or question facts and renders no checklist,
+saved pending question, or continuation invitation; a canonical blocker may
+supply its own prerequisite question.
 
-If blocked, render `prerequisite_results` with that state's exact revision and
-prerequisite facts directly as the final response once. It includes the canonical
-completed-results sentence, table, optional Recommendations, and Blockers. Do not
-first publish it in progress or inspect target Ethos artifacts. Supply no Ethos,
-draft, or question facts to this stage. It never renders a Next Steps checklist,
-saved pending question, or continuation invitation. A canonical blocker can
-supply its own focused prerequisite question.
-
-If unblocked, do not publish an intermediate completed report. Continue in the
-same turn without a new approval pause, using normal `show` or `load_state` to
-reconcile changed or missing Ethos, drafts, and task evidence. Reading installed
-Ethos skill instructions during checks establishes only availability and
-compatibility; target-artifact work starts only after the prerequisite pass is
-complete and saved. Save returned Ethos findings and the pending decision, then
-load normal state again immediately before the final `results` rendering.
-Supply the completed prerequisite findings, optional Recommendations, and
-applicable Ethos, draft, question, and blocker facts. The final owns the canonical
-completed-results sentence, table, Next Steps, one state-derived checklist, and
-the inspected Ethos or draft with the current question.
-
-An unblocked prerequisite turn shows an initial status table and a completed
-table in the final reply, with one final checklist. A blocked turn shows the
-initial table and one completed report in final, without a checklist. Never add
-a third table or repeat the completed report in progress. Use `ethos` for later
-Ethos-only actions without repeating prerequisite findings. `results`, `ethos`,
-`confirmed`, and `resume` stages require normal artifact-reconciled state, never
-a state-only snapshot. The renderer never checks artifact files or digests
-itself, so an old in-memory state is insufficient. Use the returned `state`
-object and its exact `revision`; do not construct a success state or maintain a
-separate checklist. No additional state flags are needed for this presentation.
+`results`, `ethos`, `confirmed`, and `resume` require normal artifact-reconciled
+state from `show` or `load_state`, never a state-only snapshot. The renderer never
+checks artifact files or digests itself, so an old in-memory state is
+insufficient. Use the returned `state` and exact `revision`; do not construct a
+success state, maintain a separate checklist, or add presentation state flags.
+The stage table below defines each response's supported content.
 
 The JSON payload has this shape. Bracketed descriptions below explain values;
 replace them with actual facts, and omit optional facts that are unavailable.
@@ -248,8 +209,7 @@ point to the exact repository-root `ETHOS.md` from state. Supply a grounded
 summary for an existing-document review. File presence or successful structural
 validation is not current intent confirmation.
 
-After a completed, saved, unblocked prerequisite pass, when the saved Ethos stage is `draft` or
-`write` and `state.ethos.draft` exists, supply `facts.draft` with the exact recorded
+When the saved Ethos stage is `draft` or `write` and `state.ethos.draft` exists, supply `facts.draft` with the exact recorded
 `digest` and an absolute `link` formed from `state.repository` and `state.ethos.draft.path`. The renderer shows
 that draft link before the pending question so the user can review the proposed
 content. The caller must recover and verify the exact draft returned by

@@ -2,7 +2,7 @@
 name: eval-author-first-eval
 description: >-
   For a fresh start, read the eval-author core skill at ../eval-author/SKILL.md,
-  show its welcome, checklist, and call to action, and end the turn before
+  use its pure conversation renderer for orientation and end the turn before
   repository inspection or prerequisite work.
   Establish a required Ethos, plan evaluation cases, and build first evals or
   expand a starter NeMo Gym or Harbor suite while explaining
@@ -45,10 +45,14 @@ handoff. A rejected source is a retained outcome, not a reason to invent a case.
 
 Read the [eval-author core skill](../eval-author/SKILL.md) for the shared standard
 and boundaries. Direct invocations enter its shared prerequisite flow, consuming
-an applicable saved result on return. A fresh start follows the core's opening-only
-first response and ends
-the turn before repository reads, prerequisite checks, or Ethos work. Continue
-the stages below after the user replies; reuse the core's three-item checklist.
+an applicable saved result on return. A fresh start uses the core's
+[onboarding renderer](../eval-author/references/conversations/onboarding.md) for
+`orientation`, then ends the turn before repository reads, prerequisite checks,
+or Ethos work. The core's narrow pure-renderer command exception applies;
+rendering never supplies readiness. Continue through shared onboarding after the
+actual reply. Complete and save the core's state-only prerequisite pass before
+any target Ethos inspection, then reconcile artifacts and include the completed
+findings in the final `results` response.
 A statement that no evals exist settles the starting point; no discovery is
 needed to prove absence. Reuse confirmed Ethos and prerequisite decisions.
 

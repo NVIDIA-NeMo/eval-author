@@ -16,7 +16,8 @@
         "context": "Fresh session; no prior authorization.",
         "flow": "eval-author",
         "allowed_actions": [
-          "read_skill"
+          "read_skill",
+          "render_conversation"
         ],
         "required_actions": [],
         "write_paths": [],
@@ -32,7 +33,8 @@
         "context": "Fresh session; no prior authorization.",
         "flow": "eval-author-audit",
         "allowed_actions": [
-          "read_skill"
+          "read_skill",
+          "render_conversation"
         ],
         "required_actions": [],
         "write_paths": [],
@@ -119,7 +121,8 @@
         "context": "Fresh session; no prior authorization.",
         "flow": "eval-author-first-eval",
         "allowed_actions": [
-          "read_skill"
+          "read_skill",
+          "render_conversation"
         ],
         "required_actions": [],
         "write_paths": [],
@@ -222,7 +225,8 @@
         "context": "Previous turn reported inventory. The user now explicitly requests an audit; no repeat routing question.",
         "flow": "eval-author-audit",
         "allowed_actions": [
-          "read_skill"
+          "read_skill",
+          "render_conversation"
         ],
         "required_actions": [],
         "write_paths": [],
@@ -237,7 +241,8 @@
         "context": "Fresh session; no prior authorization.",
         "flow": "eval-author",
         "allowed_actions": [
-          "read_skill"
+          "read_skill",
+          "render_conversation"
         ],
         "required_actions": [],
         "write_paths": [],
@@ -273,7 +278,8 @@
         "context": "Fresh session; existing evals, no audit requested.",
         "flow": "eval-author",
         "allowed_actions": [
-          "read_skill"
+          "read_skill",
+          "render_conversation"
         ],
         "required_actions": [],
         "write_paths": [],
@@ -289,7 +295,8 @@
         "context": "Fresh session; no prior authorization.",
         "flow": "eval-author-first-eval",
         "allowed_actions": [
-          "read_skill"
+          "read_skill",
+          "render_conversation"
         ],
         "required_actions": [],
         "write_paths": [],
@@ -304,6 +311,7 @@
         "flow": "eval-author-first-eval",
         "allowed_actions": [
           "read_skill",
+          "render_conversation",
           "read_repository",
           "runtime_probe",
           "validate",
@@ -327,6 +335,7 @@
         "flow": "eval-author",
         "allowed_actions": [
           "read_skill",
+          "render_conversation",
           "read_repository",
           "validate",
           "write_artifact"
@@ -340,12 +349,13 @@
       {
         "prompts": [
           "Continue.",
-          "Yes, let’s build the evaluation suite."
+          "Yes, let\u2019s build the evaluation suite."
         ],
         "context": "The previous turn confirmed saved Ethos, showed Next Steps with the first two checklist items complete, and asked Ready to continue? Shared state retains the continuation question and first-eval handoff. Source selection has not started.",
         "flow": "eval-author-first-eval",
         "allowed_actions": [
           "read_skill",
+          "render_conversation",
           "read_repository",
           "validate",
           "write_artifact",
@@ -367,7 +377,8 @@
         "context": "Fresh session; no prior authorization.",
         "flow": "eval-author",
         "allowed_actions": [
-          "read_skill"
+          "read_skill",
+          "render_conversation"
         ],
         "required_actions": [],
         "write_paths": [],
@@ -381,7 +392,8 @@
         "context": "The previous turn showed the fixed welcome and asked which evaluation goal to pursue. No checklist or Ready to get started? prompt has been shown and no repository inspection has occurred. The user now selects creation.",
         "flow": "eval-author",
         "allowed_actions": [
-          "read_skill"
+          "read_skill",
+          "render_conversation"
         ],
         "required_actions": [],
         "write_paths": [],
@@ -396,6 +408,7 @@
         "flow": "eval-author-first-eval",
         "allowed_actions": [
           "read_skill",
+          "render_conversation",
           "read_repository",
           "runtime_probe",
           "validate",
