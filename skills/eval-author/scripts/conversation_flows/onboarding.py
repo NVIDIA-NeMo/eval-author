@@ -12,10 +12,12 @@ from __future__ import annotations
 from urllib.parse import urlsplit
 
 import conversation_templates as shared
+import first_eval_state
 import journey_state
 from conversation_formatting import checklist as format_checklist
 from conversation_formatting import link, literal, mapping, text
 
+from . import first_eval, first_eval_templates
 from . import onboarding_templates as copy
 
 JOURNEYS = (None, *shared.JOURNEYS)
@@ -176,7 +178,7 @@ def blocker_section(state: dict, facts: dict, *, confirmed: bool, state_only: bo
             pauses.append(shared.BLOCKER_PAUSE.format(skill=link(target, item["skill_label"]), quote=item["quote"]))
     if state["pending_question"] and not state_only and not any(templates.values()):
         # An old continuation CTA cannot escape a newly recorded blocker.
-        if state["pending_question"] not in copy.CONTINUATION_JOURNEYS:
+        if state["pending_question"] not in {*copy.CONTINUATION_JOURNEYS, first_eval_templates.TRACE_QUESTION}:
             lines.extend(["", literal(state["pending_question"], "pending question")])
     if state["journey"] == "expand" and any(
         item["id"] == "evaluation_format" and item["phase"] == "setup" for item in active
@@ -231,9 +233,16 @@ def next_steps(state: dict, facts: dict, stage: str) -> str:
     started = state["journey_status"].get(journey) in {"in_progress", "complete"}
     shared_continued = any(status in {"in_progress", "complete"} for status in state["journey_status"].values())
     confirmed = progress[1]["complete"]
+    source_question = question == first_eval_templates.TRACE_QUESTION
+    initial_sources = (
+        journey == "create" and first_eval_state.record(state) is None and not first_eval_state.trace_choice(state)
+    )
+    confirmation_questions = {None, copy.CONTINUATION[journey]}
+    if initial_sources:
+        confirmation_questions.add(first_eval_templates.TRACE_QUESTION)
     if stage == "confirmed" and (not confirmed or started or state["ethos"]["remaining_questions"]):
         raise ValueError("Confirmation pause requires confirmed ETHOS.md and no started downstream work or intent gaps")
-    if stage == "confirmed" and question not in {None, copy.CONTINUATION[journey]}:
+    if stage == "confirmed" and question not in confirmation_questions:
         raise ValueError("Clear the answered review question before presenting the confirmation pause")
     paragraphs = [shared.NEXT_STEPS, checklist(journey, state)]
     if confirmed:
@@ -241,18 +250,22 @@ def next_steps(state: dict, facts: dict, stage: str) -> str:
             raise ValueError("Resolve the saved intent questions before presenting confirmed ETHOS.md")
         if question in copy.CONTINUATION.values() and (question != copy.CONTINUATION[journey] or started):
             raise ValueError("Saved continuation question is stale for the current journey progress")
-        if not started and (question == copy.CONTINUATION[journey] or (question is None and not shared_continued)):
+        if source_question and (not initial_sources or started):
+            raise ValueError("Saved source question is stale for the current creation progress")
+        if not started and (
+            question == copy.CONTINUATION[journey] or source_question or (question is None and not shared_continued)
+        ):
             status, document, _ = ethos_context(state, facts)
             if status != "existing":
                 raise ValueError("Confirmation requires the supplied verified link to saved ETHOS.md")
             # Report the saved confirmation without implying any runtime or evaluation success.
             paragraphs.insert(0, copy.ETHOS_CONFIRMED.format(document=document))
-            paragraphs.append(copy.CONTINUATION[journey])
+            paragraphs.append(first_eval.source_prompt(state) if initial_sources else copy.CONTINUATION[journey])
         elif question:
             paragraphs.append(literal(question, "pending question"))
         return "\n\n".join(paragraphs)
 
-    if question in copy.CONTINUATION.values():
+    if question in copy.CONTINUATION.values() or source_question:
         raise ValueError("ETHOS.md review is unfinished; a continuation question cannot bypass it")
     status, document, summary = ethos_context(state, facts)
     if state["ethos"]["stage"] in {"draft", "write"} and state["ethos"]["draft"] is not None:

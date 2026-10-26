@@ -62,18 +62,29 @@ Keep its heading and current-step marker when presenting the rendered response.
 This context does not introduce build steps, execution settings, or a new pause;
 run-only blockers do not prevent independent design review.
 
-After the shared confirmation continuation, render `first_eval_traces` as the
-final response when no source choice is saved, then end the turn. For a fresh
-checkpoint without a saved design, supply only `stage: first_eval_traces`, the
-fresh reconciled `state`, and its `revision` to the shared renderer. No proposal
-record, task planning, observations, or execution settings are needed first.
+For fresh creation without a structured saved design or source choice, the shared
+[confirmed handoff](onboarding.md#stateful-responses) includes the canonical source
+introduction, question, and choices from `first_eval_templates.py`, immediately
+after document confirmation and the overall checklist. Save that canonical
+question as `pending_question` and `eval-author-first-eval` as `next_handoff`
+before rendering, then end the turn and wait for the source answer. Do not
+insert a readiness question before it or render `first_eval_traces` again after
+the user has answered it. Legacy continuation questions remain readable and
+render as that same combined checkpoint when the fresh condition applies.
+
+Otherwise, after the applicable shared continuation or saved-design decision,
+render `first_eval_traces` as the final response when the source choice remains
+unresolved, then end the turn. For a standalone checkpoint without a saved
+design, supply only `stage: first_eval_traces`, the fresh reconciled `state`, and
+its `revision` to the shared renderer. No proposal record, task planning,
+observations, or execution settings are needed first.
 When a saved design remains after choosing a new proposal, also supply its fresh
 `facts.observations` as usual. The canonical question and choices come from the
 template module.
 
-Present the complete output, including `Next Steps`, both completed shared
-steps, and the current creation step before the source question. Collect the
-user's next reply to this rendered checkpoint; do not move its source question
+For either checkpoint, present the complete output, including `Next Steps`, both
+completed shared steps, and the current creation step before the source question.
+Collect the user's next reply to this rendered checkpoint; do not move its source question
 into a separate question tool. Do not continue planning or investigating
 integrations while the answer is pending. Reuse a saved choice instead of asking
 again.
@@ -81,8 +92,9 @@ Use the shared entry point for the proposal too; its internal `proposal` helper
 omits the checklist and state gates. Do not add free-form previews of task scope
 or adapter implementation in commentary.
 
-Save the actual source answer and its provenance. For existing traces, resolve
-the selected location, runs, and exclusions before inspection. Then prepare only
+Save the actual source answer and its provenance, then clear the pending source
+question. For existing traces, resolve the selected location, runs, and exclusions
+before inspection. Then prepare only
 the bounded design needed for `first_eval_proposal`: by default one to three
 tasks with one example per task. Larger task or example counts require the
 user's explicit broader request in `plan.breadth_request.source`. This optional

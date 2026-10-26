@@ -168,3 +168,133 @@ def test_required_setup_blocker_follows_recommendations_and_suppresses_next_step
     assert "**Needed:** Install the missing required skill" in output
     assert "### Next Steps" not in output
     assert "The prerequisites for reviewing ETHOS.md are complete." not in output
+
+
+def confirmed_request(onboarding, *, stage="confirmed", question=None):
+    _, _, _, state, _ = onboarding
+    state["ethos"].update(
+        stage="complete",
+        confirmed_digest="a" * 64,
+        confirmation_source="User approved the exact saved document",
+        validation="Writer validator passed",
+    )
+    state["pending_question"] = question
+    state["next_handoff"] = "eval-author-first-eval"
+    request = presentation(onboarding, stage)
+    request["facts"]["recommendations"] = []
+    request["facts"]["ethos"] = {"status": "existing", "link": state["repository"] + "/" + state["ethos"]["path"]}
+    return request
+
+
+@pytest.mark.parametrize("stage", ["confirmed", "resume", "results"])
+@pytest.mark.parametrize("provider", ["harbor", "gym"])
+@pytest.mark.parametrize("question", [None, "legacy", "source"])
+def test_fresh_confirmation_collects_sources_without_an_extra_readiness_pause(
+    onboarding, monkeypatch, stage, provider, question
+):
+    state_helper, renderer, shared, state, _ = onboarding
+    flow = importlib.import_module("conversation_flows.first_eval_templates")
+    copy = importlib.import_module("conversation_flows.onboarding_templates")
+    question = {None: None, "legacy": copy.CONTINUATION["create"], "source": flow.TRACE_QUESTION}[question]
+    state["setup"] = provider
+    state["ethos"]["path"] = "agents/support/ETHOS.md"
+    request = confirmed_request(onboarding, stage=stage, question=question)
+    before = deepcopy(request)
+
+    def unexpected_io(*args, **kwargs):
+        pytest.fail("Combined confirmation must use supplied state without file reads or clocks")
+
+    monkeypatch.setattr(Path, "open", unexpected_io)
+    monkeypatch.setattr(state_helper, "now", unexpected_io)
+    output = renderer.render(request)
+
+    assert output == renderer.render(request)
+    assert "[ETHOS.md](<" + state["repository"] + "/agents/support/ETHOS.md>) is confirmed and validated." in output
+    assert output.count(shared.NEXT_STEPS) == 1
+    assert output.count("- [x]") == 2 and output.count("- [ ]") == 1
+    assert output.index(shared.NEXT_STEPS) < output.index(flow.TRACE_INTRO) < output.index(flow.TRACE_QUESTION)
+    assert output.count(flow.TRACE_QUESTION) == 1
+    assert output.endswith("\n".join(f"- {label}" for label in flow.TRACE_CHOICES) + "\n")
+    assert copy.CONTINUATION["create"] not in output
+    assert request == before and not state["scopes"]
+
+
+@pytest.mark.parametrize("journey", ["audit", "expand"])
+def test_other_flows_retain_their_confirmation_handoff(onboarding, journey):
+    _, renderer, _, state, _ = onboarding
+    copy = importlib.import_module("conversation_flows.onboarding_templates")
+    flow = importlib.import_module("conversation_flows.first_eval_templates")
+    state["journey"] = journey
+    state["blockers"] = []
+    state["prerequisites"]["data"] = {"status": "verified", "source": "Selected audit traces are available"}
+    request = confirmed_request(onboarding, question=copy.CONTINUATION[journey])
+    output = renderer.render(request)
+    assert output.endswith(copy.CONTINUATION[journey] + "\n")
+    assert flow.TRACE_QUESTION not in output
+
+
+def test_known_sources_are_not_asked_again_at_confirmation(onboarding):
+    _, renderer, _, state, _ = onboarding
+    copy = importlib.import_module("conversation_flows.onboarding_templates")
+    flow = importlib.import_module("conversation_flows.first_eval_templates")
+    state["scopes"]["create"] = {"trace_choice": "none"}
+    output = renderer.render(confirmed_request(onboarding, question=copy.CONTINUATION["create"]))
+    assert flow.TRACE_QUESTION not in output
+    assert state["scopes"]["create"] == {"trace_choice": "none"}
+
+
+@pytest.mark.parametrize("reason", ["answered", "started", "other_flow"])
+def test_saved_source_question_cannot_restart_or_override_progress(onboarding, reason):
+    _, renderer, _, state, _ = onboarding
+    flow = importlib.import_module("conversation_flows.first_eval_templates")
+    request = confirmed_request(onboarding, stage="resume", question=flow.TRACE_QUESTION)
+    if reason == "answered":
+        state["scopes"]["create"] = {"trace_choice": "none"}
+    elif reason == "started":
+        state["journey_status"]["create"] = "in_progress"
+        state["blockers"] = []
+    else:
+        state["journey"] = "expand"
+        state["blockers"] = []
+    with pytest.raises(ValueError, match="Saved source question is stale"):
+        renderer.render(request)
+
+
+def test_source_choice_waits_for_ethos_completion_and_verified_navigation(onboarding):
+    _, renderer, _, state, _ = onboarding
+    flow = importlib.import_module("conversation_flows.first_eval_templates")
+    request = confirmed_request(onboarding, stage="resume", question=flow.TRACE_QUESTION)
+    request["facts"].pop("ethos")
+    with pytest.raises(ValueError, match="verified link"):
+        renderer.render(request)
+    state["ethos"].update(stage="review", confirmed_digest=None, confirmation_source=None, validation=None)
+    with pytest.raises(ValueError, match="review is unfinished"):
+        renderer.render(request)
+
+
+def test_blockers_suppress_the_combined_source_question(onboarding):
+    _, renderer, _, state, _ = onboarding
+    flow = importlib.import_module("conversation_flows.first_eval_templates")
+    request = confirmed_request(onboarding, question=flow.TRACE_QUESTION)
+    state["blockers"].append({"id": "ethos_skills", "phase": "setup", "message": "Selected writer unavailable"})
+    state["prerequisites"]["ethos_skills"] = {"status": "missing", "source": "Required writer disappeared"}
+    request["facts"]["blockers"] = [
+        {
+            "id": "ethos_skills",
+            "step": "Review ETHOS.md",
+            "reason": "Selected writer unavailable",
+            "needed": "Restore it",
+        }
+    ]
+    output = renderer.render(request)
+    assert "### Blockers" in output
+    assert flow.TRACE_QUESTION not in output and "### Next Steps" not in output
+
+
+def test_goal_switch_does_not_infer_a_new_source_pause(onboarding):
+    _, renderer, _, state, _ = onboarding
+    flow = importlib.import_module("conversation_flows.first_eval_templates")
+    request = confirmed_request(onboarding, stage="resume")
+    state["journey_status"]["audit"] = "in_progress"
+    output = renderer.render(request)
+    assert flow.TRACE_QUESTION not in output and "confirmed and validated" not in output

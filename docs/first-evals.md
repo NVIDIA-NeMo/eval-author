@@ -16,6 +16,8 @@ Eval Author confirms your setup and `ETHOS.md`, the local document describing
 how the agent should behave. Existing traces are optional: you can choose
 specific runs or start from `ETHOS.md` with generated input examples. Your
 source choices and exclusions carry forward when you resume.
+For a new design without a saved source choice, the confirmation message asks
+which source to use directly, without an extra readiness question.
 If a new request finds a saved task design, Eval Author shows its scope and
 progress and asks whether to continue it, revise it, or start a new proposal.
 Confirming `ETHOS.md` alone does not resume that design. Earlier artifacts stay saved.

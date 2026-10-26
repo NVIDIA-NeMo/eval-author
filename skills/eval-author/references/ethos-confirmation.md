@@ -183,8 +183,12 @@ schema or heading validation. Use only the
 confirmed exact content for downstream cases or audit items. Validation alone
 is not intent confirmation. Present the returned path and unresolved gaps, then follow the
 shared [completion pause](shared-prerequisites.md#pause-after-ethos-confirmation).
-End the turn after the rendered `confirmed` response with its continuation question.
-Do not begin source selection or delegate evaluation work until the user continues.
+End the turn after the rendered `confirmed` response with its pending decision.
+For fresh creation without a saved design or source choice, the shared pause
+includes the source question instead of a readiness question. Wait for its
+answer before planning or inspecting traces; do not ask the same choice again
+in a later turn. Other flows retain their continuation. Do not delegate
+evaluation work before the applicable reply.
 If Blockers remain, use the blocked response instead.
 
 ## Recovery

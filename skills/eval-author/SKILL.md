@@ -170,8 +170,11 @@ An explicitly selected addition or proposal-only request keeps that scope.
 
 ### Downstream progress
 
-Once prerequisites and Ethos are confirmed, present the completion pause and wait
-for the user to continue before following the selected skill's stages.
+Once prerequisites and Ethos are confirmed, follow the
+[completion pause](references/shared-prerequisites.md#pause-after-ethos-confirmation).
+For fresh creation without a saved design or source choice, that pause asks for
+task sources directly; do not add a separate readiness question before it.
+Other flows retain their selected continuation and saved decisions.
 Keep the selected third checklist item current. Reuse completed shared steps.
 Keep scope and evidence reviews, source selection, and execution authorization.
 For creation and improvement, that item covers building the agreed cases or

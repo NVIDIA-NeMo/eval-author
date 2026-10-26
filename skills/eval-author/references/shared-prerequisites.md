@@ -284,28 +284,42 @@ document before its content is confirmed.
 
 After the saved `ETHOS.md` has been validated and its content reviewed and
 confirmed, persist completion using `confirm-ethos`. A draft approval or file
-write alone does not complete this step. Save the selected journey's canonical
-continuation question as `pending_question`, with the selected downstream skill
-as `next_handoff`; obtain that question from
-[onboarding_templates.py](../scripts/conversation_flows/onboarding_templates.py), not a parallel prose
-template. Preserve confirmed Ethos and prerequisite findings.
+write alone does not complete this step. Preserve confirmed Ethos and prerequisite
+findings, then save the pending decision and downstream skill before rendering:
+
+- **Fresh, unstarted creation, no structured saved design, no saved source choice:** Save
+  the canonical source question as `pending_question` and
+  `eval-author-first-eval` as `next_handoff`. Follow the
+  [source checkpoint](conversations/first-eval.md#source-and-proposal-pauses) for
+  the template-owned question and choices. This replaces the separate readiness
+  question; do not ask whether to continue first.
+- **Other unstarted cases:** Retain the selected journey's canonical continuation
+  from [onboarding_templates.py](../scripts/conversation_flows/onboarding_templates.py)
+  and the selected downstream skill. Preserve applicable source choices and
+  progress; a saved design still requires its own reuse decision. Already-started
+  work resumes its saved pending decision without another completion pause.
 
 Reload reconciled state and render `confirmed`, including the real saved Ethos
 link in `facts.ethos`. Use its Markdown as the final visible response, then
 **end the turn**. The renderer derives the complete shared steps and current
 journey step from state. A relevant blocker produces only the blocked action
-instead of a continuation invitation. The invitation indicates readiness to
-begin the selected flow, not proof that execution is configured or successful.
+instead of the pending decision. The pause does not establish design approval or
+prove that execution is configured or successful.
 
-Do not ask source-selection or case-planning questions, inspect new suite or
-trace sources, probe runtimes, create evaluations, or delegate downstream work in
-this turn. The pause must remain visible after tools finish; commentary alone is
-not sufficient. Rendering the pause does not supply the user's continuation.
+Only the fresh-creation exception above includes source selection in this turn.
+Do not ask task-planning questions, inspect new suite or trace sources, probe
+runtimes, create evaluations, or delegate downstream work while the reply is
+pending. The pause must remain visible after tools finish; commentary alone is
+not sufficient. Rendering it does not answer its decision.
 
-After the user continues, clear the pending continuation question and hand off
-with the saved context. Do not repeat this pause when resuming downstream work
-that has already started. Keep later execution requirements explicit and pause
-only the work they actually block.
+After the actual source answer to the combined checkpoint, save the choice and
+its provenance, clear the pending question, and hand off directly to the small
+task proposal. Resolve selected trace locations, runs, and exclusions before
+inspection. Do not insert another readiness pause or repeat the source question.
+For other cases, wait for and save the actual continuation reply before handing
+off with the retained context. Do not repeat this pause when resuming downstream
+work that has already started. Keep later execution requirements explicit and
+pause only the work they actually block.
 
 For creation, this continuation and `ETHOS.md` confirmation do not choose a
 previously saved task design. On a fresh request, hand off to the first-eval
@@ -314,11 +328,12 @@ before resuming that design. Existing metadata can identify this pending choice
 during the state-only pass; save its creation record only through normal updates
 after the shared prerequisites and `ETHOS.md` confirmation are complete.
 
-For creation with an unresolved source choice and no pending saved-design
-decision, continue at the first-eval
-[source checkpoint](conversations/first-eval.md#source-and-proposal-pauses).
-It renders the overall checklist again before asking about traces or `ETHOS.md`;
-do not replace it with a free-form source or case-preparation question.
+For creation whose source decision was not eligible for the combined checkpoint,
+continue at the first-eval
+[source checkpoint](conversations/first-eval.md#source-and-proposal-pauses) only
+when that choice remains unresolved and no saved-design decision is pending.
+Keep its overall checklist and canonical choices; do not replace either checkpoint
+with a free-form source or task-preparation question.
 
 ## Save and resume
 
@@ -401,10 +416,12 @@ until the pass can be saved. Preserve existing state rather than replacing it.
 
 ## Hand off
 
-After the user continues from the completion pause, pass the selected journey,
+After the user answers the completion pause, pass the selected journey,
 repository/agent, setup and prerequisite evidence and answers,
-confirmed Ethos result, and unresolved dependencies. First-eval continues with
-its source/scope decision; audit continues with selected evals and traces;
+confirmed Ethos result, saved source choice when applicable, and unresolved
+dependencies. First-eval continues with its next unresolved source/design/scope
+decision; do not repeat a source question already answered in the combined
+checkpoint. Audit continues with selected evals and traces;
 expansion follows the core's explicit expansion handoff. Never repeat shared
 onboarding or convert confirmation into a claim of successful runtime execution.
 

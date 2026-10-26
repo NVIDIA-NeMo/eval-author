@@ -451,6 +451,25 @@ def test_resume_without_design_asks_for_sources_without_requiring_file_observati
         renderer.render(request)
 
 
+def test_ethos_confirmation_does_not_replace_saved_design_review_with_source_selection(creation):
+    state, record, _, renderer, flow = creation
+    copy = importlib.import_module("conversation_flows.onboarding_templates")
+    saved_design_pending(creation)
+    state["pending_question"] = copy.CONTINUATION["create"]
+    output = renderer.render(
+        {
+            "stage": "confirmed",
+            "state": state,
+            "revision": state["revision"],
+            "facts": {"ethos": {"status": "existing", "link": state["repository"] + "/ETHOS.md"}},
+        }
+    )
+    assert flow.TRACE_QUESTION not in output
+    assert record["saved_design_review"]["decision"] == "pending"
+    output = renderer.render(payload(creation, "saved_design"))
+    assert flow.SAVED_DESIGN_QUESTION in output and flow.TRACE_QUESTION not in output
+
+
 @pytest.mark.parametrize("choice", ["none", {"path": "traces/selected.json", "runs": ["chosen-run"]}])
 def test_saved_source_is_reused_and_does_not_create_a_proposal_or_approval(creation, choice):
     state, record, helper, renderer, copy = creation

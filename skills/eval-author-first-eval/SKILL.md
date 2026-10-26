@@ -48,8 +48,10 @@ Fresh invocations use its pure onboarding renderer and stop at its orientation
 checkpoint. Complete the saved state-only prerequisite pass before target
 `ETHOS.md` inspection, then reconcile artifacts normally. Reuse current
 [ETHOS.md confirmation](../eval-author/references/ethos-confirmation.md)
-and source choices after the shared completion pause; continue only
-after the user's reply. A stated absence of evaluations does not require discovery.
+and source choices through the shared completion pause. For fresh creation with
+no saved design or source choice, confirmation includes source selection; wait
+for that answer without adding a readiness pause. A stated absence of evaluations
+does not require discovery.
 
 Introduce **evaluation tasks**, then use **tasks**. Name the behavior document
 `ETHOS.md`; use **first task**, distinct input **examples**, and repeated
@@ -84,10 +86,14 @@ Confirmation of `ETHOS.md` does not select a saved design.
 ## 1. Select the task sources
 
 Use confirmed `ETHOS.md`, the agent entry point, tools, and usage documentation.
-Existing traces are optional. If the choice is unresolved, use `first_eval_traces`
-with its progress checklist and exact choices as the final reply, then end the
-turn. Follow the [source checkpoint inputs](../eval-author/references/conversations/first-eval.md#source-and-proposal-pauses);
-collect the reply to the rendered checkpoint rather than a separate question tool.
+Existing traces are optional. Follow the
+[source checkpoint inputs](../eval-author/references/conversations/first-eval.md#source-and-proposal-pauses):
+fresh creation without a saved design combines this choice with the confirmed
+`ETHOS.md` response. If that combined checkpoint already asked the question,
+consume its answer rather than rendering `first_eval_traces` again. Otherwise
+use `first_eval_traces` with its progress checklist and exact choices as the
+final reply, then end the turn. Collect the reply to the rendered checkpoint
+rather than a separate question tool.
 Wait for the user's answer before trace inspection, task planning,
 environment work, or integration investigation.
 Reuse an already established choice.

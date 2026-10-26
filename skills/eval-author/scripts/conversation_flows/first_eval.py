@@ -146,6 +146,13 @@ def planning_progress(state: dict) -> str:
     return shared.NEXT_STEPS + "\n\n" + checklist(rows)
 
 
+def source_prompt(state: dict) -> str:
+    result = copy.TRACE_INTRO
+    if not first_eval_state.trace_choice(state):
+        result += "\n\n" + copy.TRACE_QUESTION + "\n\n" + "\n".join(f"- {label}" for label in copy.TRACE_CHOICES)
+    return result
+
+
 def proposal(record: dict) -> str:
     plan = record["plan"]
     tasks = plan["tasks"]
@@ -670,9 +677,7 @@ def render(payload: dict) -> str:
     if stage == "resume" and not choice:
         stage = "traces"
     if stage == "traces":
-        result = planning_progress(state) + "\n\n" + copy.TRACE_INTRO
-        if not choice:
-            result += "\n\n" + copy.TRACE_QUESTION + "\n\n" + "\n".join(f"- {label}" for label in copy.TRACE_CHOICES)
+        result = planning_progress(state) + "\n\n" + source_prompt(state)
     elif stage == "blockers":
         return (blocker_section(state, facts, stage) or "") + "\n"
     else:
