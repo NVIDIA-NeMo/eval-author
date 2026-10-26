@@ -85,6 +85,12 @@ cases, and acceptance criteria. Task drafts and run results show which checks
 have actually completed. Use the [generated case review guide](#review-generated-cases)
 to inspect the authored cases and their available evidence.
 
+Earlier creation decisions and evidence bindings are retained as immutable snapshots
+under `.eval-author/.working/history/create/`. Journey state keeps one reference to
+the latest snapshot, whose predecessor links preserve the full history without
+growing the current state file. Older inline history stays readable and moves to
+snapshots on the next creation update; viewing or rendering state leaves it intact.
+
 Task controls check the task and its verifier: NeMo Gym's known-correct and negative
 verifier fixtures, or Harbor's no-op baseline and reference solution. Results
 from running your actual agent are separate evidence of its performance.
@@ -211,9 +217,11 @@ Shared internal progress and agreed scope are stored in
 `.eval-author/.working/journey-state.json`; they are not a second report or plan.
 
 These are typical paths relative to the repository being evaluated. The shared
-prerequisite flow uses repository-root `ETHOS.md`; scoped utilities can use an explicit
-alternate path. Workflows may stop before producing every artifact when
-prerequisites are missing.
+prerequisite flow keeps the selected `ETHOS.md` at its existing agent-local or
+repository-root path; see [document selection](getting-started.md#load-the-skills).
+Changing that selection reopens affected approvals and preserves its prior
+selection and provenance in `.eval-author/.working/history/ethos/`.
+Workflows may stop before producing every artifact when prerequisites are missing.
 
 | Workflow | Main outputs |
 | --- | --- |

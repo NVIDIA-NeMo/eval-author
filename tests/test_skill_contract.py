@@ -955,16 +955,45 @@ def test_environment_kit_records_digests_for_preservation_checks() -> None:
     assert "per-table content digests" in body
 
 
-def test_first_eval_builds_and_proves_the_kit_before_tests() -> None:
-    """Bench sessions did the stage 5 work but skipped stage 6, so the smoke proof moved into stage 5."""
+def test_first_eval_fresh_request_confirms_saved_design_before_reuse() -> None:
     _, body = _frontmatter_and_body(_FIRST_EVAL_DIR)
-    stage5 = body.split("## 5. Prepare cases and grading", 1)[1].split("\n## ", 1)[0]
-    stage6 = body.split("## 6. Prepare the execution environment", 1)[1].split("\n## ", 1)[0]
-    assert "Build and prove the kit before the tests" in stage5
-    assert "smoke task" in stage5
-    assert "../eval-author-environment/SKILL.md" in stage5
-    assert "environment-plan.md" in stage6
-    assert "never count as environment proof" in stage6
+    checkpoint = body.split("### Confirm a saved design before reusing it", 1)[1].split("\n## ", 1)[0]
+    checkpoint = " ".join(checkpoint.split())
+    assert "fresh request" in checkpoint and "#saved-design-checkpoint" in checkpoint
+    assert "Confirmation of `ETHOS.md` does not select a saved design" in checkpoint
+    contract = (_CORE_DIR / "references" / "conversations" / "first-eval.md").read_text(encoding="utf-8")
+    saved = " ".join(contract.split("## Saved-design checkpoint", 1)[1].split("\n## ", 1)[0].split())
+    assert '"decision": "pending"' in saved
+    assert "Render `first_eval_saved_design` as the final response and end the turn" in saved
+    assert "Neither `ETHOS.md` confirmation nor the shared continuation answers this choice" in saved
+    assert "current user request explicitly identifies the saved design to resume" in saved
+    assert "block dependent stages until the saved-design choice is resolved" in saved
+
+
+def test_first_eval_waits_for_suite_review_before_execution_questions() -> None:
+    _, body = _frontmatter_and_body(_FIRST_EVAL_DIR)
+    remainder = " ".join(body.split("## 4. Build and validate the remainder", 1)[1].split("\n## ", 1)[0].split())
+    assert "Render `first_eval_review_suite` as the final reply and end the turn" in remainder
+    assert "Wait for approval of the whole suite before discussing target-agent execution models" in remainder
+    assert "Do not offer review while required model-based grading or calibration is pending" in remainder
+    first_task = " ".join(
+        body.split("## 3. Build and review exactly the first task", 1)[1].split("\n## ", 1)[0].split()
+    )
+    assert "#validation-setup-before-task-creation" in first_task
+    assert "through `first_eval_validation_setup` before creating task files" in first_task
+    execution = " ".join(body.split("## 5. Agree on and execute concrete runs", 1)[1].split("\n## ", 1)[0].split())
+    assert "Use `first_eval_execution_settings` only after approval of the authored suite" in execution
+
+
+def test_first_eval_builds_and_proves_the_kit_before_tests() -> None:
+    """First-task grading cannot precede environment smoke proof."""
+    _, body = _frontmatter_and_body(_FIRST_EVAL_DIR)
+    first_task = body.split("## 3. Build and review exactly the first task", 1)[1].split("\n## ", 1)[0]
+    first_task = " ".join(first_task.split())
+    assert "../eval-author-environment/SKILL.md" in first_task
+    assert "before writing the task's grader or reference solution" in first_task
+    assert "smoke evidence" in first_task
+    assert "task controls never prove the kit" in first_task
     harbor = (_FIRST_EVAL_DIR / "references" / "harbor-first-eval.md").read_text(encoding="utf-8")
     assert "in the next milestone" not in harbor, "Harbor first-eval must not defer environment/ until after the tests"
 

@@ -60,6 +60,12 @@ and task creation remain in the separate improvement handoff.
 
 ## Start a guided audit
 
+An accepted first-suite audit invitation follows the core's
+[saved handoff](../eval-author/references/conversations/first-eval.md#blockers-and-the-audit-invitation),
+not a fresh invocation. Reuse confirmed intent and selected evidence, check only
+audit-specific or changed prerequisites, and continue at the first unfinished
+audit milestone. Missing audit evidence leaves the completed suite intact.
+
 A full audit enters the core's shared prerequisite flow, including direct
 invocation. For a fresh audit, use the core's
 [onboarding renderer](../eval-author/references/conversations/onboarding.md) for

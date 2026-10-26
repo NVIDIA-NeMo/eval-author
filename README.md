@@ -48,9 +48,10 @@ and [Harbor setup guide](skills/eval-author/references/harbor-setup.md).
 Full creation and improvement onboarding verifies the selected runtime before
 Ethos. Explicit inventory or planning-only requests do not require an evaluation runtime.
 
-All three journeys review or create a repository-root **ETHOS.md** describing
-your agent's purpose, boundaries, and success criteria. Install the
-[Ethos skills](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md#how-to-use)
+All three journeys review or create an **ETHOS.md** describing
+your agent's purpose, boundaries, and success criteria. An existing document can
+stay in your agent's directory; see [document selection](docs/getting-started.md#load-the-skills).
+Install the [Ethos skills](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md#how-to-use)
 to confirm an existing document or create one with you:
 
 ```bash

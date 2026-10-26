@@ -94,7 +94,7 @@ Select checks by the requested work. The common checks are:
   interview, or other Ethos preflight steps during prerequisite checks
 - Verify that the installed Ethos skills meet the
   [required handoff capabilities](ethos-confirmation.md#required-handoff-capabilities),
-  including preserving the explicit repository-root `ETHOS.md` destination. A
+  including preserving the selected explicit `ETHOS.md` destination. A
   version that renames it to lowercase or overrides that path is incompatible;
   record the conflicting resource as an `ethos_skills` blocker before delegation
 - Establish file and command access from host permissions and actual bounded
@@ -208,7 +208,8 @@ the pending question, then reload normal state and render `results` in the final
 reply. Supply the completed prerequisite findings, optional Recommendations,
 and applicable Ethos, draft, question, and blocker facts. The final owns the
 canonical grounding sentence, completed table, Next Steps, one state-derived
-checklist, and the inspected Ethos action.
+checklist, and the inspected Ethos action. Preserve the renderer's headings and
+Markdown in that final response under the [shared output contract](conversation-rendering.md).
 
 Each prerequisite turn shows an initial status table and one completed table in
 the final reply. An unblocked final includes one checklist; a blocked final
@@ -267,7 +268,7 @@ Ethos work.
 ## Confirm Ethos
 
 After completing and saving the unblocked prerequisite pass, invoke
-[Ethos confirmation](ethos-confirmation.md) for repository-root `ETHOS.md`.
+[Ethos confirmation](ethos-confirmation.md) for the selected `ETHOS.md`.
 Reuse content and prior answers, but have the user confirm an existing document
 is the right one and still accurate, even when saved state records an earlier
 confirmation. Before target-artifact inspection, use `--state-only update` to mark
@@ -283,28 +284,56 @@ document before its content is confirmed.
 
 After the saved `ETHOS.md` has been validated and its content reviewed and
 confirmed, persist completion using `confirm-ethos`. A draft approval or file
-write alone does not complete this step. Save the selected journey's canonical
-continuation question as `pending_question`, with the selected downstream skill
-as `next_handoff`; obtain that question from
-[onboarding_templates.py](../scripts/conversation_flows/onboarding_templates.py), not a parallel prose
-template. Preserve confirmed Ethos and prerequisite findings.
+write alone does not complete this step. Preserve confirmed Ethos and prerequisite
+findings, then save the pending decision and downstream skill before rendering:
+
+- **Fresh, unstarted creation, no structured saved design, no saved source choice:** Save
+  the canonical source question as `pending_question` and
+  `eval-author-first-eval` as `next_handoff`. Follow the
+  [source checkpoint](conversations/first-eval.md#source-and-proposal-pauses) for
+  the template-owned question and choices. This replaces the separate readiness
+  question; do not ask whether to continue first.
+- **Other unstarted cases:** Retain the selected journey's canonical continuation
+  from [onboarding_templates.py](../scripts/conversation_flows/onboarding_templates.py)
+  and the selected downstream skill. Preserve applicable source choices and
+  progress; a saved design still requires its own reuse decision. Already-started
+  work resumes its saved pending decision without another completion pause.
 
 Reload reconciled state and render `confirmed`, including the real saved Ethos
 link in `facts.ethos`. Use its Markdown as the final visible response, then
 **end the turn**. The renderer derives the complete shared steps and current
 journey step from state. A relevant blocker produces only the blocked action
-instead of a continuation invitation. The invitation indicates readiness to
-begin the selected flow, not proof that execution is configured or successful.
+instead of the pending decision. The pause does not establish design approval or
+prove that execution is configured or successful.
 
-Do not ask source-selection or case-planning questions, inspect new suite or
-trace sources, probe runtimes, create evaluations, or delegate downstream work in
-this turn. The pause must remain visible after tools finish; commentary alone is
-not sufficient. Rendering the pause does not supply the user's continuation.
+Only the fresh-creation exception above includes source selection in this turn.
+Do not ask task-planning questions, inspect new suite or trace sources, probe
+runtimes, create evaluations, or delegate downstream work while the reply is
+pending. The pause must remain visible after tools finish; commentary alone is
+not sufficient. Rendering it does not answer its decision.
 
-After the user continues, clear the pending continuation question and hand off
-with the saved context. Do not repeat this pause when resuming downstream work
-that has already started. Keep later execution requirements explicit and pause
-only the work they actually block.
+After the actual source answer to the combined checkpoint, save the choice and
+its provenance, clear the pending question, and hand off directly to the small
+task proposal. Resolve selected trace locations, runs, and exclusions before
+inspection. Do not insert another readiness pause or repeat the source question.
+For other cases, wait for and save the actual continuation reply before handing
+off with the retained context. Do not repeat this pause when resuming downstream
+work that has already started. Keep later execution requirements explicit and
+pause only the work they actually block.
+
+For creation, this continuation and `ETHOS.md` confirmation do not choose a
+previously saved task design. On a fresh request, hand off to the first-eval
+[saved-design checkpoint](../../eval-author-first-eval/SKILL.md#confirm-a-saved-design-before-reusing-it)
+before resuming that design. Existing metadata can identify this pending choice
+during the state-only pass; save its creation record only through normal updates
+after the shared prerequisites and `ETHOS.md` confirmation are complete.
+
+For creation whose source decision was not eligible for the combined checkpoint,
+continue at the first-eval
+[source checkpoint](conversations/first-eval.md#source-and-proposal-pauses) only
+when that choice remains unresolved and no saved-design decision is pending.
+Keep its overall checklist and canonical choices; do not replace either checkpoint
+with a free-form source or task-preparation question.
 
 ## Save and resume
 
@@ -329,6 +358,11 @@ into the existing scope. These observations persist even when prerequisites are
 blocked; case, corpus, and approval updates remain forbidden in this mode.
 
 Save agreed decisions in the selected journey's `scopes` entry.
+Creation uses the additive `scopes.create.first_eval` record described in the
+[first-evaluation conversation contract](conversations/first-eval.md). Normal
+`show` returns its reconciled progress and artifact observations; creation
+updates require the latest `--expected-revision`. These fields do not change
+the top-level schema or grant approvals to older records.
 Put final task behavior in task READMEs and audit checks
 in the audit report. Do not create a separate first-eval or expansion plan file.
 Retire `first-eval.md`, `audit-progress.md`, and intent notes as active writers.
@@ -382,10 +416,12 @@ until the pass can be saved. Preserve existing state rather than replacing it.
 
 ## Hand off
 
-After the user continues from the completion pause, pass the selected journey,
+After the user answers the completion pause, pass the selected journey,
 repository/agent, setup and prerequisite evidence and answers,
-confirmed Ethos result, and unresolved dependencies. First-eval continues with
-its source/scope decision; audit continues with selected evals and traces;
+confirmed Ethos result, saved source choice when applicable, and unresolved
+dependencies. First-eval continues with its next unresolved source/design/scope
+decision; do not repeat a source question already answered in the combined
+checkpoint. Audit continues with selected evals and traces;
 expansion follows the core's explicit expansion handoff. Never repeat shared
 onboarding or convert confirmation into a claim of successful runtime execution.
 
@@ -550,6 +586,7 @@ During Ethos work, the `ethos` update accepts:
 
 | Field | Value |
 |---|---|
+| `path` | Canonical repository-relative path ending in uppercase `ETHOS.md`; defaults to `ETHOS.md`. Select it through a normal update with the latest `--expected-revision` and `stage: review`; path selection is unavailable with `--state-only`. |
 | `stage` | `explore`, `interview`, `draft`, `write`, or `review`; completion uses `confirm-ethos` |
 | `source_findings` | List of records with nonempty `path` and `summary` |
 | `prior_answers` | List of records with nonempty `topic`, `question`, `answer`, and provenance `source` |
@@ -569,19 +606,24 @@ content retains them. Changed content or an intent-revision stage invalidates
 those agreements while preserving their source material. The
 `write` stage requires confirmed draft content. `show` invalidates approval of
 a changed or missing draft while retaining prior answers. Changed canonical
-Ethos similarly reopens its review without discarding the intent history.
+Ethos similarly reopens its review without discarding the intent history. A
+selected path change reopens affected approvals even when the bytes match;
+follow the [selection and provenance rules](ethos-confirmation.md#enter-the-ethos-step).
 
 Only after the canonical workflow returns exact confirmed saved content and
 successful validation may the adapter call:
 
 ```bash
 python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository confirm-ethos \
+  --ethos <selected-repository-relative-path> --expected-revision <latest-revision> \
   --digest <64-character-sha256> --source <user-confirmation-reference> \
   --validation <actual-validation-result-reference>
 python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository import-legacy
 ```
 
-The digest is for the exact saved bytes of root `ETHOS.md`. It cannot be set via
-an arbitrary state update. `import-legacy` retains old notes as unreviewed
-snapshots; review them before recording current decisions. Errors leave the
+The digest is for the exact saved bytes at `ethos.path`. An explicit `--ethos`
+must match that selection; the omitted flag retains the legacy `ETHOS.md`
+default. The digest cannot be set via an arbitrary state update.
+`import-legacy` retains old notes as unreviewed snapshots; review them before
+recording current decisions. Errors leave the
 prior valid record intact and never imply that prerequisites or Ethos passed.

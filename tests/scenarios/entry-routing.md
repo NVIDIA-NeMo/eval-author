@@ -206,7 +206,11 @@ direct flow invocations. Subsequent Ethos-only replies can use `ethos` without
 repeating prerequisite findings.
 
 - Optional assistant skills are absent: put optional Recommendations after the
-  completed table in final, followed by the Ethos checklist and question
+  completed table in final, followed by Next Steps with the Ethos checklist and
+  question. Inspect the actual final reply against renderer stdout: both section
+  headings and the optional-suggestions introduction must survive even when
+  there are no active Blockers. A reply that drops the headings fails this check
+  even when the renderer output was correct
 - The selected authoring runtime is missing, incompatible, or unresolved: show
   the completed table and **Blockers** once in final, preserve progress, and omit
   Next Steps, the checklist, and Ethos guidance. Existing or historically
@@ -358,7 +362,11 @@ document for the selected agent and still accurate. It must not reuse historical
 approval, mark Ethos complete, or show the evaluation readiness question yet.
 
 - Confirm it is correct and current: validate and record the exact saved content
-  with this reply's provenance, then show the completion pause and wait
+  with this reply's provenance, then show the completion pause and wait. For
+  fresh creation without a saved design or source choice, this response includes
+  the source question after its checklist; no separate readiness pause precedes
+  it. Save the source answer and proceed to the small task proposal without
+  repeating that question; design approval still precedes authoring
 - Say it belongs to another agent or needs changes: keep review pending and let
   `ethos-orchestrate` resolve the identity or revise intent before confirmation
 - Ask a side question or say you are unsure: keep Ethos incomplete; preserve the
