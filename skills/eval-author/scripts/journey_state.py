@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import first_eval_state  # noqa: E402
 from conversation_templates import CHECKLIST_LABELS, JOURNEYS  # noqa: E402
 from runtime_policy import load as runtime_policy  # noqa: E402
 from working_paths import (  # noqa: E402
@@ -119,6 +120,14 @@ def _relative_task_path(value: object) -> Path:
     return path
 
 
+def _relative_ethos_path(value: object) -> Path:
+    path = _relative_task_path(value)
+    relative = path.as_posix()
+    if path.name != "ETHOS.md" or "\\" in relative or ":" in path.parts[0] or any(ord(char) < 32 for char in relative):
+        raise ValueError("Ethos must select a canonical repository-relative ETHOS.md path")
+    return path
+
+
 def _validate_tasks(tasks: object) -> None:
     if not isinstance(tasks, dict):
         raise ValueError("Task lifecycle records must be a mapping")
@@ -151,7 +160,7 @@ def _validate_tasks(tasks: object) -> None:
                 raise ValueError("Invalid task evidence digest")
 
 
-def validate(state: dict) -> None:
+def validate(state: dict, *, check_size: bool = True) -> None:
     # Schema validation is also used by the pure conversation renderer; creating
     # a state here would unnecessarily read the clock.
     fields = {
@@ -206,8 +215,9 @@ def validate(state: dict) -> None:
     ethos = state["ethos"]
     if not isinstance(ethos, dict) or set(ethos) != set(empty_ethos()):
         raise ValueError("Invalid Ethos state")
-    if ethos["path"] != "ETHOS.md" or ethos["stage"] not in STAGES:
-        raise ValueError("Ethos must use the repository-root ETHOS.md and a recognized skill stage")
+    _relative_ethos_path(ethos["path"])
+    if ethos["stage"] not in STAGES:
+        raise ValueError("Ethos must use a recognized skill stage")
     if type(ethos["draft_confirmed"]) is not bool:
         raise ValueError("Invalid draft confirmation")
     for field in ("draft_source", "confirmation_source", "validation"):
@@ -255,6 +265,9 @@ def validate(state: dict) -> None:
     for field in ("scopes", "journey_status"):
         if not isinstance(state[field], dict) or set(state[field]) - set(JOURNEYS):
             raise ValueError(f"Invalid {field}")
+    creation_scope = state["scopes"].get("create", {})
+    if isinstance(creation_scope, dict) and "first_eval" in creation_scope:
+        first_eval_state.validate(creation_scope["first_eval"])
     if any(value not in ("pending", "in_progress", "complete") for value in state["journey_status"].values()):
         raise ValueError("Invalid journey completion status")
     _validate_tasks(state.get("tasks", {}))
@@ -279,7 +292,7 @@ def validate(state: dict) -> None:
         _text(item["source"], "legacy source")
         _text(item["archive"], "legacy archive")
     encoded = json_bytes(state)
-    if len(encoded) > MAX_BYTES:
+    if check_size and len(encoded) > MAX_BYTES:
         raise ValueError("Journey state is too large; link domain artifacts instead of embedding them")
 
 
@@ -306,11 +319,15 @@ def state_path(repo: Path) -> Path:
     return path
 
 
-def ethos_digest(repo: Path) -> str:
-    path = repo / "ETHOS.md"
-    if path.is_symlink() or not path.is_file() or not 0 < path.stat().st_size <= MAX_BYTES:
-        raise ValueError("A nonempty repository-root ETHOS.md is required")
-    return digest(path.read_bytes())
+def ethos_digest(repo: Path, relative: str = "ETHOS.md") -> str:
+    _relative_ethos_path(relative)
+    try:
+        checksum, size = _file_digest(_task_local_path(repo, relative), MAX_BYTES)
+    except (OSError, ValueError) as exc:
+        raise ValueError("The selected ETHOS.md must be a bounded regular file without symlinks") from exc
+    if not size:
+        raise ValueError("The selected ETHOS.md must be nonempty")
+    return checksum
 
 
 def draft_digest(repo: Path, draft: dict) -> str:
@@ -352,7 +369,7 @@ def load_state(repo: Path, *, state_only: bool = False) -> dict:
     confirmed = state["ethos"]["confirmed_digest"]
     if confirmed:
         try:
-            current = ethos_digest(repo)
+            current = ethos_digest(repo, state["ethos"]["path"])
         except (OSError, ValueError):
             current = None
         if confirmed != current:
@@ -381,6 +398,10 @@ def load_state(repo: Path, *, state_only: bool = False) -> dict:
             state["ethos"].update(stage="draft", draft_confirmed=False, draft_source=None)
             state["next_handoff"] = "ethos-orchestrate"
             state["pending_question"] = "The agreed draft changed or is unavailable; review the draft before writing."
+    if state["ethos"]["stage"] == "complete" and state["journey_status"].get("create") == "complete":
+        creation = first_eval_state.progress(repo, state)
+        if creation is not None and not creation["complete"]:
+            state["journey_status"]["create"] = "in_progress"
     return state
 
 
@@ -491,6 +512,7 @@ def task_lifecycle(repo: Path, state: dict, task_path: str) -> dict:
 
 
 def checklist(state: dict, *, state_only: bool = False) -> list[dict]:
+    """Project reconciled saved facts; never inspect artifacts from a renderer."""
     blocked = {item["phase"] for item in state["blockers"]}
     journey = state["journey"]
     # Readiness for Ethos differs from readiness for later execution.
@@ -540,6 +562,15 @@ def view(state: dict, *, state_only: bool = False) -> dict:
         requirements = {"runtime": provider["supported"]["authoring"], "python": provider["python"]}
     else:
         requirements = None
+    observations = None if state_only else first_eval_state.observe(Path(state["repository"]), state)
+    creation = None if state_only else first_eval_state.derive(state, observations)
+    if (
+        creation is not None
+        and not creation["complete"]
+        and state["ethos"]["stage"] == "complete"
+        and state["journey_status"].get("create") == "complete"
+    ):
+        state = {**state, "journey_status": {**state["journey_status"], "create": "in_progress"}}
     return {
         "state": state,
         "artifact_checks_deferred": state_only,
@@ -551,6 +582,8 @@ def view(state: dict, *, state_only: bool = False) -> dict:
         "checklist": checklist(state, state_only=state_only) if state["journey"] else [],
         "runtime_requirements": requirements,
         "confirmation_is_runtime_evidence": False,
+        "first_eval_observations": observations,
+        "first_eval": creation,
     }
 
 
@@ -715,6 +748,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             or set(patch["ethos"])
             - {
                 "stage",
+                "path",
                 "draft_confirmed",
                 "draft_source",
                 "draft",
@@ -727,8 +761,29 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             raise ValueError("Use confirm-ethos to record approval of the exact saved content")
     with working_lock(working_path(repo, "journey-state.lock")):
         state = load_state(repo, state_only=state_only)
+        previous = copy.deepcopy(state)
+        create_patch = patch.get("scopes", {}).get("create") if isinstance(patch.get("scopes"), dict) else None
+        prior_create = state["scopes"].get("create", {})
+        if (
+            isinstance(patch.get("scopes"), dict)
+            and "create" in patch["scopes"]
+            and isinstance(prior_create, dict)
+            and "first_eval" in prior_create
+            and not isinstance(create_patch, dict)
+        ):
+            raise ValueError("Retain structured creation progress when updating its scope")
+        typed_create = isinstance(create_patch, dict) and (
+            "first_eval" in create_patch or isinstance(prior_create, dict) and "first_eval" in prior_create
+        )
+        if typed_create and expected_revision is None:
+            raise ValueError("Creation scope updates require --expected-revision from the latest show")
         if expected_revision is not None and expected_revision != state["revision"]:
             raise ValueError("State changed; reload before updating")
+        selected_path = patch.get("ethos", {}).get("path", state["ethos"]["path"])
+        path_changed = selected_path != state["ethos"]["path"]
+        if path_changed and expected_revision is None:
+            raise ValueError("Selecting ETHOS.md requires --expected-revision from the latest show")
+        prior_context = state_path(repo).read_bytes() if path_changed else None
         if state_only and "scopes" in patch:
             if state["journey"] != "audit":
                 raise ValueError("State-only framework observations require the audit journey")
@@ -743,10 +798,32 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             elif field in {"prerequisites", "ethos", "scopes", "journey_status"}:
                 if not isinstance(value, dict):
                     raise ValueError(f"{field} must be a mapping")
-                state[field].update(copy.deepcopy(value))
+                changes = copy.deepcopy(value)
+                if field == "scopes" and typed_create:
+                    changes["create"] = {**copy.deepcopy(prior_create), **changes["create"]}
+                state[field].update(changes)
             else:
                 state[field] = copy.deepcopy(value)
         proposed = patch.get("ethos", {})
+        if prior_context is not None:
+            state["ethos"].update(
+                stage="review",
+                draft=None,
+                draft_confirmed=False,
+                draft_source=None,
+                confirmed_digest=None,
+                confirmation_source=None,
+                validation=None,
+            )
+            invalidate_scopes(state)
+            archive = f".eval-author/.working/history/ethos/{digest(prior_context)}.json"
+            state["ethos"]["source_findings"].append(
+                {"path": archive, "summary": f"Historical context for ETHOS.md at {previous['ethos']['path']!r}."}
+            )
+            if "pending_question" not in patch:
+                state["pending_question"] = "Review the selected ETHOS.md and confirm its intended behavior."
+            if "next_handoff" not in patch:
+                state["next_handoff"] = "ethos-orchestrate"
         revising_intent = proposed.get("stage", "complete") not in {"complete", "review"}
         if state["ethos"]["draft"] != prior_draft or (revising_intent and state["ethos"]["confirmed_digest"]):
             if not (proposed.get("draft_confirmed") is True and proposed.get("draft_source")):
@@ -758,7 +835,13 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             state["ethos"]["confirmation_source"] = None
             state["ethos"]["validation"] = None
             invalidate_scopes(state)
-        validate(state)
+        # Archive legacy inline creation history before enforcing the saved-state limit.
+        validate(state, check_size=state_only)
+        if not state_only:
+            first_eval_state.transition(repo, previous, state)
+            creation = first_eval_state.progress(repo, state)
+            if patch.get("journey_status", {}).get("create") == "complete" and creation and not creation["complete"]:
+                raise ValueError("Creation completion requires current selected native runs and their exact review")
         if (
             not state_only
             and state["ethos"]["draft_confirmed"]
@@ -768,18 +851,32 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             draft = state["ethos"]["draft"]
             if draft["digest"] != draft_digest(repo, draft):
                 raise ValueError("Draft differs from the agreed content; review before writing")
+        if prior_context is not None:
+            atomic_write(working_path(repo, "history", "ethos", f"{digest(prior_context)}.json"), prior_context)
         save(repo, state)
         return state
 
 
-def confirm_ethos(repo: Path, *, reviewed_digest: str, source: str, validation: str) -> dict:
+def confirm_ethos(
+    repo: Path,
+    *,
+    reviewed_digest: str,
+    source: str,
+    validation: str,
+    ethos_path: str = "ETHOS.md",
+    expected_revision: int | None = None,
+) -> dict:
     _text(source, "review source")
     _text(validation, "validation result")
     with working_lock(working_path(repo, "journey-state.lock")):
         state = load_state(repo)
+        if expected_revision is not None and expected_revision != state["revision"]:
+            raise ValueError("State changed; reload before confirming ETHOS.md")
         if not state["agent"]:
             raise ValueError("Select the agent before confirming Ethos")
-        if reviewed_digest != ethos_digest(repo):
+        if ethos_path != state["ethos"]["path"]:
+            raise ValueError("The reviewed ETHOS.md path must match the selected document; supply --ethos")
+        if reviewed_digest != ethos_digest(repo, ethos_path):
             raise ValueError("ETHOS.md differs from the reviewed content; review the saved file")
         state["ethos"].update(
             stage="complete", confirmed_digest=reviewed_digest, confirmation_source=source, validation=validation
@@ -856,6 +953,8 @@ def main() -> int:
     patch.add_argument("--input", type=Path, required=True)
     patch.add_argument("--expected-revision", type=int)
     confirm = commands.add_parser("confirm-ethos", help="Record explicit review of exact saved bytes")
+    confirm.add_argument("--ethos", default="ETHOS.md", help="Exact selected repository-relative ETHOS.md path")
+    confirm.add_argument("--expected-revision", type=int)
     confirm.add_argument("--digest", required=True)
     confirm.add_argument("--source", required=True, help="Source of the user's saved-content confirmation")
     confirm.add_argument("--validation", required=True, help="Validation result and provenance from ethos-write")
@@ -881,7 +980,14 @@ def main() -> int:
                 repo, read_json(args.input), expected_revision=args.expected_revision, state_only=args.state_only
             )
         elif args.command == "confirm-ethos":
-            state = confirm_ethos(repo, reviewed_digest=args.digest, source=args.source, validation=args.validation)
+            state = confirm_ethos(
+                repo,
+                reviewed_digest=args.digest,
+                source=args.source,
+                validation=args.validation,
+                ethos_path=args.ethos,
+                expected_revision=args.expected_revision,
+            )
         elif args.command == "record-task":
             state = record_task(repo, task=args.task, status=args.status, source=args.source, evidence=args.evidence)
         elif args.command == "import-legacy":

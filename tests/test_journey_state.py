@@ -39,6 +39,237 @@ def ethos_ready(state, repo):
     )
 
 
+@pytest.mark.parametrize("journey", ["create", "audit", "expand"])
+def test_confirm_and_resume_agent_local_ethos_without_relocating_it(state, tmp_path, journey):
+    ready = setup_ready(state, tmp_path, journey=journey)
+    relative = "agents/support/ETHOS.md"
+    document = tmp_path / relative
+    document.parent.mkdir(parents=True)
+    document.write_text("# Support agent intent\n")
+    root_document = tmp_path / "ETHOS.md"
+    root_document.write_text("# A different agent\n")
+    before = {path: path.read_bytes() for path in (document, root_document)}
+    selected = state.update(
+        tmp_path,
+        {"ethos": {"path": relative, "stage": "review"}, "pending_question": None},
+        expected_revision=ready["revision"],
+    )
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path, relative),
+        source="User confirms the selected support-agent document",
+        validation="Validator passed for the selected saved document",
+        ethos_path=relative,
+        expected_revision=selected["revision"],
+    )
+    assert confirmed["ethos"]["path"] == relative
+    assert confirmed["ethos"]["confirmed_digest"] != state.ethos_digest(tmp_path)
+    assert state.checklist(confirmed)[1]["complete"]
+    assert state.load_state(tmp_path)["ethos"] == confirmed["ethos"]
+    assert state.initialize(tmp_path, agent="assistant", journey=journey, setup="gym")["ethos"] == confirmed["ethos"]
+    assert all(path.read_bytes() == payload for path, payload in before.items())
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        None,
+        1,
+        "../ETHOS.md",
+        "/ETHOS.md",
+        "agents/../ETHOS.md",
+        "./ETHOS.md",
+        "agents//ETHOS.md",
+        "agents/ethos.md",
+        "agents\\support\\ETHOS.md",
+        "C:/agent/ETHOS.md",
+        "agents/\n/ETHOS.md",
+    ],
+)
+def test_unsafe_ethos_selection_cannot_replace_saved_state(state, tmp_path, relative):
+    ready = setup_ready(state, tmp_path)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError):
+        state.update(tmp_path, {"ethos": {"path": relative}}, expected_revision=ready["revision"])
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert not (tmp_path / ".eval-author/.working/history/ethos").exists()
+
+
+def test_retargeting_identical_ethos_reopens_approval_and_retains_history(state, tmp_path):
+    setup_ready(state, tmp_path)
+    original = ethos_ready(state, tmp_path)
+    draft = tmp_path / ".eval-author/.working/approved-draft.md"
+    draft.write_bytes((tmp_path / "ETHOS.md").read_bytes())
+    state.update(
+        tmp_path,
+        {
+            "ethos": {
+                "draft": {"path": draft.relative_to(tmp_path).as_posix(), "digest": state.digest(draft.read_bytes())},
+                "draft_confirmed": True,
+                "draft_source": "Earlier draft approval",
+            }
+        },
+    )
+    original = state.update(
+        tmp_path,
+        {"scopes": {"create": {"cases": ["refund"], "confirmed": True}}, "journey_status": {"create": "complete"}},
+    )
+    relative = "agents/support/ETHOS.md"
+    document = tmp_path / relative
+    document.parent.mkdir(parents=True)
+    document.write_bytes((tmp_path / "ETHOS.md").read_bytes())
+    before = state.state_path(tmp_path).read_bytes()
+    for revision in (None, original["revision"] - 1):
+        with pytest.raises(ValueError, match="expected-revision|State changed"):
+            state.update(tmp_path, {"ethos": {"path": relative}}, expected_revision=revision)
+        assert state.state_path(tmp_path).read_bytes() == before
+    changed = state.update(tmp_path, {"ethos": {"path": relative}}, expected_revision=original["revision"])
+    assert changed["ethos"]["stage"] == "review"
+    assert changed["ethos"]["confirmed_digest"] is None
+    assert changed["ethos"]["draft"] is None and not changed["ethos"]["draft_confirmed"]
+    assert changed["scopes"]["create"]["needs_review"] and not changed["scopes"]["create"]["confirmed"]
+    assert not changed["journey_status"]
+    archive = tmp_path / changed["ethos"]["source_findings"][-1]["path"]
+    assert archive.read_bytes() == before
+    assert json.loads(archive.read_text())["ethos"] == original["ethos"]
+    assert draft.read_bytes() == document.read_bytes()
+    source = {"source": "User reviewed this path", "validation": "Selected document validated"}
+    for path, revision in ((relative, original["revision"]), ("ETHOS.md", changed["revision"])):
+        with pytest.raises(ValueError, match="State changed|selected document"):
+            state.confirm_ethos(
+                tmp_path,
+                reviewed_digest=original["ethos"]["confirmed_digest"],
+                ethos_path=path,
+                expected_revision=revision,
+                **source,
+            )
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path, relative),
+        ethos_path=relative,
+        expected_revision=changed["revision"],
+        **source,
+    )
+    assert confirmed["ethos"]["stage"] == "complete"
+    assert confirmed["scopes"]["create"]["needs_review"]
+    same = state.update(tmp_path, {"ethos": {"path": relative}}, expected_revision=confirmed["revision"])
+    assert same["ethos"] == confirmed["ethos"]
+    assert archive.read_bytes() == before
+
+
+@pytest.mark.parametrize("change", ["edit", "missing", "symlink", "parent_symlink"])
+def test_selected_ethos_changes_reopen_review_without_root_fallback(state, tmp_path, change):
+    ready = setup_ready(state, tmp_path)
+    relative = "agents/support/ETHOS.md"
+    document = tmp_path / relative
+    document.parent.mkdir(parents=True)
+    document.write_text("# Reviewed support intent\n")
+    selected = state.update(tmp_path, {"ethos": {"path": relative}}, expected_revision=ready["revision"])
+    checksum = state.ethos_digest(tmp_path, relative)
+    state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=checksum,
+        source="User reviewed",
+        validation="Validator passed",
+        ethos_path=relative,
+        expected_revision=selected["revision"],
+    )
+    (tmp_path / "ETHOS.md").write_bytes(document.read_bytes())
+    before = state.state_path(tmp_path).read_bytes()
+    if change == "edit":
+        document.write_text("# Changed intent\n")
+    elif change == "parent_symlink":
+        moved = tmp_path / "moved-agent"
+        document.parent.rename(moved)
+        document.parent.symlink_to(moved, target_is_directory=True)
+    else:
+        document.unlink()
+        if change == "symlink":
+            document.symlink_to(tmp_path / "ETHOS.md")
+    loaded = state.load_state(tmp_path)
+    assert loaded["ethos"]["path"] == relative and loaded["ethos"]["stage"] == "review"
+    assert loaded["ethos"]["confirmed_digest"] is None
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("kind", ["empty", "oversized", "directory", "fifo"])
+def test_selected_ethos_requires_bounded_nonempty_regular_file(state, tmp_path, kind):
+    document = tmp_path / "agents/ETHOS.md"
+    document.parent.mkdir()
+    if kind == "directory":
+        document.mkdir()
+    elif kind == "fifo":
+        import os
+
+        if not hasattr(os, "mkfifo"):
+            pytest.skip("Named pipes require POSIX")
+        os.mkfifo(document)
+    else:
+        document.write_bytes(b"x" * (state.MAX_BYTES + 1) if kind == "oversized" else b"")
+    with pytest.raises(ValueError, match="selected ETHOS.md"):
+        state.ethos_digest(tmp_path, "agents/ETHOS.md")
+
+
+def test_cli_confirmation_binds_explicit_selected_path_and_revision(state, tmp_path):
+    ready = setup_ready(state, tmp_path)
+    relative = "agents/support/ETHOS.md"
+    document = tmp_path / relative
+    document.parent.mkdir(parents=True)
+    document.write_text("# Reviewed support intent\n")
+    selected = state.update(
+        tmp_path, {"ethos": {"path": relative}, "pending_question": None}, expected_revision=ready["revision"]
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            str(SCRIPTS / "journey_state.py"),
+            "--repo",
+            str(tmp_path),
+            "confirm-ethos",
+            "--ethos",
+            relative,
+            "--expected-revision",
+            str(selected["revision"]),
+            "--digest",
+            state.ethos_digest(tmp_path, relative),
+            "--source",
+            "User approved selected path",
+            "--validation",
+            "Validator passed on unchanged document",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    confirmed = json.loads(result.stdout)["state"]
+    assert confirmed["ethos"]["path"] == relative and confirmed["ethos"]["stage"] == "complete"
+    assert not (tmp_path / "ETHOS.md").exists()
+    assert confirmed["pending_question"] is None
+
+
+def test_state_only_inspection_of_selected_ethos_does_not_read_artifacts(state, tmp_path, monkeypatch):
+    ready = setup_ready(state, tmp_path)
+    relative = "agents/support/ETHOS.md"
+    document = tmp_path / relative
+    document.parent.mkdir(parents=True)
+    document.write_text("# Reviewed support intent\n")
+    selected = state.update(tmp_path, {"ethos": {"path": relative}}, expected_revision=ready["revision"])
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path, relative),
+        source="User reviewed",
+        validation="Validator passed",
+        ethos_path=relative,
+        expected_revision=selected["revision"],
+    )
+    before = state.state_path(tmp_path).read_bytes()
+    forbid_artifact_checks(state, monkeypatch, [document])
+    assert state.load_state(tmp_path, state_only=True) == confirmed
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
 @pytest.mark.parametrize("provider", ["gym", "harbor"])
 @pytest.mark.parametrize(
     "journey,label",
