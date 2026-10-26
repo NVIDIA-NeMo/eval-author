@@ -381,6 +381,10 @@ def first_review(record: dict, progress: dict, facts: dict) -> str:
     status = progress["tasks"][record["first_task"]]
     if not progress["scope_approved"] or not status["created"] or not status["environment_proven"]:
         raise ValueError("First-task review requires saved scope approval, current task files, and environment proof")
+    if not status["validated"]:
+        raise ValueError(
+            "First-task review requires current passed grader validation, including model-based checks when used"
+        )
     if (
         record.get("first_task_build")
         and not progress["first_task_approved"]
@@ -412,7 +416,8 @@ def first_review(record: dict, progress: dict, facts: dict) -> str:
 def suite_review(record: dict, progress: dict, facts: dict) -> str:
     if not progress["suite_review_ready"]:
         raise ValueError(
-            "Suite review requires the approved first task, current task files and environments, and report artifacts"
+            "Suite review requires the approved first task, current task files and environments, passed grader validation, "
+            "and report artifacts"
         )
     if facts.get("blockers"):
         raise ValueError("Resolve task-review blockers before presenting the suite for approval")

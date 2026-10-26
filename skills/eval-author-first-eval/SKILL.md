@@ -182,11 +182,14 @@ including input, behavior, expected result, grading, a meaningful limitation,
 and setup/rerun instructions. Finalize it before revision-bound execution evidence;
 put later run results and evidence links in the outer suite README.
 
-Generate the report and Markdown mirror using [Report generation](../eval-author/references/suite-readme.md#report-generation)
+Satisfy [grader validation before authored-task review](../eval-author/references/conversations/first-eval.md#grader-validation-before-authored-task-review)
+for this task, including its actual model-based judge when used. Generate the
+report and Markdown mirror using [Report generation](../eval-author/references/suite-readme.md#report-generation)
 before `first_eval_review_first`. Link the actual Tasks view and task README,
 and report environment proof, grading validation, and actual-agent execution
-separately. Formal grading controls may still be pending once the environment
-is proven and review artifacts exist. Missing required artifacts block review.
+separately. Missing or stale required validation or artifacts block review.
+Reports may be refreshed as drafts while validation remains blocked, without
+presenting an approval question or claiming review readiness.
 
 The report's Runs table currently reads native Harbor jobs; native Gym evidence
 remains linked from the suite README. Keep planned-but-uncreated tasks, separate
@@ -222,27 +225,29 @@ Preserve failed and superseded evidence under fresh output names. Task changes
 reopen affected approval and validation; configuration changes reopen affected
 execution claims. Unknown or missing evidence never establishes completion.
 
-Once all agreed tasks are authored and their environments are proven, refresh
-the report and Markdown mirror and use the [suite review checkpoint](../eval-author/references/conversations/first-eval.md#review-the-authored-suite-before-execution-settings).
+Once all agreed tasks are authored, their environments are proven, and every
+task satisfies the [pre-review validation gate](../eval-author/references/conversations/first-eval.md#grader-validation-before-authored-task-review),
+refresh the report and Markdown mirror and use the [suite review checkpoint](../eval-author/references/conversations/first-eval.md#review-the-authored-suite-before-execution-settings).
 Render `first_eval_review_suite` as the final reply and end the turn. Wait for
 approval of the whole suite before discussing models, budgets, credentials,
 attempt settings, or run authorization. First-task approval does not approve the
 remaining authored tasks. Revisions reopen the affected review.
 
-Formal checks requiring paid models may remain pending at this review. State
-their status and limitations; do not ask how to run them before suite approval
-or claim that review-ready tasks are fully validated or already executed.
+Do not offer review while required model-based grading or calibration is
+pending. Follow the linked blocker contract without moving execution settings
+earlier. Successful grader controls do not establish agent performance.
 
 ## 5. Agree on and execute concrete runs
 
 Use `first_eval_execution_settings` only after approval of the authored suite when
-concrete agent runs or paid grading are ready. The conversation contract owns its
+concrete agent runs are ready. The conversation contract owns its
 settings checklist; record the actual target/model, task/example mapping, repeats,
 validation work, time/cost bounds, and unresolved questions. Mark costs unknown
 without supported estimates. Settings are separate from design and never gate
-task generation or either task review. They may precede paid validation when needed;
-otherwise finish local validation first. Reuse applicable previously displayed
-settings and prior authorization without another generic approval gate.
+task generation or either task review. Required grading validation has already
+passed before either authored-task review; it does not wait for this checkpoint.
+Reuse applicable previously displayed settings and prior authorization without
+another generic approval gate.
 
 Paid work requires explicit authorization within its concrete displayed bounds.
 Design approval, task approval, or positive feedback alone grants no spending

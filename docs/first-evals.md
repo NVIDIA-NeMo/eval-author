@@ -33,12 +33,19 @@ The default starting proposal has one to three tasks, with one example each;
 you can request broader scope. Eval Author waits for your source choice and
 then your proposal approval before starting task construction.
 
-After design approval, Eval Author builds one task and presents its README and
-report for review. Compact build checklists show completed, active, pending,
-and blocked steps, with the responsible skill beside each item. The review distinguishes
-whether its environment works,
-whether grading has been validated, and whether your actual agent has run.
+After design approval, Eval Author builds one task, proves its environment, and
+validates its grader before presenting its README and report for review. Compact
+build checklists show completed, active, pending, and blocked steps, with the
+responsible skill beside each item. The review separates environment proof and
+successful grading validation from whether your actual agent has run.
 You can request revisions to that task before the remaining tasks are created.
+
+If a grader uses an AI model to judge responses, validation exercises that judge
+with known-correct and relevant incorrect results, including valid alternatives
+where permitted. This requires an existing compatible judge configuration,
+access, and applicable authorization. If those are missing, task review pauses
+with **Blockers**; artifacts remain available as drafts with validation incomplete.
+The model and budget questions for running your agent still follow suite approval.
 
 Task directories remain under `.eval-author/tasks/<task-slug>/`. The shared
 report is `.eval-author/report.html`, with a Markdown counterpart in
@@ -50,7 +57,8 @@ After you approve the first task, Eval Author builds and validates the remainder
 Its checklist shows task counts and progress through environment checks, grader
 validation, and the README/report refresh.
 You then review the whole authored suite in the HTML report or mirrored README
-and approve the tasks or request changes. Paid grading may still be pending.
+and approve the tasks or request changes. Every task's required grader checks,
+including model-based checks when used, must pass before this review.
 After you approve the suite, Eval Author presents the concrete settings,
 attempt counts, limits, and unresolved execution needs. Approving the design or
 tasks does not authorize paid runs; applicable prior authorization is reused.

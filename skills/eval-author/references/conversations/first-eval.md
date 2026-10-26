@@ -109,6 +109,33 @@ wait for actual design approval before implementation or further integration
 work. Source selection and readiness to continue do not approve the design.
 No additional planning document or approval checkpoint is needed.
 
+## Grader validation before authored-task review
+
+Before `first_eval_review_first`, validate the first task's complete grader. Before
+`first_eval_review_suite`, every agreed task must have current grading-validation
+evidence. Follow [task validation](../task-validation.md): known-correct results
+and permitted valid alternatives must pass, while relevant incorrect results
+must reach grading and receive the expected rejection. Bind retained native
+control evidence to the current task revision and declared checks.
+
+When grading uses a model to judge reply meaning or another semantic requirement,
+the controls must exercise that actual judge as configured. Writing its rubric,
+checking output structure, passing environment smoke checks, or running only the
+deterministic portion cannot establish full grading validation. A substitute
+judge, hardcoded verdict, skipped semantic check, or target-agent run does not
+satisfy this gate. Task revisions reopen affected validation before review.
+
+Reuse an existing compatible judge configuration, runtime, access, and explicit
+authorization within its applicable bounds. Do not guess a model, incur
+unauthorized spend, add an integration to bypass missing support, or move the
+model, budget, or execution-settings questions before whole-suite approval.
+If required judge configuration, access, or authorization is absent, show
+**Blockers** with the missing prerequisite and needed action, and hold the
+dependent authored-task review. Preserve completed work and allow draft report
+refreshes with validation clearly incomplete; do not use review-ready wording
+or an approval question. The initial task proposal remains a design review
+before building and does not require grader execution.
+
 ## First-task build progress
 
 After saving design approval, initialize `first_task_build` in the existing
@@ -182,10 +209,12 @@ in `facts.blockers`; the active row shows Blocked and the usual **Blockers**
 section explains the needed action. Missing agent credentials or later run
 integration do not block independent authoring.
 
-Completing this checklist means the task is ready for its existing review
-checkpoint. It does not establish grading validation, agent performance, or
-human approval. Keep those separate in `first_eval_review_first`. After the
-first task is approved, later report refreshes do not restart this build.
+Authored reference and grader files establish construction, not successful
+grading validation. Checklist receipts never replace the
+[pre-review validation gate](#grader-validation-before-authored-task-review),
+agent-performance evidence, or human approval. Keep those claims separate in
+`first_eval_review_first`. After the first task is approved, later report
+refreshes do not restart this build.
 
 ## Remaining-task build progress
 
@@ -213,41 +242,45 @@ Do not add individual approval pauses for later tasks.
 Record task creation, environment proof, and grading validation through the
 existing task/evidence records. The renderer derives their counts from current
 evidence. Creation and environment rows count only remaining agreed tasks;
-validation counts all agreed tasks, including any pending first-task controls.
+validation counts all agreed tasks, including the validated first task.
 Tasks can progress individually, so the active row need not follow a global
 sequence. An empty remaining set creates no new tasks. Reuse compatible
 environment proof; only changed or additional environment work needs rebuilding.
 
-After authoring all tasks and proving their environments, refresh both report
-artifacts and save `artifacts` as
+After authoring all tasks, proving their environments, and satisfying the
+[pre-review validation gate](#grader-validation-before-authored-task-review),
+refresh both report artifacts and save `artifacts` as
 `{digest, source, evidence}`. Its `digest` is the current derived
 `remaining_build_digest`; its evidence names the actual `.eval-author/report.html`
 and `.eval-author/README.md` with their byte digests. This binds the refresh to
-current task revisions and available check results; paid validation may still be
-pending. Missing or stale artifacts stay pending;
+current task revisions and successful grading controls. Earlier draft refreshes
+do not establish review readiness. Missing or stale artifacts stay pending;
 later refreshes during execution do not restart completed authoring.
 
 Pass only blockers affecting current build or validation work. Run-only access
-does not block independent authoring. After the suite review below, when paid
-validation needs authorization, use the execution-settings checkpoint, then
-continue the checklist; task or first-task approval does not authorize spending.
+does not block independent authoring. Missing judge prerequisites block grading
+validation and review as specified above; task or first-task approval does not
+authorize spending. Keep target-agent execution questions after suite approval.
 The checklist never supplies validation evidence or agent performance claims.
 
 ## Review the authored suite before execution settings
 
-When every agreed task is authored, its environment is proven, and the refreshed
-HTML report and Markdown mirror are current, render `first_eval_review_suite`.
+When every agreed task is authored, its environment is proven, the
+[pre-review validation gate](#grader-validation-before-authored-task-review)
+passes, and the refreshed HTML report and Markdown mirror are current, render
+`first_eval_review_suite`.
 Use its grounding in the approved design and `ETHOS.md`, leading review links,
 task summaries, honest validation/execution status, limitations, and final
-approval question. Paid grading or calibration can remain pending. Task review
-does not require choosing a model, credentials, limits, or how to execute it.
+approval question. Required model-based grading and calibration must already
+have passed. Task review does not require choosing the target-agent execution
+model, credentials, limits, or how to execute it.
 Keep those questions and run-only blockers out of this review. Do not append a
 generic report footer or routine pause explanation.
 
 Emit the rendering as the final response and end the turn. A nonblocking
-question-tool return does not answer it. Do not proceed with execution settings,
-paid validation, or agent runs while the suite decision is pending. Revise tasks
-in place, refresh their evidence and artifacts, and request review again when
+question-tool return does not answer it. Do not proceed with execution settings
+or agent runs while the suite decision is pending. Revise tasks in place,
+refresh their evidence and artifacts, and request review again when
 needed. A side question or first-task approval does not approve the whole suite.
 
 Save `suite_review_presented` as `{digest, source}`, using the derived
@@ -463,13 +496,13 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_saved_design` | A pending saved-design choice on a fresh request; compact saved scope, historical approval, and current progress, then a fixed continue/revise/new-proposal question. End the turn before any dependent work. |
 | `first_eval_traces` | Confirmed `ETHOS.md`; fixed optional-source question and choices unless the source decision is already saved in the creation scope or plan. Inspect only selected traces after resolving their location, runs, and exclusions. |
 | `first_eval_proposal` | Saved proposed task designs; five-column task table, concise coverage and limitations, first-task choice, and fixed design feedback question. The question is the last content. Execution settings and run-only blockers remain deferred. |
-| `first_eval_prepare_first` | Previously saved design approval; initial provider explanation and compact build checklist. Author exactly one task in its permanent directory, prove its environment before writing its grader, and return for review. No execution checklist is required for local authoring. |
+| `first_eval_prepare_first` | Previously saved design approval; initial provider explanation and compact build checklist. Author exactly one task in its permanent directory, prove its environment before writing its grader, and satisfy the pre-review validation gate before returning for review. No execution checklist is required for local authoring. |
 | `first_eval_build_progress` | Saved approved first-task build activity and fresh observations; the same fixed checklist with short completed, active, pending, or blocked statuses. Use commentary during work, without adding narration or requesting approval. |
-| `first_eval_review_first` | Current first-task files, saved environment proof, and refreshed HTML and Markdown artifacts. Lead with the approved task's name and grounding in `ETHOS.md`, then direct the user to review the HTML report's Tasks view or mirrored README. Follow with input, expected result, grading with a meaningful limitation, and separate environment, grading-validation, and execution status. Link the task README and end with the first-task approval question. |
+| `first_eval_review_first` | Current first-task files, saved environment proof, complete current grading validation, and refreshed HTML and Markdown artifacts. Lead with the approved task's name and grounding in `ETHOS.md`, then direct the user to review the HTML report's Tasks view or mirrored README. Follow with input, expected result, grading with a meaningful limitation, and separate environment, grading-validation, and execution status. Link the task README and end with the first-task approval question. |
 | `first_eval_prepare_remaining` | Saved approval of the current first-task revision and environment proof. Initial explanation and skill-labeled checklist for building the remainder, checking environments, validating all graders, and refreshing artifacts. |
 | `first_eval_remaining_progress` | Current remaining-build activity after first-task approval; compact checklist with evidence-derived task counts, responsible skills, short statuses, and current build blockers. |
-| `first_eval_review_suite` | All authored task revisions and environments plus current report artifacts. Ground the summary in the approved design and `ETHOS.md`, link the HTML Tasks view or mirrored README, summarize each task and current validation/execution evidence, and end with the explicit suite-approval question. No run settings or run-only blockers. |
-| `first_eval_execution_settings` | Current authored-suite approval, when actual agent execution or paid grading is being prepared. Display attempts, validation work, time/cost limits, and open questions, plus relevant run blockers. Do not repeat agent/model or task/example inventory bullets. This display never supplies spending authorization. |
+| `first_eval_review_suite` | Every authored task's current environment and complete grading-validation evidence plus current report artifacts. Ground the summary in the approved design and `ETHOS.md`, link the HTML Tasks view or mirrored README, summarize each task and current validation/execution evidence, and end with the explicit suite-approval question. No run settings or run-only blockers. |
+| `first_eval_execution_settings` | Current authored-suite approval, when actual agent execution is being prepared. Display attempts, validation work, time/cost limits, and open questions, plus relevant run blockers. Do not repeat agent/model or task/example inventory bullets. This display never supplies spending authorization. |
 | `first_eval_ready_to_run` | Current suite approval, validation of every selected task, and a saved applicable settings display. Explain that graders accepted the known correct results and rejected the incorrect results tested; this validates grading rather than measuring agent performance. Announce execution only with applicable explicit authorization, access, and no blocking dependency; otherwise ask one focused question about the missing setting or authorization. |
 | `first_eval_run_progress` | Observed native launch or queued status with current authorized selection and immutable status evidence. Render the standard checklist without skill labels, evidence-derived completed/planned attempts, recorded execution errors, and only actually observed activity. No run-only approval pause or inferred activity. |
 | `first_eval_results` | Review an exact retained current actual-agent attempt when its evidence is available; otherwise present the incomplete inventory and missing-evidence blocker. Separate completed, quality-failing, infrastructure-failing, missing, and unavailable-evidence outcomes. Link verified evidence and rerun instructions, reconcile delivered work, and show completion only when justified. |

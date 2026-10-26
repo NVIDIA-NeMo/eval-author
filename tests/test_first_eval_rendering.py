@@ -150,8 +150,9 @@ def build_started(creation, *, active="environment", completed=()):
     }
 
 
-def built(creation, *, all_tasks=False, reviewed=False, validated=False):
+def built(creation, *, all_tasks=False, reviewed=False, validated=None):
     _, record, *_ = creation
+    validated = reviewed if validated is None else validated
     approved(creation)
     for task_id in ("refund", "reject") if all_tasks else ("refund",):
         check = {
@@ -715,7 +716,7 @@ def test_build_progress_requires_approved_current_task_and_cannot_override_progr
 
 def test_first_task_review_waits_for_the_saved_build_checklist(creation):
     _, _, _, renderer, copy = creation
-    built(creation)
+    built(creation, validated=True)
     build_started(creation, active="artifacts", completed=("environment", "environment_check", "grading"))
     facts = {
         "links": links(creation),
@@ -744,7 +745,7 @@ def test_remaining_task_initial_message_has_counts_and_responsible_skills(creati
         "**Remaining tasks**\n\n"
         "- [ ] Build remaining tasks: 0/1 tasks (skill in use: eval-author-first-eval) — In progress\n"
         "- [ ] Check task environments: 0/1 tasks (skill in use: eval-author-environment) — Pending\n"
-        "- [ ] Validate all task graders: 0/2 tasks (skill in use: eval-author-first-eval) — Pending\n"
+        "- [ ] Validate all task graders: 1/2 tasks (skill in use: eval-author-first-eval) — Pending\n"
         "- [ ] Refresh README and report (skill in use: eval-author-first-eval, eval-author) — Pending\n"
     )
 
@@ -788,7 +789,7 @@ def test_remaining_progress_is_a_pure_repeatable_snapshot_and_survives_resume(cr
         "**Remaining tasks**\n\n"
         "- [ ] Build remaining tasks: 0/1 tasks (skill in use: eval-author-first-eval) — In progress\n"
         "- [ ] Check task environments: 0/1 tasks (skill in use: eval-author-environment) — Pending\n"
-        "- [ ] Validate all task graders: 0/2 tasks (skill in use: eval-author-first-eval) — Pending\n"
+        "- [ ] Validate all task graders: 1/2 tasks (skill in use: eval-author-first-eval) — Pending\n"
         "- [ ] Refresh README and report (skill in use: eval-author-first-eval, eval-author) — Pending\n"
     )
     assert output == renderer.render(request) == renderer.render(payload(creation, "resume"))
@@ -800,11 +801,12 @@ def test_remaining_checklist_advances_from_task_evidence_through_the_artifact_re
     _, record, _, renderer, _ = creation
     built(creation, all_tasks=True, reviewed=True)
     record["tasks"]["reject"]["review"] = None
+    record["tasks"]["reject"]["validation"] = None
     remaining_started(creation, active="validation")
     output = renderer.render(payload(creation, "remaining_progress"))
     assert "Build remaining tasks: 1/1 tasks (skill in use: eval-author-first-eval) — Complete" in output
     assert "Check task environments: 1/1 tasks (skill in use: eval-author-environment) — Complete" in output
-    assert "Validate all task graders: 0/2 tasks (skill in use: eval-author-first-eval) — In progress" in output
+    assert "Validate all task graders: 1/2 tasks (skill in use: eval-author-first-eval) — In progress" in output
     assert output.count("[x]") == 2
     for task in record["tasks"].values():
         task["validation"] = deepcopy(task["environment"])
@@ -864,8 +866,8 @@ def test_zero_remaining_tasks_are_complete_without_claiming_additional_work(crea
     assert copy.NO_REMAINING_TASKS in output and copy.REMAINDER_PROGRESS not in output
     assert "Build remaining tasks: 0/0 tasks (skill in use: eval-author-first-eval) — Complete" in output
     assert "Check task environments: 0/0 tasks (skill in use: eval-author-environment) — Complete" in output
-    assert "Validate all task graders: 0/1 tasks (skill in use: eval-author-first-eval) — In progress" in output
-    assert output.count("[x]") == 2
+    assert "Validate all task graders: 1/1 tasks (skill in use: eval-author-first-eval) — Complete" in output
+    assert output.count("[x]") == 3
 
 
 @pytest.mark.parametrize("provider", ["harbor", "gym"])
@@ -923,7 +925,7 @@ def test_suite_review_is_a_linked_deterministic_checkpoint_before_execution_choi
         "| Task | Behavior under test | Expected result | Grading |\n|---|---|---|---|\n"
         "| refund | Respect policy | Correct disposition | Check state and response |\n"
         "| reject | Respect policy | Correct disposition | Check state and response |\n\n"
-        "**Status:** Environment proof: 2/2 passed. Grading validation: 0/2 passed. "
+        "**Status:** Environment proof: 2/2 passed. Grading validation: 2/2 passed. "
         "Agent execution: 0/2 tasks complete.\n\n"
         "Limitations: Other regions untested\n\n"
         "Do these tasks look good? Approve the suite or tell me what to change before we choose how to run it.\n"
@@ -953,16 +955,34 @@ def test_suite_approval_is_required_before_any_execution_question(creation, stag
         renderer.render(payload(creation, stage, access_ready=True))
 
 
-def test_suite_review_allows_pending_or_failed_grading_and_does_not_grant_execution(creation):
+@pytest.mark.parametrize("provider", ["harbor", "gym"])
+@pytest.mark.parametrize("validation", ["missing", "failed", "stale"])
+def test_suite_review_requires_current_grading_validation_and_does_not_grant_execution(creation, provider, validation):
     state, record, helper, renderer, copy = creation
+    state["setup"] = record["provider"] = provider
     built(creation, all_tasks=True, reviewed=True, validated=True)
-    record["tasks"]["reject"]["validation"]["status"] = "failed"
+    if validation == "missing":
+        record["tasks"]["reject"]["validation"] = None
+    elif validation == "failed":
+        record["tasks"]["reject"]["validation"]["status"] = "failed"
     remaining_started(creation, active=None, artifacts=True)
-    output = renderer.render(payload(creation, "review_suite", links=links(creation)))
-    assert "Grading validation: 1/2 passed" in output
-    assert output.endswith(copy.SUITE_QUESTION + "\n")
+    request = payload(creation, "review_suite", links=links(creation))
+    if validation == "stale":
+        path = record["tasks"]["reject"]["validation"]["evidence"][0]["path"]
+        request["facts"]["observations"]["files"][path] = None
+    with pytest.raises(ValueError, match="Suite review requires"):
+        renderer.render(request)
+    resumed = {**request, "stage": "first_eval_resume"}
+    assert copy.SUITE_QUESTION not in renderer.render(resumed)
     assert not helper.derive(state, observations(record))["suite_approved"]
     assert not helper.derive(state, observations(record))["execution_authorized"]
+    with pytest.raises(ValueError, match="approve the suite"):
+        renderer.render(payload(creation, "execution_settings"))
+    record["tasks"]["reject"]["validation"] = deepcopy(record["tasks"]["reject"]["environment"])
+    remaining_started(creation, active=None, artifacts=True)
+    assert renderer.render(payload(creation, "review_suite", links=links(creation))).endswith(
+        copy.SUITE_QUESTION + "\n"
+    )
     suite_approved(creation)
     assert renderer.render(payload(creation, "execution_settings")).startswith(copy.SETTINGS_INTRO)
 
@@ -1197,10 +1217,47 @@ def test_changes_after_continue_reopen_proposal_approval_without_reasking_to_res
     assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
 
 
-@pytest.mark.parametrize("validated", [False, True])
-def test_review_leads_with_grounding_and_action_before_item_summaries(creation, validated):
+@pytest.mark.parametrize("provider", ["harbor", "gym"])
+@pytest.mark.parametrize("validation", ["missing", "failed", "stale_task", "stale_evidence"])
+@pytest.mark.parametrize("build_receipts", [False, True])
+def test_first_task_review_waits_for_current_grader_validation(creation, provider, validation, build_receipts):
+    state, record, _, renderer, copy = creation
+    state["setup"] = record["provider"] = provider
+    built(creation, validated=True)
+    if build_receipts:
+        build_started(creation, active=None, completed=("environment", "environment_check", "grading", "artifacts"))
+    if validation == "missing":
+        record["tasks"]["refund"]["validation"] = None
+    elif validation == "failed":
+        record["tasks"]["refund"]["validation"]["status"] = "failed"
+    elif validation == "stale_task":
+        record["tasks"]["refund"]["validation"]["sha256"] = "b" * 64
+    request = payload(
+        creation,
+        "review_first",
+        links=links(creation),
+        input="Refund request",
+        expected_result="Refund allowed",
+        grading="Inspect state and model-assessed reply meaning",
+        grading_limitation="Other regions untested",
+    )
+    if validation == "stale_evidence":
+        path = record["tasks"]["refund"]["validation"]["evidence"][0]["path"]
+        request["facts"]["observations"]["files"][path] = None
+    before = deepcopy(request)
+    with pytest.raises(ValueError, match="validation"):
+        renderer.render(request)
+    resumed = renderer.render({**request, "stage": "first_eval_resume"})
+    assert copy.FIRST_QUESTION not in resumed and copy.SETTINGS_INTRO not in resumed
+    assert "Your first task" not in resumed
+    assert request == before
+
+
+@pytest.mark.parametrize("provider", ["harbor", "gym"])
+def test_review_leads_with_grounding_and_action_before_item_summaries(creation, provider):
     state, _, _, renderer, copy = creation
-    built(creation, validated=validated)
+    state["setup"] = creation[1]["provider"] = provider
+    built(creation, validated=True)
     facts = {
         "links": links(creation),
         "input": "Refund request",
@@ -1219,8 +1276,7 @@ def test_review_leads_with_grounding_and_action_before_item_summaries(creation, 
     )
     positions = [output.index(label) for label in ("- **Input:", "- **Expected result:", "- **Grading:", "- **Status:")]
     assert positions == sorted(positions)
-    validation_status = "passed" if validated else "pending or requiring attention"
-    assert f"Environment proof: passed. Grading validation: {validation_status}" in output
+    assert "Environment proof: passed. Grading validation: passed" in output
     assert "Agent execution: not completed" in output and copy.FIRST_QUESTION in output
     assert "report.html#cases>)" in output and "/tasks/refund/README.md>)" in output
     assert output.count("/.eval-author/report.html") == 1
@@ -1241,7 +1297,7 @@ def test_review_leads_with_grounding_and_action_before_item_summaries(creation, 
 def test_review_intro_uses_the_approved_first_task_title_as_literal_text(creation):
     _, record, _, renderer, _ = creation
     record["plan"]["tasks"][0]["title"] = "Preserve *explicit* choices"
-    built(creation)
+    built(creation, validated=True)
     output = renderer.render(
         payload(
             creation,

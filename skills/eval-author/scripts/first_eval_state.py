@@ -526,7 +526,9 @@ def derive(state: dict, observed: object) -> dict | None:
     suite_files_current = bool(
         first_approved and all(task["created"] and task["environment_proven"] for task in tasks.values())
     )
-    suite_review_ready = suite_files_current and remaining["artifacts_current"]
+    suite_review_ready = (
+        suite_files_current and all(task["validated"] for task in tasks.values()) and remaining["artifacts_current"]
+    )
     suite_presented = bool(
         suite_files_current
         and value.get("suite_review_presented")
@@ -736,9 +738,9 @@ def derive(state: dict, observed: object) -> dict | None:
         else "prepare_first"
         if value.get("first_task_build") and not first_approved and not build["current"]
         else "build_progress"
-        if value.get("first_task_build") and not first_approved and not build["complete"]
+        if value.get("first_task_build") and not first_approved and (not build["complete"] or not first["validated"])
         else "prepare_first"
-        if not first["created"] or not first["environment_proven"]
+        if not first["created"] or not first["environment_proven"] or (not first_approved and not first["validated"])
         else "review_first"
         if not first_approved
         else "prepare_remaining"
@@ -934,15 +936,19 @@ def transition(repo, previous: dict, updated: dict) -> None:
         if not (
             old
             and old["tasks"].get(first, {}).get("environment_proven")
+            and old["tasks"].get(first, {}).get("validated")
             and now["tasks"][first]["reviewed"]
             and now["tasks"][first]["environment_proven"]
+            and now["tasks"][first]["validated"]
         ):
-            raise ValueError("Save the first task and its proven environment before recording its review approval")
+            raise ValueError(
+                "Save the first task, proven environment, and current grader validation before recording its review approval"
+            )
     presentation = after.get("suite_review_presented")
     if presentation and presentation != (before or {}).get("suite_review_presented"):
         if not (old and old["suite_review_ready"] and now["suite_review_ready"] and now["suite_review_presented"]):
             raise ValueError(
-                "Save current suite files, environment proof, and review artifacts before recording review"
+                "Save current suite files, environment proof, grader validation, and review artifacts before recording review"
             )
     suite_approval = after.get("suite_approval")
     if suite_approval and suite_approval != (before or {}).get("suite_approval"):

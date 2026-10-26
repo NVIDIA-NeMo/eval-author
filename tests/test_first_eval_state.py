@@ -145,8 +145,8 @@ def ready(modules, repo, provider="harbor", examples=None):
     approve(modules, repo, value)
     author(modules, repo, value, "refund")
     check(modules, repo, value, "refund", "environment")
-    review_first(modules, repo, value)
     check(modules, repo, value, "refund", "validation")
+    review_first(modules, repo, value)
     for planned in value["plan"]["tasks"][1:]:
         author(modules, repo, value, planned["id"])
         check(modules, repo, value, planned["id"], "environment")
@@ -324,20 +324,33 @@ def approve_suite(modules, repo, value):
     return save(modules, repo, value)
 
 
-def test_full_suite_review_precedes_settings_with_paid_validation_still_pending(modules, tmp_path):
-    value = start(modules, tmp_path)
+@pytest.mark.parametrize("provider", ["harbor", "gym"])
+@pytest.mark.parametrize("validation", ["missing", "failed", "stale"])
+def test_full_suite_review_requires_validation_before_later_execution_settings(modules, tmp_path, provider, validation):
+    value = start(modules, tmp_path, provider)
     approve(modules, tmp_path, value)
     author(modules, tmp_path, value, "refund")
     check(modules, tmp_path, value, "refund", "environment")
+    check(modules, tmp_path, value, "refund", "validation")
     review_first(modules, tmp_path, value)
     author(modules, tmp_path, value, "policy")
     check(modules, tmp_path, value, "policy", "environment")
+    if validation != "missing":
+        check(modules, tmp_path, value, "policy", "validation")
+        if validation == "failed":
+            value["tasks"]["policy"]["validation"]["status"] = "failed"
+            save(modules, tmp_path, value)
+        else:
+            (tmp_path / value["tasks"]["policy"]["validation"]["evidence"][0]["path"]).unlink()
     start_remaining(modules, tmp_path, value)
     refresh_remaining_artifacts(modules, tmp_path, value)
     progress = facts(modules, tmp_path)
-    assert progress["suite_review_ready"] and not progress["suite_approved"]
-    assert progress["next_stage"] == "review_suite"
-    assert progress["remaining_build"]["counts"]["validation"] == {"completed": 0, "total": 2}
+    assert not progress["suite_review_ready"] and not progress["suite_approved"]
+    assert progress["next_stage"] == "remaining_progress"
+    assert progress["remaining_build"]["counts"]["validation"] == {"completed": 1, "total": 2}
+    with pytest.raises(ValueError, match="before recording review"):
+        present_suite(modules, tmp_path, value)
+    value.pop("suite_review_presented")
     value["execution_settings_presented"] = {
         "digest": progress["settings_digest"],
         "source": "Premature run settings before all-task approval",
@@ -345,12 +358,14 @@ def test_full_suite_review_precedes_settings_with_paid_validation_still_pending(
     with pytest.raises(ValueError, match="Approve the full suite"):
         save(modules, tmp_path, value)
     value.pop("execution_settings_presented")
+    check(modules, tmp_path, value, "policy", "validation")
     approve_suite(modules, tmp_path, value)
     progress = facts(modules, tmp_path)
     assert progress["suite_approved"]
     assert progress["next_stage"] == "execution_settings"
     assert not progress["execution_authorized"]
-    assert not any(task["validated"] or task["executed"] for task in progress["tasks"].values())
+    assert all(task["validated"] for task in progress["tasks"].values())
+    assert not any(task["executed"] for task in progress["tasks"].values())
 
 
 @pytest.mark.parametrize("source", ["design", "first", "presentation"])
@@ -429,6 +444,7 @@ def test_remaining_build_progress_uses_actual_counts_and_retains_resume_without_
     approve(modules, tmp_path, value)
     author(modules, tmp_path, value, "refund")
     check(modules, tmp_path, value, "refund", "environment")
+    check(modules, tmp_path, value, "refund", "validation")
     review_first(modules, tmp_path, value)
     start_remaining(modules, tmp_path, value)
     progress = facts(modules, tmp_path)
@@ -437,7 +453,7 @@ def test_remaining_build_progress_uses_actual_counts_and_retains_resume_without_
     assert progress["remaining_build"]["counts"] == {
         "tasks": {"completed": 0, "total": 1},
         "environment_check": {"completed": 0, "total": 1},
-        "validation": {"completed": 0, "total": 2},
+        "validation": {"completed": 1, "total": 2},
     }
     assert progress["remaining_build"]["steps"]["tasks"] == "in_progress"
     saved_bytes = modules[0].state_path(tmp_path).read_bytes()
@@ -460,11 +476,12 @@ def test_remaining_build_progress_uses_actual_counts_and_retains_resume_without_
     assert not any(task["executed"] for task in progress["tasks"].values())
 
 
-def test_remaining_build_empty_set_still_validates_first_task(modules, tmp_path):
+def test_remaining_build_empty_set_retains_first_task_validation(modules, tmp_path):
     value = start(modules, tmp_path, examples=[{"id": "refund", "example_ids": ["refund-1"]}])
     approve(modules, tmp_path, value)
     author(modules, tmp_path, value, "refund")
     check(modules, tmp_path, value, "refund", "environment")
+    check(modules, tmp_path, value, "refund", "validation")
     review_first(modules, tmp_path, value)
     start_remaining(modules, tmp_path, value)
     progress = facts(modules, tmp_path)["remaining_build"]
@@ -473,15 +490,12 @@ def test_remaining_build_empty_set_still_validates_first_task(modules, tmp_path)
     assert progress["steps"] == {
         "tasks": "complete",
         "environment_check": "complete",
-        "validation": "in_progress",
+        "validation": "complete",
         "artifacts": "pending",
     }
     refresh_remaining_artifacts(modules, tmp_path, value)
     assert facts(modules, tmp_path)["suite_review_ready"]
     assert facts(modules, tmp_path)["next_stage"] == "review_suite"
-    assert not facts(modules, tmp_path)["remaining_build"]["complete"]
-    check(modules, tmp_path, value, "refund", "validation")
-    refresh_remaining_artifacts(modules, tmp_path, value)
     assert facts(modules, tmp_path)["remaining_build"]["complete"]
 
 
@@ -511,6 +525,7 @@ def test_remaining_build_allows_interleaving_and_run_credentials_do_not_block_lo
     approve(modules, tmp_path, value)
     author(modules, tmp_path, value, "refund")
     check(modules, tmp_path, value, "refund", "environment")
+    check(modules, tmp_path, value, "refund", "validation")
     review_first(modules, tmp_path, value)
     start_remaining(modules, tmp_path, value)
     modules[0].update(
@@ -629,7 +644,7 @@ def test_first_task_build_checkpoints_progress_without_granting_other_claims(mod
         assert not progress["execution_authorized"]
         assert not progress["complete"]
     assert progress["first_task_build"]["complete"]
-    assert progress["next_stage"] == "prepare_first"
+    assert progress["next_stage"] == "build_progress"
     assert value["first_task_build"]["active_step"] is None
     assert modules[0].load_state(tmp_path)["scopes"]["create"]["first_eval"]["history_head"]
 
@@ -751,6 +766,8 @@ def test_failed_checks_do_not_complete_build_and_later_report_refresh_preserves_
     for step in modules[1].BUILD_STEPS:
         finish_build_step(modules, tmp_path, value, step)
     check(modules, tmp_path, value, "refund", "environment")
+    assert facts(modules, tmp_path)["next_stage"] == "build_progress"
+    check(modules, tmp_path, value, "refund", "validation")
     assert facts(modules, tmp_path)["next_stage"] == "review_first"
     review_first(modules, tmp_path, value)
     (tmp_path / ".eval-author/.working/build-artifacts.txt").write_text("refreshed report for later work")
@@ -830,6 +847,11 @@ def test_saved_scope_and_first_task_reviews_gate_generation_without_execution_se
         review_first(modules, tmp_path, value)
     value["tasks"]["refund"]["review"] = None
     check(modules, tmp_path, value, "refund", "environment")
+    assert facts(modules, tmp_path)["next_stage"] == "prepare_first"
+    with pytest.raises(ValueError, match="validation"):
+        review_first(modules, tmp_path, value)
+    value["tasks"]["refund"]["review"] = None
+    check(modules, tmp_path, value, "refund", "validation")
     assert facts(modules, tmp_path)["next_stage"] == "review_first"
     with pytest.raises(ValueError, match="first task before"):
         author(modules, tmp_path, value, "policy")
@@ -838,6 +860,74 @@ def test_saved_scope_and_first_task_reviews_gate_generation_without_execution_se
     assert facts(modules, tmp_path)["first_task_approved"]
     author(modules, tmp_path, value, "policy")
     assert not facts(modules, tmp_path)["execution_authorized"]
+
+
+@pytest.mark.parametrize("provider", ["harbor", "gym"])
+@pytest.mark.parametrize("validation", ["missing", "failed", "stale_task", "stale_evidence", "missing_evidence"])
+def test_first_task_approval_requires_saved_current_grader_validation(modules, tmp_path, provider, validation):
+    value = start(modules, tmp_path, provider)
+    approve(modules, tmp_path, value)
+    author(modules, tmp_path, value, "refund")
+    check(modules, tmp_path, value, "refund", "environment")
+    if validation != "missing":
+        check(modules, tmp_path, value, "refund", "validation")
+        task = value["tasks"]["refund"]
+        if validation == "failed":
+            task["validation"]["status"] = "failed"
+            save(modules, tmp_path, value)
+        elif validation == "stale_task":
+            task["validation"]["sha256"] = "b" * 64
+            save(modules, tmp_path, value)
+        elif validation == "stale_evidence":
+            (tmp_path / task["validation"]["evidence"][0]["path"]).write_text("Changed grader control result")
+        else:
+            (tmp_path / task["validation"]["evidence"][0]["path"]).unlink()
+    before = modules[0].state_path(tmp_path).read_bytes()
+    assert facts(modules, tmp_path)["next_stage"] == "prepare_first"
+    with pytest.raises(ValueError, match="validation"):
+        review_first(modules, tmp_path, value)
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+    assert not facts(modules, tmp_path)["first_task_approved"]
+    value["tasks"]["refund"]["review"] = None
+    check(modules, tmp_path, value, "refund", "validation")
+    assert facts(modules, tmp_path)["next_stage"] == "review_first"
+    review_first(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["first_task_approved"]
+
+
+def test_same_update_grader_validation_does_not_retroactively_authorize_first_task_review(modules, tmp_path):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    author(modules, tmp_path, value, "refund")
+    check(modules, tmp_path, value, "refund", "environment")
+    task = value["tasks"]["refund"]
+    task["validation"] = {
+        "sha256": task["sha256"],
+        "status": "passed",
+        "source": "New passing grader result in the same update",
+        "evidence": [evidence(tmp_path, ".eval-author/.working/new-validation.json")],
+    }
+    with pytest.raises(ValueError, match="validation"):
+        review_first(modules, tmp_path, value)
+    assert not facts(modules, tmp_path)["first_task_approved"]
+    assert not facts(modules, tmp_path)["tasks"]["refund"]["validated"]
+
+
+@pytest.mark.parametrize("task_id", ["refund", "policy"])
+def test_validation_evidence_loss_retains_task_approval_but_requires_revalidation(modules, tmp_path, task_id):
+    value = ready(modules, tmp_path)
+    first_review = copy.deepcopy(value["tasks"]["refund"]["review"])
+    suite_approval = copy.deepcopy(value["suite_approval"])
+    (tmp_path / value["tasks"][task_id]["validation"]["evidence"][0]["path"]).unlink()
+    progress = facts(modules, tmp_path)
+    assert progress["first_task_approved"] and progress["suite_approved"]
+    assert not progress["suite_review_ready"] and not progress["tasks"][task_id]["validated"]
+    assert not progress["execution_authorized"] and not progress["complete"]
+    assert progress["next_stage"] not in {"review_first", "review_suite"}
+    check(modules, tmp_path, value, task_id, "validation")
+    assert value["tasks"]["refund"]["review"] == first_review
+    assert value["suite_approval"] == suite_approval
+    assert facts(modules, tmp_path)["first_task_approved"] and facts(modules, tmp_path)["suite_approved"]
 
 
 @pytest.mark.parametrize("provider", ["harbor", "gym"])
