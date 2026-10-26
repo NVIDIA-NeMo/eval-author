@@ -142,3 +142,27 @@ renaming it.
 Retain the generated guides, configs, resolved selections, and any observed
 failure as evidence. One successful exercise is a bounded check, not a claim
 that all future authoring runs will produce correct documentation.
+
+## First-task review and saved run identity
+
+When this suite is authored as first evaluations, use the shared
+[first-evaluation conversation contract](../../skills/eval-author/references/conversations/first-eval.md).
+Before task generation, save actual design approval. Build exactly one permanent
+task and prepare its report and Markdown review before authoring the remainder.
+Request a revision, interrupt, and verify resume retains the task path and
+outstanding approval. Execution settings appear only when concrete runs or paid
+grading are ready after first-task approval; they never gate that initial review.
+
+For each provider, retain original controls and use explicit selected tasks or
+complete Gym rows with agreed repeats. Add an unrelated task in the parent
+directory and confirm it is excluded. Keep controls separate from target-agent
+runs and give later retries fresh output names. A low score with healthy native
+execution is completed baseline evidence; controls-only or absent output is not.
+
+Save an informative exact run/attempt review, then add another run. Both the
+conversation and suite README must still navigate to the original reviewed
+attempt and identify actual agent/model information or its absence. Link the
+verified full-suite rerun heading and any separate single-task instructions.
+Finalize task READMEs before binding evidence and keep later result summaries
+outside those directories. Use main's Draft/Accepted lifecycle without treating
+scope approval or report refresh as task acceptance.

@@ -208,7 +208,8 @@ the pending question, then reload normal state and render `results` in the final
 reply. Supply the completed prerequisite findings, optional Recommendations,
 and applicable Ethos, draft, question, and blocker facts. The final owns the
 canonical grounding sentence, completed table, Next Steps, one state-derived
-checklist, and the inspected Ethos action.
+checklist, and the inspected Ethos action. Preserve the renderer's headings and
+Markdown in that final response under the [shared output contract](conversation-rendering.md).
 
 Each prerequisite turn shows an initial status table and one completed table in
 the final reply. An unblocked final includes one checklist; a blocked final
@@ -306,6 +307,13 @@ with the saved context. Do not repeat this pause when resuming downstream work
 that has already started. Keep later execution requirements explicit and pause
 only the work they actually block.
 
+For creation, this continuation and `ETHOS.md` confirmation do not choose a
+previously saved task design. On a fresh request, hand off to the first-eval
+[saved-design checkpoint](../../eval-author-first-eval/SKILL.md#confirm-a-saved-design-before-reusing-it)
+before resuming that design. Existing metadata can identify this pending choice
+during the state-only pass; save its creation record only through normal updates
+after the shared prerequisites and `ETHOS.md` confirmation are complete.
+
 ## Save and resume
 
 `.eval-author/.working/journey-state.json` is the sole authority for workflow
@@ -329,6 +337,11 @@ into the existing scope. These observations persist even when prerequisites are
 blocked; case, corpus, and approval updates remain forbidden in this mode.
 
 Save agreed decisions in the selected journey's `scopes` entry.
+Creation uses the additive `scopes.create.first_eval` record described in the
+[first-evaluation conversation contract](conversations/first-eval.md). Normal
+`show` returns its reconciled progress and artifact observations; creation
+updates require the latest `--expected-revision`. These fields do not change
+the top-level schema or grant approvals to older records.
 Put final task behavior in task READMEs and audit checks
 in the audit report. Do not create a separate first-eval or expansion plan file.
 Retire `first-eval.md`, `audit-progress.md`, and intent notes as active writers.

@@ -102,15 +102,16 @@ explicitly selected.
 
 Refresh after cases are authored, after additions or edits, and after validation
 or actual-agent runs, including failed runs. Refresh again at the final handoff
-and link the report. When mentioning the report, end the response with one
-sentence containing each artifact link once:
-
-```markdown
-Review your evaluations in [the report](<report-path>) or [the suite README](<readme-path>).
-```
-
-Use the actual paths to `.eval-author/report.html` and `.eval-author/README.md`,
-and keep both links in that closing sentence.
+and link the report. For [first-task and full-suite review](conversations/first-eval.md#stages-and-review-boundaries),
+use the renderer's leading review action and artifact links before its summaries,
+without a repeated report footer. Completed creation results follow
+[completed run review](conversations/first-eval.md#completed-run-review) instead.
+For other report handoffs, including incomplete creation results, end the response with the
+canonical `REPORTS` sentence in [conversation_templates.py](../scripts/conversation_templates.py),
+containing each artifact link once. Supply the actual paths to
+`.eval-author/report.html` and `.eval-author/README.md`, using the report and suite
+README link labels from the selected conversation flow. Keep both links in
+that closing sentence.
 
 Present evaluation findings and report links to the user; describe generation internals
 only when asked. Reuse the settled scope and authorization: a missing report is not

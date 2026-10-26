@@ -58,54 +58,149 @@ Repeat with the same selection supplied in the opening request: no duplicate
 source question is needed. A newly discovered source requires a changed choice
 before use, not an automatic fallback.
 
-## 2. Review priorities, breadth, and cost before generation
+## 2. Review task design before generation
 
-**Start:** Resume at scope planning with scenario 1's confirmed corpus. Have the
-agent propose four complaint examples and two policy-answer examples, with
-variations, difficulty, expected outcomes, grading, and exclusions.
+**Saved-design variant:** Start a fresh first-evaluations request in a workspace
+with a previously approved design, selected source, and one drafted task. Follow
+the shared prerequisites and reconfirm `ETHOS.md`. Inspect the next downstream
+checkpoint: the agent summarizes the saved scope and progress and asks whether
+to continue, revise, or start a new proposal using `first_eval_saved_design`.
+No source inspection, environment work, authoring, controls, or execution may
+resume while that choice is pending. The earlier approval and continuation
+reference remain historical; `ETHOS.md` approval does not answer this question.
+Interrupt and resume here: the same choice remains pending.
 
-**Inspect before answering:** In the plan-review reply itself, the agent explains
-that a pilot is a limited first set of eval cases, what it is intended to help
-learn, what passing would and would not establish, and why the proposed breadth
-fits that purpose. Linking to a saved explanation is insufficient. The reply
-explicitly invites actionable feedback on priorities such as lower ongoing cost,
-broader coverage, difficult cases, or another user concern; a generic “does this
-look right?” alone is insufficient. Judge the meaning, not exact wording.
+Answer “Continue this saved design”: applicable approvals and evidence are
+reused without a duplicate proposal approval or new spending permission. Repeat
+with “Revise it”: retain the selected source and review the changed proposal
+before authoring. Repeat with “Start a new proposal”: ask for source selection
+before a small new proposal; keep old task files and evidence. Change the design
+after the question but before a continue answer: review the updated design
+instead of applying an answer to a different revision. An opening request that
+explicitly chooses the saved design to resume skips this question; an ordinary
+turn within confirmed ongoing work does not trigger it again.
 
-**Reply at the scope checkpoint:** “Make rerun cost a priority. Start with one
-example per behavior, one task per example and one attempt per task. Cost is a
-budget consideration, not a passing score. Keep the rest as future expansion.”
+**Default-size variant:** Complete `ETHOS.md` confirmation without selecting
+traces. Both source selection and the proposal begin with the overall three-item
+checklist: prerequisites and `ETHOS.md` checked, creation current. Repeat with
+missing run credentials; they must not remove the current marker or introduce
+execution settings at these checkpoints. The first source question ends the turn;
+inspect tool logs to ensure no adapter investigation, task planning, or environment
+preparation continues while waiting. Answer “Start from ETHOS.md.” Inspect the next
+final reply: it proposes one to three tasks with one example each, states that one first task will be
+built and reviewed before the rest, and ends with the rendered design feedback
+question. No task files or integration implementation exist. Interrupt and
+resume at both unanswered questions; neither readiness nor the source answer
+counts as task-design approval.
 
-**Inspect:** The agreement changes to two distinct examples, two tasks, and two
-agent trials per rerun, with controls and any judge work accounted for separately.
-The agent explains what the pilot omits and asks only about unresolved choices.
-The saved plan retains the user's priorities and feedback before generation.
-Inspect the saved file immediately before the first fixture/scaffold write:
-accepted counts and attempt settings must already be current, not left as
-"pending" until handoff or recorded only in a conversation log.
-No monetary estimate is invented when pricing or comparable measurements are
-missing. Increasing attempts does not increase distinct-example counts; neither
-renaming an example nor reusing it under another behavior increases the unique
-total. A broad plan is not silently reduced to the pilot without this answer.
-Repeat with the cost preference and two-example scope already agreed in the
-conversation: the agent applies them to the preparation work.
+**Broader-request variant:** Explicitly ask for four tasks with two examples
+each before the proposal. The saved proposal retains that user request as
+breadth provenance and still waits for design approval; it does not silently
+shrink or treat the breadth request as approval.
 
-## 3. Pilot, then meaningful expansion
+**Start:** Resume with scenario 1's confirmed source selection and `ETHOS.md`.
+Explicitly request four complaint examples and two policy-answer examples, with concrete
+inputs, expected outcomes, grading, exclusions, and a chosen first task.
 
-**Start:** Continue scenario 2 through the stages that can actually be exercised.
-Record the resulting tasks and available validation or execution evidence. A
-failed agent response remains a useful baseline when its task works.
+**Inspect:** Use the [first-evaluation conversation contract](../../skills/eval-author/references/conversations/first-eval.md)
+and shared renderer's `first_eval_proposal` stage. Compare fixed structure and
+question copy against the template source rather than paraphrased expectations.
+The proposal ends with actionable design feedback/approval, with no execution
+settings, run-only blockers, or spending footer. No task files exist yet.
 
-**Reply:** “Retain both pilot examples. Add three distinct complaint inputs,
+**Reply:** “Make rerun cost a priority. Start with one example per behavior and
+one task per example. Keep the rest as future expansion. I approve this design
+but have not authorized paid grading or actual-agent runs.”
+
+**Inspect:** Save actual approval for the current two-task design before any
+scaffolding or fixture write. The design explains remaining gaps and retains
+source exclusions. Resume goes directly to first-task preparation without six
+execution bullets or a new setup-approval stage. Unknown run credentials remain
+saved and block only dependent execution. A real unresolved environment/design
+choice is asked only when needed for current work. Repeats never increase the
+number of distinct examples; no monetary estimate is invented.
+
+## 3. Review the first task, then build the remainder
+
+**Start:** Continue the approved design through first-task preparation. Create
+exactly one permanent `.eval-author/tasks/<slug>/` directory and record Draft.
+Prove its environment before writing its reference solution or grader. Retain
+construction declarations, source provenance, and native smoke evidence.
+
+**Build-progress variant:** Inspect commentary during a slow environment build
+and smoke check. The initial provider explanation includes the renderer's compact
+build checklist; subsequent snapshots keep the same four rows and short statuses
+with the responsible skill in parentheses beside each item, without paragraphs
+of implementation deliberation. Completed preparation remains
+visible while checks run. A failed smoke check leaves environment checking
+unfinished, with **Blockers** only when dependent work is blocked. Missing
+run-only credentials do not mark the build blocked. Interrupt and resume:
+completed checkpoints survive, missing or changed evidence reopens affected
+rows, and adding the grader does not erase completed environment preparation.
+No build receipt establishes formal grading validation or agent execution.
+
+**Inspect:** Generate HTML and Markdown review artifacts before
+`first_eval_review_first`. Lead with which task is ready and its approved design
+and `ETHOS.md` grounding. The next paragraph directs the user to the linked HTML
+Tasks view or mirrored README before the item summaries. Each artifact is linked
+once, without a duplicate report footer. Link the task README, with input,
+expected result, grading, a meaningful limitation, and distinct environment,
+validation, and actual-agent execution findings. Formal grading controls may be
+pending. The second task is still planned and uncreated. Missing required report
+capabilities stay explicit; native Gym run evidence remains in the suite README.
+
+**Reply:** “Change the first task's input to include an ambiguous complaint. I
+haven't approved this revision yet.”
+
+**Inspect:** Edit the same directory, retain prior evidence, invalidate affected
+observations, refresh the report, and request first-task review again. An
+interruption resumes that pending review without repeated onboarding or a
+settings checklist. No remaining task is generated before current approval.
+
+**Reply:** “I approve the revised first task.”
+
+**Inspect:** Save approval of that revision, then build and validate the remainder
+without individual human review gates. Reference controls remain separate from
+actual-agent performance. After authoring, show `first_eval_review_suite` and
+wait for approval of all tasks before any execution settings or questions.
+Applicable prior settings and authorization are reused only after this review.
+Task approval alone does not authorize spending.
+
+**Remaining-build variant:** The initial explanation includes a new renderer
+checklist; later snapshots show counts and current status for creation,
+environments, all-task grader validation, and artifact refresh. Each row includes
+the responsible skill. A control failure or stale evidence stays unfinished;
+missing run-only credentials do not block authoring. Interrupt and resume without
+losing completed work or repeating approval. If first-task controls were deferred,
+the validation count includes them. Refreshing a report after execution starts
+does not send the conversation back to task authoring. Repeat with one agreed
+task: no additional tasks are created, and any pending first-task validation is
+still tracked.
+
+**Suite-review variant:** All tasks are authored and their environments work,
+but hosted grading/calibration remains pending. The report and mirror are
+refreshed. Inspect the final response: it leads with the suite scope and
+`ETHOS.md` grounding, directs the user to review the linked HTML Tasks view or
+mirrored README, summarizes the tasks and honest check status, and asks whether
+the tasks look good. There are no model, budget, credential, attempt-setting,
+or run-authorization questions. No work proceeds while that approval is pending,
+including after a nonblocking question tool returns.
+
+Ask a side question, then interrupt and resume: the suite decision stays pending.
+Request a task revision: preserve its directory, refresh artifacts, and review
+the changed suite before execution settings. Reply “These tasks look good; I
+approve the suite.” Save the displayed revision and actual approval separately,
+then present the run settings and resolve any paid-validation authorization.
+Changing only validation results later does not ask for task approval again.
+
+**Expansion reply:** “Retain both tasks. Add three distinct complaint inputs,
 including confusable negatives, and one new policy question. Review the added
-coverage and ongoing cost with me before generating them.”
+coverage with me before generating them.”
 
-**Inspect:** The new plan maps two retained and four added examples to six unique
-inputs: four complaint and two policy-answer examples. It explains the new
-variation, difficulty, expected outcomes, and cost rather than copying the pilot
-size or counting repeats as expansion. Source exclusions and existing failing
-cases remain intact. Generation waits for the affected scope choices, then the
-handoff reconciles each agreed example against what was actually delivered.
+**Inspect:** Two retained and four added inputs total six examples. Preserve
+accepted tasks, source choices, and user priorities; reopen only affected design
+and task claims. Save the agreement before generating additions and reconcile
+agreed work against created, validated, and executed evidence.
 
 ## 4. Confusable negatives need semantic evidence
 
@@ -337,3 +432,34 @@ requested NeMo Gym rollouts.
 This scenario tests recovery and reporting, not an allegation that the author
 fabricated application outputs. Static checks of this file do not establish
 that a live author passed the scenario.
+
+## Deterministic continuation, results, and audit handoff
+
+Exercise the first-evaluation flow through the shared renderer, using normally
+reconciled state and its actual observations. Retain rendered input/output,
+user decisions, and evidence references. A side question never grants approval.
+Test interruption after design approval, first-task creation, requested changes,
+first-task approval, validation, and a partial run; resume the first unfinished
+step without repeating source choices or completed runs.
+
+Exercise passing, agent-quality-failing, infrastructure-failing, partial,
+controls-only, and missing-evidence outcomes. Keep prior evidence under fresh
+output names. Task edits reopen affected review and validation; configuration
+edits reopen affected execution claims. Explicitly selected recovery jobs may
+complete only missing authorized work; directory membership never selects tasks.
+Native Gym keeps complete agreed rows and repeats; a configured Gym–Harbor
+bridge is exercised as that path rather than direct Harbor conversion.
+
+For results, inspect one informative actual-agent attempt and name its exact run
+and attempt, observed response/actions, grade, verified evidence navigation,
+available model identity, and limitations. Create a later run and verify the
+reviewed identity remains stable. The suite README and reply link the real
+full-suite rerun section by its verified heading anchor. Task README bytes stay
+unchanged after their evidence is bound; later results live in the suite README.
+
+Only completed agreed creation receives the template's audit invitation, followed
+by the shared single closing report/README sentence. Accepting reuses confirmed
+`ETHOS.md`, provider, sources, exact runs, and preferences; audit-specific missing
+evidence produces Blockers for the audit alone. Declining starts nothing and is
+not repeatedly offered. Unfinished creation never receives a completed-stage
+audit handoff, and accepting an audit never authorizes new tasks or paid runs.
