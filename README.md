@@ -138,9 +138,10 @@ I don't have evaluations yet.
 
 See [Build your first evaluations](docs/first-evals.md).
 
-### Audit your existing coverage
+### Audit coverage, identify gaps, and recommend improvements
 
-Check what your existing evaluations cover against your agent's intended behavior.
+Review your evaluations against your agent's intended behavior, identify coverage
+gaps, and get recommendations grounded in the findings and evidence limits.
 You need an existing suite and traces from completed evaluation runs. Eval Author
 confirms trace availability during prerequisites; you select the traces within the audit.
 

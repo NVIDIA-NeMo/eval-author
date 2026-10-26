@@ -3,22 +3,11 @@
 
 # Improvement prerequisites
 
-Use for improving existing evaluations (`expand` in shared state). Follow the
-[shared procedure](../shared-prerequisites.md#check-the-agent-and-setup) for when
-to show this table, how to inspect prerequisites, and how to present results.
+Use for improving existing evaluations (`expand` in shared state).
 
 ## Prerequisite table
 
-| Prerequisite | Status | Findings |
-|---|---|---|
-| Agent and repository | Checking | — |
-| Evaluation framework | Checking | — |
-| Required skills | Checking | — |
-| File and command access | Checking | — |
-| Python and evaluation runtime | Checking | — |
-| Evaluation environment | Checking | — |
-| Required services and data | Checking | — |
-| Agent connection and credentials | Needed before agent runs | — |
+Journey `expand`; follow the [shared prerequisite procedure](../shared-prerequisites.md#check-the-agent-and-setup).
 
 ## Checks and blocking conditions
 
@@ -31,27 +20,36 @@ traces, coverage reports, or planning artifacts.
 Confirm that the existing suite uses a supported format before checking a
 provider's runtime or starting Ethos. Identifying an existing framework does not
 establish compatibility; a saved Harbor setup does not establish the suite's
-format. If the suite uses another format, finish the independent checks and show
-this under **Blockers**:
+format. If the suite uses another format, finish the independent checks, then
+record the detected suite format and required conversion in the selected scope.
+Save an `evaluation_format` blocker in phase `setup`, the conversion request as
+`pending_question`, and `eval-author` as `next_handoff`.
 
-```markdown
-Eval Author only supports NeMo Gym or Harbor formats. Convert your existing evaluations to one of those formats before we continue.
-```
+Render the blocked response through the
+[onboarding renderer](../conversations/onboarding.md#blockers). For this active blocker on
+journey `expand`, supply `id: evaluation_format` and `skill_link` to the exact
+loaded core `eval-author/SKILL.md`, using a caller-verified absolute path or
+HTTP(S) URL. The renderer owns the blocker explanation, action, question, linked
+skill-pause attribution, and conversion handoff in
+[onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py). Legacy custom prose
+does not override them. Present the rendering unchanged, without an additional
+pause explanation or manually appended prompt. The handoff directs repository
+engineering work to a separate coding-agent chat. It is a remedy within
+Blockers, not a Next Steps section or permission for Eval Author to convert.
 
-Keep setup incomplete and omit Next Steps, the checklist, and Ethos guidance
-until the user returns with a supported suite. Save progress and wait for them to
-convert it; conversion remains outside Eval Author. Do not offer direct authoring
-in the unsupported format or separate supported evaluations as a workaround.
-This requirement adds no audit or trace requirement and does not change supported
-audit evidence formats or scoped trace conversion.
+Keep setup incomplete and omit Next Steps, the checklist, and Ethos guidance.
+Preserve progress while the user converts the suite; do not execute conversion,
+start unsupported-format authoring, or offer separate supported evaluations as
+a workaround. This requirement adds no audit or trace requirement and does not
+change supported audit evidence formats or scoped trace conversion.
 
-Record the detected suite format and required conversion in the selected scope,
-with an `evaluation_format` blocker in phase `setup`, the conversion request as
-`pending_question`, and `eval-author` as `next_handoff`. On return, check the
-converted suite's format before clearing the blocker and resuming prerequisites.
-Reassess this blocker when the scope changes; remove its blocking effect when it
-no longer applies to the new request, such as a switch to audit, while retaining
-the format findings.
+When the user returns with converted paths and validation results, check the
+actual suite format before clearing the blocker and resuming prerequisites.
+Displaying the prompt or receiving a completion claim does not establish
+compatibility. Reassess this blocker when scope changes; remove its blocking
+effect when it no longer applies, such as a switch to audit, while retaining
+the format findings. The conversion prompt does not appear for unrelated
+blockers or another journey.
 
 Once the format is established, use the [authoring checks](../shared-prerequisites.md#authoring-checks)
 for Python and the selected evaluation runtime, the applicable evaluation

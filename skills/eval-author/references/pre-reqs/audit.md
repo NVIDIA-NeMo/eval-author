@@ -3,21 +3,12 @@
 
 # Audit prerequisites
 
-Use for a full audit of existing evaluation coverage. An explicitly requested
-specification-only operation retains its scoped entry. Follow the
-[shared procedure](../shared-prerequisites.md#check-the-agent-and-setup) for when
-to show this table, how to inspect prerequisites, and how to present results.
+Use for a full audit of evaluation coverage, gaps, and recommended improvements.
+An explicitly requested specification-only operation retains its scoped entry.
 
 ## Prerequisite table
 
-| Prerequisite | Status | Findings |
-|---|---|---|
-| Agent and repository | Checking | — |
-| Evaluation framework | Checking | — |
-| Traces from completed evaluation runs | Unknown | This audit requires saved traces from evaluations that have already run. Their availability must be confirmed before we continue |
-| Required skills | Checking | — |
-| File and command access | Checking | — |
-| Audit tooling | Checking | — |
+Journey `audit`; follow the [shared prerequisite procedure](../shared-prerequisites.md#check-the-agent-and-setup).
 
 ## Checks and blocking conditions
 
@@ -39,18 +30,24 @@ formats; selected evidence still needs ATIF or an existing supported conversion.
 
 ### Traces from completed evaluation runs
 
-Keep this prerequisite visible in both the initial and results tables. Reuse any
-supplied availability answer: use **Confirmed by you** when the user says those
+Keep this requirement visible in the initial status table and completed report.
+Reuse any supplied availability answer: use **Confirmed by you** when the user says those
 traces exist, **Missing** when they say none exist, and **Unknown** otherwise.
 Evaluation definitions and pass/fail scores alone do not satisfy this prerequisite.
 
 Unknown or missing trace availability blocks full audit onboarding. Finish the
-other accessible checks, then show **Blockers** and pause before Ethos. For unknown
-availability, ask: “Do you have saved traces from evaluations that have already run
-for this agent?” For confirmed absence, explain that the audit needs those traces
-and ask the user to provide them or choose a different scope. Do not report that
-the prerequisites passed, mark setup complete, or show Next Steps while this is
-unresolved. Never mark traces **Not needed now** or run evaluations to create them.
+other accessible checks, record the actual `data` status and a `data` blocker in
+phase `setup`, then render **Blockers** and pause before Ethos. Supply its
+`facts.blockers` entry as `id: data` plus `skill_link` to the exact loaded
+`eval-author-audit/SKILL.md`, using a caller-verified absolute path or HTTP(S) URL.
+The [canonical blocker specification](../conversations/onboarding.md#blockers)
+owns the traces-row finding and status, blocker explanation, action, question,
+and linked skill-pause attribution. It distinguishes unresolved availability
+from confirmed absence; do not replace that wording with caller prose or append
+another pause explanation. Other prerequisite findings remain factual inputs.
+Do not report that prerequisites passed, mark setup complete, or show Next Steps
+while unresolved. Never mark traces **Not needed now** or run evaluations to
+create them.
 
 Availability confirmation does not select a trace source or prove usable evidence.
 Select suites and traces within the audit after Ethos confirmation, then verify

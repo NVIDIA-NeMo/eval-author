@@ -21,6 +21,7 @@ from pathlib import Path, PurePosixPath
 CONTRACTS = Path(__file__).resolve().parents[1] / "tests/fixtures/workflow-scope/contracts.json"
 ACTIONS = {
     "read_skill",
+    "render_conversation",
     "read_repository",
     "inventory",
     "runtime_probe",
