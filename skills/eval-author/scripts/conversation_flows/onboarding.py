@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 
 import conversation_templates as shared
 import journey_state
+from conversation_formatting import checklist as format_checklist
 from conversation_formatting import link, literal, mapping, text
 
 from . import onboarding_templates as copy
@@ -44,10 +45,7 @@ def checklist(journey: str, state: dict | None = None, *, state_only: bool = Fal
             for index, label in enumerate((*shared.CHECKLIST_LABELS, shared.JOURNEYS[journey]))
         ]
     )
-    return "\n".join(
-        f"- [{'x' if row['complete'] else ' '}] **{row['label']}**" + (" — **We're here**" if row["current"] else "")
-        for row in rows
-    )
+    return format_checklist(rows)
 
 
 def recorded_status(state: dict, key: str) -> str:
