@@ -87,10 +87,9 @@ Use confirmed `ETHOS.md`, the agent entry point, tools, and usage documentation.
 Existing traces are optional. If the choice is unresolved, use `first_eval_traces`
 with its progress checklist and exact choices as the final reply, then end the
 turn. Follow the [source checkpoint inputs](../eval-author/references/conversations/first-eval.md#source-and-proposal-pauses);
-a standalone question-tool prompt cannot replace the rendered checkpoint.
+collect the reply to the rendered checkpoint rather than a separate question tool.
 Wait for the user's answer before trace inspection, task planning,
-environment work, or integration investigation. A nonblocking question tool
-returning does not supply that answer; do not keep working while it is pending.
+environment work, or integration investigation.
 Reuse an already established choice.
 Clarify locations, selected runs, bounds,
 and exclusions before inspection, following [source selection](../eval-author/references/coverage-planning.md#select-trace-evidence-before-using-it).

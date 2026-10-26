@@ -63,19 +63,20 @@ This context does not introduce build steps, execution settings, or a new pause;
 run-only blockers do not prevent independent design review.
 
 After the shared confirmation continuation, render `first_eval_traces` as the
-final response when no source choice is saved, then end the turn. Supply only
-`stage: first_eval_traces`, the fresh reconciled `state`, and its `revision` to
-the shared renderer. This checkpoint needs no proposal record, task planning,
-observations, or execution settings. Its canonical question and choices come
-from the template module.
+final response when no source choice is saved, then end the turn. For a fresh
+checkpoint without a saved design, supply only `stage: first_eval_traces`, the
+fresh reconciled `state`, and its `revision` to the shared renderer. No proposal
+record, task planning, observations, or execution settings are needed first.
+When a saved design remains after choosing a new proposal, also supply its fresh
+`facts.observations` as usual. The canonical question and choices come from the
+template module.
 
 Present the complete output, including `Next Steps`, both completed shared
-steps, and the current creation step before the source question. A standalone
-question-tool prompt does not replace this response. If a question tool is used,
-keep its labels identical to the rendered choices and retain the rendered
-checklist and question in the final response. Do not continue planning or
-investigating integrations while the answer is pending, including after a
-nonblocking question tool returns. Reuse a saved choice instead of asking again.
+steps, and the current creation step before the source question. Collect the
+user's next reply to this rendered checkpoint; do not move its source question
+into a separate question tool. Do not continue planning or investigating
+integrations while the answer is pending. Reuse a saved choice instead of asking
+again.
 Use the shared entry point for the proposal too; its internal `proposal` helper
 omits the checklist and state gates. Do not add free-form previews of task scope
 or adapter implementation in commentary.
