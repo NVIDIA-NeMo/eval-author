@@ -48,7 +48,10 @@ class PinnedInput(Model):
     kind: Literal["file", "directory"] = "file"
 
     def resolve(self, root: Path) -> Path:
-        path = resolve_evidence(root, self.path)
+        try:
+            path = resolve_evidence(root, self.path)
+        except FileNotFoundError:
+            raise ValueError(f"missing pinned input: {self.path}") from None
         if (self.kind == "directory" and not path.is_dir()) or (self.kind == "file" and not path.is_file()):
             raise ValueError(f"wrong input kind: {self.path}")
         if input_digest(path) != self.sha256:
@@ -123,18 +126,22 @@ class Case(Model):
         return self
 
     def load_subsets(self, root: Path, benchmark_id: str) -> Subsets:
-        subsets = Subsets.model_validate(read_json(self.subsets.resolve(root)))
-        if subsets.benchmark_id != benchmark_id or subsets.task_inventory != self.task_inventory:
-            raise ValueError(
-                f"case {self.case_id}: subset manifest does not match benchmark identity and task inventory"
-            )
-        return subsets
+        try:
+            subsets = Subsets.model_validate(read_json(self.subsets.resolve(root)))
+            if subsets.benchmark_id != benchmark_id or subsets.task_inventory != self.task_inventory:
+                raise ValueError("subset manifest does not match benchmark identity and task inventory")
+            return subsets
+        except (OSError, ValueError) as error:
+            raise ValueError(f"case {self.case_id}, subsets: {error}") from error
 
     def load_description(self, root: Path) -> dict:
-        description = read_json(self.case_description.resolve(root))
-        if not isinstance(description, dict):
-            raise ValueError(f"case {self.case_id}: case description must be a JSON object")
-        return description
+        try:
+            description = read_json(self.case_description.resolve(root))
+            if not isinstance(description, dict):
+                raise ValueError("case description must be a JSON object")
+            return description
+        except (OSError, ValueError) as error:
+            raise ValueError(f"case {self.case_id}, case_description: {error}") from error
 
     def selection(self, run_ids: dict[str, str]) -> ScoringConfig:
         return ScoringConfig(
@@ -188,12 +195,6 @@ def read_benchmark(path: Path) -> BenchmarkDefinition:
     """Parse the definition without requiring execution inputs on this machine."""
     try:
         data = yaml.load(path.read_text(encoding="utf-8"), Loader=StrictLoader)
-        # Validate before Pydantic JSON serialization can turn dates into strings
-        # or non-finite values into null inside untyped native settings.
-        try:
-            json_bytes(data)
-        except (TypeError, ValueError) as error:
-            raise ValueError(f"benchmark YAML must contain JSON-compatible values: {error}") from error
         return BenchmarkDefinition.model_validate(data)
     except yaml.YAMLError as error:
         raise ValueError(f"invalid benchmark YAML: {error}") from error
@@ -217,8 +218,8 @@ def load_benchmark(path: Path) -> LoadedBenchmark:
                         source.resolve(root)
                     except (OSError, ValueError) as error:
                         raise ValueError(f"agent {agent.agent_bundle_id}, input {name}: {error}") from error
-            manifests[case.case_id] = case.load_subsets(root, definition.benchmark_id)
-            descriptions[case.case_id] = case.load_description(root)
         except (OSError, ValueError) as error:
             raise ValueError(f"case {case.case_id}: {error}") from error
+        manifests[case.case_id] = case.load_subsets(root, definition.benchmark_id)
+        descriptions[case.case_id] = case.load_description(root)
     return LoadedBenchmark(definition, root, manifests, descriptions)

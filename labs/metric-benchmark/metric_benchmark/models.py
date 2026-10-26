@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Portable readers for the fixtures v1 downloaded-results interchange."""
+"""Validated benchmark inputs and execution-result records."""
 
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Literal, Self

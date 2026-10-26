@@ -14,7 +14,6 @@ runs without modification.
 and duplicate mapping keys, rejects non-finite numbers and YAML-only values such
 as unquoted dates, and verifies all prepared input digests.
 `read_benchmark(path)` parses the same definition without opening referenced files.
-Analysis stages use it and verify only the pinned inputs they consume.
 Python configuration models also require finite JSON values in native settings.
 `BenchmarkDefinition.model_json_schema()` exposes the complete schema.
 
@@ -31,8 +30,7 @@ Each case supplies:
 File references have `path`, `sha256` (`sha256:<hex>`), and `kind` (`file` or
 `directory`). Paths are relative to the YAML file; traversal and symlinks are
 rejected. Directory digests hash the canonical JSON mapping of relative file
-paths to SHA-256 digests, using `input_digest(path)`. Prepared agent dependencies
-can be referenced in native settings by the exact string `{input:NAME}`.
+paths to SHA-256 digests, using `input_digest(path)`.
 
 The subset manifest contains `schema_version: 1`,
 `artifact_type: eval_subset_definitions`, `benchmark_id`, `task_inventory`,

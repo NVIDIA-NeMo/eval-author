@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from metric_benchmark.config import input_digest, load_benchmark
+from metric_benchmark.config import input_digest, load_benchmark, read_benchmark
 from metric_benchmark.io import read_json, write_json
 from metric_benchmark.models import Score, Subsets, Tasks
 
@@ -161,25 +161,25 @@ def test_nonfinite_native_settings_rejected_before_serialization(tmp_path, value
     target = case["baseline"]["harbor"] if field == "harbor" else case["coverage"].setdefault("settings", {})
     target["nested"] = {"values": [value]}
     path.write_text(yaml.safe_dump(definition))
-    with pytest.raises(ValueError, match="JSON-compatible"):
+    with pytest.raises(
+        ValueError, match=rf"cases\.0\.{'baseline.harbor' if field == 'harbor' else 'coverage.settings'}"
+    ):
         load_benchmark(path)
 
 
 def test_yaml_date_rejected_but_explicit_string_and_null_preserved(tmp_path):
-    from datetime import date
-
     path, definition = prepared_benchmark(tmp_path)
     settings = {"when": date(2020, 1, 1)}
     definition["cases"][0]["coverage"]["settings"] = settings
     path.write_text(yaml.safe_dump(definition))
-    with pytest.raises(ValueError, match="JSON-compatible"):
+    with pytest.raises(ValueError, match=r"cases\.0\.coverage\.settings\.when"):
         load_benchmark(path)
     settings.update(when="2020-01-01", limit=None)
     path.write_text(yaml.safe_dump(definition), encoding="utf-8")
     assert load_benchmark(path).definition.cases[0].coverage.settings == settings
 
 
-def test_missing_task_input_names_case_and_task(tmp_path):
+def test_changed_task_input_names_case_and_task(tmp_path):
     path, _ = prepared_benchmark(tmp_path)
     (tmp_path / "task-0/instruction.md").unlink()
     with pytest.raises(ValueError, match="case case: task task-0: input digest differs"):
@@ -200,8 +200,6 @@ def test_library_configuration_rejects_non_json_values(value):
 
 
 def test_mutated_configuration_cannot_serialize_invalid_json():
-    from datetime import date
-
     from metric_benchmark.config import CoverageConfig
     from metric_benchmark.io import json_bytes
 
@@ -215,8 +213,6 @@ def test_mutated_configuration_cannot_serialize_invalid_json():
 def test_analysis_definition_and_subsets_do_not_need_execution_inputs(tmp_path):
     import shutil
 
-    from metric_benchmark.config import read_benchmark
-
     path, _ = prepared_benchmark(tmp_path)
     for task in tmp_path.glob("task-*"):
         shutil.rmtree(task)
@@ -229,3 +225,49 @@ def test_analysis_definition_and_subsets_do_not_need_execution_inputs(tmp_path):
         case.load_subsets(tmp_path, definition.benchmark_id)
     with pytest.raises(ValueError, match="unknown case: absent"):
         definition.case("absent")
+
+
+@pytest.mark.parametrize("standalone", [False, True])
+@pytest.mark.parametrize("field", ["subsets", "case_description"])
+@pytest.mark.parametrize("failure", ["missing", "invalid"])
+def test_case_artifact_errors_have_one_context(tmp_path, standalone, field, failure):
+    path, definition = prepared_benchmark(tmp_path)
+    source = definition["cases"][0][field]
+    artifact = tmp_path / source["path"]
+    if failure == "missing":
+        artifact.unlink()
+        detail = f"missing pinned input: {source['path']}"
+    else:
+        if field == "subsets":
+            data = json.loads(artifact.read_text())
+            data["benchmark_id"] = "wrong"
+            detail = "subset manifest does not match benchmark identity and task inventory"
+        else:
+            data = []
+            detail = "case description must be a JSON object"
+        artifact.write_text(json.dumps(data))
+        source["sha256"] = input_digest(artifact)
+        path.write_text(yaml.safe_dump(definition))
+    with pytest.raises(ValueError) as error:
+        if standalone:
+            benchmark = read_benchmark(path)
+            case = benchmark.case("case")
+            if field == "subsets":
+                case.load_subsets(tmp_path, benchmark.benchmark_id)
+            else:
+                case.load_description(tmp_path)
+        else:
+            load_benchmark(path)
+    assert str(error.value) == f"case case, {field}: {detail}"
+
+
+def test_permission_error_is_not_reported_as_missing(tmp_path, monkeypatch):
+    path, _ = prepared_benchmark(tmp_path)
+    case = read_benchmark(path).case("case")
+
+    def denied(root, value):
+        raise PermissionError("permission denied for prepared input")
+
+    monkeypatch.setattr("metric_benchmark.config.resolve_evidence", denied)
+    with pytest.raises(ValueError, match="case case, subsets: permission denied for prepared input"):
+        case.load_subsets(tmp_path, "example")
