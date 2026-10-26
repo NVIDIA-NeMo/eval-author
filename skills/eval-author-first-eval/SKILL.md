@@ -156,9 +156,8 @@ After design approval, proceed directly to `first_eval_prepare_first`; ask only
 about unresolved environment or design choices needed for this work. No new
 setup-approval stage or execution-settings display precedes authoring.
 Initialize the saved build activity and use the [build-progress contract](../eval-author/references/conversations/first-eval.md#first-task-build-progress)
-for concise renderer checklists throughout authoring, including environment work
-and delegated work. These progress updates continue the build; they are not
-additional approval pauses.
+for coordinator-owned renderer updates throughout authoring and delegated work.
+These progress updates continue the build; they are not additional approval pauses.
 
 Read the selected [Harbor](references/harbor-first-eval.md) or [native Gym](references/gym-first-eval.md)
 reference. Create exactly the agreed first task directly in its permanent
@@ -208,8 +207,7 @@ and build the remaining agreed tasks with the approved pattern. Reuse applicable
 proof and controls, refreshing the report after authoring, revisions, and validation.
 Keep task paths stable; a blocked first task never unlocks remaining authoring.
 Follow the [remaining-task build checklist](../eval-author/references/conversations/first-eval.md#remaining-task-build-progress)
-for saved activity and compact renderer snapshots throughout this work, including
-delegation. Keep the skill labels beside each checklist item.
+for saved activity and coordinator-owned renderer updates throughout this work.
 
 Follow [task validation](../eval-author/references/task-validation.md) and
 [execution recovery](../eval-author/references/execution-recovery.md). Finalize

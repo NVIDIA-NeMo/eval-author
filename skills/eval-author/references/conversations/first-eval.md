@@ -126,20 +126,38 @@ record the actual started activity in `source`:
 }
 ```
 
-Render `first_eval_prepare_first` before work. It includes the provider's initial
+Render `first_eval_prepare_first` once before work. It includes the provider's initial
 explanation and fixed build checklist. During the build, use
 `first_eval_build_progress` for subsequent commentary snapshots instead of
 free-form build narration. Keep the same rows and ordering; the template owns
 their labels, responsible skills in parentheses, and short statuses. Refresh
-after a status changes and keep a snapshot visible during long-running checks.
-Delegated workers should return milestone results as they finish so the
-coordinating agent can refresh the checklist. Yield while waiting for those
-checks so progress can be shown. Do not append deliberation, speculative next
+only when a displayed status, task count, or blocker changes. Keep the latest
+snapshot visible during long-running checks; tool calls, polling, and delegation
+do not require another unchanged checklist.
+
+The coordinating agent alone emits visible build checklists. Delegated workers,
+including environment work, return milestone results and evidence as they finish
+so the coordinator can update the shared progress. Yield during long checks so
+changed progress can be shown. Do not append deliberation, speculative next
 steps, command transcripts, or another checklist. Retain verbose command output
-in evidence logs and surface its outcome through the checklist. Capture state-helper
-output for subsequent operations instead of printing full state and history.
-A focused
-question is still appropriate when work needs a user decision.
+in evidence logs and capture state-helper output instead of printing full state
+and history. A focused question remains appropriate when work needs a user decision.
+
+For `first_eval_build_progress` and `first_eval_remaining_progress`, include
+`facts.previous_progress` when a snapshot has already been shown for this build
+in the current chat. Supply that exact last visible rendered build message,
+including its initial explanation and **Blockers** when present. Do not reconstruct that message or store it in
+workflow state. After validating current state and evidence, the renderer returns
+empty Markdown when the complete visible checklist and blockers are unchanged.
+Do not post an empty result or replace it with a handwritten duplicate. If a
+commentary update is needed while no displayed progress has changed, use one
+brief factual sentence about the current operation without claiming completion.
+
+Omit `previous_progress` for a new chat, an explicit status request, plan or task
+rebinding, or a return from review, so the full current snapshot is shown. This
+field is accepted only on the two explicit build-progress stages, not on
+`first_eval_resume` or review stages. It affects presentation only; current
+approvals, evidence, and workflow gates remain required.
 
 The ordered step keys are `environment`, `environment_check`, `grading`, and
 `artifacts`. Update `active_step` when the corresponding work starts. Save a

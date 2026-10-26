@@ -553,6 +553,95 @@ def test_repeated_build_progress_is_only_the_checklist_and_preserves_state(creat
     assert record["first_task_build"]["active_step"] == "environment_check"
 
 
+@pytest.mark.parametrize("provider", ["harbor", "gym"])
+@pytest.mark.parametrize("phase", ["first", "remaining"])
+def test_unchanged_build_snapshots_are_suppressed_without_state_or_io(creation, monkeypatch, provider, phase):
+    state, record, _, renderer, _ = creation
+    state["setup"] = record["provider"] = provider
+    if phase == "first":
+        build_started(creation)
+    else:
+        built(creation, reviewed=True)
+        remaining_started(creation)
+    prepare, progress = (
+        ("prepare_first", "build_progress") if phase == "first" else ("prepare_remaining", "remaining_progress")
+    )
+    initial = renderer.render(payload(creation, prepare))
+    snapshot = renderer.render(payload(creation, progress))
+    request = payload(creation, progress, previous_progress=initial)
+    before = deepcopy(request)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Progress suppression must not inspect files or clocks")
+
+    monkeypatch.setattr(Path, "open", forbidden)
+    monkeypatch.setattr(importlib.import_module("journey_state"), "now", forbidden)
+    assert renderer.render(request) == renderer.render(request) == ""
+    assert request == before
+    assert renderer.render(payload(creation, progress, previous_progress=snapshot)) == ""
+    assert renderer.render(payload(creation, progress)) == snapshot
+    assert renderer.render(payload(creation, progress, previous_progress="Earlier note.\n\n" + snapshot)) == snapshot
+
+
+def test_changed_first_task_progress_and_stale_evidence_are_emitted(creation):
+    _, record, _, renderer, _ = creation
+    build_started(creation)
+    previous = renderer.render(payload(creation, "prepare_first"))
+    build_started(creation, active="environment_check", completed=("environment",))
+    request = payload(creation, "build_progress", previous_progress=previous)
+    updated = renderer.render(request)
+    assert "— Complete" in updated and updated == renderer.render(payload(creation, "build_progress"))
+    request["facts"]["previous_progress"] = updated
+    evidence = record["first_task_build"]["receipts"]["environment"]["evidence"][0]
+    request["facts"]["observations"]["files"][evidence["path"]] = None
+    assert renderer.render(request) and "— Complete" not in renderer.render(request)
+
+
+def test_changed_remaining_task_counts_are_emitted(creation):
+    _, record, _, renderer, _ = creation
+    built(creation, reviewed=True)
+    remaining_started(creation)
+    previous = renderer.render(payload(creation, "prepare_remaining"))
+    record["tasks"]["reject"] = {"path": ".eval-author/tasks/reject", "sha256": SHA}
+    output = renderer.render(payload(creation, "remaining_progress", previous_progress=previous))
+    assert "Build remaining tasks: 1/1 tasks" in output
+
+
+def test_changed_and_cleared_build_blockers_are_emitted(creation):
+    state, _, _, renderer, _ = creation
+    build_started(creation)
+    previous = renderer.render(payload(creation, "prepare_first"))
+    state["blockers"] = [{"id": "container", "phase": "create", "message": "Container unavailable"}]
+    blockers = [{"id": "container", "step": "Check environment", "reason": "Unavailable", "needed": "Start it"}]
+    request = payload(creation, "build_progress", blockers=blockers, previous_progress=previous)
+    blocked = renderer.render(request)
+    assert "### Blockers" in blocked
+    request["facts"]["previous_progress"] = blocked
+    assert renderer.render(request) == ""
+    blockers[0]["needed"] = "Repair the selected runtime"
+    changed = renderer.render(request)
+    assert "Repair the selected runtime" in changed
+    state["blockers"] = []
+    cleared = renderer.render(payload(creation, "build_progress", previous_progress=changed))
+    assert cleared and "### Blockers" not in cleared
+
+
+@pytest.mark.parametrize("previous", [None, "", "  ", {}, 1])
+def test_previous_build_progress_must_be_actual_rendered_text(creation, previous):
+    _, _, _, renderer, _ = creation
+    build_started(creation)
+    with pytest.raises(ValueError, match="previous_progress must be nonempty text"):
+        renderer.render(payload(creation, "build_progress", previous_progress=previous))
+
+
+@pytest.mark.parametrize("stage", ["prepare_first", "proposal", "review_first", "resume"])
+def test_progress_suppression_cannot_hide_an_initial_message_or_review(creation, stage):
+    _, _, _, renderer, _ = creation
+    build_started(creation)
+    with pytest.raises(ValueError, match="creation facts"):
+        renderer.render(payload(creation, stage, previous_progress="Previously shown"))
+
+
 def test_stale_build_receipts_reopen_the_affected_checklist_without_false_completion(creation):
     _, record, _, renderer, _ = creation
     build_started(creation, active="environment_check", completed=("environment",))

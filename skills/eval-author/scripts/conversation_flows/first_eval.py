@@ -646,8 +646,11 @@ def render(payload: dict) -> str:
     facts = mapping(
         payload.get("facts", {}),
         "creation facts",
-        CONTENT_FIELDS | {"observations", "links", "blockers", "access_ready"},
+        CONTENT_FIELDS
+        | {"observations", "links", "blockers", "access_ready"}
+        | ({"previous_progress"} if stage in {"first_eval_build_progress", "first_eval_remaining_progress"} else set()),
     )
+    previous_progress = text(facts["previous_progress"], "previous_progress") if "previous_progress" in facts else None
     bound_links(state, facts)
     if "access_ready" in facts and type(facts["access_ready"]) is not bool:
         raise ValueError("access_ready must be an observed boolean")
@@ -778,4 +781,12 @@ def render(payload: dict) -> str:
         result += "\n\n" + blocked
     if stage == "results" and not completed_results:
         result += "\n\n" + reports(facts)
+    if previous_progress is not None:
+        introductions = (
+            (copy.FIRST_PROGRESS, copy.GYM_PROGRESS)
+            if stage == "build_progress"
+            else (copy.REMAINDER_PROGRESS, copy.NO_REMAINDER_PROGRESS)
+        )
+        if previous_progress in {result, *(intro + "\n\n" + result for intro in introductions)}:
+            return ""
     return result + "\n"
