@@ -6,8 +6,19 @@
 from __future__ import annotations
 
 import html
+import json
 import re
 from urllib.parse import quote, urlsplit
+
+import conversation_templates as shared
+
+
+def checklist(rows: list[dict]) -> str:
+    return "\n".join(
+        f"- [{'x' if row['complete'] else ' '}] **{row['label']}**"
+        + (f" — **{shared.CURRENT_STEP}**" if row["current"] else "")
+        for row in rows
+    )
 
 
 def text(value: object, label: str) -> str:
@@ -33,7 +44,17 @@ def mapping(value: object, label: str, keys: set[str]) -> dict:
     return value
 
 
-def link(target: object, label: str) -> str:
+def json_context(value: object) -> str:
+    """Keep supplied JSON data inside an enclosing Markdown code fence."""
+    return (
+        json.dumps(value, indent=2, sort_keys=True, allow_nan=False)
+        .replace("`", "\\u0060")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+    )
+
+
+def link(target: object, label: str, *, fragment: object | None = None) -> str:
     """Format a caller-verified destination; never resolve or inspect it here."""
     target = text(target, "link")
     if any(ord(char) < 32 or char in "<>" for char in target):
@@ -47,4 +68,11 @@ def link(target: object, label: str) -> str:
         if not target.startswith("/") or target.startswith("//"):
             raise ValueError("Local links require a supplied absolute path")
         target = quote(target, safe="/")
+    if fragment is not None:
+        anchor = text(fragment, "link fragment")
+        if any(char.isspace() or ord(char) < 32 or char in "<>#" for char in anchor):
+            raise ValueError("Link fragments must be a single verified anchor without a leading #")
+        if parsed.scheme and parsed.fragment:
+            raise ValueError("Supply a link fragment separately from the URL fragment")
+        target += "#" + quote(anchor, safe="-._~:")
     return f"[{literal(label, 'link label')}](<{target}>)"
