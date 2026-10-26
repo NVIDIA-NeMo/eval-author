@@ -68,8 +68,10 @@ Use the actual repository agent through a supported NeMo Gym integration. Inspec
 its entry point and the installed NeMo Gym interfaces; do not substitute NeMo Gym's example
 agent to claim the user's agent ran. Record the resolved composition, configured
 agent instance, model settings, selected dataset rows, reset procedure, and
-output paths. If integration is missing, retain the drafts and verifier work and
-name the specific connection required.
+output paths. If integration is missing when execution is ready, use the
+[missing-integration handoff](../../eval-author/references/conversations/first-eval.md#missing-actual-agent-integration-handoff),
+retaining task and verifier work. Grader setup remains a separate dependency;
+verifier controls cannot prove the user's agent is connected.
 
 Propose one attempt per selected example for the initial baseline unless the
 agreed purpose requires repeats. Record the count and cost in shared scope. A Harbor

@@ -78,8 +78,13 @@ status, and execution errors.
 A supported runtime is required for full onboarding and authoring; see
 [runtime requirements](getting-started.md#requirements). Running your agent also
 requires a compatible connection, access, and the selected environment backend.
-A combined Gym–Harbor setup needs a configured bridge. Blocked work is explained
-with the action needed to continue, while completed work remains saved.
+A combined Gym–Harbor setup needs a configured bridge. If the actual-agent
+adapter or bridge is missing, Eval Author gives you a copyable implementation
+prompt for a separate chat in your chosen coding harness. Your tasks, graders,
+and evidence stay saved; independent work can continue. Return with the
+integration changes and check results so Eval Author can recheck the connection.
+Completing that engineering work does not authorize agent runs. Other blocked
+work is explained with the action needed to continue.
 
 The result summary separates measured agent failures from execution failures
 and missing attempts. It links an exact saved attempt and the suite README's

@@ -680,6 +680,51 @@ Harbor-only Runs table. Preserve verified evidence links and limitations, and
 follow [review walkthrough requirements](../suite-readme.md#show-the-user-how-to-review)
 without duplicating the report or README links.
 
+## Missing actual-agent integration handoff
+
+When actual-agent execution is being prepared and inspection establishes that
+its supported adapter, entry point, or configured Gym–Harbor bridge is missing,
+use the renderer's external engineering handoff. Do not ask for an Eval Author
+scope override to implement the production integration or offer to build it in
+this workflow. Preserve independent task authoring, grader validation, and review;
+a target-agent connection is not a judge dependency, and a working judge does
+not prove the target-agent connection.
+
+Save the missing integration through the existing state helper as a blocker
+with `id: "agent-integration"`, `phase: "create"`, and a concrete `message`
+identifying the actual agent, selected provider path, missing interface, and
+inspected evidence. Normalize an older custom blocker for this same dependency
+to this ID and phase through a revision-checked update, retaining its findings
+and unrelated blockers rather than duplicating it. Execution, results, and the
+dedicated blocker stage include this saved blocker automatically; an optional
+matching `facts.blockers` entry can supply the observed reason. The renderer
+owns its step label and needed action regardless of caller wording, and adds a
+copyable coding-agent prompt after **Blockers**; fixed handoff copy lives only in
+[first_eval_templates.py](../../scripts/conversation_flows/first_eval_templates.py).
+Do not replace that output with a permission question. Defer this run-only
+blocker during independent proposals, task preparation, validation, and authored
+task review rather than appending the handoff to those checkpoints.
+
+The prompt takes its context from the saved repository, actual agent, confirmed
+`ETHOS.md` path, selected provider or configured Gym–Harbor path, and agreed task
+and example IDs. Include the actual retained paths for already created selected
+tasks; planned tasks have no invented paths. Unrelated task directories are not
+selected by membership. Keep existing tasks, graders, source selections,
+construction declarations, and evidence intact. The user can copy the prompt
+into a separate chat in their chosen coding harness; displaying it does not
+authorize dispatching that chat, changing the agent, or starting a model run.
+
+On return, inspect the changed integration and its reported checks. Recheck the
+installed adapter or entry point, native configuration, selected task/row and
+example mapping, reset behavior, and output collection against the actual agent.
+A configured Gym–Harbor path must use that bridge; direct Harbor execution of
+converted tasks does not satisfy it. Do not substitute controls, a fixture/demo
+target, or another agent for the user's agent. Preserve limitations and failed
+checks, and clear the saved blocker only when the missing supported connection
+is established. Engineering completion alone is not native execution evidence
+or run authorization: reuse applicable authorization and resolve missing run
+settings through their existing checkpoint before any target-agent attempt.
+
 ## Blockers and the audit invitation
 
 Save blockers through the existing state helper. Supply `facts.blockers` as

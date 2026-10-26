@@ -65,9 +65,12 @@ defer run-only settings and blockers during independent authoring and review.
 
 Establish a supported Harbor integration for the actual repository agent from
 its entry point, installed adapter code, registry, and CLI help. If the adapter
-is missing, identify the specific integration requirement when execution is
-ready; do not add a production adapter or substitute another target. NOP/Oracle validation
-remains available, but performance of the user's agent remains unmeasured.
+is missing when execution is ready, follow the
+[missing-integration handoff](../../eval-author/references/conversations/first-eval.md#missing-actual-agent-integration-handoff).
+Keep the target-agent adapter separate from grader setup: NOP/Oracle controls
+can validate tasks when their own dependencies are ready, but they do not
+measure the user's agent. Preserve that distinction when rechecking the adapter
+after the external engineering work.
 
 When supported, write `.eval-author/run.yaml` using the installed Harbor
 JobConfig schema. Explicitly select exactly the agreed tasks, actual agent and

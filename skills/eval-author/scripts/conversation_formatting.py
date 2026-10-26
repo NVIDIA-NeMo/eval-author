@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import html
+import json
 import re
 from urllib.parse import quote, urlsplit
 
@@ -41,6 +42,16 @@ def mapping(value: object, label: str, keys: set[str]) -> dict:
     if not isinstance(value, dict) or set(value) - keys:
         raise ValueError(f"{label} must be an object with only {', '.join(sorted(keys))}")
     return value
+
+
+def json_context(value: object) -> str:
+    """Keep supplied JSON data inside an enclosing Markdown code fence."""
+    return (
+        json.dumps(value, indent=2, sort_keys=True, allow_nan=False)
+        .replace("`", "\\u0060")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+    )
 
 
 def link(target: object, label: str, *, fragment: object | None = None) -> str:

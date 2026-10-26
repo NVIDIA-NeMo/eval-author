@@ -229,6 +229,47 @@ AUDIT_QUESTION = (
     "and grading against the behavior described in `ETHOS.md` to identify gaps and worthwhile improvements."
 )
 BLOCKER = "- **{step}:** {reason} **Needed:** {needed}"
+ADAPTER_BLOCKER_ID = "agent-integration"
+ADAPTER_BLOCKER_STEP = "Connect your agent"
+ADAPTER_BLOCKER_NEEDED = (
+    "Use the prompt below in a separate chat with your coding harness, "
+    "then return with the adapter and configuration paths and verification results."
+)
+ADAPTER_HANDOFF = """Open a separate chat with your coding harness in this repository and copy this prompt:
+
+```text
+Connect the existing agent to the selected evaluation provider. Use this saved
+context, verifying its paths and interfaces against the repository:
+
+{context}
+
+Inspect the actual agent entry point, installed provider version, existing
+adapters, and documented extension interfaces. Use the provider's official
+documentation for that version. Implement the smallest supported adapter or
+configuration that invokes the actual agent with the agreed task inputs and
+returns its responses, ordered actions, errors, and observable state in the form
+the existing graders expect. For a selected Gym-Harbor path, preserve that bridge.
+
+Preserve the agent's behavior, model and tool configuration, ETHOS.md, agreed
+task/example mapping, fixtures, reference solutions, graders, and prior evidence.
+Keep verifier-only data away from the agent. Isolate and reset task state between
+attempts. Use only the explicitly selected tasks and examples; do not select tasks
+by directory membership. Report any missing planned task files without creating
+them. Do not substitute another agent, reimplement its decisions, or change what
+the tasks measure to make the connection work.
+
+Keep this as repository engineering work outside Eval Author. Do not modify its
+workflow state or approvals, mark the integration verified, or claim an agent
+baseline from adapter completion or control results. Agent/model evaluation runs
+still require their own applicable authorization and limits.
+
+Return the adapter/configuration paths, actual agent entry point, changed files,
+setup and rerun commands, checks actually performed, and unresolved dependencies.
+Distinguish offline checks from any authorized native agent execution, and retain
+fresh native outputs and exact run identities for execution actually performed.
+```
+
+Return here with those paths and results so I can recheck the connection and resume your saved evaluations."""
 LINK_LABELS = {
     "report": "the report",
     "readme": "the suite README",

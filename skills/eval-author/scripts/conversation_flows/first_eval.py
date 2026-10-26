@@ -12,7 +12,7 @@ from pathlib import PurePosixPath
 import conversation_templates as shared
 import first_eval_state
 import journey_state
-from conversation_formatting import checklist, link, literal, mapping, text
+from conversation_formatting import checklist, json_context, link, literal, mapping, text
 
 from . import first_eval_templates as copy
 
@@ -112,6 +112,36 @@ def applicable_blockers(state: dict) -> dict:
     return {item["id"]: item for item in state["blockers"] if item["phase"] in {"setup", "ethos", state["journey"]}}
 
 
+def adapter_handoff(state: dict, reason: str) -> str:
+    record = first_eval_state.record(state)
+    provider = state["setup"]
+    if provider not in {"harbor", "gym"}:
+        raise ValueError("Select the evaluation provider before an agent-integration handoff")
+    progress = first_eval_state.derive(state, {"tasks": {}, "files": {}}) if record else None
+    approved = bool(progress and progress["scope_approved"])
+    if approved and record["plan"].get("execution_path") == "gym_harbor":
+        provider = "gym_harbor"
+    context = {
+        "repository": state["repository"],
+        "agent": text(state.get("agent"), "actual agent"),
+        "provider": provider,
+        "ethos_path": state["ethos"]["path"],
+        "design_approved": approved,
+        "tasks": [
+            {
+                "id": task["id"],
+                "example_ids": task["example_ids"],
+                "path": record["tasks"].get(task["id"], {}).get("path"),
+            }
+            for task in record["plan"]["tasks"]
+        ]
+        if approved
+        else [],
+        "missing_connection": reason,
+    }
+    return copy.ADAPTER_HANDOFF.format(context=json_context(context))
+
+
 def blocker_section(state: dict, facts: dict, stage: str) -> str | None:
     entries = facts.get("blockers", [])
     if not isinstance(entries, list):
@@ -124,9 +154,16 @@ def blocker_section(state: dict, facts: dict, stage: str) -> str | None:
         if key in explained or key not in saved:
             raise ValueError("Each blocker must explain a unique saved blocker")
         explained[key] = entry
-    if stage in {"execution_settings", "ready_to_run", "run_progress", "results", "blockers"} and set(explained) != set(
-        saved
-    ):
+    full_blockers = stage in {"execution_settings", "ready_to_run", "run_progress", "results", "blockers"}
+    adapter = saved.get(copy.ADAPTER_BLOCKER_ID)
+    if adapter and adapter["phase"] == "create" and (full_blockers or copy.ADAPTER_BLOCKER_ID in explained):
+        entry = explained.get(copy.ADAPTER_BLOCKER_ID, {})
+        explained[copy.ADAPTER_BLOCKER_ID] = {
+            "step": copy.ADAPTER_BLOCKER_STEP,
+            "reason": text(entry.get("reason") or adapter["message"], "missing agent integration"),
+            "needed": copy.ADAPTER_BLOCKER_NEEDED,
+        }
+    if full_blockers and set(explained) != set(saved):
         raise ValueError("Saved blockers must be explained with a specific needed action")
     if not explained:
         if stage == "blockers":
@@ -137,6 +174,8 @@ def blocker_section(state: dict, facts: dict, stage: str) -> str | None:
         copy.BLOCKER.format(**{key: literal(entry.get(key), key) for key in ("step", "reason", "needed")})
         for _, entry in sorted(explained.items())
     )
+    if adapter and adapter["phase"] == "create" and copy.ADAPTER_BLOCKER_ID in explained:
+        lines.extend(["", adapter_handoff(state, explained[copy.ADAPTER_BLOCKER_ID]["reason"])])
     return "\n".join(lines)
 
 
@@ -802,7 +841,9 @@ def render(payload: dict) -> str:
                 and progress["execution_settings_resolved"]
             ):
                 result += "\n\n" + copy.RUN_QUESTION
-            else:
+            elif not any(
+                item["id"] == copy.ADAPTER_BLOCKER_ID and item["phase"] == "create" for item in state["blockers"]
+            ):
                 questions = first_eval_state.execution_settings(record).get("open_questions", [])
                 result += "\n\n" + literal(
                     facts.get("missing_execution_question") or (questions[0] if questions else None),

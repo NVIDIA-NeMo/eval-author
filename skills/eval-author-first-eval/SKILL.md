@@ -268,6 +268,9 @@ and fresh output paths. Harbor uses `.eval-author/run.yaml`; directory membershi
 never selects tasks. Native Gym retains native composition, complete selected
 dataset rows, and repeats. A Gym–Harbor run must use its configured bridge.
 Never substitute another agent or direct Harbor execution for that requirement.
+When the supported connection is missing, follow the
+[external integration handoff](../eval-author/references/conversations/first-eval.md#missing-actual-agent-integration-handoff)
+instead of requesting permission to implement it inside Eval Author.
 
 After successful checks, render `first_eval_ready_to_run`. Announce execution only
 when current authorization, selected configuration, and actual access are ready;
