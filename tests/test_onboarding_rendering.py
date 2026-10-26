@@ -108,6 +108,28 @@ def test_prerequisite_results_keep_optional_advice_without_execution_blockers(on
     assert "What should this agent accomplish" not in output
 
 
+def test_existing_ethos_navigation_uses_selected_agent_path_without_io(onboarding, monkeypatch):
+    state_helper, renderer, _, state, _ = onboarding
+    relative = "agents/support/ETHOS.md"
+    state["ethos"].update(path=relative, stage="review")
+    state["pending_question"] = "Does this describe the selected agent’s intended behavior?"
+    request = presentation(onboarding, "ethos")
+    target = state["repository"] + "/" + relative
+    request["facts"]["ethos"] = {"status": "existing", "link": target, "summary": "Support agent intent"}
+    before = deepcopy(request)
+
+    def unexpected_io(*args, **kwargs):
+        pytest.fail("Selected ETHOS.md navigation must use state without inspecting files")
+
+    monkeypatch.setattr(Path, "open", unexpected_io)
+    monkeypatch.setattr(state_helper, "now", unexpected_io)
+    output = renderer.render(request)
+    assert f"[ETHOS.md](<{target}>)" in output and request == before
+    request["facts"]["ethos"]["link"] = state["repository"] + "/ETHOS.md"
+    with pytest.raises(ValueError, match="selected document"):
+        renderer.render(request)
+
+
 @pytest.mark.parametrize("stage", ["results", "prerequisite_results"])
 def test_no_recommendations_does_not_emit_empty_section(onboarding, stage):
     _, renderer, _, _, _ = onboarding

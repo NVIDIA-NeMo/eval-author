@@ -216,8 +216,8 @@ def ethos_context(state: dict, facts: dict) -> tuple[str, str | None, str | None
             raise ValueError("Only an inspected existing ETHOS.md can have a link or summary")
         return status, None, None
     target = text(ethos.get("link"), "ETHOS.md link")
-    if target != state["repository"].rstrip("/") + "/ETHOS.md":
-        raise ValueError("ETHOS.md link must be the supplied repository-root ETHOS.md")
+    if target != state["repository"].rstrip("/") + "/" + state["ethos"]["path"]:
+        raise ValueError("ETHOS.md link must match the selected document in state")
     summary = literal(ethos["summary"], "ETHOS.md summary") if ethos.get("summary") else None
     return status, link(target, "ETHOS.md"), summary
 

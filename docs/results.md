@@ -217,9 +217,11 @@ Shared internal progress and agreed scope are stored in
 `.eval-author/.working/journey-state.json`; they are not a second report or plan.
 
 These are typical paths relative to the repository being evaluated. The shared
-prerequisite flow uses repository-root `ETHOS.md`; scoped utilities can use an explicit
-alternate path. Workflows may stop before producing every artifact when
-prerequisites are missing.
+prerequisite flow keeps the selected `ETHOS.md` at its existing agent-local or
+repository-root path; see [document selection](getting-started.md#load-the-skills).
+Changing that selection reopens affected approvals and preserves its prior
+selection and provenance in `.eval-author/.working/history/ethos/`.
+Workflows may stop before producing every artifact when prerequisites are missing.
 
 | Workflow | Main outputs |
 | --- | --- |

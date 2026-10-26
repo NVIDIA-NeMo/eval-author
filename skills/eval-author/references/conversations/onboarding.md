@@ -205,8 +205,9 @@ Supply links separately through optional row `links` entries with `label` and
 ## Ethos and draft facts
 
 For Ethos facts, use `existing`, `absent`, or `unknown`. An existing Ethos link must
-point to the exact repository-root `ETHOS.md` from state. Supply a grounded
-summary for an existing-document review. File presence or successful structural
+point to the exact selected document, formed from `state.repository` and
+`state.ethos.path`. Supply a grounded summary for an existing-document review.
+File presence or successful structural
 validation is not current intent confirmation.
 
 When the saved Ethos stage is `draft` or `write` and `state.ethos.draft` exists, supply `facts.draft` with the exact recorded

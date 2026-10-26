@@ -81,6 +81,29 @@ def approve(modules, repo, value):
     return save(modules, repo, value)
 
 
+def test_retargeting_same_content_ethos_does_not_reuse_creation_approval(modules, tmp_path):
+    state, creation = modules
+    value = start(modules, tmp_path)
+    approved = approve(modules, tmp_path, value)
+    relative = "agents/support/ETHOS.md"
+    document = tmp_path / relative
+    document.parent.mkdir(parents=True)
+    document.write_bytes((tmp_path / "ETHOS.md").read_bytes())
+    selected = state.update(tmp_path, {"ethos": {"path": relative}}, expected_revision=approved["revision"])
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path, relative),
+        source="User confirms selected agent intent",
+        validation="Selected document passed validation",
+        ethos_path=relative,
+        expected_revision=selected["revision"],
+    )
+    assert confirmed["scopes"]["create"]["first_eval"] == approved["scopes"]["create"]["first_eval"]
+    progress = creation.progress(tmp_path, confirmed)
+    assert not progress["scope_approved"]
+    assert confirmed["scopes"]["create"]["needs_review"]
+
+
 def author(modules, repo, value, task_id):
     path = f".eval-author/tasks/{task_id}"
     evidence(repo, f"{path}/instruction.md", f"Request for {task_id}")

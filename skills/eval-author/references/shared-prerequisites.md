@@ -94,7 +94,7 @@ Select checks by the requested work. The common checks are:
   interview, or other Ethos preflight steps during prerequisite checks
 - Verify that the installed Ethos skills meet the
   [required handoff capabilities](ethos-confirmation.md#required-handoff-capabilities),
-  including preserving the explicit repository-root `ETHOS.md` destination. A
+  including preserving the selected explicit `ETHOS.md` destination. A
   version that renames it to lowercase or overrides that path is incompatible;
   record the conflicting resource as an `ethos_skills` blocker before delegation
 - Establish file and command access from host permissions and actual bounded
@@ -268,7 +268,7 @@ Ethos work.
 ## Confirm Ethos
 
 After completing and saving the unblocked prerequisite pass, invoke
-[Ethos confirmation](ethos-confirmation.md) for repository-root `ETHOS.md`.
+[Ethos confirmation](ethos-confirmation.md) for the selected `ETHOS.md`.
 Reuse content and prior answers, but have the user confirm an existing document
 is the right one and still accurate, even when saved state records an earlier
 confirmation. Before target-artifact inspection, use `--state-only update` to mark
@@ -563,6 +563,7 @@ During Ethos work, the `ethos` update accepts:
 
 | Field | Value |
 |---|---|
+| `path` | Canonical repository-relative path ending in uppercase `ETHOS.md`; defaults to `ETHOS.md`. Select it through a normal update with the latest `--expected-revision` and `stage: review`; path selection is unavailable with `--state-only`. |
 | `stage` | `explore`, `interview`, `draft`, `write`, or `review`; completion uses `confirm-ethos` |
 | `source_findings` | List of records with nonempty `path` and `summary` |
 | `prior_answers` | List of records with nonempty `topic`, `question`, `answer`, and provenance `source` |
@@ -582,19 +583,24 @@ content retains them. Changed content or an intent-revision stage invalidates
 those agreements while preserving their source material. The
 `write` stage requires confirmed draft content. `show` invalidates approval of
 a changed or missing draft while retaining prior answers. Changed canonical
-Ethos similarly reopens its review without discarding the intent history.
+Ethos similarly reopens its review without discarding the intent history. A
+selected path change reopens affected approvals even when the bytes match;
+follow the [selection and provenance rules](ethos-confirmation.md#enter-the-ethos-step).
 
 Only after the canonical workflow returns exact confirmed saved content and
 successful validation may the adapter call:
 
 ```bash
 python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository confirm-ethos \
+  --ethos <selected-repository-relative-path> --expected-revision <latest-revision> \
   --digest <64-character-sha256> --source <user-confirmation-reference> \
   --validation <actual-validation-result-reference>
 python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository import-legacy
 ```
 
-The digest is for the exact saved bytes of root `ETHOS.md`. It cannot be set via
-an arbitrary state update. `import-legacy` retains old notes as unreviewed
-snapshots; review them before recording current decisions. Errors leave the
+The digest is for the exact saved bytes at `ethos.path`. An explicit `--ethos`
+must match that selection; the omitted flag retains the legacy `ETHOS.md`
+default. The digest cannot be set via an arbitrary state update.
+`import-legacy` retains old notes as unreviewed snapshots; review them before
+recording current decisions. Errors leave the
 prior valid record intact and never imply that prerequisites or Ethos passed.
