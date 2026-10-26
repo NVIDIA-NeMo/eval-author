@@ -362,7 +362,11 @@ document for the selected agent and still accurate. It must not reuse historical
 approval, mark Ethos complete, or show the evaluation readiness question yet.
 
 - Confirm it is correct and current: validate and record the exact saved content
-  with this reply's provenance, then show the completion pause and wait
+  with this reply's provenance, then show the completion pause and wait. For
+  fresh creation without a saved design or source choice, this response includes
+  the source question after its checklist; no separate readiness pause precedes
+  it. Save the source answer and proceed to the small task proposal without
+  repeating that question; design approval still precedes authoring
 - Say it belongs to another agent or needs changes: keep review pending and let
   `ethos-orchestrate` resolve the identity or revise intent before confirmation
 - Ask a side question or say you are unsure: keep Ethos incomplete; preserve the

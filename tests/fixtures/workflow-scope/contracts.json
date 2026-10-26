@@ -331,7 +331,7 @@
           "The saved ETHOS.md matches my intent.",
           "Yes, I confirm the saved Ethos."
         ],
-        "context": "The selected goal is first evaluations. Shared prerequisites are complete; the canonical Ethos skills have saved and validated root ETHOS.md and presented it for review. The user now confirms its saved content. Evaluation source selection has not started.",
+        "context": "The selected goal is fresh first evaluations without a saved task design or source choice. Shared prerequisites are complete; the canonical Ethos skills have saved and validated root ETHOS.md and presented it for review. The user now confirms its saved content. The confirmation response asks about task sources after its overall progress checklist, without an extra readiness question.",
         "flow": "eval-author",
         "allowed_actions": [
           "read_skill",
@@ -348,10 +348,10 @@
       },
       {
         "prompts": [
-          "Continue.",
-          "Yes, let\u2019s build the evaluation suite."
+          "Start from ETHOS.md.",
+          "Use ETHOS.md without existing traces."
         ],
-        "context": "The previous turn confirmed saved Ethos, showed Next Steps with the first two checklist items complete, and asked Ready to continue? Shared state retains the continuation question and first-eval handoff. Source selection has not started.",
+        "context": "The previous turn confirmed saved ETHOS.md, showed Next Steps with the first two checklist items complete, and asked whether to use existing traces or start from ETHOS.md. Shared state retains that source question and first-eval handoff, with no saved task design. The user now selects ETHOS.md; save that answer and propose the small task design without asking readiness or sources again. This does not approve authoring or execution.",
         "flow": "eval-author-first-eval",
         "allowed_actions": [
           "read_skill",
@@ -359,13 +359,14 @@
           "read_repository",
           "validate",
           "write_artifact",
-          "delegate"
+          "delegate",
+          "propose"
         ],
         "required_actions": [],
         "write_paths": [
           ".eval-author/.working/"
         ],
-        "handoff": "source_scope_selection"
+        "handoff": "review_proposals"
       }
     ],
     "clarify-goal-before-setup": [
