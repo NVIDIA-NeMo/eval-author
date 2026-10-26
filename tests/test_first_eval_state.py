@@ -6,6 +6,7 @@
 import copy
 import hashlib
 import importlib
+import json
 from pathlib import Path
 
 import pytest
@@ -38,6 +39,10 @@ def save(modules, repo, value, **changes):
 def facts(modules, repo):
     state, creation = modules
     return creation.progress(repo, state.load_state(repo))
+
+
+def snapshots(repo, value):
+    return list(importlib.import_module("first_eval_history").snapshots(repo, value))
 
 
 def start(modules, repo, provider="harbor", examples=None):
@@ -603,7 +608,7 @@ def test_first_task_build_checkpoints_progress_without_granting_other_claims(mod
     assert progress["first_task_build"]["complete"]
     assert progress["next_stage"] == "prepare_first"
     assert value["first_task_build"]["active_step"] is None
-    assert modules[0].load_state(tmp_path)["scopes"]["create"]["first_eval"]["history"]
+    assert modules[0].load_state(tmp_path)["scopes"]["create"]["first_eval"]["history_head"]
 
 
 def test_first_task_build_retains_scoped_evidence_when_grader_changes(modules, tmp_path):
@@ -998,7 +1003,7 @@ def test_revision_checks_history_and_current_ethos_review_cannot_be_bypassed(mod
     value["plan"]["breadth"] = "Changed design"
     with pytest.raises(ValueError, match="Confirm ETHOS.md"):
         save(modules, tmp_path, value)
-    assert saved["scopes"]["create"]["first_eval"]["history"]
+    assert saved["scopes"]["create"]["first_eval"]["history_head"]
 
 
 def test_gym_harbor_requires_current_bridge_evidence_not_just_converted_tasks(modules, tmp_path):
@@ -1121,7 +1126,7 @@ def test_saved_design_question_preserves_history_but_stops_automatic_authoring(m
     assert not any(derived[key] for key in ("scope_approved", "first_task_approved", "execution_authorized"))
     retained = saved["scopes"]["create"]["first_eval"]
     assert all(retained[key] == prior[key] for key in ("plan_approval", "tasks", "runs"))
-    assert retained["history"][-1]["record"]["plan_approval"] == prior["plan_approval"]
+    assert snapshots(tmp_path, retained)[0]["plan_approval"] == prior["plan_approval"]
     with pytest.raises(ValueError, match="saved-design choice"):
         author(modules, tmp_path, value, "refund")
 
@@ -1202,7 +1207,7 @@ def test_saved_design_revise_or_new_preserves_artifacts_runs_and_reopens_the_rig
     assert facts(modules, tmp_path)["next_stage"] == ("traces" if decision == "new" else "proposal")
     assert not facts(modules, tmp_path)["execution_authorized"]
     assert (modules[1].trace_choice(updated) is None) is (decision == "new")
-    retained.pop("history", None)
+    retained.pop("history_head", None)
     retained["plan"]["trace_choice"] = "none"
     save(modules, tmp_path, retained)
     approve(modules, tmp_path, retained)
@@ -1225,8 +1230,8 @@ def test_replacing_saved_design_retires_prior_audit_invitation_without_losing_hi
     retained = updated["scopes"]["create"]["first_eval"]
     assert retained["audit_invitation"] is None and updated["next_handoff"] is None
     assert facts(modules, tmp_path)["audit_decision"] is None
-    assert retained["history"][-1]["record"]["audit_invitation"] == previous_invitation
-    retained.pop("history")
+    assert snapshots(tmp_path, retained)[0]["audit_invitation"] == previous_invitation
+    retained.pop("history_head")
     retained["plan"]["trace_choice"] = "none"
     save(modules, tmp_path, retained)
     approve(modules, tmp_path, retained)
@@ -1425,7 +1430,7 @@ def test_partial_selected_results_keep_the_new_job_progress_visible_and_retain_h
     ]
     updated = save(modules, tmp_path, value)
     retained = updated["scopes"]["create"]["first_eval"]
-    assert retained["history"][-1]["record"]["run_progress"] == activity
+    assert snapshots(tmp_path, retained)[0]["run_progress"] == activity
     assert facts(modules, tmp_path)["run_progress"]["status"] == "waiting"
 
 
@@ -1589,3 +1594,275 @@ def test_matching_running_native_job_must_remain_current_and_explicitly_selected
     progress = facts(modules, tmp_path)
     assert progress["run_progress"] == {"current": False}
     assert progress["next_stage"] != "run_progress"
+
+
+def legacy_history(modules, repo, *, count=3, padding=0):
+    value = start(modules, repo)
+    state = modules[0].load_state(repo)
+    history = []
+    for index in range(count):
+        previous = copy.deepcopy(value)
+        previous["plan"]["presentation"]["coverage_note"] = f"Prior design {index}: " + "x" * padding
+        history.append(
+            {"revision": state["revision"] + index, "digest": modules[1].fingerprint(previous), "record": previous}
+        )
+    state["revision"] += count
+    state["scopes"]["create"]["first_eval"]["history"] = history
+    modules[0].save(repo, state)
+    return value, state, history
+
+
+def test_legacy_history_reads_and_renders_without_migration_then_migrates_on_explicit_update(modules, tmp_path):
+    value, original, history = legacy_history(modules, tmp_path)
+    path = modules[0].state_path(tmp_path)
+    before = path.read_bytes()
+    archive = tmp_path / ".eval-author/.working/history/create"
+    loaded = modules[0].load_state(tmp_path)
+    assert modules[0].view(loaded)["state"]["scopes"] == original["scopes"]
+    renderer = importlib.import_module("conversation_renderer")
+    rendered = renderer.render(
+        {
+            "stage": "first_eval_traces",
+            "state": loaded,
+            "revision": loaded["revision"],
+            "facts": {"observations": modules[1].observe(tmp_path, loaded)},
+        }
+    )
+    assert rendered
+    assert path.read_bytes() == before and not archive.exists()
+
+    saved = save(modules, tmp_path, value)
+    retained = saved["scopes"]["create"]["first_eval"]
+    assert "history" not in retained
+    assert snapshots(tmp_path, retained) == [item["record"] for item in reversed(history)]
+    assert saved["schema_version"] == original["schema_version"] == 1
+    assert saved["revision"] == original["revision"] + 1
+    assert len(list(archive.glob("*.json"))) == len(history)
+    save(modules, tmp_path, value, pending_question="Unrelated explicit update")
+    assert len(list(archive.glob("*.json"))) == len(history)
+
+
+def test_legacy_history_near_state_limit_migrates_before_size_check(modules, tmp_path):
+    value, _, history = legacy_history(modules, tmp_path, count=18, padding=110000)
+    state = modules[0]
+    assert state.state_path(tmp_path).stat().st_size > state.MAX_BYTES * 0.9
+    value["plan"]["presentation"]["coverage_note"] = "Updated design: " + "y" * 180000
+    saved = save(modules, tmp_path, value)
+    retained = saved["scopes"]["create"]["first_eval"]
+    assert state.state_path(tmp_path).stat().st_size < state.MAX_BYTES // 4
+    archived = snapshots(tmp_path, retained)
+    assert len(archived) == len(history) + 1
+    assert archived[-1] == history[0]["record"]
+    assert retained["plan"]["presentation"]["coverage_note"] == value["plan"]["presentation"]["coverage_note"]
+
+
+def test_hundreds_of_native_progress_updates_still_allow_terminal_review_and_audit_handoff(modules, tmp_path):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value)
+    activity = native_activity(modules, tmp_path, value)
+    archive = tmp_path / ".eval-author/.working/history/create"
+    revisions = 250
+    for index in range(revisions):
+        activity["source"] = f"Inspected native status update {index}: " + "Retained native status detail. " * 70
+        activity["evidence"] = [
+            evidence(tmp_path, f".eval-author/jobs/active-baseline/status-{index}.json", f"Observed {index}")
+        ]
+        saved = save(modules, tmp_path, value)
+    retained = saved["scopes"]["create"]["first_eval"]
+    assert "history" not in retained and set(retained["history_head"]) == {"revision", "digest", "path"}
+    history_bytes = sum(path.stat().st_size for path in archive.glob("*.json"))
+    assert history_bytes > modules[0].MAX_BYTES
+    assert modules[0].state_path(tmp_path).stat().st_size < modules[0].MAX_BYTES // 10
+    archived_progress = [item["run_progress"] for item in snapshots(tmp_path, retained) if item.get("run_progress")]
+    assert len(archived_progress) == revisions - 1
+    assert {item["source"].split(":")[0] for item in archived_progress} == {
+        f"Inspected native status update {index}" for index in range(revisions - 1)
+    }
+    run(modules, tmp_path, value, run_id="active-baseline")
+    review_run(modules, tmp_path, value, run_id="active-baseline")
+    save(modules, tmp_path, value, journey_status={"create": "complete"})
+    value["audit_invitation"] = {"status": "accepted", "source": "User accepts the audit invitation"}
+    saved = save(modules, tmp_path, value)
+    assert saved["next_handoff"] == "eval-author-audit" and facts(modules, tmp_path)["complete"]
+
+
+@pytest.mark.parametrize("field", ["history", "history_head"])
+def test_automatic_history_cannot_be_cleared_or_replaced(modules, tmp_path, field):
+    value = start(modules, tmp_path)
+    value["plan"]["presentation"]["coverage_note"] = "Revised design"
+    saved = save(modules, tmp_path, value)
+    before = modules[0].state_path(tmp_path).read_bytes()
+    value[field] = [] if field == "history" else None
+    if field == "history":
+        value[field] = [{"revision": 0, "digest": modules[1].fingerprint({}), "record": {}}]
+    with pytest.raises(ValueError, match="retained automatically"):
+        save(modules, tmp_path, value)
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+    assert saved["scopes"]["create"]["first_eval"]["history_head"]
+
+
+@pytest.mark.parametrize("problem", ["missing", "changed", "oversized", "symlink", "directory_symlink"])
+def test_unavailable_or_unsafe_archived_history_blocks_mutation_without_changing_state(modules, tmp_path, problem):
+    value = start(modules, tmp_path)
+    value["plan"]["presentation"]["coverage_note"] = "Revised design"
+    saved = save(modules, tmp_path, value)
+    retained = saved["scopes"]["create"]["first_eval"]
+    archive = tmp_path / retained["history_head"]["path"]
+    before = modules[0].state_path(tmp_path).read_bytes()
+    outside = tmp_path / "outside-history.json"
+    if problem == "missing":
+        archive.unlink()
+    elif problem == "changed":
+        archive.write_text("{}")
+    elif problem == "oversized":
+        archive.write_bytes(b"x" * (modules[0].MAX_BYTES + 1))
+    elif problem == "symlink":
+        archive.rename(outside)
+        archive.symlink_to(outside)
+    else:
+        target = tmp_path / "outside-history"
+        archive.parent.rename(target)
+        archive.parent.symlink_to(target, target_is_directory=True)
+    # Current state remains inspectable even if an earlier snapshot needs recovery.
+    assert modules[0].load_state(tmp_path)["revision"] == saved["revision"]
+    with pytest.raises(ValueError, match="history"):
+        save(modules, tmp_path, value, pending_question="Explicit mutation")
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("field", ["path", "digest", "revision"])
+def test_archived_history_reference_is_canonical_and_cannot_be_rewound(modules, tmp_path, field):
+    value = start(modules, tmp_path)
+    value["plan"]["presentation"]["coverage_note"] = "Revised design"
+    saved = save(modules, tmp_path, value)
+    retained = copy.deepcopy(saved["scopes"]["create"]["first_eval"])
+    head = retained["history_head"]
+    head[field] = {"path": ".eval-author/.working/history/create/../outside.json", "digest": "a" * 64, "revision": 0}[
+        field
+    ]
+    before = modules[0].state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="history"):
+        save(modules, tmp_path, retained)
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("problem", ["duplicate_keys", "schema", "embedded_history", "revision_order"])
+def test_malformed_content_addressed_snapshot_is_rejected_even_when_its_bytes_match_the_digest(
+    modules, tmp_path, problem
+):
+    value = start(modules, tmp_path)
+    value["plan"]["presentation"]["coverage_note"] = "Revised design"
+    saved = save(modules, tmp_path, value)
+    retained = saved["scopes"]["create"]["first_eval"]
+    head = retained["history_head"]
+    archive = tmp_path / head["path"]
+    envelope = json.loads(archive.read_bytes())
+    if problem == "schema":
+        envelope["schema_version"] = True
+    elif problem == "embedded_history":
+        envelope["record"]["history"] = []
+    elif problem == "revision_order":
+        envelope["previous"] = head
+    payload = json.dumps(envelope).encode()
+    if problem == "duplicate_keys":
+        payload = payload.replace(b'{"schema_version": 1,', b'{"schema_version": 1, "schema_version": 1,', 1)
+    checksum = hashlib.sha256(payload).hexdigest()
+    head.update(path=f".eval-author/.working/history/create/{checksum}.json", digest=checksum)
+    (tmp_path / head["path"]).write_bytes(payload)
+    modules[0].save(tmp_path, saved)
+    before = modules[0].state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="history"):
+        save(modules, tmp_path, value)
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("failure", ["snapshot", "state"])
+def test_interrupted_history_save_preserves_state_and_retry_reuses_any_orphan_snapshot(
+    modules, tmp_path, monkeypatch, failure
+):
+    value = start(modules, tmp_path)
+    before = modules[0].state_path(tmp_path).read_bytes()
+    value["plan"]["presentation"]["coverage_note"] = "Revised design"
+    paths = importlib.import_module("working_paths")
+    replace = paths.os.replace
+
+    def fail_replace(source, target):
+        if (failure == "state") == (Path(target).name == "journey-state.json"):
+            raise OSError("Interrupted persistence")
+        return replace(source, target)
+
+    monkeypatch.setattr(paths.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="Interrupted persistence"):
+        save(modules, tmp_path, value)
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+    archive = tmp_path / ".eval-author/.working/history/create"
+    orphans = list(archive.glob("*.json"))
+    assert len(orphans) == (1 if failure == "state" else 0)
+    assert not list(archive.glob(".*"))
+    monkeypatch.setattr(paths.os, "replace", replace)
+    saved = save(modules, tmp_path, value)
+    assert len(list(archive.glob("*.json"))) == 1
+    assert snapshots(tmp_path, saved["scopes"]["create"]["first_eval"])
+
+
+def test_legacy_native_progress_evidence_stays_immutable_after_history_migration(modules, tmp_path):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value)
+    first = copy.deepcopy(native_activity(modules, tmp_path, value))
+    save(modules, tmp_path, value)
+    value["run_progress"]["evidence"] = [evidence(tmp_path, ".eval-author/jobs/active-baseline/later.json", "Later")]
+    save(modules, tmp_path, value)
+    state = modules[0].load_state(tmp_path)
+    retained = state["scopes"]["create"]["first_eval"]
+    previous = list(reversed(snapshots(tmp_path, retained)))
+    retained.pop("history_head")
+    retained["history"] = [
+        {"revision": index, "digest": modules[1].fingerprint(item), "record": item}
+        for index, item in enumerate(previous)
+    ]
+    modules[0].save(tmp_path, state)
+    save(modules, tmp_path, value)
+    value["run_progress"]["evidence"] = [evidence(tmp_path, first["evidence"][0]["path"], "Rewritten old status")]
+    with pytest.raises(ValueError, match="fresh evidence paths"):
+        save(modules, tmp_path, value)
+
+
+def test_revision_or_lock_conflict_never_writes_creation_snapshots(modules, tmp_path):
+    value = start(modules, tmp_path)
+    before = modules[0].state_path(tmp_path).read_bytes()
+    value["plan"]["presentation"]["coverage_note"] = "Revised design"
+    with pytest.raises(ValueError, match="State changed"):
+        modules[0].update(tmp_path, {"scopes": {"create": {"first_eval": value}}}, expected_revision=0)
+    paths = importlib.import_module("working_paths")
+    with paths.working_lock(paths.working_path(tmp_path, "journey-state.lock")), pytest.raises(OSError):
+        save(modules, tmp_path, value)
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+    assert not (tmp_path / ".eval-author/.working/history/create").exists()
+
+
+def test_interrupted_legacy_migration_retries_without_losing_or_duplicating_snapshots(modules, tmp_path, monkeypatch):
+    value, _, history = legacy_history(modules, tmp_path)
+    before = modules[0].state_path(tmp_path).read_bytes()
+    paths = importlib.import_module("working_paths")
+    replace = paths.os.replace
+    writes = 0
+
+    def fail_second_snapshot(source, target):
+        nonlocal writes
+        if Path(target).parent.name == "create":
+            writes += 1
+            if writes == 2:
+                raise OSError("Interrupted migration")
+        return replace(source, target)
+
+    monkeypatch.setattr(paths.os, "replace", fail_second_snapshot)
+    with pytest.raises(OSError, match="Interrupted migration"):
+        save(modules, tmp_path, value)
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+    archive = tmp_path / ".eval-author/.working/history/create"
+    assert len(list(archive.glob("*.json"))) == 1
+    monkeypatch.setattr(paths.os, "replace", replace)
+    saved = save(modules, tmp_path, value)
+    retained = saved["scopes"]["create"]["first_eval"]
+    assert snapshots(tmp_path, retained) == [item["record"] for item in reversed(history)]
+    assert len(list(archive.glob("*.json"))) == len(history)

@@ -152,7 +152,7 @@ def _validate_tasks(tasks: object) -> None:
                 raise ValueError("Invalid task evidence digest")
 
 
-def validate(state: dict) -> None:
+def validate(state: dict, *, check_size: bool = True) -> None:
     # Schema validation is also used by the pure conversation renderer; creating
     # a state here would unnecessarily read the clock.
     fields = {
@@ -283,7 +283,7 @@ def validate(state: dict) -> None:
         _text(item["source"], "legacy source")
         _text(item["archive"], "legacy archive")
     encoded = json_bytes(state)
-    if len(encoded) > MAX_BYTES:
+    if check_size and len(encoded) > MAX_BYTES:
         raise ValueError("Journey state is too large; link domain artifacts instead of embedding them")
 
 
@@ -797,7 +797,8 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             state["ethos"]["confirmation_source"] = None
             state["ethos"]["validation"] = None
             invalidate_scopes(state)
-        validate(state)
+        # Archive legacy inline creation history before enforcing the saved-state limit.
+        validate(state, check_size=state_only)
         if not state_only:
             first_eval_state.transition(repo, previous, state)
             creation = first_eval_state.progress(repo, state)

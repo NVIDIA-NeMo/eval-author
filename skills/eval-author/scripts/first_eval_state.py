@@ -10,8 +10,10 @@ import json
 import math
 import re
 from collections import Counter
-from copy import deepcopy
+from itertools import chain
 from pathlib import PurePosixPath
+
+import first_eval_history
 
 BUILD_STEPS = ("environment", "environment_check", "grading", "artifacts")
 REMAINING_STEPS = ("tasks", "environment_check", "validation", "artifacts")
@@ -308,6 +310,10 @@ def validate(value: dict) -> None:
                 or fingerprint(item["record"]) != item["digest"]
             ):
                 raise ValueError("Creation history cannot be rewritten")
+        if value.get("history_head") is not None:
+            first_eval_history.validate_reference(value["history_head"])
+            if value.get("history"):
+                raise ValueError("Creation history cannot mix inline snapshots and an archived chain")
     except (KeyError, TypeError, AttributeError) as exc:
         raise ValueError("Malformed structured creation record") from exc
 
@@ -798,6 +804,7 @@ def transition(repo, previous: dict, updated: dict) -> None:
         raise ValueError("Retain structured creation progress and its evidence")
     if after is None:
         return
+    first_eval_history.inherit(before, after)
     saved_review = after.get("saved_design_review")
     prior_review = (before or {}).get("saved_design_review")
     replacing_design = False
@@ -974,14 +981,11 @@ def transition(repo, previous: dict, updated: dict) -> None:
             )
     activity = after.get("run_progress")
     if activity and activity != (before or {}).get("run_progress"):
-        retained = [before, *(item["record"] for item in (before or {}).get("history", []))]
-        snapshots = {
-            ref["path"]: ref["digest"]
-            for item in retained
-            for ref in ((item or {}).get("run_progress") or {}).get("evidence", [])
-        }
-        if any(ref["path"] in snapshots and ref["digest"] != snapshots[ref["path"]] for ref in activity["evidence"]):
-            raise ValueError("Preserve native progress snapshots with fresh evidence paths")
+        fresh = {ref["path"]: ref["digest"] for ref in activity["evidence"]}
+        for item in chain((before,), first_eval_history.snapshots(repo, before)):
+            for ref in ((item or {}).get("run_progress") or {}).get("evidence", []):
+                if ref["path"] in fresh and ref["digest"] != fresh[ref["path"]]:
+                    raise ValueError("Preserve native progress snapshots with fresh evidence paths")
         if not (
             old
             and old["execution_authorized"]
@@ -1026,13 +1030,4 @@ def transition(repo, previous: dict, updated: dict) -> None:
             updated["next_handoff"] = "eval-author-audit"
         elif updated["next_handoff"] == "eval-author-audit":
             updated["next_handoff"] = None
-    history = (before or {}).get("history", [])
-    if after.get("history", history) != history:
-        raise ValueError("Creation history is retained automatically")
-    if before and {key: val for key, val in before.items() if key != "history"} != {
-        key: val for key, val in after.items() if key != "history"
-    }:
-        snapshot = {key: deepcopy(val) for key, val in before.items() if key != "history"}
-        history = [*history, {"revision": previous["revision"], "digest": fingerprint(snapshot), "record": snapshot}]
-    if history:
-        after["history"] = history
+    first_eval_history.retain(repo, before, after, previous["revision"])

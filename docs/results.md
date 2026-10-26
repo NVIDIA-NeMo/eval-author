@@ -85,6 +85,12 @@ cases, and acceptance criteria. Task drafts and run results show which checks
 have actually completed. Use the [generated case review guide](#review-generated-cases)
 to inspect the authored cases and their available evidence.
 
+Earlier creation decisions and evidence bindings are retained as immutable snapshots
+under `.eval-author/.working/history/create/`. Journey state keeps one reference to
+the latest snapshot, whose predecessor links preserve the full history without
+growing the current state file. Older inline history stays readable and moves to
+snapshots on the next creation update; viewing or rendering state leaves it intact.
+
 Task controls check the task and its verifier: NeMo Gym's known-correct and negative
 verifier fixtures, or Harbor's no-op baseline and reference solution. Results
 from running your actual agent are separate evidence of its performance.
