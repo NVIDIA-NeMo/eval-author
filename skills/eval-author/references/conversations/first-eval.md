@@ -63,12 +63,22 @@ This context does not introduce build steps, execution settings, or a new pause;
 run-only blockers do not prevent independent design review.
 
 After the shared confirmation continuation, render `first_eval_traces` as the
-final response when no source choice is saved, then end the turn. Its canonical
-question and choices come from the template module. Do not continue planning or
+final response when no source choice is saved, then end the turn. Supply only
+`stage: first_eval_traces`, the fresh reconciled `state`, and its `revision` to
+the shared renderer. This checkpoint needs no proposal record, task planning,
+observations, or execution settings. Its canonical question and choices come
+from the template module.
+
+Present the complete output, including `Next Steps`, both completed shared
+steps, and the current creation step before the source question. A standalone
+question-tool prompt does not replace this response. If a question tool is used,
+keep its labels identical to the rendered choices and retain the rendered
+checklist and question in the final response. Do not continue planning or
 investigating integrations while the answer is pending, including after a
 nonblocking question tool returns. Reuse a saved choice instead of asking again.
-Use the rendered question and proposal as the checkpoint messages; do not add
-free-form previews of task scope or adapter implementation in commentary.
+Use the shared entry point for the proposal too; its internal `proposal` helper
+omits the checklist and state gates. Do not add free-form previews of task scope
+or adapter implementation in commentary.
 
 Save the actual source answer and its provenance. For existing traces, resolve
 the selected location, runs, and exclusions before inspection. Then prepare only

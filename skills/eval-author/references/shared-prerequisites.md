@@ -314,6 +314,11 @@ before resuming that design. Existing metadata can identify this pending choice
 during the state-only pass; save its creation record only through normal updates
 after the shared prerequisites and `ETHOS.md` confirmation are complete.
 
+For creation, when no saved-design decision is pending, continue at the first-eval
+[source checkpoint](conversations/first-eval.md#source-and-proposal-pauses).
+It renders the overall checklist again before asking about traces or `ETHOS.md`;
+do not replace it with a free-form source or case-preparation question.
+
 ## Save and resume
 
 `.eval-author/.working/journey-state.json` is the sole authority for workflow

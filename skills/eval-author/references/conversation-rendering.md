@@ -10,6 +10,11 @@ produce byte-identical messages without clocks, randomness, repository reads,
 or writes. This guarantee concerns rendered messages. It does not make workflow
 execution, model decisions, tool results, or evaluations deterministic.
 
+Use this entry point for complete checkpoint responses. Flow-specific helpers
+render fragments; calling them directly can omit state gates and the overall
+progress checklist. Do not use those fragments or a hand-written question as a
+fallback when the entry point rejects the supplied state.
+
 Present rendered Markdown unchanged, with no additional opening, duplicate
 checklist, or appended next-step invitation. Copy the renderer's output verbatim
 into the workflow response, preserving heading markers, order, links, and

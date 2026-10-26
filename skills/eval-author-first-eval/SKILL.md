@@ -58,7 +58,7 @@ Keep provider-native identifiers when discussing their files or commands.
 
 Use the [first-evaluation conversation contract](../eval-author/references/conversations/first-eval.md)
 with the shared renderer for every creation checkpoint. Its template module owns fixed
-copy, table columns, question-tool choices, settings labels, and closing order.
+copy, table columns, source-choice labels, settings labels, and closing order.
 Present the rendered output unchanged rather than copying those templates here
 or adding routine policy explanations and duplicate checklists. Dynamic task
 content and evidence interpretation still require judgment.
@@ -86,7 +86,9 @@ Confirmation of `ETHOS.md` does not select a saved design.
 Use confirmed `ETHOS.md`, the agent entry point, tools, and usage documentation.
 Existing traces are optional. If the choice is unresolved, use `first_eval_traces`
 with its progress checklist and exact choices as the final reply, then end the
-turn. Wait for the user's answer before trace inspection, task planning,
+turn. Follow the [source checkpoint inputs](../eval-author/references/conversations/first-eval.md#source-and-proposal-pauses);
+a standalone question-tool prompt cannot replace the rendered checkpoint.
+Wait for the user's answer before trace inspection, task planning,
 environment work, or integration investigation. A nonblocking question tool
 returning does not supply that answer; do not keep working while it is pending.
 Reuse an already established choice.
