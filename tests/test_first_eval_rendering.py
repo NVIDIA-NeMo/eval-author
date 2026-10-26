@@ -1339,13 +1339,17 @@ def test_late_settings_and_explicit_execution_authorization(creation):
         "Open questions",
     ]
     assert "Agent/model" not in output and "Tasks and examples" not in output
-    assert output.endswith("Approving the tasks doesn’t start any runs.\n")
+    assert output.endswith("- **Open questions:** None.\n")
     assert not helper.derive(creation[0], observations(record))["execution_authorized"]
     with pytest.raises(ValueError, match="Display and save execution settings"):
         renderer.render(payload(creation, "ready_to_run", access_ready=True))
     selected(creation)
     output = renderer.render(payload(creation, "ready_to_run", access_ready=True))
-    assert copy.CHECKS_PASSED in output and copy.RUN_PROGRESS in output
+    assert output == (
+        "The graders have already passed their checks. I’ll reuse those saved results; "
+        "the agent run will measure your agent’s performance.\n\n"
+        "I’ll now run your agent on the approved tasks with the agreed settings.\n"
+    )
     record["selection"].pop("authorization")
     assert copy.RUN_QUESTION in renderer.render(payload(creation, "ready_to_run", access_ready=True))
     assert copy.RUN_PROGRESS not in renderer.render(

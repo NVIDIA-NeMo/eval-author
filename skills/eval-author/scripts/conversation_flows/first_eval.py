@@ -299,7 +299,7 @@ def execution_settings(record: dict) -> str:
         "; ".join(literal(item, "open question") for item in questions) or copy.NO_OPEN_QUESTIONS,
     )
     bullets = "\n".join(f"- **{label}:** {value}" for label, value in zip(copy.SETTINGS_LABELS, values, strict=True))
-    return "\n\n".join([copy.SETTINGS_INTRO, bullets, copy.SETTINGS_NOTICE])
+    return "\n\n".join([copy.SETTINGS_INTRO, bullets])
 
 
 def validation_setup(record: dict, progress: dict) -> str:

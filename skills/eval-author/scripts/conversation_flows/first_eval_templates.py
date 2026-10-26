@@ -119,12 +119,11 @@ SUITE_REVIEW_STATUS = (
 )
 SUITE_QUESTION = "Do these tasks look good? Approve the suite or tell me what to change before we choose how to run it."
 SETTINGS_INTRO = "Here are the settings for running the approved tasks."
-SETTINGS_NOTICE = "Approving the tasks doesn’t start any runs."
 SETTINGS_LABELS = ("Attempts", "Validation", "Time/cost limits", "Open questions")
 NO_OPEN_QUESTIONS = "None."
 CHECKS_PASSED = (
-    "Each task’s grader accepted the correct results and rejected the incorrect results we tested. "
-    "These checks confirm that the grading works; they don’t measure your agent’s performance."
+    "The graders have already passed their checks. I’ll reuse those saved results; "
+    "the agent run will measure your agent’s performance."
 )
 RUN_PROGRESS = "I’ll now run your agent on the approved tasks with the agreed settings."
 RUN_QUESTION = "May I run the selected tasks with the displayed settings and limits?"

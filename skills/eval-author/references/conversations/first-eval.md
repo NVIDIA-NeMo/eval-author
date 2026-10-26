@@ -600,6 +600,11 @@ them as settings bullets. Ask a focused question only when a target-agent model 
 still missing. Record the actual display
 through the state helper; viewing rendered output cannot count as delivery or
 human approval. Local controls remain distinct from actual-agent runs.
+An affirmative reply to an explicit request to run within displayed limits is
+execution authorization, not another task-review decision. Record that reply
+and proceed when its authorization is current; do not request a second approval.
+The ready-to-run recap reuses current saved grading results and does not imply
+that calibration was performed again.
 
 ## Facts and verified navigation
 
