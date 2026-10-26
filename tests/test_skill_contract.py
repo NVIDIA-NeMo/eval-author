@@ -974,8 +974,13 @@ def test_first_eval_waits_for_suite_review_before_execution_questions() -> None:
     _, body = _frontmatter_and_body(_FIRST_EVAL_DIR)
     remainder = " ".join(body.split("## 4. Build and validate the remainder", 1)[1].split("\n## ", 1)[0].split())
     assert "Render `first_eval_review_suite` as the final reply and end the turn" in remainder
-    assert "Wait for approval of the whole suite before discussing models, budgets, credentials" in remainder
-    assert "Formal checks requiring paid models may remain pending at this review" in remainder
+    assert "Wait for approval of the whole suite before discussing target-agent execution models" in remainder
+    assert "Do not offer review while required model-based grading or calibration is pending" in remainder
+    first_task = " ".join(
+        body.split("## 3. Build and review exactly the first task", 1)[1].split("\n## ", 1)[0].split()
+    )
+    assert "#validation-setup-before-task-creation" in first_task
+    assert "through `first_eval_validation_setup` before creating task files" in first_task
     execution = " ".join(body.split("## 5. Agree on and execute concrete runs", 1)[1].split("\n## ", 1)[0].split())
     assert "Use `first_eval_execution_settings` only after approval of the authored suite" in execution
 

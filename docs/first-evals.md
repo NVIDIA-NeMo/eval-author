@@ -27,14 +27,20 @@ Confirming `ETHOS.md` alone does not resume that design. Earlier artifacts stay 
 Source selection and the task proposal show your overall progress, with setup
 and `ETHOS.md` complete and evaluation creation marked as the current step.
 The task proposal explains the inputs, intended behaviors,
-expected results, grading, and remaining coverage gaps. You can change the
-proposal or approve it and the first task to build.
+expected results, grading, and remaining coverage gaps. Its Grading column shows
+whether each task uses code checks, a model judge, or both, with the judgment
+needed and its limitations. You can change the proposal or approve it and the
+first task to build.
 The default starting proposal has one to three tasks, with one example each;
 you can request broader scope. Eval Author waits for your source choice and
 then your proposal approval before starting task construction.
 
-After design approval, Eval Author builds one task, proves its environment, and
-validates its grader before presenting its README and report for review. Compact
+After design approval, Eval Author checks what is needed to validate the graders
+before creating any task. If model grading needs a judge choice, access, or
+authorization, it asks for those inputs and the validation limits up front.
+Existing applicable settings and authorization are reused without another
+approval pause. It then builds one task, proves its environment, and validates
+its grader before presenting its README and report for review. Compact
 build checklists show completed, active, pending, and blocked steps, with the
 responsible skill beside each item. The review separates environment proof and
 successful grading validation from whether your actual agent has run.
@@ -42,10 +48,13 @@ You can request revisions to that task before the remaining tasks are created.
 
 If a grader uses an AI model to judge responses, validation exercises that judge
 with known-correct and relevant incorrect results, including valid alternatives
-where permitted. This requires an existing compatible judge configuration,
-access, and applicable authorization. If those are missing, task review pauses
-with **Blockers**; artifacts remain available as drafts with validation incomplete.
-The model and budget questions for running your agent still follow suite approval.
+where permitted. Missing judge inputs appear as focused questions before task
+creation. Unavailable tools or failing access appear under **Blockers**, with the
+action needed to continue. If access later stops working, completed drafts stay
+saved while the affected work pauses. The model and budget questions for running
+your agent still follow suite approval.
+On resume, a fully authored and validated suite can refresh its report or return
+to review without repeating judge setup for checks that are already complete.
 
 Task directories remain under `.eval-author/tasks/<task-slug>/`. The shared
 report is `.eval-author/report.html`, with a Markdown counterpart in

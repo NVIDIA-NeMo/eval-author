@@ -76,9 +76,20 @@ def start(modules, repo, provider="harbor", examples=None):
     return value
 
 
-def approve(modules, repo, value):
-    value["plan_approval"] = {"digest": facts(modules, repo)["plan_digest"], "source": "User approves this task design"}
-    return save(modules, repo, value)
+def approve(modules, repo, value, *, setup=True):
+    digest = facts(modules, repo)["plan_digest"]
+    value["plan_approval"] = {"digest": digest, "source": "User approves this task design"}
+    approved_state = save(modules, repo, value)
+    if setup and facts(modules, repo)["scope_approved"]:
+        value["validation_setup"] = {
+            "plan_digest": digest,
+            "mode": "deterministic",
+            "requirements": ["Local correct-result and incorrect-result controls; no model requests"],
+            "open_questions": [],
+            "source": "Inspected the agreed deterministic grading prerequisites",
+        }
+        return save(modules, repo, value)
+    return approved_state
 
 
 def test_retargeting_same_content_ethos_does_not_reuse_creation_approval(modules, tmp_path):
@@ -1979,3 +1990,270 @@ def test_interrupted_legacy_migration_retries_without_losing_or_duplicating_snap
     retained = saved["scopes"]["create"]["first_eval"]
     assert snapshots(tmp_path, retained) == [item["record"] for item in reversed(history)]
     assert len(list(archive.glob("*.json"))) == len(history)
+
+
+def pending_validation_setup(modules, repo, value):
+    value["validation_setup"] = {
+        "plan_digest": facts(modules, repo)["plan_digest"],
+        "mode": "model",
+        "requirements": ["Use the configured judge to score correct and incorrect control responses"],
+        "open_questions": ["Which judge configuration should these grading checks use?"],
+        "source": "Inspected grading prerequisites after task-design approval",
+    }
+    return save(modules, repo, value)
+
+
+@pytest.mark.parametrize("setup_status", ["missing", "pending", "stale"])
+@pytest.mark.parametrize("operation", ["build", "task"])
+def test_validation_inputs_must_be_saved_before_authoring(modules, tmp_path, setup_status, operation):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value, setup=False)
+    if setup_status != "missing":
+        pending_validation_setup(modules, tmp_path, value)
+        if setup_status == "stale":
+            value["validation_setup"]["open_questions"] = []
+            save(modules, tmp_path, value)
+            value["plan"]["presentation"]["coverage_note"] = "Revised grading scope"
+            save(modules, tmp_path, value)
+            approve(modules, tmp_path, value, setup=False)
+    before = modules[0].load_state(tmp_path)
+    progress = facts(modules, tmp_path)
+    assert progress["scope_approved"]
+    assert not progress["validation_setup_ready"]
+    assert progress["validation_setup_current"] is (setup_status == "pending")
+    assert progress["next_stage"] == "validation_setup"
+    with pytest.raises(ValueError, match="(?i)validation.*setup|setup.*validation"):
+        if operation == "build":
+            start_build(modules, tmp_path, value)
+        else:
+            author(modules, tmp_path, value, "refund")
+    assert modules[0].load_state(tmp_path) == before
+
+
+@pytest.mark.parametrize("operation", ["build", "task"])
+def test_validation_setup_cannot_be_resolved_in_the_same_update_as_authoring(modules, tmp_path, operation):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value, setup=False)
+    pending_validation_setup(modules, tmp_path, value)
+    value["validation_setup"]["open_questions"] = []
+    value["validation_setup"]["source"] = "User provided the judge and authorized bounded grading checks"
+    with pytest.raises(ValueError, match="(?i)validation.*setup|setup.*validation"):
+        if operation == "build":
+            start_build(modules, tmp_path, value)
+        else:
+            author(modules, tmp_path, value, "refund")
+    assert facts(modules, tmp_path)["next_stage"] == "validation_setup"
+    assert not modules[0].load_state(tmp_path)["scopes"]["create"]["first_eval"]["tasks"]
+
+
+def test_resolving_validation_inputs_preserves_design_and_does_not_authorize_agent_runs(modules, tmp_path):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value, setup=False)
+    prior = copy.deepcopy(value["plan_approval"])
+    pending_validation_setup(modules, tmp_path, value)
+    value["validation_setup"]["requirements"] = [
+        "Configured judge: existing local config; access verified without exposing credentials",
+        "At most 6 judge calls, 60 seconds per call, $1 maximum, no retries",
+    ]
+    value["validation_setup"]["open_questions"] = []
+    value["validation_setup"]["source"] = "User selected the judge and authorized these grading checks"
+    save(modules, tmp_path, value)
+    progress = facts(modules, tmp_path)
+    assert progress["validation_setup_current"] and progress["validation_setup_ready"]
+    assert progress["plan_digest"] == prior["digest"] and value["plan_approval"] == prior
+    assert progress["next_stage"] == "prepare_first"
+    assert not progress["execution_authorized"] and not progress["execution_settings_presented"]
+    assert not progress["suite_approved"] and value["selection"] is None
+    author(modules, tmp_path, value, "refund")
+    assert facts(modules, tmp_path)["tasks"]["refund"]["created"]
+
+
+def test_deterministic_validation_setup_skips_an_additional_user_checkpoint(modules, tmp_path):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    progress = facts(modules, tmp_path)
+    assert progress["validation_setup_ready"] and progress["next_stage"] == "prepare_first"
+    assert value["validation_setup"]["mode"] == "deterministic"
+    start_build(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["next_stage"] == "build_progress"
+
+
+@pytest.mark.parametrize("operation", ["task_revision", "validation", "remaining", "receipt"])
+def test_pending_validation_setup_blocks_continued_dependent_work(modules, tmp_path, operation):
+    value = ready(modules, tmp_path)
+    if operation == "receipt":
+        start_build(modules, tmp_path, value)
+    value["tasks"]["policy"]["validation"] = None
+    save(modules, tmp_path, value)
+    pending_validation_setup(modules, tmp_path, value)
+    before = modules[0].load_state(tmp_path)
+    with pytest.raises(ValueError, match="(?i)validation.*setup|setup.*validation"):
+        if operation == "task_revision":
+            task = value["tasks"]["policy"]
+            evidence(tmp_path, task["path"] + "/new-input.txt", "Revised input")
+            task["sha256"] = modules[0].task_digest(tmp_path, task["path"])
+            save(modules, tmp_path, value)
+        elif operation == "validation":
+            check(modules, tmp_path, value, "policy", "validation")
+        elif operation == "receipt":
+            finish_build_step(modules, tmp_path, value, "environment")
+        else:
+            value["remaining_build"]["source"] = "Started additional task authoring"
+            save(modules, tmp_path, value)
+    assert modules[0].load_state(tmp_path) == before
+
+
+@pytest.mark.parametrize("field", ["plan_digest", "mode", "requirements", "open_questions", "source"])
+def test_validation_setup_requires_explicit_well_formed_findings(modules, tmp_path, field):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    value["validation_setup"].pop(field)
+    with pytest.raises(ValueError):
+        modules[1].validate(value)
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("mode", "infer from prose"),
+        ("requirements", []),
+        ("requirements", [" "]),
+        ("requirements", "Configured judge"),
+        ("open_questions", [""]),
+        ("open_questions", "Which judge?"),
+        ("source", " "),
+    ],
+)
+def test_validation_setup_rejects_implicit_or_malformed_requirements(modules, tmp_path, field, invalid):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    value["validation_setup"][field] = invalid
+    with pytest.raises(ValueError):
+        modules[1].validate(value)
+
+
+def test_legacy_completed_creation_does_not_reopen_validation_input_questions(modules, tmp_path):
+    complete(modules, tmp_path)
+    state = modules[0].load_state(tmp_path)
+    value = state["scopes"]["create"]["first_eval"]
+    observed = modules[1].observe(tmp_path, state)
+    before = modules[1].derive(state, observed)
+    value.pop("validation_setup")
+    after = modules[1].derive(state, observed)
+    assert not after["validation_setup_ready"]
+    assert after["complete"] and after["next_stage"] == before["next_stage"] == "results"
+    assert after["first_task_approved"] and after["suite_approved"]
+    assert after["tasks"] == before["tasks"] and after["reviewed_run_current"]
+
+
+@pytest.mark.parametrize("scope_changes", [False, True])
+@pytest.mark.parametrize("operation", ["build", "task", "validation"])
+def test_replacing_ready_validation_setup_requires_separate_save_before_dependent_work(
+    modules, tmp_path, scope_changes, operation
+):
+    value = start(modules, tmp_path)
+    approve(modules, tmp_path, value)
+    if operation == "validation":
+        author(modules, tmp_path, value, "refund")
+        check(modules, tmp_path, value, "refund", "environment")
+    value["validation_setup"]["requirements"] = ["Revised configured grading controls and applicable limits"]
+    value["validation_setup"]["source"] = "User confirmed the revised grading configuration"
+    if scope_changes:
+        value["plan"]["presentation"]["coverage_note"] = "Updated grading design and scope"
+        proposal = modules[0].load_state(tmp_path)
+        proposal["scopes"]["create"]["first_eval"] = value
+        digest = modules[1].derive(proposal, modules[1].observe(tmp_path, proposal))["plan_digest"]
+        value["plan_approval"] = {"digest": digest, "source": "User approved the revised proposal"}
+        value["validation_setup"]["plan_digest"] = digest
+    setup_update = copy.deepcopy(value)
+    before = modules[0].load_state(tmp_path)
+    with pytest.raises(ValueError, match="(?i)validation.*setup|setup.*validation"):
+        if operation == "build":
+            start_build(modules, tmp_path, value)
+        elif operation == "task":
+            author(modules, tmp_path, value, "refund")
+        else:
+            check(modules, tmp_path, value, "refund", "validation")
+    assert modules[0].load_state(tmp_path) == before
+    save(modules, tmp_path, setup_update)
+    assert facts(modules, tmp_path)["validation_setup_ready"]
+    if operation == "build":
+        start_build(modules, tmp_path, setup_update)
+        assert facts(modules, tmp_path)["first_task_build"]["current"]
+    elif operation == "task":
+        author(modules, tmp_path, setup_update, "refund")
+        assert facts(modules, tmp_path)["tasks"]["refund"]["created"]
+    else:
+        check(modules, tmp_path, setup_update, "refund", "validation")
+        assert facts(modules, tmp_path)["tasks"]["refund"]["validated"]
+
+
+def legacy_validated_tasks(modules, repo, *, first_build=False):
+    value = ready(modules, repo)
+    if first_build:
+        start_build(modules, repo, value)
+        for step in modules[1].BUILD_STEPS[:-1]:
+            finish_build_step(modules, repo, value, step)
+    state = modules[0].load_state(repo)
+    value = state["scopes"]["create"]["first_eval"]
+    value.pop("validation_setup")
+    value["suite_review_presented"] = None
+    value["suite_approval"] = None
+    value["remaining_build"]["artifacts"] = None
+    modules[0].save(repo, state)
+    value.pop("history_head", None)
+    value.pop("history", None)
+    return value
+
+
+@pytest.mark.parametrize("build_phase", ["first", "remaining"])
+def test_validated_legacy_suite_can_finish_report_bookkeeping_and_review_without_setup(modules, tmp_path, build_phase):
+    value = legacy_validated_tasks(modules, tmp_path, first_build=build_phase == "first")
+    task_evidence = copy.deepcopy(value["tasks"])
+    progress = facts(modules, tmp_path)
+    assert not progress["validation_setup_ready"] and not progress["validation_setup_needed"]
+    assert progress["first_task_approved"]
+    if build_phase == "first":
+        finish_build_step(modules, tmp_path, value, "artifacts")
+    start_remaining(modules, tmp_path, value)
+    refresh_remaining_artifacts(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["suite_review_ready"]
+    assert facts(modules, tmp_path)["next_stage"] == "review_suite"
+    approve_suite(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["suite_approved"]
+    assert facts(modules, tmp_path)["next_stage"] == "execution_settings"
+    assert value["tasks"] == task_evidence and "validation_setup" not in value
+
+
+@pytest.mark.parametrize("operation", ["task_revision", "validation"])
+def test_validated_legacy_suite_still_needs_setup_before_new_bytes_or_grading_checks(modules, tmp_path, operation):
+    value = legacy_validated_tasks(modules, tmp_path)
+    assert not facts(modules, tmp_path)["validation_setup_needed"]
+    before = modules[0].load_state(tmp_path)
+    with pytest.raises(ValueError, match="(?i)validation.*setup|setup.*validation"):
+        if operation == "task_revision":
+            task = value["tasks"]["policy"]
+            evidence(tmp_path, task["path"] + "/changed-input.txt", "Changed task input")
+            task["sha256"] = modules[0].task_digest(tmp_path, task["path"])
+            save(modules, tmp_path, value)
+        else:
+            value["tasks"]["policy"]["validation"]["source"] = "New model grading controls"
+            save(modules, tmp_path, value)
+    assert modules[0].load_state(tmp_path) == before
+
+
+@pytest.mark.parametrize("operation", ["nonartifact_receipt", "new_build", "remaining_authoring"])
+def test_legacy_reporting_exemption_does_not_allow_restarting_task_construction(modules, tmp_path, operation):
+    value = legacy_validated_tasks(modules, tmp_path, first_build=operation == "nonartifact_receipt")
+    before = modules[0].load_state(tmp_path)
+    with pytest.raises(ValueError, match="(?i)validation.*setup|setup.*validation"):
+        if operation == "nonartifact_receipt":
+            value["first_task_build"]["receipts"]["environment"]["source"] = "New environment construction"
+            save(modules, tmp_path, value)
+        elif operation == "new_build":
+            start_build(modules, tmp_path, value)
+        else:
+            value["remaining_build"]["active_step"] = "tasks"
+            value["remaining_build"]["source"] = "Restart task authoring"
+            save(modules, tmp_path, value)
+    assert modules[0].load_state(tmp_path) == before

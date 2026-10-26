@@ -24,6 +24,7 @@ STAGES = {
         "traces",
         "saved_design",
         "proposal",
+        "validation_setup",
         "execution_settings",
         "prepare_first",
         "build_progress",
@@ -260,6 +261,24 @@ def execution_settings(record: dict) -> str:
     )
     bullets = "\n".join(f"- **{label}:** {value}" for label, value in zip(copy.SETTINGS_LABELS, values, strict=True))
     return "\n\n".join([copy.SETTINGS_INTRO, bullets, copy.SETTINGS_NOTICE])
+
+
+def validation_setup(record: dict, progress: dict) -> str:
+    if not progress["scope_approved"]:
+        raise ValueError("Save scope approval before asking for grader validation setup")
+    if not progress["validation_setup_current"]:
+        raise ValueError("Save current grader validation setup and missing inputs before asking for them")
+    if progress["validation_setup_ready"]:
+        raise ValueError("Grader validation setup is already resolved; continue the saved build without another pause")
+    setup = record["validation_setup"]
+    return "\n\n".join(
+        [
+            copy.VALIDATION_SETUP_INTRO,
+            "\n".join("- " + literal(item, "grading requirement") for item in setup["requirements"]),
+            copy.VALIDATION_SETUP_QUESTIONS,
+            "\n".join("- " + literal(item, "missing grading input") for item in setup["open_questions"]),
+        ]
+    )
 
 
 def build_rows(
@@ -709,7 +728,18 @@ def render(payload: dict) -> str:
             if not record["plan"].get("trace_choice"):
                 raise ValueError("Copy the saved source choice into the proposal before presenting its design")
             return planning_progress(state) + "\n\n" + proposal(record) + "\n"
-        if stage == "execution_settings":
+        if stage == "validation_setup":
+            result = planning_progress(state) + "\n\n" + validation_setup(record, progress)
+        elif (
+            stage in {"prepare_first", "build_progress", "prepare_remaining", "remaining_progress"}
+            and progress["validation_setup_needed"]
+        ):
+            if stage in {"prepare_remaining", "remaining_progress"} and not progress["first_task_approved"]:
+                raise ValueError("Save first-task approval before preparing remaining tasks")
+            if not progress["scope_approved"]:
+                raise ValueError("Save scope approval before preparing tasks")
+            raise ValueError("Resolve and save grader validation setup before task construction")
+        elif stage == "execution_settings":
             if not progress["scope_approved"]:
                 raise ValueError("Save scope approval before displaying execution settings")
             if not progress["first_task_approved"]:
@@ -784,6 +814,8 @@ def render(payload: dict) -> str:
             result = results(record, {**progress, "complete": completed_results}, facts, state["journey"])
     if blocked := blocker_section(state, facts, stage):
         result += "\n\n" + blocked
+    if stage == "validation_setup":
+        result += "\n\n" + copy.VALIDATION_SETUP_QUESTION
     if stage == "results" and not completed_results:
         result += "\n\n" + reports(facts)
     if previous_progress is not None:

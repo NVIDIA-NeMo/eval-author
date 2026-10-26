@@ -44,6 +44,9 @@ PROPOSAL_QUESTION = (
     "with the right expected results and grading? Tell me what you’d change, add, "
     "or prioritize—or approve the proposal as written."
 )
+VALIDATION_SETUP_INTRO = "Before I build the tasks, I need a few details for checking their grading."
+VALIDATION_SETUP_QUESTIONS = "**Questions before building:**"
+VALIDATION_SETUP_QUESTION = "Please provide these details so I can build and validate the tasks."
 FIRST_PROGRESS = (
     "I’m preparing the first task’s starting data and checking that its environment works. "
     "Then I’ll add the [reference solution](https://docs.harborframework.com/tasks/solution) "

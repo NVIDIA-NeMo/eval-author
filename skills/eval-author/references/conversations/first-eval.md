@@ -107,7 +107,83 @@ names the first task, and explains the one-task build/review pause before the
 remainder. Its fixed feedback question is the final content. End the turn and
 wait for actual design approval before implementation or further integration
 work. Source selection and readiness to continue do not approve the design.
-No additional planning document or approval checkpoint is needed.
+No additional planning document or generic approval checkpoint is needed.
+
+### Proposed grading
+
+Each task's existing `plan.tasks[].grading` supplies the proposal table's
+**Grading** cell. State whether the proposed method uses code checks, an actual
+model judge, or both, and what each part evaluates. For a model-based portion,
+describe the judgment needed and its material limitations; include the proposed
+judge configuration when it is already established, otherwise identify it as
+unresolved. Do not invent a model choice, replace semantic judgment with brittle
+wording checks, or hide model grading until after authoring.
+
+The proposal presents the grading design without requiring a ready judge setup.
+After design approval, resolve any required judge inputs through
+[validation setup](#validation-setup-before-task-creation) before task creation.
+Reuse answers already established during design review without another pause.
+
+## Validation setup before task creation
+
+After saving design approval and before any task scaffolding, fixtures,
+instructions, reference solutions, graders, or delegated authoring, inspect what
+the agreed graders need for validation. Resolve missing judge configuration,
+compatible runtime, access, and explicit authorization for the concrete control
+work now. Ask for the missing inputs before starting task creation; do not leave
+a foreseeable setup question until authored-task review. Target-agent execution
+models, budgets, and run settings remain after whole-suite approval.
+
+Save the optional `validation_setup` sibling of `plan` under
+`scopes.create.first_eval`, through the existing revision-checked interface:
+
+```json
+{
+  "plan_digest": "<current derived plan_digest>",
+  "mode": "model",
+  "requirements": ["<concrete grading-control work, judge setup, and applicable call/time/spend bounds>"],
+  "open_questions": ["<actual missing user input>"],
+  "source": "<inspected findings or actual user reply provenance>"
+}
+```
+
+Use `mode: "deterministic"` when no grader needs a model judge. Record all known
+requirements as nonempty plain-text items. For model grading, identify the
+supported judge configuration and the controls and bounds covered by existing
+or requested authorization. State unknown costs honestly; do not infer spending
+consent from design approval or access alone. `source` records actual inspected
+findings or replies, not an invented approval. The setup is separate from the
+plan so answering these questions does not reopen an unchanged task design.
+
+When required user inputs are missing, render `first_eval_validation_setup` with
+the overall progress checklist, known requirements, and focused questions; its
+template owns the fixed wording and final call to action. Emit it as the final
+reply and end the turn before any dependent work. Ask only what is unresolved,
+including applicable validation authorization. Do not request secret values;
+ask the user to make credentials available in the execution environment. A
+pending user choice does not itself require a blocker. For unavailable tooling
+or failing access, include the specific dependency and needed action through the
+usual **Blockers** section.
+
+When deterministic controls or an existing model setup are already ready, save
+the inspected setup with an empty `open_questions` list and continue without a
+new approval pause. After a reply, verify the supplied configuration and access,
+save its provenance and resolve the answered questions before beginning work.
+An empty list is readiness only when inspected findings and actual applicable
+authorization support it. Do not guess a model, add an integration to bypass
+missing support, or substitute a stub judge to make setup appear ready.
+
+Readiness must already be saved before new task creation, changed task bytes,
+authoring activity or receipts, remaining-task authoring, or new validation
+evidence can be recorded. Missing setup in an older record is unknown; preserve
+completed files, approvals, and evidence, and resolve only missing inputs before
+resuming unfinished authoring or validation. When all agreed task files,
+environment proofs, and full grading-validation evidence remain current,
+report-only refresh and authored-task review can continue without reconstructing
+judge configuration or prompting for unused validation inputs. This exception
+does not authorize new task bytes, authoring receipts, or grading checks. Changed
+grading requirements reopen affected setup questions before further authoring.
+A completed suite does not receive another pre-authoring setup prompt.
 
 ## Grader validation before authored-task review
 
@@ -125,21 +201,18 @@ deterministic portion cannot establish full grading validation. A substitute
 judge, hardcoded verdict, skipped semantic check, or target-agent run does not
 satisfy this gate. Task revisions reopen affected validation before review.
 
-Reuse an existing compatible judge configuration, runtime, access, and explicit
-authorization within its applicable bounds. Do not guess a model, incur
-unauthorized spend, add an integration to bypass missing support, or move the
-model, budget, or execution-settings questions before whole-suite approval.
-If required judge configuration, access, or authorization is absent, show
-**Blockers** with the missing prerequisite and needed action, and hold the
-dependent authored-task review. Preserve completed work and allow draft report
-refreshes with validation clearly incomplete; do not use review-ready wording
+Use the configuration, access, and bounded authorization resolved through
+[validation setup](#validation-setup-before-task-creation). If a previously ready
+dependency stops working, show **Blockers** with the specific needed action and
+hold dependent work and authored-task review. Preserve completed work and allow
+draft report refreshes with validation clearly incomplete; do not use review-ready wording
 or an approval question. The initial task proposal remains a design review
 before building and does not require grader execution.
 
 ## First-task build progress
 
-After saving design approval, initialize `first_task_build` in the existing
-creation record through a normal revision-checked update. Bind it to the derived
+After saving design approval and ready validation setup, initialize
+`first_task_build` in the existing creation record through a normal revision-checked update. Bind it to the derived
 `plan_digest` and agreed `first_task`, set `active_step` to `environment`, and
 record the actual started activity in `source`:
 
@@ -258,9 +331,10 @@ do not establish review readiness. Missing or stale artifacts stay pending;
 later refreshes during execution do not restart completed authoring.
 
 Pass only blockers affecting current build or validation work. Run-only access
-does not block independent authoring. Missing judge prerequisites block grading
-validation and review as specified above; task or first-task approval does not
-authorize spending. Keep target-agent execution questions after suite approval.
+does not block independent authoring. Changed judge prerequisites reopen only
+the affected [validation setup](#validation-setup-before-task-creation) and block
+dependent work; task or first-task approval does not authorize spending. Keep
+target-agent execution questions after suite approval.
 The checklist never supplies validation evidence or agent performance claims.
 
 ## Review the authored suite before execution settings
@@ -377,7 +451,9 @@ when no choice is saved. Once the source is known, save the small concrete
 proposal before resuming; the renderer does not invent its task rows or insert
 another readiness question. Bind the saved choice in `plan.trace_choice` before
 presenting that design. An unanswered source choice resumes at `traces`, and an
-unapproved design resumes at `proposal`.
+unapproved design resumes at `proposal`. Once design approval is current,
+unresolved pre-authoring validation inputs resume at `validation_setup` before
+new authoring or validation work.
 
 ```json
 {
@@ -450,7 +526,8 @@ observations)` return values instead of reimplementing digest formulas. Normal
 `first_eval_observations` for this purpose.
 
 After the actual design approval, save `plan_approval` with the current derived
-`plan_digest` as `digest` and the user's reply reference as `source`. Save it
+`plan_digest` as `digest` and the user's reply reference as `source`. Save it,
+then resolve and save [validation setup](#validation-setup-before-task-creation),
 before recording generated tasks. Each task record contains its stable `path`,
 observed task-tree `sha256`, `review` (initially `null`), `environment`,
 `validation` (initially `null`), and `limitations`. Environment and validation
@@ -496,7 +573,8 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_saved_design` | A pending saved-design choice on a fresh request; compact saved scope, historical approval, and current progress, then a fixed continue/revise/new-proposal question. End the turn before any dependent work. |
 | `first_eval_traces` | Confirmed `ETHOS.md`; fixed optional-source question and choices unless the source decision is already saved in the creation scope or plan. Inspect only selected traces after resolving their location, runs, and exclusions. |
 | `first_eval_proposal` | Saved proposed task designs; five-column task table, concise coverage and limitations, first-task choice, and fixed design feedback question. The question is the last content. Execution settings and run-only blockers remain deferred. |
-| `first_eval_prepare_first` | Previously saved design approval; initial provider explanation and compact build checklist. Author exactly one task in its permanent directory, prove its environment before writing its grader, and satisfy the pre-review validation gate before returning for review. No execution checklist is required for local authoring. |
+| `first_eval_validation_setup` | Saved design approval and inspected grading requirements. Show known validation setup and ask only missing judge configuration, access, or bounded validation authorization before any task creation. Ready setup continues without an extra approval pause. |
+| `first_eval_prepare_first` | Previously saved design approval and ready validation setup; initial provider explanation and compact build checklist. Author exactly one task in its permanent directory, prove its environment before writing its grader, and satisfy the pre-review validation gate before returning for review. No target-agent execution checklist is required for local authoring. |
 | `first_eval_build_progress` | Saved approved first-task build activity and fresh observations; the same fixed checklist with short completed, active, pending, or blocked statuses. Use commentary during work, without adding narration or requesting approval. |
 | `first_eval_review_first` | Current first-task files, saved environment proof, complete current grading validation, and refreshed HTML and Markdown artifacts. Lead with the approved task's name and grounding in `ETHOS.md`, then direct the user to review the HTML report's Tasks view or mirrored README. Follow with input, expected result, grading with a meaningful limitation, and separate environment, grading-validation, and execution status. Link the task README and end with the first-task approval question. |
 | `first_eval_prepare_remaining` | Saved approval of the current first-task revision and environment proof. Initial explanation and skill-labeled checklist for building the remainder, checking environments, validating all graders, and refreshing artifacts. |
@@ -518,7 +596,7 @@ Late execution settings come from the saved record's `execution_settings`, with
 existing plan-presentation fields retained as a compatibility fallback. They
 contain `agent_model`, `attempts`, `validation`, `limits`, and `open_questions`.
 Retain target/model and selection details for reproducibility without repeating
-them as settings bullets. Ask a focused question only when a model choice is
+them as settings bullets. Ask a focused question only when a target-agent model choice is
 still missing. Record the actual display
 through the state helper; viewing rendered output cannot count as delivery or
 human approval. Local controls remain distinct from actual-agent runs.

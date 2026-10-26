@@ -123,6 +123,8 @@ and selected evidence. Include useful positive, negative, difficult, and boundar
 examples at the agreed breadth. Explain why the tasks help, what remains untested,
 and which will be built first. Do not use a model's current answer as grading
 truth or replace subjective quality with brittle wording checks.
+Follow [proposed grading](../eval-author/references/conversations/first-eval.md#proposed-grading)
+when filling each task's Grading column, before resolving its validation setup.
 
 Reuse prerequisite findings and the selected source to make the proposal.
 Read only the additional agent interface or selected evidence needed to describe
@@ -152,9 +154,13 @@ retained tasks and source choices and reviews only affected design changes.
 
 ## 3. Build and review exactly the first task
 
-After design approval, proceed directly to `first_eval_prepare_first`; ask only
-about unresolved environment or design choices needed for this work. No new
-setup-approval stage or execution-settings display precedes authoring.
+After design approval, resolve the [validation inputs before task creation](../eval-author/references/conversations/first-eval.md#validation-setup-before-task-creation).
+Save the inspected setup and ask for any missing judge configuration, access,
+or bounded validation authorization through `first_eval_validation_setup` before
+creating task files or initializing build work. Reuse existing answers and
+authorization; ready deterministic or configured model grading needs no extra
+approval pause. Keep target-agent execution settings after suite approval.
+Once validation setup is ready, render `first_eval_prepare_first`.
 Initialize the saved build activity and use the [build-progress contract](../eval-author/references/conversations/first-eval.md#first-task-build-progress)
 for coordinator-owned renderer updates throughout authoring and delegated work.
 These progress updates continue the build; they are not additional approval pauses.
@@ -229,13 +235,15 @@ Once all agreed tasks are authored, their environments are proven, and every
 task satisfies the [pre-review validation gate](../eval-author/references/conversations/first-eval.md#grader-validation-before-authored-task-review),
 refresh the report and Markdown mirror and use the [suite review checkpoint](../eval-author/references/conversations/first-eval.md#review-the-authored-suite-before-execution-settings).
 Render `first_eval_review_suite` as the final reply and end the turn. Wait for
-approval of the whole suite before discussing models, budgets, credentials,
-attempt settings, or run authorization. First-task approval does not approve the
+approval of the whole suite before discussing target-agent execution models,
+budgets, credentials, attempt settings, or run authorization. Grader-validation
+inputs were resolved before authoring. First-task approval does not approve the
 remaining authored tasks. Revisions reopen the affected review.
 
 Do not offer review while required model-based grading or calibration is
-pending. Follow the linked blocker contract without moving execution settings
-earlier. Successful grader controls do not establish agent performance.
+pending. If a previously ready validation dependency changes, resolve only that
+dependency before more authoring or validation work. Successful grader controls
+do not establish agent performance.
 
 ## 5. Agree on and execute concrete runs
 

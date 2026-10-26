@@ -116,6 +116,27 @@ def validate(value: dict) -> None:
                 raise ValueError("A broader proposal requires the user's request provenance")
             _text(breadth.get("source"))
         _decision(value["plan_approval"])
+        setup = value.get("validation_setup")
+        if setup is not None:
+            if not isinstance(setup, dict) or set(setup) != {
+                "plan_digest",
+                "mode",
+                "requirements",
+                "open_questions",
+                "source",
+            }:
+                raise ValueError(
+                    "Grader validation setup requires its design, mode, requirements, questions, and provenance"
+                )
+            _digest(setup["plan_digest"])
+            _text(setup["source"])
+            if setup["mode"] not in {"deterministic", "model"}:
+                raise ValueError("Declare deterministic or model-based grader validation setup")
+            _strings(setup["requirements"])
+            if not isinstance(setup["open_questions"], list):
+                raise ValueError("Grader validation setup requires explicit open questions")
+            if setup["open_questions"]:
+                _strings(setup["open_questions"])
         saved_review = value.get("saved_design_review")
         if saved_review is not None:
             _digest(saved_review["digest"])
@@ -484,6 +505,9 @@ def derive(state: dict, observed: object) -> dict | None:
         and value["plan_approval"]["digest"] == plan_digest
         and not saved_review_needed
     )
+    setup = value.get("validation_setup")
+    setup_current = bool(approved and setup and setup["plan_digest"] == plan_digest)
+    setup_ready = bool(setup_current and not setup["open_questions"])
     tasks = {}
     for key in planned:
         task = value["tasks"].get(key, {})
@@ -691,6 +715,7 @@ def derive(state: dict, observed: object) -> dict | None:
         "job_errors": job_errors,
     }
     validated = all(task["validated"] and task["environment_proven"] for task in tasks.values())
+    setup_needed = not setup_ready and not validated
     activity = value.get("run_progress")
     run_progress = {"current": False}
     if (
@@ -735,6 +760,8 @@ def derive(state: dict, observed: object) -> dict | None:
         if not trace_choice(state)
         else "proposal"
         if not approved
+        else "validation_setup"
+        if setup_needed
         else "prepare_first"
         if value.get("first_task_build") and not first_approved and not build["current"]
         else "build_progress"
@@ -767,6 +794,9 @@ def derive(state: dict, observed: object) -> dict | None:
         "scope_approved": approved,
         "plan_approved": approved,
         "plan_digest": plan_digest,
+        "validation_setup_current": setup_current,
+        "validation_setup_ready": setup_ready,
+        "validation_setup_needed": setup_needed,
         "saved_design_review_needed": saved_review_needed,
         "first_task_build": build,
         "remaining_build": remaining,
@@ -851,6 +881,22 @@ def transition(repo, previous: dict, updated: dict) -> None:
     old = progress(repo, previous) if before else None
     now = progress(repo, updated)
     assert now is not None
+    setup = after.get("validation_setup")
+    if setup and setup != (before or {}).get("validation_setup") and not now["validation_setup_current"]:
+        raise ValueError("Bind grader validation setup to the current approved task design")
+    setup_saved_ready = bool(
+        old
+        and old["validation_setup_ready"]
+        and now["validation_setup_ready"]
+        and (before or {}).get("validation_setup") == setup
+    )
+    construction_complete = bool(
+        old
+        and all(
+            task["created"] and task["environment_proven"] and task["validated"]
+            for task in chain(old["tasks"].values(), now["tasks"].values())
+        )
+    )
     build = after.get("first_task_build")
     prior_build = (before or {}).get("first_task_build")
     if prior_build is not None and build is None:
@@ -859,6 +905,15 @@ def transition(repo, previous: dict, updated: dict) -> None:
         assert build is not None
         if not (old and old["scope_approved"] and now["scope_approved"]):
             raise ValueError("Save task-design approval before recording first-task build progress")
+        reporting_only = bool(
+            construction_complete
+            and prior_build
+            and build["active_step"] in {None, "artifacts"}
+            and all(build[key] == prior_build[key] for key in ("plan_digest", "task_id"))
+            and all(build["receipts"].get(step) == prior_build["receipts"].get(step) for step in BUILD_STEPS[:-1])
+        )
+        if not (setup_saved_ready or reporting_only):
+            raise ValueError("Resolve and save grader validation setup before recording first-task build progress")
         if not now["first_task_build"]["current"]:
             raise ValueError("Bind first-task build progress to the current design and first task")
         if (
@@ -893,6 +948,9 @@ def transition(repo, previous: dict, updated: dict) -> None:
         assert remaining is not None
         if not (old and old["first_task_approved"] and now["first_task_approved"]):
             raise ValueError("Save first-task approval before recording remaining-task build progress")
+        reporting_only = construction_complete and remaining["active_step"] in {None, "artifacts"}
+        if not (setup_saved_ready or reporting_only):
+            raise ValueError("Resolve and save grader validation setup before continuing task construction")
         if not now["remaining_build"]["current"]:
             raise ValueError("Bind remaining-task progress to the current design and approved first task")
         artifacts = remaining["artifacts"]
@@ -1025,6 +1083,16 @@ def transition(repo, previous: dict, updated: dict) -> None:
         raise ValueError("Save task-design approval before creating tasks")
     if added - {after["first_task"]} and not (old and old["first_task_approved"] and now["first_task_approved"]):
         raise ValueError("Approve the first task before creating the remainder")
+    changed_tasks = {
+        key
+        for key, task in after["tasks"].items()
+        if key not in prior_tasks
+        or task["sha256"] != prior_tasks[key]["sha256"]
+        or task.get("validation") != prior_tasks[key].get("validation")
+        and task.get("validation") is not None
+    }
+    if changed_tasks and not setup_saved_ready:
+        raise ValueError("Resolve and save grader validation setup before task creation or new grading checks")
     if (
         after["audit_invitation"] != (before or {}).get("audit_invitation")
         and not now["complete"]

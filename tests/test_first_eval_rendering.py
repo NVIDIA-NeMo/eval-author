@@ -52,7 +52,11 @@ def creation(monkeypatch, tmp_path):
                     "input": "Request | with newline\ncontinued",
                     "behavior": "Respect policy",
                     "expected_result": "Correct disposition",
-                    "grading": "Check state and response",
+                    "grading": (
+                        "Code checks verify state; model judge assesses response meaning"
+                        if task_id == "refund"
+                        else "Code checks verify rejected action and unchanged state"
+                    ),
                 }
                 for task_id in ("refund", "reject")
             ],
@@ -114,12 +118,21 @@ def payload(creation, stage, **facts):
     }
 
 
-def approved(creation):
+def approved(creation, *, setup=True):
     state, record, helper, *_ = creation
-    record["plan_approval"] = {
-        "digest": helper.derive(state, observations(record))["plan_digest"],
-        "source": "User approves design",
-    }
+    digest = helper.derive(state, observations(record))["plan_digest"]
+    record["plan_approval"] = {"digest": digest, "source": "User approves design"}
+    if setup:
+        record["validation_setup"] = {
+            "plan_digest": digest,
+            "mode": "model",
+            "requirements": [
+                "Existing configured judge and local code checks; credential availability verified",
+                "Prior authorization covers at most 6 judge calls and $1 for grading controls",
+            ],
+            "open_questions": [],
+            "source": "Inspected existing compatible grading configuration and applicable authorization",
+        }
 
 
 def saved_design_pending(creation):
@@ -322,8 +335,8 @@ def test_proposal_is_concise_deterministic_and_read_only(creation):
     assert output == PLANNING_PROGRESS + "\n\n" + (
         "Here are the proposed evaluation tasks.\n\n"
         "| Task | Input | Behavior under test | Expected result | Grading |\n|---|---|---|---|---|\n"
-        "| refund | Request &#124; with newline<br>continued | Respect policy | Correct disposition | Check state and response |\n"
-        "| reject | Request &#124; with newline<br>continued | Respect policy | Correct disposition | Check state and response |\n\n"
+        "| refund | Request &#124; with newline<br>continued | Respect policy | Correct disposition | Code checks verify state; model judge assesses response meaning |\n"
+        "| reject | Request &#124; with newline<br>continued | Respect policy | Correct disposition | Code checks verify rejected action and unchanged state |\n\n"
         "These check refunds and rejection. Other regions remain untested.\n\n"
         "I’ll build **refund** first.\n\n"
         "Proposed tasks: 2; distinct input examples: 2. After you approve the proposal, "
@@ -923,8 +936,8 @@ def test_suite_review_is_a_linked_deterministic_checkpoint_before_execution_choi
         f"Review your tasks in the [HTML report’s Tasks view](<{root}/.eval-author/report.html#cases>) "
         f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
         "| Task | Behavior under test | Expected result | Grading |\n|---|---|---|---|\n"
-        "| refund | Respect policy | Correct disposition | Check state and response |\n"
-        "| reject | Respect policy | Correct disposition | Check state and response |\n\n"
+        "| refund | Respect policy | Correct disposition | Code checks verify state; model judge assesses response meaning |\n"
+        "| reject | Respect policy | Correct disposition | Code checks verify rejected action and unchanged state |\n\n"
         "**Status:** Environment proof: 2/2 passed. Grading validation: 2/2 passed. "
         "Agent execution: 0/2 tasks complete.\n\n"
         "Limitations: Other regions untested\n\n"
@@ -1107,6 +1120,7 @@ def test_saved_design_overview_is_a_deterministic_decision_before_resume(creatio
     [
         "traces",
         "proposal",
+        "validation_setup",
         "prepare_first",
         "build_progress",
         "review_first",
@@ -1835,3 +1849,203 @@ def test_shared_cli_renders_supplied_creation_payload(creation):
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout == expected
+
+
+def pending_setup(creation):
+    state, record, helper, *_ = creation
+    approved(creation, setup=False)
+    record["validation_setup"] = {
+        "plan_digest": helper.derive(state, observations(record))["plan_digest"],
+        "mode": "model",
+        "requirements": [
+            "Use the actual configured judge for known correct and incorrect responses",
+            "Authorize at most 6 judge calls, 60 seconds each, $1 maximum, no retries",
+        ],
+        "open_questions": [
+            "Which existing judge configuration should these checks use?",
+            "Is its credential available, and do you authorize these bounded grading checks?",
+        ],
+        "source": "Inspected the approved design's model-based grading requirements",
+    }
+
+
+def test_required_model_validation_inputs_are_asked_before_first_task_creation(creation, monkeypatch):
+    state, record, _, renderer, copy = creation
+    pending_setup(creation)
+    request = payload(creation, "validation_setup")
+    before = deepcopy(request)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Validation input rendering must use supplied state without I/O or clocks")
+
+    monkeypatch.setattr(Path, "read_text", forbidden)
+    monkeypatch.setattr(Path, "read_bytes", forbidden)
+    monkeypatch.setattr(importlib.import_module("journey_state"), "now", forbidden)
+    output = renderer.render(request)
+    assert output.startswith(PLANNING_PROGRESS + "\n\n" + copy.VALIDATION_SETUP_INTRO)
+    for item in record["validation_setup"]["requirements"] + record["validation_setup"]["open_questions"]:
+        assert item in output
+    assert output.endswith(copy.VALIDATION_SETUP_QUESTION + "\n")
+    assert output == renderer.render(request) == renderer.render(payload(creation, "resume"))
+    assert copy.FIRST_PROGRESS not in output and copy.SETTINGS_INTRO not in output
+    assert "Agent/model" not in output and "Tasks and examples" not in output
+    assert not record["tasks"] and "first_task_build" not in record
+    assert request == before and not state["blockers"]
+
+
+def test_validation_input_questions_escape_supplied_copy(creation):
+    _, record, _, renderer, _ = creation
+    pending_setup(creation)
+    record["validation_setup"]["requirements"] = ["Judge <script>alert('bad')</script>\nwith limits"]
+    record["validation_setup"]["open_questions"] = ["Use **this model** or [other](https://example.test)?"]
+    output = renderer.render(payload(creation, "validation_setup"))
+    assert "<script>" not in output and "&lt;script&gt;" in output
+    assert "**this model**" not in output and "[other](https://example.test)" not in output
+    assert "with limits" in output
+
+
+@pytest.mark.parametrize("setup_status", ["missing", "pending", "stale"])
+@pytest.mark.parametrize("stage", ["prepare_first", "build_progress", "prepare_remaining", "remaining_progress"])
+def test_unresolved_validation_setup_cannot_be_bypassed_with_authoring_stages(creation, setup_status, stage):
+    _, record, _, renderer, _ = creation
+    built(creation, reviewed=stage in {"prepare_remaining", "remaining_progress"})
+    if stage in {"build_progress", "remaining_progress"}:
+        if stage == "build_progress":
+            build_started(creation)
+        else:
+            remaining_started(creation)
+    pending_setup(creation)
+    if setup_status == "missing":
+        record.pop("validation_setup")
+    elif setup_status == "stale":
+        record["validation_setup"]["plan_digest"] = "b" * 64
+        record["validation_setup"]["open_questions"] = []
+    with pytest.raises(ValueError, match="(?i)validation.*setup|setup.*validation"):
+        renderer.render(payload(creation, stage))
+
+
+@pytest.mark.parametrize("setup_status", ["missing", "stale", "ready", "unapproved"])
+def test_validation_input_stage_requires_current_pending_setup_and_design_approval(creation, setup_status):
+    _, record, _, renderer, _ = creation
+    pending_setup(creation)
+    if setup_status == "missing":
+        record.pop("validation_setup")
+    elif setup_status == "stale":
+        record["validation_setup"]["plan_digest"] = "b" * 64
+    elif setup_status == "ready":
+        record["validation_setup"]["open_questions"] = []
+    else:
+        record["plan_approval"] = None
+    with pytest.raises(ValueError):
+        renderer.render(payload(creation, "validation_setup"))
+
+
+@pytest.mark.parametrize("mode", ["deterministic", "model"])
+def test_resolved_validation_inputs_skip_an_extra_pause_and_preserve_approved_design(creation, mode):
+    state, record, helper, renderer, copy = creation
+    if mode == "deterministic":
+        for task in record["plan"]["tasks"]:
+            task["grading"] = "Code checks verify action arguments and resulting state"
+    pending_setup(creation)
+    prior = deepcopy(record["plan_approval"])
+    record["validation_setup"]["mode"] = mode
+    if mode == "deterministic":
+        record["validation_setup"]["requirements"] = ["Local code controls require no model requests"]
+    record["validation_setup"]["open_questions"] = []
+    record["validation_setup"]["source"] = "Existing compatible setup and applicable authorization confirmed"
+    output = renderer.render(payload(creation, "resume"))
+    assert output.startswith(copy.FIRST_PROGRESS + "\n\n**First task:")
+    assert copy.VALIDATION_SETUP_QUESTION not in output and copy.SETTINGS_INTRO not in output
+    progress = helper.derive(state, observations(record))
+    assert progress["validation_setup_ready"] and progress["scope_approved"]
+    assert progress["plan_digest"] == prior["digest"] and record["plan_approval"] == prior
+    assert not progress["execution_authorized"] and not progress["suite_approved"]
+
+
+def test_pending_validation_inputs_do_not_replace_the_source_or_proposal_decision(creation):
+    _, record, _, renderer, copy = creation
+    pending_setup(creation)
+    record["plan_approval"] = None
+    record["plan"].pop("trace_choice")
+    assert copy.TRACE_QUESTION in renderer.render(payload(creation, "resume"))
+    record["plan"]["trace_choice"] = "none"
+    assert copy.PROPOSAL_QUESTION in renderer.render(payload(creation, "resume"))
+
+
+def test_missing_validation_setup_is_unknown_and_does_not_start_building(creation):
+    state, record, helper, renderer, copy = creation
+    approved(creation, setup=False)
+    progress = helper.derive(state, observations(record))
+    assert not progress["validation_setup_current"] and not progress["validation_setup_ready"]
+    assert progress["scope_approved"] and progress["next_stage"] == "validation_setup"
+    with pytest.raises(ValueError):
+        renderer.render(payload(creation, "resume"))
+    assert not record["tasks"] and "first_task_build" not in record
+    record["plan"]["tasks"][0]["grading"] = "Deterministic checks; no judge needed"
+    approved(creation, setup=False)
+    assert not helper.derive(state, observations(record))["validation_setup_ready"]
+    with pytest.raises(ValueError):
+        renderer.render(payload(creation, "prepare_first"))
+    assert copy.FIRST_PROGRESS not in copy.VALIDATION_SETUP_INTRO
+
+
+def test_completed_legacy_suite_does_not_reopen_validation_input_questions(creation):
+    _, record, _, renderer, copy = creation
+    finished(creation)
+    before = renderer.render(payload(creation, "resume", **result_facts(creation)))
+    record.pop("validation_setup")
+    after = renderer.render(payload(creation, "resume", **result_facts(creation)))
+    assert after == before
+    assert copy.VALIDATION_SETUP_INTRO not in after and copy.VALIDATION_SETUP_QUESTION not in after
+
+
+def test_proposal_explains_each_grading_method_before_validation_setup_questions(creation):
+    state, record, _, renderer, copy = creation
+    methods = (
+        "Code checks verify tool arguments and resulting state",
+        "Model judge assesses whether the reply explains the supplied facts",
+        "Code checks verify no dispatch; model judge assesses the clarification",
+    )
+    template = record["plan"]["tasks"][0]
+    record["plan"]["tasks"] = [
+        {
+            **template,
+            "id": f"task-{index}",
+            "title": f"Task {index}",
+            "example_ids": [f"example-{index}"],
+            "grading": method,
+        }
+        for index, method in enumerate(methods)
+    ]
+    record["first_task"] = "task-0"
+    before = deepcopy(state)
+    output = renderer.render(payload(creation, "proposal"))
+    assert copy.PROPOSAL_TABLE in output
+    for index, method in enumerate(methods):
+        row = next(line for line in output.splitlines() if line.startswith(f"| Task {index} |"))
+        assert row.endswith(f" | {method} |")
+    assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
+    assert copy.VALIDATION_SETUP_INTRO not in output and state == before
+    record["plan"]["tasks"][1]["grading"] = "Model judge <script>bad</script> | **override**\ncontinued"
+    escaped = renderer.render(payload(creation, "proposal"))
+    assert "Model judge &lt;script&gt;bad&lt;/script&gt; &#124; \\*\\*override\\*\\*<br>continued" in escaped
+    assert "<script>" not in escaped and "| **override**" not in escaped
+
+
+@pytest.mark.parametrize("phase", ["first", "remaining"])
+def test_fully_validated_legacy_tasks_can_show_report_bookkeeping_without_setup_questions(creation, phase):
+    state, record, helper, renderer, copy = creation
+    built(creation, all_tasks=True, reviewed=True)
+    if phase == "first":
+        build_started(creation, active="artifacts", completed=("environment", "environment_check", "grading"))
+        stage = "build_progress"
+    else:
+        remaining_started(creation, active="artifacts")
+        stage = "remaining_progress"
+    record.pop("validation_setup")
+    progress = helper.derive(state, observations(record))
+    assert not progress["validation_setup_ready"] and not progress["validation_setup_needed"]
+    assert progress["first_task_approved"]
+    output = renderer.render(payload(creation, stage))
+    assert "report" in output and copy.VALIDATION_SETUP_QUESTION not in output
+    assert "In progress" in output
