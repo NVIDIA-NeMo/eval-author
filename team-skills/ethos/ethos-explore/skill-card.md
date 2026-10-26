@@ -34,8 +34,8 @@ Mitigation: Review and scan skill before deployment. <br>
 **Other Properties Related to Output:** [Read-only codebase pre-flight; writes no files itself and hands the structured conversation to ethos-write.] <br>
 
 ## Evaluation Agents Used: <br>
-- Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`) <br>
-- Codex (`openai/openai/gpt-5.5`) <br>
+- Claude Code (`aws/anthropic/bedrock-claude-opus-5-5`) <br>
+- Codex (`openai/openai/gpt-6.1-sol`) <br>
 
 
 
@@ -64,12 +64,12 @@ Underlying evaluation signals used in this run: <br>
 ## Evaluation Results: <br>
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 91.3% (uplift unavailable) | 88.2% (uplift unavailable) |
+| Overall | 90.0% — baseline ran, but no comparable score was available; uplift unavailable | 96.4% — baseline ran, but no comparable score was available; uplift unavailable |
 | Security | 100.0% → 100.0% (±0.0 points) | 100.0% → 100.0% (±0.0 points) |
-| Correctness | 65.0% → 90.0% (+25.0 points) | 70.0% → 85.0% (+15.0 points) |
-| Discoverability | 100.0% (uplift unavailable) | 90.0% (uplift unavailable) |
-| Effectiveness | 55.4% → 75.0% (+19.6 points) | 46.7% → 68.1% (+21.4 points) |
-| Efficiency | 91.4% (uplift unavailable) | 98.0% (uplift unavailable) |
+| Correctness | 65.0% → 80.0% (+15.0 points) | 65.0% → 100.0% (+35.0 points) |
+| Discoverability | 100.0% — baseline ran, but no comparable score was available; uplift unavailable | 86.7% — baseline ran, but no comparable score was available; uplift unavailable |
+| Effectiveness | 43.3% → 78.1% (+34.8 points) | 60.4% → 100.0% (+39.6 points) |
+| Efficiency | 91.6% — baseline ran, but no comparable score was available; uplift unavailable | 95.5% — baseline ran, but no comparable score was available; uplift unavailable |
 
 ## Skill Version(s): <br>
 0.1.0 (source: pyproject.toml) <br>
