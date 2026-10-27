@@ -23,11 +23,14 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from working_paths import atomic_write_json
+
 from . import construction
 from . import workspace_contract as _workspace
 
 SCHEMA = "nemo.eval_author.task_evidence.v1"
 MANIFEST_SCHEMA = "nemo.eval_author.task_evidence.v2"
+REPAIR_STATE_SCHEMA = "nemo.eval_author.repair_state.v1"
 IGNORED = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache"}
 
 
@@ -188,18 +191,49 @@ def prepare(
 ) -> dict[str, Any]:
     contract = read(contract_path)
     validate_contract(contract)
-    fresh(output, task)
-    repairs = []
+    replacing = previous is not None and previous.resolve() == output.resolve()
+    if replacing:
+        if output.is_symlink() or output.resolve().is_relative_to(task.resolve()):
+            raise EvidenceError("manifest must be a regular file outside the task tree")
+    else:
+        fresh(output, task)
+    repair_count = 0
+    registrations = []
     if previous:
         old = read(previous)
         if old.get("schema") not in (SCHEMA, MANIFEST_SCHEMA) or old.get("task_dir") != str(task.resolve()):
             raise EvidenceError("repair must refer to the same task's previous manifest")
-        if old.get("contract", {}).get("task_id") != contract["task_id"] or not reason or not reason.strip():
-            raise EvidenceError("repair requires the same task ID and a concrete reason")
-        repairs = old.get("repairs", [])
-        if not isinstance(repairs, list) or len(repairs) >= 3:
+        if (
+            old.get("contract", {}).get("task_id") != contract["task_id"]
+            or not reason
+            or not 0 < len(reason.strip()) <= 2000
+        ):
+            raise EvidenceError("repair requires the same task ID and a concrete reason of at most 2000 characters")
+        repair_count = _manifest_repair_count(old) + 1
+        if repair_count > 3:
             raise EvidenceError("three-repair budget exhausted; retain the unresolved task")
-        repairs = [*repairs, {"manifest": str(previous.resolve()), "sha256": digest(previous), "reason": reason}]
+        if replacing:
+            ledger = Path(str(output.resolve()) + ".attempts")
+            if ledger.is_symlink() or (ledger.exists() and (not ledger.is_dir() or old.get("attempts") != str(ledger))):
+                raise EvidenceError("in-place repair requires the helper-owned attempt ledger")
+            required = {"run_id", "receipt", "purpose", "case", "manifest_sha256"}
+            for entry in ledger.iterdir() if ledger.exists() else ():
+                if entry.is_symlink() or not entry.is_file() or not re.fullmatch(r"[0-9a-f]{64}\.json", entry.name):
+                    raise EvidenceError(
+                        "keep native results and other files outside the attempt registration directory"
+                    )
+                registration = read(entry)
+                if (
+                    set(registration) not in (required, required | {"kind"})
+                    or not isinstance(registration["run_id"], str)
+                    or entry.stem != hashlib.sha256(registration["run_id"].encode()).hexdigest()
+                    or registration["purpose"] not in ("baseline", "closure")
+                    or registration["case"] not in old["contract"]["cases"]
+                    or not isinstance(registration["receipt"], str)
+                ):
+                    raise EvidenceError("attempt registration directory contains unrecognized content")
+                require_binding(registration["manifest_sha256"], digest(previous), "attempt ledger manifest mismatch")
+                registrations.append((entry, digest(entry)))
     elif reason:
         raise EvidenceError("repair reason requires --previous")
     from .construction import bind
@@ -211,9 +245,11 @@ def prepare(
         "task_dir": str(task.resolve()),
         "task_sha256": task_digest(task),
         "contract": contract,
-        "repairs": repairs,
+        "repair_count": repair_count,
         "attempts": str(output.resolve()) + ".attempts",
     }
+    if repair_count and reason:
+        manifest["repair_reason"] = reason.strip()
     if contract["provider"] == "harbor":
         try:
             from harbor.models.task.task import Task
@@ -225,8 +261,37 @@ def prepare(
         from .gym_evidence import snapshot
 
         manifest["gym_inputs"] = snapshot(task.resolve(), contract)
-    write_new(output, manifest)
+    if replacing and ledger.exists():
+        # Detach the whole ledger first: partial disposal must not hide a failed attempt in a current proof set.
+        with tempfile.TemporaryDirectory(prefix=".repair-discard-", dir=ledger.parent) as temporary:
+            discarded = Path(temporary) / "registrations"
+            ledger.rename(discarded)
+            for entry, checksum in registrations:
+                require_binding(digest(discarded / entry.name), checksum, "attempt registration changed during repair")
+            atomic_write_json(output, manifest)
+    elif replacing:
+        atomic_write_json(output, manifest)
+    else:
+        write_new(output, manifest)
     return manifest
+
+
+def _manifest_repair_count(manifest: dict[str, Any]) -> int:
+    count = manifest.get("repair_count")
+    if count is None:
+        legacy = manifest.get("repairs")
+        if not isinstance(legacy, list):
+            raise EvidenceError("invalid repair count")
+        count = len(legacy)
+    if type(count) is not int or not 0 <= count <= 3:
+        raise EvidenceError("invalid repair count")
+    if "repair_reason" in manifest and (
+        count == 0
+        or not isinstance(manifest["repair_reason"], str)
+        or not 0 < len(manifest["repair_reason"].strip()) <= 2000
+    ):
+        raise EvidenceError("invalid current repair reason")
+    return count
 
 
 def manifest_at(path: Path) -> dict[str, Any]:
@@ -240,12 +305,7 @@ def manifest_at(path: Path) -> dict[str, Any]:
         construction = manifest.get("construction")
         if construction != {"status": "unmeasured"}:
             recheck(construction, Path(manifest["task_dir"]), manifest["contract"])
-    repairs = manifest.get("repairs")
-    if not isinstance(repairs, list) or len(repairs) > 3:
-        raise EvidenceError("invalid repair ledger")
-    for repair in repairs:
-        if digest(Path(repair["manifest"])) != repair["sha256"]:
-            raise EvidenceError("superseded manifest changed")
+    _manifest_repair_count(manifest)
     require_binding(
         task_digest(Path(manifest["task_dir"])),
         manifest.get("task_sha256"),
@@ -452,7 +512,7 @@ def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]
     if not required <= seen_cases or len(agents) < 2:
         raise EvidenceError("every declared control and at least two agent runs are required")
     # Every pre-registered closure attempt counts, including interrupted/failed runs.
-    # Repairs get a new manifest and ledger while preserving the previous revision.
+    # Preparing a repair resets the helper's registrations; native results stay separate.
     ledger = Path(manifest.get("attempts", ""))
     if not manifest.get("attempts") or ledger.is_symlink() or not ledger.is_dir():
         raise EvidenceError("complete attempt ledger required; reprepare legacy evidence")
@@ -490,7 +550,7 @@ def main() -> int:
     prep.add_argument("--out", type=Path, required=True)
     prep.add_argument("--construction-plan", type=Path, help="private construction declarations to bind and recheck")
     prep.add_argument("--previous", type=Path, help="previous manifest when repairing this task")
-    prep.add_argument("--reason", help="concrete repair reason; retain all earlier receipts")
+    prep.add_argument("--reason", help="concrete reason for invalidating the current revision")
     execute = commands.add_parser("run")
     execute.add_argument("--manifest", type=Path, required=True)
     execute.add_argument("--case", required=True)
@@ -704,45 +764,77 @@ def _probe(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def _repairs(task_dir: Path) -> list[dict[str, Any]]:
-    root = task_dir / "private" / "repairs"
-    if not root.is_dir():
-        return []
-    receipts: list[tuple[int, dict[str, Any]]] = []
-    for path in sorted(root.glob("repair-*.json")):
-        match = _workspace._REPAIR_RECEIPT.fullmatch(path.name)
-        if match is None:
-            raise _workspace.ContractError(f"unexpected file in repair ledger: {path.name}")
-        receipt = _workspace._load_object(path, label="repair receipt")
+def _repair_progress(task_dir: Path) -> dict[str, Any]:
+    path = task_dir / "private/repair-state.json"
+    if path.exists() or path.is_symlink():
+        value = _workspace._load_object(path, label="repair progress")
         if (
-            set(receipt) != {"schema", "index", "reason_code", "note", "superseded"}
+            set(value) != {"schema", "count", "reason_code", "note", "requires_activation", "pending"}
+            or value["schema"] != REPAIR_STATE_SCHEMA
+            or type(value["count"]) is not int
+            or not 1 <= value["count"] <= _workspace._MAX_REPAIRS
+            or value["reason_code"] not in _workspace._REPAIR_REASON_CODES
+            or not isinstance(value["note"], str)
+            or not 0 < len(value["note"]) <= 2000
+            or type(value["requires_activation"]) is not bool
+            or not isinstance(value["pending"], dict)
+            or value["pending"].keys() - {"validation.json", "reproducibility.json", "private/active-construction.json"}
+            or any(
+                not isinstance(checksum, str) or not _workspace._DIGEST.fullmatch(checksum)
+                for checksum in value["pending"].values()
+            )
+        ):
+            raise _workspace.ContractError("invalid current repair progress")
+        return value
+    receipts = []
+    root = task_dir / "private/repairs"
+    if root.is_symlink():
+        raise _workspace.ContractError("legacy repair progress must not be a symlink")
+    for receipt_path in sorted(root.glob("repair-*.json")):
+        match = _workspace._REPAIR_RECEIPT.fullmatch(receipt_path.name)
+        receipt = _workspace._load_object(receipt_path, label="legacy repair receipt")
+        if (
+            match is None
             or receipt.get("schema") != _workspace.REPAIR_SCHEMA
+            or receipt.get("index") != len(receipts) + 1
+            or int(match.group(1)) != len(receipts) + 1
+            or not isinstance(receipt.get("superseded"), dict)
         ):
-            raise _workspace.ContractError("repair receipt fields do not match the versioned contract")
-        receipts.append((int(match.group(1)), receipt))
-    indexes = [index for index, _ in receipts]
-    if indexes != list(range(1, len(receipts) + 1)):
-        raise _workspace.ContractError("repair ledger indexes must be contiguous from 1")
-    for index, receipt in receipts:
-        if receipt["index"] != index:
-            raise _workspace.ContractError("repair receipt index does not match its file name")
-        superseded = receipt["superseded"]
-        for name in (
-            "validation.json",
-            "reproducibility.json",
-            "candidate.json",
-            "construction.json",
-            "active-construction.json",
-        ):
-            record = superseded.get(name)
-            archived = root / f"repair-{index}" / name
-            if record is None:
-                if archived.exists():
-                    raise _workspace.ContractError(f"repair {index} archives an undeclared {name}")
-                continue
-            if not archived.is_file() or _workspace._sha256_file(archived) != record.get("sha256"):
-                raise _workspace.ContractError(f"repair {index} archive of {name} is missing or changed")
-    return [receipt for _, receipt in receipts]
+            raise _workspace.ContractError("invalid legacy repair progress")
+        receipts.append(receipt)
+    if len(receipts) > _workspace._MAX_REPAIRS:
+        raise _workspace.ContractError("repair budget exhausted")
+    return {
+        "count": len(receipts),
+        "requires_activation": bool(
+            receipts and receipts[-1]["superseded"].get("active-construction.json") is not None
+        ),
+        "pending": {},
+    }
+
+
+def _repairs(task_dir: Path) -> list[dict[str, Any]]:
+    progress = _repair_progress(task_dir)
+    if progress["pending"]:
+        raise _workspace.ContractError("repair invalidation is unfinished; resume record-repair before recording proof")
+    return [{"index": index} for index in range(1, progress["count"] + 1)]
+
+
+def _finish_repair(task_dir: Path, progress: dict[str, Any]) -> None:
+    for name, checksum in progress["pending"].items():
+        path = task_dir / name
+        if path.is_symlink():
+            raise _workspace.ContractError("repair inputs must be regular files")
+        if path.exists():
+            require_binding(
+                _workspace._sha256_file(path),
+                checksum,
+                "repair input changed during invalidation",
+                _workspace.ContractError,
+            )
+            path.unlink()
+    progress["pending"] = {}
+    _workspace._write_json(task_dir / "private/repair-state.json", progress)
 
 
 def _record_repair(args: argparse.Namespace) -> dict[str, Any]:
@@ -753,97 +845,52 @@ def _record_repair(args: argparse.Namespace) -> dict[str, Any]:
         )
     if args.reason_code == "other" and len(args.note.strip()) < 20:
         raise _workspace.ContractError("reason code 'other' requires a concrete note")
-    if not args.note.strip():
-        raise _workspace.ContractError("repair note must be nonempty")
-    summary = _workspace._load_summary(task_dir)
-    if summary["status"] != "pending":
-        raise _workspace.ContractError(
-            "repairs apply before finalize; a finalized failed environment stays failed as technical evidence"
-        )
-    validation_path = task_dir / "validation.json"
-    reproducibility_path = task_dir / "reproducibility.json"
-    if not validation_path.is_file() and not reproducibility_path.is_file():
-        raise _workspace.ContractError(
-            "record a repair only in response to a recorded proof attempt or failed probe evidence"
-        )
-    receipts = _repairs(task_dir)
-    index = len(receipts) + 1
-    if index > _workspace._MAX_REPAIRS:
-        raise _workspace.ContractError(
-            f"repair budget exhausted ({_workspace._MAX_REPAIRS}); finalize as failed instead of repairing further"
-        )
-    # Resolve and snapshot every input before changing any live report. A stale
-    # active contract must not strand reports in a half-written repair archive.
-    active_contract = construction.active_path(task_dir)
-    marker = task_dir / "private/active-construction.json"
-    sources = {
-        "validation.json": validation_path,
-        "reproducibility.json": reproducibility_path,
-        "candidate.json": task_dir / "candidate.json",
-        "construction.json": active_contract,
-    }
-    if marker.exists() or marker.is_symlink():
-        sources["active-construction.json"] = marker
-    snapshots = {}
-    superseded: dict[str, Any] = {}
-    for name, path in sources.items():
-        if path.is_symlink():
-            raise _workspace.ContractError("repair inputs must be regular files")
-        if not path.exists():
-            superseded[name] = None
-            continue
-        if not path.is_file():
-            raise _workspace.ContractError("repair inputs must be regular files")
-        data = path.read_bytes()
-        snapshots[name] = data
-        superseded[name] = {"sha256": _workspace._sha256(data)}
-    archive = task_dir / "private" / "repairs" / f"repair-{index}"
-    receipt_path = archive.parent / f"repair-{index}.json"
-    if archive.exists() or receipt_path.exists():
-        raise _workspace.ContractError("repair archive already exists; retain it for recovery")
-    _workspace._mkdir_private(archive.parent)
-    # Stage beside the private archive so rename stays atomic on the same filesystem,
-    # including when the task workspace and shared scratch storage use different mounts.
-    with tempfile.TemporaryDirectory(prefix="repair-stage-", dir=archive.parent) as temporary:
-        staged = Path(temporary)
-        for name, data in snapshots.items():
-            _workspace._write_bytes_once(staged / name, data)
-        for name, data in snapshots.items():
-            require_binding(
-                sources[name].read_bytes(), data, "repair input changed during archival", _workspace.ContractError
+    if not 0 < len(args.note.strip()) <= 2000:
+        raise _workspace.ContractError("repair note must contain 1 to 2000 characters")
+    if _workspace._load_summary(task_dir)["status"] != "pending":
+        raise _workspace.ContractError("repairs apply before finalize; reopen the task before further changes")
+    progress: dict[str, Any] = _repair_progress(task_dir)
+    if not progress["pending"]:
+        validation_path = task_dir / "validation.json"
+        reproducibility_path = task_dir / "reproducibility.json"
+        if not validation_path.is_file() and not reproducibility_path.is_file():
+            raise _workspace.ContractError(
+                "record a repair only in response to a recorded proof attempt or failed probe evidence"
             )
-        staged.rename(archive)
-    receipt = {
-        "schema": _workspace.REPAIR_SCHEMA,
-        "index": index,
-        "reason_code": args.reason_code,
-        "note": args.note.strip(),
-        "superseded": superseded,
-    }
-    _workspace._write_bytes_once(receipt_path, (json.dumps(receipt, indent=2, sort_keys=True) + "\n").encode())
-    # Only superseded live reports and the selection marker leave their active
-    # locations. Exact copies and their receipt are already retained. Source and
-    # construction artifacts remain available for historical hash verification.
-    for name in ("validation.json", "reproducibility.json", "active-construction.json"):
-        if name in snapshots:
-            require_binding(
-                sources[name].read_bytes(),
-                snapshots[name],
-                "repair input changed after archival; retain both revisions",
-                _workspace.ContractError,
+        index = progress["count"] + 1
+        if index > _workspace._MAX_REPAIRS:
+            raise _workspace.ContractError(
+                f"repair budget exhausted ({_workspace._MAX_REPAIRS}); finalize as failed instead of repairing further"
             )
-            sources[name].unlink()
+        # Resolve the selected contract before invalidating any current proof.
+        construction.active_path(task_dir)
+        pending = {}
+        for name in ("validation.json", "reproducibility.json", "private/active-construction.json"):
+            path = task_dir / name
+            if path.is_symlink() or (path.exists() and not path.is_file()):
+                raise _workspace.ContractError("repair inputs must be regular files")
+            if path.exists():
+                pending[name] = _workspace._sha256_file(path)
+        progress = {
+            "schema": REPAIR_STATE_SCHEMA,
+            "count": index,
+            "reason_code": args.reason_code,
+            "note": args.note.strip(),
+            "requires_activation": "private/active-construction.json" in pending,
+            "pending": pending,
+        }
+        _workspace._write_json(task_dir / "private/repair-state.json", progress)
+    _finish_repair(task_dir, progress)
     return {
         "task_dir": str(task_dir),
-        "repair": index,
-        "repairs_remaining": _workspace._MAX_REPAIRS - index,
-        "reason_code": args.reason_code,
+        "repair": progress["count"],
+        "repairs_remaining": _workspace._MAX_REPAIRS - progress["count"],
+        "reason_code": progress["reason_code"],
         "next": (
             "activate the repaired contract, then record-reproducibility, then a fresh proof set"
-            if "active-construction.json" in sources
+            if progress["requires_activation"]
             else "record-reproducibility, then a fresh proof set"
-        )
-        + "; the archived reports remain private evidence",
+        ),
     }
 
 

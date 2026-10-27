@@ -20,7 +20,7 @@ JSON object and exits nonzero on contract errors.
 | `record-reproducibility` | Hash the task tree and integrity scan | `--task-dir` |
 | `record-run-inputs` | Bind one future Harbor job to arm and task digest | `--task-dir --arm --job-dir` |
 | `record-validation` | Derive proof from retained Harbor jobs | `--task-dir --*-job-dir --harbor-version [--copy-job-dir] [--allow-aggregate-only]` |
-| `record-repair` | Archive superseded proof and record one bounded repair | `--task-dir --reason-code --note` |
+| `record-repair` | Invalidate current proof and record one bounded repair | `--task-dir --reason-code --note` |
 | `finalize` | Write the candidate decision and summary | `--task-dir --status [--human-reviewed]` |
 | `check` | Verify digests, artifacts, proof, and repair ledger | `--task-dir` |
 | `batch-prepare` / `batch-status` | Prepare and report a checked-in manifest | `--manifest [--root]` |

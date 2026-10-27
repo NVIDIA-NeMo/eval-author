@@ -51,8 +51,8 @@ python <eval_author_dir>/scripts/construction_contract.py --plan <workspace>/pri
 
 For native runs, pass this file to `task_evidence.py prepare --construction-plan`.
 For trace workspace runs, the same shared evidence implementation binds the file
-through `record-run-inputs`. Changes require a new revision and retained repair
-history before fresh proof.
+through `record-run-inputs`. Record a bounded repair before fresh proof for
+changed task content; source control owns prior revisions.
 
 ## Import existing artifacts without rewriting evidence
 
@@ -88,12 +88,11 @@ python <eval_author_dir>/scripts/construction_contract.py --plan <workspace>/pri
 
 Activation writes a private, digest-bound active-contract marker; new run inputs
 bind both the selected path and hash. After a canonical revision fails, record
-its repair before editing, keep the old contract, write a new contract path and
-activate it before fresh proof. The repair archives the former marker and exact
-contract bytes. Imports from already-proved legacy workspaces activate in a new
-workspace, preserving the original proof unchanged. Historical rewards
-remain attached to their original contract hashes; migration grants no execution
-credit.
+its repair before editing, then activate the current contract before fresh proof.
+The repair invalidates the current marker and proof; it does not create copies
+of the former contract or marker. Source control owns revision history.
+Existing rewards remain attached to their original contract hashes; migration
+grants no execution credit.
 
 Use [task validation](task-validation.md) for native qualification and
 [trace input handoff](trace-input.md) for trace workspace qualification. Keep

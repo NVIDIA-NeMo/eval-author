@@ -511,22 +511,14 @@ def test_alternative_cannot_duplicate_oracle(tmp_path):
         driver._proof_control(root, "custom:Agent", source, "reviewed alternative", arm="alternative")
 
 
-def test_repair_preserves_contract_and_detects_archive_mutation(tmp_path):
+def test_repair_preserves_contract_and_candidate_without_archiving(tmp_path):
     root, _ = workspace(tmp_path)
-    before = (root / contract.PATH).read_bytes()
+    sources = (contract.PATH, "candidate.json")
+    before = {name: (root / name).read_bytes() for name in sources}
     driver._record_repair(
         argparse.Namespace(
             task_dir=root, reason_code="other", note="Correct the failing synthetic verifier implementation."
         )
     )
-    archive = root / "private/repairs/repair-1/construction.json"
-    assert archive.read_bytes() == before
-    assert (root / "private/repairs/repair-1/candidate.json").read_bytes() == (root / "candidate.json").read_bytes()
-    manifest = json.loads(before)
-    manifest["review"]["note"] = "Changed after recording a repair."
-    save(root / contract.PATH, manifest)
-    report = driver._check(argparse.Namespace(task_dir=root))
-    assert {"repair": 1, "file": "construction.json"} in report["contract_changes"]
-    archive.write_text("{}")
-    with pytest.raises(driver.ContractError, match="archive of construction.json is missing or changed"):
-        driver._repairs(root)
+    assert {name: (root / name).read_bytes() for name in sources} == before
+    assert not (root / "private/repairs").exists()
