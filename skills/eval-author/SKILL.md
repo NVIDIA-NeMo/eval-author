@@ -129,9 +129,6 @@ generate/validate/measure/aggregate requests keep their
 scope. Explanation-only requests do not start a workflow. Scoped operations reuse
 applicable shared decisions but do not acquire unrelated onboarding requirements.
 Trace-source selection remains required before searching or reading traces.
-Adaptation is disabled: explain this for evaluation-framework conversion
-requests, preserving the user's existing material rather than treating it as
-absent. Supported trace conversion retains its existing dedicated skills.
 
 ### Shared prerequisites and Ethos
 
@@ -415,7 +412,7 @@ dependencies belong to the selected flow.
 
 The router does not execute evals or establish readiness itself. Discovery is
 not an audit, a coverage gap is not proof of an agent defect, and trace-derived
-environments remain experimental. Existing-eval adaptation is disabled.
+environments remain experimental.
 
 ## Troubleshooting
 
