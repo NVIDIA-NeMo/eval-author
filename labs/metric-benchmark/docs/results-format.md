@@ -26,41 +26,39 @@ checks live in [validation.py](../metric_benchmark/validation.py).
 
 ## Directory layout
 
-The required entry point is `results.json` at the case's results root. Each
-execution entry identifies its native trial directory by a relative path.
-Agent-first grouping keeps an agent's intact Harbor job together:
+Each prepared case example has a results directory with two kinds of JSON files:
+
+- **`results.json` at the root** is the experiment runner's summary of all agent/task executions for that example. Each entry names the agent and task, records the attempt, status and measurement, and points to the directory containing its evidence. This summary file is what this document calls the **results index**.
+- **`result.json` inside each trial directory** is Harbor's detailed record of one execution attempt. It contains the native configuration and outcome that the validator compares with the corresponding summary entry.
+
+The directory groups trials by agent and run:
 
 ```text
 execution-results/
-  results.json
+  results.json                      # Summary of all executions for this case example
   agents/
-    <agent-alias>/
-      <run-alias>/
-        <native-trial>/
-          result.json
-          agent/
-          verifier/
+    <agent-directory>/
+      <run-directory>/
+        <trial-directory>/
+          result.json               # Harbor record for this one attempt
+          agent/                    # Agent execution evidence, when produced
+          verifier/                 # Verifier outputs, when produced
           ...
         ...
       ...
     ...
 ```
 
-The grouping and alias names are conventions, not strings enforced by the
-validator. Identities come from the index; readers do not infer them from folder
-names. A native trial's `trial_name` must match its directory's basename.
-`native_results_path` points to a trial, not its enclosing job.
+For example, the [mock results index](../../../tests/fixtures/metric_benchmark_results/execution-results/results.json)
+names `baseline` as the agent and `inspect-files` as the task in its first entry.
+That entry's `native_results_path` points to
+`agents/agent-0000/run-0001/inspect-files__mock001`. A reader follows that path to
+find the Harbor record and other evidence for this attempt.
 
-Preserve the native job files produced by the executor, including job and trial
-configuration, results, logs and available agent/verifier evidence. The validator
-requires each observed trial's `result.json` and checks the conditions below;
-it does not require every optional Harbor artifact or establish that a coverage
-adapter has all the evidence it needs. An adapter may impose additional requirements.
-
-Evidence paths use relative POSIX syntax. Absolute paths, parent traversal,
-backslashes, colons and NUL characters are rejected. Referenced files must remain
-inside the results root without symlink traversal. The evidence tree must contain
-only ordinary files and directories; symlinks and special files are rejected.
+The agent and task IDs are explicit fields in `results.json`; folder names such
+as `agent-0000` are storage labels. The validator does not require those particular
+grouping names. The next section defines the summary fields, followed by the
+requirements for the native evidence they reference.
 
 ## Results index: `results.json`
 
@@ -153,6 +151,17 @@ observed entries. Validation reports all observations, including unavailable
 attempts, rather than applying scoring's attempt selection.
 
 ## Native evidence and relocation
+
+Preserve the native job files produced by the executor, including job and trial
+configuration, results, logs and available agent/verifier evidence. The validator
+requires each observed trial's `result.json` and checks the conditions below;
+it does not require every optional Harbor artifact or establish that a coverage
+adapter has all the evidence it needs. An adapter may impose additional requirements.
+
+Evidence paths use relative POSIX syntax. Absolute paths, parent traversal,
+backslashes, colons and NUL characters are rejected. Referenced files must remain
+inside the results root without symlink traversal. The evidence tree must contain
+only ordinary files and directories; symlinks and special files are rejected.
 
 Each observed entry's `result.json` must parse as a Harbor 0.20.0 `TrialResult`.
 The validator compares its task name and legacy task checksum with the prepared
