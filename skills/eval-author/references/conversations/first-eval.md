@@ -752,7 +752,8 @@ and results checkpoints, explain all applicable saved creation blockers.
 
 When creation is complete, save a pending audit invitation before rendering the
 handoff. The fixed invitation follows the linked completed-run review guidance
-and is the final substantive content. Acceptance enters the existing audit flow with
+and is the final substantive content. Acceptance follows
+[Return to an audit](../shared-prerequisites.md#return-to-an-audit) with
 confirmed `ETHOS.md`, task locations, provider, selected evidence, exact reviewed
 run and attempt, limitations, and preferences. Recheck only changed or
 audit-specific prerequisites. Missing audit traces block the audit while leaving

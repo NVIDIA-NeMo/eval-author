@@ -5,6 +5,8 @@ description: >-
   this skill, show its fixed welcome with a checklist and call to action or goal
   choices, then end the turn before repository work. Scoped utilities keep their
   requested scope.
+  Explicit audit requests first use this skill's bounded saved-context lookup;
+  returning users reuse confirmed prerequisites and Ethos.
   Build first evals from a required Ethos, work on existing evaluation suites
   in a user's repository, derive an environment from trace
   evidence (experimental), or understand an agent run from NeMo Intake. Owns the evidence
@@ -79,6 +81,12 @@ Use the requested outcome and prior answers before asking a question. Creating,
 auditing, and improving evals use the **Shared prerequisites and Ethos** flow
 below for NeMo Gym and Harbor, including direct invocations of their skills.
 
+For an explicit full-audit request in a known repository, first follow
+[Return to an audit](references/shared-prerequisites.md#return-to-an-audit).
+Its bounded state-only lookup distinguishes a continuation after creation or
+improvement from fresh onboarding, including in a new chat. It grants no source
+selection or content approval. Other fresh requests retain the opening below.
+
 The first response to a new shared flow is orientation only. Determine the goal
 from the user's request and conversation already available, without inspecting the
 repository. Render `orientation` using the pure conversation renderer, with the
@@ -91,7 +99,9 @@ the turn again. Selecting a goal does not establish readiness or start checks.
 Before either orientation response, read only the entry skill, this core skill,
 the [conversation rendering contract](references/conversation-rendering.md), and
 the [onboarding reference](references/conversations/onboarding.md) as needed.
-The sole command exception is this renderer's no-input preview mode:
+An explicit audit may also load the linked audit-entry procedure and perform
+its metadata-only lookup. Apart from that exception, the only permitted command
+is this renderer's no-input preview mode:
 
 ```bash
 python3 -B <skill_dir>/scripts/conversation_renderer.py --stage orientation --journey create
@@ -101,7 +111,7 @@ Replace the journey with `audit` or `expand`, or omit it for an undecided reques
 Use `--stage goal_selected --journey <selected-journey>` after goal selection.
 The renderer may load its own source dependencies, but must not inspect repository
 files or saved state, validate Ethos, check prerequisites, write files, or delegate
-work. No other helper commands are allowed before readiness. This also applies
+work. Apart from the audit-entry lookup, no other helper commands are allowed before readiness. This also applies
 to direct first-eval and full-audit invocations.
 
 After the actual readiness reply, follow the
@@ -119,13 +129,10 @@ instead of repeating orientation.
 | Create a task from a recorded interaction | [Task-create ATIF source mode](../eval-author-task-create/SKILL.md#atif-source-mode), or [first-eval](../eval-author-first-eval/SKILL.md#atif-as-a-starting-source) for a new suite; use the [shared ATIF handoff](references/trace-input.md), without requiring an audit gap |
 | Explicit trace-environment request or existing workspace continuation | [Trace environment](../eval-author-trace-environment/SKILL.md); retain existing artifacts and the compatibility workflow |
 
-Acceptance of the first-evaluation flow's audit invitation is a goal switch
-within the existing workflow. Follow its [saved handoff](references/conversations/first-eval.md)
-and reuse confirmed `ETHOS.md`, provider, task paths, exact run/attempt evidence,
-source choices, limitations, and preferences. Check only audit-specific or changed
-prerequisites and source needs. Missing audit evidence blocks only the audit;
-it does not reopen completed creation or authorize new runs. Offering the
-invitation or receiving a decline starts no audit work.
+Acceptance of the first-evaluation flow's [audit invitation](references/conversations/first-eval.md#blockers-and-the-audit-invitation)
+and explicit audit requests after creation or improvement use the same
+[audit continuation](references/shared-prerequisites.md#return-to-an-audit).
+Offering an invitation or receiving a decline starts no audit work.
 
 When the goal is unclear, use `orientation` without a journey. Its shorter
 welcome and canonical goal choices ask only for the unresolved goal; reuse known
@@ -148,7 +155,7 @@ The [shared rendering contract](references/conversation-rendering.md) and
 [onboarding input/output contract](references/conversations/onboarding.md) own
 renderer use and canonical copy. Follow the shared procedure's
 [completion pause](references/shared-prerequisites.md#pause-after-ethos-confirmation)
-before resuming the selected evaluation flow.
+for new shared flows; returning audits use the continuation route above.
 
 ### Expansion handoff
 
@@ -172,7 +179,8 @@ An explicitly selected addition or proposal-only request keeps that scope.
 ### Downstream progress
 
 Once prerequisites and Ethos are confirmed, follow the
-[completion pause](references/shared-prerequisites.md#pause-after-ethos-confirmation).
+[completion pause](references/shared-prerequisites.md#pause-after-ethos-confirmation)
+for a new shared flow, or continue the already-requested returning audit.
 For fresh creation without a saved design or source choice, that pause asks for
 task sources directly; do not add a separate readiness question before it.
 Other flows retain their selected continuation and saved decisions.

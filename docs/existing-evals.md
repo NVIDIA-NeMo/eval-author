@@ -60,6 +60,15 @@ evidence cannot establish.
 ```
 
 A full audit starts with the [shared setup and Ethos confirmation](getting-started.md).
+If you have already completed those steps while creating or improving evaluations,
+ask to audit the suite directly, including in a new chat in the same repository.
+Eval Author reuses your saved confirmations, checks only missing or changed
+audit requirements, and continues at the first unfinished audit step. It reviews
+Ethos again when the agent, intended behavior, or document has changed.
+Previously selected suites and runs do not need another selection; when those
+inputs are settled, the next review is the proposed audit checks. Traces remain
+required: missing traces pause the audit while preserving your earlier work.
+
 If saved trace availability is unresolved or traces are absent, the prerequisite
 response explains the required action and links the audit skill instruction
 that requires the pause. Unknown availability and confirmed absence are shown

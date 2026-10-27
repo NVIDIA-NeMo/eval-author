@@ -62,6 +62,12 @@ another file.
 
 ## Review an existing document
 
+An eligible [returning audit](shared-prerequisites.md#return-to-an-audit) continues
+the saved workflow, including in a new chat. Reconcile and reuse its confirmed
+document under that procedure; do not mark it for review just because the goal
+changed. Changed identity, intent, content, or an unresolved review still requires
+the affected Ethos work below.
+
 When entering the shared flow's Ethos step with an existing `ETHOS.md`, use
 `ethos-orchestrate` to review it with the user before moving on. This includes a
 new shared flow that loads older completed state: an earlier confirmation or
@@ -183,7 +189,9 @@ schema or heading validation. Use only the
 confirmed exact content for downstream cases or audit items. Validation alone
 is not intent confirmation. Present the returned path and unresolved gaps, then follow the
 shared [completion pause](shared-prerequisites.md#pause-after-ethos-confirmation).
-End the turn after the rendered `confirmed` response with its pending decision.
+For a new shared flow, end the turn after the rendered `confirmed` response with its pending decision.
+An already-requested [returning audit](shared-prerequisites.md#return-to-an-audit)
+uses that procedure's continuation instead.
 For fresh creation without a saved design or source choice, the shared pause
 includes the source question instead of a readiness question. Wait for its
 answer before planning or inspecting traces; do not ask the same choice again

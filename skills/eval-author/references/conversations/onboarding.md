@@ -39,6 +39,13 @@ shows the selected goal's introduction, checklist, and readiness question, witho
 repeating the welcome. Selecting a goal does not establish readiness; the core
 owns the orientation and goal-selection pauses.
 
+For an explicit audit request, the core's
+[returning-audit procedure](../shared-prerequisites.md#return-to-an-audit)
+permits a bounded metadata lookup before deciding whether orientation applies.
+Eligible returning users skip orientation and the prerequisite preview below;
+use the existing stateful responses only for an actual unresolved decision or
+blocker. Do not manufacture a readiness reply to render the preview.
+
 `prerequisites` requires the selected journey and the actual readiness reply:
 
 ```bash

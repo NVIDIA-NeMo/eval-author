@@ -9,6 +9,10 @@ flow. Afterward keep its audit item current while explaining the present
 milestone: reviewing coverage, identifying gaps, and recommending improvements.
 Use the [onboarding renderer](../../eval-author/references/conversations/onboarding.md)
 for canonical checklist wording and reuse completed shared steps.
+An explicit audit after creation or improvement follows
+[Return to an audit](../../eval-author/references/shared-prerequisites.md#return-to-an-audit),
+including when it resumes in a new chat. Enter the first unresolved milestone;
+do not add a shared continuation pause or reapprove already-selected inputs.
 
 ## Decisions and progress
 
@@ -119,7 +123,9 @@ specification” or “test mappings.” Wait for the answer before proceeding.
 Complete this milestone when the user has confirmed the eval suite set (or that
 none exist) and trace selection or confirmed unavailability is understood.
 Explain the selected scope, what its evidence can establish, and any missing
-inputs; check in before defining coverage.
+inputs; check in for unresolved decisions before defining coverage. When the
+request or accepted handoff already settles those decisions, continue to the
+proposed-check review without a separate approval of this recap.
 An inaccessible eval directory or a missing report does not establish no evals.
 Keep an unresolved eval location open and ask for an accessible source; offer
 independent specification work if useful, carrying that limitation forward.

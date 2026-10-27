@@ -4,6 +4,8 @@ description: >-
   For a fresh full audit, read the eval-author core skill at ../eval-author/SKILL.md,
   use its pure conversation renderer for orientation and end the turn before
   repository inspection or prerequisite work.
+  First use the core's audit-entry lookup to recognize returning users and reuse
+  confirmed creation or improvement context without repeating onboarding.
   Review evaluation coverage, identify gaps, and recommend improvements with
   milestone check-ins and user-confirmed eval and trace sources.
   Generate, validate, measure, and report on an audit-spec coverage denominator
@@ -60,18 +62,18 @@ and task creation remain in the separate improvement handoff.
 
 ## Start a guided audit
 
-An accepted first-suite audit invitation follows the core's
-[saved handoff](../eval-author/references/conversations/first-eval.md#blockers-and-the-audit-invitation),
-not a fresh invocation. Reuse confirmed intent and selected evidence, check only
-audit-specific or changed prerequisites, and continue at the first unfinished
-audit milestone. Missing audit evidence leaves the completed suite intact.
+Before classifying a full-audit request as fresh, follow the core's
+[Return to an audit](../eval-author/references/shared-prerequisites.md#return-to-an-audit).
+It covers accepted first-suite invitations and explicit audit requests after
+creation or improvement, including a new chat with saved context. Reuse its
+confirmed context and continue directly at the first unresolved audit step.
 
 A full audit enters the core's shared prerequisite flow, including direct
 invocation. For a fresh audit, use the core's
 [onboarding renderer](../eval-author/references/conversations/onboarding.md) for
 `orientation` with journey `audit`, then end the turn. Read only this skill,
 the core, the shared rendering contract, and that onboarding reference as needed before the response; the core's
-narrow pure-renderer command exception applies. Repository inspection, Ethos
+narrow renderer and audit-entry lookup exceptions apply. Repository inspection, Ethos
 validation, prerequisite questions, and state writes wait for the actual readiness
 reply. Complete and save the core's state-only prerequisite pass before
 any target Ethos inspection, then reconcile artifacts and include the completed
@@ -86,7 +88,8 @@ supplying the exact loaded audit skill link for its renderer-owned attribution;
 do not append a separate pause explanation.
 Check conversion and trajectory-parser dependencies only after evidence selection.
 
-After shared onboarding's completion pause and the user's continuation, follow
+After fresh onboarding's completion pause and the user's continuation, or the
+returning-audit handoff above, follow
 [Guided audit milestones](references/guided-audit.md):
 confirm evals and traces, define intended coverage, measure selected evidence,
 then generate and review `audit-coverage-report.md`. Keep source and content

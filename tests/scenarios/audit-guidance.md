@@ -26,7 +26,7 @@ Unless a case tests unknown or missing availability, supply the user's explicit
 statement that traces from completed evaluation runs exist. This confirms
 availability without selecting their source or location.
 
-Every fresh full audit uses the core's three-item shared prerequisite checklist with
+Every fresh full audit without applicable saved journey context uses the core's three-item shared prerequisite checklist with
 **Review evaluation coverage, identify gaps, and recommend improvements** selected. Repeat with NeMo Gym and
 Harbor, missing Ethos, and unchanged confirmed Ethos. User-confirmed prerequisites
 remain distinct from observed checks. On continuation, render `prerequisites`
@@ -82,8 +82,11 @@ reopen Ethos or treat this as an onboarding blocker. A missing conversion tool
 similarly blocks only the selected conversion and dependent measurement.
 
 Use `ethos-orchestrate` through the confirmation adapter. Reuse applicable answers
-and content, but show an existing Ethos for confirmation that it is correct and
-current before continuing, even if it was previously accepted. For missing or revised intent, review the draft
+and content. Fresh onboarding shows an existing Ethos for confirmation that it is
+correct and current. A returning audit reuses valid same-agent, content-bound
+confirmation after applicable audit prerequisites and artifact reconciliation;
+follow the [returning audit entry scenarios](entry-routing.md#returning-audit-after-bootstrap-or-improvement).
+For missing or revised intent, review the draft
 before canonical writes. Missing skills are a dependency limitation, not a reason
 to create another fallback interview. Preserve custom sections and creation
 metadata. A substantive format mismatch stays explicit for the canonical workflow.
@@ -203,8 +206,9 @@ explanations, not just the final question.
 **Reply when asked:** “Use only `runs/selected/` for these evaluations.”
 
 **Inspect:** Subsequent trace operations stay within that selection. The agent
-explains what it found and waits at the next milestone check-in before drafting,
-measuring, or aggregating work belonging to a later milestone.
+explains what it found and asks only about unresolved source decisions. When
+inputs are settled, it prepares proposed checks for review without another
+input-recap approval. Measurement waits for check approval.
 
 ## 2. Supplied trace location is reused
 
@@ -217,8 +221,9 @@ confirmation that it is correct and current. Preserve the supplied suite and tra
 **Inspect:** The agent records and uses the explicitly selected evaluation suite
 and supplied trace location without asking the user to select either again. It
 does not add discovered suites to that scope or widen the trace search to
-`runs/other/`. Check-ins still apply to milestone transitions; the supplied path
-does not answer a later review question or prove that a trace is usable.
+`runs/other/`. Settled inputs need no separate input-recap approval before
+proposed-check review; the supplied path does not approve those checks or prove
+that a trace is usable.
 
 ## 3. No traces versus an inaccessible source
 
@@ -675,15 +680,21 @@ suite; there are no other suites to include.”
 suite as excluded, then proceeds with the already selected trace source without
 another suite or trace confirmation prompt. It completes the input milestone
 only after explaining the confirmed evaluation scope and what the selected
-records can establish, then checks in before specification drafting. After the
-user accepts that transition, verify that test mappings and findings exclude
+records can establish, then prepares proposed checks for review without another
+input-recap approval. Verify that test mappings and findings exclude
 the legacy-only case and that every later scope summary preserves the choice.
 
 **Explicit-selection control:** Repeat with both the current suite and
 `runs/selected/` explicitly selected in the initial request, as in scenario 2.
 The discovery of the linked legacy suite must neither widen the audit nor cause
-an extra include/exclude question. Settled inputs still do not waive milestone
-check-ins.
+an extra include/exclude question. Continue to proposed-check review; settled
+inputs do not approve the checks or authorize measurement.
+
+## 13. Returning audit reaches the first unresolved step
+
+Use the [returning audit entry protocol](entry-routing.md#returning-audit-after-bootstrap-or-improvement)
+and its full variant matrix with this document's fixture. Verify that
+`runs/other/` stays unread and measurement waits for proposed-check approval.
 
 ## Evidence limits
 

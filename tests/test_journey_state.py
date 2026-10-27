@@ -295,38 +295,52 @@ def test_same_three_step_flow_and_execution_credentials_deferred(state, tmp_path
     assert not state.checklist(ready)[2]["complete"]
 
 
-def test_downstream_resume_preserves_progress_and_audit_switch_reopens_applicability(state, tmp_path):
-    setup_ready(state, tmp_path)
-    original = ethos_ready(state, tmp_path)
-    state.update(
+@pytest.mark.parametrize("origin", ["create", "expand"])
+@pytest.mark.parametrize("status", ["in_progress", "complete"])
+def test_downstream_resume_preserves_progress_and_audit_switch_reopens_applicability(state, tmp_path, origin, status):
+    setup_ready(state, tmp_path, journey=origin)
+    ethos_ready(state, tmp_path)
+    original = state.update(
         tmp_path,
         {
-            "scopes": {"create": {"cases": ["refund"], "confirmed": True}},
-            "journey_status": {"create": "in_progress"},
+            "scopes": {origin: {"cases": ["refund"], "confirmed": True}},
+            "journey_status": {origin: status},
             "pending_question": "Which case first?",
             "next_handoff": "eval-author-first-eval",
         },
     )
-    ongoing = state.initialize(tmp_path, agent="assistant", journey="create", setup="gym")
+    ongoing = state.initialize(tmp_path, agent="assistant", journey=origin, setup="gym")
     assert ongoing["ethos"] == original["ethos"]
-    assert ongoing["scopes"]["create"]["confirmed"]
-    assert ongoing["journey_status"]["create"] == "in_progress"
+    assert ongoing["scopes"][origin]["confirmed"]
+    assert ongoing["journey_status"][origin] == status
     assert ongoing["pending_question"] == "Which case first?"
     assert ongoing["next_handoff"] == "eval-author-first-eval"
-    resumed = state.initialize(tmp_path, agent="assistant", journey="audit", setup="gym")
+    resumed = state.initialize(tmp_path, agent="assistant", journey="audit", state_only=True)
     for key, answer in original["prerequisites"].items():
         assert resumed["prerequisites"][key]["source"] == answer["source"]
         assert resumed["prerequisites"][key]["status"] == (
             "unknown" if key in state.AUDIT_DEPENDENT else answer["status"]
         )
-    assert resumed["ethos"] == original["ethos"]
-    assert resumed["scopes"]["create"]["cases"] == ["refund"]
-    assert resumed["scopes"]["create"]["confirmed"]
-    assert resumed["journey_status"]["create"] == "in_progress"
-    assert resumed["pending_question"] is None
-    assert state.checklist(resumed)[2]["label"] == (
-        "Review evaluation coverage, identify gaps, and recommend improvements"
+    assert resumed["pending_question"] is None and resumed["next_handoff"] is None
+    assert not state.checklist(resumed, state_only=True)[0]["complete"]
+    refreshed = state.update(
+        tmp_path,
+        {
+            "prerequisites": {
+                key: {"status": "verified", "source": "Current audit-specific check"}
+                for key in ("skills", "python", "data")
+            }
+        },
+        state_only=True,
     )
+    assert [row["complete"] for row in state.checklist(refreshed, state_only=True)] == [True, False, False]
+    for key in ("runtime", "environment", "services"):
+        assert refreshed["prerequisites"][key] == resumed["prerequisites"][key]
+    reconciled = state.load_state(tmp_path)
+    for field in ("ethos", "scopes", "journey_status"):
+        assert resumed[field] == reconciled[field] == original[field]
+    assert [row["complete"] for row in state.checklist(reconciled)] == [True, True, False]
+    assert state.checklist(reconciled)[2]["current"]
 
 
 def audit_ready(state, repo, *, setup="gym"):
@@ -2255,10 +2269,10 @@ def test_replacing_draft_reference_does_not_reuse_prior_content_approval(state, 
     assert accepted["ethos"]["draft_confirmed"]
 
 
-def prerequisite_history(state, repo, *, draft_only=False):
+def prerequisite_history(state, repo, *, draft_only=False, journey="create"):
     """Retain prior approvals that prerequisite collection must not inspect or replace."""
     task, evidence = task_fixture(state, repo)
-    setup_ready(state, repo)
+    setup_ready(state, repo, journey=journey)
     draft = repo / ".eval-author/.working/draft.md"
     draft.write_text("# Agreed intent\n")
     state.update(
@@ -2281,8 +2295,8 @@ def prerequisite_history(state, repo, *, draft_only=False):
     saved = state.update(
         repo,
         {
-            "scopes": {"create": {"cases": ["refund"], "confirmed": True}},
-            "journey_status": {"create": "complete"},
+            "scopes": {journey: {"cases": ["refund"], "confirmed": True}},
+            "journey_status": {journey: "complete"},
             "pending_question": "Earlier pending question",
             "next_handoff": "eval-author-first-eval",
         },
@@ -2305,6 +2319,27 @@ def forbid_artifact_checks(state, monkeypatch, paths):
             return _original(path, *args, **kwargs)
 
         monkeypatch.setattr(Path, name, guard)
+
+
+@pytest.mark.parametrize("saved", ["absent", "corrupt", "foreign"])
+def test_state_only_show_failure_never_initializes_or_inspects_artifacts(state, tmp_path, monkeypatch, capsys, saved):
+    document = tmp_path / "ETHOS.md"
+    document.write_text("# Existing intent must not be inspected by saved-state lookup\n")
+    if saved != "absent":
+        record = state.initialize(tmp_path, agent="assistant", journey="create", setup="gym", state_only=True)
+        record["repository"] = "/another/repository"
+        state.state_path(tmp_path).write_text("{" if saved == "corrupt" else json.dumps(record))
+    before = {path.relative_to(tmp_path): path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    with monkeypatch.context() as guarded:
+        forbid_artifact_checks(state, guarded, [document])
+        guarded.setattr(state, "save", lambda *_: pytest.fail("Saved-state lookup must not initialize or write"))
+        guarded.setattr(sys, "argv", ["journey_state.py", "--repo", str(tmp_path), "--state-only", "show"])
+        assert state.main() == 2
+    output = capsys.readouterr()
+    assert output.out == "" and json.loads(output.err)["persisted"] is False
+    assert {path.relative_to(tmp_path): path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
+    if saved == "absent":
+        assert not (tmp_path / ".eval-author").exists()
 
 
 @pytest.mark.parametrize("draft_only", [False, True])
@@ -2525,10 +2560,13 @@ def test_state_only_still_validates_saved_json_and_repository(state, tmp_path, i
 
 @pytest.mark.parametrize("existing_scope", [False, True])
 @pytest.mark.parametrize("via_cli", [False, True])
+@pytest.mark.parametrize("origin", ["create", "expand"])
+@pytest.mark.parametrize("requirement", ["data", "python"])
+@pytest.mark.parametrize("status", ["unknown", "missing"])
 def test_state_only_audit_framework_observation_survives_blocked_setup(
-    state, tmp_path, monkeypatch, capsys, existing_scope, via_cli
+    state, tmp_path, monkeypatch, capsys, existing_scope, via_cli, origin, requirement, status
 ):
-    _, artifacts = prerequisite_history(state, tmp_path)
+    _, artifacts = prerequisite_history(state, tmp_path, journey=origin)
     audit_scope = {
         "framework": "Earlier framework observation",
         "framework_source": "Earlier observation source",
@@ -2545,9 +2583,12 @@ def test_state_only_audit_framework_observation_survives_blocked_setup(
     observation = {"framework": "NeMo Gym", "framework_source": "User framework answer, reply 8"}
     patch = {
         "scopes": {"audit": observation},
-        "prerequisites": {"data": {"status": "unknown", "source": "Completed-run trace availability is unresolved"}},
-        "blockers": [{"id": "data", "phase": "setup", "message": "Confirm completed-run traces exist"}],
-        "pending_question": "Are traces from completed evaluations available?",
+        "prerequisites": {
+            key: {"status": status if key == requirement else "verified", "source": "Current audit check"}
+            for key in ("skills", "python", "data")
+        },
+        "blockers": [{"id": requirement, "phase": "setup", "message": "Resolve the audit prerequisite"}],
+        "pending_question": "Can you resolve the remaining audit prerequisite?",
         "next_handoff": "eval-author",
     }
     payload = tmp_path / ".eval-author/.working/framework-observation.json"
@@ -2567,9 +2608,10 @@ def test_state_only_audit_framework_observation_survives_blocked_setup(
         saved = state.update(tmp_path, patch, state_only=True, expected_revision=original["revision"])
     assert saved["revision"] == original["revision"] + 1
     assert saved["scopes"]["audit"] == {**(audit_scope if existing_scope else {}), **observation}
-    assert saved["scopes"]["create"] == original["scopes"]["create"]
+    assert saved["scopes"][origin] == original["scopes"][origin]
     assert saved["ethos"] == original["ethos"]
     assert saved["tasks"] == original["tasks"]
+    assert saved["journey_status"] == original["journey_status"]
     assert not state.checklist(saved, state_only=True)[0]["complete"]
     assert state.checklist(saved, state_only=True)[0]["blocked"]
     assert state.load_state(tmp_path, state_only=True) == saved

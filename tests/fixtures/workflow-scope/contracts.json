@@ -4,7 +4,8 @@
   "sources": [
     "skills/eval-author/SKILL.md#choose-the-entry-route",
     "tests/scenarios/entry-routing.md",
-    "skills/eval-author-task-create/SKILL.md#step-1-propose-dataset-improvements"
+    "skills/eval-author-task-create/SKILL.md#step-1-propose-dataset-improvements",
+    "skills/eval-author/references/shared-prerequisites.md#return-to-an-audit"
   ],
   "cases": {
     "generic-help": [
@@ -30,7 +31,7 @@
           "Audit my existing evals.",
           "Audit the coverage of the evaluations I already have."
         ],
-        "context": "Fresh session; no prior authorization.",
+        "context": "Fresh session; repository is not supplied or known; no prior authorization.",
         "flow": "eval-author-audit",
         "allowed_actions": [
           "read_skill",
@@ -222,11 +223,12 @@
         "prompts": [
           "Now audit the suite you found."
         ],
-        "context": "Previous turn reported inventory. The user now explicitly requests an audit; no repeat routing question.",
+        "context": "Previous turn reported inventory in the known repository. The user now explicitly requests an audit; no repeat routing question. A metadata-only lookup finds no saved journey state, so fresh onboarding applies.",
         "flow": "eval-author-audit",
         "allowed_actions": [
           "read_skill",
-          "render_conversation"
+          "render_conversation",
+          "read_saved_state"
         ],
         "required_actions": [],
         "write_paths": [],
@@ -421,6 +423,144 @@
           ".eval-author/.working/"
         ],
         "handoff": "shared_prerequisites"
+      }
+    ],
+    "audit-known-repo-no-state": [
+      {
+        "prompts": [
+          "Audit this repository’s existing evals.",
+          "Find gaps in this repository’s evaluation coverage."
+        ],
+        "context": "Explicit full audit; repository path is known, but no prior decisions or journey state exist. A metadata-only state lookup finds no saved context and must not initialize it.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_skill",
+          "render_conversation",
+          "read_saved_state"
+        ],
+        "required_actions": [
+          "read_saved_state"
+        ],
+        "write_paths": [],
+        "handoff": "shared_opening"
+      }
+    ],
+    "audit-invalid-saved-state": [
+      {
+        "prompts": [
+          "Continue this repository’s audit."
+        ],
+        "context": "Explicit audit; known repository contains malformed or foreign-repository journey state. The metadata-only lookup cannot establish valid context. Preserve state and explain recovery; no artifact inspection or new onboarding state.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_skill",
+          "render_conversation",
+          "read_saved_state"
+        ],
+        "required_actions": [
+          "read_saved_state"
+        ],
+        "write_paths": [],
+        "handoff": "state_recovery"
+      }
+    ],
+    "audit-returning-new-chat": [
+      {
+        "prompts": [
+          "Audit my existing evals.",
+          "Continue with the audit."
+        ],
+        "context": "New chat in the known repository. Saved completed improvement and accepted audit handoff establish the same agent, confirmed unchanged Ethos, applicable audit prerequisites, selected suite, and selected completed runs. No current-chat answers are needed. Recover handoff metadata without inspecting artifacts during classification, then reconcile and continue to proposed checks.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_skill",
+          "render_conversation",
+          "read_saved_state",
+          "read_repository",
+          "validate",
+          "read_trace",
+          "propose",
+          "write_artifact"
+        ],
+        "required_actions": [
+          "read_saved_state"
+        ],
+        "write_paths": [
+          ".eval-author/.working/",
+          ".eval-author/audit.md",
+          ".eval-author/audit-coverage-report.md"
+        ],
+        "handoff": "review_audit_checks"
+      }
+    ],
+    "audit-returning-traces-unresolved": [
+      {
+        "prompts": [
+          "Audit the evaluations from our previous work."
+        ],
+        "context": "Explicit audit after completed authoring in the same repository for the same agent. Shared prerequisites and Ethos were confirmed, and audit tooling is current, but completed-run trace availability is unknown. Authoring data exemptions do not satisfy audit readiness. Preserve prior completion and Ethos confirmation, block setup, and do not inspect Ethos or traces or manufacture runs.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_skill",
+          "render_conversation",
+          "read_saved_state",
+          "write_artifact"
+        ],
+        "required_actions": [
+          "read_saved_state"
+        ],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "audit_prerequisite_blocker"
+      }
+    ],
+    "audit-returning-source-unselected": [
+      {
+        "prompts": [
+          "Audit our existing evaluations."
+        ],
+        "context": "Explicit audit after completed bootstrap in the same repository and agent. Audit prerequisites and unchanged content-bound Ethos confirmation are valid. User confirmed traces exist and selected the suite, but saved run paths are only candidates. Reconcile Ethos and ask only for the trace source/location; do not enumerate or inspect candidates.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_skill",
+          "render_conversation",
+          "read_saved_state",
+          "read_repository",
+          "validate",
+          "write_artifact"
+        ],
+        "required_actions": [
+          "read_saved_state"
+        ],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "select_audit_trace_source"
+      }
+    ],
+    "audit-returning-ethos-changed": [
+      {
+        "prompts": [
+          "Audit the suite we improved."
+        ],
+        "context": "Explicit audit after completed improvement for the same repository and agent. Audit prerequisites are valid. Reconciliation after the metadata-only route lookup detects changed Ethos content. Retain prior confirmation as historical evidence, reopen the affected intent review, and wait before trace inspection or proposed checks.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_skill",
+          "render_conversation",
+          "read_saved_state",
+          "read_repository",
+          "validate",
+          "write_artifact"
+        ],
+        "required_actions": [
+          "read_saved_state"
+        ],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "review_ethos"
       }
     ]
   }

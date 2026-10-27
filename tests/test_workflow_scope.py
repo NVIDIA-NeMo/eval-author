@@ -122,6 +122,86 @@ def test_shared_opening_rejects_prerequisite_work(case, turn, action):
         assert f"turn[{turn}]: forbidden write attempt {writes[0]}" in report["violations"]
 
 
+@pytest.mark.parametrize("case", ["audit-known-repo-no-state", "audit-invalid-saved-state"])
+@pytest.mark.parametrize(
+    "action", ["read_repository", "read_trace", "inventory", "runtime_probe", "validate", "delegate", "write_artifact"]
+)
+def test_audit_route_classification_allows_only_saved_metadata(case, action):
+    evidence, raw = capture(case)
+    writes = [".eval-author/.working/journey-state.json"] if action == "write_artifact" else []
+    raw = add_call(evidence, raw, action=action, writes=writes)
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert f"turn[0]: forbidden action {action}" in report["violations"]
+    if writes:
+        assert f"turn[0]: forbidden write attempt {writes[0]}" in report["violations"]
+
+
+@pytest.mark.parametrize("case", ["generic-help", "explicit-audit", "first-eval-opening", "explicit-expansion"])
+def test_saved_metadata_exception_needs_a_known_repository_and_audit_request(case):
+    evidence, raw = capture(case)
+    raw = add_call(evidence, raw, action="read_saved_state")
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert "turn[0]: forbidden action read_saved_state" in report["violations"]
+
+
+def test_saved_state_lookup_cannot_write_even_when_later_audit_work_may_write():
+    evidence, raw = capture("audit-returning-new-chat")
+    raw = add_call(evidence, raw, action="read_saved_state", writes=[".eval-author/.working/journey-state.json"])
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert "turn[0]: saved-state lookup must not write" in report["violations"]
+
+
+def test_returning_audit_reaches_checks_with_selected_evidence_context():
+    evidence, raw = capture("audit-returning-new-chat")
+    for action in ("read_repository", "validate", "read_trace", "propose"):
+        raw = add_call(evidence, raw, action=action)
+    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/audit-coverage-report.md"])
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert report["status"] == "pass"
+    assert report["host_acceptance"] == "not_measured"
+    evidence["turns"][0]["handoff"] = "shared_opening"
+    assert "turn[0]: wrong handoff" in scope.check(CONTRACTS, evidence, raw)["violations"]
+
+
+@pytest.mark.parametrize("action", ["read_repository", "read_trace", "validate", "propose", "write_artifact"])
+def test_returning_audit_cannot_inspect_or_change_artifacts_before_route_classification(action):
+    evidence, raw = capture("audit-returning-new-chat")
+    writes = [".eval-author/.working/journey-state.json"] if action == "write_artifact" else []
+    raw = add_call(evidence, raw, action=action, writes=writes)
+    events = evidence["turns"][0]["events"]
+    events.insert(0, events.pop())
+    parsed = json.loads(raw)
+    parsed["tool_calls"].insert(0, parsed["tool_calls"].pop())
+    raw = json.dumps(parsed).encode()
+    evidence["raw_trace_sha256"] = scope.digest(raw)
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert f"turn[0]: saved-state lookup must precede {action}" in report["violations"]
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "audit-returning-traces-unresolved",
+        "audit-returning-source-unselected",
+        "audit-returning-ethos-changed",
+    ],
+)
+@pytest.mark.parametrize("action", ["read_trace", "propose", "execute", "scaffold", "install", "delegate"])
+def test_returning_audit_does_not_bypass_unresolved_inputs(case, action):
+    evidence, raw = capture(case)
+    writes = [".eval-author/tasks/new-case/task.toml"] if action == "scaffold" else []
+    raw = add_call(evidence, raw, action=action, writes=writes)
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert f"turn[0]: forbidden action {action}" in report["violations"]
+
+
+@pytest.mark.parametrize("action", ["read_repository", "inventory", "validate", "runtime_probe"])
+def test_unresolved_audit_traces_cannot_trigger_artifact_or_execution_checks(action):
+    evidence, raw = capture("audit-returning-traces-unresolved")
+    raw = add_call(evidence, raw, action=action)
+    assert f"turn[0]: forbidden action {action}" in scope.check(CONTRACTS, evidence, raw)["violations"]
+
+
 @pytest.mark.parametrize("case,turn", [("continue-shared-entry", 1), ("clarify-goal-before-setup", 2)])
 def test_shared_setup_work_is_allowed_after_opening(case, turn):
     evidence, raw = capture(case)

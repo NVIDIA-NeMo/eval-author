@@ -303,6 +303,38 @@ def test_goal_switch_does_not_infer_a_new_source_pause(onboarding):
     assert flow.TRACE_QUESTION not in output and "confirmed and validated" not in output
 
 
+@pytest.mark.parametrize("origin", ["create", "expand"])
+@pytest.mark.parametrize("status", ["in_progress", "complete"])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are these the evaluation suites you want to audit?",
+        "Are the Intended coverage checks and evidence requirements right?",
+    ],
+)
+def test_audit_resume_asks_only_the_unresolved_decision_after_prior_journey(onboarding, origin, status, question):
+    _, renderer, shared, state, _ = onboarding
+    copy = importlib.import_module("conversation_flows.onboarding_templates")
+    confirmed_request(onboarding)
+    state["journey"] = "audit"
+    state["journey_status"][origin] = status
+    state["prerequisites"]["data"] = {
+        "status": "confirmed",
+        "source": "User confirms saved traces from completed evaluations",
+    }
+    state["pending_question"] = question
+    state["next_handoff"] = "eval-author-audit"
+    request = {"stage": "resume", "state": state, "revision": state["revision"], "facts": {"question": question}}
+    output = renderer.render(request)
+    assert output.rstrip().endswith(question) and output.count(question) == 1
+    assert output.count(shared.NEXT_STEPS) == 1
+    assert output.count("- [x]") == 2 and output.count("- [ ]") == 1
+    assert shared.JOURNEYS["audit"] in output
+    assert copy.WELCOME not in output and copy.READY not in output
+    assert all(pause not in output for pause in copy.CONTINUATION.values())
+    assert "confirmed and validated" not in output and copy.TABLE_HEADER not in output
+
+
 def test_audit_entry_failure_renders_only_escaped_saved_progress_error_without_io(onboarding, monkeypatch):
     state_helper, renderer, shared, _, _ = onboarding
     copy = importlib.import_module("conversation_flows.onboarding_templates")
