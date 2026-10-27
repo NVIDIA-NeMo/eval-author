@@ -418,9 +418,8 @@ unfinished work. Keep the current decisions, inputs, and validation evidence
 needed to resume that work; reference existing files instead of copying them.
 Final tasks and their READMEs stay at their documented permanent paths. Source
 control owns task and grader revision history. Eval Author must not create
-archive files or an `archives/` directory. Do not create evidence bundles or
-permanent authoring history, and do not commit automatically. Users decide how
-long to keep their results; do not expire or delete their results automatically.
+archive files or an `archives/` directory. Users decide how long to keep their
+results; do not expire or delete their results automatically.
 
 Agents may explore and use intermediate work freely. Keep routine state-update
 payloads, helper responses, observations, renderer inputs, polling output, and
@@ -450,8 +449,9 @@ onboarding or convert confirmation into a claim of successful runtime execution.
 ## State helper commands
 
 Run with the assistant's Python 3.11+; this helper uses the standard library.
-Replace `<skill_dir>` with the core skill directory. Supply the actual partial
-JSON update through stdin and keep responses in memory under the
+Replace `<skill_dir>` with the core skill directory. The `-` in `--input -`
+selects stdin for the partial JSON update; keep it when supplying input this way.
+Keep responses in memory under the
 [temporary-work policy](#temporary-work-and-recovery). Use the revision returned by
 `show` to avoid replacing newer decisions.
 

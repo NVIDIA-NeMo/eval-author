@@ -485,8 +485,9 @@ state. Identical supplied inputs produce identical Markdown.
 
 ## Saving the agreed design and evidence
 
-Use the existing `journey_state.py --repo <repository> update --input -
---expected-revision <revision>` interface. A patch places `first_eval` inside the
+Use the existing [stdin update interface](../shared-prerequisites.md#state-helper-commands),
+`journey_state.py --repo <repository> update --input -
+--expected-revision <revision>`. A patch places `first_eval` inside
 `scopes.create`; preserve the rest of the saved record.
 The minimal initial record has this shape (replace descriptions with actual
 values):
