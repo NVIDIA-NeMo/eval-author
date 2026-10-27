@@ -39,7 +39,7 @@
     "artifact_type": "task_references",
     "benchmark": {
       "artifact_type": "benchmark_reference",
-      "benchmark_id": "rho-agent-tasks",
+      "benchmark_id": "workspace-tasks",
       "deployment": "local",
       "name": null,
       "revision": 1

@@ -7,7 +7,12 @@ baseline:
   harbor:
     name: oracle
 mutants:
+# Synthetic stand-ins illustrating a cohort; these do not implement real Rho faults.
 - agent_bundle_id: mutant
+  revision: '1'
+  harbor:
+    name: nop
+- agent_bundle_id: mutant-no-search
   revision: '1'
   harbor:
     name: nop

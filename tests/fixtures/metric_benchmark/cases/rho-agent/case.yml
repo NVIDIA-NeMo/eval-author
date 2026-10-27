@@ -4,10 +4,10 @@
 case_id: rho-agent
 agent:
   path: agents/rho-agent/agent.yml
-  sha256: sha256:c451883f40ccb410b2d2c96378782b054169b3ca6ddab6501b7036442d458a87
+  sha256: sha256:d5f2748f94d1a3c14054bb7a6f10ffd6a3888956b2e96f948e53db42fe8db662
 tasks:
   path: tasks/workspace/tasks.yml
-  sha256: sha256:2f408d39c2aaaf1bfdd3e4ea39676264ff813b0a6ee53668f85628dcda51c256
+  sha256: sha256:8fb89b8419acdc15d72907f6647a441fa4253e0a74d63ea84cf0558f736a0e89
 subsets:
-  path: subsets/workspace-fixed.json
-  sha256: sha256:1a76c5255e8a10fb477cca41593c6e8cfcd7450452ebc5a379d0d0f66a3a3ff7
+  path: tasks/workspace/subsets.json
+  sha256: sha256:c08a2ed6a7dbe23f7f5f0ada6f0e072148121ce82894cf4fd9e27ebd9caeddfd

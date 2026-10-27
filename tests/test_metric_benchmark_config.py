@@ -16,7 +16,7 @@ LAB = Path(__file__).resolve().parents[1] / "labs/metric-benchmark"
 FIXTURE = Path(__file__).parent / "fixtures/metric_benchmark"
 CASE_DIR = Path("cases/rho-agent")
 TASK_DIR = Path("tasks/workspace")
-SUBSETS_PATH = Path("subsets/workspace-fixed.json")
+SUBSETS_PATH = Path("tasks/workspace/subsets.json")
 DESCRIPTION_PATH = Path("agents/rho-agent/description.json")
 TASK_IDS = ["inspect-files", "read-config", "search-workspace"]
 
@@ -24,7 +24,7 @@ TASK_IDS = ["inspect-files", "read-config", "search-workspace"]
 def inventory(n=3):
     return Tasks.model_validate(
         {
-            "benchmark": {"deployment": "local", "benchmark_id": "rho-agent-tasks", "revision": 1},
+            "benchmark": {"deployment": "local", "benchmark_id": "workspace-tasks", "revision": 1},
             "tasks": [
                 {"task_id": TASK_IDS[i] if i < len(TASK_IDS) else f"additional-task-{i}", "revision": 1}
                 for i in range(n)
@@ -101,10 +101,12 @@ def test_prepared_inputs_and_fixed_memberships(tmp_path):
     assert loaded == load_benchmark(path)
     assert loaded.subsets["rho-agent"].sampling_parameters == {"seed": 42}
     assert loaded.case("rho-agent").case.selection(
-        {"baseline": "baseline-job", "mutant": "mutant-job"}, loaded.definition.scoring
+        {"baseline": "baseline-job", "mutant": "mutant-job", "mutant-no-search": "search-mutant-job"},
+        loaded.definition.scoring,
     ).run_ids == {
         "baseline": "baseline-job",
         "mutant": "mutant-job",
+        "mutant-no-search": "search-mutant-job",
     }
     (tmp_path / TASK_DIR / "inspect-files/instruction.md").write_text("changed")
     with pytest.raises(ValueError, match="digest differs"):

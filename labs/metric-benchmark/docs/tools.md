@@ -22,10 +22,10 @@ benchmark/
     description.json
   tasks/workspace/
     tasks.yml
+    subsets.json
     inspect-files/
     read-config/
     search-workspace/
-  subsets/workspace-fixed.json
 ```
 
 The experiment YAML contains `benchmark_id`, `revision`, pinned `cases` references,
@@ -49,7 +49,21 @@ SHA-256 digests using `input_digest(path)`. Moving the bundle preserves its
 references and identity. Task membership is explicit; adding a directory does
 not add a task.
 
-The subset manifest contains `artifact_type: eval_subset_definitions`,
+`tasks.yml` identifies a task benchmark: a fixed collection of Harbor tasks.
+`experiment.yml` defines the metric benchmark, combining those task collections
+with agents, mutants and analysis settings. Existing task benchmarks can be
+bundled during prep; tasks need not be newly authored for this experiment.
+The example's `workspace-tasks` is a synthetic task collection.
+
+Task IDs are stable labels in our manifest. The example uses readable names that
+match its task directories; the executor binds each ID to its explicit source
+path. A Harbor task directory contains `task.toml`, `instruction.md`, environment
+files and a verifier. Currently `task_sources` supports only `kind: directory`.
+`kind: file` is for manifests and agent dependencies, not executable task sources.
+Archives, Git repositories or remote datasets must be materialized as local task
+directories during prep; the runner does not download or unpack them.
+
+The subset manifest sits beside `tasks.yml` and contains `artifact_type: eval_subset_definitions`,
 `task_inventory`, `sampling_parameters` (including the preparation seed), and
 `eval_subsets`. Each subset has `eval_subset_id` and explicit tasks with `task_id`
 and `revision`. Its inventory must match the selected tasks manifest. It is
@@ -73,7 +87,8 @@ Analysis commands need these referenced manifests and verify only the selected
 case's required artifacts; they do not require execution sources.
 
 The [configuration test fixture](../../../tests/fixtures/metric_benchmark/experiment.yml)
-uses illustrative rho-agent IDs and synthetic Oracle/NOP agents. Its coverage
+uses illustrative rho-agent IDs, an Oracle baseline and two NOP mutant entries.
+These are synthetic stand-ins, not implementations of distinct Rho faults. Its coverage
 command is a placeholder; the tests supply their own adapter.
 
 The initial backend is `local_harbor`, pinned to Harbor 0.20.0. Its settings are
