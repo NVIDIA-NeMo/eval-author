@@ -44,7 +44,7 @@ def input_digest(path: Path) -> str:
 
 class PinnedInput(Model):
     path: Text
-    sha256: Digest
+    sha256: Digest | None = None
     kind: Literal["file", "directory"] = "file"
 
     def resolve(self, root: Path) -> Path:
@@ -54,7 +54,7 @@ class PinnedInput(Model):
             raise ValueError(f"missing pinned input: {self.path}") from None
         if (self.kind == "directory" and not path.is_dir()) or (self.kind == "file" and not path.is_file()):
             raise ValueError(f"wrong input kind: {self.path}")
-        if input_digest(path) != self.sha256:
+        if self.sha256 is not None and input_digest(path) != self.sha256:
             raise ValueError(f"input digest differs: {self.path}")
         return path
 

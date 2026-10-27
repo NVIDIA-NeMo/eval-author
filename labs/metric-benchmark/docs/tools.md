@@ -9,7 +9,7 @@ These tools consume externally prepared cases. A prepared case contains:
 - A description of the agent's intended behavior for coverage computation.
 - A fixed collection of evaluation tasks, including their environments and verifiers.
 - Named, fixed subsets of those tasks for score and coverage comparisons.
-- Manifests connecting these inputs, with relative paths and SHA-256 digests for verification.
+- Manifests connecting these inputs, with relative paths and optional SHA-256 digests for verification.
 
 ## Benchmark config
 
@@ -41,15 +41,16 @@ PYTHON
 `load_benchmark(path)` is the full entry point: it reads the experiment, verifies
 all referenced manifests, task sources and agent inputs, and loads every case's
 subsets and description. The returned object holds the experiment definition,
-resolved cases, subsets, and descriptions.
+resolved cases, subsets, and descriptions. SHA-256 digests are optional; supplied
+digests are always verified when their inputs are loaded.
 
 Use `read_benchmark(path)` from the same module when only the experiment and
-pinned case, agent and task manifests are needed. It does not open task sources,
+referenced case, agent and task manifests are needed. It does not open task sources,
 agent bundles, subsets, or descriptions. With this lighter reader, load a selected
 case's subsets or description through
 `prepared.case.load_subsets(prepared.root)` or
 `prepared.case.load_description(prepared.root)`; each verifies the referenced
-artifact's digest.
+artifact against its digest when one is supplied.
 
 The [format specification](benchmark-format.md) describes validation rules.
 `BenchmarkDefinition`, `CaseManifest`, `AgentManifest`, and `TaskManifest` also

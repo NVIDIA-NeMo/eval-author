@@ -45,15 +45,16 @@ coverage, and correlation. Prep is external to those stages.
 
 ## Benchmark definition
 
-A fixed metric benchmark consists of linked, content-pinned manifests:
+A metric benchmark consists of linked manifests. SHA-256 pins are optional during
+iteration; established benchmarks should pin every reference to fix their inputs:
 
 - **Experiment YAML (`experiment.yml`):** lists cases and configures execution,
   metric computation, and scoring.
 - **Case manifest (`case.yml`):** combines an agent manifest, a tasks manifest,
   and a prepared subset manifest.
 - **Agent manifest (`agent.yml`):** defines the baseline, mutants, and intended
-  behavior description, with pinned references to prepared dependencies.
-- **Tasks manifest (`tasks.yml`):** defines the fixed inventory and pinned task locations.
+  behavior description, with references to prepared dependencies.
+- **Tasks manifest (`tasks.yml`):** defines the fixed inventory and task locations.
 - **Subset manifest:** records the list of exact task memberships and their
   preparation seed. It is bound to the task inventory, independently of case IDs.
 
@@ -63,7 +64,7 @@ Different metric configurations can reuse the same prepared inputs.
 
 After unpacking a benchmark, all paths resolve relative to the bundle root—the
 folder containing the experiment YAML. Nested manifests can reference shared
-inputs without `../`. SHA-256 pins verify each link. The
+inputs without `../`. Supplied SHA-256 pins verify their links. The
 [benchmark format specification](benchmark-format.md) specifies the directory
 layout and fields. Each execution produces its own results while retaining the
 configured input identities.
@@ -91,7 +92,7 @@ their logical contents.
 | Mutants | Executable bundles with distinct identities, their baseline relationship, and mutation descriptions |
 | Case description | Stable case identity and intended agent behavior; an Ethos is one possible representation |
 | Benchmark tasks | Fixed task membership, task identities, environments, correctness verifiers, and a versioned subset manifest |
-| Experiment configuration | `experiment.yml`: pinned case-manifest references, execution settings, coverage-system settings and permitted evidence, and scoring parameters |
+| Experiment configuration | `experiment.yml`: case-manifest references, execution settings, coverage-system settings and permitted evidence, and scoring parameters |
 
 Baseline and mutant bundles are prepared and checked before release.
 Tasks and their environments are ready for execution. At present only Harbor tasks are used.
@@ -103,9 +104,9 @@ inputs cause an error.
 
 ### Subset manifest
 
-Prep constructs subsets from the pinned task inventory, before inspecting
+Prep constructs subsets from the task inventory, before inspecting
 execution outcomes or coverage scores. Each case references a subset manifest, a
-pinned artifact containing stable subset IDs, a list of task IDs for each subset,
+prepared artifact containing stable subset IDs, a list of task IDs for each subset,
 and preparation parameters such as the fixed seed. Subset IDs can be readable
 names or numbers. Task revisions live in `tasks.yml`; the subset manifest does
 not duplicate task definitions or the inventory.
@@ -113,8 +114,9 @@ not duplicate task definitions or the inventory.
 The manifest is authoritative: every run and metric tool uses the same explicit
 memberships. The seed documents construction and stays fixed for that benchmark
 version; analysis does not resample or regenerate subsets. Changing the seed,
-inventory, or memberships changes the subset and case pins; existing experiments
-continue to reference their original prepared cases. Analysis validates
+inventory, or memberships requires updating any affected pins. Established
+benchmarks retain their original prepared cases and pins; unpinned definitions
+allow inputs to change during iteration. Analysis validates
 subset task IDs against `tasks.yml` and checks the execution inventory against
 those task definitions, including their revisions.
 Missing results follow the scoring policy without changing subset membership.

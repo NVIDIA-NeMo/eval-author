@@ -158,12 +158,12 @@ def test_json_numbers_and_immutable_outputs(tmp_path):
             read_json(out)
 
 
-def test_manifest_rejects_duplicate_memberships(tmp_path):
+def test_manifest_allows_duplicate_memberships(tmp_path):
     path, _ = prepared_benchmark(tmp_path)
     manifest = json.loads((tmp_path / SUBSETS_PATH).read_text())
     manifest["eval_subsets"][1]["task_ids"] = manifest["eval_subsets"][0]["task_ids"]
-    with pytest.raises(ValueError, match="memberships"):
-        Subsets.model_validate(manifest)
+    subsets = Subsets.model_validate(manifest)
+    assert subsets.eval_subsets[0].task_ids == subsets.eval_subsets[1].task_ids
 
 
 @pytest.mark.parametrize("value", [float("inf"), float("-inf"), float("nan")])

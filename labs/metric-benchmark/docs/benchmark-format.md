@@ -63,11 +63,12 @@ benchmark/
 
 ## References and content pins
 
-Every reference has `path`, `sha256` (`sha256:<hex>`), and optional `kind`
-(`file` by default, or `directory`). **All paths are relative to the bundle root**,
+Every reference requires `path`. `sha256` (`sha256:<hex>`) is optional, as is
+`kind` (`file` by default, or `directory`). **All paths are relative to the bundle root**,
 including references inside nested manifests. Cases can share agent, task and
 subset manifests without copying them or using `../`. Absolute paths, traversal,
-and symlinks are rejected. Manifests and file inputs are pinned by exact bytes.
+and symlinks in reference paths are rejected. When supplied, file digests verify
+exact bytes.
 Directory digests hash the canonical JSON mapping of relative file paths to
 SHA-256 digests using `input_digest(path)`. Moving the bundle preserves its
 references and identity. Task membership is explicit; adding a directory does
@@ -77,7 +78,17 @@ Use `/`-separated relative paths without `..`, backslashes, colons, or NUL
 characters. The referenced file or directory must exist when verified and match
 its declared `kind`. File references use `kind: file` or omit `kind`; task
 sources must explicitly use `kind: directory`. Agent inputs may use either.
-A digest is `sha256:` followed by 64 lowercase hexadecimal characters.
+
+Omit `sha256` while iterating. The loader still checks that the referenced path
+exists and has the expected kind, but does not hash its contents. When `sha256`
+is supplied, a mismatch is an error. A digest is `sha256:` followed by 64 lowercase
+hexadecimal characters.
+
+For an established benchmark, supply digests on every reference, including nested
+manifests and agent/task inputs, to fix the expected contents. These are content
+pins, not cryptographic signatures identifying a publisher. Without pins, the
+same experiment YAML can load changed inputs; its configuration identity does
+not identify those inputs' contents.
 
 For example, the `agent` reference inside `cases/rho-agent/case.yml` points to
 `agents/rho-agent/agent.yml`, not `../../agents/rho-agent/agent.yml`. Its digest
@@ -87,20 +98,21 @@ Directory pins cover relative file names and file contents. They do not cover
 permission bits or empty directories. Compute pins using `input_digest(path)`
 from `metric_benchmark.config` so prep uses the same algorithm as the reader.
 
-Prepare pins from the leaves upward: agent/task files and the description and
-subsets first, then agent/tasks manifests, then case manifests, then the
+When pinning an established benchmark, prepare pins from the leaves upward:
+agent/task files and the description and subsets first, then agent/tasks
+manifests, then case manifests, then the
 experiment. Changing a leaf requires updating each referencing digest up to the
 experiment. Revision labels do not replace this content verification.
 
 ## Agents: `agent.yml`
 
-This file defines `baseline`, `mutants`, and a pinned `description`. Each agent
+This file defines `baseline`, `mutants`, and a `description` reference. Each agent
 version supplies `agent_bundle_id`, `revision`, native `harbor` settings, and
-optional pinned `inputs` for its prepared files and dependencies. In the example
+optional `inputs` references for its prepared files and dependencies. In the example
 layout above, these inputs reference `agents/rho-agent/baseline/` or the
 corresponding directory under `agents/rho-agent/mutants/`, with `kind: directory`
-and that directory's SHA-256 digest. Listing those files does not install or
-launch them; the selected Harbor integration must support doing so.
+and, when pinning the benchmark, that directory's SHA-256 digest. Listing those
+files does not install or launch them; the selected Harbor integration must support doing so.
 
 `baseline`, `mutants`, and `description` are required. There must be at least
 one mutant, and the baseline and mutants must have distinct `agent_bundle_id`
@@ -111,7 +123,7 @@ agents can use this when they have no prepared files to reference.
 The agent is the executable attempting the task; the task owns its verifier.
 The `harbor` field configures how the local executor invokes that agent through
 a Harbor integration (`name` or `import_path`, plus native settings). Prepared
-agent contents and dependencies are separate pinned inputs.
+agent contents and dependencies are separate input references.
 
 The agent's description is a JSON object describing intended behavior for the
 coverage tool. The runner passes it through as `case_description`; the configured
@@ -125,12 +137,12 @@ Both `task_inventory` and `task_sources` are required. The inventory has a
 nonempty `tasks` list. Each task requires a unique `task_id` and a positive
 integer `revision`; `name` is optional. The inventory's `artifact_type` is
 `task_references` and may be omitted. `task_sources` must contain exactly the
-same task IDs, each mapped to a pinned task directory.
+same task IDs, each mapped to a task directory reference.
 
 `tasks.yml` identifies a task benchmark: a fixed collection of Harbor tasks.
 Existing task benchmarks can be bundled during prep; tasks need not be newly
 authored for this experiment.
-The pinned `tasks.yml` identifies the exact collection; there is no separate
+The `tasks.yml` manifest identifies the exact collection; there is no separate
 collection deployment, benchmark ID or revision block. Individual tasks retain
 their IDs and revisions in `task_inventory.tasks`.
 
@@ -150,7 +162,9 @@ preparation seed), and `eval_subsets`. Each subset has an `eval_subset_id` (a
 readable name or number) and a `task_ids` list. It does not repeat task revisions,
 display names, or the task inventory. The selected `tasks.yml` supplies those
 task definitions; analysis checks that recorded task IDs and revisions match it.
-Unknown task IDs, duplicate IDs, and duplicate memberships are rejected.
+Unknown task IDs, duplicate subset IDs, and repeated task IDs within a subset
+are rejected. Identical membership across different subsets is allowed; choosing
+which subsets belong in the benchmark is a preparation-time decision.
 Cases and experiments can share prepared subsets. Membership stays fixed;
 runtime never samples from the seed.
 
@@ -159,12 +173,11 @@ omitted. Include a fixed integer `seed` in `sampling_parameters` as the prep
 convention (the loader does not require that specific key). Other sampling
 metadata values must be integers or strings. There must be at least one subset,
 and each subset must contain at least one task. Subset IDs are strings, including
-numbered labels such as `"subset-000001"`. Two subsets may overlap, but cannot
-have identical membership, even if their task ordering differs.
+numbered labels such as `"subset-000001"`. Subsets may overlap.
 
 ## Cases: `case.yml`
 
-This file defines a `case_id` and pinned `agent`, `tasks`, and `subsets` manifest
+This file defines a `case_id` and `agent`, `tasks`, and `subsets` manifest
 references. It combines an agent and its mutants with a task collection and the
 subsets used for analysis. Cases can reuse manifests while selecting different
 combinations of agents, tasks and subsets. All four fields are required;
@@ -175,16 +188,16 @@ a distinct case ID.
 
 ## Experiment: `experiment.yml`
 
-The experiment YAML contains `benchmark_id`, `revision`, a list of pinned `cases`
+The experiment YAML contains `benchmark_id`, `revision`, a list of `cases`
 references, `coverage`, and optional `execution`, `scoring`, and `missing_policy`
-settings. Each case reference has a relative `path` and `sha256`. This defines the
-metric benchmark by combining prepared cases with execution and analysis settings.
+settings. Each case reference has a relative `path` and optional `sha256`.
+This defines the metric benchmark by combining prepared cases with execution and analysis settings.
 
 | Field | Requirement or default |
 | --- | --- |
 | `benchmark_id` | Required nonempty string identifying the metric benchmark. |
 | `revision` | Required positive integer identifying this experiment definition. |
-| `cases` | Required nonempty list of pinned case files; no repeated paths or case IDs. |
+| `cases` | Required nonempty list of case-file references; no repeated paths or case IDs. |
 | `coverage` | Required metric-tool configuration, described below. |
 | `execution` | Optional; defaults to the local Harbor settings below. |
 | `scoring` | Optional; defaults to the policy below. |
@@ -194,7 +207,7 @@ metric benchmark by combining prepared cases with execution and analysis setting
 `command` (a nonempty list of argument strings). Optional `settings` is a JSON
 object, default `{}`; `timeout_seconds` is a positive integer, default `3600`.
 The command identifies the metric tool to invoke, not a prepared input reference.
-The bundle-relative path rules apply to pinned references; they do not rewrite
+The bundle-relative path rules apply to input references; they do not rewrite
 arbitrary command arguments or native Harbor settings.
 
 The default `scoring` policy is `metric: reward`,
@@ -219,8 +232,8 @@ strings. There is no `schema_version` field. Revisions identify experiment,
 agent, task, or metric-tool inputs rather than versions of this file format.
 
 `load_benchmark()` reads the experiment, verifies the referenced manifests and
-all prepared inputs, and loads subsets and descriptions. It checks subset task
-IDs against the selected task inventory. It does not execute the agents, verify
+all prepared inputs (checking any supplied digests), and loads subsets and
+descriptions. It checks subset task IDs against the selected task inventory. It does not execute the agents, verify
 that a launch integration works, or validate the metric-specific meaning of the
 description. See [Reading benchmarks](tools.md#reading-benchmarks) for the API.
 

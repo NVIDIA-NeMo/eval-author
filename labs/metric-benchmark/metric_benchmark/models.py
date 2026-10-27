@@ -133,11 +133,8 @@ class Subsets(Model):
     @model_validator(mode="after")
     def valid_memberships(self) -> Self:
         unique([s.eval_subset_id for s in self.eval_subsets], "subset IDs")
-        memberships = []
         for subset in self.eval_subsets:
             unique(subset.task_ids, "subset tasks")
-            memberships.append(tuple(sorted(subset.task_ids)))
-        unique(memberships, "subset memberships")
         return self
 
     def resolve_tasks(self, inventory: Tasks) -> dict[str, list[Task]]:
