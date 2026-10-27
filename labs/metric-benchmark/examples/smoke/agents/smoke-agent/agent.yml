@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+baseline:
+  agent_bundle_id: oracle
+  revision: harbor-0.20.0
+  harbor:
+    name: oracle
+mutants:
+# Synthetic stand-ins illustrating a cohort; these do not implement real Rho faults.
+- agent_bundle_id: nop
+  revision: harbor-0.20.0
+  harbor:
+    name: nop
+- agent_bundle_id: mutant-no-search
+  revision: '1'
+  harbor:
+    name: nop
+description:
+  path: agents/smoke-agent/description.json
+  kind: file
+  sha256: sha256:b96589f78a625cd477241098b2b6a33a9cbba45e9f2cd43698d42aec2844c309

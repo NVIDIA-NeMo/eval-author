@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+benchmark_id: smoke
+revision: 1
+cases:
+- case_id: smoke-case
+  agent:
+    path: agents/smoke-agent/agent.yml
+    sha256: sha256:4c8734a81c2d3db86450484f99404ae95096f139fe26f979aa48c6f7bcc1f12e
+  tasks:
+    path: tasks/smoke-tasks/tasks.yml
+    sha256: sha256:75840e2e0d60e67a37efe02fd41fd4c5de51c4961e2de6e90bc09255660db73a
+  subsets:
+    path: tasks/smoke-tasks/subsets.json
+    sha256: sha256:4da87feadaca70f87f194f2c52c90e8a0bea596e1be823710e9280e709b20518
+coverage:
+  system_id: synthetic-subset-size
+  system_revision: '1'
+  command:
+  - /usr/bin/env
+  - python3
+  - -c
+  - 'import json; from pathlib import Path; r=json.loads(Path(''request.json'').read_text());
+    Path(''response.json'').write_text(json.dumps({''value'': len(r[''tasks'']) /
+    2}))'

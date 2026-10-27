@@ -77,3 +77,8 @@ the Eval Author integration.
 
 See the [`correlate.py` command guide](correlate.md) for
 arguments, unavailable pairs, interpretation, and the Python API.
+
+## Run the configured experiment
+
+See the [`run_experiment.py` command guide](run-experiment.md) for
+arguments, saved-result analysis, resume, the Python API, and a prepared smoke example.
