@@ -31,6 +31,10 @@ Python tool and library API:
 See the [architecture](docs/architecture.md) and [stage descriptions](docs/stages.md)
 for how the experiment works.
 
+The [experiment runner guide](docs/run-experiment.md) covers end-to-end
+execution. Start with the [prepared smoke example](docs/run-experiment.md#small-prepared-smoke-benchmark)
+to exercise the pipeline locally without model credentials.
+
 For preparing bundles, use the [benchmark format specification](docs/benchmark-format.md).
 For execution outputs, use the [results format specification](docs/results-format.md).
 
