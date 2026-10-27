@@ -410,7 +410,11 @@ def load_state(repo: Path, *, state_only: bool = False) -> dict:
             state["ethos"].update(stage="draft", draft_confirmed=False, draft_source=None)
             state["next_handoff"] = "ethos-orchestrate"
             state["pending_question"] = "The agreed draft changed or is unavailable; review the draft before writing."
-    if state["ethos"]["stage"] == "complete" and state["journey_status"].get("create") == "complete":
+    if (
+        state["journey"] != "audit"
+        and state["ethos"]["stage"] == "complete"
+        and state["journey_status"].get("create") == "complete"
+    ):
         creation = first_eval_state.progress(repo, state)
         if creation is not None and not creation["complete"]:
             state["journey_status"]["create"] = "in_progress"
@@ -574,8 +578,10 @@ def view(state: dict, *, state_only: bool = False) -> dict:
         requirements = {"runtime": provider["supported"]["authoring"], "python": provider["python"]}
     else:
         requirements = None
-    observations = None if state_only else first_eval_state.observe(Path(state["repository"]), state)
-    creation = None if state_only else first_eval_state.derive(state, observations)
+    # Retained authoring evidence is not permission to inspect it for an audit.
+    authoring_checks = not state_only and state["journey"] != "audit"
+    observations = first_eval_state.observe(Path(state["repository"]), state) if authoring_checks else None
+    creation = first_eval_state.derive(state, observations) if authoring_checks else None
     if (
         creation is not None
         and not creation["complete"]
@@ -588,7 +594,7 @@ def view(state: dict, *, state_only: bool = False) -> dict:
         "artifact_checks_deferred": state_only,
         "task_readiness": (
             None
-            if state_only
+            if not authoring_checks
             else {task: task_lifecycle(Path(state["repository"]), state, task) for task in state.get("tasks", {})}
         ),
         "checklist": checklist(state, state_only=state_only) if state["journey"] else [],
@@ -757,6 +763,10 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         state = load_state(repo, state_only=state_only)
         previous = copy.deepcopy(state)
         create_patch = patch.get("scopes", {}).get("create") if isinstance(patch.get("scopes"), dict) else None
+        if state["journey"] == "audit" and any(
+            isinstance(patch.get(field), dict) and "create" in patch[field] for field in ("scopes", "journey_status")
+        ):
+            raise ValueError("Select an authoring journey before updating creation progress")
         prior_create = state["scopes"].get("create", {})
         if (
             isinstance(patch.get("scopes"), dict)
@@ -825,7 +835,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             state["ethos"]["validation"] = None
             invalidate_scopes(state)
         validate(state, check_size=state_only)
-        if not state_only:
+        if not state_only and state["journey"] != "audit":
             first_eval_state.transition(repo, previous, state)
             creation = first_eval_state.progress(repo, state)
             if patch.get("journey_status", {}).get("create") == "complete" and creation and not creation["complete"]:

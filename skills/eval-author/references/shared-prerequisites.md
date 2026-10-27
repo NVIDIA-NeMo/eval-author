@@ -352,6 +352,10 @@ that boundary. It cannot establish content approval or task acceptance. Treat
 saved approvals as historical, and defer reports, task-readiness checks, and
 artifact inspection. After completing and saving an unblocked prerequisite pass,
 omit `--state-only` so normal commands reconcile current content and evidence.
+For the audit journey, normal commands reconcile only Ethos: `task_readiness`,
+`first_eval_observations`, and `first_eval` are null, and creation progress cannot
+be updated until an authoring journey is selected. Retained authoring evidence
+does not select it as audit input.
 While the current journey is `audit`, `--state-only update` also merges the
 nonempty strings `scopes.audit.framework` and `scopes.audit.framework_source`
 into the existing scope. These observations persist even when prerequisites are
@@ -593,8 +597,9 @@ while preserving the recorded decision for review. An unrecorded task is
 **Unknown**; discovery, a task path, or a successful run cannot infer acceptance.
 The report reads this state for both the Harbor task directory and a NeMo Gym
 manifest under the nearest explicitly recorded task root. Report refresh and
-`show` do not accept tasks or rerun checks. Use `show`'s `task_readiness` for
-current status; `state.tasks` retains the original decision and provenance.
+`show` do not accept tasks or rerun checks. In an authoring journey, use `show`'s
+`task_readiness` for current status; `state.tasks` retains the original decision
+and provenance.
 
 Keep status labels out of task-local READMEs: those files are part of the task
 revision used by execution receipts. Display status in the generated suite
