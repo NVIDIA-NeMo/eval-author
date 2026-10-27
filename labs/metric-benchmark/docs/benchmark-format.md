@@ -23,6 +23,11 @@ cases inline and supplies execution and analysis settings. Reusing a manifest do
 copy or regenerate its contents. Execution results belong in a separate output
 directory; they are not prepared inputs in this bundle.
 
+Use YAML for experiment, agent and task manifests so authors can edit and
+comment on configuration. Use JSON for subset memberships and agent descriptions
+as data exchanged with preparation and metric tools. The examples use `.yml`
+and `.json` accordingly; changing a filename does not change its expected format.
+
 ## Recommended directory layout
 
 Use this **recommended layout** when preparing a benchmark. The names below
@@ -87,9 +92,11 @@ digest is `sha256:` followed by 64 lowercase hexadecimal characters.
 
 For an established benchmark, supply digests on every reference, including nested
 manifests and agent/task inputs, to fix the expected contents. These are content
-pins, not cryptographic signatures identifying a publisher. Without pins, the
-same experiment YAML can load changed inputs; its configuration identity does
-not identify those inputs' contents.
+pins, not cryptographic signatures identifying a publisher. The experiment's
+configuration digest (`benchmark_sha256` in downstream artifacts) can remain
+unchanged when unsigned inputs change. It is not proof that the bundle is
+unchanged: require a successful strict `load_benchmark()` or `sha-sign --check`
+to verify the referenced contents against all pins.
 
 For example, a case's `agent` reference in `experiment.yml` points to
 `agents/rho-agent/agent.yml`. Its digest
@@ -172,6 +179,11 @@ This list can package an existing task benchmark. Archives, Git repositories
 and remote datasets must be materialized as local directories during prep;
 the runner does not download or unpack them. There is no additional collection
 benchmark ID, deployment, or revision block.
+
+Generated tasks use this same format. A preparation tool can write `tasks.yml`
+or `tasks.generated.yml`, materialize its task directories, and point the case's
+`tasks.path` at that manifest. Its subsets reference those task IDs. Generation
+needs no separate schema or `generated_tasks` field.
 
 ## Subsets: `subsets.json`
 
