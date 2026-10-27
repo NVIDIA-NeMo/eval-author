@@ -10,11 +10,8 @@ description: >-
   Build first evals from a required Ethos, work on existing evaluation suites
   in a user's repository, derive an environment from trace
   evidence (experimental), or understand an agent run from NeMo Intake. Owns the evidence
-  standard that every Eval Author sub-flow
-  follows. Use when the user asks "help me with my evals", "help me onboard to expand my evals",
-  "what's the state of the eval suite here?", "what happened in this trace?", or
-  when you need to pick between bootstrapping evals, auditing existing evals,
-  finding out whether evals exist, or proposing improvements from an audit.
+  standard for every Eval Author sub-flow. Routes requests to create or discover evals,
+  audit existing suites, propose improvements, or inspect traces.
   Requires a confirmed ETHOS.md for creating, auditing, and improving
   evaluations, without changing the agent's implementation.
 triggers:
