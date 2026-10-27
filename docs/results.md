@@ -48,7 +48,8 @@ See [Check readiness](existing-evals.md#check-readiness) for the next step.
 ## Review generated cases
 
 Review tasks at `.eval-author/report.html` as soon as a first-evaluation plan is
-saved; the final handoff links this report. Planned tasks appear as **Proposed**
+saved; the final handoff links this report. All tasks share one table, with
+**Proposed** tasks at the top. Planned tasks keep this status
 until they are authored, including after design approval. Their rows show the
 saved behavior, expected outcome, and grading plan; artifact links appear when
 the files exist. Authored tasks retain their **Draft**, **Accepted**, or

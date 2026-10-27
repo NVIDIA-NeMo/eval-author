@@ -402,12 +402,13 @@ def nested_checkout(repo: Path, path: Path) -> bool:
     return False
 
 
-def task_sort(task: dict) -> tuple[str, str, str]:
-    return (task_directory(task), task["display_id"], task["path"] or "")
-
-
-def task_directory(task: dict) -> str:
-    return PurePosixPath(task["path"]).parent.as_posix() if task["path"] else "Proposed tasks"
+def task_sort(task: dict) -> tuple[bool, str, str, str]:
+    return (
+        task["status"] != "proposed",
+        PurePosixPath(task["path"]).parent.as_posix() if task["path"] else "",
+        task["display_id"],
+        task["path"] or "",
+    )
 
 
 def render_readme(source: str) -> str:
@@ -1132,21 +1133,14 @@ def render_markdown(data: dict) -> str:
     lines.extend(["## Tasks", ""])
     if "plan_counts" in data:
         lines.extend([plan_summary(data["plan_counts"]), ""])
-    directory = None
+    if data["tasks"]:
+        lines.extend(
+            [
+                "| Task | Status | Behavior | Expected outcome | Verifier | Actions |",
+                "| --- | --- | --- | --- | --- | --- |",
+            ]
+        )
     for task in data["tasks"]:
-        parent = task_directory(task)
-        if parent != directory:
-            if directory is not None:
-                lines.append("")
-            directory = parent
-            lines.extend(
-                [
-                    "### " + markdown_text(parent.removeprefix(".eval-author/")),
-                    "",
-                    "| Task | Status | Behavior | Expected outcome | Verifier | Actions |",
-                    "| --- | --- | --- | --- | --- | --- |",
-                ]
-            )
         grading = task["grading_kind"]
         name = []
         if task["status"] == "unverified":

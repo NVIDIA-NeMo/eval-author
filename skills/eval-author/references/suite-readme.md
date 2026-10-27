@@ -9,7 +9,7 @@ Use this shared reporting contract for Harbor and NeMo Gym.
 
 `.eval-author/report.html` defines the case/run review content.
 Its Tasks tab lists the current saved first-evaluation plan alongside discovered
-Harbor tasks and NeMo Gym workload definitions by directory,
+Harbor tasks and NeMo Gym workload definitions in one table, with **Proposed** rows first,
 including tasks being authored and accepted tasks at their stable paths, with
 Task, Status, Behavior, Expected outcome, Verifier, and Actions columns.
 For authored tasks, Task shows the complete task README's first H1 title,
@@ -36,8 +36,8 @@ with the report. Malformed or duplicate markers stop the refresh without
 publishing either output; repair the markers while preserving the content.
 
 Within that section, each report content tab becomes an H2 section in tab order
-(`## Tasks`, then `## Runs`); omit Settings. Directory groups become H3s,
-tables keep the same columns and ordering, and native score labels replace visual
+(`## Tasks`, then `## Runs`); omit Settings. Tables keep the same columns and
+ordering as the HTML, and native score labels replace visual
 bars. Legacy trials becomes an H3 under Runs. Preserve statuses, warnings,
 record diagnostics, and missing-data labels. Edit task documentation, native
 artifacts, or supported reporting metadata to update generated content, then
@@ -255,14 +255,11 @@ trials when fixed evidence paths are required; they appear under Legacy trials.
 Report refresh reads evidence and never launches, rewrites, or combines runs.
 
 Optional imported `behavior` and `expected_outcome` fields require project-relative
-`source_refs`. Unique README sections take precedence. Test-case sections use each
-discovered task's immediate parent directory. Headings and row paths omit the
-leading `.eval-author/` for display; section identities, stored paths, and viewer
-commands retain the full project-relative paths. Do not invent product-area
-labels, derive categories from task-name prefixes, or rename directories for the
-report. Directories with the same basename under different suites remain separate.
-Tasks sharing a parent appear together, even if they belong to different run
-configurations; these are filesystem sections, not inferred suite memberships.
+`source_refs`. Unique README sections take precedence. Task row paths omit the
+leading `.eval-author/` for display; stored paths and viewer commands retain the
+full project-relative paths. Harbor viewer launch roots remain each discovered
+task's immediate parent directory. Do not rename directories for the report.
+Tasks with the same basename under different suites remain distinct.
 Report grading types are `Custom code`, `LLM-as-judge`,
 `Custom code + LLM-as-judge`, and `Not documented`. Refresh accepts the legacy
 `deterministic`, `model`, `hybrid`, and `unknown` values and normalizes both stored
