@@ -304,18 +304,20 @@ def execution_settings(record: dict) -> str:
 
 def validation_setup(record: dict, progress: dict) -> str:
     if not progress["scope_approved"]:
-        raise ValueError("Save scope approval before asking for grader validation setup")
+        raise ValueError("Save scope approval before asking for verifier validation setup")
     if not progress["validation_setup_current"]:
-        raise ValueError("Save current grader validation setup and missing inputs before asking for them")
+        raise ValueError("Save current verifier validation setup and missing inputs before asking for them")
     if progress["validation_setup_ready"]:
-        raise ValueError("Grader validation setup is already resolved; continue the saved build without another pause")
+        raise ValueError(
+            "Verifier validation setup is already resolved; continue the saved build without another pause"
+        )
     setup = record["validation_setup"]
     return "\n\n".join(
         [
             copy.VALIDATION_SETUP_INTRO,
-            "\n".join("- " + literal(item, "grading requirement") for item in setup["requirements"]),
+            "\n".join("- " + literal(item, "verifier requirement") for item in setup["requirements"]),
             copy.VALIDATION_SETUP_QUESTIONS,
-            "\n".join("- " + literal(item, "missing grading input") for item in setup["open_questions"]),
+            "\n".join("- " + literal(item, "missing verifier input") for item in setup["open_questions"]),
         ]
     )
 
@@ -441,7 +443,7 @@ def first_review(record: dict, progress: dict, facts: dict) -> str:
         raise ValueError("First-task review requires saved scope approval, current task files, and environment proof")
     if not status["validated"]:
         raise ValueError(
-            "First-task review requires current passed grader validation, including model-based checks when used"
+            "First-task review requires current passed verifier validation, including model-based checks when used"
         )
     if (
         record.get("first_task_build")
@@ -474,7 +476,7 @@ def first_review(record: dict, progress: dict, facts: dict) -> str:
 def suite_review(record: dict, progress: dict, facts: dict) -> str:
     if not progress["suite_review_ready"]:
         raise ValueError(
-            "Suite review requires the approved first task, current task files and environments, passed grader validation, "
+            "Suite review requires the approved first task, current task files and environments, passed verifier validation, "
             "and report artifacts"
         )
     if facts.get("blockers"):
@@ -779,7 +781,7 @@ def render(payload: dict) -> str:
                 raise ValueError("Save first-task approval before preparing remaining tasks")
             if not progress["scope_approved"]:
                 raise ValueError("Save scope approval before preparing tasks")
-            raise ValueError("Resolve and save grader validation setup before task construction")
+            raise ValueError("Resolve and save verifier validation setup before task construction")
         elif stage == "execution_settings":
             if not progress["scope_approved"]:
                 raise ValueError("Save scope approval before displaying execution settings")
@@ -825,7 +827,7 @@ def render(payload: dict) -> str:
                 item["validated"] and item["environment_proven"] for item in progress["tasks"].values()
             ):
                 raise ValueError(
-                    "All selected tasks need current environment proof and grading validation before announcing reference checks"
+                    "All selected tasks need current environment proof and verifier validation before announcing reference checks"
                 )
             result = copy.CHECKS_PASSED
             if (

@@ -32,7 +32,7 @@ SAVED_DESIGN_CHOICES = (
 )
 SAVED_DESIGN_QUESTION = "Would you like to continue this saved design, revise it, or start a new proposal?"
 PROPOSAL_INTRO = "Here are the proposed evaluation tasks."
-PROPOSAL_TABLE = "| Task | Input | Behavior under test | Expected result | Grading |\n|---|---|---|---|---|"
+PROPOSAL_TABLE = "| Task | Input | Behavior under test | Expected result | Verifier |\n|---|---|---|---|---|"
 FIRST_CHOICE = "I’ll build **{title}** first."
 PROPOSAL_PROCESS = (
     "Proposed tasks: {tasks}; distinct input examples: {examples}. "
@@ -41,16 +41,16 @@ PROPOSAL_PROCESS = (
 )
 PROPOSAL_QUESTION = (
     "Do these tasks make sense for your agent? Are we testing the right behaviors, "
-    "with the right expected results and grading? Tell me what you’d change, add, "
+    "with the right expected results and verifiers? Tell me what you’d change, add, "
     "or prioritize—or approve the proposal as written."
 )
-VALIDATION_SETUP_INTRO = "Before I build the tasks, I need a few details for checking their grading."
+VALIDATION_SETUP_INTRO = "Before I build the tasks, I need a few details for validating their verifiers."
 VALIDATION_SETUP_QUESTIONS = "**Questions before building:**"
 VALIDATION_SETUP_QUESTION = "Please provide these details so I can build and validate the tasks."
 FIRST_PROGRESS = (
     "I’m preparing the first task’s starting data and checking that its environment works. "
     "Then I’ll add the [reference solution](https://docs.harborframework.com/tasks/solution) "
-    "and [grader](https://docs.harborframework.com/tasks/verifier)."
+    "and [verifier](https://docs.harborframework.com/tasks/verifier)."
 )
 GYM_PROGRESS = (
     "I’m preparing the first task’s starting data and checking that its environment works. "
@@ -60,7 +60,7 @@ BUILD_HEADING = "**First task: {title}**"
 BUILD_STEPS = {
     "environment": "Prepare starting data and environment",
     "environment_check": "Check the environment",
-    "grading": "Add the reference solution and grader",
+    "grading": "Add the reference solution and verifier",
     "artifacts": "Prepare README and report",
 }
 GYM_BUILD_GRADING = "Add the reference fixtures and native Gym verifier"
@@ -88,7 +88,7 @@ REMAINING_HEADING = "**Remaining tasks**"
 REMAINING_STEPS = {
     "tasks": "Build remaining tasks",
     "environment_check": "Check task environments",
-    "validation": "Validate all task graders",
+    "validation": "Validate all task verifiers",
     "artifacts": "Refresh README and report",
 }
 NO_REMAINING_TASKS = "No additional tasks agreed."
@@ -99,22 +99,22 @@ FIRST_REVIEW_ACTION = "Review your first task in the {report} or {readme}."
 FIRST_REVIEW_REPORT_LABEL = "HTML report’s Tasks view"
 FIRST_REVIEW_README_LABEL = "mirrored README"
 FIRST_QUESTION = (
-    "Does this represent the behavior you want to test, and would its grading judge the agent fairly? "
+    "Does this represent the behavior you want to test, and would its verifier assess the agent fairly? "
     "Approve the first task or tell me what to change before I build the remaining tasks."
 )
 REMAINDER_PROGRESS = (
-    "I’ll use the approved pattern to build the remaining tasks, then check that their graders "
+    "I’ll use the approved pattern to build the remaining tasks, then check that their verifiers "
     "accept reference results and reject relevant incorrect results."
 )
-NO_REMAINDER_PROGRESS = "I’ll check the approved task’s grader, then refresh the README and report."
+NO_REMAINDER_PROGRESS = "I’ll check the approved task’s verifier, then refresh the README and report."
 SUITE_REVIEW_INTRO = (
     "Your evaluation suite is ready for review: {tasks} tasks; {examples} distinct input examples. "
     "It follows your approved design and confirmed `ETHOS.md`."
 )
 SUITE_REVIEW_ACTION = "Review your tasks in the {report} or {readme}."
-SUITE_REVIEW_TABLE = "| Task | Behavior under test | Expected result | Grading |\n|---|---|---|---|"
+SUITE_REVIEW_TABLE = "| Task | Behavior under test | Expected result | Verifier |\n|---|---|---|---|"
 SUITE_REVIEW_STATUS = (
-    "**Status:** Environment proof: {environments}/{tasks} passed. Grading validation: {validated}/{tasks} passed. "
+    "**Status:** Environment proof: {environments}/{tasks} passed. Verifier validation: {validated}/{tasks} passed. "
     "Agent execution: {executed}/{tasks} tasks complete."
 )
 SUITE_QUESTION = "Do these tasks look good? Approve the suite or tell me what to change before we choose how to run it."
@@ -122,14 +122,14 @@ SETTINGS_INTRO = "Here are the settings for running the approved tasks."
 SETTINGS_LABELS = ("Attempts", "Validation", "Time/cost limits", "Open questions")
 NO_OPEN_QUESTIONS = "None."
 CHECKS_PASSED = (
-    "The graders have already passed their checks. I’ll reuse those saved results; "
+    "The verifiers have already passed their checks. I’ll reuse those saved results; "
     "the agent run will measure your agent’s performance."
 )
 RUN_PROGRESS = "I’ll now run your agent on the approved tasks with the agreed settings."
 RUN_QUESTION = "May I run the selected tasks with the displayed settings and limits?"
 RUN_HEADING = "**Evaluation run**"
 RUN_STEPS = {
-    "validation": "Check task grading",
+    "validation": "Check task verifiers",
     "execution": "Run approved tasks",
     "review": "Review an agent attempt",
     "artifacts": "Update README and report",
@@ -148,8 +148,8 @@ RUN_EVIDENCE_PENDING = (
 FIRST_REVIEW = (
     "- **Input:** {input}\n"
     "- **Expected result:** {expected_result}\n"
-    "- **Grading:** {grading} Limitation: {grading_limitation}\n"
-    "- **Status:** Environment proof: passed. Grading validation: {validation}. Agent execution: {execution}."
+    "- **Verifier:** {grading} Limitation: {grading_limitation}\n"
+    "- **Status:** Environment proof: passed. Verifier validation: {validation}. Agent execution: {execution}."
 )
 VALIDATION_PASSED = "passed"
 VALIDATION_PENDING = "pending or requiring attention"
@@ -225,7 +225,7 @@ GYM_RESULTS_REVIEW = (
 )
 AUDIT_QUESTION = (
     "Would you like to see how you could improve your suite further? We can audit its coverage "
-    "and grading against the behavior described in `ETHOS.md` to identify gaps and worthwhile improvements."
+    "and verifiers against the behavior described in `ETHOS.md` to identify gaps and worthwhile improvements."
 )
 BLOCKER = "- **{step}:** {reason} **Needed:** {needed}"
 ADAPTER_BLOCKER_ID = "agent-integration"
@@ -247,10 +247,10 @@ adapters, and documented extension interfaces. Use the provider's official
 documentation for that version. Implement the smallest supported adapter or
 configuration that invokes the actual agent with the agreed task inputs and
 returns its responses, ordered actions, errors, and observable state in the form
-the existing graders expect. For a selected Gym-Harbor path, preserve that bridge.
+the existing verifiers expect. For a selected Gym-Harbor path, preserve that bridge.
 
 Preserve the agent's behavior, model and tool configuration, ETHOS.md, agreed
-task/example mapping, fixtures, reference solutions, graders, and prior evidence.
+task/example mapping, fixtures, reference solutions, verifiers, and prior evidence.
 Keep verifier-only data away from the agent. Isolate and reset task state between
 attempts. Use only the explicitly selected tasks and examples; do not select tasks
 by directory membership. Report any missing planned task files without creating

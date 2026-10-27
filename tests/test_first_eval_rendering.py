@@ -128,10 +128,10 @@ def approved(creation, *, setup=True):
             "mode": "model",
             "requirements": [
                 "Existing configured judge and local code checks; credential availability verified",
-                "Prior authorization covers at most 6 judge calls and $1 for grading controls",
+                "Prior authorization covers at most 6 judge calls and $1 for verifier controls",
             ],
             "open_questions": [],
-            "source": "Inspected existing compatible grading configuration and applicable authorization",
+            "source": "Inspected existing compatible verifier configuration and applicable authorization",
         }
 
 
@@ -323,7 +323,7 @@ def result_facts(creation):
         "input": "Refund request",
         "observed": "Denied eligible refund",
         "grade_explanation": "Wrong disposition",
-        "quality_failures": "Two incorrect dispositions under the binary grader.",
+        "quality_failures": "Two incorrect dispositions under the binary verifier.",
         "identity_limitations": "Configured identity only; actual model health is unknown.",
         "reconciliation": "Delivered two tasks and two attempts; other regions remain untested.",
     }
@@ -336,7 +336,7 @@ def test_proposal_is_concise_deterministic_and_read_only(creation):
     output = renderer.render(payload(creation, "proposal"))
     assert output == PLANNING_PROGRESS + "\n\n" + (
         "Here are the proposed evaluation tasks.\n\n"
-        "| Task | Input | Behavior under test | Expected result | Grading |\n|---|---|---|---|---|\n"
+        "| Task | Input | Behavior under test | Expected result | Verifier |\n|---|---|---|---|---|\n"
         "| refund | Request &#124; with newline<br>continued | Respect policy | Correct disposition | Code checks verify state; model judge assesses response meaning |\n"
         "| reject | Request &#124; with newline<br>continued | Respect policy | Correct disposition | Code checks verify rejected action and unchanged state |\n\n"
         "These check refunds and rejection. Other regions remain untested.\n\n"
@@ -344,7 +344,7 @@ def test_proposal_is_concise_deterministic_and_read_only(creation):
         "Proposed tasks: 2; distinct input examples: 2. After you approve the proposal, "
         "I’ll build only that first task and pause for your review before building any remaining tasks.\n\n"
         "Do these tasks make sense for your agent? Are we testing the right behaviors, "
-        "with the right expected results and grading? Tell me what you’d change, add, "
+        "with the right expected results and verifiers? Tell me what you’d change, add, "
         "or prioritize—or approve the proposal as written.\n"
     )
     assert output == renderer.render(payload(creation, "resume"))
@@ -512,7 +512,7 @@ def test_saved_design_approval_leads_directly_to_first_authoring(creation):
     approved(creation)
     assert renderer.render(payload(creation, "resume")).startswith(copy.FIRST_PROGRESS + "\n\n**First task:")
     assert "[reference solution](https://docs.harborframework.com/tasks/solution)" in copy.FIRST_PROGRESS
-    assert "[grader](https://docs.harborframework.com/tasks/verifier)" in copy.FIRST_PROGRESS
+    assert "[verifier](https://docs.harborframework.com/tasks/verifier)" in copy.FIRST_PROGRESS
     with pytest.raises(ValueError, match="Review and approve the first task"):
         renderer.render(payload(creation, "execution_settings"))
 
@@ -524,11 +524,11 @@ def test_initial_first_task_message_has_the_fixed_build_checklist(creation):
     assert output == (
         "I’m preparing the first task’s starting data and checking that its environment works. "
         "Then I’ll add the [reference solution](https://docs.harborframework.com/tasks/solution) "
-        "and [grader](https://docs.harborframework.com/tasks/verifier).\n\n"
+        "and [verifier](https://docs.harborframework.com/tasks/verifier).\n\n"
         "**First task: refund**\n\n"
         "- [ ] Prepare starting data and environment (skill in use: eval-author-environment) — In progress\n"
         "- [ ] Check the environment (skill in use: eval-author-environment) — Pending\n"
-        "- [ ] Add the reference solution and grader (skill in use: eval-author-first-eval) — Pending\n"
+        "- [ ] Add the reference solution and verifier (skill in use: eval-author-first-eval) — Pending\n"
         "- [ ] Prepare README and report (skill in use: eval-author-first-eval, eval-author) — Pending\n"
     )
 
@@ -560,7 +560,7 @@ def test_repeated_build_progress_is_only_the_checklist_and_preserves_state(creat
         "**First task: refund**\n\n"
         "- [x] Prepare starting data and environment (skill in use: eval-author-environment) — Complete\n"
         "- [ ] Check the environment (skill in use: eval-author-environment) — In progress\n"
-        "- [ ] Add the reference solution and grader (skill in use: eval-author-first-eval) — Pending\n"
+        "- [ ] Add the reference solution and verifier (skill in use: eval-author-first-eval) — Pending\n"
         "- [ ] Prepare README and report (skill in use: eval-author-first-eval, eval-author) — Pending\n"
     )
     assert output == renderer.render(request) == renderer.render(payload(creation, "resume"))
@@ -755,12 +755,12 @@ def test_remaining_task_initial_message_has_counts_and_responsible_skills(creati
     built(creation, reviewed=True)
     remaining_started(creation)
     assert renderer.render(payload(creation, "prepare_remaining")) == (
-        "I’ll use the approved pattern to build the remaining tasks, then check that their graders "
+        "I’ll use the approved pattern to build the remaining tasks, then check that their verifiers "
         "accept reference results and reject relevant incorrect results.\n\n"
         "**Remaining tasks**\n\n"
         "- [ ] Build remaining tasks: 0/1 tasks (skill in use: eval-author-first-eval) — In progress\n"
         "- [ ] Check task environments: 0/1 tasks (skill in use: eval-author-environment) — Pending\n"
-        "- [ ] Validate all task graders: 1/2 tasks (skill in use: eval-author-first-eval) — Pending\n"
+        "- [ ] Validate all task verifiers: 1/2 tasks (skill in use: eval-author-first-eval) — Pending\n"
         "- [ ] Refresh README and report (skill in use: eval-author-first-eval, eval-author) — Pending\n"
     )
 
@@ -804,7 +804,7 @@ def test_remaining_progress_is_a_pure_repeatable_snapshot_and_survives_resume(cr
         "**Remaining tasks**\n\n"
         "- [ ] Build remaining tasks: 0/1 tasks (skill in use: eval-author-first-eval) — In progress\n"
         "- [ ] Check task environments: 0/1 tasks (skill in use: eval-author-environment) — Pending\n"
-        "- [ ] Validate all task graders: 1/2 tasks (skill in use: eval-author-first-eval) — Pending\n"
+        "- [ ] Validate all task verifiers: 1/2 tasks (skill in use: eval-author-first-eval) — Pending\n"
         "- [ ] Refresh README and report (skill in use: eval-author-first-eval, eval-author) — Pending\n"
     )
     assert output == renderer.render(request) == renderer.render(payload(creation, "resume"))
@@ -821,13 +821,13 @@ def test_remaining_checklist_advances_from_task_evidence_through_the_artifact_re
     output = renderer.render(payload(creation, "remaining_progress"))
     assert "Build remaining tasks: 1/1 tasks (skill in use: eval-author-first-eval) — Complete" in output
     assert "Check task environments: 1/1 tasks (skill in use: eval-author-environment) — Complete" in output
-    assert "Validate all task graders: 1/2 tasks (skill in use: eval-author-first-eval) — In progress" in output
+    assert "Validate all task verifiers: 1/2 tasks (skill in use: eval-author-first-eval) — In progress" in output
     assert output.count("[x]") == 2
     for task in record["tasks"].values():
         task["validation"] = deepcopy(task["environment"])
     record["remaining_build"]["active_step"] = "artifacts"
     output = renderer.render(payload(creation, "resume"))
-    assert "Validate all task graders: 2/2 tasks (skill in use: eval-author-first-eval) — Complete" in output
+    assert "Validate all task verifiers: 2/2 tasks (skill in use: eval-author-first-eval) — Complete" in output
     assert "Refresh README and report (skill in use: eval-author-first-eval, eval-author) — In progress" in output
     assert output.count("[x]") == 3
     remaining_started(creation, active=None, artifacts=True)
@@ -850,7 +850,7 @@ def test_failed_or_stale_remaining_evidence_does_not_complete_validation(creatio
     elif failure == "missing_task":
         request["facts"]["observations"]["tasks"]["reject"] = None
     output = renderer.render(request)
-    assert "Validate all task graders: 1/2 tasks (skill in use: eval-author-first-eval) — In progress" in output
+    assert "Validate all task verifiers: 1/2 tasks (skill in use: eval-author-first-eval) — In progress" in output
     assert "Refresh README and report (skill in use: eval-author-first-eval, eval-author) — Complete" not in output
     assert output.count("[x]") < 4
 
@@ -881,7 +881,7 @@ def test_zero_remaining_tasks_are_complete_without_claiming_additional_work(crea
     assert copy.NO_REMAINING_TASKS in output and copy.REMAINDER_PROGRESS not in output
     assert "Build remaining tasks: 0/0 tasks (skill in use: eval-author-first-eval) — Complete" in output
     assert "Check task environments: 0/0 tasks (skill in use: eval-author-environment) — Complete" in output
-    assert "Validate all task graders: 1/1 tasks (skill in use: eval-author-first-eval) — Complete" in output
+    assert "Validate all task verifiers: 1/1 tasks (skill in use: eval-author-first-eval) — Complete" in output
     assert output.count("[x]") == 3
 
 
@@ -937,10 +937,10 @@ def test_suite_review_is_a_linked_deterministic_checkpoint_before_execution_choi
         "It follows your approved design and confirmed `ETHOS.md`.\n\n"
         f"Review your tasks in the [HTML report’s Tasks view](<{root}/.eval-author/report.html#cases>) "
         f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
-        "| Task | Behavior under test | Expected result | Grading |\n|---|---|---|---|\n"
+        "| Task | Behavior under test | Expected result | Verifier |\n|---|---|---|---|\n"
         "| refund | Respect policy | Correct disposition | Code checks verify state; model judge assesses response meaning |\n"
         "| reject | Respect policy | Correct disposition | Code checks verify rejected action and unchanged state |\n\n"
-        "**Status:** Environment proof: 2/2 passed. Grading validation: 2/2 passed. "
+        "**Status:** Environment proof: 2/2 passed. Verifier validation: 2/2 passed. "
         "Agent execution: 0/2 tasks complete.\n\n"
         "Limitations: Other regions untested\n\n"
         "Do these tasks look good? Approve the suite or tell me what to change before we choose how to run it.\n"
@@ -1292,9 +1292,11 @@ def test_review_leads_with_grounding_and_action_before_item_summaries(creation, 
         f"Review your first task in the [HTML report’s Tasks view](<{root}/.eval-author/report.html#cases>) "
         f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
     )
-    positions = [output.index(label) for label in ("- **Input:", "- **Expected result:", "- **Grading:", "- **Status:")]
+    positions = [
+        output.index(label) for label in ("- **Input:", "- **Expected result:", "- **Verifier:", "- **Status:")
+    ]
     assert positions == sorted(positions)
-    assert "Environment proof: passed. Grading validation: passed" in output
+    assert "Environment proof: passed. Verifier validation: passed" in output
     assert "Agent execution: not completed" in output and copy.FIRST_QUESTION in output
     assert "report.html#cases>)" in output and "/tasks/refund/README.md>)" in output
     assert output.count("/.eval-author/report.html") == 1
@@ -1350,7 +1352,7 @@ def test_late_settings_and_explicit_execution_authorization(creation):
     selected(creation)
     output = renderer.render(payload(creation, "ready_to_run", access_ready=True))
     assert output == (
-        "The graders have already passed their checks. I’ll reuse those saved results; "
+        "The verifiers have already passed their checks. I’ll reuse those saved results; "
         "the agent run will measure your agent’s performance.\n\n"
         "I’ll now run your agent on the approved tasks with the agreed settings.\n"
     )
@@ -1374,7 +1376,7 @@ def test_running_checklist_is_repeatable_and_reports_only_observed_activity(crea
     assert state == before
     assert output.startswith(copy.RUN_HEADING + "\n\n")
     assert len([row for row in output.splitlines() if row.startswith("- [")]) == 4
-    assert "Check task grading — Complete" in output
+    assert "Check task verifiers — Complete" in output
     expected = "In progress" if status == "running" else "Waiting for progress"
     assert f"Run approved tasks — {expected}" in output
     assert "Review an agent attempt — Pending" in output
@@ -2009,7 +2011,7 @@ def test_native_gym_author_progress_and_rows_are_retained(creation):
     assert (
         "Add the reference fixtures and native Gym verifier (skill in use: eval-author-first-eval) — Pending" in output
     )
-    assert "Add the reference solution and grader (skill in use: eval-author-first-eval) — Pending" not in output
+    assert "Add the reference solution and verifier (skill in use: eval-author-first-eval) — Pending" not in output
     assert "native Gym verifier" in copy.GYM_PROGRESS and "harborframework" not in copy.GYM_PROGRESS
 
 
@@ -2126,9 +2128,9 @@ def pending_setup(creation):
         ],
         "open_questions": [
             "Which existing judge configuration should these checks use?",
-            "Is its credential available, and do you authorize these bounded grading checks?",
+            "Is its credential available, and do you authorize these bounded verifier checks?",
         ],
-        "source": "Inspected the approved design's model-based grading requirements",
+        "source": "Inspected the approved design's model-based verifier requirements",
     }
 
 
