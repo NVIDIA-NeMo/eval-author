@@ -45,12 +45,12 @@ coverage, and correlation. Prep is external to those stages.
 
 ## Benchmark definition
 
-A metric benchmark consists of linked manifests. SHA-256 pins are optional during
+A metric benchmark consists of an experiment with inline cases and linked manifests. SHA-256 pins are optional during
 iteration; established benchmarks should pin every reference to fix their inputs:
 
-- **Experiment YAML (`experiment.yml`):** lists cases and configures execution,
+- **Experiment YAML (`experiment.yml`):** defines inline cases and configures execution,
   metric computation, and scoring.
-- **Case manifest (`case.yml`):** combines an agent manifest, a tasks manifest,
+- **Case entry (inside `experiment.yml`):** combines an agent manifest, a tasks manifest,
   and a prepared subset manifest.
 - **Agent manifest (`agent.yml`):** defines the baseline, mutants, and intended
   behavior description, with references to prepared dependencies.
@@ -59,7 +59,7 @@ iteration; established benchmarks should pin every reference to fix their inputs
   preparation seed. It is bound to the task inventory, independently of case IDs.
 
 Prep produces these fixed inputs. Cases can share agents, tasks and subsets;
-experiments select cases without repeating or modifying their definitions.
+experiments combine these inputs through their inline case definitions.
 Different metric configurations can reuse the same prepared inputs.
 
 After unpacking a benchmark, all paths resolve relative to the bundle root—the
@@ -92,7 +92,7 @@ their logical contents.
 | Mutants | Executable bundles with distinct identities, their baseline relationship, and mutation descriptions |
 | Case description | Stable case identity and intended agent behavior; an Ethos is one possible representation |
 | Benchmark tasks | Fixed task membership, task identities, environments, correctness verifiers, and a versioned subset manifest |
-| Experiment configuration | `experiment.yml`: case-manifest references, execution settings, coverage-system settings and permitted evidence, and scoring parameters |
+| Experiment configuration | `experiment.yml`: inline cases and their input references, execution settings, coverage-system settings and permitted evidence, and scoring parameters |
 
 Baseline and mutant bundles are prepared and checked before release.
 Tasks and their environments are ready for execution. At present only Harbor tasks are used.

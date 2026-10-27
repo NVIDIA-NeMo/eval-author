@@ -12,14 +12,14 @@ A bundle connects the inputs in this order:
 
 ```text
 experiment.yml
-  -> case.yml (one reference per case)
+  -> cases (inline list)
        -> agent.yml -> baseline files, mutant files, description.json
        -> tasks.yml -> task directories, each with its own verifier
        -> subsets.json -> task IDs from the selected tasks.yml
 ```
 
-Cases select fixed agent, task, and subset manifests. An experiment selects
-cases and supplies execution and analysis settings. Reusing a manifest does not
+Cases select agent, task, and subset manifests. The experiment defines its
+cases inline and supplies execution and analysis settings. Reusing a manifest does not
 copy or regenerate its contents. Execution results belong in a separate output
 directory; they are not prepared inputs in this bundle.
 
@@ -28,7 +28,7 @@ directory; they are not prepared inputs in this bundle.
 Use this **recommended layout** when preparing a benchmark. The names below
 are examples: replace `rho-agent`, `workspace`, task IDs, and mutant IDs with
 those of the case being packaged. Keep agents under `agents/`, task collections
-under `tasks/`, and case combinations under `cases/`. Keep `subsets.json` beside
+under `tasks/`, and case combinations in `experiment.yml`. Keep `subsets.json` beside
 its `tasks.yml` and each agent version in its own directory.
 
 The loader enforces the manifest relationships and reference rules below, not
@@ -39,7 +39,6 @@ The directory containing `experiment.yml` is the bundle root:
 ```text
 benchmark/
   experiment.yml
-  cases/rho-agent/case.yml
   agents/rho-agent/
     agent.yml
     description.json
@@ -77,7 +76,8 @@ not add a task.
 Use `/`-separated relative paths without `..`, backslashes, colons, or NUL
 characters. The referenced file or directory must exist when verified and match
 its declared `kind`. File references use `kind: file` or omit `kind`; task
-sources must explicitly use `kind: directory`. Agent inputs may use either.
+sources are always directories and have no `kind` field in `tasks.yml`. Agent
+inputs may use either kind.
 
 Omit `sha256` while iterating. The loader still checks that the referenced path
 exists and has the expected kind, but does not hash its contents. When `sha256`
@@ -90,19 +90,20 @@ pins, not cryptographic signatures identifying a publisher. Without pins, the
 same experiment YAML can load changed inputs; its configuration identity does
 not identify those inputs' contents.
 
-For example, the `agent` reference inside `cases/rho-agent/case.yml` points to
-`agents/rho-agent/agent.yml`, not `../../agents/rho-agent/agent.yml`. Its digest
+For example, a case's `agent` reference in `experiment.yml` points to
+`agents/rho-agent/agent.yml`. Its digest
 covers that file's exact bytes, including whitespace and comments.
 
 Directory pins cover relative file names and file contents. They do not cover
 permission bits or empty directories. Compute pins using `input_digest(path)`
 from `metric_benchmark.config` so prep uses the same algorithm as the reader.
 
-When pinning an established benchmark, prepare pins from the leaves upward:
-agent/task files and the description and subsets first, then agent/tasks
-manifests, then case manifests, then the
-experiment. Changing a leaf requires updating each referencing digest up to the
-experiment. Revision labels do not replace this content verification.
+Use [`sha-sign`](tools.md#signing-a-benchmark) to write the pins. It hashes
+agent/task files, descriptions and subsets first, writes the hashes into the
+agent/tasks manifests, then hashes those manifests and updates the inline case
+references in `experiment.yml`. The experiment file has no self-hash. Changing
+an input requires re-signing its referencing manifests; revision labels do not
+replace content verification.
 
 ## Agents: `agent.yml`
 
@@ -133,26 +134,34 @@ not a required description schema.
 
 ## Tasks: `tasks.yml`
 
-Both `task_inventory` and `task_sources` are required. The inventory has a
-nonempty `tasks` list. Each task requires a unique `task_id` and a positive
-integer `revision`; `name` is optional. The inventory's `artifact_type` is
-`task_references` and may be omitted. `task_sources` must contain exactly the
-same task IDs, each mapped to a task directory reference.
+`tasks.yml` contains one nonempty `tasks` list. Each task specifies its identity
+and source together:
 
-`tasks.yml` identifies a task benchmark: a fixed collection of Harbor tasks.
-Existing task benchmarks can be bundled during prep; tasks need not be newly
-authored for this experiment.
-The `tasks.yml` manifest identifies the exact collection; there is no separate
-collection deployment, benchmark ID or revision block. Individual tasks retain
-their IDs and revisions in `task_inventory.tasks`.
+```yaml
+tasks:
+  - task_id: inspect-files
+    revision: 1
+    path: tasks/workspace/inspect-files
+  - task_id: read-config
+    revision: 1
+    path: tasks/workspace/read-config
+```
 
-Task IDs are stable labels in our manifest. The example uses readable names that
-match its task directories; the executor binds each ID to its explicit source
-path. A Harbor task directory contains `task.toml`, `instruction.md`, environment
-files and a verifier. Currently `task_sources` supports only `kind: directory`.
-`kind: file` is for manifests and agent dependencies, not executable task sources.
-Archives, Git repositories or remote datasets must be materialized as local task
-directories during prep; the runner does not download or unpack them.
+Each entry requires a unique `task_id`, a positive integer `revision`, and a
+bundle-relative `path` to a Harbor task directory. `name` and `sha256` are
+optional. `sha-sign` adds the SHA field. There is no `kind` field: all task
+sources are directories. The loader derives the task inventory used by scoring
+and execution results from this list; authors do not repeat it in the YAML.
+
+Task IDs are stable labels. The example uses readable names matching the task
+directories, but each task's explicit `path` determines its location. Each
+Harbor task directory contains `task.toml`, `instruction.md`, environment files
+and a verifier. The task owns the verifier; the agent attempts the task.
+
+This list can package an existing task benchmark. Archives, Git repositories
+and remote datasets must be materialized as local directories during prep;
+the runner does not download or unpack them. There is no additional collection
+benchmark ID, deployment, or revision block.
 
 ## Subsets: `subsets.json`
 
@@ -175,29 +184,42 @@ metadata values must be integers or strings. There must be at least one subset,
 and each subset must contain at least one task. Subset IDs are strings, including
 numbered labels such as `"subset-000001"`. Subsets may overlap.
 
-## Cases: `case.yml`
+## Experiment and inline cases: `experiment.yml`
 
-This file defines a `case_id` and `agent`, `tasks`, and `subsets` manifest
-references. It combines an agent and its mutants with a task collection and the
-subsets used for analysis. Cases can reuse manifests while selecting different
-combinations of agents, tasks and subsets. All four fields are required;
-`agent`, `tasks`, and `subsets` must reference files. Case IDs must be unique
-within the experiment. Use the case ID for its directory name by convention;
-if the same agent is paired with two task collections, give each combination
-a distinct case ID.
+The experiment defines its cases directly. Each case requires a unique `case_id`
+and `agent`, `tasks`, and `subsets` file references. There is no separate
+`case.yml`. Cases can reuse manifests while choosing different combinations of
+agents, tasks and subsets.
 
-## Experiment: `experiment.yml`
+This unsigned example shows the full shape. The coverage command is illustrative;
+replace it with the installed metric tool's command:
 
-The experiment YAML contains `benchmark_id`, `revision`, a list of `cases`
-references, `coverage`, and optional `execution`, `scoring`, and `missing_policy`
-settings. Each case reference has a relative `path` and optional `sha256`.
-This defines the metric benchmark by combining prepared cases with execution and analysis settings.
+```yaml
+benchmark_id: rho-metric-validity
+revision: 1
+cases:
+  - case_id: rho-agent
+    agent:
+      path: agents/rho-agent/agent.yml
+    tasks:
+      path: tasks/workspace/tasks.yml
+    subsets:
+      path: tasks/workspace/subsets.json
+coverage:
+  system_id: eval-author
+  system_revision: '1'
+  command: [python, /path/to/coverage-adapter.py]
+```
+
+When the same agent is paired with two task collections, give each combination
+a distinct case ID. `sha-sign` adds SHA fields beside each reference's `path`;
+there is no SHA on the inline case itself.
 
 | Field | Requirement or default |
 | --- | --- |
 | `benchmark_id` | Required nonempty string identifying the metric benchmark. |
 | `revision` | Required positive integer identifying this experiment definition. |
-| `cases` | Required nonempty list of case-file references; no repeated paths or case IDs. |
+| `cases` | Required nonempty list of inline cases, with distinct case IDs. |
 | `coverage` | Required metric-tool configuration, described below. |
 | `execution` | Optional; defaults to the local Harbor settings below. |
 | `scoring` | Optional; defaults to the policy below. |
@@ -231,7 +253,7 @@ and `execution.environment` values must be JSON-compatible; quote YAML date-like
 strings. There is no `schema_version` field. Revisions identify experiment,
 agent, task, or metric-tool inputs rather than versions of this file format.
 
-`load_benchmark()` reads the experiment, verifies the referenced manifests and
+`load_benchmark()` reads the experiment and its inline cases, verifies the referenced manifests and
 all prepared inputs (checking any supplied digests), and loads subsets and
 descriptions. It checks subset task IDs against the selected task inventory. It does not execute the agents, verify
 that a launch integration works, or validate the metric-specific meaning of the

@@ -14,7 +14,7 @@ from metric_benchmark.models import Score, Subsets, Tasks
 
 LAB = Path(__file__).resolve().parents[1] / "labs/metric-benchmark"
 FIXTURE = Path(__file__).parent / "fixtures/metric_benchmark"
-CASE_DIR = Path("cases/rho-agent")
+AGENT_DIR = Path("agents/rho-agent")
 TASK_DIR = Path("tasks/workspace")
 SUBSETS_PATH = Path("tasks/workspace/subsets.json")
 DESCRIPTION_PATH = Path("agents/rho-agent/description.json")
@@ -62,7 +62,7 @@ def prepared_benchmark(root):
 
 
 def case_definition(experiment):
-    manifest = yaml.safe_load((experiment.parent / CASE_DIR / "case.yml").read_text())
+    manifest = yaml.safe_load(experiment.read_text())["cases"][0]
     agent = yaml.safe_load((experiment.parent / manifest["agent"]["path"]).read_text())
     tasks = yaml.safe_load((experiment.parent / manifest["tasks"]["path"]).read_text())
     return {
@@ -71,25 +71,39 @@ def case_definition(experiment):
         "baseline": agent["baseline"],
         "mutants": agent["mutants"],
         "case_description": agent["description"],
-        **tasks,
+        "task_inventory": {
+            "tasks": [
+                {key: value for key, value in task.items() if key in ("task_id", "revision", "name")}
+                for task in tasks["tasks"]
+            ]
+        },
+        "task_sources": {
+            task["task_id"]: {"path": task["path"], "sha256": task.get("sha256"), "kind": "directory"}
+            for task in tasks["tasks"]
+        },
     }
 
 
 def write_case(experiment, case):
-    manifest_path = experiment.parent / CASE_DIR / "case.yml"
-    manifest = yaml.safe_load(manifest_path.read_text())
+    definition = yaml.safe_load(experiment.read_text())
+    manifest = definition["cases"][0]
     parts = {
         "agent": {"baseline": case["baseline"], "mutants": case["mutants"], "description": case["case_description"]},
-        "tasks": {"task_inventory": case["task_inventory"], "task_sources": case["task_sources"]},
+        "tasks": {
+            "tasks": [
+                {
+                    **task,
+                    **{key: value for key, value in case["task_sources"][task["task_id"]].items() if key != "kind"},
+                }
+                for task in case["task_inventory"]["tasks"]
+            ]
+        },
     }
     for name, data in parts.items():
         target = experiment.parent / manifest[name]["path"]
         target.write_text(yaml.safe_dump(data, sort_keys=False))
         manifest[name]["sha256"] = input_digest(target)
     manifest.update(case_id=case["case_id"], subsets=case["subsets"])
-    manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False))
-    definition = yaml.safe_load(experiment.read_text())
-    definition["cases"][0]["sha256"] = input_digest(manifest_path)
     experiment.write_text(yaml.safe_dump(definition, sort_keys=False))
 
 
@@ -111,18 +125,18 @@ def test_prepared_inputs_and_fixed_memberships(tmp_path):
         load_benchmark(path)
 
 
-@pytest.mark.parametrize("change", ["unknown", "duplicate-case", "case-pin", "source-missing"])
+@pytest.mark.parametrize("change", ["unknown", "duplicate-case", "agent-pin", "source-missing"])
 def test_bad_definition(tmp_path, change):
     path, config = prepared_benchmark(tmp_path)
     if change == "unknown":
         config["surprise"] = True
     elif change == "duplicate-case":
         config["cases"] *= 2
-    elif change == "case-pin":
-        (tmp_path / CASE_DIR / "case.yml").write_text("changed")
+    elif change == "agent-pin":
+        (tmp_path / AGENT_DIR / "agent.yml").write_text("changed")
     else:
         case = case_definition(path)
-        del case["task_sources"]["inspect-files"]
+        case["task_sources"]["inspect-files"]["path"] = "missing-task"
         write_case(path, case)
         config = yaml.safe_load(path.read_text())
     path.write_text(yaml.safe_dump(config))
@@ -135,7 +149,7 @@ def test_duplicate_yaml_and_paths(tmp_path):
     path.write_text(path.read_text() + "benchmark_id: duplicate\n")
     with pytest.raises(ValueError, match="unique strings"):
         load_benchmark(path)
-    config["cases"][0]["path"] = "../outside.yml"
+    config["cases"][0]["agent"]["path"] = "../outside.yml"
     path.write_text(yaml.safe_dump(config))
     with pytest.raises(ValueError, match="relative"):
         load_benchmark(path)
@@ -292,7 +306,7 @@ def test_permission_error_is_not_reported_as_missing(tmp_path, monkeypatch):
 def test_fixed_case_can_be_reused_by_different_experiments(tmp_path):
     path, definition = prepared_benchmark(tmp_path)
     first = load_benchmark(path)
-    before = {p.relative_to(tmp_path): p.read_bytes() for p in (tmp_path / CASE_DIR).rglob("*") if p.is_file()}
+    before = {p.relative_to(tmp_path): p.read_bytes() for p in (tmp_path / AGENT_DIR).rglob("*") if p.is_file()}
     definition["benchmark_id"] = "rho-alternative-metric"
     definition["coverage"]["system_id"] = "another-metric"
     definition["scoring"] = {"direction": "lower_is_better"}
@@ -303,7 +317,7 @@ def test_fixed_case_can_be_reused_by_different_experiments(tmp_path):
     assert first.cases == second.cases
     assert first.subsets == second.subsets
     assert first.definition.cases == second.definition.cases
-    assert before == {p.relative_to(tmp_path): p.read_bytes() for p in (tmp_path / CASE_DIR).rglob("*") if p.is_file()}
+    assert before == {p.relative_to(tmp_path): p.read_bytes() for p in (tmp_path / AGENT_DIR).rglob("*") if p.is_file()}
 
 
 def test_unpacked_bundle_resolves_relative_to_bundle_root(tmp_path, monkeypatch):
@@ -323,13 +337,11 @@ def test_unpacked_bundle_resolves_relative_to_bundle_root(tmp_path, monkeypatch)
     )
 
 
-@pytest.mark.parametrize("level", ["case", "agent", "tasks", "subsets"])
+@pytest.mark.parametrize("level", ["agent", "tasks", "subsets"])
 @pytest.mark.parametrize("failure", ["absolute", "traversal", "symlink", "missing"])
 def test_manifest_references_stay_inside_their_package(tmp_path, level, failure):
     path, definition = prepared_benchmark(tmp_path)
-    manifest_path = tmp_path / CASE_DIR / "case.yml"
-    manifest = yaml.safe_load(manifest_path.read_text())
-    source = definition["cases"][0] if level == "case" else manifest[level]
+    source = definition["cases"][0][level]
     root = tmp_path
     target = root / source["path"]
     if failure == "absolute":
@@ -342,20 +354,6 @@ def test_manifest_references_stay_inside_their_package(tmp_path, level, failure)
         source["path"] = "alias"
     else:
         target.unlink()
-    if level != "case":
-        manifest_path.write_text(yaml.safe_dump(manifest))
-        definition["cases"][0]["sha256"] = input_digest(manifest_path)
     path.write_text(yaml.safe_dump(definition))
     with pytest.raises(ValueError, match="relative|symlink|missing pinned input"):
         load_benchmark(path)
-
-
-def test_distinct_manifest_paths_cannot_duplicate_case_ids(tmp_path):
-    path, definition = prepared_benchmark(tmp_path)
-    original = tmp_path / CASE_DIR / "case.yml"
-    duplicate = tmp_path / "other.yml"
-    duplicate.write_bytes(original.read_bytes())
-    definition["cases"].append({"path": duplicate.name, "sha256": input_digest(duplicate)})
-    path.write_text(yaml.safe_dump(definition))
-    with pytest.raises(ValueError, match="duplicate case ID: rho-agent"):
-        read_benchmark(path)

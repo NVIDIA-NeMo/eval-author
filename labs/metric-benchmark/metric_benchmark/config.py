@@ -11,7 +11,7 @@ import yaml
 from pydantic import Field, JsonValue, model_validator
 
 from metric_benchmark.io import digest_bytes, digest_file, json_bytes, read_json
-from metric_benchmark.models import Digest, Model, Subsets, Tasks, Text, resolve_evidence, unique
+from metric_benchmark.models import Digest, Model, Subsets, Task, Tasks, Text, resolve_evidence, unique
 
 
 class StrictLoader(yaml.SafeLoader):
@@ -47,14 +47,14 @@ class PinnedInput(Model):
     sha256: Digest | None = None
     kind: Literal["file", "directory"] = "file"
 
-    def resolve(self, root: Path) -> Path:
+    def resolve(self, root: Path, *, verify_digest: bool = True) -> Path:
         try:
             path = resolve_evidence(root, self.path)
         except FileNotFoundError:
             raise ValueError(f"missing pinned input: {self.path}") from None
         if (self.kind == "directory" and not path.is_dir()) or (self.kind == "file" and not path.is_file()):
             raise ValueError(f"wrong input kind: {self.path}")
-        if self.sha256 is not None and input_digest(path) != self.sha256:
+        if verify_digest and self.sha256 is not None and input_digest(path) != self.sha256:
             raise ValueError(f"input digest differs: {self.path}")
         return path
 
@@ -106,12 +106,32 @@ class AgentManifest(Model):
     description: PinnedInput
 
 
+class TaskSource(Task):
+    path: Text
+    sha256: Digest | None = None
+
+    def source(self) -> PinnedInput:
+        return PinnedInput(path=self.path, sha256=self.sha256, kind="directory")
+
+
 class TaskManifest(Model):
-    task_inventory: Tasks
-    task_sources: dict[Text, PinnedInput]
+    tasks: list[TaskSource] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def unique_tasks(self) -> Self:
+        unique([task.task_id for task in self.tasks], "task IDs")
+        return self
+
+    @property
+    def task_inventory(self) -> Tasks:
+        return Tasks(tasks=[Task(task_id=t.task_id, revision=t.revision, name=t.name) for t in self.tasks])
+
+    @property
+    def task_sources(self) -> dict[str, PinnedInput]:
+        return {task.task_id: task.source() for task in self.tasks}
 
 
-class CaseManifest(Model):
+class CaseDefinition(Model):
     case_id: Text
     agent: PinnedInput
     tasks: PinnedInput
@@ -132,6 +152,18 @@ class Case(Model):
     subsets: PinnedInput
     baseline: Agent
     mutants: list[Agent] = Field(min_length=1)
+
+    @classmethod
+    def from_manifests(cls, definition: CaseDefinition, agent: AgentManifest, tasks: TaskManifest) -> Self:
+        return cls(
+            case_id=definition.case_id,
+            subsets=definition.subsets,
+            baseline=agent.baseline,
+            mutants=agent.mutants,
+            case_description=agent.description,
+            task_inventory=tasks.task_inventory,
+            task_sources=tasks.task_sources,
+        )
 
     def agents(self) -> list[Agent]:
         return [self.baseline, *self.mutants]
@@ -184,17 +216,15 @@ class LocalExecution(Model):
 class BenchmarkDefinition(Model):
     benchmark_id: Text
     revision: int = Field(ge=1)
-    cases: list[PinnedInput] = Field(min_length=1)
+    cases: list[CaseDefinition] = Field(min_length=1)
     coverage: CoverageConfig
     scoring: ScoringPolicy = Field(default_factory=ScoringPolicy)
     execution: LocalExecution = Field(default_factory=LocalExecution)
     missing_policy: Literal["error", "exclude"] = "error"
 
     @model_validator(mode="after")
-    def valid_case_references(self) -> Self:
-        unique([case.path for case in self.cases], "case manifest paths")
-        if any(case.kind != "file" for case in self.cases):
-            raise ValueError("case manifests must be files")
+    def unique_cases(self) -> Self:
+        unique([case.case_id for case in self.cases], "case IDs")
         return self
 
 
@@ -230,28 +260,17 @@ def read_yaml(path: Path) -> object:
 
 
 def read_benchmark(path: Path) -> LoadedBenchmark:
-    """Read pinned case, agent and task manifests without execution inputs."""
+    """Read inline cases and referenced agent/task manifests without execution inputs."""
     definition = BenchmarkDefinition.model_validate(read_yaml(path))
     root = path.resolve().parent
     cases = {}
-    for source in definition.cases:
+    for entry in definition.cases:
         try:
-            manifest = CaseManifest.model_validate(read_yaml(source.resolve(root)))
-            agent = AgentManifest.model_validate(read_yaml(manifest.agent.resolve(root)))
-            tasks = TaskManifest.model_validate(read_yaml(manifest.tasks.resolve(root)))
-            case = Case(
-                case_id=manifest.case_id,
-                subsets=manifest.subsets,
-                baseline=agent.baseline,
-                mutants=agent.mutants,
-                case_description=agent.description,
-                task_inventory=tasks.task_inventory,
-                task_sources=tasks.task_sources,
-            )
+            agent = AgentManifest.model_validate(read_yaml(entry.agent.resolve(root)))
+            tasks = TaskManifest.model_validate(read_yaml(entry.tasks.resolve(root)))
+            case = Case.from_manifests(entry, agent, tasks)
         except (OSError, ValueError) as error:
-            raise ValueError(f"case manifest {source.path}: {error}") from error
-        if case.case_id in cases:
-            raise ValueError(f"duplicate case ID: {case.case_id}")
+            raise ValueError(f"case {entry.case_id}: {error}") from error
         cases[case.case_id] = LoadedCase(case, root)
     return LoadedBenchmark(definition, root, cases)
 

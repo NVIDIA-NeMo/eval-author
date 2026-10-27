@@ -5,8 +5,16 @@
 benchmark_id: rho-metric-validity
 revision: 1
 cases:
-- path: cases/rho-agent/case.yml
-  sha256: sha256:5e37f80ada931fb1fd4a9fc3b0ed6d7db341d5982ccbc7ac371bead19d75660e
+- case_id: rho-agent
+  agent:
+    path: agents/rho-agent/agent.yml
+    sha256: sha256:d5f2748f94d1a3c14054bb7a6f10ffd6a3888956b2e96f948e53db42fe8db662
+  tasks:
+    path: tasks/workspace/tasks.yml
+    sha256: sha256:247e20d159875c87f97c01b58fe7d9115c9e849f0b3779a1a5081788d9d1f93f
+  subsets:
+    path: tasks/workspace/subsets.json
+    sha256: sha256:c9b05fb9ca48d0f7ca01fd1dc755d68b909eceadf3d094edcadd7aa3b162a786
 coverage:
   system_id: synthetic
   system_revision: '1'
