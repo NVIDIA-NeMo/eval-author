@@ -168,12 +168,21 @@ are described below.
 | `prerequisite_results` | Fresh state-only snapshot and recorded checks; canonical completed-results sentence, table, optional Recommendations, and Blockers directly in final when blocked; no checklist or target-artifact facts |
 | `results` | Routine final after a completed, recorded prerequisite pass and normal artifact reconciliation; canonical completed-results sentence, table, optional Recommendations, then Blockers or Next Steps with one checklist and the current Ethos action; also available for standalone full reports |
 | `ethos` | Later Ethos-only action; Next Steps, state-derived checklist, and inspected Ethos/draft/question without rows or Recommendations |
-| `confirmed` | Saved complete Ethos and applicable completed prerequisites, before downstream work has started; saved document confirmation and the selected continuation pause, unless a relevant blocker prevents continuing |
+| `confirmed` | Saved complete Ethos and applicable completed prerequisites, before downstream work has started; saved document confirmation and the selected pending decision. Fresh creation without a structured saved design or source choice shows the canonical first-eval source choice directly; other cases retain their continuation. A relevant blocker takes precedence. |
 | `resume` | Saved pending decision or unfinished work; current progress and question, without a welcome, initial readiness question, or invented continuation approval |
 
-Known continuation prompts
-from earlier wording retain the same gate and render with current canonical copy;
-rendering does not rewrite the saved question.
+Known continuation prompts from earlier wording remain readable. For fresh
+creation without a structured saved design or source choice, they render as the
+combined source checkpoint instead of an extra readiness gate; other cases keep
+their continuation and current canonical copy. Rendering does not rewrite the
+saved question or record an answer. Save the canonical source question and
+`eval-author-first-eval` handoff before presenting a new combined checkpoint,
+following [the shared pause](../shared-prerequisites.md#pause-after-ethos-confirmation).
+Its question and choices use
+[first_eval_templates.py](../../scripts/conversation_flows/first_eval_templates.py),
+not a second copy of that text. The same fresh, pre-start condition applies when
+`results` or `resume` reaches the completed-Ethos handoff; it does not replace a
+saved-design decision or restart a journey that has already begun.
 
 ## Prerequisite row facts
 
@@ -205,8 +214,9 @@ Supply links separately through optional row `links` entries with `label` and
 ## Ethos and draft facts
 
 For Ethos facts, use `existing`, `absent`, or `unknown`. An existing Ethos link must
-point to the exact repository-root `ETHOS.md` from state. Supply a grounded
-summary for an existing-document review. File presence or successful structural
+point to the exact selected document, formed from `state.repository` and
+`state.ethos.path`. Supply a grounded summary for an existing-document review.
+File presence or successful structural
 validation is not current intent confirmation.
 
 When the saved Ethos stage is `draft` or `write` and `state.ethos.draft` exists, supply `facts.draft` with the exact recorded
@@ -308,6 +318,12 @@ After the user answers, persist the real reply and follow the existing handoff.
 Rendering `confirmed` alone cannot start downstream work, and rendering `resume`
 cannot answer a saved question. An already-started downstream journey resumes
 its pending work without repeating the completion pause.
+For the combined creation checkpoint, wait for the actual source choice before
+planning or trace inspection, then save its provenance and clear the pending
+question. Continue directly to the bounded task proposal under the
+[first-eval contract](first-eval.md#source-and-proposal-pauses); do not render
+another readiness or source-choice pause. Saved-design, known-source, audit, and
+expansion handoffs keep their applicable decisions.
 After a goal switch, retained started or completed journey progress also prevents
 an inferred new continuation pause when the saved question is empty. An explicitly
 saved continuation question from a fresh review is still presented; rendering

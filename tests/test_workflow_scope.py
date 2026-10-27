@@ -169,10 +169,19 @@ def test_ethos_completion_can_save_state_but_cannot_create_evaluations():
     assert "turn[0]: forbidden write attempt .eval-author/tasks/new-case/task.toml" in report["violations"]
 
 
-def test_ethos_completion_continuation_allows_source_scope_handoff():
+def test_ethos_completion_source_answer_allows_design_proposal():
     evidence, raw = capture("ethos-completion-pause")
     raw = add_call(evidence, raw, action="delegate", turn=1)
+    raw = add_call(evidence, raw, action="propose", turn=1)
     assert scope.check(CONTRACTS, evidence, raw)["status"] == "pass"
+
+
+@pytest.mark.parametrize("action", ["scaffold", "execute"])
+def test_ethos_source_answer_does_not_authorize_building_or_execution(action):
+    evidence, raw = capture("ethos-completion-pause")
+    raw = add_call(evidence, raw, action=action, turn=1)
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert f"turn[1]: forbidden action {action}" in report["violations"]
 
 
 def test_transient_write_is_rejected_even_if_snapshots_match():

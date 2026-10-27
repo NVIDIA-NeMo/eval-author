@@ -341,6 +341,59 @@ def test_readme_section_boundaries(body, expected):
     assert report.readme_sections(body).get("Behavior under test") == expected
 
 
+@pytest.mark.parametrize(
+    "body,expected",
+    [
+        (
+            "Save the source once;\nleave other records untouched.\n\nDetailed checks.",
+            "Save the source once; leave other records untouched.",
+        ),
+        (
+            "Return `a  b` unchanged;\npreserve the two spaces.\n\nDetailed checks.",
+            "Return `a  b` unchanged; preserve the two spaces.",
+        ),
+        ("Saved.\n```text\nSample output.\n```\nDetailed checks.", "Saved."),
+        ("Saved.\n\n| Check | Result |\n| --- | --- |\n| State | Exact match |", "Saved."),
+        ("Saved.\n\n" + "Detailed checks. " * 200, "Saved."),
+        ("x" * 2001 + "\n\nShorter detail.", None),
+        ("```text\nExample only.\n```", None),
+    ],
+)
+def test_expected_result_uses_complete_opening_paragraph(body, expected):
+    assert report.readme_sections("## Expected result\n" + body)["Expected result"] == expected
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "- Save the source once.\n\n  Keep every source line.\n\n- Leave other records untouched.\n\nConfirm the destination.",
+        "| Check | Result |\n| --- | --- |\n| State | Exact match |\n\nConfirm the destination.",
+    ],
+)
+def test_expected_result_preserves_list_and_table_first_sections(body):
+    assert report.readme_sections("## Expected result\n" + body)["Expected result"] == body
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "## Expected result\n\n## Grading\nChecks stored state.",
+        "## Expected result\nSaved.\n## Expected result\nDifferent result.",
+        "## Expected result\n\n## Expected result\nSaved.",
+        "## Expected result\n```text\nExample only.\n```",
+        "## Expected result\n" + "x" * 2001,
+    ],
+)
+def test_invalid_canonical_expected_result_does_not_fall_back_to_import(tmp_path, source):
+    path = task(tmp_path, readme=source)
+    metadata = {"tasks": {path: {"expected_outcome": "Imported result.", "source_refs": [path + "/README.md"]}}}
+    data = report.refresh(tmp_path, patch=metadata)
+    assert data["tasks"][0]["expected_outcome"] is None
+    markdown = (tmp_path / ".eval-author/README.md").read_text()
+    assert "Not documented" in markdown
+    assert "Imported result." not in markdown
+
+
 def test_import_fields_and_canonical_readme(tmp_path):
     path = task(tmp_path, readme="# Existing documentation\nOther sections.")
     metadata = {
@@ -1494,6 +1547,50 @@ def test_readme_sections_preserve_paragraphs_and_lists_in_both_reports(tmp_path)
     assert data["tasks"][0]["behavior"] == behavior
     raw = (tmp_path / ".eval-author/README.md").read_text()
     assert "First paragraph.<br><br>- Check one.<br>- Check two." in raw
+
+
+def test_expected_result_summary_is_shared_by_reports_and_preserves_readme_details(tmp_path):
+    behavior = "Save the selected source.\n\n- Exercise project selection.\n- Inspect final state."
+    summary = (
+        "Save the transcript once, verbatim, in the selected project;\n"
+        "leave other data untouched; confirm its location without summarizing it."
+    )
+    details = (
+        "Compare the saved bytes against the original transcript.\n\n"
+        "- Require exactly one write.\n- Reject changes to unrelated records.\n\n"
+        "```text\n## Expected result\nExample output must not become the summary.\n```\n\n"
+        "| Check | Evidence |\n| --- | --- |\n| Content | Original bytes |\n\n"
+        "### Additional assertions\n\n" + "Keep the complete verification procedure here. " * 60
+    )
+    source = f"# Save source\n\n## Behavior under test\n{behavior}\n\n## Expected result\n{summary}\n\n{details}\n"
+    path = task(tmp_path)
+    readme = tmp_path / path / "README.md"
+    original = source.replace("\n", "\r\n").encode()
+    readme.write_bytes(original)
+    data = report.refresh(tmp_path)
+    embedded, _ = report.previous_report(tmp_path / ".eval-author/report.html")
+    expected = " ".join(summary.split())
+    assert embedded["tasks"][0]["expected_outcome"] == data["tasks"][0]["expected_outcome"] == expected
+    assert data["tasks"][0]["behavior"] == behavior
+    preview = data["tasks"][0]["readme_html"]
+    for text in (
+        "Compare the saved bytes",
+        "Require exactly one write.",
+        "Example output must not become the summary.",
+        "Original bytes",
+        "Additional assertions",
+        "Keep the complete verification procedure here.",
+    ):
+        assert text in preview
+        assert text not in data["tasks"][0]["expected_outcome"]
+    markdown = (tmp_path / ".eval-author/README.md").read_text()
+    assert report.markdown_text(expected) in markdown
+    assert "Compare the saved bytes" not in markdown
+    assert "Example output" not in markdown
+    assert "Original bytes" not in markdown
+    assert "Additional assertions" not in markdown
+    assert "complete verification procedure" not in markdown
+    assert readme.read_bytes() == original
 
 
 def test_markdown_text_cannot_inject_tables_headings_links_or_html(tmp_path):

@@ -214,18 +214,17 @@ def proposal(record: dict) -> str:
             "| "
             + " | ".join(
                 literal(task.get(key), key, table=True)
-                for key in ("title", "input", "behavior", "expected_result", "grading")
+                for key in ("id", "input", "behavior", "expected_result", "grading")
             )
             + " |"
         )
-    first = next(task for task in tasks if task["id"] == record["first_task"])
     examples = len({example for task in tasks for example in task["example_ids"]})
     return "\n\n".join(
         [
             copy.PROPOSAL_INTRO,
             "\n".join(rows),
             literal(presentation.get("coverage_note"), "coverage_note"),
-            copy.FIRST_CHOICE.format(title=literal(first.get("title"), "first task title")),
+            copy.FIRST_CHOICE.format(task_id=literal(record["first_task"], "first task ID")),
             copy.PROPOSAL_PROCESS.format(tasks=len(tasks), examples=examples),
             copy.PROPOSAL_QUESTION,
         ]
@@ -243,7 +242,7 @@ def saved_design(state: dict, record: dict, observed: dict) -> str:
     rows = [copy.SAVED_DESIGN_TABLE]
     rows.extend(
         "| "
-        + literal(task.get("title") or task["id"], "saved task title", table=True)
+        + literal(task["id"], "saved task ID", table=True)
         + " | "
         + literal(task.get("behavior") or copy.SAVED_BEHAVIOR_UNKNOWN, "saved task behavior", table=True)
         + " |"
@@ -352,12 +351,11 @@ def build_rows(
 
 
 def build_checklist(record: dict, progress: dict, facts: dict) -> str:
-    first = next(task for task in record["plan"]["tasks"] if task["id"] == record["first_task"])
     labels = dict(copy.BUILD_STEPS)
     if record["provider"] == "gym":
         labels["grading"] = copy.GYM_BUILD_GRADING
     return (
-        copy.BUILD_HEADING.format(title=literal(first.get("title") or first["id"], "first task title"))
+        copy.BUILD_HEADING.format(task_id=literal(record["first_task"], "first task ID"))
         + "\n\n"
         + build_rows(labels, progress["first_task_build"]["steps"], facts)
     )
@@ -422,10 +420,9 @@ def run_checklist(record: dict, progress: dict, facts: dict) -> str:
         ),
         copy.RUN_IDENTITY.format(run=literal(activity["run_id"], "native run identity")),
     ]
-    titles = {task["id"]: task.get("title") or task["id"] for task in record["plan"]["tasks"]}
     parts.append(
         copy.RUN_CURRENT_TASKS.format(
-            tasks=", ".join(literal(titles[key], "current task") for key in activity["active_task_ids"])
+            tasks=", ".join(literal(key, "current task ID") for key in activity["active_task_ids"])
         )
         if activity["active_task_ids"]
         else copy.RUN_TASK_UNKNOWN
@@ -458,10 +455,9 @@ def first_review(record: dict, progress: dict, facts: dict) -> str:
         validation=copy.VALIDATION_PASSED if status["validated"] else copy.VALIDATION_PENDING,
         execution=copy.EXECUTION_COMPLETED if status["executed"] else copy.EXECUTION_PENDING,
     )
-    first = next(task for task in record["plan"]["tasks"] if task["id"] == record["first_task"])
     return "\n\n".join(
         [
-            copy.FIRST_REVIEW_INTRO.format(title=literal(first.get("title") or first["id"], "first task title")),
+            copy.FIRST_REVIEW_INTRO.format(task_id=literal(record["first_task"], "first task ID")),
             copy.FIRST_REVIEW_ACTION.format(
                 report=named_link(facts, "tasks_view", fragment=True, label=copy.FIRST_REVIEW_REPORT_LABEL),
                 readme=named_link(facts, "readme", label=copy.FIRST_REVIEW_README_LABEL),
@@ -487,7 +483,7 @@ def suite_review(record: dict, progress: dict, facts: dict) -> str:
         rows.append(
             "| "
             + " | ".join(
-                literal(task.get(key), key, table=True) for key in ("title", "behavior", "expected_result", "grading")
+                literal(task.get(key), key, table=True) for key in ("id", "behavior", "expected_result", "grading")
             )
             + " |"
         )

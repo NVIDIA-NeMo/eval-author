@@ -11,7 +11,7 @@ TRACE_QUESTION = "Would you like to use existing traces, or start from `ETHOS.md
 TRACE_CHOICES = ("Start from ETHOS.md", "Use existing traces")
 SAVED_DESIGN_INTRO = "I found a saved design for your evaluation tasks."
 SAVED_DESIGN_COUNTS = "Saved design: {tasks} tasks; {examples} distinct input examples."
-SAVED_DESIGN_TABLE = "| Task | Behavior under test |\n|---|---|"
+SAVED_DESIGN_TABLE = "| Task ID | Behavior under test |\n|---|---|"
 SAVED_DESIGN_SOURCE = "**Source:** {source}"
 SAVED_SOURCE_ETHOS = "`ETHOS.md`, with no selected traces."
 SAVED_SOURCE_TRACES = "`ETHOS.md` with previously selected traces."
@@ -32,8 +32,8 @@ SAVED_DESIGN_CHOICES = (
 )
 SAVED_DESIGN_QUESTION = "Would you like to continue this saved design, revise it, or start a new proposal?"
 PROPOSAL_INTRO = "Here are the proposed evaluation tasks."
-PROPOSAL_TABLE = "| Task | Input | Behavior under test | Expected result | Verifier |\n|---|---|---|---|---|"
-FIRST_CHOICE = "I’ll build **{title}** first."
+PROPOSAL_TABLE = "| Task ID | Input | Behavior under test | Expected result | Verifier |\n|---|---|---|---|---|"
+FIRST_CHOICE = "I’ll build **{task_id}** first."
 PROPOSAL_PROCESS = (
     "Proposed tasks: {tasks}; distinct input examples: {examples}. "
     "After you approve the proposal, I’ll build only that first task and pause for your review "
@@ -56,7 +56,7 @@ GYM_PROGRESS = (
     "I’m preparing the first task’s starting data and checking that its environment works. "
     "Then I’ll add the reference fixtures and native Gym verifier."
 )
-BUILD_HEADING = "**First task: {title}**"
+BUILD_HEADING = "**First task: {task_id}**"
 BUILD_STEPS = {
     "environment": "Prepare starting data and environment",
     "environment_check": "Check the environment",
@@ -93,7 +93,7 @@ REMAINING_STEPS = {
 }
 NO_REMAINING_TASKS = "No additional tasks agreed."
 FIRST_REVIEW_INTRO = (
-    "Your first task, **{title}**, is ready for review. It follows your approved design and confirmed `ETHOS.md`."
+    "Your first task, **{task_id}**, is ready for review. It follows your approved design and confirmed `ETHOS.md`."
 )
 FIRST_REVIEW_ACTION = "Review your first task in the {report} or {readme}."
 FIRST_REVIEW_REPORT_LABEL = "HTML report’s Tasks view"
@@ -112,7 +112,7 @@ SUITE_REVIEW_INTRO = (
     "It follows your approved design and confirmed `ETHOS.md`."
 )
 SUITE_REVIEW_ACTION = "Review your tasks in the {report} or {readme}."
-SUITE_REVIEW_TABLE = "| Task | Behavior under test | Expected result | Verifier |\n|---|---|---|---|"
+SUITE_REVIEW_TABLE = "| Task ID | Behavior under test | Expected result | Verifier |\n|---|---|---|---|"
 SUITE_REVIEW_STATUS = (
     "**Status:** Environment proof: {environments}/{tasks} passed. Verifier validation: {validated}/{tasks} passed. "
     "Agent execution: {executed}/{tasks} tasks complete."

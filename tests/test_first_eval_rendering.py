@@ -48,7 +48,7 @@ def creation(monkeypatch, tmp_path):
                 {
                     "id": task_id,
                     "example_ids": [task_id + "-example"],
-                    "title": task_id,
+                    "title": "Allow eligible refund" if task_id == "refund" else "Reject ineligible request",
                     "input": "Request | with newline\ncontinued",
                     "behavior": "Respect policy",
                     "expected_result": "Correct disposition",
@@ -336,7 +336,7 @@ def test_proposal_is_concise_deterministic_and_read_only(creation):
     output = renderer.render(payload(creation, "proposal"))
     assert output == PLANNING_PROGRESS + "\n\n" + (
         "Here are the proposed evaluation tasks.\n\n"
-        "| Task | Input | Behavior under test | Expected result | Verifier |\n|---|---|---|---|---|\n"
+        "| Task ID | Input | Behavior under test | Expected result | Verifier |\n|---|---|---|---|---|\n"
         "| refund | Request &#124; with newline<br>continued | Respect policy | Correct disposition | Code checks verify state; model judge assesses response meaning |\n"
         "| reject | Request &#124; with newline<br>continued | Respect policy | Correct disposition | Code checks verify rejected action and unchanged state |\n\n"
         "These check refunds and rejection. Other regions remain untested.\n\n"
@@ -370,6 +370,24 @@ def test_default_proposal_stays_small_and_explains_the_next_review(creation, tas
     assert copy.PROPOSAL_PROCESS.format(tasks=task_count, examples=task_count) in output
     assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
     assert "Time/cost limits" not in output
+
+
+@pytest.mark.parametrize("stage", ["proposal", "saved_design", "prepare_first", "build_progress"])
+def test_task_ids_are_literal_in_tables_and_build_labels(creation, stage):
+    _, record, _, renderer, _ = creation
+    task_id = "refund_*[choice]|<b>\nnext"
+    record["plan"]["tasks"][0]["id"] = record["first_task"] = task_id
+    if stage in {"prepare_first", "build_progress"}:
+        build_started(creation)
+    output = renderer.render(payload(creation, stage))
+    escaped = r"refund\_\*\[choice\]&#124;&lt;b&gt;"
+    if stage in {"proposal", "saved_design"}:
+        assert f"| {escaped}<br>next |" in output
+    if stage == "proposal":
+        assert f"I’ll build **{escaped} next** first." in output
+    elif stage in {"prepare_first", "build_progress"}:
+        assert f"**First task: {escaped} next**" in output
+    assert "Allow eligible refund" not in output and "<b>" not in output
 
 
 @pytest.mark.parametrize("broader_scope", ["more_tasks", "more_examples"])
@@ -937,7 +955,7 @@ def test_suite_review_is_a_linked_deterministic_checkpoint_before_execution_choi
         "It follows your approved design and confirmed `ETHOS.md`.\n\n"
         f"Review your tasks in the [HTML report’s Tasks view](<{root}/.eval-author/report.html#cases>) "
         f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
-        "| Task | Behavior under test | Expected result | Verifier |\n|---|---|---|---|\n"
+        "| Task ID | Behavior under test | Expected result | Verifier |\n|---|---|---|---|\n"
         "| refund | Respect policy | Correct disposition | Code checks verify state; model judge assesses response meaning |\n"
         "| reject | Respect policy | Correct disposition | Code checks verify rejected action and unchanged state |\n\n"
         "**Status:** Environment proof: 2/2 passed. Verifier validation: 2/2 passed. "
@@ -1100,7 +1118,7 @@ def test_saved_design_overview_is_a_deterministic_decision_before_resume(creatio
     assert output == PLANNING_PROGRESS + "\n\n" + (
         "I found a saved design for your evaluation tasks.\n\n"
         "Saved design: 2 tasks; 2 distinct input examples.\n\n"
-        "| Task | Behavior under test |\n|---|---|\n"
+        "| Task ID | Behavior under test |\n|---|---|\n"
         "| refund | Respect policy |\n| reject | Respect policy |\n\n"
         "**Source:** `ETHOS.md`, with no selected traces.\n\n"
         "**Saved design approval:** Previously recorded for this design.\n\n"
@@ -1183,7 +1201,7 @@ def test_saved_design_accepts_a_legacy_broad_plan_and_unknown_approval(creation)
     assert "`ETHOS.md` with previously selected traces." in output
     assert "selected.json" not in output and "known-run" not in output and "private" not in output
     assert record["plan"]["trace_choice"]["runs"] == ["known-run"]
-    assert "| Task 6 | Keep the saved behavior |" in output
+    assert "| task-6 | Keep the saved behavior |" in output
 
 
 def test_saved_design_missing_source_and_fields_remain_unknown(creation):
@@ -1314,10 +1332,14 @@ def test_review_leads_with_grounding_and_action_before_item_summaries(creation, 
         renderer.render(payload(creation, "review_first", **facts))
 
 
-def test_review_intro_uses_the_approved_first_task_title_as_literal_text(creation):
+def test_review_intro_uses_the_approved_first_task_id_as_literal_text(creation):
     _, record, _, renderer, _ = creation
     record["plan"]["tasks"][0]["title"] = "Preserve *explicit* choices"
     built(creation, validated=True)
+    task_id = "preserve_*explicit*_[choices]"
+    record["plan"]["tasks"][0]["id"] = record["first_task"] = task_id
+    record["tasks"][task_id] = record["tasks"].pop("refund")
+    approved(creation)
     output = renderer.render(
         payload(
             creation,
@@ -1329,7 +1351,8 @@ def test_review_intro_uses_the_approved_first_task_title_as_literal_text(creatio
             grading_limitation="Live tool effects excluded",
         )
     )
-    assert output.startswith("Your first task, **Preserve \\*explicit\\* choices**, is ready for review.")
+    assert output.startswith("Your first task, **preserve\\_\\*explicit\\*\\_\\[choices\\]**, is ready for review.")
+    assert "Preserve" not in output.splitlines()[0]
 
 
 def test_late_settings_and_explicit_execution_authorization(creation):
@@ -2287,7 +2310,7 @@ def test_proposal_explains_each_grading_method_before_validation_setup_questions
     output = renderer.render(payload(creation, "proposal"))
     assert copy.PROPOSAL_TABLE in output
     for index, method in enumerate(methods):
-        row = next(line for line in output.splitlines() if line.startswith(f"| Task {index} |"))
+        row = next(line for line in output.splitlines() if line.startswith(f"| task-{index} |"))
         assert row.endswith(f" | {method} |")
     assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
     assert copy.VALIDATION_SETUP_INTRO not in output and state == before

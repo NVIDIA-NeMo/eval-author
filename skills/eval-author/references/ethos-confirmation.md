@@ -10,13 +10,13 @@ Do not implement another interview or local authoring fallback in Eval Author.
 
 ## Required handoff capabilities
 
-Pass the absolute repository-root `ETHOS.md` path as the explicit destination
-to `ethos-orchestrate`. The installed skills must preserve that exact path and
-uppercase filename, including in repositories with several agents. They must
-not rename it to `ethos.md` or choose the agent's package root instead.
+Pass the absolute path selected in `ethos.path` as the explicit destination to
+`ethos-orchestrate`. The installed skills must preserve that exact path and
+uppercase `ETHOS.md` filename, including in repositories with several agents.
+They must not rename it to `ethos.md` or choose a different directory.
 
 Check the installed skills' location and writing instructions before delegation.
-If they rename the file, choose a package-level path, or otherwise override the
+If they rename the file, choose another path, or otherwise override the
 supplied destination, that version is incompatible with this contract.
 Report the actual conflicting skill and instructions under
 **Blockers**, preserving existing documents and progress. Resolve the dependency
@@ -42,15 +42,23 @@ artifact reconciliation, and final response selection. This adapter owns the
 Ethos work and confirmation rules below. Existing evaluations describe coverage;
 they do not establish intended behavior.
 
-The shared prerequisite flow confirms repository-root `ETHOS.md`, which must be a
-regular file, not a symlink. Preserve existing alternate-path documents; do not
-silently copy, delete, or replace them. If the intended document lives elsewhere,
-offer to move it to the repository root and, if its old path must remain usable,
-leave a symlink there pointing to the root document. Confirm the move and any
-symlink with the user before changing files. Explicitly scoped `--ethos`
-utilities can use their supplied path without claiming the shared prerequisite
-flow confirmed that document. Resolve ambiguous identity or conflicting intent
-before accepting it.
+The shared prerequisite flow confirms the selected `ETHOS.md`, which must be a
+regular file, not a symlink, inside the repository. Store its canonical
+repository-relative path in `ethos.path`; repository-root `ETHOS.md` remains the
+default for older records and new documents without an explicit destination.
+An existing agent-local document stays in place. Do not require a move, copy, or
+root symlink. Resolve ambiguous identity or conflicting intent with the user
+before selecting a document; never silently choose another agent's document.
+
+After entering the Ethos step, select a different destination with the normal
+revision-checked `update` interface, setting `ethos.path` and `ethos.stage: review`.
+During prerequisites, `--state-only` can mark review pending but cannot select a
+different document or inspect its contents. A path change
+reopens affected approvals even when its bytes match the previous document;
+the prior selection and provenance remain under
+`.eval-author/.working/history/ethos/<digest>.json`. If the selected file changes
+or disappears, preserve that selection and reopen review without falling back to
+another file.
 
 ## Review an existing document
 
@@ -105,7 +113,7 @@ do not treat the former agent's document or draft approval as current permission
 Follow the [shared procedure](shared-prerequisites.md#present-results-and-the-next-step)
 for state loading before each call. Eval Author owns the selected journey,
 checklist, state layout, and return routing; Ethos needs none of those details.
-Pass the selected `repository`, `agent`, root `ethos_path` as the explicit
+Pass the selected `repository`, `agent`, `ethos_path` as the explicit
 destination, the requested operation, and only the Ethos context needed to continue:
 
 - `source_findings` from `ethos.source_findings`: records with `path` and `summary`.
@@ -154,7 +162,7 @@ user replies with provenance, and draft contents from that conversation. Eval
 Author maps these facts into its own `stage`, `validation`, `remaining_questions`,
 and confirmation fields; Ethos does not implement that state schema.
 
-Check that the document path resolves to this repository's root `ETHOS.md`.
+Check that the document path matches `state.ethos.path` inside this repository.
 Eval Author computes `confirmed_digest` as SHA-256 over the exact saved bytes,
 encoded as 64 lowercase hexadecimal characters without a prefix. Before reusing
 the current flow's confirmation, compare the current bytes with that
@@ -162,18 +170,25 @@ digest and retain its user-reply provenance. Changed contents reopen the affecte
 review or intent step. Persist unfinished stages and answers through
 `journey_state.py update`. For completion, require successful returned validation
 and explicit confirmation of the exact saved content, reusing approval of an
-unchanged draft when applicable, then use `confirm-ethos` with the
+unchanged draft when applicable, then use `confirm-ethos` with `--ethos` set to
+the selected repository-relative path, the latest `--expected-revision`, the
 computed digest, the user's confirmation reference as
 `--source`, and the validator result's provenance as `--validation`. Preserve
 the validation details in a linked working artifact or the conversation; do
 not pass a structured validation object as if it were the helper's provenance
-string. Failed validation remains an unfinished review, even if the file has
-a digest. Use only the
+string. An explicit `--ethos` must match the saved selection; omitting it retains
+the legacy repository-root `ETHOS.md` default. Failed validation remains an
+unfinished review, even if the file has a digest. A supported path does not waive
+schema or heading validation. Use only the
 confirmed exact content for downstream cases or audit items. Validation alone
 is not intent confirmation. Present the returned path and unresolved gaps, then follow the
 shared [completion pause](shared-prerequisites.md#pause-after-ethos-confirmation).
-End the turn after the rendered `confirmed` response with its continuation question.
-Do not begin source selection or delegate evaluation work until the user continues.
+End the turn after the rendered `confirmed` response with its pending decision.
+For fresh creation without a saved design or source choice, the shared pause
+includes the source question instead of a readiness question. Wait for its
+answer before planning or inspecting traces; do not ask the same choice again
+in a later turn. Other flows retain their continuation. Do not delegate
+evaluation work before the applicable reply.
 If Blockers remain, use the blocked response instead.
 
 ## Recovery
