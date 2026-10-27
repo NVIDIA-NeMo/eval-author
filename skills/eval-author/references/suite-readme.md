@@ -8,10 +8,11 @@
 Use this shared reporting contract for Harbor and NeMo Gym.
 
 `.eval-author/report.html` defines the case/run review content.
-Its Tasks tab lists discovered Harbor tasks and NeMo Gym workload definitions by directory,
+Its Tasks tab lists the current saved first-evaluation plan alongside discovered
+Harbor tasks and NeMo Gym workload definitions by directory,
 including tasks being authored and accepted tasks at their stable paths, with
 Task, Status, Behavior, Expected outcome, Verifier, and Actions columns.
-Task shows the complete task README's first H1 title,
+For authored tasks, Task shows the complete task README's first H1 title,
 including any ID prefix, such as `IMP-01: bare docs link`, in bold monospace,
 followed by its path in monospace. There is no separate ID header, additional task
 description, or provider label. The title falls back to the native task name when
@@ -43,9 +44,10 @@ artifacts, or supported reporting metadata to update generated content, then
 refresh. Maintain operational and rerun guidance outside the marked section for
 both providers.
 
-Display **Draft**, **Accepted**, or **Unknown** and any status reason in the Tasks
-table in both outputs, using [Task status](shared-prerequisites.md#task-status).
-In the HTML, each status is a badge (Draft grey, Accepted green, Unknown amber)
+Display **Proposed**, **Draft**, **Accepted**, or **Unknown** and any status reason in the Tasks
+table in both outputs, using [Task status](shared-prerequisites.md#task-status)
+for authored tasks.
+In the HTML, each status is a badge
 and the reason appears in a popover on hover or keyboard focus; Markdown prints
 the reason as text.
 Shared journey state owns these decisions; reporting metadata and native run
@@ -54,6 +56,34 @@ revision or evidence changed; **Unknown** means no valid task status is availabl
 Keep inventory findings such as `found` or `unverified` separate from acceptance.
 Refresh after status changes without editing task-local READMEs, which belong
 to the revision checked by execution receipts.
+
+### Saved first-evaluation plan
+
+Project the current `scopes.create.first_eval.plan.tasks` from shared journey
+state into both outputs. Show an unbuilt task as **Proposed** while design
+approval is pending and after approval; keep the design decision separate from
+task acceptance, validation, and execution. Use the saved task ID, behavior,
+`expected_result`, and `grading` text without inferring missing descriptions.
+Do not invent artifact paths, create task files, or offer README, source, or
+viewer actions for unbuilt tasks.
+
+Reconcile a proposal with authored inventory through its stable `plan_task_id`
+and the recorded task root in `first_eval.tasks`, including native Gym definitions
+below that root. Use one canonical native definition per bound root and preserve
+the authored task's README content and existing readiness rules. Show separate
+proposed, authored, validated, and executed task counts for the full current plan,
+independent of selected artifact roots; authored rows still respect those roots.
+Authored counts use saved authoring records, including missing or unverified
+tasks. Validation and execution require current bound evidence, not design
+approval or files alone.
+Unrelated discovered tasks remain in the catalog without inflating plan counts.
+
+Refresh after saving or revising a proposal, including task removals, and before
+the first authored-task review. Rebuild proposed rows from the current plan on
+every refresh or resume; old report snapshots and plan history cannot restore
+removed proposals, including during an incomplete artifact scan.
+
+### Artifact actions
 
 Task README actions become relative links to the source documentation (or the
 HTML's saved snapshot when the source is unverified). NeMo Gym source actions link
@@ -135,8 +165,8 @@ use `--task-root <existing-task-or-directory>` to inspect or continue it at its
 existing path. Default inventory exclusion does not mean that its work is obsolete.
 Never hand-edit the HTML or rebuild the UI per task.
 Task READMEs and native evidence take precedence. Refresh repairs a missing or edited generated section while
-preserving surrounding documentation. Deleted records disappear after a complete
-scan; incomplete inventories retain prior in-scope records as unverified.
+preserving surrounding documentation. Deleted artifact records disappear after a complete
+scan; incomplete inventories retain prior in-scope artifact records as unverified.
 State and both outputs are prepared before publication; each file is updated
 atomically, with state committed first. An interruption between updates is repaired
 by the next refresh. An OS advisory lock prevents concurrent refreshes and releases
@@ -146,7 +176,8 @@ Exit 0 means complete file inventory, 1 means a published incomplete inventory
 with warnings, and 2 means the refresh failed. None establishes evaluation
 validity or success.
 
-Each task row includes a Task README action below its viewer or source action. It opens the saved
+An authored task row includes a Task README action when a readable README or
+retained snapshot is available. It opens the saved
 README as Markdown in a modal, including headings, tables, and code blocks.
 The preview is embedded for offline use, sandboxed, and blocks scripts,
 images, and link navigation inside the preview. Open the source README via its

@@ -759,7 +759,8 @@ def test_harbor_and_gym_workloads_share_reports_without_harbor_links_for_gym(tmp
 
 
 @pytest.mark.parametrize("grading_kind", ["Custom code", "LLM-as-judge", "Custom code + LLM-as-judge"])
-def test_browser_task_titles_graders_and_gym_actions(tmp_path, grading_kind):
+@pytest.mark.parametrize("with_proposals", [False, True])
+def test_browser_task_titles_graders_and_gym_actions(tmp_path, grading_kind, with_proposals):
     node = shutil.which("node")
     if not node:
         pytest.skip("Node is needed to exercise task rendering")
@@ -770,6 +771,12 @@ def test_browser_task_titles_graders_and_gym_actions(tmp_path, grading_kind):
     source_path = "environments/gym case/manifest.yaml"
     write(tmp_path, source_path, "name: example\n")
     write(tmp_path, "environments/gym case/README.md", "## Behavior under test\nNeMo Gym.\n## Expected result\nSaved.")
+    if with_proposals:
+        import first_eval_state
+        import journey_state
+        from test_first_eval_state import start
+
+        start((journey_state, first_eval_state), tmp_path)
     data = report.refresh(
         tmp_path,
         patch={"tasks": {harbor_path: {"grading_kind": grading_kind, "grading_rule": "All state checks pass."}}},
@@ -812,7 +819,15 @@ for(const row of taskRows()){
   assert.equal(row.children[1].children[1].attrs.role,'tooltip');
   assert.equal(row.children[1].children[0].attrs['aria-describedby'],row.children[1].children[1].id);
   assert.equal(row.children[4].children[0].textContent,task.grading_kind);
-  assert.equal(row.children[4].children[1].textContent,task.grading_summary||'No verifier description documented in README.');
+  assert.equal(row.children[4].children[1].textContent,task.status==='proposed'?(task.proposed_grading||'No grading design saved.'):(task.grading_summary||'No verifier description documented in README.'));
+  if(task.status==='proposed'){
+    assert.equal(row.children[5].children.length,1);
+    assert.equal(row.children[5].children[0].textContent,'Not authored');
+    assert(!descendants(row.children[0]).some(node=>node.className==='small muted task-path'));
+  }
+}
+if(input.data.plan_counts){
+  assert(descendants(ids['case-tables']).some(node=>node.textContent==='Saved plan: 2 proposed · 0 authored · 0 validated · 0 executed.'));
 }
 assert(!descendants(ids['case-tables']).some(node=>String(node.textContent).includes('All state checks pass.')));
 const links=descendants(ids['case-tables']).filter(node=>node.tag==='a');
@@ -836,6 +851,11 @@ assert.equal(taskRows().length,1);
 delete harbor.title;
 vm.runInContext('drawCases();',context);
 assert.equal(taskRows()[0].children[0].children[0].textContent,'org/refund');
+if(input.data.plan_counts){
+  ids.search.value='proposed';vm.runInContext('drawCases();',context);
+  assert.equal(taskRows().length,2);
+  assert(taskRows().every(row=>row.children[1].children[0].textContent==='Proposed'));
+}
 """
     result = subprocess.run(
         [node, "-e", program],
@@ -1630,7 +1650,9 @@ def test_markdown_preserves_warnings_missing_data_and_stale_status(tmp_path):
         assert report.markdown_text(warning) in raw
     assert "Inventory unverified" in raw
     assert "Saved Task README snapshot" in raw
-    assert "Review saved artifacts" in raw
+    assert "Review saved artifacts" not in raw
+    assert f"[Task README](tasks/{Path(path).name}/README.md)" not in raw
+    assert "[View task]" not in raw
     assert "http://127.0.0.1" not in raw
     assert "Source artifacts were not found in this scan" in raw
     report.refresh(tmp_path, task_roots=["empty"], jobs_roots=["empty"])

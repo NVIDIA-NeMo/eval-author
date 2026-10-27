@@ -47,8 +47,12 @@ See [Check readiness](existing-evals.md#check-readiness) for the next step.
 
 ## Review generated cases
 
-Review tasks at `.eval-author/report.html` as soon as cases are authored;
-the final handoff links this report. In the report, users may open a task's
+Review tasks at `.eval-author/report.html` as soon as a first-evaluation plan is
+saved; the final handoff links this report. Planned tasks appear as **Proposed**
+until they are authored, including after design approval. Their rows show the
+saved behavior, expected outcome, and grading plan; artifact links appear when
+the files exist. Authored tasks retain their **Draft**, **Accepted**, or
+**Unknown** status. In the report, users may open an authored task's
 README or use the harbor viewer to review in full. Agents can start at the
 generated suite's root `README.md`.
 
@@ -85,7 +89,13 @@ item rerun commands, and known execution blockers.
 
 The selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` records the intended behavior, proposed
 cases, and acceptance criteria. Task drafts and run results show which checks
-have actually completed. Use the [generated case review guide](#review-generated-cases)
+have actually completed. The HTML report and Markdown catalog show the current
+saved plan with separate proposed, authored, validated, and executed task counts.
+These totals cover the full saved plan. Authored counts include previously
+authored tasks whose files are now missing or unverified; validation and execution
+counts require current evidence. Approving a design does not increase these
+counts. Refreshing follows plan revisions and removals, and
+an authored task replaces its proposed row. Use the [generated case review guide](#review-generated-cases)
 to inspect the authored cases and their available evidence.
 
 Earlier creation decisions and evidence bindings are retained as immutable snapshots
