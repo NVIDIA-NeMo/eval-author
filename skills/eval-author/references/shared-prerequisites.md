@@ -45,11 +45,23 @@ need not be complete. Metadata does not prove current content. Resume unfinished
 shared work at its pending decision. Resolve changed or ambiguous identity and
 intent before auditing, retaining prior scope and evidence as history.
 
+Saved context allows reuse of answers; it does not by itself remove the welcome.
+Skip the welcome only for a direct creation/improvement handoff in the current
+conversation (including accepting its audit invitation), or a reply continuing
+an active audit in that conversation. A separate audit request, including every
+new chat with saved context, gets
+[`audit_welcome`](conversations/onboarding.md#returning-audit-welcome).
+Do not search other chats to classify conversational continuity.
+
 For reusable context, continue these steps in the same turn when unblocked:
 
 1. Retain the handoff and original scope before `--state-only init --journey audit`
    clears the previous journey's pending question/handoff. Preserve agent and
    provider; for same-journey resumes, preserve the actual pending decision.
+   When a welcome is due, render `audit_welcome` from that fresh state-only audit
+   snapshot and publish it in commentary immediately, before prerequisite probes,
+   artifact inspection, or recovering additional context. Continue in this same
+   turn; the welcome asks no readiness question and is not a checkpoint.
 2. Apply [audit prerequisites](pre-reqs/audit.md) with state-only operations,
    retaining audit/authoring applicability resets. Reuse applicable common access
    and Ethos-skill confirmations; resolve only missing or changed audit skills,
@@ -74,9 +86,10 @@ For reusable context, continue these steps in the same turn when unblocked:
    proposed-check review when inputs are settled, without another recap approval.
    Never measure before check approval.
 
-Skip orientation, the `prerequisites` preview, repeated Ethos confirmation, and
-the shared completion pause. Do not fabricate `ready: true` or started status,
-or emit an empty checklist turn. After reconciliation, use `resume` for an actual
+Skip fresh orientation's readiness gate, the `prerequisites` preview, repeated
+Ethos confirmation, and the shared completion pause. Do not fabricate
+`ready: true` or started status, or end the turn with only a welcome/checklist.
+After reconciliation, use `resume` for an actual
 pending decision or continue authorized work. An audit request answers only a
 generic start invitation, not pending source/content decisions. After a required
 Ethos review, resume the requested audit without another invitation to begin.

@@ -19,7 +19,9 @@ defines the stage inputs and workflow boundaries.
 
 The [offline scope checker](../../docs/determinism-checks.md#workflow-scope) makes a subset
 of these route and effect expectations executable against normalized captures.
-Its synthetic tests are not a record of passing conversational replay.
+Its synthetic tests check action permissions and handoffs, not welcome copy,
+message channels, or observed model routing. They are not a record of passing
+conversational replay.
 
 ## 1. Shared entry for each journey and runtime
 
@@ -379,7 +381,8 @@ Keep the existing file unchanged when accepted without edits. Retain prior
 answers and source findings instead of restarting the interview. Inspect shared
 state as well as the visible checklist; old `complete` state must not bypass review.
 An explicit audit continuing valid same-repository, same-agent context follows
-the returning-audit scenario below; a new chat alone does not make it fresh onboarding.
+the returning-audit scenario below. A new chat requires the audit welcome while
+retaining applicable saved answers; it does not restart fresh onboarding.
 
 ## 4. Resume and switch journeys
 
@@ -387,6 +390,8 @@ Save accepted prerequisites and Ethos, a pending scope question, and evidence
 references in `.eval-author/.working/journey-state.json`. Resume the same goal
 from a fresh chat with its accepted scope, current Ethos confirmation, pending
 question, and handoff; do not restart shared entry or reopen unchanged review.
+For an audit in a new chat, first show the returning-audit welcome described below
+and continue in the same turn to the pending decision.
 Then switch between audit and creation or expansion. Retain shared confirmation,
 saved scopes, and evidence, but select the new goal's question and handoff;
 keep journey-specific source selections separate. A supplied source path does
@@ -406,32 +411,48 @@ authorize unrelated trace reads or agent execution.
 ### Returning audit after bootstrap or improvement
 
 Follow the [canonical return-to-audit rules](../../skills/eval-author/references/shared-prerequisites.md#return-to-an-audit).
-Repeat for completed bootstrap and completed improvement, both in the same chat
-and in a new chat opened in the known repository. Save confirmed agent identity,
-applicable prerequisites, content-bound Ethos approval, and the accepted suite
-and run selections. Request: “Audit the suite and runs we just reviewed.”
+Repeat for completed bootstrap and completed improvement. Save confirmed agent
+identity, applicable prerequisites, content-bound Ethos approval, and the accepted
+suite and run selections. Exercise these conversation contexts independently:
 
-Inspect tool ordering and filesystem effects against the canonical procedure,
-including its metadata-only lookup and selected-source boundaries. The first
-decision is proposed-check review, without repeated onboarding or selection.
-Exercise these variants independently for both origins and chat contexts:
+| Conversation context | Required introduction |
+| --- | --- |
+| Direct acceptance of the offered audit handoff in the active conversation | Continue the handoff without repeating the welcome |
+| A separate explicit audit request later in the same conversation | Show the audit welcome and saved-progress checklist |
+| A separate request or audit resume in a new chat opened in the known repository | Show the audit welcome and saved-progress checklist |
+| A reply continuing an active audit in the current conversation | Resume the pending decision without repeating the welcome |
+
+For separate requests, use “Audit the suite and runs we just reviewed.” Compare
+`audit_welcome` with the canonical renderer output and input authority. Inspect
+that its welcome, state-derived checklist, and saved-answer reuse note appear
+promptly in commentary before bounded checks. Ethos stays unchecked until
+reconciliation; saved authoring completion does not complete the audit.
+
+The same turn must reach the actual pending decision, or proposed-check review
+when inputs are settled. A readiness question, checklist-only turn, or repeated
+settled question fails. Inspect tool ordering and filesystem effects against the
+canonical procedure, including its metadata-only lookup and selected-source
+boundaries. Exercise these variants for both origins and applicable contexts:
 
 | Saved or current condition | Required next step |
 | --- | --- |
 | No saved state | Show the fresh orientation; create no state during classification |
 | Malformed or foreign-repository state | Preserve it and use recovery; do not inspect artifacts or manufacture approval |
 | Shared work remains unfinished | Resume its pending prerequisite or Ethos decision |
-| Trace availability unknown or missing | Block the audit, retaining earlier journey completion and Ethos confirmation; do not read Ethos or traces or run evaluations |
+| Trace availability unknown or missing | After any required early welcome, show the actual prerequisite blocker in final, retaining earlier journey completion and Ethos confirmation; do not read Ethos or traces or run evaluations |
 | Audit tooling missing | Report only unresolved audit requirements; do not repeat unrelated interviews |
 | Trace availability confirmed, run paths only candidates | Ask only for the missing source/location; do not inspect candidates |
 | Ethos content changed, missing, or selected agent changed | Reopen the affected intent review after applicable prerequisites pass |
-| Audit already has a pending question | Preserve its scope and resume that question |
+| Audit already has a pending question | After any required early welcome, preserve its scope and resume that actual question in the same turn |
 | Bootstrap invitation remains pending or is declined | Do not enter the audit or inspect its inputs |
 
 Retain source decisions and prior completion evidence around each blocker.
+Repeat the trace blocker with both unknown availability and confirmed absence;
+reuse the absence answer without asking it again. An early welcome does not
+authorize Ethos inspection or complete audit prerequisites.
 Synthetic contracts use representative permission policies; retain every origin
-and unknown/missing status variant here for conversational review. They do not
-establish observed assistant behavior.
+and unknown/missing status variant here for conversational review. Their action
+checks do not establish welcome content, timing, or observed assistant behavior.
 
 ## 5. Legacy state is imported once
 

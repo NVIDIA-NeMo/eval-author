@@ -6,7 +6,8 @@ description: >-
   choices, then end the turn before repository work. Scoped utilities keep their
   requested scope.
   Explicit audit requests first use this skill's bounded saved-context lookup;
-  returning users reuse confirmed prerequisites and Ethos.
+  returning users reuse confirmed prerequisites and Ethos. Separate audit requests
+  still get a welcome and progress checklist without another readiness pause.
   Build first evals from a required Ethos, work on existing evaluation suites
   in a user's repository, derive an environment from trace
   evidence (experimental), or understand an agent run from NeMo Intake. Owns the evidence
@@ -80,9 +81,11 @@ below for NeMo Gym and Harbor, including direct invocations of their skills.
 
 For an explicit full-audit request in a known repository, first follow
 [Return to an audit](references/shared-prerequisites.md#return-to-an-audit).
-Its bounded state-only lookup distinguishes a continuation after creation or
-improvement from fresh onboarding, including in a new chat. It grants no source
-selection or content approval. Other fresh requests retain the opening below.
+Its bounded state-only lookup distinguishes reusable creation or improvement
+context from fresh onboarding, including in a new chat. That procedure also
+selects the welcome/checklist for a separate request or direct continuation for
+an active handoff. It grants no source selection or content approval. Other
+fresh requests retain the opening below.
 
 The first response to a new shared flow is orientation only. Determine the goal
 from the user's request and conversation already available, without inspecting the

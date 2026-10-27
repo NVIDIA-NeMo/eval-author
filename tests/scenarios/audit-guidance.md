@@ -42,6 +42,11 @@ or `prerequisite_failure` if state cannot be loaded or saved, before any Ethos
 inspection. There is no intermediate completed report or third table.
 Unselected trace reads and agent execution remain out of scope.
 
+For full audits with reusable saved context, follow the
+[returning audit entry scenarios](entry-routing.md#returning-audit-after-bootstrap-or-improvement).
+Apply their introduction rules without restarting fresh onboarding or repeating
+settled prerequisite, Ethos, or source decisions.
+
 Use the fixed six-row audit table: **Agent and repository**, **Evaluation
 framework**, **Traces from completed evaluation runs**, **Required skills**,
 **File and command access**, and **Audit tooling**, in that order.
@@ -325,6 +330,10 @@ or permission to start first-eval creation. If the user later confirms no evals
 exist, the agent offers the appropriate next workflow without silently switching.
 
 ## 5. Resume without replaying settled work
+
+Run each case as an active-conversation continuation and as a new-chat resume,
+using the introduction rules linked above. Both reach the pending review in the
+same turn without repeating settled work or adding a readiness question.
 
 **A — selected source, pending transition:** Supply `.eval-author/.working/journey-state.json`,
 the accepted Ethos, a valid reviewed audit specification, and history showing that
@@ -669,9 +678,11 @@ tools and delegation logs as well as the reply.
 
 **Resume while suite selection is pending:** Start a fresh conversation with
 the saved progress and history and request: “Continue this audit.” The agent
-restores the two candidate suite links and pending include/exclude question,
-retains `runs/selected/` as the supplied trace source, and stops. It neither
-replays the opening nor infers an answer from the presence of saved paths.
+publishes the early `audit_welcome`, then restores the two candidate suite links
+and pending include/exclude question in the same turn. It retains `runs/selected/`
+as the supplied trace source and stops at the suite question. It does not ask for
+readiness or infer an answer from the presence of saved paths. Repeat as a reply
+in the active audit: resume that same suite question without repeating the welcome.
 
 **Suite correction:** “Audit only `evals/account-support/`. Exclude the legacy
 suite; there are no other suites to include.”
@@ -693,8 +704,10 @@ inputs do not approve the checks or authorize measurement.
 ## 13. Returning audit reaches the first unresolved step
 
 Use the [returning audit entry protocol](entry-routing.md#returning-audit-after-bootstrap-or-improvement)
-and its full variant matrix with this document's fixture. Verify that
-`runs/other/` stays unread and measurement waits for proposed-check approval.
+and its full origin, conversation-context, and blocker matrix with this
+document's fixture. Check that unknown or missing completed-run traces still
+block before Ethos inspection, `runs/other/` stays unread, and measurement waits for
+proposed-check approval. A welcome and checklist alone do not pass this scenario.
 
 ## Evidence limits
 

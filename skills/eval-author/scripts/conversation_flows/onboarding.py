@@ -3,8 +3,8 @@
 
 """Render orientation, prerequisites, and Ethos without advancing their workflow.
 
-The caller supplies state and evidence; only prerequisite_results accepts state
-whose artifact checks are still deferred.
+The caller supplies state and evidence; audit_welcome and prerequisite_results
+accept state whose artifact checks are still deferred.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from . import onboarding_templates as copy
 JOURNEYS = (None, *shared.JOURNEYS)
 PREVIEWS = {"orientation", "goal_selected", "prerequisites"}
 STAGES = PREVIEWS | {
+    "audit_welcome",
     "audit_entry_failure",
     "prerequisite_failure",
     "prerequisite_results",
@@ -381,6 +382,16 @@ def render(payload: dict) -> str:
         raise ValueError("Select the journey through the state helper before rendering progress")
     if "journey" in payload or "ready" in payload:
         raise ValueError("Saved state owns the selected journey; readiness is not a saved-state override")
+    if stage == "audit_welcome":
+        mapping(payload, "audit welcome", {"stage", "state", "revision"})
+        if state["journey"] != "audit":
+            raise ValueError("Audit welcome requires saved journey audit")
+        return (
+            "\n\n".join(
+                [copy.WELCOME_WITH_CHECKLIST, checklist("audit", state, state_only=True), copy.AUDIT_REUSE_NOTICE]
+            )
+            + "\n"
+        )
     state_only = stage == "prerequisite_results"
     fact_keys = {"rows", "recommendations", "blockers"}
     if not state_only:

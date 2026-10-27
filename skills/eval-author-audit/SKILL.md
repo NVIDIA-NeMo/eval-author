@@ -4,8 +4,8 @@ description: >-
   For a fresh full audit, read the eval-author core skill at ../eval-author/SKILL.md,
   use its pure conversation renderer for orientation and end the turn before
   repository inspection or prerequisite work.
-  First use the core's audit-entry lookup to recognize returning users and reuse
-  confirmed creation or improvement context without repeating onboarding.
+  First use the core's audit-entry lookup to reuse confirmed creation or improvement
+  context and select a welcome/checklist or direct handoff without repeated setup.
   Review evaluation coverage, identify gaps, and recommend improvements with
   milestone check-ins and user-confirmed eval and trace sources.
   Generate, validate, measure, and report on an audit-spec coverage denominator
@@ -65,8 +65,9 @@ and task creation remain in the separate improvement handoff.
 Before classifying a full-audit request as fresh, follow the core's
 [Return to an audit](../eval-author/references/shared-prerequisites.md#return-to-an-audit).
 It covers accepted first-suite invitations and explicit audit requests after
-creation or improvement, including a new chat with saved context. Reuse its
-confirmed context and continue directly at the first unresolved audit step.
+creation or improvement, including a new chat with saved context. It owns the
+welcome/checklist and direct-handoff distinction. Reuse its confirmed context
+and continue at the first unresolved audit step without another readiness pause.
 
 A full audit enters the core's shared prerequisite flow, including direct
 invocation. For a fresh audit, use the core's

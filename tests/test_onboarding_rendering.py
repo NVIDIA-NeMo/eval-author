@@ -335,6 +335,86 @@ def test_audit_resume_asks_only_the_unresolved_decision_after_prior_journey(onbo
     assert "confirmed and validated" not in output and copy.TABLE_HEADER not in output
 
 
+@pytest.mark.parametrize("trace_status", ["confirmed", "unknown", "missing"])
+def test_audit_welcome_preserves_saved_progress_without_claiming_artifact_confirmation(
+    onboarding, monkeypatch, trace_status
+):
+    state_helper, renderer, shared, state, _ = onboarding
+    copy = importlib.import_module("conversation_flows.onboarding_templates")
+    confirmed_request(onboarding)
+    state["journey"] = "audit"
+    state["journey_status"]["audit"] = "complete"
+    state["pending_question"] = "Which completed runs should this audit use?"
+    state["next_handoff"] = "eval-author-audit"
+    state["prerequisites"]["data"] = {"status": trace_status, "source": "Saved trace availability answer"}
+    state["blockers"] = (
+        [] if trace_status == "confirmed" else [{"id": "data", "phase": "setup", "message": "Traces required"}]
+    )
+    request = {"stage": "audit_welcome", "state": state, "revision": state["revision"]}
+    before = deepcopy(request)
+
+    def unexpected_io(*args, **kwargs):
+        pytest.fail("The early audit welcome must not inspect artifacts, write state, or read clocks")
+
+    monkeypatch.setattr(Path, "open", unexpected_io)
+    monkeypatch.setattr(state_helper, "now", unexpected_io)
+    monkeypatch.setattr(state_helper.first_eval_state, "observe", unexpected_io)
+    output = renderer.render(request)
+
+    assert output.startswith(copy.WELCOME_WITH_CHECKLIST + "\n\n")
+    assert output.endswith(copy.AUDIT_REUSE_NOTICE + "\n")
+    assert len(re.findall(r"^- \[[ x]\] ", output, re.MULTILINE)) == 3
+    assert output.count("- [x]") == (1 if trace_status == "confirmed" else 0)
+    assert f"- [ ] **{shared.CHECKLIST_LABELS[1]}**" in output
+    assert f"- [ ] **{shared.JOURNEYS['audit']}**" in output
+    assert copy.READY not in output and state["pending_question"] not in output
+    assert all(pause not in output for pause in copy.CONTINUATION.values())
+    assert "confirmed and validated" not in output and copy.TABLE_HEADER not in output
+    assert renderer.render(request) == output and request == before
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"state": None},
+        {"revision": 999},
+        {"revision": None},
+        {"journey": "audit"},
+        {"ready": True},
+        {"facts": {"question": "Continue?"}},
+    ],
+)
+def test_audit_welcome_rejects_missing_state_and_presentation_overrides(onboarding, patch):
+    _, renderer, _, state, _ = onboarding
+    state["journey"] = "audit"
+    request = {"stage": "audit_welcome", "state": state, "revision": state["revision"], **patch}
+    with pytest.raises(ValueError):
+        renderer.render(request)
+
+
+@pytest.mark.parametrize("journey", ["create", "expand"])
+def test_audit_welcome_requires_the_saved_audit_journey(onboarding, journey):
+    _, renderer, _, state, _ = onboarding
+    state["journey"] = journey
+    with pytest.raises(ValueError, match="requires saved journey audit"):
+        renderer.render({"stage": "audit_welcome", "state": state, "revision": state["revision"]})
+
+
+def test_audit_welcome_cli_uses_saved_snapshot_without_a_readiness_preview(onboarding):
+    _, renderer, _, state, _ = onboarding
+    state["journey"] = "audit"
+    request = {"stage": "audit_welcome", "state": state, "revision": state["revision"]}
+    result = subprocess.run(
+        [sys.executable, "-B", renderer.__file__, "--input", "-"],
+        input=json.dumps(request),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout == renderer.render(request)
+    assert "audit_welcome" not in renderer.PREVIEWS
+
+
 def test_audit_entry_failure_renders_only_escaped_saved_progress_error_without_io(onboarding, monkeypatch):
     state_helper, renderer, shared, _, _ = onboarding
     copy = importlib.import_module("conversation_flows.onboarding_templates")

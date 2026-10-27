@@ -8,6 +8,10 @@ WELCOME = (
     "against your agent’s intended behavior."
 )
 WELCOME_WITH_CHECKLIST = WELCOME + " Here’s what we’ll work through:"
+AUDIT_REUSE_NOTICE = (
+    "I’ll reuse your saved answers and check only what’s missing or changed. "
+    "Saved ETHOS.md approval will carry forward if the agent, intent, and document are unchanged."
+)
 GOAL_QUESTION = "What would you like to do?"
 GOAL_CHOICES = (
     "Build your first evaluations",
