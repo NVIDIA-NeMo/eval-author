@@ -156,7 +156,7 @@ function drawCases(){
   const container=byId('case-tables');container.replaceChildren();
   if(data.plan_counts)container.append(element('p','Saved plan: '+['proposed','authored','validated','executed'].map(key=>data.plan_counts[key]+' '+key).join(' · ')+'.','muted plan-counts'));
   const query=byId('search').value.toLowerCase();
-  const tasks=data.tasks.filter(t=>[t.display_id,t.title,t.name,t.path,t.behavior,t.expected_outcome,t.grading_kind,t.grading_summary,t.grading_rule,t.proposed_grading,t.readiness].filter(Boolean).join(' ').toLowerCase().includes(query));
+  const tasks=data.tasks.filter(t=>[t.display_id,t.plan_task_id,t.title,t.name,t.path,t.behavior,t.expected_outcome,t.grading_kind,t.grading_summary,t.grading_rule,t.proposed_grading,t.readiness].filter(Boolean).join(' ').toLowerCase().includes(query));
   byId('no-cases').hidden=tasks.length>0;
   if(!tasks.length)return;
   const card=element('div',undefined,'card table-card');

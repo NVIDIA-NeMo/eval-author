@@ -852,6 +852,13 @@ ids.search.value='approve refunds';vm.runInContext('drawCases();',context);
 assert.equal(taskRows().length,1);
 assert.equal(taskRows()[0].children[0].children[0].textContent,'R1 (Policy): Approve refunds');
 const harbor=input.data.tasks.find(task=>task.provider==='harbor'&&task.path);
+harbor.plan_task_id='IMP-01';
+for(const query of ['IMP-01','imp-01']){
+  ids.search.value=query;vm.runInContext('drawCases();',context);
+  assert.deepEqual(taskRows().map(row=>row.dataset.task),[harbor.id]);
+  assert(descendants(taskRows()[0]).some(node=>node.textContent==='Task ID: IMP-01'));
+  assert.equal(ids['no-cases'].hidden,true);
+}
 ids.search.value=harbor.grading_kind;vm.runInContext('drawCases();',context);
 assert.equal(taskRows().length,1);
 delete harbor.title;
