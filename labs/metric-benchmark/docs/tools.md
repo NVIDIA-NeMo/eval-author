@@ -156,6 +156,54 @@ and `unavailable_evidence.native_results` reason. A completed verifier zero is a
 valid observation; an execution exception is unavailable even if it saved a reward.
 Store the validation report outside the results root.
 
+### Example output
+
+The checked-in [mock results directory](../../../tests/fixtures/metric_benchmark_results/)
+matches the [example input bundle](../../../tests/fixtures/metric_benchmark/experiment.yml).
+It shows one baseline and two mutants, each completing the same three tasks:
+
+```text
+metric_benchmark_results/
+  validation.json                       # Output of the validation tool
+  execution-results/                    # Pass this directory as --results-root
+    results.json                        # Shared index: all nine agent/task pairs
+    agents/
+      agent-0000/                       # baseline (Oracle stand-in)
+        run-0001/
+          inspect-files__mock001/
+            result.json                 # Native Harbor trial record
+            verifier/reward.txt         # Mock verifier output
+          read-config__mock001/         # Same two files
+          search-workspace__mock001/     # Same two files
+      agent-0001/                       # mutant (NOP stand-in), same three trials
+      agent-0002/                       # mutant-no-search (NOP stand-in), same three trials
+```
+
+Review [results.json](../../../tests/fixtures/metric_benchmark_results/execution-results/results.json)
+first, then follow one row's `native_results_path` to its
+[native result](../../../tests/fixtures/metric_benchmark_results/execution-results/agents/agent-0000/run-0001/inspect-files__mock001/result.json).
+Finally, [validation.json](../../../tests/fixtures/metric_benchmark_results/validation.json)
+shows the nine accounted pairs and evidence-file hashes. Each baseline reward is
+1; each mutant reward is 0. All nine executions succeeded: a zero reward is an
+observed outcome, not a missing execution or an execution error.
+
+These are fabricated observations, not measurements from actual agent runs.
+The example keeps only trial records and verifier rewards; real Harbor jobs also
+contain job metadata, logs and agent evidence used by later stages. Optional
+native fields with default values are omitted. Recorded `/mock/metric-benchmark/`
+paths illustrate the producer's original location; validation does not open them.
+The report is outside the evidence root so it does not include itself in its hashes.
+
+`test_contract_and_cli_parity` in
+[the validation tests](../../../tests/test_metric_benchmark_validation.py)
+materializes the synthetic task sources from the input example, copies this output
+to a temporary directory, and checks that both the library and CLI reproduce the
+checked-in report. Run it without Docker or model calls:
+
+```bash
+uv run --locked pytest tests/test_metric_benchmark_validation.py -k contract_and_cli_parity -q
+```
+
 These checks establish artifact consistency, not mutation activation, verifier
 correctness, or scientific validity. Such qualification belongs to prepared cases.
 

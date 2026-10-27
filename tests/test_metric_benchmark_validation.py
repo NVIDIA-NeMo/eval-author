@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -13,7 +14,9 @@ from metric_benchmark.config import ScoringPolicy, load_benchmark
 from metric_benchmark.io import read_json, write_json
 from metric_benchmark.models import RawResults
 from metric_benchmark.validation import agent_config, task_checksum, validate_results
-from test_metric_benchmark_config import LAB, case_definition, prepared_benchmark, write_case
+from test_metric_benchmark_config import FIXTURE, LAB, case_definition, prepared_benchmark, write_case
+
+RESULT_FIXTURE = FIXTURE.parent / "metric_benchmark_results"
 
 
 def native_trial(task_path, directory, agent, reward):
@@ -84,9 +87,15 @@ def result_example(tmp_path, *, bundle=False):
 
 
 def test_contract_and_cli_parity(tmp_path):
-    loaded, case, raw, root, path = result_example(tmp_path)
+    path, _ = prepared_benchmark(tmp_path / "inputs")
+    loaded = load_benchmark(path)
+    case = loaded.case("rho-agent").case
+    root = tmp_path / "execution-results"
+    shutil.copytree(RESULT_FIXTURE / "execution-results", root)
+    raw = RawResults.model_validate(read_json(root / "results.json"))
     report = validate_results(raw, case, root, loaded.case(case.case_id).root, loaded.definition.scoring)
     assert report["expected_pairs"] == 9
+    assert report == read_json(RESULT_FIXTURE / "validation.json")
     out = tmp_path / "validation.json"
     subprocess.run(
         [
@@ -147,8 +156,6 @@ def test_explicit_missing_observation_is_not_zero(tmp_path):
 
 
 def test_relocated_bundle_and_native_evidence_validate_without_original_paths(tmp_path):
-    import shutil
-
     original = tmp_path / "producer"
     loaded, case, raw, root, path = result_example(original, bundle=True)
     before = validate_results(raw, case, root, loaded.case(case.case_id).root, loaded.definition.scoring)
