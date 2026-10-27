@@ -30,3 +30,5 @@ Python tool and library API:
 
 See the [architecture](docs/architecture.md) and [stage descriptions](docs/stages.md)
 for how the experiment works.
+
+For preparing bundles, use the [benchmark format specification](docs/benchmark-format.md).
