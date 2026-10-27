@@ -45,24 +45,28 @@ coverage, and correlation. Prep is external to those stages.
 
 ## Benchmark definition
 
-A fixed metric benchmark consists of three linked documents:
+A fixed metric benchmark consists of linked, content-pinned manifests:
 
-- **Experiment YAML (`experiment.yml`):** selects case manifests by relative path
-  and SHA-256, and configures execution, metric computation, and scoring.
-- **Case manifest (`cases/<case-id>/case.yml`):** identifies the fixed baseline,
-  mutants, description, task inventory, and pinned subset manifest and inputs.
-- **Subset manifest (`subsets.json`):** records exact task memberships and their
-  preparation seed for that case. It is independent of the experiment configuration.
+- **Experiment YAML (`experiment.yml`):** lists cases and configures execution,
+  metric computation, and scoring.
+- **Case manifest (`case.yml`):** combines an agent manifest, a tasks manifest,
+  and a prepared subset manifest.
+- **Agent manifest (`agent.yml`):** defines the baseline, mutants, and intended
+  behavior description, with pinned references to prepared dependencies.
+- **Tasks manifest (`tasks.yml`):** defines the fixed inventory and pinned task locations.
+- **Subset manifest:** records the list of exact task memberships and their
+  preparation seed. It is bound to the task inventory, independently of case IDs.
 
-Prep produces the case packages. Experiments select those packages by reference;
-they do not repeat or modify their definitions. Multiple experiments can evaluate
-different metrics against the same fixed cases and subsets.
+Prep produces these fixed inputs. Cases can share agents, tasks and subsets;
+experiments select cases without repeating or modifying their definitions.
+Different metric configurations can reuse the same prepared inputs.
 
-After unpacking a benchmark, paths resolve relative to the manifest containing
-them: the experiment references case files, and each case references its own
-inputs. SHA-256 pins verify each link. The [tool guide](tools.md#experiment-and-prepared-case-manifests)
-specifies the directory layout and manifest fields. Each execution produces its
-own results while retaining the configured input identities.
+After unpacking a benchmark, all paths resolve relative to the bundle root—the
+folder containing the experiment YAML. Nested manifests can reference shared
+inputs without `../`. SHA-256 pins verify each link. The
+[tool guide](tools.md#experiment-and-prepared-manifests) specifies the directory
+layout and fields. Each execution produces its own results while retaining the
+configured input identities.
 
 ## 1. Prep
 
@@ -100,9 +104,9 @@ inputs cause an error.
 ### Subset manifest
 
 Prep constructs subsets from the pinned task inventory, before inspecting
-execution outcomes or coverage scores. Each case bundles `subsets.json`, a
-versioned manifest containing stable subset IDs, exact task identities and
-revisions for each subset, the case and task-inventory identities, and the construction
+execution outcomes or coverage scores. Each case references a subset manifest, a
+versioned artifact containing stable subset IDs, exact task identities and
+revisions for each subset, the task-inventory identity, and the construction
 algorithm, subset count, subset size, and fixed seed.
 
 The manifest is authoritative: every run and metric tool uses the same explicit

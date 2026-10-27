@@ -15,6 +15,9 @@ from metric_benchmark.models import Score, Subsets, Tasks
 LAB = Path(__file__).resolve().parents[1] / "labs/metric-benchmark"
 FIXTURE = Path(__file__).parent / "fixtures/metric_benchmark"
 CASE_DIR = Path("cases/rho-agent")
+TASK_DIR = Path("tasks/workspace")
+SUBSETS_PATH = Path("subsets/workspace-fixed.json")
+DESCRIPTION_PATH = Path("agents/rho-agent/description.json")
 TASK_IDS = ["inspect-files", "read-config", "search-workspace"]
 
 
@@ -33,7 +36,6 @@ def inventory(n=3):
 def fixed_subsets(tasks):
     return Subsets.model_validate(
         {
-            "case_id": "rho-agent",
             "task_inventory": tasks.model_dump(),
             "sampling_parameters": {"seed": 42},
             "eval_subsets": [
@@ -50,7 +52,7 @@ def prepared_benchmark(root):
     definition = yaml.safe_load(path.read_text())
     case = case_definition(path)
     for source in case["task_sources"].values():
-        folder = root / CASE_DIR / source["path"]
+        folder = root / source["path"]
         folder.mkdir(parents=True)
         (folder / "instruction.md").write_text("Synthetic test task.\n")
         (folder / "task.toml").write_text('version = "1.0"\n')
@@ -62,14 +64,34 @@ def prepared_benchmark(root):
 
 
 def case_definition(experiment):
-    return yaml.safe_load((experiment.parent / CASE_DIR / "case.yml").read_text())
+    manifest = yaml.safe_load((experiment.parent / CASE_DIR / "case.yml").read_text())
+    agent = yaml.safe_load((experiment.parent / manifest["agent"]["path"]).read_text())
+    tasks = yaml.safe_load((experiment.parent / manifest["tasks"]["path"]).read_text())
+    return {
+        "case_id": manifest["case_id"],
+        "subsets": manifest["subsets"],
+        "baseline": agent["baseline"],
+        "mutants": agent["mutants"],
+        "case_description": agent["description"],
+        **tasks,
+    }
 
 
 def write_case(experiment, case):
-    manifest = experiment.parent / CASE_DIR / "case.yml"
-    manifest.write_text(yaml.safe_dump(case, sort_keys=False))
+    manifest_path = experiment.parent / CASE_DIR / "case.yml"
+    manifest = yaml.safe_load(manifest_path.read_text())
+    parts = {
+        "agent": {"baseline": case["baseline"], "mutants": case["mutants"], "description": case["case_description"]},
+        "tasks": {"task_inventory": case["task_inventory"], "task_sources": case["task_sources"]},
+    }
+    for name, data in parts.items():
+        target = experiment.parent / manifest[name]["path"]
+        target.write_text(yaml.safe_dump(data, sort_keys=False))
+        manifest[name]["sha256"] = input_digest(target)
+    manifest.update(case_id=case["case_id"], subsets=case["subsets"])
+    manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False))
     definition = yaml.safe_load(experiment.read_text())
-    definition["cases"][0]["sha256"] = input_digest(manifest)
+    definition["cases"][0]["sha256"] = input_digest(manifest_path)
     experiment.write_text(yaml.safe_dump(definition, sort_keys=False))
 
 
@@ -84,7 +106,7 @@ def test_prepared_inputs_and_fixed_memberships(tmp_path):
         "baseline": "baseline-job",
         "mutant": "mutant-job",
     }
-    (tmp_path / CASE_DIR / "tasks/inspect-files/instruction.md").write_text("changed")
+    (tmp_path / TASK_DIR / "inspect-files/instruction.md").write_text("changed")
     with pytest.raises(ValueError, match="digest differs"):
         load_benchmark(path)
 
@@ -138,7 +160,7 @@ def test_json_numbers_and_immutable_outputs(tmp_path):
 
 def test_manifest_rejects_duplicate_memberships(tmp_path):
     path, _ = prepared_benchmark(tmp_path)
-    manifest = json.loads((tmp_path / CASE_DIR / "subsets.json").read_text())
+    manifest = json.loads((tmp_path / SUBSETS_PATH).read_text())
     manifest["eval_subsets"][1]["tasks"] = manifest["eval_subsets"][0]["tasks"]
     with pytest.raises(ValueError, match="memberships"):
         Subsets.model_validate(manifest)
@@ -173,7 +195,7 @@ def test_yaml_date_rejected_but_explicit_string_and_null_preserved(tmp_path):
 
 def test_changed_task_input_names_case_and_task(tmp_path):
     path, _ = prepared_benchmark(tmp_path)
-    (tmp_path / CASE_DIR / "tasks/inspect-files/instruction.md").unlink()
+    (tmp_path / TASK_DIR / "inspect-files/instruction.md").unlink()
     with pytest.raises(ValueError, match="case rho-agent: task inspect-files: input digest differs"):
         load_benchmark(path)
 
@@ -204,14 +226,14 @@ def test_mutated_configuration_cannot_serialize_invalid_json():
 
 def test_analysis_definition_and_subsets_do_not_need_execution_inputs(tmp_path):
     path, _ = prepared_benchmark(tmp_path)
-    for task in (tmp_path / CASE_DIR / "tasks").iterdir():
-        shutil.rmtree(task)
-    (tmp_path / CASE_DIR / "description.json").unlink()
+    for source in case_definition(path)["task_sources"].values():
+        shutil.rmtree(tmp_path / source["path"])
+    (tmp_path / DESCRIPTION_PATH).unlink()
     loaded = read_benchmark(path)
     prepared = loaded.case("rho-agent")
     case = prepared.case
     assert len(case.load_subsets(prepared.root).eval_subsets) == 3
-    (tmp_path / CASE_DIR / "subsets.json").write_text("{}")
+    (tmp_path / SUBSETS_PATH).write_text("{}")
     with pytest.raises(ValueError, match="input digest differs"):
         case.load_subsets(prepared.root)
     with pytest.raises(ValueError, match="unknown case: absent"):
@@ -225,15 +247,15 @@ def test_case_artifact_errors_have_one_context(tmp_path, standalone, field, fail
     path, definition = prepared_benchmark(tmp_path)
     case_data = case_definition(path)
     source = case_data[field]
-    artifact = tmp_path / CASE_DIR / source["path"]
+    artifact = tmp_path / source["path"]
     if failure == "missing":
         artifact.unlink()
         detail = f"missing pinned input: {source['path']}"
     else:
         if field == "subsets":
             data = json.loads(artifact.read_text())
-            data["case_id"] = "wrong"
-            detail = "subset manifest does not match case identity and task inventory"
+            data["task_inventory"]["benchmark"]["benchmark_id"] = "wrong"
+            detail = "subset manifest does not match task inventory"
         else:
             data = []
             detail = "case description must be a JSON object"
@@ -284,7 +306,7 @@ def test_fixed_case_can_be_reused_by_different_experiments(tmp_path):
     assert before == {p.relative_to(tmp_path): p.read_bytes() for p in (tmp_path / CASE_DIR).rglob("*") if p.is_file()}
 
 
-def test_unpacked_bundle_resolves_relative_to_each_manifest(tmp_path, monkeypatch):
+def test_unpacked_bundle_resolves_relative_to_bundle_root(tmp_path, monkeypatch):
     path, _ = prepared_benchmark(tmp_path / "original")
     original = load_benchmark(path)
     destination = tmp_path / "unpacked"
@@ -295,17 +317,20 @@ def test_unpacked_bundle_resolves_relative_to_each_manifest(tmp_path, monkeypatc
     assert moved.identity == original.identity
     assert moved.subsets == original.subsets
     prepared = moved.case("rho-agent")
-    assert prepared.root == destination / CASE_DIR
-    assert prepared.case.task_sources["inspect-files"].resolve(prepared.root) == prepared.root / "tasks/inspect-files"
+    assert prepared.root == destination
+    assert (
+        prepared.case.task_sources["inspect-files"].resolve(prepared.root) == prepared.root / TASK_DIR / "inspect-files"
+    )
 
 
-@pytest.mark.parametrize("level", ["case", "subset"])
+@pytest.mark.parametrize("level", ["case", "agent", "tasks", "subsets"])
 @pytest.mark.parametrize("failure", ["absolute", "traversal", "symlink", "missing"])
 def test_manifest_references_stay_inside_their_package(tmp_path, level, failure):
     path, definition = prepared_benchmark(tmp_path)
-    case = case_definition(path)
-    source = definition["cases"][0] if level == "case" else case["subsets"]
-    root = tmp_path if level == "case" else tmp_path / CASE_DIR
+    manifest_path = tmp_path / CASE_DIR / "case.yml"
+    manifest = yaml.safe_load(manifest_path.read_text())
+    source = definition["cases"][0] if level == "case" else manifest[level]
+    root = tmp_path
     target = root / source["path"]
     if failure == "absolute":
         source["path"] = str(target)
@@ -317,10 +342,10 @@ def test_manifest_references_stay_inside_their_package(tmp_path, level, failure)
         source["path"] = "alias"
     else:
         target.unlink()
-    if level == "case":
-        path.write_text(yaml.safe_dump(definition))
-    else:
-        write_case(path, case)
+    if level != "case":
+        manifest_path.write_text(yaml.safe_dump(manifest))
+        definition["cases"][0]["sha256"] = input_digest(manifest_path)
+    path.write_text(yaml.safe_dump(definition))
     with pytest.raises(ValueError, match="relative|symlink|missing pinned input"):
         load_benchmark(path)
 

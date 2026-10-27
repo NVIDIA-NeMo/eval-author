@@ -1,6 +1,5 @@
 {
   "artifact_type": "eval_subset_definitions",
-  "case_id": "rho-agent",
   "eval_subsets": [
     {
       "eval_subset_id": "subset-000001",

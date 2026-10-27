@@ -100,6 +100,30 @@ class CoverageConfig(Model):
     timeout_seconds: int = Field(default=3600, ge=1)
 
 
+class AgentManifest(Model):
+    baseline: Agent
+    mutants: list[Agent] = Field(min_length=1)
+    description: PinnedInput
+
+
+class TaskManifest(Model):
+    task_inventory: Tasks
+    task_sources: dict[Text, PinnedInput]
+
+
+class CaseManifest(Model):
+    case_id: Text
+    agent: PinnedInput
+    tasks: PinnedInput
+    subsets: PinnedInput
+
+    @model_validator(mode="after")
+    def file_references(self) -> Self:
+        if any(source.kind != "file" for source in (self.agent, self.tasks, self.subsets)):
+            raise ValueError("agent, tasks and subsets must reference manifest files")
+        return self
+
+
 class Case(Model):
     case_id: Text
     task_inventory: Tasks
@@ -126,8 +150,8 @@ class Case(Model):
     def load_subsets(self, root: Path) -> Subsets:
         try:
             subsets = Subsets.model_validate(read_json(self.subsets.resolve(root)))
-            if subsets.case_id != self.case_id or subsets.task_inventory != self.task_inventory:
-                raise ValueError("subset manifest does not match case identity and task inventory")
+            if subsets.task_inventory != self.task_inventory:
+                raise ValueError("subset manifest does not match task inventory")
             return subsets
         except (OSError, ValueError) as error:
             raise ValueError(f"case {self.case_id}, subsets: {error}") from error
@@ -207,19 +231,29 @@ def read_yaml(path: Path) -> object:
 
 
 def read_benchmark(path: Path) -> LoadedBenchmark:
-    """Read the experiment and pinned case manifests, without execution inputs."""
+    """Read pinned case, agent and task manifests without execution inputs."""
     definition = BenchmarkDefinition.model_validate(read_yaml(path))
     root = path.resolve().parent
     cases = {}
     for source in definition.cases:
         try:
-            manifest = source.resolve(root)
-            case = Case.model_validate(read_yaml(manifest))
+            manifest = CaseManifest.model_validate(read_yaml(source.resolve(root)))
+            agent = AgentManifest.model_validate(read_yaml(manifest.agent.resolve(root)))
+            tasks = TaskManifest.model_validate(read_yaml(manifest.tasks.resolve(root)))
+            case = Case(
+                case_id=manifest.case_id,
+                subsets=manifest.subsets,
+                baseline=agent.baseline,
+                mutants=agent.mutants,
+                case_description=agent.description,
+                task_inventory=tasks.task_inventory,
+                task_sources=tasks.task_sources,
+            )
         except (OSError, ValueError) as error:
             raise ValueError(f"case manifest {source.path}: {error}") from error
         if case.case_id in cases:
             raise ValueError(f"duplicate case ID: {case.case_id}")
-        cases[case.case_id] = LoadedCase(case, manifest.parent)
+        cases[case.case_id] = LoadedCase(case, root)
     return LoadedBenchmark(definition, root, cases)
 
 

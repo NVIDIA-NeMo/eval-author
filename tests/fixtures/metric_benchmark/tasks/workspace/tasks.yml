@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+task_inventory:
+  benchmark:
+    deployment: local
+    benchmark_id: rho-agent-tasks
+    revision: 1
+  tasks:
+  - task_id: inspect-files
+    revision: 1
+  - task_id: read-config
+    revision: 1
+  - task_id: search-workspace
+    revision: 1
+task_sources:
+  inspect-files:
+    path: tasks/workspace/inspect-files
+    sha256: sha256:43a50d7fb576a63244e103ba4e7dc772e5ab0ad7ab8e3877f4d3e0af518174b5
+    kind: directory
+  read-config:
+    path: tasks/workspace/read-config
+    sha256: sha256:43a50d7fb576a63244e103ba4e7dc772e5ab0ad7ab8e3877f4d3e0af518174b5
+    kind: directory
+  search-workspace:
+    path: tasks/workspace/search-workspace
+    sha256: sha256:43a50d7fb576a63244e103ba4e7dc772e5ab0ad7ab8e3877f4d3e0af518174b5
+    kind: directory

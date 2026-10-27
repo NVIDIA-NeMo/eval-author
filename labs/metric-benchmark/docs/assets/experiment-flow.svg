@@ -3,7 +3,7 @@
 <!-- Editable SVG: labels are text; no external fonts, scripts, or assets. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1320" viewBox="0 0 1280 1320" role="img" aria-labelledby="title description">
   <title id="title">Metric benchmark: from case examples to correlation</title>
-  <desc id="description">Three phases: prepare case examples for the experiment; run the baseline and mutants against all eval tasks; analyze the saved results. Prep supplies the agent, mutants, case description, benchmark tasks, and experiment configuration. It constructs subsets using a fixed seed and bundles their exact memberships in an authoritative case-bound manifest. Execution produces a shared results directory. Analysis consumes the prepared subset manifest, computes mutant scores from baseline and mutant outcomes, and computes coverage from the case description and baseline evidence using metric computation such as Eval Author. The two scores are joined by subset for correlation. Configuration governs execution and analysis. Prep is outside the experiment; the local Harbor loop and future NeMo Helix implementation are planned execution backends.</desc>
+  <desc id="description">Three phases: prepare case examples for the experiment; run the baseline and mutants against all eval tasks; analyze the saved results. Prep supplies the agent, mutants, case description, benchmark tasks, and experiment configuration. It constructs subsets using a fixed seed and bundles their exact memberships in an authoritative task-inventory-bound manifest. Execution produces a shared results directory. Analysis consumes the prepared subset manifest, computes mutant scores from baseline and mutant outcomes, and computes coverage from the case description and baseline evidence using metric computation such as Eval Author. The two scores are joined by subset for correlation. Configuration governs execution and analysis. Prep is outside the experiment; the local Harbor loop and future NeMo Helix implementation are planned execution backends.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M1 1 L9 5 L1 9 Z" fill="#64748b"/>
@@ -67,7 +67,7 @@
   <text x="672" y="327" class="label">Subset manifest</text>
   <text x="672" y="356" class="detail">Stable subset IDs + exact task membership</text>
   <text x="672" y="383" class="small">Versioned subsets.json · algorithm + fixed seed recorded</text>
-  <text x="64" y="431" class="small">Experiment YAML pins case manifests; each case pins its subset manifest and prepared inputs.</text>
+  <text x="64" y="431" class="small">Experiment YAML pins cases; each case selects agent, tasks, and subset manifests.</text>
 
   <g transform="translate(0 110)">
   <path d="M310 336 V364" class="flow"/>
