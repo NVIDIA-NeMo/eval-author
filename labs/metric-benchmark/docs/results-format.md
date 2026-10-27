@@ -3,14 +3,20 @@
 
 # Results format
 
-Execution produces one results directory per prepared case. It contains a shared
-`results.json` index and the native evidence for the baseline and mutants running
-against that case's tasks. This is the interface between execution and score
-analysis; it contains observations, not mutant scores, coverage scores or correlations.
-
 The [benchmark format](benchmark-format.md) defines the prepared inputs and
-experiment configuration used to interpret these results. The validator checks
-the directory against a selected case and the experiment's scoring policy.
+experiment configuration, including the case examples, their baseline agents
+and mutants, and the evaluation tasks to run.
+
+Execution produces one results directory per prepared case example. It contains
+a shared `results.json` index and the raw results for the baseline and mutants
+running against that example's tasks. The experiment definition determines which
+agents and tasks the results must account for; this document defines how those
+results are represented. The validator checks that they account for the configured
+agent × task matrix and agree with the prepared inputs and native execution evidence.
+
+This structure is the interface between agent × task execution and score analysis.
+It contains observations, not mutant scores, coverage scores or correlations.
+
 See [tool usage](tools.md#validate-a-results-directory) for CLI and library entry points.
 
 This is an experimental format and may change with the benchmark. The current
