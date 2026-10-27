@@ -105,7 +105,11 @@ agent/task files, descriptions and subsets first, writes the hashes into the
 agent/tasks manifests, then hashes those manifests and updates the inline case
 references in `experiment.yml`. The experiment file has no self-hash. Changing
 an input requires re-signing its referencing manifests; revision labels do not
-replace content verification.
+replace content verification. For routine updates after editing a signed bundle,
+use `sha-sign experiment.yml --resign`. Signing changes only SHA fields and
+preserves comments and other formatting, so the diff shows which pins changed.
+Use plain or quoted SHA scalar values; block-scalar, anchored and tagged SHA
+values are not supported for rewriting.
 
 Use `sha-sign experiment.yml --check` to require and verify every pin without
 writing files. Checking calls the normal `load_benchmark()` path with its strict default;

@@ -40,16 +40,18 @@ metric tool, and it does not modify task files, agent files or JSON inputs.
 
 If any reference already has a SHA field, signing stops without writing files
 and lists those fields' locations. Delete those fields, or explicitly re-sign
-the current contents with `--force`:
+the current contents with `--resign`:
 
 ```bash
-uv run labs/metric-benchmark/tools/sha-sign benchmark/experiment.yml --force
+uv run labs/metric-benchmark/tools/sha-sign benchmark/experiment.yml --resign
 ```
 
-`--force` replaces old pins, including ones that no longer match edited inputs.
-Signing rewrites YAML formatting and preserves leading comments, including
-license headers; comments within the YAML body are not retained. The input
-files should not be edited while signing. Inputs cannot include manifests that
+`--resign` replaces old pins, including ones that no longer match edited inputs.
+Signing edits only SHA fields, preserving comments, key order, quoting and
+formatting elsewhere. New SHA fields are inserted into their reference mapping;
+existing pins keep their plain or quoted scalar style. Block-scalar, anchored or
+tagged SHA values must be changed to plain or quoted scalars before re-signing.
+The input files should not be edited while signing. Inputs cannot include manifests that
 the signer itself rewrites, since doing so would invalidate their hashes.
 
 Once signed, readers verify each supplied digest as they load its reference.
@@ -68,7 +70,7 @@ uv run labs/metric-benchmark/tools/sha-sign benchmark/experiment.yml --check
 current contents. A missing or null SHA field fails with input context; an incorrect digest also
 fails. This uses `load_benchmark()` directly with signing required, exactly as
 normal full loading does. Success exits with status zero;
-validation failures exit nonzero. `--check` and `--force` are mutually exclusive.
+validation failures exit nonzero. `--check` and `--resign` are mutually exclusive.
 The top-level experiment has no self-hash, and inline cases have no separate
 hash: their agent, tasks and subsets references are checked instead.
 
@@ -79,7 +81,7 @@ from pathlib import Path
 from metric_benchmark.signing import check_benchmark, sign_benchmark
 
 experiment = Path("benchmark/experiment.yml")
-changed_files = sign_benchmark(experiment, force=False)
+changed_files = sign_benchmark(experiment, resign=False)
 check_benchmark(experiment)
 ```
 

@@ -22,14 +22,54 @@ from metric_benchmark.io import digest_bytes, input_digest, read_json
 from metric_benchmark.models import Subsets
 
 
+def _sha_edits(node: yaml.Node, before, after, text: str) -> list[tuple[int, int, str]]:
+    if before == after:
+        return []
+    edits = []
+    if isinstance(node, yaml.SequenceNode):
+        for child, old, new in zip(node.value, before, after, strict=True):
+            edits.extend(_sha_edits(child, old, new, text))
+        return edits
+    if not isinstance(node, yaml.MappingNode):
+        raise ValueError("signing can only change sha256 fields")
+    if after.keys() - before.keys() - {"sha256"}:
+        raise ValueError("signing can only add sha256 fields")
+    if "sha256" in after and "sha256" not in before:
+        first_key = node.value[0][0].start_mark
+        newline = "\r\n" if "\r\n" in text else "\n"
+        separator = ", " if node.flow_style else newline + " " * first_key.column
+        edits.append((first_key.index, first_key.index, f"sha256: {after['sha256']}" + separator))
+    for key, value in node.value:
+        name = key.value
+        if name != "sha256":
+            edits.extend(_sha_edits(value, before[name], after[name], text))
+        elif before[name] != after[name]:
+            if not isinstance(value, yaml.ScalarNode) or value.style not in (None, "'", '"'):
+                raise ValueError("use a plain or quoted scalar for sha256 before re-signing")
+            start, end = value.start_mark.index, value.end_mark.index
+            original = text[start:end]
+            if original.startswith(("&", "!", "*")):
+                raise ValueError("use an unanchored, untagged scalar for sha256 before re-signing")
+            quote = value.style or ""
+            replacement = quote + after[name] + quote
+            if start and text[start - 1] == ":":
+                replacement = " " + replacement
+            if end < len(text) and text[end] == "#":
+                replacement += " "
+            edits.append((start, end, replacement))
+    return edits
+
+
 def _yaml_bytes(path: Path, data: dict) -> bytes:
-    # Preserve leading comments (including license headers); PyYAML rewrites the body.
-    prefix = []
-    for line in path.read_text(encoding="utf-8").splitlines(keepends=True):
-        if line.strip() and not line.lstrip().startswith("#"):
-            break
-        prefix.append(line)
-    return ("".join(prefix) + yaml.safe_dump(data, sort_keys=False, allow_unicode=True)).encode("utf-8")
+    # Parser positions let us change pins without reformatting YAML or losing comments.
+    text = path.read_bytes().decode("utf-8")
+    node = yaml.compose(text, Loader=yaml.SafeLoader)
+    if node is None:
+        raise ValueError(f"empty YAML manifest: {path}")
+    edits = set(_sha_edits(node, read_yaml(path), data, text))
+    for start, end, replacement in sorted(edits, reverse=True):
+        text = text[:start] + replacement + text[end:]
+    return text.encode("utf-8")
 
 
 def _replace(path: Path, data: bytes) -> None:
@@ -95,7 +135,7 @@ def check_benchmark(path: Path) -> None:
     load_benchmark(path)
 
 
-def sign_benchmark(path: Path, *, force: bool = False) -> list[Path]:
+def sign_benchmark(path: Path, *, resign: bool = False) -> list[Path]:
     """Validate inputs, then write their hashes into manifests, leaves first."""
     path = path.resolve(strict=True)
     root = path.parent
@@ -103,11 +143,11 @@ def sign_benchmark(path: Path, *, force: bool = False) -> list[Path]:
     existing = [
         f"{owner.relative_to(root)}:{label}" for (owner, label), (data, _, _) in references.items() if "sha256" in data
     ]
-    if existing and not force:
+    if existing and not resign:
         raise ValueError(
             "SHA fields already exist:\n  "
             + "\n  ".join(existing)
-            + "\nDelete these fields or use --force to reapply them."
+            + "\nDelete these fields or use --resign to update their pins."
         )
 
     for data, target, manifest in references.values():
@@ -116,6 +156,8 @@ def sign_benchmark(path: Path, *, force: bool = False) -> list[Path]:
             if any(target == item or target in item.parents for item in documents):
                 raise ValueError(f"input overlaps a manifest being signed: {target.relative_to(root)}")
             data["sha256"] = input_digest(target)
+    # The schema has two manifest levels: experiment -> agent/tasks -> leaf inputs.
+    # If nested manifests are added, finalize their children before hashing parents.
     planned = {target: _yaml_bytes(target, data) for target, data in documents.items() if target != path}
     for data, target, manifest in references.values():
         if manifest:
