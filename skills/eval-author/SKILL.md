@@ -327,9 +327,9 @@ user, not to you.
 - **Treat recorded evidence as read-only.** Never edit, delete, rename, or
   hand-regenerate measurements, receipts, gate results, summaries, or attempt
   ledgers to change a verdict. If a result looks wrong, rerun to produce new
-  evidence, keep the old evidence, and report the discrepancy instead of
-  reconciling it by hand. Archiving unchanged evidence is fine; preserve its
-  linked artifacts and relative layout.
+  evidence and report the discrepancy instead of reconciling it by hand.
+  Keep evidence needed for current claims available; the user owns longer-term
+  result retention under the [temporary-work policy](references/shared-prerequisites.md#temporary-work-and-recovery).
 - **Propose, never mutate customer source.** Read the user's source and report on
   it. Do not edit, move, or reformat any of it, including its `.gitignore`. The
   evaluation artifacts you add belong under `.eval-author/`, which is theirs to
@@ -351,6 +351,8 @@ user, not to you.
   All internal state, plans, scratch, locks, and intermediate inputs belong under
   `.eval-author/.working/`; final tasks, reports, run configs, and evidence retain
   their documented deliverable paths. Journey state is the sole workflow-state authority.
+  Follow [Temporary work and recovery](references/shared-prerequisites.md#temporary-work-and-recovery)
+  for construction files and unfinished-work recovery.
 - **A missing tool is a finding, not a task.** When the provider is not installed,
   say so and stop short of proving anything. Report what you found regardless, and
   do not install the provider automatically. For NeMo Gym, report its separate runtime
