@@ -22,12 +22,18 @@ skills catalog. Use the [installation command](../README.md#prerequisites) for
 your assistant and scope; see the
 [ETHOS.md guide](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md#how-to-use).
 
-Eval Author can use an existing `ETHOS.md` in your agent's directory or at the
-repository root. Tell it which document belongs to the agent; it keeps that file
-in place and asks when the choice is ambiguous. New documents default to the
-repository root unless you specify another destination. The filename must remain
-uppercase `ETHOS.md`, and the selected document still needs validation and your
-confirmation.
+Eval Author uses an explicit document path first. For a Helix agent, it otherwise
+checks `ETHOS.md` in the agent's `<workspace>/<agent-name>-ethos` fileset before
+looking at repository-root `ETHOS.md`. A missing or empty stored document allows
+the local fallback; connection and access errors need to be resolved. Local-only
+agents do not need Helix.
+
+A stored document is downloaded to a new local snapshot for validation and your
+review. Eval Author reports its fileset source and local path, preserves existing
+repository files, and keeps the selected snapshot when you resume. Ask to refresh
+it if you want to use a newer stored version. An explicitly selected agent-local
+file stays in place. New documents default to the repository root unless you
+specify another destination; selected files retain the uppercase `ETHOS.md` name.
 
 The linked catalog guide describes lowercase `ethos.md` and renaming uppercase
 files. Use a catalog version that preserves an explicitly supplied uppercase

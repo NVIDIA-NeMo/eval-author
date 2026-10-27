@@ -60,6 +60,57 @@ the prior selection and provenance remain under
 or disappears, preserve that selection and reopen review without falling back to
 another file.
 
+## Select the source
+
+Run source discovery only after entering the Ethos step, never during the
+prerequisite pass. Use this order for an initial selection:
+
+1. An explicit user-supplied path wins. Read that exact file; a missing,
+   unreadable, empty, or invalid document is an unfinished Ethos step, not
+   permission to fall back to another source.
+2. For a selected Helix agent with a known platform, workspace, and registered
+   agent name, read `ETHOS.md` from `<workspace>/<agent-name>-ethos`. Do not infer
+   a registration from a repository directory name. If the user selected a
+   Helix agent but its workspace or identity is ambiguous, resolve that before
+   querying Files. Use the configured Helix connection; do not install Helix
+   or require a platform account for a local-only agent.
+3. If there is no Helix agent association, or the stored file is absent or
+   whitespace-only, use repository-root `ETHOS.md`. Existing explicitly selected
+   agent-local documents remain valid. If no document is available, hand off to
+   the canonical Ethos authoring flow.
+
+Use the installed `nemo` Files client or CLI to download the stored document.
+For the CLI, select a fresh directory inside the target repository under
+`.eval-author/.working/ethos-sources/` and download to `ETHOS.md` there:
+
+```bash
+nemo files download "<agent-name>-ethos" --workspace "<workspace>" \
+  --remote-path ETHOS.md -o "<fresh-local-directory>/ETHOS.md"
+```
+
+Preserve the downloaded bytes without rewriting them. Use a regular file,
+never a symlink, and do not overwrite a repository document or previous
+snapshot. A confirmed missing fileset/file or empty document allows the local
+fallback. Authentication, permission, connection, decoding, or other download
+errors must be reported and resolved; do not silently switch to a local file.
+An unavailable Files client for a selected Helix agent is also an unfinished
+lookup. An explicit local path can bypass that lookup.
+
+Select the downloaded repository-relative path through the revision-checked
+`update` interface above. Record the original
+`<workspace>/<agent-name>-ethos#ETHOS.md` reference, platform base URL (without
+credentials), and local snapshot path in `ethos.source_findings`. Show the
+selected source and local file link in the Ethos review, without dumping the
+whole document. For a local selection, report its absolute path. Pass that
+exact selected local path to the orchestrator for the normal validation and
+intent review; downloading a document does not confirm its applicability.
+
+On resume, keep the saved selection and its source provenance. Do not download
+again or replace a reviewed snapshot merely because the remote file changed.
+If the user requests a refresh or changes agents, take a fresh snapshot and
+reopen the affected review using the existing path-change rules. Never write
+changes back to Helix as part of this read-only source lookup.
+
 ## Review an existing document
 
 When entering the shared flow's Ethos step with an existing `ETHOS.md`, use
@@ -79,8 +130,9 @@ creation as the pending action without looking for the file yet. Keep Ethos
 unchecked and current when prerequisites are complete; preserve prior content
 bindings, provenance, scope, and completed flows as history.
 
-At the shared procedure's Ethos transition, invoke the orchestrator to locate
-and read the document and confirm its identity and current intended behavior.
+At the shared procedure's Ethos transition, [select the source](#select-the-source),
+then invoke the orchestrator to read that exact local document and confirm its
+identity and current intended behavior.
 Return its actual file link and a grounded summary of intended behavior,
 boundaries, and success criteria through the
 [Ethos facts contract](conversations/onboarding.md#ethos-and-draft-facts).
