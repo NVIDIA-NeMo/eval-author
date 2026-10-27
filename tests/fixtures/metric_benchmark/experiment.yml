@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Prepared case contents and subsets stay fixed when experiment settings change.
+benchmark_id: rho-metric-validity
+revision: 1
+cases:
+- path: cases/rho-agent/case.yml
+  sha256: sha256:cafcd6b9c92be8cc87436dd41bac78c4666a48122803de22d459e30e955d6642
+coverage:
+  system_id: synthetic
+  system_revision: '1'
+  command:
+  - python
+  - /adapter.py

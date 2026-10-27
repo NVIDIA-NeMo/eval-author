@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Illustrative rho-agent case; Oracle/NOP stand in for prepared agent bundles.
+case_id: rho-agent
+task_inventory:
+  benchmark:
+    deployment: local
+    benchmark_id: rho-agent-tasks
+    revision: 1
+  tasks:
+  - task_id: inspect-files
+    revision: 1
+  - task_id: read-config
+    revision: 1
+  - task_id: search-workspace
+    revision: 1
+task_sources:
+  inspect-files:
+    path: tasks/inspect-files
+    sha256: sha256:43a50d7fb576a63244e103ba4e7dc772e5ab0ad7ab8e3877f4d3e0af518174b5
+    kind: directory
+  read-config:
+    path: tasks/read-config
+    sha256: sha256:43a50d7fb576a63244e103ba4e7dc772e5ab0ad7ab8e3877f4d3e0af518174b5
+    kind: directory
+  search-workspace:
+    path: tasks/search-workspace
+    sha256: sha256:43a50d7fb576a63244e103ba4e7dc772e5ab0ad7ab8e3877f4d3e0af518174b5
+    kind: directory
+case_description:
+  path: description.json
+  sha256: sha256:fcb4a1e2e0a78fc9dd624d72c123d73b5547d8185a567874b2581114357a957a
+  kind: file
+subsets:
+  path: subsets.json
+  sha256: sha256:fdd6c5ea2734a109725753fa3018ce2591db7528348504b232a395ede92a766f
+  kind: file
+baseline:
+  agent_bundle_id: baseline
+  revision: '1'
+  harbor:
+    name: oracle
+mutants:
+- agent_bundle_id: mutant
+  revision: '1'
+  harbor:
+    name: nop

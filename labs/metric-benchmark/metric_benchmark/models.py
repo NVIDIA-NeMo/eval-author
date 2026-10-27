@@ -137,7 +137,7 @@ class Subset(Model):
 
 class Subsets(Model):
     artifact_type: Literal["eval_subset_definitions"] = "eval_subset_definitions"
-    benchmark_id: Text
+    case_id: Text
     task_inventory: Tasks
     sampling_parameters: dict[str, int | str]
     eval_subsets: list[Subset] = Field(min_length=1)

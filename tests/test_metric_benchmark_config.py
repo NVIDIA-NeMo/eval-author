@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import shutil
 from datetime import date
 from pathlib import Path
 
@@ -12,14 +13,19 @@ from metric_benchmark.io import read_json, write_json
 from metric_benchmark.models import Score, Subsets, Tasks
 
 LAB = Path(__file__).resolve().parents[1] / "labs/metric-benchmark"
-BENCHMARK_YAML = Path(__file__).parent / "fixtures/metric_benchmark/benchmark.yml"
+FIXTURE = Path(__file__).parent / "fixtures/metric_benchmark"
+CASE_DIR = Path("cases/rho-agent")
+TASK_IDS = ["inspect-files", "read-config", "search-workspace"]
 
 
 def inventory(n=3):
     return Tasks.model_validate(
         {
-            "benchmark": {"deployment": "local", "benchmark_id": "case", "revision": 1},
-            "tasks": [{"task_id": f"task-{i}", "revision": 1} for i in range(n)],
+            "benchmark": {"deployment": "local", "benchmark_id": "rho-agent-tasks", "revision": 1},
+            "tasks": [
+                {"task_id": TASK_IDS[i] if i < len(TASK_IDS) else f"additional-task-{i}", "revision": 1}
+                for i in range(n)
+            ],
         }
     )
 
@@ -27,7 +33,7 @@ def inventory(n=3):
 def fixed_subsets(tasks):
     return Subsets.model_validate(
         {
-            "benchmark_id": "example",
+            "case_id": "rho-agent",
             "task_inventory": tasks.model_dump(),
             "sampling_parameters": {"seed": 42},
             "eval_subsets": [
@@ -38,51 +44,65 @@ def fixed_subsets(tasks):
 
 
 def prepared_benchmark(root):
-    """Small prepared inputs for tests; no runtime subset-construction stage."""
-    root.mkdir(parents=True, exist_ok=True)
-    definition = yaml.safe_load(BENCHMARK_YAML.read_text(encoding="utf-8"))
-    tasks = Tasks.model_validate(definition["cases"][0]["task_inventory"])
-    for task in tasks.tasks:
-        folder = root / task.task_id
-        folder.mkdir()
+    """Unpack fixed manifests and create their synthetic task sources."""
+    shutil.copytree(FIXTURE, root, dirs_exist_ok=True)
+    path = root / "experiment.yml"
+    definition = yaml.safe_load(path.read_text())
+    case = case_definition(path)
+    for source in case["task_sources"].values():
+        folder = root / CASE_DIR / source["path"]
+        folder.mkdir(parents=True)
         (folder / "instruction.md").write_text("Synthetic test task.\n")
         (folder / "task.toml").write_text('version = "1.0"\n')
         (folder / "environment").mkdir()
         (folder / "environment/Dockerfile").write_text("FROM python:3.12-slim\n")
         (folder / "tests").mkdir()
         (folder / "tests/test.sh").write_text("#!/bin/bash\necho 0 > /logs/verifier/reward.txt\n")
-    write_json(root / "subsets.json", fixed_subsets(tasks))
-    write_json(root / "description.json", {"required": ["task-0", "task-1"]})
-    path = root / "benchmark.yaml"
-    path.write_bytes(BENCHMARK_YAML.read_bytes())
     return path, definition
+
+
+def case_definition(experiment):
+    return yaml.safe_load((experiment.parent / CASE_DIR / "case.yml").read_text())
+
+
+def write_case(experiment, case):
+    manifest = experiment.parent / CASE_DIR / "case.yml"
+    manifest.write_text(yaml.safe_dump(case, sort_keys=False))
+    definition = yaml.safe_load(experiment.read_text())
+    definition["cases"][0]["sha256"] = input_digest(manifest)
+    experiment.write_text(yaml.safe_dump(definition, sort_keys=False))
 
 
 def test_prepared_inputs_and_fixed_memberships(tmp_path):
     path, _ = prepared_benchmark(tmp_path)
     loaded = load_benchmark(path)
     assert loaded == load_benchmark(path)
-    assert loaded.subsets["case"].sampling_parameters == {"seed": 42}
-    assert loaded.definition.cases[0].selection({"baseline": "baseline-job", "mutant": "mutant-job"}).run_ids == {
+    assert loaded.subsets["rho-agent"].sampling_parameters == {"seed": 42}
+    assert loaded.case("rho-agent").case.selection(
+        {"baseline": "baseline-job", "mutant": "mutant-job"}, loaded.definition.scoring
+    ).run_ids == {
         "baseline": "baseline-job",
         "mutant": "mutant-job",
     }
-    (tmp_path / "task-0/instruction.md").write_text("changed")
+    (tmp_path / CASE_DIR / "tasks/inspect-files/instruction.md").write_text("changed")
     with pytest.raises(ValueError, match="digest differs"):
         load_benchmark(path)
 
 
-@pytest.mark.parametrize("change", ["unknown", "duplicate-case", "subset-id", "source-missing"])
+@pytest.mark.parametrize("change", ["unknown", "duplicate-case", "case-pin", "source-missing"])
 def test_bad_definition(tmp_path, change):
     path, config = prepared_benchmark(tmp_path)
     if change == "unknown":
         config["surprise"] = True
-    if change == "duplicate-case":
+    elif change == "duplicate-case":
         config["cases"] *= 2
-    if change == "subset-id":
-        config["benchmark_id"] = "other"
-    if change == "source-missing":
-        del config["cases"][0]["task_sources"]["task-0"]
+    elif change == "case-pin":
+        (tmp_path / CASE_DIR / "case.yml").write_text("changed")
+    else:
+        case = case_definition(path)
+        del case["task_sources"]["inspect-files"]
+        write_case(path, case)
+        config = yaml.safe_load(path.read_text())
     path.write_text(yaml.safe_dump(config))
     with pytest.raises(ValueError):
         load_benchmark(path)
@@ -93,7 +113,7 @@ def test_duplicate_yaml_and_paths(tmp_path):
     path.write_text(path.read_text() + "benchmark_id: duplicate\n")
     with pytest.raises(ValueError, match="unique strings"):
         load_benchmark(path)
-    config["cases"][0]["subsets"]["path"] = "../outside.json"
+    config["cases"][0]["path"] = "../outside.yml"
     path.write_text(yaml.safe_dump(config))
     with pytest.raises(ValueError, match="relative"):
         load_benchmark(path)
@@ -118,7 +138,7 @@ def test_json_numbers_and_immutable_outputs(tmp_path):
 
 def test_manifest_rejects_duplicate_memberships(tmp_path):
     path, _ = prepared_benchmark(tmp_path)
-    manifest = json.loads((tmp_path / "subsets.json").read_text())
+    manifest = json.loads((tmp_path / CASE_DIR / "subsets.json").read_text())
     manifest["eval_subsets"][1]["tasks"] = manifest["eval_subsets"][0]["tasks"]
     with pytest.raises(ValueError, match="memberships"):
         Subsets.model_validate(manifest)
@@ -128,32 +148,33 @@ def test_manifest_rejects_duplicate_memberships(tmp_path):
 @pytest.mark.parametrize("field", ["harbor", "settings"])
 def test_nonfinite_native_settings_rejected_before_serialization(tmp_path, value, field):
     path, definition = prepared_benchmark(tmp_path)
-    case = definition["cases"][0]
-    target = case["baseline"]["harbor"] if field == "harbor" else case["coverage"].setdefault("settings", {})
+    case = case_definition(path)
+    target = case["baseline"]["harbor"] if field == "harbor" else definition["coverage"].setdefault("settings", {})
     target["nested"] = {"values": [value]}
-    path.write_text(yaml.safe_dump(definition))
-    with pytest.raises(
-        ValueError, match=rf"cases\.0\.{'baseline.harbor' if field == 'harbor' else 'coverage.settings'}"
-    ):
+    if field == "harbor":
+        write_case(path, case)
+    else:
+        path.write_text(yaml.safe_dump(definition))
+    with pytest.raises(ValueError, match="baseline.harbor" if field == "harbor" else "coverage.settings"):
         load_benchmark(path)
 
 
 def test_yaml_date_rejected_but_explicit_string_and_null_preserved(tmp_path):
     path, definition = prepared_benchmark(tmp_path)
     settings = {"when": date(2020, 1, 1)}
-    definition["cases"][0]["coverage"]["settings"] = settings
+    definition["coverage"]["settings"] = settings
     path.write_text(yaml.safe_dump(definition))
-    with pytest.raises(ValueError, match=r"cases\.0\.coverage\.settings\.when"):
+    with pytest.raises(ValueError, match=r"coverage\.settings\.when"):
         load_benchmark(path)
     settings.update(when="2020-01-01", limit=None)
     path.write_text(yaml.safe_dump(definition), encoding="utf-8")
-    assert load_benchmark(path).definition.cases[0].coverage.settings == settings
+    assert load_benchmark(path).definition.coverage.settings == settings
 
 
 def test_changed_task_input_names_case_and_task(tmp_path):
     path, _ = prepared_benchmark(tmp_path)
-    (tmp_path / "task-0/instruction.md").unlink()
-    with pytest.raises(ValueError, match="case case: task task-0: input digest differs"):
+    (tmp_path / CASE_DIR / "tasks/inspect-files/instruction.md").unlink()
+    with pytest.raises(ValueError, match="case rho-agent: task inspect-files: input digest differs"):
         load_benchmark(path)
 
 
@@ -182,20 +203,19 @@ def test_mutated_configuration_cannot_serialize_invalid_json():
 
 
 def test_analysis_definition_and_subsets_do_not_need_execution_inputs(tmp_path):
-    import shutil
-
     path, _ = prepared_benchmark(tmp_path)
-    for task in tmp_path.glob("task-*"):
+    for task in (tmp_path / CASE_DIR / "tasks").iterdir():
         shutil.rmtree(task)
-    (tmp_path / "description.json").unlink()
-    definition = read_benchmark(path)
-    case = definition.case("case")
-    assert len(case.load_subsets(tmp_path, definition.benchmark_id).eval_subsets) == 3
-    (tmp_path / "subsets.json").write_text("{}")
+    (tmp_path / CASE_DIR / "description.json").unlink()
+    loaded = read_benchmark(path)
+    prepared = loaded.case("rho-agent")
+    case = prepared.case
+    assert len(case.load_subsets(prepared.root).eval_subsets) == 3
+    (tmp_path / CASE_DIR / "subsets.json").write_text("{}")
     with pytest.raises(ValueError, match="input digest differs"):
-        case.load_subsets(tmp_path, definition.benchmark_id)
+        case.load_subsets(prepared.root)
     with pytest.raises(ValueError, match="unknown case: absent"):
-        definition.case("absent")
+        loaded.case("absent")
 
 
 @pytest.mark.parametrize("standalone", [False, True])
@@ -203,42 +223,114 @@ def test_analysis_definition_and_subsets_do_not_need_execution_inputs(tmp_path):
 @pytest.mark.parametrize("failure", ["missing", "invalid"])
 def test_case_artifact_errors_have_one_context(tmp_path, standalone, field, failure):
     path, definition = prepared_benchmark(tmp_path)
-    source = definition["cases"][0][field]
-    artifact = tmp_path / source["path"]
+    case_data = case_definition(path)
+    source = case_data[field]
+    artifact = tmp_path / CASE_DIR / source["path"]
     if failure == "missing":
         artifact.unlink()
         detail = f"missing pinned input: {source['path']}"
     else:
         if field == "subsets":
             data = json.loads(artifact.read_text())
-            data["benchmark_id"] = "wrong"
-            detail = "subset manifest does not match benchmark identity and task inventory"
+            data["case_id"] = "wrong"
+            detail = "subset manifest does not match case identity and task inventory"
         else:
             data = []
             detail = "case description must be a JSON object"
         artifact.write_text(json.dumps(data))
         source["sha256"] = input_digest(artifact)
-        path.write_text(yaml.safe_dump(definition))
+        write_case(path, case_data)
     with pytest.raises(ValueError) as error:
         if standalone:
             benchmark = read_benchmark(path)
-            case = benchmark.case("case")
+            prepared = benchmark.case("rho-agent")
+            case = prepared.case
             if field == "subsets":
-                case.load_subsets(tmp_path, benchmark.benchmark_id)
+                case.load_subsets(prepared.root)
             else:
-                case.load_description(tmp_path)
+                case.load_description(prepared.root)
         else:
             load_benchmark(path)
-    assert str(error.value) == f"case case, {field}: {detail}"
+    assert str(error.value) == f"case rho-agent, {field}: {detail}"
 
 
 def test_permission_error_is_not_reported_as_missing(tmp_path, monkeypatch):
     path, _ = prepared_benchmark(tmp_path)
-    case = read_benchmark(path).case("case")
+    prepared = read_benchmark(path).case("rho-agent")
+    case = prepared.case
 
     def denied(root, value):
         raise PermissionError("permission denied for prepared input")
 
     monkeypatch.setattr("metric_benchmark.config.resolve_evidence", denied)
-    with pytest.raises(ValueError, match="case case, subsets: permission denied for prepared input"):
-        case.load_subsets(tmp_path, "example")
+    with pytest.raises(ValueError, match="case rho-agent, subsets: permission denied for prepared input"):
+        case.load_subsets(prepared.root)
+
+
+def test_fixed_case_can_be_reused_by_different_experiments(tmp_path):
+    path, definition = prepared_benchmark(tmp_path)
+    first = load_benchmark(path)
+    before = {p.relative_to(tmp_path): p.read_bytes() for p in (tmp_path / CASE_DIR).rglob("*") if p.is_file()}
+    definition["benchmark_id"] = "rho-alternative-metric"
+    definition["coverage"]["system_id"] = "another-metric"
+    definition["scoring"] = {"direction": "lower_is_better"}
+    alternative = tmp_path / "alternative.yml"
+    alternative.write_text(yaml.safe_dump(definition))
+    second = load_benchmark(alternative)
+    assert first.identity != second.identity
+    assert first.cases == second.cases
+    assert first.subsets == second.subsets
+    assert first.definition.cases == second.definition.cases
+    assert before == {p.relative_to(tmp_path): p.read_bytes() for p in (tmp_path / CASE_DIR).rglob("*") if p.is_file()}
+
+
+def test_unpacked_bundle_resolves_relative_to_each_manifest(tmp_path, monkeypatch):
+    path, _ = prepared_benchmark(tmp_path / "original")
+    original = load_benchmark(path)
+    destination = tmp_path / "unpacked"
+    shutil.copytree(path.parent, destination)
+    shutil.rmtree(path.parent)
+    monkeypatch.chdir(tmp_path)
+    moved = load_benchmark(destination / path.name)
+    assert moved.identity == original.identity
+    assert moved.subsets == original.subsets
+    prepared = moved.case("rho-agent")
+    assert prepared.root == destination / CASE_DIR
+    assert prepared.case.task_sources["inspect-files"].resolve(prepared.root) == prepared.root / "tasks/inspect-files"
+
+
+@pytest.mark.parametrize("level", ["case", "subset"])
+@pytest.mark.parametrize("failure", ["absolute", "traversal", "symlink", "missing"])
+def test_manifest_references_stay_inside_their_package(tmp_path, level, failure):
+    path, definition = prepared_benchmark(tmp_path)
+    case = case_definition(path)
+    source = definition["cases"][0] if level == "case" else case["subsets"]
+    root = tmp_path if level == "case" else tmp_path / CASE_DIR
+    target = root / source["path"]
+    if failure == "absolute":
+        source["path"] = str(target)
+    elif failure == "traversal":
+        source["path"] = "../" + source["path"]
+    elif failure == "symlink":
+        link = root / "alias"
+        link.symlink_to(target)
+        source["path"] = "alias"
+    else:
+        target.unlink()
+    if level == "case":
+        path.write_text(yaml.safe_dump(definition))
+    else:
+        write_case(path, case)
+    with pytest.raises(ValueError, match="relative|symlink|missing pinned input"):
+        load_benchmark(path)
+
+
+def test_distinct_manifest_paths_cannot_duplicate_case_ids(tmp_path):
+    path, definition = prepared_benchmark(tmp_path)
+    original = tmp_path / CASE_DIR / "case.yml"
+    duplicate = tmp_path / "other.yml"
+    duplicate.write_bytes(original.read_bytes())
+    definition["cases"].append({"path": duplicate.name, "sha256": input_digest(duplicate)})
+    path.write_text(yaml.safe_dump(definition))
+    with pytest.raises(ValueError, match="duplicate case ID: rho-agent"):
+        read_benchmark(path)

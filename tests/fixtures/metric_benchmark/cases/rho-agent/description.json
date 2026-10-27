@@ -1,0 +1,6 @@
+{
+  "required": [
+    "inspect-files",
+    "read-config"
+  ]
+}

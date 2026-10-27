@@ -3,7 +3,7 @@
 
 """Read a versioned benchmark definition and verify its prepared local inputs."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Self
 
@@ -108,8 +108,6 @@ class Case(Model):
     subsets: PinnedInput
     baseline: Agent
     mutants: list[Agent] = Field(min_length=1)
-    coverage: CoverageConfig
-    scoring: ScoringPolicy = Field(default_factory=ScoringPolicy)
 
     def agents(self) -> list[Agent]:
         return [self.baseline, *self.mutants]
@@ -125,11 +123,11 @@ class Case(Model):
             raise ValueError("subsets and case description must be files")
         return self
 
-    def load_subsets(self, root: Path, benchmark_id: str) -> Subsets:
+    def load_subsets(self, root: Path) -> Subsets:
         try:
             subsets = Subsets.model_validate(read_json(self.subsets.resolve(root)))
-            if subsets.benchmark_id != benchmark_id or subsets.task_inventory != self.task_inventory:
-                raise ValueError("subset manifest does not match benchmark identity and task inventory")
+            if subsets.case_id != self.case_id or subsets.task_inventory != self.task_inventory:
+                raise ValueError("subset manifest does not match case identity and task inventory")
             return subsets
         except (OSError, ValueError) as error:
             raise ValueError(f"case {self.case_id}, subsets: {error}") from error
@@ -143,9 +141,9 @@ class Case(Model):
         except (OSError, ValueError) as error:
             raise ValueError(f"case {self.case_id}, case_description: {error}") from error
 
-    def selection(self, run_ids: dict[str, str]) -> ScoringConfig:
+    def selection(self, run_ids: dict[str, str], scoring: ScoringPolicy) -> ScoringConfig:
         return ScoringConfig(
-            **self.scoring.model_dump(),
+            **scoring.model_dump(),
             case_id=self.case_id,
             baseline_bundle_id=self.baseline.agent_bundle_id,
             mutant_bundle_ids=[a.agent_bundle_id for a in self.mutants],
@@ -163,49 +161,73 @@ class LocalExecution(Model):
 class BenchmarkDefinition(Model):
     benchmark_id: Text
     revision: int = Field(ge=1)
-    cases: list[Case] = Field(min_length=1)
+    cases: list[PinnedInput] = Field(min_length=1)
+    coverage: CoverageConfig
+    scoring: ScoringPolicy = Field(default_factory=ScoringPolicy)
     execution: LocalExecution = Field(default_factory=LocalExecution)
     missing_policy: Literal["error", "exclude"] = "error"
 
-    def case(self, case_id: str) -> Case:
-        for case in self.cases:
-            if case.case_id == case_id:
-                return case
-        raise ValueError(f"unknown case: {case_id}")
-
     @model_validator(mode="after")
-    def unique_cases(self) -> Self:
-        unique([c.case_id for c in self.cases], "case IDs")
+    def valid_case_references(self) -> Self:
+        unique([case.path for case in self.cases], "case manifest paths")
+        if any(case.kind != "file" for case in self.cases):
+            raise ValueError("case manifests must be files")
         return self
+
+
+@dataclass(frozen=True)
+class LoadedCase:
+    case: Case
+    root: Path
 
 
 @dataclass(frozen=True)
 class LoadedBenchmark:
     definition: BenchmarkDefinition
     root: Path
-    subsets: dict[str, Subsets]
-    descriptions: dict[str, dict]
+    cases: dict[str, LoadedCase]
+    subsets: dict[str, Subsets] = field(default_factory=dict)
+    descriptions: dict[str, dict] = field(default_factory=dict)
+
+    def case(self, case_id: str) -> LoadedCase:
+        if case_id not in self.cases:
+            raise ValueError(f"unknown case: {case_id}")
+        return self.cases[case_id]
 
     @property
     def identity(self) -> str:
         return digest_bytes(json_bytes(self.definition))
 
 
-def read_benchmark(path: Path) -> BenchmarkDefinition:
-    """Parse the definition without requiring execution inputs on this machine."""
+def read_yaml(path: Path) -> object:
     try:
-        data = yaml.load(path.read_text(encoding="utf-8"), Loader=StrictLoader)
-        return BenchmarkDefinition.model_validate(data)
+        return yaml.load(path.read_text(encoding="utf-8"), Loader=StrictLoader)
     except yaml.YAMLError as error:
-        raise ValueError(f"invalid benchmark YAML: {error}") from error
+        raise ValueError(f"invalid YAML in {path.name}: {error}") from error
+
+
+def read_benchmark(path: Path) -> LoadedBenchmark:
+    """Read the experiment and pinned case manifests, without execution inputs."""
+    definition = BenchmarkDefinition.model_validate(read_yaml(path))
+    root = path.resolve().parent
+    cases = {}
+    for source in definition.cases:
+        try:
+            manifest = source.resolve(root)
+            case = Case.model_validate(read_yaml(manifest))
+        except (OSError, ValueError) as error:
+            raise ValueError(f"case manifest {source.path}: {error}") from error
+        if case.case_id in cases:
+            raise ValueError(f"duplicate case ID: {case.case_id}")
+        cases[case.case_id] = LoadedCase(case, manifest.parent)
+    return LoadedBenchmark(definition, root, cases)
 
 
 def load_benchmark(path: Path) -> LoadedBenchmark:
     """Load and verify all prepared inputs for execution and full validation."""
-    definition = read_benchmark(path)
-    root = path.resolve().parent
-    manifests, descriptions = {}, {}
-    for case in definition.cases:
+    loaded = read_benchmark(path)
+    for prepared in loaded.cases.values():
+        case, root = prepared.case, prepared.root
         try:
             for task_id, source in case.task_sources.items():
                 try:
@@ -220,6 +242,6 @@ def load_benchmark(path: Path) -> LoadedBenchmark:
                         raise ValueError(f"agent {agent.agent_bundle_id}, input {name}: {error}") from error
         except (OSError, ValueError) as error:
             raise ValueError(f"case {case.case_id}: {error}") from error
-        manifests[case.case_id] = case.load_subsets(root, definition.benchmark_id)
-        descriptions[case.case_id] = case.load_description(root)
-    return LoadedBenchmark(definition, root, manifests, descriptions)
+        loaded.subsets[case.case_id] = case.load_subsets(root)
+        loaded.descriptions[case.case_id] = case.load_description(root)
+    return loaded

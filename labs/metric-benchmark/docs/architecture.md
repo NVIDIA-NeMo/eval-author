@@ -45,20 +45,24 @@ coverage, and correlation. Prep is external to those stages.
 
 ## Benchmark definition
 
-A fixed metric benchmark is defined by a specific YAML file, `benchmark.yaml`,
-and the versioned inputs it references. It identifies the baseline, mutant
-cohort, case description, Harbor tasks, prepared subset manifest, execution
-implementation, metric computation, and scoring settings. Here, the benchmark
-means this complete experiment configuration; the Harbor task set is one of
-its inputs.
+A fixed metric benchmark consists of three linked documents:
 
-Prep builds that benchmark: it produces the case artifacts and fixed subsets,
-then emits the YAML definition that ties them together. Running the benchmark
-means reading that definition and executing the configured experiment. Each run
-has its own results while retaining the same benchmark definition and input
-identities. Deliberate changes produce another versioned configuration, making
-it possible to compare experimental designs as well as metric tools while
-keeping the unchanged inputs fixed.
+- **Experiment YAML (`experiment.yml`):** selects case manifests by relative path
+  and SHA-256, and configures execution, metric computation, and scoring.
+- **Case manifest (`cases/<case-id>/case.yml`):** identifies the fixed baseline,
+  mutants, description, task inventory, and pinned subset manifest and inputs.
+- **Subset manifest (`subsets.json`):** records exact task memberships and their
+  preparation seed for that case. It is independent of the experiment configuration.
+
+Prep produces the case packages. Experiments select those packages by reference;
+they do not repeat or modify their definitions. Multiple experiments can evaluate
+different metrics against the same fixed cases and subsets.
+
+After unpacking a benchmark, paths resolve relative to the manifest containing
+them: the experiment references case files, and each case references its own
+inputs. SHA-256 pins verify each link. The [tool guide](tools.md#experiment-and-prepared-case-manifests)
+specifies the directory layout and manifest fields. Each execution produces its
+own results while retaining the configured input identities.
 
 ## 1. Prep
 
@@ -67,7 +71,7 @@ is outside this repository and the experiment itself. It produces the
 baseline agent, creates and qualifies its mutants, and assembles the case
 description, task set, and configuration in the benchmark's input format. Prep
 also constructs the eval subsets and bundles their manifest with the task set.
-Prep emits `benchmark.yaml` referencing these outputs. Released benchmarks
+Prep emits `experiment.yml` referencing these outputs. Released benchmarks
 include the YAML definition and its prepared case examples. The experiment
 consumes them; it does not regenerate or select mutants based on its results.
 
@@ -83,7 +87,7 @@ their logical contents.
 | Mutants | Executable bundles with distinct identities, their baseline relationship, and mutation descriptions |
 | Case description | Stable case identity and intended agent behavior; an Ethos is one possible representation |
 | Benchmark tasks | Fixed task membership, task identities, environments, correctness verifiers, and a versioned subset manifest |
-| Experiment configuration | `benchmark.yaml`: case-to-task-set associations, fixed mutant cohort, execution implementation and settings, subset-manifest identity, coverage-system settings and permitted evidence, and scoring parameters |
+| Experiment configuration | `experiment.yml`: pinned case-manifest references, execution settings, coverage-system settings and permitted evidence, and scoring parameters |
 
 Baseline and mutant bundles are prepared and checked before release.
 Tasks and their environments are ready for execution. At present only Harbor tasks are used.
@@ -98,13 +102,14 @@ inputs cause an error.
 Prep constructs subsets from the pinned task inventory, before inspecting
 execution outcomes or coverage scores. Each case bundles `subsets.json`, a
 versioned manifest containing stable subset IDs, exact task identities and
-revisions for each subset, the source benchmark identity, and the construction
+revisions for each subset, the case and task-inventory identities, and the construction
 algorithm, subset count, subset size, and fixed seed.
 
 The manifest is authoritative: every run and metric tool uses the same explicit
 memberships. The seed documents construction and stays fixed for that benchmark
 version; analysis does not resample or regenerate subsets. Changing the seed,
-inventory, or memberships creates a new benchmark version. Analysis validates
+inventory, or memberships changes the subset and case pins; existing experiments
+continue to reference their original prepared cases. Analysis validates
 the manifest against the execution inventory and rejects mismatched identities.
 Missing results follow the scoring policy without changing subset membership.
 
@@ -194,7 +199,7 @@ Python code.
 ### Stage tools and Python libraries
 
 Each executable experiment stage has a Python tool and an importable Python
-API. The orchestrator reads and validates `benchmark.yaml`, resolves its inputs,
+API. The orchestrator reads and validates `experiment.yml`, resolves its inputs,
 and calls these APIs in dependency order, passing each stage's outputs to the
 next. The command-line tools expose the same operations for standalone use.
 Stage behavior lives in these reusable tools; the orchestrator supplies the
