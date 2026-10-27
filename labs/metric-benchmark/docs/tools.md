@@ -40,7 +40,7 @@ metric tool, and it does not modify task files, agent files or JSON inputs.
 
 If any reference already has a SHA field, signing stops without writing files
 and lists those fields' locations. Delete those fields, or explicitly re-sign
-the current contents with the only option, `--force`:
+the current contents with `--force`:
 
 ```bash
 uv run labs/metric-benchmark/tools/sha-sign benchmark/experiment.yml --force
@@ -58,9 +58,36 @@ it reads, and individual artifact loaders verify their own inputs. Omitting a
 digest remains supported during iteration. SHA signing fixes expected contents;
 it does not authenticate a publisher.
 
-The library entry point is
-`metric_benchmark.signing.sign_benchmark(Path("benchmark/experiment.yml"), force=False)`.
-It returns the paths of YAML files changed by signing.
+To check that the entire benchmark is signed correctly without changing files:
+
+```bash
+uv run labs/metric-benchmark/tools/sha-sign benchmark/experiment.yml --check
+```
+
+`--check` requires a SHA on every input reference and verifies it against the
+current contents. Missing or null SHA fields are reported with their manifest
+locations; an incorrect digest also fails. Success exits with status zero;
+validation failures exit nonzero. `--check` and `--force` are mutually exclusive.
+The top-level experiment has no self-hash, and inline cases have no separate
+hash: their agent, tasks and subsets references are checked instead.
+
+The library APIs have no argument parsing or console output:
+
+```python
+from pathlib import Path
+from metric_benchmark.signing import check_benchmark, sign_benchmark
+
+experiment = Path("benchmark/experiment.yml")
+changed_files = sign_benchmark(experiment, force=False)
+check_benchmark(experiment)
+```
+
+`sign_benchmark()` returns the paths of YAML files it changed.
+`check_benchmark()` returns normally on success and raises on missing or invalid
+pins or inputs. Both share the same input traversal. Content hashing and pin
+verification live in `metric_benchmark.io`; the signer, checker and normal
+benchmark readers use those same helpers. Only the CLI parses arguments and
+prints results.
 
 ## Reading benchmarks
 

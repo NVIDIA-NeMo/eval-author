@@ -53,6 +53,29 @@ def digest_file(path: Path) -> str:
         return "sha256:" + hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def file_manifest(root: Path) -> dict[str, str]:
+    """Hash ordinary files only; reject symlinks and special entries."""
+    if root.is_symlink() or not root.is_dir():
+        raise ValueError("evidence root must be an ordinary directory")
+    result = {}
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink() or not (path.is_file() or path.is_dir()):
+            raise ValueError("evidence must contain only ordinary files and directories")
+        if path.is_file():
+            result[path.relative_to(root).as_posix()] = digest_file(path)
+    return result
+
+
+def input_digest(path: Path) -> str:
+    return digest_bytes(json_bytes(file_manifest(path))) if path.is_dir() else digest_file(path)
+
+
+def verify_input(path: Path, expected: str | None, *, label: str | None = None) -> None:
+    """Verify a supplied content pin; unsigned inputs remain valid during iteration."""
+    if expected is not None and input_digest(path) != expected:
+        raise ValueError(f"input digest differs: {label if label is not None else path}")
+
+
 def write_json(path: Path, value: BaseModel | dict | list) -> None:
     """Publish a complete artifact; identical retries succeed, different bytes fail."""
     data = json_bytes(value)

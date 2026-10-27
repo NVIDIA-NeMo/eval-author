@@ -10,7 +10,9 @@ from typing import Literal, Self
 import yaml
 from pydantic import Field, JsonValue, model_validator
 
-from metric_benchmark.io import digest_bytes, digest_file, json_bytes, read_json
+from metric_benchmark.io import digest_bytes, json_bytes, read_json, verify_input
+from metric_benchmark.io import file_manifest as file_manifest
+from metric_benchmark.io import input_digest as input_digest
 from metric_benchmark.models import Digest, Model, Subsets, Task, Tasks, Text, resolve_evidence, unique
 
 
@@ -25,23 +27,6 @@ class StrictLoader(yaml.SafeLoader):
         return result
 
 
-def file_manifest(root: Path) -> dict[str, str]:
-    """Hash ordinary files only; reject symlinks and special entries."""
-    if root.is_symlink() or not root.is_dir():
-        raise ValueError("evidence root must be an ordinary directory")
-    result = {}
-    for path in sorted(root.rglob("*")):
-        if path.is_symlink() or not (path.is_file() or path.is_dir()):
-            raise ValueError("evidence must contain only ordinary files and directories")
-        if path.is_file():
-            result[path.relative_to(root).as_posix()] = digest_file(path)
-    return result
-
-
-def input_digest(path: Path) -> str:
-    return digest_bytes(json_bytes(file_manifest(path))) if path.is_dir() else digest_file(path)
-
-
 class PinnedInput(Model):
     path: Text
     sha256: Digest | None = None
@@ -54,8 +39,8 @@ class PinnedInput(Model):
             raise ValueError(f"missing pinned input: {self.path}") from None
         if (self.kind == "directory" and not path.is_dir()) or (self.kind == "file" and not path.is_file()):
             raise ValueError(f"wrong input kind: {self.path}")
-        if verify_digest and self.sha256 is not None and input_digest(path) != self.sha256:
-            raise ValueError(f"input digest differs: {self.path}")
+        if verify_digest:
+            verify_input(path, self.sha256, label=self.path)
         return path
 
 

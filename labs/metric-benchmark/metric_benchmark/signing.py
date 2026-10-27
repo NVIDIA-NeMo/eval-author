@@ -1,9 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Apply content pins to a prepared benchmark without executing its agents."""
+"""Sign prepared benchmarks and check that every referenced input is pinned."""
 
-import argparse
 import os
 import tempfile
 from pathlib import Path
@@ -16,10 +15,9 @@ from metric_benchmark.config import (
     Case,
     PinnedInput,
     TaskManifest,
-    input_digest,
     read_yaml,
 )
-from metric_benchmark.io import cli, digest_bytes, read_json
+from metric_benchmark.io import digest_bytes, input_digest, read_json, verify_input
 from metric_benchmark.models import Subsets
 
 
@@ -45,9 +43,9 @@ def _replace(path: Path, data: bytes) -> None:
             temporary.unlink(missing_ok=True)
 
 
-def sign_benchmark(path: Path, *, force: bool = False) -> list[Path]:
-    """Validate inputs, then write their hashes into manifests, leaves first."""
-    path = path.resolve(strict=True)
+def _collect(
+    path: Path, *, check: bool = False
+) -> tuple[dict[Path, dict], dict[tuple[Path, str], tuple[dict, Path, bool]]]:
     root = path.parent
     documents: dict[Path, dict] = {}
     references: dict[tuple[Path, str], tuple[dict, Path, bool]] = {}
@@ -65,6 +63,8 @@ def sign_benchmark(path: Path, *, force: bool = False) -> list[Path]:
             target = source.resolve(root, verify_digest=False)
         except (OSError, ValueError) as error:
             raise ValueError(f"{owner.relative_to(root)}:{label}: {error}") from error
+        if check:
+            verify_input(target, source.sha256, label=f"{owner.relative_to(root)}:{label}")
         references[owner, label] = data, target, manifest
         return target
 
@@ -90,6 +90,27 @@ def sign_benchmark(path: Path, *, force: bool = False) -> list[Path]:
             for name, source in version.inputs.items():
                 reference(agent_path, f"{agent_label}.inputs.{name}", raw_version["inputs"][name], source)
 
+    return documents, references
+
+
+def check_benchmark(path: Path) -> None:
+    """Require and verify every input pin without writing files."""
+    path = path.resolve(strict=True)
+    _, references = _collect(path, check=True)
+    missing = [
+        f"{owner.relative_to(path.parent)}:{label}"
+        for (owner, label), (data, _, _) in references.items()
+        if data.get("sha256") is None
+    ]
+    if missing:
+        raise ValueError("Missing SHA fields:\n  " + "\n  ".join(missing))
+
+
+def sign_benchmark(path: Path, *, force: bool = False) -> list[Path]:
+    """Validate inputs, then write their hashes into manifests, leaves first."""
+    path = path.resolve(strict=True)
+    root = path.parent
+    documents, references = _collect(path)
     existing = [
         f"{owner.relative_to(root)}:{label}" for (owner, label), (data, _, _) in references.items() if "sha256" in data
     ]
@@ -110,22 +131,10 @@ def sign_benchmark(path: Path, *, force: bool = False) -> list[Path]:
     for data, target, manifest in references.values():
         if manifest:
             data["sha256"] = digest_bytes(planned[target])
-    planned[path] = _yaml_bytes(path, experiment)
+    planned[path] = _yaml_bytes(path, documents[path])
     changed = []
     for target, content in planned.items():
         if target.read_bytes() != content:
             _replace(target, content)
             changed.append(target)
     return changed
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(prog="sha-sign", description="Validate and SHA-pin a prepared benchmark.")
-    parser.add_argument("experiment", type=Path)
-    parser.add_argument("--force", action="store_true", help="replace existing SHA fields with current content hashes")
-
-    def operation(args: argparse.Namespace) -> None:
-        for changed in sign_benchmark(args.experiment, force=args.force):
-            print(changed)
-
-    cli(parser, operation)

@@ -3,12 +3,33 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+import argparse
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from metric_benchmark.signing import main  # noqa: E402
+from metric_benchmark.signing import check_benchmark, sign_benchmark  # noqa: E402
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="sha-sign", description="Sign or check a prepared benchmark's SHA pins.")
+    parser.add_argument("experiment", type=Path)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--force", action="store_true", help="replace existing SHA fields with current content hashes")
+    mode.add_argument("--check", action="store_true", help="require and verify every SHA field without writing files")
+
+    args = parser.parse_args()
+    try:
+        if args.check:
+            check_benchmark(args.experiment)
+            print("All benchmark inputs are signed and verified.")
+        else:
+            for changed in sign_benchmark(args.experiment, force=args.force):
+                print(changed)
+    except (ValueError, OSError) as error:
+        parser.exit(2, f"{parser.prog}: {error}\n")
+
 
 if __name__ == "__main__":
     main()

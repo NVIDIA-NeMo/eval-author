@@ -96,7 +96,7 @@ covers that file's exact bytes, including whitespace and comments.
 
 Directory pins cover relative file names and file contents. They do not cover
 permission bits or empty directories. Compute pins using `input_digest(path)`
-from `metric_benchmark.config` so prep uses the same algorithm as the reader.
+from `metric_benchmark.io` so prep uses the same algorithm as the reader.
 
 Use [`sha-sign`](tools.md#signing-a-benchmark) to write the pins. It hashes
 agent/task files, descriptions and subsets first, writes the hashes into the
@@ -104,6 +104,11 @@ agent/tasks manifests, then hashes those manifests and updates the inline case
 references in `experiment.yml`. The experiment file has no self-hash. Changing
 an input requires re-signing its referencing manifests; revision labels do not
 replace content verification.
+
+Use `sha-sign experiment.yml --check` to require and verify every pin without
+writing files. Missing pins fail this check, even though ordinary readers allow
+unsigned inputs while iterating. The [tool guide](tools.md#signing-a-benchmark)
+provides CLI and library usage.
 
 ## Agents: `agent.yml`
 
