@@ -120,9 +120,8 @@ benchmark = load_benchmark(Path("benchmark/experiment.yml"), allow_unsigned=True
 
 This permits missing pins but still verifies every supplied digest. The lighter
 `read_benchmark()` and individual artifact loaders accept the same keyword,
-also defaulting to `False`. The downstream execution and analysis PRs add
-`--allow-unsigned` to their benchmark-reading CLIs; `sha-sign --check` always
-requires all pins.
+also defaulting to `False`. Benchmark-reading CLIs accept `--allow-unsigned`
+for iteration; `sha-sign --check` always requires all pins.
 
 Use `read_benchmark(path)` from the same module when only the experiment and
 inline cases and referenced agent/task manifests are needed. It does not open
@@ -164,3 +163,64 @@ To exercise that example without Docker or model calls:
 ```bash
 uv run --locked pytest tests/test_metric_benchmark_validation.py -k contract_and_cli_parity -q
 ```
+
+## Execute the eval tasks
+
+```bash
+uv run python labs/metric-benchmark/run_evals.py \
+  --benchmark experiment.yml --run-id trial-1 --output private-run
+```
+
+Library: `execute_benchmark(loaded_benchmark, run_id, output)`.
+The loop follows case order, then baseline and mutant order. Each job runs the
+whole task inventory once, with retries disabled and configured task concurrency.
+Outputs are indexed by case ID in `execution.json`:
+
+```text
+private-run/
+  execution-inputs.json
+  execution.json
+  cases/case-0000/execution-results/
+    results.json
+    agents/agent-0000/
+      request.json
+      native-request.json
+      receipt.json
+      run-0001/                 # Intact native Harbor job
+        result.json
+        config.json
+        lock.json
+        task-name__suffix/      # Native trial, indexed using metadata
+          result.json
+          agent/
+          verifier/
+```
+
+Numeric folder aliases are stable within a definition. The index carries actual
+case, agent, task and run identities. Each case index has `run_id` from
+`--run-id`, a `task_inventory` array, and an `execution_results` array. Each observation has an
+`agent_run_id` for its agent’s job; `native_results_path` locates the trial evidence.
+See the [results format](results-format.md) for the complete contract.
+No model or private service is involved in
+the orchestration itself. Prepared agents may call models when executed.
+
+Rerunning the command verifies completed job receipts and skips those jobs.
+Completed outputs and prepared inputs can be moved together: request identities
+bind the benchmark, case, agent and execution settings. With `--allow-unsigned`,
+the runner hashes inputs without pins when computing this identity, so editing an
+unsigned bundle also requires a fresh output directory. This does not sign or
+rewrite the prepared manifests. The retained
+`native-request.json` records effective Harbor settings and exact original task
+paths for collecting saved trials; collection does not guess identities from
+path suffixes. Harbor version remains pinned. Native evidence is never rewritten.
+This supports collection/reuse of completed jobs, not migration of an active
+Harbor job. Older draft output formats require explicit conversion before reuse;
+the runner does not rewrite their requests or receipts.
+Changed inputs or evidence require a new output directory. An interrupted native
+job is preserved and must be explicitly completed with Harbor's own resume
+mechanism before this runner can collect it; the runner never silently retries
+partial observations. Do not run two writers against the same output directory.
+
+The optional `METRIC_BENCHMARK_DOCKER_TEST=1` execution test runs nine local
+Oracle/NOP trials and checks CLI-to-library resume. It requires Docker and the
+`python:3.12-slim` image; it does not call a model or a benchmark service.
