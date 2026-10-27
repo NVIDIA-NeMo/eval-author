@@ -17,7 +17,7 @@ fixed subset manifest.
 | --- | --- |
 | 1. Run mutants x eval tasks | `run_evals.py` (local Harbor); future NeMo Helix implementation |
 | 2. Compute mutant scores | [`compute_mutant_scores.py`](compute-mutant-scores.md) |
-| 3. Compute coverage | `compute_coverage.py` |
+| 3. Compute coverage | [`compute_coverage.py`](compute-coverage.md) |
 | 4. Correlation | `correlate.py` |
 
 ## Stage contract
@@ -131,9 +131,9 @@ timeouts, and nonzero exits fail the stage.
 The system may generate a rubric as part of its method. Its adapter places the
 supporting outputs in the work directory. The runner does not infer which
 rubrics or judgments the tool should have produced; required adapter-specific
-outputs need an adapter-specific validator. The current implementation provides
-the common invocation protocol and a synthetic adapter; it does not yet supply
-production adapters for Eval Author or other systems.
+outputs need an adapter-specific validator. The implementation provides
+the common invocation protocol and an Eval Author measurement adapter. Users
+supply the authoring command that produces its audit and judgment observations.
 
 Each subset is evaluated independently. The runner has no shared-rubric
 generation pass or cross-subset measurement cache. Those methods would require
