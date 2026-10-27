@@ -308,10 +308,11 @@ is introduced by these display specifications.
 
 Follow the [shared input contract](../conversation-rendering.md#input-envelope)
 when passing the payload to the renderer. Use stdin to avoid an extra artifact,
-or place an input payload under the existing `.eval-author/.working/tmp/`
-directory after readiness. Do not pipe a raw `show` response directly into the
-renderer: wrap its `state` with the stage, matching revision, and factual display
-inputs. Use state-only output only for `prerequisite_results`; normal artifact
+following the [temporary-work policy](../shared-prerequisites.md#temporary-work-and-recovery)
+when a tool requires a payload file after readiness. Do not pipe a raw `show`
+response directly into the renderer: wrap its `state` with the stage, matching
+revision, and factual display inputs. Use state-only output only for
+`prerequisite_results`; normal artifact
 reconciliation precedes other stateful stages.
 
 After the user answers, persist the real reply and follow the existing handoff.

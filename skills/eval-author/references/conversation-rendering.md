@@ -66,7 +66,9 @@ python3 -B <skill_dir>/scripts/conversation_renderer.py --input /absolute/path/c
 The CLI reads only its supplied input or stdin and may load its own source
 dependencies. Use `-B` to prevent bytecode writes. Flow-specific no-input modes
 and file-access restrictions still apply; the CLI does not authorize creating
-or reading a payload file.
+or reading a payload file. Follow the
+[temporary-work policy](shared-prerequisites.md#temporary-work-and-recovery) for
+payloads and rendered messages; stdin avoids a disposable payload file.
 
 ## Facts and links
 

@@ -209,7 +209,7 @@ report capabilities exist; record required report-owner work as a blocker or
 limitation instead of inventing UI behavior.
 
 Request approval of the current first-task revision. Apply requested changes in
-the same directory, retain historical evidence, invalidate affected observations,
+the same directory, invalidate affected observations,
 refresh artifacts, and request review again. First-task approval covers the
 reviewed approach; it does not claim individual review of every later task.
 
@@ -231,7 +231,9 @@ from target-agent attempts. Confirming that graders accept the correct results
 and reject the incorrect results tested validates grading; it does not measure
 the agent's quality. Do not import audit gap closure or two successful agent attempts.
 
-Preserve failed and superseded evidence under fresh output names. Task changes
+Keep evidence supporting current validation and selected runs available under
+the [temporary-work policy](../eval-author/references/shared-prerequisites.md#temporary-work-and-recovery).
+Do not overwrite user results when launching another run. Task changes
 reopen affected approval and validation; configuration changes reopen affected
 execution claims. Unknown or missing evidence never establishes completion.
 

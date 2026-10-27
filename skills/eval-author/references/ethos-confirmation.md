@@ -54,9 +54,9 @@ After entering the Ethos step, select a different destination with the normal
 revision-checked `update` interface, setting `ethos.path` and `ethos.stage: review`.
 During prerequisites, `--state-only` can mark review pending but cannot select a
 different document or inspect its contents. A path change
-reopens affected approvals even when its bytes match the previous document;
-the prior selection and provenance remain under
-`.eval-author/.working/history/ethos/<digest>.json`. If the selected file changes
+reopens affected approvals even when its bytes match the previous document.
+The current selection and decision provenance stay in shared state; do not
+create a history copy of the former state. If the selected file changes
 or disappears, preserve that selection and reopen review without falling back to
 another file.
 
@@ -103,9 +103,9 @@ accepted scope, pending question, and handoff. Do not reopen review on every sta
 read or repeat the interview. Changes to the agent or document reopen the affected review.
 
 After an agent change, retained findings, answers, and draft content are historical
-context for reassessment. Use the referenced agent-history snapshot to distinguish
-the previous identity and approvals; pass only relevant Ethos context to the
-orchestrator. Confirm applicability to the selected agent before reusing it, and
+context for reassessment. Use the current source findings and saved context to
+reassess applicability; pass only relevant Ethos context to the orchestrator.
+Confirm applicability to the selected agent before reusing it, and
 do not treat the former agent's document or draft approval as current permission.
 
 ## Call and return

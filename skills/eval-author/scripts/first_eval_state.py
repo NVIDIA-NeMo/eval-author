@@ -13,8 +13,6 @@ from collections import Counter
 from itertools import chain
 from pathlib import PurePosixPath
 
-import first_eval_history
-
 BUILD_STEPS = ("environment", "environment_check", "grading", "artifacts")
 REMAINING_STEPS = ("tasks", "environment_check", "validation", "artifacts")
 
@@ -322,19 +320,6 @@ def validate(value: dict) -> None:
             raise ValueError(
                 "Execution settings require agent_model, attempts, validation, limits, and a list of open_questions"
             )
-        if not isinstance(value.get("history", []), list):
-            raise ValueError("Creation history must retain its ordered snapshots")
-        for item in value.get("history", []):
-            if (
-                type(item["revision"]) is not int
-                or item["revision"] < 0
-                or fingerprint(item["record"]) != item["digest"]
-            ):
-                raise ValueError("Creation history cannot be rewritten")
-        if value.get("history_head") is not None:
-            first_eval_history.validate_reference(value["history_head"])
-            if value.get("history"):
-                raise ValueError("Creation history cannot mix inline snapshots and an archived chain")
     except (KeyError, TypeError, AttributeError) as exc:
         raise ValueError("Malformed structured creation record") from exc
 
@@ -830,13 +815,16 @@ def progress(repo, state: dict) -> dict | None:
 
 
 def transition(repo, previous: dict, updated: dict) -> None:
-    """Enforce saved checkpoints and retain superseded records before the shared atomic save."""
+    """Enforce saved checkpoints against the current recovery record before atomic save."""
     before, after = record(previous), record(updated)
     if before is not None and after is None:
         raise ValueError("Retain structured creation progress and its evidence")
     if after is None:
         return
-    first_eval_history.inherit(before, after)
+    if before is not None:
+        before = {key: item for key, item in before.items() if key not in {"history", "history_head"}}
+    after.pop("history", None)
+    after.pop("history_head", None)
     saved_review = after.get("saved_design_review")
     prior_review = (before or {}).get("saved_design_review")
     replacing_design = False
@@ -1047,11 +1035,6 @@ def transition(repo, previous: dict, updated: dict) -> None:
             )
     activity = after.get("run_progress")
     if activity and activity != (before or {}).get("run_progress"):
-        fresh = {ref["path"]: ref["digest"] for ref in activity["evidence"]}
-        for item in chain((before,), first_eval_history.snapshots(repo, before)):
-            for ref in ((item or {}).get("run_progress") or {}).get("evidence", []):
-                if ref["path"] in fresh and ref["digest"] != fresh[ref["path"]]:
-                    raise ValueError("Preserve native progress snapshots with fresh evidence paths")
         if not (
             old
             and old["execution_authorized"]
@@ -1106,4 +1089,3 @@ def transition(repo, previous: dict, updated: dict) -> None:
             updated["next_handoff"] = "eval-author-audit"
         elif updated["next_handoff"] == "eval-author-audit":
             updated["next_handoff"] = None
-    first_eval_history.retain(repo, before, after, previous["revision"])
