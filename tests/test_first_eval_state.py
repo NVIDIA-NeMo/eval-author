@@ -1912,6 +1912,16 @@ def test_legacy_history_reads_and_renders_without_migration_then_migrates_on_exp
     archive = tmp_path / ".eval-author/.working/history/create"
     loaded = modules[0].load_state(tmp_path)
     assert modules[0].view(loaded)["state"]["scopes"] == original["scopes"]
+    renderer = importlib.import_module("conversation_renderer")
+    rendered = renderer.render(
+        {
+            "stage": "first_eval_traces",
+            "state": loaded,
+            "revision": loaded["revision"],
+            "facts": {"observations": modules[1].observe(tmp_path, loaded)},
+        }
+    )
+    assert rendered
     assert path.read_bytes() == before and not archive.exists()
 
     saved = save(modules, tmp_path, value)
