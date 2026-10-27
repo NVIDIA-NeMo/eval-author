@@ -82,7 +82,10 @@ For reusable context, continue these steps in the same turn when unblocked:
    fields through normal revision-checked updates: selected suites, exact run/attempt
    evidence, trace source/location/bounds, exclusions, limitations, and provenance.
    Availability and candidate paths do not select sources; an accepted invitation
-   selects only its identified inputs. Continue at the first unresolved step, or
+   selects only its identified inputs. Apply the guided audit's
+   [stale-selection handling](../../eval-author-audit/references/guided-audit.md#stale-or-conflicting-selections)
+   when retained choices conflict with current work or selected paths are missing.
+   Continue at the first unresolved step, or
    proposed-check review when inputs are settled, without another recap approval.
    Never measure before check approval.
 

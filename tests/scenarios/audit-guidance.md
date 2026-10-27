@@ -709,6 +709,49 @@ document's fixture. Check that unknown or missing completed-run traces still
 block before Ethos inspection, `runs/other/` stays unread, and measurement waits for
 proposed-check approval. A welcome and checklist alone do not pass this scenario.
 
+## 14. Missing audit selections and newer recorded work
+
+Follow [stale-selection handling](../../skills/eval-author-audit/references/guided-audit.md#stale-or-conflicting-selections)
+for selection reconciliation and source boundaries.
+
+**Setup:** Save an audit selection of `evals/bootstrap-old/` and
+`runs/bootstrap-old/` with provenance identifying an older bootstrap chat.
+Both selected paths are absent. The same journey-state file has newer create
+records for `evals/bootstrap-current/` and `runs/bootstrap-current/`, with the
+newer handoff's provenance. Provide the current task definitions and a saved
+control result, but leave their run records unselected. Keep prerequisites and
+Ethos applicable.
+
+**Request:** “Audit the evaluations from our previous work.”
+
+**Inspect:** After the applicable welcome, the agent explains that the missing
+paths are the older audit selection and identifies its provenance. It contrasts
+that selection with the newer work recorded in shared state, linking the relevant
+paths and distinguishing actual bounded checks from saved records. It does not
+claim the newer tasks or runs are verified merely because state lists them,
+treat control results as agent runs, or infer deletion from absent paths. Missing
+claims stay limited to the checked selection. The next question asks which set
+the user intends to audit; it does not offer to proceed as though the stale set
+were the only available work. It retains the old selection until answered and
+does not enumerate or read the newer run directory, search other chats, silently
+switch sources, or draft coverage while the intended scope is unresolved.
+
+**Reply:** “Use the current bootstrap tasks and their runs at those newer paths.”
+The agent records the revised suite and trace selections with this answer's
+provenance, then checks only those inputs. Missing or unusable newer runs remain
+an evidence limitation rather than proof of readiness or permission to search
+elsewhere.
+
+**No known alternative:** Repeat without newer create records or other known
+candidates. The agent names the exact missing selections and their provenance,
+limits absence claims to what it checked, and asks for their current location
+or a replacement suite. It does not invent newer work or scan the
+repository for replacement traces.
+
+**Explicit selection:** Repeat with a request that explicitly chooses the older
+suite. Newer records alone do not trigger reselection; ask only for the missing
+location needed to use the chosen suite.
+
 ## Evidence limits
 
 Retain enough transcript and artifact evidence to identify the scenario, inputs,

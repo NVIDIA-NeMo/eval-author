@@ -72,6 +72,10 @@ Ethos again when the agent, intended behavior, or document has changed.
 Previously selected suites and runs do not need another selection; when those
 inputs are settled, the next review is the proposed audit checks. Traces remain
 required: missing traces pause the audit while preserving your earlier work.
+If saved selections refer to older work, Eval Author explains their source and
+how they differ from current recorded tasks or runs, then asks which set you
+intend to audit. Missing-path findings identify the particular selection that
+was checked, keeping other current work distinct.
 
 If saved trace availability is unresolved or traces are absent, the prerequisite
 response explains the required action and links the audit skill instruction
