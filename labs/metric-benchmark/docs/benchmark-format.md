@@ -79,8 +79,10 @@ its declared `kind`. File references use `kind: file` or omit `kind`; task
 sources are always directories and have no `kind` field in `tasks.yml`. Agent
 inputs may use either kind.
 
-Omit `sha256` while iterating. The loader still checks that the referenced path
-exists and has the expected kind, but does not hash its contents. When `sha256`
+Omit `sha256` while iterating and load with `allow_unsigned=True` (or
+`--allow-unsigned` on benchmark-reading CLIs). The default is `False`: unsigned
+inputs fail loading. With the opt-in, the loader still checks that the referenced
+path exists and has the expected kind, but does not hash unpinned contents. When `sha256`
 is supplied, a mismatch is an error. A digest is `sha256:` followed by 64 lowercase
 hexadecimal characters.
 
@@ -106,8 +108,8 @@ an input requires re-signing its referencing manifests; revision labels do not
 replace content verification.
 
 Use `sha-sign experiment.yml --check` to require and verify every pin without
-writing files. Missing pins fail this check, even though ordinary readers allow
-unsigned inputs while iterating. The [tool guide](tools.md#signing-a-benchmark)
+writing files. Checking calls the normal `load_benchmark()` path with its strict default;
+missing pins fail. Only explicit unsigned loading allows missing pins. The [tool guide](tools.md#signing-a-benchmark)
 provides CLI and library usage.
 
 ## Agents: `agent.yml`
@@ -259,7 +261,7 @@ strings. There is no `schema_version` field. Revisions identify experiment,
 agent, task, or metric-tool inputs rather than versions of this file format.
 
 `load_benchmark()` reads the experiment and its inline cases, verifies the referenced manifests and
-all prepared inputs (checking any supplied digests), and loads subsets and
+all prepared inputs (requiring and checking digests by default), and loads subsets and
 descriptions. It checks subset task IDs against the selected task inventory. It does not execute the agents, verify
 that a launch integration works, or validate the metric-specific meaning of the
 description. See [Reading benchmarks](tools.md#reading-benchmarks) for the API.

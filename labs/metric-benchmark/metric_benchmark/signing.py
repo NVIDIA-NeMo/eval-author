@@ -15,9 +15,10 @@ from metric_benchmark.config import (
     Case,
     PinnedInput,
     TaskManifest,
+    load_benchmark,
     read_yaml,
 )
-from metric_benchmark.io import digest_bytes, input_digest, read_json, verify_input
+from metric_benchmark.io import digest_bytes, input_digest, read_json
 from metric_benchmark.models import Subsets
 
 
@@ -43,9 +44,7 @@ def _replace(path: Path, data: bytes) -> None:
             temporary.unlink(missing_ok=True)
 
 
-def _collect(
-    path: Path, *, check: bool = False
-) -> tuple[dict[Path, dict], dict[tuple[Path, str], tuple[dict, Path, bool]]]:
+def _collect(path: Path) -> tuple[dict[Path, dict], dict[tuple[Path, str], tuple[dict, Path, bool]]]:
     root = path.parent
     documents: dict[Path, dict] = {}
     references: dict[tuple[Path, str], tuple[dict, Path, bool]] = {}
@@ -63,8 +62,6 @@ def _collect(
             target = source.resolve(root, verify_digest=False)
         except (OSError, ValueError) as error:
             raise ValueError(f"{owner.relative_to(root)}:{label}: {error}") from error
-        if check:
-            verify_input(target, source.sha256, label=f"{owner.relative_to(root)}:{label}")
         references[owner, label] = data, target, manifest
         return target
 
@@ -95,15 +92,7 @@ def _collect(
 
 def check_benchmark(path: Path) -> None:
     """Require and verify every input pin without writing files."""
-    path = path.resolve(strict=True)
-    _, references = _collect(path, check=True)
-    missing = [
-        f"{owner.relative_to(path.parent)}:{label}"
-        for (owner, label), (data, _, _) in references.items()
-        if data.get("sha256") is None
-    ]
-    if missing:
-        raise ValueError("Missing SHA fields:\n  " + "\n  ".join(missing))
+    load_benchmark(path)
 
 
 def sign_benchmark(path: Path, *, force: bool = False) -> list[Path]:

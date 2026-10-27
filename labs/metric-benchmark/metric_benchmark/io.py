@@ -70,8 +70,10 @@ def input_digest(path: Path) -> str:
     return digest_bytes(json_bytes(file_manifest(path))) if path.is_dir() else digest_file(path)
 
 
-def verify_input(path: Path, expected: str | None, *, label: str | None = None) -> None:
-    """Verify a supplied content pin; unsigned inputs remain valid during iteration."""
+def verify_input(path: Path, expected: str | None, *, allow_unsigned: bool = False, label: str | None = None) -> None:
+    """Require a content pin by default and always verify any supplied pin."""
+    if expected is None and not allow_unsigned:
+        raise ValueError(f"missing SHA for input: {label if label is not None else path}")
     if expected is not None and input_digest(path) != expected:
         raise ValueError(f"input digest differs: {label if label is not None else path}")
 

@@ -46,7 +46,8 @@ coverage, and correlation. Prep is external to those stages.
 ## Benchmark definition
 
 A metric benchmark consists of an experiment with inline cases and linked manifests. SHA-256 pins are optional during
-iteration; established benchmarks should pin every reference to fix their inputs:
+iteration with explicit unsigned loading; default loading requires every input
+to be pinned. Established benchmarks pin every reference to fix their inputs:
 
 - **Experiment YAML (`experiment.yml`):** defines inline cases and configures execution,
   metric computation, and scoring.
