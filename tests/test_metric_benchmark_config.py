@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
-import sys
 from datetime import date
 from pathlib import Path
 
@@ -13,6 +12,7 @@ from metric_benchmark.io import read_json, write_json
 from metric_benchmark.models import Score, Subsets, Tasks
 
 LAB = Path(__file__).resolve().parents[1] / "labs/metric-benchmark"
+BENCHMARK_YAML = Path(__file__).parent / "fixtures/metric_benchmark/benchmark.yml"
 
 
 def inventory(n=3):
@@ -40,16 +40,8 @@ def fixed_subsets(tasks):
 def prepared_benchmark(root):
     """Small prepared inputs for tests; no runtime subset-construction stage."""
     root.mkdir(parents=True, exist_ok=True)
-    tasks = inventory()
-
-    def pin(path):
-        return {
-            "path": path.relative_to(root).as_posix(),
-            "sha256": input_digest(path),
-            "kind": "directory" if path.is_dir() else "file",
-        }
-
-    sources = {}
+    definition = yaml.safe_load(BENCHMARK_YAML.read_text(encoding="utf-8"))
+    tasks = Tasks.model_validate(definition["cases"][0]["task_inventory"])
     for task in tasks.tasks:
         folder = root / task.task_id
         folder.mkdir()
@@ -59,31 +51,10 @@ def prepared_benchmark(root):
         (folder / "environment/Dockerfile").write_text("FROM python:3.12-slim\n")
         (folder / "tests").mkdir()
         (folder / "tests/test.sh").write_text("#!/bin/bash\necho 0 > /logs/verifier/reward.txt\n")
-        sources[task.task_id] = pin(folder)
     write_json(root / "subsets.json", fixed_subsets(tasks))
     write_json(root / "description.json", {"required": ["task-0", "task-1"]})
-    definition = {
-        "benchmark_id": "example",
-        "revision": 1,
-        "cases": [
-            {
-                "case_id": "case",
-                "task_inventory": tasks.model_dump(),
-                "task_sources": sources,
-                "case_description": pin(root / "description.json"),
-                "subsets": pin(root / "subsets.json"),
-                "baseline": {"agent_bundle_id": "baseline", "revision": "1", "harbor": {"name": "oracle"}},
-                "mutants": [{"agent_bundle_id": "mutant", "revision": "1", "harbor": {"name": "nop"}}],
-                "coverage": {
-                    "system_id": "synthetic",
-                    "system_revision": "1",
-                    "command": [sys.executable, "/adapter.py"],
-                },
-            }
-        ],
-    }
     path = root / "benchmark.yaml"
-    path.write_text(yaml.safe_dump(definition))
+    path.write_bytes(BENCHMARK_YAML.read_bytes())
     return path, definition
 
 
