@@ -9,17 +9,32 @@ Recommended for publication based on the completed evaluation evidence in this r
 ## Evaluation Metadata
 
 - Skill: `ethos-explore`
-- Evaluation date: 2026-10-15
-- Evaluator version: `1.5.6`
-- Agents: Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`), Codex (`openai/openai/gpt-5.5`)
+- Validation status: `passed`
+- Evaluation date: 2026-10-26
+- Evaluator version: `1.6.2`
+- Agents: Claude Code (`aws/anthropic/bedrock-claude-opus-5-5`), Codex (`openai/openai/gpt-6.1-sol`)
 - Tasks: 4 evaluation tasks (3 positive, 1 negative)
-- Dataset digest: `sha256:2f53f8c3e9248b6d7379a877a3fb1ed310c3f5642a339a1c9f49a8e74136db71` (skill-evaluator-dataset-snapshot/1)
+- Dataset digest: `sha256:a48048ae9db1bfa7e93c1f76ae40e2ea4fd8a8933132cae0528e8ba42d782191` (skill-evaluator-dataset-snapshot/1)
 - Attempts per task: 1
 - Environment: `k8s-sandbox`
 - Tier 2 evidence: required for publication
 - Tier 3 evidence: required for publication
 
 Each task attempt ran in its own isolated sandbox pod.
+
+## Tier 1 LLM Provenance
+
+SkillSpector provider, model, analyzer revision, and determinism evidence retained for this scan.
+
+| Skill | Provider | Adapter | Analyzer | Model | Revision | Determinism |
+| --- | --- | --- | --- | --- | --- | --- |
+| ethos-explore | nv_inference | openai | mcp_tool_poisoning | `aws/anthropic/bedrock-claude-opus-5-5` | `2.13.1` | nondeterministic / provider_defaults |
+| ethos-explore | nv_inference | openai | semantic_developer_intent | `aws/anthropic/bedrock-claude-opus-5-5` | `2.13.1` | nondeterministic / provider_defaults |
+| ethos-explore | nv_inference | openai | semantic_quality_policy | `aws/anthropic/bedrock-claude-opus-5-5` | `2.13.1` | nondeterministic / provider_defaults |
+| ethos-explore | nv_inference | openai | semantic_security_discovery | `aws/anthropic/bedrock-claude-opus-5-5` | `2.13.1` | nondeterministic / provider_defaults |
+| ethos-explore | nv_inference | openai | meta_analyzer | `aws/anthropic/bedrock-claude-opus-5-5` | `2.13.1` | nondeterministic / provider_defaults |
+
+- Controls for `ethos-explore`: temperature=not set (source=provider_default, forwarded=no); seed=not set (source=unset, forwarded=no); reasoning_effort=not set (source=provider_default, forwarded=no)
 
 ## What This Report Answers
 
@@ -35,12 +50,12 @@ The three-tier evaluation checks whether the skill:
 
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 91.3% — baseline ran, but no comparable score was available; uplift unavailable | 88.2% — baseline ran, but no comparable score was available; uplift unavailable |
+| Overall | 90.0% — baseline ran, but no comparable score was available; uplift unavailable | 96.4% — baseline ran, but no comparable score was available; uplift unavailable |
 | Security | 100.0% → 100.0% (±0.0 points) | 100.0% → 100.0% (±0.0 points) |
-| Correctness | 65.0% → 90.0% (+25.0 points) | 70.0% → 85.0% (+15.0 points) |
-| Discoverability | 100.0% — baseline ran, but no comparable score was available; uplift unavailable | 90.0% — baseline ran, but no comparable score was available; uplift unavailable |
-| Effectiveness | 55.4% → 75.0% (+19.6 points) | 46.7% → 68.1% (+21.4 points) |
-| Efficiency | 91.4% — baseline ran, but no comparable score was available; uplift unavailable | 98.0% — baseline ran, but no comparable score was available; uplift unavailable |
+| Correctness | 65.0% → 80.0% (+15.0 points) | 65.0% → 100.0% (+35.0 points) |
+| Discoverability | 100.0% — baseline ran, but no comparable score was available; uplift unavailable | 86.7% — baseline ran, but no comparable score was available; uplift unavailable |
+| Effectiveness | 43.3% → 78.1% (+34.8 points) | 60.4% → 100.0% (+39.6 points) |
+| Efficiency | 91.6% — baseline ran, but no comparable score was available; uplift unavailable | 95.5% — baseline ran, but no comparable score was available; uplift unavailable |
 
 **How to read this table:** baseline is the same task attempted without the target skill. Scores are rounded to one decimal; threshold-adjacent values use additional precision so their displayed band matches the verdict. Uplift is derived from those displayed scores and shown in percentage points.
 
@@ -48,31 +63,42 @@ Example: `47.0% → 92.0% (+45.0 points)` means the skill-assisted run scored 92
 
 A partial dimension was calculated from only the available configured signals; review the detailed report before relying on it.
 
+### Comparison details
+
+Shared-source comparisons use the same signals and weights on both conditions. They do not replace the full dimension scores above or change the publication verdict.
+
+| Agent | Dimension | Basis | Baseline → With skill (uplift) | Explanation |
+| --- | --- | --- | --- | --- |
+| claude-code | Discoverability | Dimension comparison | N/A | Discoverability is not applicable to the no-skill baseline; there is no installed skill to discover. |
+| claude-code | Efficiency | Token-only comparison | 98.0% → 94.4% (-3.6 points) | Only Token Efficiency is comparable; the full dimension scores use different evaluator sources. |
+| codex | Discoverability | Dimension comparison | N/A | Discoverability is not applicable to the no-skill baseline; there is no installed skill to discover. |
+| codex | Efficiency | Token-only comparison | 92.6% → 91.0% (-1.6 points) | Only Token Efficiency is comparable; the full dimension scores use different evaluator sources. |
+
 ## Token Usage
 
 Actual Tier 3 execution usage is reported for every observed agent/case pair and both conditions.
 
 | Agent | Dataset case | With skill | Without skill | Delta | Change | Coverage |
 |---|---|---:|---:|---:|---:|---|
-| claude-code | All cases | 718,371 | 459,467 | +258,904 | +56.35% | skill 4/4; base 4/4 |
-| claude-code | explore-explicit-first-question | 147,621 | 218,489 | -70,868 | -32.44% | skill 1/1; base 1/1 |
-| claude-code | explore-greenfield-role-first | 226,557 | 59,684 | +166,873 | +279.59% | skill 1/1; base 1/1 |
-| claude-code | explore-implicit-just-write-it | 315,061 | 152,312 | +162,749 | +106.85% | skill 1/1; base 1/1 |
-| claude-code | explore-negative | 29,132 | 28,982 | +150 | +0.52% | skill 1/1; base 1/1 |
-| codex | All cases | 284,629 | 138,965 | +145,664 | +104.82% | skill 4/4; base 4/4 |
-| codex | explore-explicit-first-question | 46,840 | 55,257 | -8,417 | -15.23% | skill 1/1; base 1/1 |
-| codex | explore-greenfield-role-first | 63,355 | 13,857 | +49,498 | +357.21% | skill 1/1; base 1/1 |
-| codex | explore-implicit-just-write-it | 161,104 | 56,634 | +104,470 | +184.47% | skill 1/1; base 1/1 |
-| codex | explore-negative | 13,330 | 13,217 | +113 | +0.85% | skill 1/1; base 1/1 |
-| ALL AGENTS | Dataset aggregate | 1,003,000 | 598,432 | +404,568 | +67.60% | skill 8/8; base 8/8 |
+| claude-code | All cases | 605,592 | 470,481 | +135,111 | +28.72% | skill 4/4; base 4/4 |
+| claude-code | explore-explicit-first-question | 171,344 | 107,136 | +64,208 | +59.93% | skill 1/1; base 1/1 |
+| claude-code | explore-implicit-just-write-it | 224,056 | 219,821 | +4,235 | +1.93% | skill 1/1; base 1/1 |
+| claude-code | explore-negative | 35,039 | 34,885 | +154 | +0.44% | skill 1/1; base 1/1 |
+| claude-code | explore-resume-draft | 175,153 | 108,639 | +66,514 | +61.22% | skill 1/1; base 1/1 |
+| codex | All cases | 266,172 | 217,148 | +49,024 | +22.58% | skill 4/4; base 4/4 |
+| codex | explore-explicit-first-question | 88,593 | 41,639 | +46,954 | +112.76% | skill 1/1; base 1/1 |
+| codex | explore-implicit-just-write-it | 92,817 | 105,373 | -12,556 | -11.92% | skill 1/1; base 1/1 |
+| codex | explore-negative | 13,256 | 13,141 | +115 | +0.88% | skill 1/1; base 1/1 |
+| codex | explore-resume-draft | 71,506 | 56,995 | +14,511 | +25.46% | skill 1/1; base 1/1 |
+| ALL AGENTS | Dataset aggregate | 871,764 | 687,629 | +184,135 | +26.78% | skill 8/8; base 8/8 |
 
-Prompt tokens include cached reads, so total tokens are `prompt + completion` (cached is not added twice). The Efficiency score uses `(prompt - cached) + completion`. N/A means the relevant trajectory counters were not available; coverage is never estimated.
+Prompt tokens include cached reads, so total tokens are `prompt + completion` (cached is not added twice). The Efficiency score uses `(prompt - cached) + completion`. Change is `100 * (with - without) / without`; negative means fewer tokens. N/A comparisons include their reason in the coverage column; coverage is never estimated.
 
 ## Tier Status
 
 | Tier | Purpose | Status | Evidence |
 |---|---|---|---|
-| Tier 1 | Static validation | **PASSED WITH OBSERVATIONS** | 11 validator(s); 16 finding(s) |
+| Tier 1 | Static validation | **PASSED WITH OBSERVATIONS** | 11 validator(s); 15 finding(s) |
 | Tier 2 | Semantic deduplication | **PASSED** | 2 validator(s); 0 finding(s) |
 | Tier 3 | Live agent evaluation | **PASS** | 2 agent(s); 4 task(s) |
 
@@ -84,9 +110,9 @@ Prompt tokens include cached reads, so total tokens are `prompt + completion` (c
 - **MEDIUM** QUALITY/quality_correctness: SKILL_SPEC recommended field missing: 'metadata.author' (`team-skills/ethos/ethos-explore/SKILL.md`)
 - **MEDIUM** QUALITY/quality_correctness: SKILL_SPEC recommended field missing: 'metadata.tags' (`team-skills/ethos/ethos-explore/SKILL.md`)
 - **MEDIUM** QUALITY/quality_reliability: MCP skill lacks connection/error guidance (`team-skills/ethos/ethos-explore/SKILL.md`)
-- **MEDIUM** QUALITY/quality_efficiency: Large skill (6775 tokens, recommended max <5000). Per agentskills.io, SKILL.md should be concise (~500 lines) — large skill bodies increase token cost after invocation; long or unfocused top-level descriptions can degrade agent routing accuracy (`team-skills/ethos/ethos-explore/SKILL.md`)
+- **MEDIUM** QUALITY/quality_efficiency: Large skill (7131 tokens, recommended max <5000). Per agentskills.io, SKILL.md should be concise (~500 lines) — large skill bodies increase token cost after invocation; long or unfocused top-level descriptions can degrade agent routing accuracy (`team-skills/ethos/ethos-explore/SKILL.md`)
 - **MEDIUM** SCHEMA/body_recommended_section: Missing recommended section: '## Instructions' (`team-skills/ethos/ethos-explore/SKILL.md`)
-- 11 additional finding(s) are available in the full evaluation artifacts.
+- 10 additional finding(s) are available in the full evaluation artifacts.
 
 </details>
 

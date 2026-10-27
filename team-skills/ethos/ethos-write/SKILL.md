@@ -27,7 +27,7 @@ metadata:
 
 Turn the answers from `ethos-explore` into a durable artifact. The ETHOS.md is
 the contract that people and agents read before they build, evaluate, review,
-or change this agent. Without it, each of them has to re-ask everything, and
+or change this agent. Without it, each of them must re-ask everything, and
 nothing records what the agent is supposed to do.
 
 Creating or reviewing an ETHOS.md does not authorize application changes or imply

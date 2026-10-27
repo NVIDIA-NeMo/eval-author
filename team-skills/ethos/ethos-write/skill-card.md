@@ -35,8 +35,8 @@ Mitigation: Review and scan skill before deployment. <br>
 **Other Properties Related to Output:** [Writes one local file (ETHOS.md at the repository root unless the user names another path); validated offline by the bundled standard-library script scripts/validate_ethos.py (Python 3.10+); overwrites only after user confirmation.] <br>
 
 ## Evaluation Agents Used: <br>
-- Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`) <br>
-- Codex (`openai/openai/gpt-5.5`) <br>
+- Claude Code (`aws/anthropic/bedrock-claude-opus-5-5`) <br>
+- Codex (`openai/openai/gpt-6.1-sol`) <br>
 
 
 
@@ -65,12 +65,12 @@ Underlying evaluation signals used in this run: <br>
 ## Evaluation Results: <br>
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 89.6% (uplift unavailable) | 93.1% (uplift unavailable) |
+| Overall | 97.4% (uplift unavailable) | 90.5% (uplift unavailable) |
 | Security | 100.0% → 100.0% (±0.0 points) | 100.0% → 100.0% (±0.0 points) |
-| Correctness | 50.0% → 85.0% (+35.0 points) | 55.0% → 95.0% (+40.0 points) |
-| Discoverability | 100.0% (uplift unavailable) | 88.3% (uplift unavailable) |
-| Effectiveness | 38.3% → 79.2% (+40.9 points) | 36.3% → 85.0% (+48.7 points) |
-| Efficiency | 83.9% (uplift unavailable) | 97.2% (uplift unavailable) |
+| Correctness | 60.0% → 100.0% (+40.0 points) | 55.0% → 90.0% (+35.0 points) |
+| Discoverability | 100.0% (uplift unavailable) | 85.0% (uplift unavailable) |
+| Effectiveness | 39.6% → 100.0% (+60.4 points) | 56.3% → 81.3% (+25.0 points) |
+| Efficiency | 87.0% (uplift unavailable) | 96.3% (uplift unavailable) |
 
 ## Skill Version(s): <br>
 0.1.0 (source: pyproject.toml) <br>
