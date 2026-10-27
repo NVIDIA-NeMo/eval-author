@@ -323,12 +323,15 @@ def previous_snapshot(path: Path, output: Path) -> tuple[dict | None, bytes | No
 def readme_sections(text: str) -> dict[str, str | None]:
     """Read exact H2 sections; ignore headings in fenced code and reject duplicates."""
     names = ("Behavior under test", "Expected result")
-    sections: dict[str, list[list[str]]] = {name: [] for name in names}
+    sections: dict[str, list[tuple[list[str], list[str]]]] = {name: [] for name in names}
     current: list[str] | None = None
+    source: list[str] | None = None
     fence = ""
     for line in text.splitlines():
         match = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
         if match:
+            if source is not None:
+                source.append(line)
             token = match[1]
             if not fence:
                 fence = token
@@ -336,22 +339,42 @@ def readme_sections(text: str) -> dict[str, str | None]:
                 fence = ""
             continue
         if fence:
+            if source is not None:
+                source.append(line)
             continue
         heading = re.match(r"^ {0,3}(#{1,6})\s+(.+?)\s*#*\s*$", line)
         if heading and len(heading[1]) <= 2:
             current = None
+            source = None
             if len(heading[1]) == 2 and heading[2] in sections:
                 current = []
-                sections[heading[2]].append(current)
+                source = []
+                sections[heading[2]].append((current, source))
         elif current is not None:
             current.append(line)
+            assert source is not None
+            source.append(line)
     result = {}
     for name, values in sections.items():
         if not values:
             continue
-        text = "\n".join(line.rstrip() for line in values[0]).strip() if len(values) == 1 else ""
+        text = ""
+        if len(values) == 1:
+            lines, source = values[0]
+            text = "\n".join(line.rstrip() for line in lines).strip()
+            if name == "Expected result":
+                text = opening_readme_paragraph("\n".join(source)) or text
         result[name] = text if text and len(text) <= 2000 else None
     return result
+
+
+def opening_readme_paragraph(source: str) -> str | None:
+    from markdown_it import MarkdownIt
+
+    tokens = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"]).parse(source)
+    if tokens and tokens[0].type == "paragraph_open":
+        return tokens[1].content.replace("\n", " ") or None
+    return None
 
 
 def nested_checkout(repo: Path, path: Path) -> bool:

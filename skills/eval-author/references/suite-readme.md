@@ -355,11 +355,32 @@ section into these headings while preserving its substantive content.
 Write the real behavior, result, and grading details, not the example prose.
 Preserve the README's other required sections. Behavior under test and Expected
 result are the canonical sources for the report's Behavior and Expected outcome
-columns.  Missing, empty, duplicate, or oversized sections show `Not documented`;
+columns. Missing, empty, duplicate, or oversized report values show `Not documented`;
 rendering never asks a model to invent them. For existing tasks, reuse explicit
 documentation or inspect the instruction, fixtures, verifier, and rubric once to
 supply source-grounded metadata. Routine refresh must not rewrite existing task
 documentation.
+
+### Expected-result summaries
+
+Start `Expected result` with a short prose paragraph, usually one sentence,
+summarizing observable success and its essential conditions or boundaries.
+Keep the behavior's motivation in `Behavior under test`. Put detailed expected
+values, individual assertions, and supporting explanation after a blank line
+in the task README.
+
+The report's Expected outcome column and mirrored table use the complete opening
+paragraph; the task README preview retains the full section. Wrapped lines in
+the summary become spaces. Existing sections that begin with a list or table
+retain their full text. Refresh neither paraphrases nor cuts off sentences to
+meet a word limit.
+
+Use this concise style for conversation `expected_result` fields. Proposal and
+suite review use the saved plan's summary; first-task review supplies the README's
+opening summary as `facts.expected_result`. Keep the authored summary consistent
+with the approved result, without rewriting an approved plan just to shorten
+its prose. Preserve conditions that affect correctness; brevity does not change
+the agreed behavior or verifier criteria.
 
 ## Review and rerun guidance
 

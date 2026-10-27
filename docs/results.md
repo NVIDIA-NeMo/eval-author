@@ -59,7 +59,10 @@ execution is blocked.
 
 Task README files allow users to inspect its Input, Behavior under test,
 Expected result, and Grading sections. Input links the instruction and fixtures;
-Grading links the actual verifier code and criteria or judge files.
+Grading links the actual verifier code and criteria or judge files. The report's
+Expected outcome column shows the opening summary paragraph from Expected result;
+open the task README for its detailed assertions and expected values. Existing
+sections that begin with a list or table continue to display their full text.
 
 At the accepted-task handoff, create a flat `.eval-author/tasks/` catalog for new
 environments; follow the existing final task-directory convention for existing

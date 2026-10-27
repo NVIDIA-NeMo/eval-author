@@ -500,7 +500,7 @@ values):
       "title": "<task title>",
       "input": "<request and relevant starting state>",
       "behavior": "<behavior under test>",
-      "expected_result": "<observable intended result>",
+      "expected_result": "<concise observable success summary>",
       "grading": "<grading method and limits>"
     }],
     "presentation": {"coverage_note": "<usefulness, untested behavior, and grading explanation>"}
@@ -576,7 +576,7 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_validation_setup` | Saved design approval and inspected grading requirements. Show known validation setup and ask only missing judge configuration, access, or bounded validation authorization before any task creation. Ready setup continues without an extra approval pause. |
 | `first_eval_prepare_first` | Previously saved design approval and ready validation setup; initial provider explanation and compact build checklist. Author exactly one task in its permanent directory, prove its environment before writing its grader, and satisfy the pre-review validation gate before returning for review. No target-agent execution checklist is required for local authoring. |
 | `first_eval_build_progress` | Saved approved first-task build activity and fresh observations; the same fixed checklist with short completed, active, pending, or blocked statuses. Use commentary during work, without adding narration or requesting approval. |
-| `first_eval_review_first` | Current first-task files, saved environment proof, complete current grading validation, and refreshed HTML and Markdown artifacts. Lead with the approved task's name and grounding in `ETHOS.md`, then direct the user to review the HTML report's Tasks view or mirrored README. Follow with input, expected result, grading with a meaningful limitation, and separate environment, grading-validation, and execution status. Link the task README and end with the first-task approval question. |
+| `first_eval_review_first` | Current first-task files, saved environment proof, complete current grading validation, and refreshed HTML and Markdown artifacts. Lead with the approved task's stable ID and grounding in `ETHOS.md`, then direct the user to review the HTML report's Tasks view or mirrored README. Follow with input, expected result, grading with a meaningful limitation, and separate environment, grading-validation, and execution status. Link the task README and end with the first-task approval question. |
 | `first_eval_prepare_remaining` | Saved approval of the current first-task revision and environment proof. Initial explanation and skill-labeled checklist for building the remainder, checking environments, validating all graders, and refreshing artifacts. |
 | `first_eval_remaining_progress` | Current remaining-build activity after first-task approval; compact checklist with evidence-derived task counts, responsible skills, short statuses, and current build blockers. |
 | `first_eval_review_suite` | Every authored task's current environment and complete grading-validation evidence plus current report artifacts. Ground the summary in the approved design and `ETHOS.md`, link the HTML Tasks view or mirrored README, summarize each task and current validation/execution evidence, and end with the explicit suite-approval question. No run settings or run-only blockers. |
@@ -588,9 +588,14 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_blockers` | One or more saved blockers preventing the current action, with specific reasons and needed actions. Preserve independent progress. |
 
 The proposal uses the saved plan's `presentation.coverage_note` for its usefulness,
-untested behavior, and grading explanation. Task rows provide `title`, `input`,
-`behavior`, `expected_result`, and `grading`. Do not create a separate user-facing
-planning document.
+untested behavior, and grading explanation. Task rows provide `id`, `input`,
+`behavior`, `expected_result`, and `grading`. Use the saved stable `id` for task
+labels in proposals, saved designs, build and run progress, and reviews so users
+can locate the same task in the report and filesystem. A descriptive `title`
+does not replace that ID. Follow the shared
+[expected-result summary contract](../suite-readme.md#expected-result-summaries)
+for the proposal and review fields. Do not create a separate user-facing planning
+document.
 
 Late execution settings come from the saved record's `execution_settings`, with
 existing plan-presentation fields retained as a compatibility fallback. They

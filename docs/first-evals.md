@@ -30,7 +30,9 @@ The task proposal explains the inputs, intended behaviors,
 expected results, grading, and remaining coverage gaps. Its Grading column shows
 whether each task uses code checks, a model judge, or both, with the judgment
 needed and its limitations. You can change the proposal or approve it and the
-first task to build.
+first task to build. Task labels use stable IDs throughout the conversation so
+you can match them to the report and task directories. Expected results are
+[brief summaries with detailed criteria in each task README](results.md#review-generated-cases).
 The default starting proposal has one to three tasks, with one example each;
 you can request broader scope. Eval Author waits for your source choice and
 then your proposal approval before starting task construction.
