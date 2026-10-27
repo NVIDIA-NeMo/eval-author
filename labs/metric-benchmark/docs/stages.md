@@ -102,7 +102,7 @@ unnecessary: the shared index supports either agent-wise or task-wise views.
 Separate run directories allow later executions without overwriting earlier
 ones; the current scorer selects one run per agent.
 
-**Index:** `results.json` uses the existing v1 `raw_execution_results` schema.
+**Index:** `results.json` uses the `raw_execution_results` format.
 It includes the complete benchmark/task inventory and each execution's agent,
 run, task revision, attempt, status, measurements, and native-evidence location.
 This shared index is distinct from Harbor's own job and trial `result.json`
@@ -139,9 +139,8 @@ readable by the coverage implementation.
 matrix and identifies failed attempts and unavailable measurements explicitly.
 A completed task with a zero reward remains distinct from an execution error.
 The output index and referenced evidence agree on identities and formats.
-A full execution-completeness validator is still to be implemented; the existing
-analysis tools validate the index and handle unavailable observations according
-to their scoring policy.
+`validate_results.py` checks execution completeness and agreement with native
+evidence. Analysis handles unavailable observations according to its scoring policy.
 
 The shared contract covers directory contents as well as paths: measurements
 have consistent meanings, and the evidence formats are readable by the coverage

@@ -136,3 +136,35 @@ loading was explicitly enabled.
 The [format specification](benchmark-format.md) describes validation rules.
 `BenchmarkDefinition`, `CaseDefinition`, `AgentManifest`, and `TaskManifest` also
 expose their format through `model_json_schema()`.
+
+## Validate a results directory
+
+```bash
+uv run python labs/metric-benchmark/validate_results.py \
+  --benchmark experiment.yml --case case-id \
+  --results-root execution-results --output validation.json
+```
+
+Library: `validate_results(raw, case, root, input_root, scoring)`.
+Every configured agent/task pair must be accounted for, with one selected run per
+agent and an explicit attempt policy. The validator checks native Harbor trial
+identities, configured agents, completion status, measurements, and safe evidence
+paths; it hashes the files for subsequent change detection. The initial validator
+reads native directories, not archives or multi-step trial aggregations.
+A missing execution is an explicit `status: missing` entry with a null measurement
+and `unavailable_evidence.native_results` reason. A completed verifier zero is a
+valid observation; an execution exception is unavailable even if it saved a reward.
+Store the validation report outside the results root.
+
+These checks establish artifact consistency, not mutation activation, verifier
+correctness, or scientific validity. Such qualification belongs to prepared cases.
+
+Completed native evidence can be moved with its prepared benchmark inputs. The
+validator checks pinned local content and interprets recorded agent input paths
+relative to the producer root in native task metadata; it does not open old
+machine paths. Non-path agent settings must still match. The results index supplies
+one logical run ID per agent; those IDs need not follow a directory convention.
+Worker roots may differ. This check does not prove that trials came from one
+submission or prevent selection of favorable runs; the producer must record that
+provenance. The current native reader expects absolute POSIX task paths ending
+in the prepared relative task path.
