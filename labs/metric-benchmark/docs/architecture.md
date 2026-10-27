@@ -136,7 +136,7 @@ are the **execution implementation** and the **results-directory interface**.
 The proposed layout is agent-first: `agents/<agent>/<run>/<native-trial>/`, with
 `results.json` at the root indexing those trial results. Each run contains the
 native output of that agent running the benchmark. The
-[results-directory contract](stages.md#results-directory-contract) specifies the
+[results-directory contract](results-format.md) specifies the
 layout. Invocation, scheduling, and collection are internal to the execution
 implementation; they do not add generic experiment stages.
 
