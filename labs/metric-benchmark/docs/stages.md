@@ -18,7 +18,7 @@ fixed subset manifest.
 | 1. Run mutants x eval tasks | `run_evals.py` (local Harbor); future NeMo Helix implementation |
 | 2. Compute mutant scores | [`compute_mutant_scores.py`](compute-mutant-scores.md) |
 | 3. Compute coverage | [`compute_coverage.py`](compute-coverage.md) |
-| 4. Correlation | `correlate.py` |
+| 4. Correlation | [`correlate.py`](correlate.md) |
 
 ## Stage contract
 
