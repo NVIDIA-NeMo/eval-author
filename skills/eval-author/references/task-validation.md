@@ -267,11 +267,13 @@ from a broken task. Fix the cause without weakening justified requirements.
 A changed contract needs an explicit explanation; never silently substitute a
 different task or reinterpret old rewards to make them pass.
 
-After editing, prepare a new manifest with `--previous <old-manifest> --reason
-"<classification and concrete change>"`, then rerun all required controls and
-agent evidence for acceptance. The recorder retains digests of prior manifests
-and limits a repair chain to three revisions after the initial attempt. Do not
-reset the chain to evade that budget. Retain unresolved work when exhausted.
+After editing, prepare the current manifest with `--previous <current-manifest>
+--reason "<classification and concrete change>"`; `--out` may name that same
+manifest. Then rerun all required controls and agent evidence for acceptance.
+The recorder keeps the current repair count and reason, with at most three
+repairs after the initial attempt. Do not reset the count to evade that budget.
+Retain unresolved work when exhausted. Source control owns prior task and grader
+versions; do not create authoring archives.
 A process killed before it writes a receipt remains missing evidence; preserve
 its partial job, prepare a repair manifest with `--previous` and `--reason`, and
 use fresh paths when rerunning the required controls and agent attempts.

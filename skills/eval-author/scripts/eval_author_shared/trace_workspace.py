@@ -1778,6 +1778,7 @@ def _finalize(args: argparse.Namespace) -> dict[str, Any]:
         raise ContractError("prepare canonical ATIF evidence before finalizing")
     if summary["status"] != "pending":
         raise ContractError("this task workspace has already been finalized")
+    _repairs(task_dir)
 
     safe_path = task_dir / summary["source"]["safe_path"]
     safe_payload = _load_object(safe_path, label="safe ATIF")
@@ -1846,6 +1847,7 @@ def _finalize(args: argparse.Namespace) -> dict[str, Any]:
         )
     _write_json(_summary_path(task_dir), summary)
     _write_text(task_dir / "summary.md", _summary_markdown(summary))
+    (task_dir / "private/repair-state.json").unlink(missing_ok=True)
     return {
         "task_dir": str(task_dir),
         "status": args.status,
@@ -1982,26 +1984,14 @@ def _check(args: argparse.Namespace) -> dict[str, Any]:
     except ContractError as error:
         errors.append(str(error))
     try:
-        active = construction.active_path(task_dir)
+        construction.active_path(task_dir)
     except (ValueError, OSError, KeyError, TypeError, RecursionError) as error:
         errors.append(str(error))
-        active = None
     return {
         "task_dir": str(task_dir),
         "valid": not errors,
         "errors": errors,
         "repairs": len(repairs),
-        "contract_changes": [
-            {"repair": receipt["index"], "file": name}
-            for receipt in repairs
-            for name, path in (
-                ("candidate.json", task_dir / "candidate.json"),
-                ("construction.json", active),
-            )
-            if path is not None
-            and receipt["superseded"].get(name) is not None
-            and (not path.is_file() or _sha256_file(path) != receipt["superseded"][name]["sha256"])
-        ],
         "qualification": summary["environment"].get("qualification", "unmeasured"),
     }
 
@@ -2517,9 +2507,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     probe.set_defaults(run=_probe)
 
-    repair = subparsers.add_parser(
-        "record-repair", help="record one bounded repair, archiving the superseded proof it responds to"
-    )
+    repair = subparsers.add_parser("record-repair", help="record one bounded repair and invalidate its current proof")
     repair.add_argument("--task-dir", required=True, type=Path)
     repair.add_argument("--reason-code", required=True, choices=sorted(_REPAIR_REASON_CODES))
     repair.add_argument("--note", required=True)

@@ -222,20 +222,110 @@ def test_preexisting_results_cannot_be_adopted_as_fresh_execution(tmp_path, prep
         execute(tmp_path, prepared[2], "reference", "old")
 
 
-def test_repair_requires_fresh_proof_and_preserves_bounded_history(tmp_path, prepared):
+def test_repair_updates_manifest_in_place_and_requires_fresh_proof(tmp_path, prepared):
     task, contract, manifest = prepared
     receipts = complete(tmp_path, manifest)
     for index in range(3):
         (task / "instruction.md").write_text(f"Clarified requirement {index}")
-        next_manifest = tmp_path / f"manifest-{index}.json"
-        evidence.prepare(task, contract, next_manifest, manifest, "instruction_ambiguity: clarify visible requirement")
-        manifest = next_manifest
-    with pytest.raises(evidence.EvidenceError, match="task revision changed"):
+        reason = f"instruction_ambiguity: clarify visible requirement {index}"
+        evidence.prepare(task, contract, manifest, manifest, reason)
+        current = evidence.manifest_at(manifest)
+        assert current["repair_count"] == index + 1
+        assert current["repair_reason"] == reason
+        assert "repairs" not in current
+        assert "manifest" not in current
+        assert "history" not in current
+    with pytest.raises(evidence.EvidenceError, match="manifest digest mismatch"):
         evidence.verify_receipts(receipts, "cover-read")
     with pytest.raises(evidence.EvidenceError, match="budget exhausted"):
-        evidence.prepare(task, contract, tmp_path / "fourth.json", manifest, "another repair")
-    (tmp_path / "manifest.json").write_text("{}")
-    with pytest.raises(evidence.EvidenceError, match="superseded manifest changed"):
+        evidence.prepare(task, contract, manifest, manifest, "another repair")
+    assert list(tmp_path.glob("manifest*.json")) == [manifest]
+
+
+def test_repair_resumes_without_old_manifest_copies(tmp_path, prepared):
+    task, contract, previous = prepared
+    manifest = tmp_path / "current.json"
+    evidence.prepare(task, contract, manifest, previous, "Fix the expected result")
+    previous.unlink()
+    assert evidence.manifest_at(manifest)["repair_count"] == 1
+
+
+def test_fresh_controls_pass_after_in_place_repair_without_removing_native_results(tmp_path, prepared):
+    task, contract, manifest = prepared
+    original = complete(tmp_path, manifest)
+    evidence.prepare(task, contract, manifest, manifest, "Correct a grading requirement")
+    assert all(path.is_file() for path in original)
+    with pytest.raises(evidence.EvidenceError, match="manifest digest mismatch"):
+        evidence.verify_receipts(original, "cover-read")
+    current = tmp_path / "current"
+    current.mkdir()
+    fresh = complete(current, manifest)
+    assert len(evidence.verify_receipts(fresh, "cover-read")) == 2
+    assert all(path.is_file() for path in original)
+
+
+def test_partial_registration_disposal_cannot_hide_a_failed_attempt_during_repair(tmp_path, prepared, monkeypatch):
+    task, contract, manifest = prepared
+    receipts = complete(tmp_path, manifest)
+    failed = execute(tmp_path, manifest, "agent", "failed-attempt", error="synthetic tool failure")
+    before = manifest.read_bytes()
+    with pytest.raises(evidence.EvidenceError, match="all registered closure attempts"):
+        evidence.verify_receipts(receipts, "cover-read")
+    with monkeypatch.context() as patch:
+
+        def interrupted(*args, **kwargs):
+            discarded = next(tmp_path.glob(".repair-discard-*/registrations"))
+            (discarded / (hashlib.sha256(b"failed-attempt").hexdigest() + ".json")).unlink()
+            assert len(list(discarded.iterdir())) == len(receipts)
+            with pytest.raises(evidence.EvidenceError, match="complete attempt ledger"):
+                evidence.verify_receipts(receipts, "cover-read")
+            raise OSError("interrupted before replacing the current manifest")
+
+        patch.setattr(evidence, "atomic_write_json", interrupted)
+        with pytest.raises(OSError, match="interrupted"):
+            evidence.prepare(task, contract, manifest, manifest, "Correct a grading requirement")
+    assert manifest.read_bytes() == before
+    assert all(path.is_file() for path in [*receipts, failed])
+    assert not list(tmp_path.glob(".repair-discard-*"))
+    with pytest.raises(evidence.EvidenceError, match="complete attempt ledger"):
+        evidence.verify_receipts(receipts, "cover-read")
+    evidence.prepare(task, contract, manifest, manifest, "Correct a grading requirement")
+    assert evidence.manifest_at(manifest)["repair_count"] == 1
+
+
+def test_in_place_repair_preserves_native_files_placed_in_the_registration_directory(tmp_path, prepared):
+    task, contract, manifest = prepared
+    complete(tmp_path, manifest)
+    before = manifest.read_bytes()
+    native = Path(evidence.read(manifest)["attempts"]) / "native-result.json"
+    native.write_text("Native result that must be preserved.")
+    with pytest.raises(evidence.EvidenceError, match="keep native results"):
+        evidence.prepare(task, contract, manifest, manifest, "Correct a grading requirement")
+    assert manifest.read_bytes() == before
+    assert native.read_text() == "Native result that must be preserved."
+
+
+def test_legacy_repair_count_does_not_require_superseded_manifests(tmp_path, prepared):
+    task, contract, manifest = prepared
+    value = evidence.read(manifest)
+    value.pop("repair_count")
+    value["repairs"] = [{"manifest": str(tmp_path / "gone.json"), "sha256": "0" * 64, "reason": "Old repair"}]
+    write(manifest, value)
+    assert evidence.manifest_at(manifest) == value
+    evidence.prepare(task, contract, manifest, manifest, "Continue the unfinished repair")
+    assert evidence.manifest_at(manifest)["repair_count"] == 2
+
+
+def test_current_repair_reason_is_checked_while_older_manifests_remain_readable(tmp_path, prepared):
+    task, contract, manifest = prepared
+    evidence.prepare(task, contract, manifest, manifest, "Correct the expected result")
+    value = evidence.read(manifest)
+    assert value.pop("repair_reason") == "Correct the expected result"
+    write(manifest, value)
+    assert evidence.manifest_at(manifest)["repair_count"] == 1
+    value["repair_reason"] = None
+    write(manifest, value)
+    with pytest.raises(evidence.EvidenceError, match="invalid current repair reason"):
         evidence.manifest_at(manifest)
 
 
