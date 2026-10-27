@@ -79,12 +79,11 @@ its declared `kind`. File references use `kind: file` or omit `kind`; task
 sources are always directories and have no `kind` field in `tasks.yml`. Agent
 inputs may use either kind.
 
-Omit `sha256` while iterating and load with `allow_unsigned=True` (or
-`--allow-unsigned` on benchmark-reading CLIs). The default is `False`: unsigned
-inputs fail loading. With the opt-in, the loader still checks that the referenced
-path exists and has the expected kind, but does not hash unpinned contents. When `sha256`
-is supplied, a mismatch is an error. A digest is `sha256:` followed by 64 lowercase
-hexadecimal characters.
+Omit `sha256` while iterating and load with `allow_unsigned=True` in Python.
+The default is `False`: unsigned inputs fail loading. With the opt-in, the loader
+still checks that the referenced path exists and has the expected kind, but does
+not hash unpinned contents. When `sha256` is supplied, a mismatch is an error. A
+digest is `sha256:` followed by 64 lowercase hexadecimal characters.
 
 For an established benchmark, supply digests on every reference, including nested
 manifests and agent/task inputs, to fix the expected contents. These are content
@@ -97,8 +96,7 @@ For example, a case's `agent` reference in `experiment.yml` points to
 covers that file's exact bytes, including whitespace and comments.
 
 Directory pins cover relative file names and file contents. They do not cover
-permission bits or empty directories. Compute pins using `input_digest(path)`
-from `metric_benchmark.io` so prep uses the same algorithm as the reader.
+permission bits or empty directories.
 
 Use [`sha-sign`](tools.md#signing-a-benchmark) to write the pins. It hashes
 agent/task files, descriptions and subsets first, writes the hashes into the
@@ -112,9 +110,10 @@ Use plain or quoted SHA scalar values; block-scalar, anchored and tagged SHA
 values are not supported for rewriting.
 
 Use `sha-sign experiment.yml --check` to require and verify every pin without
-writing files. Checking calls the normal `load_benchmark()` path with its strict default;
-missing pins fail. Only explicit unsigned loading allows missing pins. The [tool guide](tools.md#signing-a-benchmark)
-provides CLI and library usage.
+writing files. Checking follows the normal strict `load_benchmark()` path and
+stops at the first validation error. Only explicit unsigned loading allows
+missing pins. The [tool guide](tools.md#signing-a-benchmark) provides CLI and
+library usage.
 
 ## Agents: `agent.yml`
 

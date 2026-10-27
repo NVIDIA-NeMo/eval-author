@@ -51,14 +51,15 @@ Signing edits only SHA fields, preserving comments, key order, quoting and
 formatting elsewhere. New SHA fields are inserted into their reference mapping;
 existing pins keep their plain or quoted scalar style. Block-scalar, anchored or
 tagged SHA values must be changed to plain or quoted scalars before re-signing.
-The input files should not be edited while signing. Inputs cannot include manifests that
-the signer itself rewrites, since doing so would invalidate their hashes.
+The input files should not be edited while signing. Inputs cannot include
+manifests that the signer itself rewrites, since doing so would invalidate their
+hashes.
 
 Once signed, readers verify each supplied digest as they load its reference.
 `load_benchmark()` verifies all inputs; `read_benchmark()` verifies the manifests
 it reads, and individual artifact loaders verify their own inputs. Omitting a
-digest requires explicit `allow_unsigned=True` when loading during iteration. SHA signing fixes expected contents;
-it does not authenticate a publisher.
+digest requires explicit `allow_unsigned=True` when loading during iteration.
+SHA signing fixes expected contents; it does not authenticate a publisher.
 
 To check that the entire benchmark is signed correctly without changing files:
 
@@ -67,14 +68,16 @@ uv run labs/metric-benchmark/tools/sha-sign benchmark/experiment.yml --check
 ```
 
 `--check` requires a SHA on every input reference and verifies it against the
-current contents. A missing or null SHA field fails with input context; an incorrect digest also
-fails. This uses `load_benchmark()` directly with signing required, exactly as
-normal full loading does. Success exits with status zero;
-validation failures exit nonzero. `--check` and `--resign` are mutually exclusive.
+current contents. It stops at the first validation error, including a missing,
+null or incorrect digest, and reports the input context. It uses the same strict
+`load_benchmark()` path as normal full loading. To fill missing pins throughout
+an unsigned bundle, run signing without `--check`; use `--resign` if some pins
+already exist. Success exits with status zero; validation failures exit nonzero.
+`--check` and `--resign` are mutually exclusive.
 The top-level experiment has no self-hash, and inline cases have no separate
 hash: their agent, tasks and subsets references are checked instead.
 
-The library APIs have no argument parsing or console output:
+To sign or check from Python:
 
 ```python
 from pathlib import Path
@@ -87,11 +90,7 @@ check_benchmark(experiment)
 
 `sign_benchmark()` returns the paths of YAML files it changed.
 `check_benchmark()` returns normally on success and raises on missing or invalid
-pins or inputs. Checking calls `load_benchmark()` with its strict default. Signing walks inputs
-to replace their pins; it does not require existing pins to match. Content hashing and pin
-verification live in `metric_benchmark.io`; the signer, checker and normal
-benchmark readers use those same helpers. Only the CLI parses arguments and
-prints results.
+pins or inputs. Re-signing does not require existing pins to match.
 
 ## Reading benchmarks
 
@@ -112,8 +111,8 @@ PYTHON
 `load_benchmark(path)` is the full entry point: it reads the experiment, verifies
 all referenced manifests, task sources and agent inputs, and loads every case's
 subsets and description. The returned object holds the experiment definition,
-resolved cases, subsets, and descriptions. Loading requires SHA-256 digests by default. During iteration, explicitly opt in
-to unsigned inputs:
+resolved cases, subsets, and descriptions. Loading requires SHA-256 digests by
+default. During iteration, explicitly opt in to unsigned inputs:
 
 ```python
 benchmark = load_benchmark(Path("benchmark/experiment.yml"), allow_unsigned=True)
@@ -121,16 +120,18 @@ benchmark = load_benchmark(Path("benchmark/experiment.yml"), allow_unsigned=True
 
 This permits missing pins but still verifies every supplied digest. The lighter
 `read_benchmark()` and individual artifact loaders accept the same keyword,
-also defaulting to `False`. CLI tools that load benchmarks expose
-`--allow-unsigned`; `sha-sign --check` always requires all pins.
+also defaulting to `False`. The downstream execution and analysis PRs add
+`--allow-unsigned` to their benchmark-reading CLIs; `sha-sign --check` always
+requires all pins.
 
 Use `read_benchmark(path)` from the same module when only the experiment and
-inline cases and referenced agent/task manifests are needed. It does not open task sources,
-agent bundles, subsets, or descriptions. With this lighter reader, load a selected
-case's subsets or description through
+inline cases and referenced agent/task manifests are needed. It does not open
+task sources, agent bundles, subsets, or descriptions. With this lighter reader,
+load a selected case's subsets or description through
 `prepared.case.load_subsets(prepared.root, allow_unsigned=prepared.allow_unsigned)` or
-`prepared.case.load_description(prepared.root, allow_unsigned=prepared.allow_unsigned)`; each verifies the referenced
-artifact and requires a digest unless unsigned loading was explicitly enabled.
+`prepared.case.load_description(prepared.root, allow_unsigned=prepared.allow_unsigned)`;
+each verifies the referenced artifact and requires a digest unless unsigned
+loading was explicitly enabled.
 
 The [format specification](benchmark-format.md) describes validation rules.
 `BenchmarkDefinition`, `CaseDefinition`, `AgentManifest`, and `TaskManifest` also
