@@ -64,7 +64,7 @@ Different metric configurations can reuse the same prepared inputs.
 After unpacking a benchmark, all paths resolve relative to the bundle root—the
 folder containing the experiment YAML. Nested manifests can reference shared
 inputs without `../`. SHA-256 pins verify each link. The
-[tool guide](tools.md#experiment-and-prepared-manifests) specifies the directory
+[benchmark format specification](benchmark-format.md) specifies the directory
 layout and fields. Each execution produces its own results while retaining the
 configured input identities.
 
