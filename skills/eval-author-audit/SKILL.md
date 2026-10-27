@@ -64,10 +64,6 @@ and task creation remain in the separate improvement handoff.
 
 Before classifying a full-audit request as fresh, follow the core's
 [Return to an audit](../eval-author/references/shared-prerequisites.md#return-to-an-audit).
-It covers accepted first-suite invitations and explicit audit requests after
-creation or improvement, including a new chat with saved context. It owns the
-welcome/checklist and direct-handoff distinction. Reuse its confirmed context
-and continue at the first unresolved audit step without another readiness pause.
 
 A full audit enters the core's shared prerequisite flow, including direct
 invocation. For a fresh audit, use the core's

@@ -41,11 +41,7 @@ owns the orientation and goal-selection pauses.
 
 For an explicit audit request, the core's
 [returning-audit procedure](../shared-prerequisites.md#return-to-an-audit)
-permits a bounded metadata lookup before deciding whether orientation applies.
-Eligible returning users use the [audit welcome](#returning-audit-welcome) when
-the procedure calls for it, then continue to an actual unresolved decision or
-blocker. They skip fresh orientation's readiness gate and the prerequisite
-preview below. Do not manufacture a readiness reply to render the preview.
+governs entry and whether the [returning audit welcome](#returning-audit-welcome) applies.
 
 `prerequisites` requires the selected journey and the actual readiness reply:
 
@@ -85,16 +81,12 @@ is not a no-input preview. The saved journey must be `audit`; no `ready`,
 
 It renders the canonical welcome, state-derived checklist, and saved-answer
 reuse notice from [onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py).
-Artifact checks are still deferred, so Ethos and downstream completion remain
-unchecked even with saved approval. This does not invalidate that approval or
-request another review. The state-only checklist can reflect saved prerequisite
-progress without claiming that current Ethos content has been inspected.
+The checklist reflects saved prerequisite progress; Ethos and downstream steps
+remain unchecked until artifact reconciliation, without invalidating saved approval.
 
 The [entry procedure](../shared-prerequisites.md#return-to-an-audit) owns when to
-publish this welcome in commentary and when to omit it. Continue in the same
-turn to the normal pending-decision or blocker response; this stage emits no
-question, does not replace the saved question, and grants no inspection or
-execution permission.
+publish or omit this welcome. The stage emits no question, preserves saved state,
+and grants no inspection or execution permission.
 
 ## When state is unavailable
 

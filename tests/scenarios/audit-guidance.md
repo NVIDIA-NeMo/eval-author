@@ -711,7 +711,7 @@ proposed-check approval. A welcome and checklist alone do not pass this scenario
 
 ## 14. Missing audit selections and newer recorded work
 
-Follow [stale-selection handling](../../skills/eval-author-audit/references/guided-audit.md#stale-or-conflicting-selections)
+Follow [selection handling](../../skills/eval-author-audit/references/guided-audit.md#1-confirm-evals-and-traces)
 for selection reconciliation and source boundaries.
 
 **Setup:** Save an audit selection of `evals/bootstrap-old/` and

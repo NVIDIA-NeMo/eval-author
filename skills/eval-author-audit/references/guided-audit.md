@@ -9,10 +9,8 @@ flow. Afterward keep its audit item current while explaining the present
 milestone: reviewing coverage, identifying gaps, and recommending improvements.
 Use the [onboarding renderer](../../eval-author/references/conversations/onboarding.md)
 for canonical checklist wording and reuse completed shared steps.
-An explicit audit after creation or improvement follows
-[Return to an audit](../../eval-author/references/shared-prerequisites.md#return-to-an-audit),
-including when it resumes in a new chat. Enter the first unresolved milestone;
-do not add a shared continuation pause or reapprove already-selected inputs.
+For returning-audit entry, follow
+[Return to an audit](../../eval-author/references/shared-prerequisites.md#return-to-an-audit).
 
 ## Decisions and progress
 
@@ -68,8 +66,16 @@ selects that set; summarize it without asking again. A path supplied only as a
 place to look, a prior discovery inventory, or a saved candidate path does not.
 Apply additions and exclusions before proceeding. On resume, reuse confirmed
 choices and present any still-pending suite selection before continuing.
-Resolve [stale or conflicting selections](#stale-or-conflicting-selections)
-before asking the user to locate or restore paths from older work.
+
+When selected paths are missing or saved selections conflict with current handoff
+or authoring records, explain the mismatch in the final blocker or source-selection response.
+Name the selected suites/tasks and runs, their selection provenance, and exactly
+which checked paths are missing. Contrast relevant current work already known,
+distinguishing saved records from verified files. Honor a current explicit
+selection even when newer work exists. If scope is unclear, ask which named set
+to audit before requesting its run source. Preserve prior selections until that
+choice is resolved. Reassess trace availability and run mapping for a changed set;
+earlier trace confirmations do not establish evidence for newly selected work.
 
 If the user confirms no evaluations exist, say so without searching to prove it.
 If the location is unknown or inaccessible, report that limit and ask for the
@@ -135,41 +141,6 @@ If the user explicitly defers suite selection and requests independent
 specification work, keep this milestone incomplete and use the accepted Ethos
 and registry. Do not present candidate suites as selected or their findings as
 findings about the user's confirmed evaluation scope.
-
-### Stale or conflicting selections
-
-Compare retained audit selections with the current request, handoff, and saved
-authoring context. Selections recovered from another chat retain that chat's
-provenance; do not present them as the current bootstrap's choices merely because
-both chats use the same repository. Different task names or run identities are
-a possible scope mismatch to explain, not permission to replace the selection
-by recency. Honor a current explicit selection; newer work alone does not
-invalidate it or require another selection question.
-
-When selected paths are missing or saved contexts disagree, make the distinction
-clear in the final blocker or source-selection response:
-
-- Identify the previously selected suite/tasks and runs, where that selection
-  came from, and exactly which selected paths were checked and not found.
-- Describe any relevant current work already known from the current handoff or
-  saved metadata. Distinguish a task recorded as built/planned from a file whose
-  presence was actually checked; control results do not establish an agent run.
-- Explain the mismatch between those sets. Keep missing-path claims limited to
-  the checked selection; do not imply that all tasks disappeared, were deleted,
-  or that another chat caused the mismatch without evidence.
-
-When the intended set is unclear, ask which named suite/task set the user intends
-to audit before requesting its run source. If no alternative is known, say that
-the selected paths could not be found and ask for their current location or a
-replacement suite; do not invent newer work or promise that the originals still
-exist elsewhere.
-
-Use the existing renderer's factual blocker and saved pending-question inputs.
-Preserve historical selections and provenance until the user resolves the choice;
-do not silently select newer tasks, mix runs across suites, rewrite another
-journey's progress, or scan unselected trace locations. After a changed selection,
-reassess trace availability and suite/run mapping for that set; older trace
-confirmations do not establish evidence for newly selected work.
 
 ## 2. Define what the evals should cover
 

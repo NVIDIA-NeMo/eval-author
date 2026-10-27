@@ -81,11 +81,8 @@ below for NeMo Gym and Harbor, including direct invocations of their skills.
 
 For an explicit full-audit request in a known repository, first follow
 [Return to an audit](references/shared-prerequisites.md#return-to-an-audit).
-Its bounded state-only lookup distinguishes reusable creation or improvement
-context from fresh onboarding, including in a new chat. That procedure also
-selects the welcome/checklist for a separate request or direct continuation for
-an active handoff. It grants no source selection or content approval. Other
-fresh requests retain the opening below.
+It owns saved-context reuse and welcome versus direct continuation. Fresh
+requests retain the opening below.
 
 The first response to a new shared flow is orientation only. Determine the goal
 from the user's request and conversation already available, without inspecting the
