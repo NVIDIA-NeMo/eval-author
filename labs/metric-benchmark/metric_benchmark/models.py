@@ -32,15 +32,6 @@ class Score(Model):
         return self
 
 
-class Benchmark(Model):
-    artifact_type: Literal["benchmark_reference"] = "benchmark_reference"
-    # Opaque identity namespace retained for interchange; never contacted.
-    deployment: Text
-    benchmark_id: Text
-    revision: int = Field(ge=1)
-    name: Text | None = None
-
-
 class Task(Model):
     task_id: Text
     revision: int = Field(ge=1)
@@ -52,7 +43,6 @@ class Task(Model):
 
 class Tasks(Model):
     artifact_type: Literal["task_references"] = "task_references"
-    benchmark: Benchmark
     tasks: list[Task] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -132,25 +122,30 @@ class RawResults(Model):
 
 class Subset(Model):
     eval_subset_id: Text
-    tasks: list[Task] = Field(min_length=1)
+    task_ids: list[Text] = Field(min_length=1)
 
 
 class Subsets(Model):
     artifact_type: Literal["eval_subset_definitions"] = "eval_subset_definitions"
-    task_inventory: Tasks
     sampling_parameters: dict[str, int | str]
     eval_subsets: list[Subset] = Field(min_length=1)
 
     @model_validator(mode="after")
     def valid_memberships(self) -> Self:
         unique([s.eval_subset_id for s in self.eval_subsets], "subset IDs")
-        allowed = {task.key() for task in self.task_inventory.tasks}
         memberships = []
         for subset in self.eval_subsets:
-            keys = [task.key() for task in subset.tasks]
-            unique(keys, "subset tasks")
-            if not set(keys) <= allowed:
-                raise ValueError("subset contains an unknown task revision")
-            memberships.append(tuple(sorted(keys)))
+            unique(subset.task_ids, "subset tasks")
+            memberships.append(tuple(sorted(subset.task_ids)))
         unique(memberships, "subset memberships")
         return self
+
+    def resolve_tasks(self, inventory: Tasks) -> dict[str, list[Task]]:
+        tasks = {task.task_id: task for task in inventory.tasks}
+        resolved = {}
+        for subset in self.eval_subsets:
+            unknown = set(subset.task_ids) - tasks.keys()
+            if unknown:
+                raise ValueError(f"subset {subset.eval_subset_id} contains unknown task IDs: {sorted(unknown)}")
+            resolved[subset.eval_subset_id] = [tasks[task_id] for task_id in subset.task_ids]
+        return resolved

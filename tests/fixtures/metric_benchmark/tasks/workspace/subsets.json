@@ -3,63 +3,24 @@
   "eval_subsets": [
     {
       "eval_subset_id": "subset-000001",
-      "tasks": [
-        {
-          "name": null,
-          "revision": 1,
-          "task_id": "inspect-files"
-        }
+      "task_ids": [
+        "inspect-files"
       ]
     },
     {
       "eval_subset_id": "subset-000002",
-      "tasks": [
-        {
-          "name": null,
-          "revision": 1,
-          "task_id": "read-config"
-        }
+      "task_ids": [
+        "read-config"
       ]
     },
     {
       "eval_subset_id": "subset-000003",
-      "tasks": [
-        {
-          "name": null,
-          "revision": 1,
-          "task_id": "search-workspace"
-        }
+      "task_ids": [
+        "search-workspace"
       ]
     }
   ],
   "sampling_parameters": {
     "seed": 42
-  },
-  "task_inventory": {
-    "artifact_type": "task_references",
-    "benchmark": {
-      "artifact_type": "benchmark_reference",
-      "benchmark_id": "workspace-tasks",
-      "deployment": "local",
-      "name": null,
-      "revision": 1
-    },
-    "tasks": [
-      {
-        "name": null,
-        "revision": 1,
-        "task_id": "inspect-files"
-      },
-      {
-        "name": null,
-        "revision": 1,
-        "task_id": "read-config"
-      },
-      {
-        "name": null,
-        "revision": 1,
-        "task_id": "search-workspace"
-      }
-    ]
   }
 }

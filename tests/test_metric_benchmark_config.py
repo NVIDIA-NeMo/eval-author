@@ -24,7 +24,6 @@ TASK_IDS = ["inspect-files", "read-config", "search-workspace"]
 def inventory(n=3):
     return Tasks.model_validate(
         {
-            "benchmark": {"deployment": "local", "benchmark_id": "workspace-tasks", "revision": 1},
             "tasks": [
                 {"task_id": TASK_IDS[i] if i < len(TASK_IDS) else f"additional-task-{i}", "revision": 1}
                 for i in range(n)
@@ -36,10 +35,9 @@ def inventory(n=3):
 def fixed_subsets(tasks):
     return Subsets.model_validate(
         {
-            "task_inventory": tasks.model_dump(),
             "sampling_parameters": {"seed": 42},
             "eval_subsets": [
-                {"eval_subset_id": f"subset-{i + 1:06d}", "tasks": [t.model_dump()]} for i, t in enumerate(tasks.tasks)
+                {"eval_subset_id": f"subset-{i + 1:06d}", "task_ids": [t.task_id]} for i, t in enumerate(tasks.tasks)
             ],
         }
     )
@@ -163,7 +161,7 @@ def test_json_numbers_and_immutable_outputs(tmp_path):
 def test_manifest_rejects_duplicate_memberships(tmp_path):
     path, _ = prepared_benchmark(tmp_path)
     manifest = json.loads((tmp_path / SUBSETS_PATH).read_text())
-    manifest["eval_subsets"][1]["tasks"] = manifest["eval_subsets"][0]["tasks"]
+    manifest["eval_subsets"][1]["task_ids"] = manifest["eval_subsets"][0]["task_ids"]
     with pytest.raises(ValueError, match="memberships"):
         Subsets.model_validate(manifest)
 
@@ -256,8 +254,8 @@ def test_case_artifact_errors_have_one_context(tmp_path, standalone, field, fail
     else:
         if field == "subsets":
             data = json.loads(artifact.read_text())
-            data["task_inventory"]["benchmark"]["benchmark_id"] = "wrong"
-            detail = "subset manifest does not match task inventory"
+            data["eval_subsets"][0]["task_ids"] = ["unknown-task"]
+            detail = "subset subset-000001 contains unknown task IDs: ['unknown-task']"
         else:
             data = []
             detail = "case description must be a JSON object"

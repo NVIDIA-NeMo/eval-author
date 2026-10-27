@@ -105,16 +105,18 @@ inputs cause an error.
 
 Prep constructs subsets from the pinned task inventory, before inspecting
 execution outcomes or coverage scores. Each case references a subset manifest, a
-versioned artifact containing stable subset IDs, exact task identities and
-revisions for each subset, the task-inventory identity, and the construction
-algorithm, subset count, subset size, and fixed seed.
+pinned artifact containing stable subset IDs, a list of task IDs for each subset,
+and preparation parameters such as the fixed seed. Subset IDs can be readable
+names or numbers. Task revisions live in `tasks.yml`; the subset manifest does
+not duplicate task definitions or the inventory.
 
 The manifest is authoritative: every run and metric tool uses the same explicit
 memberships. The seed documents construction and stays fixed for that benchmark
 version; analysis does not resample or regenerate subsets. Changing the seed,
 inventory, or memberships changes the subset and case pins; existing experiments
 continue to reference their original prepared cases. Analysis validates
-the manifest against the execution inventory and rejects mismatched identities.
+subset task IDs against `tasks.yml` and checks the execution inventory against
+those task definitions, including their revisions.
 Missing results follow the scoring policy without changing subset membership.
 
 ## 2. Run mutants x eval tasks

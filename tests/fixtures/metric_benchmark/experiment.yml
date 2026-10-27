@@ -6,7 +6,7 @@ benchmark_id: rho-metric-validity
 revision: 1
 cases:
 - path: cases/rho-agent/case.yml
-  sha256: sha256:561a27e7ad2d4c2a17d6dbb72d8d64e92e0db218a0b0e870e5e11d40976b3f26
+  sha256: sha256:5e37f80ada931fb1fd4a9fc3b0ed6d7db341d5982ccbc7ac371bead19d75660e
 coverage:
   system_id: synthetic
   system_revision: '1'

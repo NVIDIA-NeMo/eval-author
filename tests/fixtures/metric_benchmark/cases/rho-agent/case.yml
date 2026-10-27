@@ -7,7 +7,7 @@ agent:
   sha256: sha256:d5f2748f94d1a3c14054bb7a6f10ffd6a3888956b2e96f948e53db42fe8db662
 tasks:
   path: tasks/workspace/tasks.yml
-  sha256: sha256:8fb89b8419acdc15d72907f6647a441fa4253e0a74d63ea84cf0558f736a0e89
+  sha256: sha256:35e16835a860c9b4d524fe315f2dfecb00b0c33e3cfb89a56d935175c365d739
 subsets:
   path: tasks/workspace/subsets.json
-  sha256: sha256:c08a2ed6a7dbe23f7f5f0ada6f0e072148121ce82894cf4fd9e27ebd9caeddfd
+  sha256: sha256:c9b05fb9ca48d0f7ca01fd1dc755d68b909eceadf3d094edcadd7aa3b162a786

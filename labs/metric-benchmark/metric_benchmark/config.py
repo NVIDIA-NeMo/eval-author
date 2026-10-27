@@ -150,8 +150,7 @@ class Case(Model):
     def load_subsets(self, root: Path) -> Subsets:
         try:
             subsets = Subsets.model_validate(read_json(self.subsets.resolve(root)))
-            if subsets.task_inventory != self.task_inventory:
-                raise ValueError("subset manifest does not match task inventory")
+            subsets.resolve_tasks(self.task_inventory)
             return subsets
         except (OSError, ValueError) as error:
             raise ValueError(f"case {self.case_id}, subsets: {error}") from error

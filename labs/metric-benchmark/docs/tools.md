@@ -53,7 +53,9 @@ not add a task.
 `experiment.yml` defines the metric benchmark, combining those task collections
 with agents, mutants and analysis settings. Existing task benchmarks can be
 bundled during prep; tasks need not be newly authored for this experiment.
-The example's `workspace-tasks` is a synthetic task collection.
+The pinned `tasks.yml` identifies the exact collection; there is no separate
+collection deployment, benchmark ID or revision block. Individual tasks retain
+their IDs and revisions in `task_inventory.tasks`.
 
 Task IDs are stable labels in our manifest. The example uses readable names that
 match its task directories; the executor binds each ID to its explicit source
@@ -63,13 +65,23 @@ files and a verifier. Currently `task_sources` supports only `kind: directory`.
 Archives, Git repositories or remote datasets must be materialized as local task
 directories during prep; the runner does not download or unpack them.
 
-The subset manifest sits beside `tasks.yml` and contains `artifact_type: eval_subset_definitions`,
-`task_inventory`, `sampling_parameters` (including the preparation seed), and
-`eval_subsets`. Each subset has `eval_subset_id` and explicit tasks with `task_id`
-and `revision`. Its inventory must match the selected tasks manifest. It is
-independent of case and experiment IDs, so different cases can select the same
-prepared subsets. Membership stays fixed; runtime never samples from the seed.
-Duplicate subsets or tasks and unknown revisions are rejected.
+The subset manifest sits beside `tasks.yml` and contains
+`artifact_type: eval_subset_definitions`, `sampling_parameters` (including the
+preparation seed), and `eval_subsets`. Each subset has an `eval_subset_id` (a
+readable name or number) and a `task_ids` list. It does not repeat task revisions,
+display names, or the task inventory. The selected `tasks.yml` supplies those
+task definitions; analysis checks that recorded task IDs and revisions match it.
+Unknown task IDs, duplicate IDs, and duplicate memberships are rejected.
+Cases and experiments can share prepared subsets. Membership stays fixed;
+runtime never samples from the seed.
+
+The agent is the executable attempting the task; the task owns its verifier.
+The `harbor` field configures how the local executor invokes that agent through
+a Harbor integration (`name` or `import_path`, plus native settings). Prepared
+agent contents and dependencies are separate pinned inputs. The Oracle/NOP
+example illustrates orchestration; it does not implement installing and launching
+a prepared Rho bundle. Such a bundle needs its launch integration wired into the
+local executor.
 
 The agent's description is a JSON object describing intended behavior for the
 coverage tool. The runner passes it through as `case_description`; the configured

@@ -65,7 +65,7 @@
   <path d="M554 349 H646" class="flow"/>
   <rect x="650" y="294" width="566" height="110" rx="12" fill="#d9eee6" stroke="#a7cdbf" stroke-width="1.5"/>
   <text x="672" y="327" class="label">Subset manifest</text>
-  <text x="672" y="356" class="detail">Stable subset IDs + exact task membership</text>
+  <text x="672" y="356" class="detail">Named subsets + explicit task IDs</text>
   <text x="672" y="383" class="small">Versioned subsets.json · algorithm + fixed seed recorded</text>
   <text x="64" y="431" class="small">Experiment YAML pins cases; each case selects agent, tasks, and subset manifests.</text>
 
