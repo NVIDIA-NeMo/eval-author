@@ -17,7 +17,7 @@ as unquoted dates, and verifies all prepared input digests.
 Python configuration models also require finite JSON values in native settings.
 `BenchmarkDefinition.model_json_schema()` exposes the complete schema.
 
-Each definition contains `schema_version: 1`, `benchmark_id`, `revision`, `cases`,
+Each definition contains `benchmark_id`, `revision`, `cases`,
 `execution`, and `missing_policy` (`error` by default, or explicit `exclude`).
 Each case supplies:
 
@@ -32,8 +32,7 @@ File references have `path`, `sha256` (`sha256:<hex>`), and `kind` (`file` or
 rejected. Directory digests hash the canonical JSON mapping of relative file
 paths to SHA-256 digests, using `input_digest(path)`.
 
-The subset manifest contains `schema_version: 1`,
-`artifact_type: eval_subset_definitions`, `benchmark_id`, `task_inventory`,
+The subset manifest contains `artifact_type: eval_subset_definitions`, `benchmark_id`, `task_inventory`,
 `sampling_parameters` (including the preparation seed), and `eval_subsets`.
 Each subset has `eval_subset_id` and explicit `tasks` with `task_id` and `revision`.
 The manifest's membership is authoritative; runtime code never samples from the

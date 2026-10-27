@@ -4,15 +4,12 @@
 # Configuration fixture for prepared_benchmark() in test_metric_benchmark_config.py.
 # Pins match the generated test inputs; the coverage command is replaced in execution tests.
 
-schema_version: 1
 benchmark_id: example
 revision: 1
 cases:
 - case_id: case
   task_inventory:
-    schema_version: 1
     benchmark:
-      schema_version: 1
       deployment: local
       benchmark_id: case
       revision: 1
@@ -42,7 +39,7 @@ cases:
     kind: file
   subsets:
     path: subsets.json
-    sha256: sha256:b32aee322896d94ed25f58e9d8f30db1c847f64ae0de08bbd04ae5fc64cac301
+    sha256: sha256:663da8ae8fc4def833367aed822bbc6221c9e23b0a02a44565544e5682c59752
     kind: file
   baseline:
     agent_bundle_id: baseline

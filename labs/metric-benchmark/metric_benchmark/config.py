@@ -11,7 +11,7 @@ import yaml
 from pydantic import Field, JsonValue, model_validator
 
 from metric_benchmark.io import digest_bytes, digest_file, json_bytes, read_json
-from metric_benchmark.models import Artifact, Digest, Model, Subsets, Tasks, Text, resolve_evidence, unique
+from metric_benchmark.models import Digest, Model, Subsets, Tasks, Text, resolve_evidence, unique
 
 
 class StrictLoader(yaml.SafeLoader):
@@ -160,7 +160,7 @@ class LocalExecution(Model):
     environment: dict[str, JsonValue] = Field(default_factory=lambda: dict[str, JsonValue](type="docker"))
 
 
-class BenchmarkDefinition(Artifact):
+class BenchmarkDefinition(Model):
     benchmark_id: Text
     revision: int = Field(ge=1)
     cases: list[Case] = Field(min_length=1)

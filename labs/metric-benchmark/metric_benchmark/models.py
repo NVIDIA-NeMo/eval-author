@@ -16,10 +16,6 @@ class Model(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
 
 
-class Artifact(Model):
-    schema_version: Literal[1] = 1
-
-
 def unique(values: list, label: str) -> None:
     if len(set(values)) != len(values):
         raise ValueError(f"duplicate {label}")
@@ -36,7 +32,7 @@ class Score(Model):
         return self
 
 
-class Benchmark(Artifact):
+class Benchmark(Model):
     artifact_type: Literal["benchmark_reference"] = "benchmark_reference"
     # Opaque identity namespace retained for interchange; never contacted.
     deployment: Text
@@ -54,7 +50,7 @@ class Task(Model):
         return self.task_id, self.revision
 
 
-class Tasks(Artifact):
+class Tasks(Model):
     artifact_type: Literal["task_references"] = "task_references"
     benchmark: Benchmark
     tasks: list[Task] = Field(min_length=1)
@@ -110,7 +106,7 @@ class Execution(Model):
         return self
 
 
-class RawResults(Artifact):
+class RawResults(Model):
     artifact_type: Literal["raw_execution_results"] = "raw_execution_results"
     experiment_id: Text
     task_inventory: Tasks
@@ -139,7 +135,7 @@ class Subset(Model):
     tasks: list[Task] = Field(min_length=1)
 
 
-class Subsets(Artifact):
+class Subsets(Model):
     artifact_type: Literal["eval_subset_definitions"] = "eval_subset_definitions"
     benchmark_id: Text
     task_inventory: Tasks
