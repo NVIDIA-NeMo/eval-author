@@ -47,15 +47,11 @@ See [Check readiness](existing-evals.md#check-readiness) for the next step.
 
 ## Review generated cases
 
-Review tasks at `.eval-author/report.html` as soon as a first-evaluation plan is
-saved; the final handoff links this report. All tasks share one table, with
-**Proposed** tasks at the top. Planned tasks keep this status
-until they are authored, including after design approval. Their rows show the
-saved behavior, expected outcome, and grading plan; artifact links appear when
-the files exist. Authored tasks retain their **Draft**, **Accepted**, or
-**Unknown** status. In the report, users may open an authored task's
-README or use the harbor viewer to review in full. Agents can start at the
-generated suite's root `README.md`.
+Use the **Tasks** tab in `.eval-author/report.html` to review tasks at a high
+level throughout their lifecycle. Once a task has been created, open its README
+or use the Harbor viewer, where available, for a closer look.
+
+**Proposed** tasks have not been created yet.
 
 Standalone drafts use `.eval-author/tasks/<task-slug>/README.md`. Trace candidates use
 `<task-dir>/README.md`, and generated batches also have a collection-root guide.
@@ -88,22 +84,10 @@ item rerun commands, and known execution blockers.
 
 ## First evaluations
 
-The selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` records the intended behavior, proposed
-cases, and acceptance criteria. Task drafts and run results show which checks
-have actually completed. The HTML report and Markdown catalog show the current
-saved plan with separate proposed, authored, validated, and executed task counts.
-These totals cover the full saved plan. Authored counts include previously
-authored tasks whose files are now missing or unverified; validation and execution
-counts require current evidence. Approving a design does not increase these
-counts. Refreshing follows plan revisions and removals, and
-an authored task replaces its proposed row. Use the [generated case review guide](#review-generated-cases)
-to inspect the authored cases and their available evidence.
-
-Earlier creation decisions and evidence bindings are retained as immutable snapshots
-under `.eval-author/.working/history/create/`. Journey state keeps one reference to
-the latest snapshot, whose predecessor links preserve the full history without
-growing the current state file. Older inline history stays readable and moves to
-snapshots on the next creation update; viewing or rendering state leaves it intact.
+The HTML report and Markdown catalog show proposed, authored, validated, and
+executed task totals for your full saved plan. Use the
+[generated case review guide](#review-generated-cases) to inspect cases and their
+available evidence.
 
 Task controls check the task and its verifier: NeMo Gym's known-correct and negative
 verifier fixtures, or Harbor's no-op baseline and reference solution. Results
