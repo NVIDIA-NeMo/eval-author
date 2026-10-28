@@ -95,6 +95,12 @@ class Execution(Model):
         return self
 
 
+class ExecutionManifest(Model):
+    benchmark_sha256: Digest
+    run_id: Text
+    cases: dict[Text, Text] = Field(min_length=1)
+
+
 class RawResults(Model):
     run_id: Text
     task_inventory: list[Task] = Field(min_length=1)

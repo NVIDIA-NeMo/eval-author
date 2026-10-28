@@ -1,27 +1,32 @@
 {
-  "case_id": "rho-agent",
-  "expected_pairs": 9,
-  "files": {
-    "agents/agent-0000/run-0001/inspect-files__mock001/result.json": "sha256:dc1e6b859dc35b34974e07dd60fbb16aac8348ad51b299199d64d7b8836ae31f",
-    "agents/agent-0000/run-0001/inspect-files__mock001/verifier/reward.txt": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
-    "agents/agent-0000/run-0001/read-config__mock001/result.json": "sha256:7013e4d1c95b8691bedd8bdf20f24d0781a1c34ece1d2bb802a5b27a15ae8146",
-    "agents/agent-0000/run-0001/read-config__mock001/verifier/reward.txt": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
-    "agents/agent-0000/run-0001/search-workspace__mock001/result.json": "sha256:7b364b856cd81b1d15110bd2b676fd6fceba253d014cf8f35fec06d8020b91ff",
-    "agents/agent-0000/run-0001/search-workspace__mock001/verifier/reward.txt": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
-    "agents/agent-0001/run-0001/inspect-files__mock001/result.json": "sha256:afcbab2e966e8a2e6e271dfcb02737b768a0bb14278f776033141e40296daa72",
-    "agents/agent-0001/run-0001/inspect-files__mock001/verifier/reward.txt": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
-    "agents/agent-0001/run-0001/read-config__mock001/result.json": "sha256:179b44232dd8aa018446ac139bc433dffe8439c1d75dd51cbed75ec3785c68b3",
-    "agents/agent-0001/run-0001/read-config__mock001/verifier/reward.txt": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
-    "agents/agent-0001/run-0001/search-workspace__mock001/result.json": "sha256:7c5eb4c5e65e7f095caf88ca8172b4d5186484dcabd23a49439283ed699aa1ad",
-    "agents/agent-0001/run-0001/search-workspace__mock001/verifier/reward.txt": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
-    "agents/agent-0002/run-0001/inspect-files__mock001/result.json": "sha256:6016a6ffac07d6e0e5d3c9e2ef06157e1050c813580baeed600872cdd5ca7d29",
-    "agents/agent-0002/run-0001/inspect-files__mock001/verifier/reward.txt": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
-    "agents/agent-0002/run-0001/read-config__mock001/result.json": "sha256:bf175b2f3b497ee9ba780b6b9557299900ae4b4cc4d14862d0e6caeef3d4c556",
-    "agents/agent-0002/run-0001/read-config__mock001/verifier/reward.txt": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
-    "agents/agent-0002/run-0001/search-workspace__mock001/result.json": "sha256:de7d5791fd4efb910ca9b1e93e129a45d3d8e2fce0f39b076edc6c159c182555",
-    "agents/agent-0002/run-0001/search-workspace__mock001/verifier/reward.txt": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+  "cases": {
+    "rho-agent": {
+      "case_id": "rho-agent",
+      "expected_pairs": 9,
+      "files": {
+        "agents/agent-0000/run-0001/inspect-files__mock001/result.json": "sha256:dc1e6b859dc35b34974e07dd60fbb16aac8348ad51b299199d64d7b8836ae31f",
+        "agents/agent-0000/run-0001/inspect-files__mock001/verifier/reward.txt": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "agents/agent-0000/run-0001/read-config__mock001/result.json": "sha256:7013e4d1c95b8691bedd8bdf20f24d0781a1c34ece1d2bb802a5b27a15ae8146",
+        "agents/agent-0000/run-0001/read-config__mock001/verifier/reward.txt": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "agents/agent-0000/run-0001/search-workspace__mock001/result.json": "sha256:7b364b856cd81b1d15110bd2b676fd6fceba253d014cf8f35fec06d8020b91ff",
+        "agents/agent-0000/run-0001/search-workspace__mock001/verifier/reward.txt": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+        "agents/agent-0001/run-0001/inspect-files__mock001/result.json": "sha256:afcbab2e966e8a2e6e271dfcb02737b768a0bb14278f776033141e40296daa72",
+        "agents/agent-0001/run-0001/inspect-files__mock001/verifier/reward.txt": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "agents/agent-0001/run-0001/read-config__mock001/result.json": "sha256:179b44232dd8aa018446ac139bc433dffe8439c1d75dd51cbed75ec3785c68b3",
+        "agents/agent-0001/run-0001/read-config__mock001/verifier/reward.txt": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "agents/agent-0001/run-0001/search-workspace__mock001/result.json": "sha256:7c5eb4c5e65e7f095caf88ca8172b4d5186484dcabd23a49439283ed699aa1ad",
+        "agents/agent-0001/run-0001/search-workspace__mock001/verifier/reward.txt": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "agents/agent-0002/run-0001/inspect-files__mock001/result.json": "sha256:6016a6ffac07d6e0e5d3c9e2ef06157e1050c813580baeed600872cdd5ca7d29",
+        "agents/agent-0002/run-0001/inspect-files__mock001/verifier/reward.txt": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "agents/agent-0002/run-0001/read-config__mock001/result.json": "sha256:bf175b2f3b497ee9ba780b6b9557299900ae4b4cc4d14862d0e6caeef3d4c556",
+        "agents/agent-0002/run-0001/read-config__mock001/verifier/reward.txt": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "agents/agent-0002/run-0001/search-workspace__mock001/result.json": "sha256:de7d5791fd4efb910ca9b1e93e129a45d3d8e2fce0f39b076edc6c159c182555",
+        "agents/agent-0002/run-0001/search-workspace__mock001/verifier/reward.txt": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "observations": 9,
+      "run_id": "mock-run-001",
+      "unavailable": []
+    }
   },
-  "observations": 9,
-  "run_id": "mock-run-001",
-  "unavailable": []
+  "run_id": "mock-run-001"
 }

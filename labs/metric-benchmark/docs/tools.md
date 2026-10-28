@@ -142,8 +142,13 @@ expose their format through `model_json_schema()`.
 See [Generating the report](validation-report.md#generating-the-report) for the
 CLI invocation, required arguments, and output behavior.
 
-Library: `validate_results(raw, case, root, input_root, scoring, *, allow_unsigned=False)`.
-It returns the report as a dictionary after all validation checks succeed.
+Library: `validate_experiment_results(loaded, root, *, case_id=None)` returns the
+same report as the CLI. Pass a `LoadedBenchmark` from `load_benchmark` and the
+whole experiment output root; `case_id` optionally selects one case.
+
+The per-case `validate_results(raw, case, root, input_root, scoring, *, allow_unsigned=False)`
+function remains available for execution and analysis libraries. Its `root` is
+that case’s results directory, and it returns the individual case report.
 
 The [results format specification](results-format.md) defines the index, native
 evidence requirements and matrix accounting. The [validation report](validation-report.md)

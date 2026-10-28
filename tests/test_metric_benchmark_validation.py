@@ -5,18 +5,21 @@ import json
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from datetime import datetime, timezone
 
 import pytest
+import yaml
 from harbor.models.task.task import Task as HarborTask
 from harbor.models.trial.result import TrialResult
 from metric_benchmark.config import ScoringPolicy, load_benchmark
 from metric_benchmark.io import read_json, write_json
 from metric_benchmark.models import RawResults
-from metric_benchmark.validation import agent_config, task_checksum, validate_results
+from metric_benchmark.validation import agent_config, task_checksum, validate_experiment_results, validate_results
 from test_metric_benchmark_config import FIXTURE, LAB, case_definition, prepared_benchmark, write_case
 
 RESULT_FIXTURE = FIXTURE.parent / "metric_benchmark_results"
+CASE_RESULTS = Path("cases/case-0000/execution-results")
 
 
 def native_trial(task_path, directory, agent, reward):
@@ -93,7 +96,7 @@ def result_example(tmp_path, *, bundle=False):
 @pytest.mark.parametrize("field", ["task_inventory", "execution_results"])
 @pytest.mark.parametrize("shape", ["missing", "empty", "object"])
 def test_results_arrays_are_required_and_nonempty(field, shape):
-    data = read_json(RESULT_FIXTURE / "execution-results/results.json")
+    data = read_json(RESULT_FIXTURE / "experiment-results" / CASE_RESULTS / "results.json")
     if shape == "missing":
         del data[field]
     elif shape == "empty":
@@ -105,21 +108,26 @@ def test_results_arrays_are_required_and_nonempty(field, shape):
 
 
 def test_results_task_inventory_rejects_duplicate_ids():
-    data = read_json(RESULT_FIXTURE / "execution-results/results.json")
+    data = read_json(RESULT_FIXTURE / "experiment-results" / CASE_RESULTS / "results.json")
     data["task_inventory"].append(dict(data["task_inventory"][0]))
     with pytest.raises(ValueError, match="duplicate task IDs"):
         RawResults.model_validate(data)
 
 
-def test_contract_and_cli_parity(tmp_path):
+@pytest.mark.parametrize("case_id", [None, "rho-agent"])
+def test_contract_and_cli_parity(tmp_path, case_id):
     path, _ = prepared_benchmark(tmp_path / "inputs")
     loaded = load_benchmark(path)
     case = loaded.case("rho-agent").case
-    root = tmp_path / "execution-results"
-    shutil.copytree(RESULT_FIXTURE / "execution-results", root)
-    raw = RawResults.model_validate(read_json(root / "results.json"))
-    report = validate_results(raw, case, root, loaded.case(case.case_id).root, loaded.definition.scoring)
-    assert report["expected_pairs"] == 9
+    root = tmp_path / "experiment-results"
+    shutil.copytree(RESULT_FIXTURE / "experiment-results", root)
+    raw = RawResults.model_validate(read_json(root / CASE_RESULTS / "results.json"))
+    case_report = validate_results(
+        raw, case, root / CASE_RESULTS, loaded.case(case.case_id).root, loaded.definition.scoring
+    )
+    report = validate_experiment_results(loaded, root, case_id=case_id)
+    assert case_report["expected_pairs"] == 9
+    assert report["cases"]["rho-agent"] == case_report
     assert report == read_json(RESULT_FIXTURE / "validation.json")
     out = tmp_path / "validation.json"
     subprocess.run(
@@ -128,8 +136,7 @@ def test_contract_and_cli_parity(tmp_path):
             str(LAB / "validate_results.py"),
             "--benchmark",
             str(path),
-            "--case",
-            "rho-agent",
+            *(["--case", case_id] if case_id is not None else []),
             "--results-root",
             str(root),
             "--output",
@@ -247,3 +254,70 @@ def test_distinct_worker_roots_are_not_experiment_identity(tmp_path):
         validate_results(raw, case, root, loaded.case(case.case_id).root, loaded.definition.scoring)["expected_pairs"]
         == 9
     )
+
+
+def test_all_cases_and_case_filter_use_the_same_root(tmp_path):
+    path, definition = prepared_benchmark(tmp_path / "inputs")
+    definition["cases"].append({**definition["cases"][0], "case_id": "second-case"})
+    path.write_text(yaml.safe_dump(definition, sort_keys=False))
+    loaded = load_benchmark(path)
+    root = tmp_path / "experiment-results"
+    shutil.copytree(RESULT_FIXTURE / "experiment-results", root)
+    second = Path("cases/case-0001/execution-results")
+    shutil.copytree(root / CASE_RESULTS, root / second)
+    manifest = json.loads((root / "execution.json").read_text())
+    manifest["benchmark_sha256"] = loaded.identity
+    manifest["cases"]["second-case"] = (second / "results.json").as_posix()
+    (root / "execution.json").write_text(json.dumps(manifest))
+    report = validate_experiment_results(loaded, root)
+    assert set(report["cases"]) == {"rho-agent", "second-case"}
+    assert all(case["observations"] == 9 for case in report["cases"].values())
+    (root / second / "results.json").unlink()
+    assert validate_experiment_results(loaded, root, case_id="rho-agent") == {
+        "run_id": report["run_id"],
+        "cases": {"rho-agent": report["cases"]["rho-agent"]},
+    }
+    with pytest.raises(ValueError, match="case second-case"):
+        validate_experiment_results(loaded, root)
+    del manifest["cases"]["second-case"]
+    (root / "execution.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="missing:.*second-case"):
+        validate_experiment_results(loaded, root)
+    with pytest.raises(ValueError, match="unknown case: absent"):
+        validate_experiment_results(loaded, root, case_id="absent")
+
+
+@pytest.mark.parametrize("change", ["unknown-case", "run-id", "traversal", "symlink"])
+def test_invalid_experiment_index_rejected_without_report(tmp_path, change):
+    path, _ = prepared_benchmark(tmp_path / "inputs")
+    root = tmp_path / "experiment-results"
+    shutil.copytree(RESULT_FIXTURE / "experiment-results", root)
+    manifest_path = root / "execution.json"
+    manifest = json.loads(manifest_path.read_text())
+    if change == "unknown-case":
+        manifest["cases"]["unknown"] = manifest["cases"]["rho-agent"]
+    elif change == "run-id":
+        manifest["run_id"] = "another-run"
+    elif change == "traversal":
+        manifest["cases"]["rho-agent"] = "../results.json"
+    else:
+        (root / "linked").symlink_to(root / CASE_RESULTS, target_is_directory=True)
+        manifest["cases"]["rho-agent"] = "linked/results.json"
+    manifest_path.write_text(json.dumps(manifest))
+    output = tmp_path / "validation.json"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(LAB / "validate_results.py"),
+            "--benchmark",
+            str(path),
+            "--results-root",
+            str(root),
+            "--output",
+            str(output),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode != 0
+    assert not output.exists()

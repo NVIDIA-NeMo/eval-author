@@ -11,9 +11,17 @@ from harbor.models.task.task import Task as HarborTask
 from harbor.models.trial.config import AgentConfig
 from harbor.models.trial.result import TrialResult
 
-from metric_benchmark.config import Agent, Case, ScoringConfig, ScoringPolicy, file_manifest, load_benchmark
+from metric_benchmark.config import (
+    Agent,
+    Case,
+    LoadedBenchmark,
+    ScoringConfig,
+    ScoringPolicy,
+    file_manifest,
+    load_benchmark,
+)
 from metric_benchmark.io import cli, read_json, write_json
-from metric_benchmark.models import RawResults, Score, resolve_evidence
+from metric_benchmark.models import ExecutionManifest, RawResults, Score, resolve_evidence
 
 
 def agent_config(
@@ -190,29 +198,51 @@ def validate_results(
     }
 
 
+def validate_experiment_results(loaded: LoadedBenchmark, root: Path, *, case_id: str | None = None) -> dict:
+    manifest = ExecutionManifest.model_validate(read_json(resolve_evidence(root, "execution.json")))
+    selected = {case_id: loaded.case(case_id)} if case_id is not None else loaded.cases
+    missing = selected.keys() - manifest.cases.keys()
+    unexpected = manifest.cases.keys() - loaded.cases.keys()
+    if missing or unexpected:
+        raise ValueError(f"results case inventory differs; missing: {sorted(missing)}; unexpected: {sorted(unexpected)}")
+    reports = {}
+    directories = set()
+    for selected_id, prepared in selected.items():
+        try:
+            index = resolve_evidence(root, manifest.cases[selected_id])
+            if index.name != "results.json":
+                raise ValueError("case index must be named results.json")
+            if index.parent in directories:
+                raise ValueError("results directory reused by multiple cases")
+            directories.add(index.parent)
+            raw = RawResults.model_validate(read_json(index))
+            if raw.run_id != manifest.run_id:
+                raise ValueError("case run_id differs from execution.json")
+            reports[selected_id] = validate_results(
+                raw,
+                prepared.case,
+                index.parent,
+                prepared.root,
+                loaded.definition.scoring,
+                allow_unsigned=prepared.allow_unsigned,
+            )
+        except (OSError, ValueError) as error:
+            raise ValueError(f"case {selected_id}: {error}") from error
+    return {"run_id": manifest.run_id, "cases": reports}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--benchmark", type=Path, required=True)
     parser.add_argument(
         "--allow-unsigned", action="store_true", help="allow missing input pins; still verify supplied SHAs"
     )
-    parser.add_argument("--case", required=True)
+    parser.add_argument("--case", help="validate only this case; default: all configured cases")
     parser.add_argument("--results-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
 
     def run(args):
         loaded = load_benchmark(args.benchmark, allow_unsigned=args.allow_unsigned)
-        prepared = loaded.case(args.case)
-        write_json(
-            args.output,
-            validate_results(
-                RawResults.model_validate(read_json(args.results_root / "results.json")),
-                prepared.case,
-                args.results_root,
-                prepared.root,
-                loaded.definition.scoring,
-                allow_unsigned=loaded.allow_unsigned,
-            ),
-        )
+        write_json(args.output, validate_experiment_results(loaded, args.results_root, case_id=args.case))
 
     cli(parser, run)

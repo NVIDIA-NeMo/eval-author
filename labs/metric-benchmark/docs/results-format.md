@@ -7,12 +7,13 @@ The [benchmark format](benchmark-format.md) defines the prepared inputs and
 experiment configuration, including the case examples, their baseline agents
 and mutants, and the evaluation tasks to run.
 
-Execution produces one results directory per prepared case example. It contains
-a shared `results.json` index and the raw results for the baseline and mutants
-running against that example's tasks. The experiment definition determines which
-agents and tasks the results must account for; this document defines how those
-results are represented. The constraints below require complete accounting of the configured agent × task
-matrix and consistency with the prepared inputs and native execution evidence.
+Execution produces an experiment output directory containing `execution.json`
+and one results directory per prepared case example. Each case directory contains
+a `results.json` index and the raw results for its baseline and mutants. The
+experiment definition determines which agents and tasks the results must account
+for; this document defines how those results are represented. The constraints
+below require complete accounting of the configured agent × task matrix and
+consistency with the prepared inputs and native execution evidence.
 
 This structure is the interface between agent × task execution and score analysis.
 It contains observations, not mutant scores, coverage scores or correlations.
@@ -27,30 +28,33 @@ checks live in [validation.py](../metric_benchmark/validation.py).
 
 ## Directory layout
 
-Each prepared case example has a results directory with two kinds of JSON files:
+The experiment root contains `execution.json`, which maps case IDs to their
+results indexes. Pass this same root to validation whether checking every case
+or selecting one with `--case`. Each case directory contains two kinds of JSON files:
 
-- **`results.json` at the root** is the experiment runner's summary of all agent/task executions for that example. Each entry names the agent and task, records the attempt, status and measurement, and points to the directory containing its evidence. This summary file is what this document calls the **results index**.
+- **`results.json` at each case’s results root** is the experiment runner's summary of all agent/task executions for that example. Each entry names the agent and task, records the attempt, status and measurement, and points to the directory containing its evidence. This summary file is what this document calls the **results index**.
 - **`result.json` inside each trial directory** is Harbor's detailed record of one execution attempt. It contains the native configuration and outcome that the validator compares with the corresponding summary entry. This is Harbor's standard format.
 
 The directory groups trials by agent and run:
 
 ```text
-execution-results/
-  results.json                      # Summary of all executions for this case example
-  agents/
-    <agent-directory>/
-      <run-directory>/
-        <trial-directory>/
-          result.json               # Harbor record for this one attempt
-          agent/                    # Agent execution evidence, when produced
-          verifier/                 # Verifier outputs, when produced
-          ...
-        ...
-      ...
-    ...
+experiment-results/                   # --results-root in both validation modes
+  execution.json                      # Case IDs → relative results.json paths
+  cases/
+    <case-directory>/
+      execution-results/              # Evidence paths are relative to this directory
+        results.json                  # All executions for this case example
+        agents/
+          <agent-directory>/
+            <run-directory>/
+              <trial-directory>/
+                result.json           # Harbor record for this one attempt
+                agent/                # Agent evidence, when produced
+                verifier/             # Verifier outputs, when produced
+                ...
 ```
 
-For example, the [mock results index](../../../tests/fixtures/metric_benchmark_results/execution-results/results.json)
+For example, the [mock results index](../../../tests/fixtures/metric_benchmark_results/experiment-results/cases/case-0000/execution-results/results.json)
 names `baseline` as the agent and `inspect-files` as the task in its first entry.
 That entry's `native_results_path` points to
 `agents/agent-0000/run-0001/inspect-files__mock001`. A reader follows that path to
@@ -62,6 +66,23 @@ grouping names. The next section defines the summary fields, followed by the
 requirements for the native evidence they reference.
 
 ## JSON format
+
+### Experiment index: `execution.json`
+
+This file identifies the experiment execution and locates the results for each
+case example. Paths are relative to the experiment root; case directory names
+are storage labels, not case identities.
+
+| Field | Required / default | Meaning | Source |
+| --- | --- | --- | --- |
+| `run_id` | Required | Execution ID shared by all case indexes. | CLI: the runner’s `--run-id`. |
+| `benchmark_sha256` | Required | Benchmark identity recorded by the execution runner. | Runner-generated SHA-256 digest. |
+| `cases` | Required, nonempty | Map from configured case IDs to relative `results.json` paths. | YAML: `experiment.yml` → `cases[].case_id`; paths are runner-generated. |
+
+For example, `cases` may contain
+`{"rho-agent": "cases/case-0000/execution-results/results.json"}`. The validator
+uses this mapping and checks the supplied prepared inputs; it does not recompute
+the runner’s `benchmark_sha256` identity.
 
 ### Results index: `results.json`
 
@@ -156,12 +177,18 @@ For the configured metric, the index must agree with native Harbor observations:
 Each observed trial retains Harbor’s `TrialResult` JSON format. Its task and trial
 identities, `config`, `finished_at`, `exception_info`, and `verifier_result.rewards`
 provide the native evidence corresponding to the index entry. See the
-[mock native record](../../../tests/fixtures/metric_benchmark_results/execution-results/agents/agent-0000/run-0001/inspect-files__mock001/result.json)
+[mock native record](../../../tests/fixtures/metric_benchmark_results/experiment-results/cases/case-0000/execution-results/agents/agent-0000/run-0001/inspect-files__mock001/result.json)
 for an example; this file is produced by Harbor, not a second benchmark-defined schema.
 
 ## Constraints
 
 ### Completeness
+
+The experiment index must account for every configured case when validating the
+whole experiment. With `--case`, only that case’s entry and results are required;
+unknown case IDs in the experiment index are rejected in either mode. Each
+selected path must point to a distinct `results.json` inside the experiment root,
+without symlink traversal, and its `run_id` must match the experiment index.
 
 Task IDs are unique. The inventory must match the prepared case exactly,
 including task order and optional names.
@@ -189,9 +216,9 @@ attempts, rather than applying scoring's attempt selection.
 
 ### Native evidence
 
-Store the raw Harbor execution files under the results root. Each entry in
+Store the raw Harbor execution files under the case’s results directory. Each entry in
 `results.json` points to its trial directory through `native_results_path`, a
-relative POSIX path within that root. Keep the configuration, results, logs and
+relative POSIX path within that case directory. Keep the configuration, results, logs and
 available agent/verifier evidence; symlinks and special files are not allowed.
 The validator reads each observed trial’s Harbor 0.20.0 `result.json` and checks
 the task identity/checksum, trial directory name, agent configuration, status and
@@ -205,9 +232,10 @@ Validation compares the configured metric, including its reason, against the
 native observation. Other metric keys are schema-checked but are not compared
 against native measurements by this validator.
 
-### Relocation
+### Relocation of results
 
-The results directory can move with its prepared input bundle, and trials may
+Harbor's native records may contain the original absolute paths. However,
+the experiment results directory can move with its prepared input bundle, and trials may
 come from different worker roots. The validator uses the supplied local inputs;
 it does not open paths on the original worker. Harbor’s recorded `config.task.path`
 must still be an absolute POSIX path ending in the task’s bundle-relative source
@@ -215,28 +243,33 @@ path so recorded agent input paths can be compared.
 
 ## Mock results
 
-The checked-in [mock results directory](../../../tests/fixtures/metric_benchmark_results/execution-results/)
+The checked-in [mock results directory](../../../tests/fixtures/metric_benchmark_results/experiment-results/)
 matches the [example input bundle](../../../tests/fixtures/metric_benchmark/experiment.yml).
 It shows one baseline and two mutants, each completing the same three tasks:
 
 ```text
-execution-results/                    # Results root for this case example
-  results.json                        # Shared index: all nine agent/task pairs
-  agents/
-    agent-0000/                       # baseline (Oracle stand-in)
-      run-0001/
-        inspect-files__mock001/
-          result.json                 # Native Harbor trial record
-          verifier/reward.txt         # Mock verifier output
-        read-config__mock001/          # Same two files
-        search-workspace__mock001/     # Same two files
-    agent-0001/                       # mutant (NOP stand-in), same three trials
-    agent-0002/                       # mutant-no-search (NOP stand-in), same three trials
+experiment-results/
+  execution.json
+  cases/
+    case-0000/                        # rho-agent, identified in execution.json
+      execution-results/
+        results.json                  # Nine agent/task pairs
+        agents/
+          agent-0000/                 # baseline (Oracle stand-in)
+            run-0001/
+              inspect-files__mock001/
+                result.json           # Native Harbor trial record
+                verifier/reward.txt   # Mock verifier output
+              read-config__mock001/   # Same two files
+              search-workspace__mock001/
+          agent-0001/                 # mutant (NOP stand-in), same three trials
+          agent-0002/                 # mutant-no-search (NOP stand-in), same trials
 ```
 
-Review [results.json](../../../tests/fixtures/metric_benchmark_results/execution-results/results.json)
-first, then follow one row's `native_results_path` to its
-[native result](../../../tests/fixtures/metric_benchmark_results/execution-results/agents/agent-0000/run-0001/inspect-files__mock001/result.json).
+Start with [execution.json](../../../tests/fixtures/metric_benchmark_results/experiment-results/execution.json)
+to locate the case. Review its [results.json](../../../tests/fixtures/metric_benchmark_results/experiment-results/cases/case-0000/execution-results/results.json)
+and follow one row's `native_results_path` to its
+[native result](../../../tests/fixtures/metric_benchmark_results/experiment-results/cases/case-0000/execution-results/agents/agent-0000/run-0001/inspect-files__mock001/result.json).
 Each baseline reward is 1; each mutant reward is 0. All nine executions succeeded:
 a zero reward is an observed outcome, not a missing execution or an execution error.
 

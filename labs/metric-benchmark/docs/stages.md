@@ -60,12 +60,14 @@ without repeating this execution phase.
 ### Results-directory contract
 
 Execution implementations produce the shared [results format](results-format.md):
-a case-level index and native trial evidence. That specification defines the
+an experiment index mapping case IDs to case-level indexes and native trial
+evidence. That specification defines the
 layout, identities, measurements, unavailable observations and attempt handling,
 with a checked-in [mock output directory](results-format.md#mock-results).
 
 The supporting [`validate_results.py` tool](tools.md#validate-a-results-directory)
-checks the output against the prepared case before analysis. It validates
+checks all cases by default, or one selected case, against the prepared inputs
+before analysis. It validates
 execution's output contract; it is not an additional scoring stage.
 
 ## 2. Compute mutant scores
