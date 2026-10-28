@@ -209,11 +209,16 @@ def test_audit_updates_cannot_change_authoring_progress(modules, tmp_path, journ
     assert state.state_path(tmp_path).read_bytes() == before
 
 
-def test_audit_ethos_change_preserves_prior_authoring_until_return(modules, tmp_path, monkeypatch):
+@pytest.mark.parametrize("scoped", [False, True])
+@pytest.mark.parametrize("return_journey", ["create", "expand"])
+def test_audit_ethos_change_preserves_prior_authoring_until_return(
+    modules, tmp_path, monkeypatch, scoped, return_journey
+):
     state, _ = modules
     saved = ready(modules, tmp_path)
     for journey in ("create", "expand"):
-        saved["scopes"][journey] = {"confirmed": True, "cases": ["refund"]}
+        if scoped:
+            saved["scopes"][journey] = {"confirmed": True, "cases": ["refund"]}
         saved["journey_status"][journey] = "complete"
     state.save(tmp_path, saved)
     before = state.state_path(tmp_path).read_bytes()
@@ -230,16 +235,21 @@ def test_audit_ethos_change_preserves_prior_authoring_until_return(modules, tmp_
         for journey in ("create", "expand"):
             assert loaded["journey_status"][journey] == "complete"
             assert loaded["scopes"][journey]["needs_review"]
+            if scoped:
+                assert loaded["scopes"][journey]["cases"] == saved["scopes"][journey]["cases"]
         state.initialize(tmp_path, journey="audit")
-        state.confirm_ethos(
+        confirmed = state.confirm_ethos(
             tmp_path,
             reviewed_digest=state.ethos_digest(tmp_path),
             source="User reviewed the changed intent",
             validation="Updated Ethos passed validation",
         )
-    returned = state.initialize(tmp_path, journey="create", setup="harbor")
+        assert confirmed["journey_status"] == {"create": "complete", "expand": "complete"}
+    returned = state.initialize(tmp_path, journey=return_journey, setup="harbor")
     assert returned["journey_status"] == {"create": "in_progress", "expand": "in_progress"}
     assert not state.checklist(returned)[2]["complete"]
+    if scoped:
+        assert returned["scopes"][return_journey]["cases"] == saved["scopes"][return_journey]["cases"]
 
 
 @pytest.mark.parametrize("change", ["changed", "missing"])
