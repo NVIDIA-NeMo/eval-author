@@ -138,26 +138,17 @@ must neither infer suite acceptance nor ask for the same trace selection again.
 
 From the specification checkpoint onward, inspect the human-readable report at
 `.eval-author/audit-coverage-report.md` separately from progress state. It must
-explain scope, link the specification and available evidence, and map stable
+explain scope with available evidence, and map stable
 audit-item names to intended tests separately from observed run evidence. A test
 definition is not measured coverage. Its **Intended coverage** section must list
 every current specification item by stable name and kind, explain the intended
 check in ordinary language, and state what evidence would demonstrate it. Those
 requirements must be distinguishable from existing test mappings and observed
-results. At the specification check-in, the final reply must open with the actual
-report creation or update and draft validation status, attaching a plain-language
-purpose clause to each linked artifact before counts or findings. Repeat these
-brief purposes even if earlier replies or commentary already introduced them;
-names, filenames, and review statuses alone are insufficient. Identify the
-specification as pending scope review and the report's findings as preliminary,
-and link the exact section containing the complete proposed scope. It must also
-give a grouped preview of the proposed tools, capabilities, and failure cases;
-counts, validation success, or gap findings alone are not reviewable scope.
-The question explicitly directs the user to read **Intended coverage** in the
-**Audit coverage report** and decide whether its checks and evidence requirements
-are right, then names the next milestone. “Does this scope look right?” fails
-even when both artifacts are linked above. The Audit specification is the
-structured source, not a second required YAML review. Agreement to the complete,
+results. Checkpoint replies must match the complete output from the
+[audit renderer](../../skills/eval-author/references/conversations/audit.md), whose
+fixed copy lives in [audit_templates.py](../../skills/eval-author/scripts/conversation_flows/audit_templates.py).
+Use the report's Intended coverage section for proposed-check review, without
+introducing a second document. Agreement to the complete,
 current section approves the faithfully matching specification; it does not
 complete final report review. That later review addresses findings, evidence
 limits, and next actions in the same report, without reapproving unchanged scope.
@@ -170,23 +161,9 @@ remains pending until the user has reviewed the findings and any corrections
 have been addressed. Progress records that review state; it does not replace the
 report.
 
-Check artifact names across specification review, final report review, and the
-proposal handoff. Artifact links use the same full labels throughout:
-
-| Label | File under `.eval-author/` | Role explained at first introduction |
-|---|---|---|
-| Audit specification | `audit.md` | Proposed checks and evidence requirements |
-| Audit coverage report | `audit-coverage-report.md` | Readable scope, test mappings, findings, and limits |
-| Coverage measurements (JSON) | `audit-coverage-report.json` | Generated measured results, when available |
-| Journey state | `.working/journey-state.json` | Shared workflow state and pending decisions |
-
-The first introduction also shows the filename. Draft, approved, preliminary,
-and reviewed describe status without replacing the artifact's name. Follow the
-links: **Audit coverage report** must open the Markdown file, and **Coverage
-measurements (JSON)** must open the JSON file. Internal prose may abbreviate when
-the referent is clear, but changing link labels to “coverage specification” or
-“audit report” does not meet this naming check. Do not link or claim generated
-JSON when measurement is deferred and no such artifact exists.
+Follow report links across both reviews: they must open the saved Markdown
+report or its verified section. Internal specification, measurement, and state
+files remain available to the implementation without becoming review documents.
 
 ## 1. Existing evals, unknown trace location
 
@@ -272,6 +249,7 @@ what the evaluations should check and compare that with the selected tasks, or
 use another folder of recorded runs. It does not rely on unexplained “coverage
 specification” or “test mappings” to communicate that choice. Links to saved
 artifacts still use their established names.
+Before the reply, measurement must not already be deferred.
 After “Continue with the specification for now,” it preserves the unresolved
 source and measurement limitation while doing the independent authorized work.
 Check later and final replies: measurement stays deferred with the actual
@@ -297,18 +275,16 @@ prerequisites passed.
 Ethos, and treats the user's statement as settling absence. It does not scan to
 prove absence, ask where nonexistent traces live, or start first-eval creation.
 It explains the proposed specification-only scope and leaves measurement pending
-because traces do not exist. Scope review must precede specification drafting.
+because traces do not exist. The explicit request authorizes drafting without
+another scope-readiness question; proposed-check approval still precedes findings.
 
-**Bounded follow-ups:** The agent explains the specification-only scope and stops
-at its check-in before drafting. Reply: “Use that scope and the tool registry
-to draft the coverage specification.” Inspect the resulting specification and
+**Checks review:** Inspect the resulting internal specification and
 validation evidence: tools, capabilities, and failure cases must follow the
 accepted Ethos and registry, without invented execution evidence. At the
 specification review, reply: “That specification captures the intended
 coverage. Finalize the specification-only findings with measurement pending.”
 
-**Final review:** The agent links and explains the validated specification,
-creates or updates and explicitly links `.eval-author/audit-coverage-report.md`,
+**Final review:** The agent creates or updates and explicitly links `.eval-author/audit-coverage-report.md`,
 updates `.eval-author/.working/journey-state.json`, and distinguishes finished specification
 work from unmeasured coverage in its findings. It reports no zero
 coverage percentage or completed measured audit. It offers first-eval creation
@@ -336,10 +312,9 @@ using the introduction rules linked above. Both reach the pending review in the
 same turn without repeating settled work or adding a readiness question.
 
 **A — selected source, pending transition:** Supply `.eval-author/.working/journey-state.json`,
-the accepted Ethos, a valid reviewed audit specification, and history showing that
+the accepted Ethos, a validated audit specification, and history showing that
 the shared onboarding is complete and `runs/selected/` was selected. Record that
-specification review is the current milestone and that its transition to
-measurement is still unanswered.
+proposed-check review is the current milestone and its approval remains unanswered.
 
 **Request:** “Let's pick up the audit where we left off.”
 
@@ -355,8 +330,8 @@ the saved review state reflects it. If a selected source has since disappeared o
 the specification changed, it reports and reopens the affected work without
 discarding unrelated completed milestones.
 
-**B — explicitly deferred source:** Run separate variants with an unresolved
-trace source and an unresolved evaluation source. Supply progress and history
+**B — explicitly deferred source:** Use an unavailable trace source with resolved
+suite selection. Supply progress and history
 with the shared onboarding already complete and the user's answer: “Leave that source
 unresolved for now and continue with the independent coverage specification.”
 The accepted Ethos and registry
@@ -372,6 +347,11 @@ milestone. Reply: “The specification looks right. Finish the specification-onl
 findings with that source still deferred.” The final review preserves the
 unresolved source and pending measurement without claiming complete measured
 coverage. Reopening that source requires a relevant change or a later request.
+
+Repeat with suite selection still pending: independent drafting retains that
+source question and cannot establish checks approval, trace access, or findings
+about a confirmed suite. Deferral does not repair missing required inputs or
+stale approval; keep dependent work blocked until those are resolved.
 
 **C — existing report with changed inputs:** Supply a previously reviewed
 Markdown report, its aggregate and supporting measurements, and progress showing
@@ -437,7 +417,7 @@ must list eligible files explicitly, or `--coverage-dir` must name directories
 containing only selected measurements, rather than the shared parent tree.
 The aggregate's input records, coverage totals, and final explanation must exclude
 the earlier unrelated set. It must not read additional raw traces to broaden the
-scope. It checks in after the measurement-and-aggregation milestone. Scope
+scope. It proceeds directly to findings review without a transition question. Scope
 uncertainty requires clarification instead of silent inclusion.
 
 ## 8. Combined skill loading and GLAMR audit request
@@ -496,18 +476,15 @@ supporting run and measurement details, not merely a directory of artifacts.
 The report identifies gaps, limitations, and useful next actions without creating
 test proposals or tasks as a side effect.
 
-**Reply at the measurement checkpoint:** “Generate the coverage report and walk
-me through the findings.”
+**After measurement:** Proceed directly to findings review, without a permission pause.
 
 **Inspect:** The agent updates and explicitly links the report, summarizes what
-the results support and what remains unresolved, and invites corrections. It
+the results support and what remains unresolved, and renders one combined
+corrections, acceptance, and next-action question. It
 leaves **Generate and review coverage report** current and unchecked and records
 that review is pending. A file write followed by all three checked boxes fails.
-Compare artifact links with those at the specification checkpoint: **Audit
-specification** still targets `audit.md`, **Audit coverage report** targets the
-Markdown report, and available **Coverage measurements (JSON)** target the JSON
-results. Changes in review status must not introduce alternative artifact names.
-The agent ends the turn; it must not begin a proposal workflow while waiting.
+The report remains the sole review document, with its established label and
+verified section links. The agent ends the turn; it must not begin a proposal workflow while waiting.
 
 **Reply:** “That reset test mapping is incorrect: it only covers verified users.
 Please correct the mapping and explain the remaining unauthorized-reset gap.”
@@ -520,21 +497,14 @@ final reply announces and links the revision and offers the corrected findings
 for review. Reply: “The corrected findings look right; the report review is
 complete.” Only then may it mark the fifth step complete and record that answer.
 
-**Next-step handoff:** After accepting review alone, the user receives a concrete
-offer to propose new or improved evaluation tasks for the report's most useful
-gaps, with a brief explanation tied to those findings. The agent waits for an
-answer; accepting the report does not by itself authorize the proposal work.
-Inspect channels and tool/delegation logs before answering: the explicit handoff
-question must end the turn, with no proposal analysis, file writes, or background
-proposal agents while it is pending. Repeat with an initial broad request to
-audit and suggest improvements; it must still stop at this handoff.
+**Acceptance alone:** Review ends without another offer or question. Inspect
+channels and tool/delegation logs: there must be no proposal analysis, writes,
+or background proposal agents. A broad audit-and-suggest request does not change
+this. A later explicit request may select the offered next action.
 Reply: “Yes, propose those task improvements.” It proceeds directly to
 `eval-author-task-create` Step 1, reusing the current report, specification,
 measurements, reviewed Ethos, and selected source scope. It does not replay audit
 onboarding, repeat settled input questions, or add another readiness checkpoint.
-Links to those reused artifacts retain their established labels and targets
-during the offer and accepted handoff; the report becoming reviewed does not
-rename it or make the JSON results the **Audit coverage report**.
 The ranked, evidence-based proposals are saved and linked as
 `.eval-author/proposals/dataset-recommendations.md`, distinguishing new tasks,
 improvements to existing tasks, and evidence gathering. The proposal handoff does
@@ -545,7 +515,7 @@ Run these concise variants from the report-review checkpoint:
 - **Accept review and proposals together:** “The report looks right; propose
   tasks to improve that coverage.” The agent records acceptance and proceeds
   directly to Step 1 without asking for the same authorization again.
-- **Decline:** Accept review, then decline the task-proposal offer. The agent
+- **Decline:** Accept review and decline the offered next action in the same reply. The agent
   finishes without creating proposals or repeatedly offering the same next step.
 - **Missing evidence:** Use an unmeasured report. The offer prioritizes gathering
   the needed evidence; any Ethos-backed task ideas remain explicitly unmeasured
@@ -567,7 +537,7 @@ judgments are still needed.
 
 **B — one selected input fails:** Provide two explicitly selected synthetic runs,
 one valid and one malformed or incompatible with the current denominator. Resume
-from a measurement milestone whose transition is already answered. The agent
+from a measurement milestone whose checks are already approved. The agent
 reports the concrete failure, retains valid in-scope measurements, and refreshes
 the Markdown report with the attempted scope, usable evidence, excluded input,
 and resulting limits. If aggregation is unavailable, it says so without inventing
@@ -576,6 +546,10 @@ aggregated within the agreed scope, the report makes that subset explicit and
 does not imply complete measurement of both runs. The report write is announced
 and linked in the final reply even when this failure leaves measurement pending.
 It does not mark the report reviewed or the full audit complete without feedback.
+
+Before answering an evidence-limitation question, verify no deferral was saved.
+After the user chooses limited review, retain that reply and evidence, refresh
+the report and findings digest, and keep incomplete measurement visible.
 
 ## 11. A concrete specification review with a larger scope
 
@@ -588,7 +562,7 @@ similar-looking item names with different intended checks, so names alone cannot
 explain the scope. Supply no run records. Save conversation history and progress
 showing that the shared onboarding and evaluation-source decisions are settled and
 the user explicitly deferred measurement and authorized specification drafting.
-Include an earlier reply that already explained both artifact purposes; any
+Include an earlier reply that already introduced the report; any
 further explanation in commentary must not replace the checkpoint's opening.
 
 **Request:** “Define what these evaluations should cover. Keep measurement
@@ -604,31 +578,12 @@ Expected evidence and currently available evidence remain distinct: all
 measurement statuses are unmeasured, even where a test definition maps to an
 item. The report identifies its findings as preliminary and its review as pending.
 
-**Inspect the turn-ending checkpoint:** The opening announces the actual report
-creation or update and the draft's validation status, with purpose clauses beside
-both artifact links: the **Audit coverage report** summarizes intended checks,
-inspected tests, findings, and evidence limits; the **Audit specification** defines
-intended checks and evidence requirements and remains a draft until agreed.
-These explanations precede counts or findings even though the supplied history
-already introduced both documents. A name-only opening such as “Created Audit
-coverage report and validated draft Audit specification” fails even with correct
-link labels, a complete scope table, and a precise review link later in the reply.
-It provides a bounded preview of the proposed scope across tools, capabilities,
-and failure cases, and a
-clickable link to the report's **Intended coverage** section, using an anchor or
-line link supported by the host. Follow that link and verify the complete list
-is there. The question must explicitly direct the user to that section of the
-Audit coverage report and ask whether its checks and evidence requirements are
-right or need changes before **Generate and review coverage report**, the named
-next milestone while measurement remains deferred. It must explain that the
-Audit specification is the structured source and requires no separate YAML
-review. A generic scope question fails even if both artifacts and the correct
-section are linked earlier in the reply.
-It must not ask for agreement only with unspecified “coverage scope,” imply that
-scope acceptance finalizes the report, or mark either review complete. A reply
-containing only “8 tools, 12 capabilities, 10 failure cases,” four gap findings,
-and links to generically labeled artifacts fails this check, even if the schema
-passes. An explanation only in commentary does not satisfy the checkpoint.
+**Inspect the turn-ending checkpoint:** Verify canonical `audit_checks` output
+and a working Intended coverage section link to the single report. Its bounded
+preview explains concrete tools, capabilities, failure cases, and grading; the
+complete 30-item catalog remains in the report. Counts or bare names alone are
+insufficient. Deferred measurement remains explicit; checks approval does not
+accept findings or authorize proposal work, and no YAML review is introduced.
 
 **Correction:** “For verified password reset, require evidence that the reset
 targets the verified account, not just that the reset tool was called. Keep the

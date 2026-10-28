@@ -12,63 +12,18 @@ presenting the report.
 
 ## Artifact names
 
-Use the names in [Audit outputs](../SKILL.md#audit-outputs) consistently in
-user-facing replies, artifact link labels, report references, and the proposal
-handoff. On first introduction, include the filename and a brief explanation of
-its role. Keep the full artifact name in later links so each opens a predictable
-document. “Draft,” “approved,” “preliminary,” and “reviewed” describe status;
-they do not change the artifact's name.
-
-At specification and final-report review checkpoints, open with the actual
-artifact updates and briefly explain each document's purpose beside its link,
-before counts or findings. Keep this explanation in the turn-ending reply even
-when the roles were explained earlier or in commentary. Correct names, filenames,
-and status alone do not satisfy it. Claim only writes or validation actually
-performed; reviewing an unchanged document does not imply an update.
-
-Describe proposed work in plain language, such as “outline what your evaluations
-should check and compare that with your existing tasks.” Use the artifact names
-when referring to saved files, rather than as unexplained names for activities.
-
-**Audit specification** (`audit.md`) defines the checks and required evidence.
-**Audit coverage report** (`audit-coverage-report.md`) presents that scope and
-the findings about existing tests and available run evidence. Its **Intended
-coverage** section renders the specification for review; the two files remain
-distinct. Use the Audit coverage report as the user's review document: at the
-scope checkpoint, point to **Intended coverage** and ask whether the checks and
-required evidence are right; at final review, point to the findings, evidence
-limits, and next actions. Link the Audit specification as the structured source
-behind the intended checks, without requiring a separate YAML review. Name the
-section and decision in each review request rather than leaving the user to
-choose between two file links. Avoid alternate artifact labels such as “coverage
-specification,” “draft specification,” or “audit report.” In surrounding prose,
-“specification” or “report” can be shortened once its referent is clear.
-
-Call the generated aggregate **Coverage measurements (JSON)**
-(`audit-coverage-report.json`), keeping it distinct from the Markdown report even
-though their filename stems match. Link it only when it exists. **Audit progress**
-(`.working/journey-state.json`) records workflow state and is not a findings report.
-
-For example after creating the report and validating a draft:
-
-> I created the Audit coverage report, which summarizes the proposed checks,
-> what your selected evaluations test, and the gaps and evidence limits found.
-> I also validated the draft Audit specification, the structured source that
-> defines those checks and evidence requirements.
->
-> Please review the Intended coverage section of the Audit coverage report.
-> Are these the right checks and evidence requirements, or should anything change?
-
-Link each name to its own file and include its filename on first introduction.
-Use the actual review state; validation does not approve the specification.
-At final review, ask about the Audit coverage report's findings. Preserve these
-names when offering proposals; review status does not create another artifact.
+The **Audit coverage report** is the guided audit's only user-facing document.
+Its Intended coverage section holds proposed checks and evidence requirements;
+its findings support the later review. Keep `audit.md`, measurement JSON, and
+journey state internal; explicit file-operation requests retain their scope.
+Use the [audit renderer](../../eval-author/references/conversations/audit.md) for
+checkpoint copy and links. Claim only actual report updates and validation.
 
 ## Sources and scope
 
 Use the current `audit.md`, inspected evaluation definitions and verifiers, and
-applicable measurement artifacts. Link the specification, Ethos, selected eval
-locations, and JSON report when it exists. State the trace scope, methods run,
+applicable measurement artifacts. Link Ethos, selected eval locations, and
+available supporting evidence inside the report. State the trace scope, methods run,
 excluded or failed inputs, and whether the result is a specification only,
 partial measurement, or measured audit. Distinguish confirmed absence of evals
 from inaccessible or uninspected evals.
@@ -115,10 +70,13 @@ audit item by stable `name` and kind to:
 Group rows by kind when helpful, or use per-item lists when a table would become
 too wide. Keep the complete catalog in this section rather than maintaining
 separate scope and mapping lists that can drift. Preserve material criteria when
-summarizing; link to the specification for detail instead of copying YAML or
-JSON. A manual mapping from task definitions can be useful without traces, but
+summarizing; include the readable criteria here rather than requiring YAML or
+JSON review. A manual mapping from task definitions can be useful without traces, but
 does not establish measured coverage. A covered item in one run does not erase
 observed failures in others or establish agent quality.
+
+Include proposed grading checks and evidence requirements in Intended coverage.
+Distinguish inspected grading logic from demonstrated grader behavior.
 
 ## Findings, limitations, and next actions
 
@@ -142,26 +100,12 @@ evidence, fixing the agent, or creating the first evals should come first.
 Detailed ranked proposals belong to `eval-author-task-create`; the report
 identifies the direction and evidence for that handoff without claiming tasks
 were created or gaps closed. Use the [guided handoff](guided-audit.md#after-review-offer-the-next-step)
-to offer this next step during review and continue when the user accepts it.
-Present that offer in the turn-ending response and wait before starting proposal
-work. A recommendation in the report or acceptance of its findings is not an
-answer to the handoff question.
+for the combined findings review and authorized handoff.
 
 ## Review and updates
 
-At the final guided milestone, explicitly say the report was created or updated,
-link it, and walk through the main findings, evidence limits, and next actions.
-Ask for corrections or agreement and wait. Keep **Generate and review coverage
-report** incomplete while that review is pending; resolve requested corrections
-before completing it. Reuse an answered review. Record conversational review
-state in `.working/journey-state.json`.
-
-Every turn-ending response after creating or updating the report must call out
-that write and link it, including earlier specification and measurement
-check-ins. At the specification check-in, follow the [guided review](guided-audit.md#2-define-what-the-evals-should-cover):
-explain both artifacts, preview the intended checks, and point directly to the
-complete **Intended coverage** section before requesting agreement. Keep that
-scope decision separate from the later review of findings and next actions.
-For read-only requests, discuss the available findings without writing
-or claiming an update. A focused operation does not require unrelated test
-inspection or the full guided review just to fill this template.
+Follow [guided review and decisions](guided-audit.md#4-generate-and-review-coverage-report).
+Announce and link actual report updates in the complete rendered response, using
+Intended coverage for checks review and findings for later acceptance. Read-only
+requests discuss available findings without writing or claiming an update;
+focused operations do not require unrelated inspection or a full guided audit.

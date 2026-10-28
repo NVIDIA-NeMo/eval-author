@@ -589,11 +589,28 @@ def checklist(state: dict, *, state_only: bool = False, audit: dict | None = Non
     return rows
 
 
+def active_blockers(state: dict, *, state_only: bool = False) -> list[dict]:
+    """Present dependencies at the action they block, retaining all saved evidence."""
+    shared_done = all(row["complete"] for row in checklist(state, state_only=state_only)[:2])
+    started = state["journey_status"].get(state["journey"]) in {"in_progress", "complete"}
+    later_requirements = {"environment", "services", "data", *DEFERRED}
+    return [
+        item
+        for item in state["blockers"]
+        if item["phase"] in {"setup", "ethos"}
+        or (shared_done and item["phase"] == state["journey"] and (started or item["id"] not in later_requirements))
+    ]
+
+
 def audit_presentation_state(state: dict, audit: dict | None) -> dict:
     if state["journey"] != "audit" or audit is None or not all(row["complete"] for row in checklist(state)[:2]):
         return state
     pending = audit["pending_checkpoint"]
     recorded = (audit_state.record(state) or {}).get("pending")
+    if any(item["phase"] == "audit" for item in active_blockers(state)):
+        if recorded and state["pending_question"] == recorded["question"]:
+            return {**state, "pending_question": None}
+        return state
     if pending:
         return {**state, "pending_question": pending["question"]}
     if recorded and state["pending_question"] == recorded["question"]:

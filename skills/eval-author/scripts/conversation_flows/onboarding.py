@@ -143,16 +143,7 @@ def recommendations(facts: dict) -> str | None:
 
 
 def active_blockers(state: dict, *, state_only: bool = False) -> list[dict]:
-    """Present dependencies at the action they block, retaining all saved evidence."""
-    shared_done = all(row["complete"] for row in journey_state.checklist(state, state_only=state_only)[:2])
-    started = state["journey_status"].get(state["journey"]) in {"in_progress", "complete"}
-    later_requirements = {"environment", "services", "data", *journey_state.DEFERRED}
-    return [
-        item
-        for item in state["blockers"]
-        if item["phase"] in {"setup", "ethos"}
-        or (shared_done and item["phase"] == state["journey"] and (started or item["id"] not in later_requirements))
-    ]
+    return journey_state.active_blockers(state, state_only=state_only)
 
 
 def blocker_section(state: dict, facts: dict, *, confirmed: bool, state_only: bool = False) -> str | None:

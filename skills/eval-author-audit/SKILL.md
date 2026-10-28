@@ -92,7 +92,8 @@ confirm evals and traces, define intended coverage, measure selected evidence,
 then generate and review `audit-coverage-report.md`. Keep source and content
 reviews explicit. Use bounded agent and eval reads. Do not enumerate or read traces
 until their source and location are selected. An existing accepted source choice
-needs no repeated confirmation.
+needs no repeated confirmation. Render downstream checkpoints through the
+[audit conversation contract](../eval-author/references/conversations/audit.md).
 
 Explicit generate, validate, measure, and aggregate requests keep their scope.
 Generation needs confirmed Ethos. Existing-spec validation, measurement, and
@@ -132,7 +133,8 @@ prerequisite Ethos work belongs to the shared procedure in the pre-flight above.
 
 ## Audit outputs
 
-Use these names in replies and artifact links; follow [artifact naming](references/coverage-report.md#artifact-names).
+Follow [report presentation](references/coverage-report.md#artifact-names): only
+the Audit coverage report is introduced for guided review; other outputs are internal.
 
 | Name | File under `.eval-author/` | Purpose |
 |---|---|---|
@@ -146,7 +148,7 @@ specification, refresh it after measurement, and update it for final review.
 Follow the [report guidance](references/coverage-report.md) and [template](templates/audit-coverage-report.md) even when measurement is deferred.
 
 Whenever the Markdown report is created or updated, explicitly say so and link
-it in the turn-ending response, including intermediate milestone check-ins.
+it in the turn-ending response, including intermediate decision checkpoints.
 
 Focused operations need this report only when requested or continuing a full
 audit; keep their scope. Read-only and `suggest` requests remain read-only.
@@ -472,11 +474,8 @@ gaps to [`eval-author-task-create`](../eval-author-task-create/SKILL.md) using
 
 - For audit-generation inputs and reconciliation modes, return to
   [Step 2: Generate Or Reconcile Audit.md](#step-2-generate-or-reconcile-auditmd).
-- After the report review, offer new or improved eval task proposals using the
-  [guided handoff](references/guided-audit.md#after-review-offer-the-next-step).
-  End the turn and wait for acceptance before entering the proposal step in
-  [`eval-author-task-create`](../eval-author-task-create/SKILL.md) with the current
-  report and evidence. Proposal acceptance does not authorize task execution.
+- Follow the [combined findings review and handoff](references/guided-audit.md#after-review-offer-the-next-step)
+  before entering [`eval-author-task-create`](../eval-author-task-create/SKILL.md).
 - The proposal step considers tools, capabilities, and failure cases. Automatic
   task creation still accepts only uncovered tool items with
   `reason: not_covered_by_any_input_report`. Items with

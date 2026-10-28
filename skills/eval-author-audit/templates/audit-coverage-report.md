@@ -11,10 +11,9 @@ measured, or measured audit. State the scope to which the finding applies.>
 
 ## Scope and evidence
 
-- **Audit specification:** <link labeled Audit specification to audit.md>
 - **Ethos:** <link to the applicable ETHOS.md>
 - **Evaluations inspected:** <suite and case links, or the specific limitation>
-- **Run evidence:** <selected source and runs, or why measurement is unavailable>
+- **Traces:** <selected source and evaluation runs, or why measurement is unavailable>
 - **Coverage measurements (JSON):** <link to audit-coverage-report.json when it exists, otherwise explain why unavailable>
 - **Measurement methods and evidence:** <methods run and links to applicable measurement details>
 - **Exclusions:** <failed, omitted, or stale inputs and their effect on findings>
@@ -37,13 +36,16 @@ A kind with no declared items is “No items declared”, not 100% covered. -->
 
 This is the complete list of what the audit intends to check and the evidence
 each check requires. Test mappings describe what existing evaluations intend to
-exercise. Measurement status describes what selected recorded runs demonstrate.
+exercise. Measurement status describes what the selected traces demonstrate.
 
 <!-- Include every current audit item, optionally grouped by kind. Use per-item
 lists if the table becomes too wide. Explain intended behavior and required
 evidence in plain language, keeping material criteria from audit.md. For failure
 cases, include the trigger and expected safe response. An uninspected test
-mapping is “Not inspected”; absence is bounded to the tests actually read. -->
+mapping is “Not inspected”; absence is bounded to the tests actually read.
+Include proposed grading checks and the evidence each requires. Distinguish
+inspecting grader logic from demonstrating how it grades an observed result.
+The complete readable criteria belong here; audit.md remains internal. -->
 
 | Audit item | Kind | Intended check and required evidence | Existing tests | Measurement status | Observed evidence and limits |
 |---|---|---|---|---|---|
