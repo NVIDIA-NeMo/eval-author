@@ -1,0 +1,160 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1710" viewBox="0 0 1600 1710" role="img" aria-labelledby="title description">
+<title id="title">Where execution-result fields come from</title>
+<desc id="description">Field-level mapping from input YAML, execution flags, generated local runner identities, and native Harbor evidence into the output directory and results.json. Optional defaults and explicitly missing evidence are separate.</desc>
+<defs><style>text {font-family:Arial,Helvetica,sans-serif;fill:#1e293b} .title {font-size:32px;font-weight:700} .heading {font-size:20px;font-weight:700} .body {font-size:18px} .small {font-size:16px;fill:#475569} .code {font-family:'DejaVu Sans Mono',monospace;font-size:17px}</style>
+<marker id="flag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9 Z" fill="#7554b4"/></marker>
+<marker id="yaml" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9 Z" fill="#2867aa"/></marker>
+<marker id="generated" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9 Z" fill="#a56414"/></marker>
+<marker id="harbor" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9 Z" fill="#167964"/></marker>
+<marker id="other" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L9 5 L1 9 Z" fill="#65748b"/></marker>
+</defs><rect width="1600" height="1710" fill="#fff"/>
+<text x="36" y="48" class="title">Where execution-result fields come from</text>
+<text x="36" y="80" class="body">Local Harbor execution • one prepared case example • illustrative values</text>
+<circle cx="42" cy="113" r="6" fill="#7554b4"/>
+<text x="58" y="119" class="small">CLI flag</text>
+<circle cx="226" cy="113" r="6" fill="#2867aa"/>
+<text x="242" y="119" class="small">YAML input</text>
+<circle cx="431" cy="113" r="6" fill="#a56414"/>
+<text x="447" y="119" class="small">Runner-generated</text>
+<circle cx="716" cy="113" r="6" fill="#167964"/>
+<text x="732" y="119" class="small">Harbor evidence</text>
+<circle cx="976" cy="113" r="6" fill="#65748b"/>
+<text x="992" y="119" class="small">Optional / producer-supplied</text>
+<text x="36" y="157" class="heading">SOURCE: supplied inputs and execution</text>
+<text x="800" y="157" class="heading">DESTINATION: directories and JSON fields</text>
+<rect x="36" y="180" width="614" height="188" rx="12" fill="#f4effc" stroke="#7554b4" stroke-opacity=".35"/>
+<rect x="36" y="196" width="4" height="156" rx="2" fill="#7554b4"/>
+<text x="56" y="212" class="heading" style="fill:#7554b4">Invocation flags → select inputs and name this execution</text>
+<text x="56" y="242" class="code">--benchmark experiment.yml</text>
+<text x="56" y="268" class="small">Loads cases[].tasks.path → tasks.yml</text>
+<text x="56" y="291" class="small">Loads cases[].agent.path → agent.yml</text>
+<text x="56" y="324" class="code">--output ./runs/demo</text>
+<text x="56" y="350" class="code">--run-id demo-001</text>
+<rect x="800" y="180" width="764" height="188" rx="12" fill="#f4effc" stroke="#7554b4" stroke-opacity=".35"/>
+<rect x="800" y="196" width="4" height="156" rx="2" fill="#7554b4"/>
+<text x="820" y="212" class="heading" style="fill:#7554b4">Output root and per-case results index (our format)</text>
+<text x="820" y="242" class="code">./runs/demo/cases/case-0000/execution-results/</text>
+<text x="820" y="270" class="code">  results.json</text>
+<text x="820" y="296" class="small">case-0000 comes from the case’s position in experiment.yml.</text>
+<text x="820" y="334" class="code">results.json → run_id: &quot;demo-001&quot;</text>
+<text x="820" y="357" class="small">run_id is supplied at execution time; it is not benchmark_id.</text>
+<path d="M650 324 H752 V242 H780" fill="none" stroke="#7554b4" stroke-width="2" marker-end="url(#flag)"/>
+<text x="664" y="312" class="small" style="fill:#7554b4">directory</text>
+<path d="M650 350 H768 V334 H780" fill="none" stroke="#7554b4" stroke-width="2" marker-end="url(#flag)"/>
+<text x="664" y="338" class="small" style="fill:#7554b4">run ID</text>
+<rect x="36" y="388" width="614" height="184" rx="12" fill="#edf5fd" stroke="#2867aa" stroke-opacity=".35"/>
+<rect x="36" y="404" width="4" height="152" rx="2" fill="#2867aa"/>
+<text x="56" y="420" class="heading" style="fill:#2867aa">tasks.yml → tasks[]</text>
+<text x="56" y="448" class="code">task_id: inspect-files</text>
+<text x="56" y="477" class="code">revision: 1</text>
+<text x="56" y="506" class="code">name: Inspect files  # optional label</text>
+<text x="56" y="537" class="small">The checked-in example omits name → null.</text>
+<text x="56" y="560" class="small">This label is independent of Harbor’s native task_name.</text>
+<rect x="800" y="388" width="764" height="184" rx="12" fill="#edf5fd" stroke="#2867aa" stroke-opacity=".35"/>
+<rect x="800" y="404" width="4" height="152" rx="2" fill="#2867aa"/>
+<text x="820" y="420" class="heading" style="fill:#2867aa">results.json → task references</text>
+<text x="820" y="448" class="code">task_inventory.tasks[]</text>
+<text x="820" y="477" class="code">execution_results[].evaluation.task</text>
+<text x="820" y="510" class="code">  {task_id, revision, name}</text>
+<text x="820" y="540" class="small">The same YAML task fields are copied to both locations.</text>
+<text x="820" y="562" class="small">task_inventory is an object; its tasks array is required and nonempty.</text>
+<path d="M650 477 H736 V448 H780 M736 477 H780" fill="none" stroke="#2867aa" stroke-width="2" marker-end="url(#yaml)"/>
+<text x="664" y="465" class="small" style="fill:#2867aa">copy</text>
+<rect x="36" y="592" width="614" height="130" rx="12" fill="#edf5fd" stroke="#2867aa" stroke-opacity=".35"/>
+<rect x="36" y="608" width="4" height="98" rx="2" fill="#2867aa"/>
+<text x="56" y="624" class="heading" style="fill:#2867aa">agent.yml → baseline / mutants[]</text>
+<text x="56" y="652" class="code">agent_bundle_id: baseline</text>
+<text x="56" y="683" class="small">Baseline first, then mutants in their listed order.</text>
+<text x="56" y="706" class="small">harbor: {...} configures the native Harbor agent.</text>
+<rect x="800" y="592" width="764" height="130" rx="12" fill="#edf5fd" stroke="#2867aa" stroke-opacity=".35"/>
+<rect x="800" y="608" width="4" height="98" rx="2" fill="#2867aa"/>
+<text x="820" y="624" class="heading" style="fill:#2867aa">results.json → execution_results[]</text>
+<text x="820" y="652" class="code">agent_bundle_id: &quot;baseline&quot;</text>
+<text x="820" y="683" class="small">execution_results is itself a required, nonempty array.</text>
+<text x="820" y="706" class="small">One entry per agent × task attempt; it includes the baseline.</text>
+<path d="M650 652 H780" fill="none" stroke="#2867aa" stroke-width="2" marker-end="url(#yaml)"/>
+<text x="664" y="640" class="small" style="fill:#2867aa">copy</text>
+<rect x="36" y="742" width="614" height="206" rx="12" fill="#fff6e8" stroke="#a56414" stroke-opacity=".35"/>
+<rect x="36" y="758" width="4" height="174" rx="2" fill="#a56414"/>
+<text x="56" y="774" class="heading" style="fill:#a56414">Local runner rules (not input fields or Harbor UUIDs)</text>
+<text x="56" y="802" class="code">agent ordinal i = 0  →  agent-0000</text>
+<text x="56" y="832" class="code">job name = run-0001</text>
+<text x="56" y="862" class="code">task_id = inspect-files  (from tasks.yml)</text>
+<text x="56" y="893" class="small">Current runner: one attempt per pair; directory evidence.</text>
+<text x="56" y="925" class="small">These ID spellings are the local runner’s convention.</text>
+<rect x="800" y="742" width="764" height="206" rx="12" fill="#fff6e8" stroke="#a56414" stroke-opacity=".35"/>
+<rect x="800" y="758" width="4" height="174" rx="2" fill="#a56414"/>
+<text x="820" y="774" class="heading" style="fill:#a56414">results.json → execution_results[]</text>
+<text x="820" y="802" class="code">agent_run_id: &quot;agent-0000/run-0001&quot;</text>
+<text x="820" y="837" class="code">evaluation:</text>
+<text x="820" y="865" class="code">  evaluation_id: &quot;agent-0000/inspect-files&quot;</text>
+<text x="820" y="893" class="code">  execution: 1</text>
+<text x="820" y="925" class="code">native_results_format: &quot;directory&quot;</text>
+<path d="M650 802 H780" fill="none" stroke="#a56414" stroke-width="2" marker-end="url(#generated)"/>
+<text x="664" y="790" class="small" style="fill:#a56414">generate</text>
+<path d="M650 865 H780" fill="none" stroke="#a56414" stroke-width="2" marker-end="url(#generated)"/>
+<text x="664" y="853" class="small" style="fill:#a56414">combine</text>
+<rect x="36" y="968" width="614" height="252" rx="12" fill="#eaf7f2" stroke="#167964" stroke-opacity=".35"/>
+<rect x="36" y="984" width="4" height="220" rx="2" fill="#167964"/>
+<text x="56" y="1000" class="heading" style="fill:#167964">Execution settings + Harbor’s native trial output</text>
+<text x="56" y="1028" class="code">experiment.yml → scoring.metric</text>
+<text x="56" y="1055" class="small">Defaults to &quot;reward&quot;; chooses the verifier metric to read.</text>
+<text x="56" y="1093" class="code">Harbor result.json → verifier_result.rewards</text>
+<text x="56" y="1121" class="code">Harbor result.json → exception_info / finished_at</text>
+<text x="56" y="1157" class="small">Harbor creates each trial directory and its result.json.</text>
+<text x="56" y="1184" class="small">YAML task paths + agent.harbor + execution settings</text>
+<text x="56" y="1206" class="small">become native config.task / config.agent / environment.</text>
+<rect x="800" y="968" width="764" height="252" rx="12" fill="#eaf7f2" stroke="#167964" stroke-opacity=".35"/>
+<rect x="800" y="984" width="4" height="220" rx="2" fill="#167964"/>
+<text x="820" y="1000" class="heading" style="fill:#167964">Normalized fields + preserved native evidence</text>
+<text x="820" y="1028" class="code">metrics[&quot;reward&quot;]: {value: 1.0, reason: null}</text>
+<text x="820" y="1061" class="code">status: &quot;succeeded&quot;  # or &quot;error&quot;</text>
+<text x="820" y="1087" class="small">Runner derives status and score from the native trial result.</text>
+<text x="820" y="1121" class="code">native_results_path:</text>
+<text x="820" y="1149" class="code">  &quot;agents/agent-0000/run-0001/&lt;trial&gt;&quot;</text>
+<text x="820" y="1177" class="small">Relative to execution-results/; &lt;trial&gt; is named by Harbor.</text>
+<text x="820" y="1206" class="code">  └─ result.json  ← Harbor’s format, preserved as evidence</text>
+<path d="M650 1028 H780" fill="none" stroke="#2867aa" stroke-width="2" marker-end="url(#yaml)"/>
+<text x="664" y="1016" class="small" style="fill:#2867aa">metric key</text>
+<path d="M650 1093 H736 V1041 H780 M736 1093 V1061 H780" fill="none" stroke="#167964" stroke-width="2" marker-end="url(#harbor)"/>
+<text x="664" y="1081" class="small" style="fill:#167964">extract</text>
+<path d="M650 1177 H780" fill="none" stroke="#167964" stroke-width="2" marker-end="url(#harbor)"/>
+<text x="664" y="1165" class="small" style="fill:#167964">locate</text>
+<rect x="36" y="1240" width="614" height="140" rx="12" fill="#f1f4f8" stroke="#65748b" stroke-opacity=".35"/>
+<rect x="36" y="1256" width="4" height="108" rx="2" fill="#65748b"/>
+<text x="56" y="1272" class="heading" style="fill:#65748b">No YAML or CLI source in the local workflow</text>
+<text x="56" y="1300" class="body">Optional metadata with no value set by the local runner.</text>
+<text x="56" y="1331" class="small">framework_profile_id has no local profile configuration.</text>
+<text x="56" y="1358" class="small">The model only checks that it is consistent per agent run.</text>
+<rect x="800" y="1240" width="764" height="140" rx="12" fill="#f1f4f8" stroke="#65748b" stroke-opacity=".35"/>
+<rect x="800" y="1256" width="4" height="108" rx="2" fill="#65748b"/>
+<text x="820" y="1272" class="heading" style="fill:#65748b">results.json → execution_results[] defaults</text>
+<text x="820" y="1300" class="code">framework_profile_id: null</text>
+<text x="820" y="1331" class="code">outcome_category: null</text>
+<text x="820" y="1358" class="code">unavailable_evidence: {}</text>
+<path d="M650 1331 H780" fill="none" stroke="#65748b" stroke-width="2" marker-end="url(#other)"/>
+<text x="664" y="1319" class="small" style="fill:#65748b">default</text>
+<rect x="36" y="1400" width="614" height="160" rx="12" fill="#f1f4f8" stroke="#65748b" stroke-opacity=".35"/>
+<rect x="36" y="1416" width="4" height="128" rx="2" fill="#65748b"/>
+<text x="56" y="1432" class="heading" style="fill:#65748b">Explicitly missing evidence (contract capability)</text>
+<text x="56" y="1460" class="body">A producer or importer supplies a reason for missing data.</text>
+<text x="56" y="1491" class="small">The current local runner rejects incomplete jobs; it does</text>
+<text x="56" y="1515" class="small">not manufacture these missing-result entries.</text>
+<text x="56" y="1541" class="small">native_results names the evidence category, not a file.</text>
+<rect x="800" y="1400" width="764" height="160" rx="12" fill="#f1f4f8" stroke="#65748b" stroke-opacity=".35"/>
+<rect x="800" y="1416" width="4" height="128" rx="2" fill="#65748b"/>
+<text x="820" y="1432" class="heading" style="fill:#65748b">Example missing entry in execution_results[]</text>
+<text x="820" y="1460" class="code">status: &quot;missing&quot;</text>
+<text x="820" y="1488" class="code">metrics.reward: {value: null, reason: &quot;worker never started&quot;}</text>
+<text x="820" y="1516" class="code">unavailable_evidence:</text>
+<text x="820" y="1544" class="code">  native_results: &quot;worker never started&quot;</text>
+<path d="M650 1491 H780" fill="none" stroke="#65748b" stroke-width="2" marker-end="url(#other)"/>
+<text x="664" y="1479" class="small" style="fill:#65748b">declare</text>
+<path d="M36 1588 H1564" stroke="#cbd5e1"/>
+<text x="36" y="1618" class="heading">Reading this map</text>
+<text x="36" y="1646" class="small">results.json (plural) is our index; each result.json (singular) is native Harbor evidence. Subsets and coverage settings feed later analysis.</text>
+<text x="36" y="1673" class="small">Uses the revised #105 schema with #106’s local generation rules; downstream producer field-name updates are still pending. Ancillary receipts omitted.</text>
+</svg>
