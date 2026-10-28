@@ -307,6 +307,7 @@ def test_stale_decisions_are_rejected(audit, monkeypatch, change):
 def test_observation_never_reads_unselected_traces(audit, monkeypatch, tmp_path, block):
     state, value, _ = selected(audit)
     state["repository"] = str(tmp_path)
+    value["selection_manifest"] = "runs/selection.json"
     if block == "suite_pending":
         value["suites"] = audit.new_record()["suites"]
     elif block == "trace_pending":
@@ -331,7 +332,8 @@ def test_observation_never_reads_unselected_traces(audit, monkeypatch, tmp_path,
 def test_observation_hashes_only_declared_files_without_writes(audit, tmp_path):
     state, value, _ = selected(audit)
     state["repository"] = str(tmp_path)
-    paths = value["suite_files"] + value["trace_files"] + [value["specification"]]
+    value["selection_manifest"] = ".eval-author/selection.json"
+    paths = value["suite_files"] + value["trace_files"] + [value["specification"], value["selection_manifest"]]
     for name in paths + ["unrelated-authoring-evidence.json"]:
         path = tmp_path / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -380,3 +382,9 @@ def test_retained_prepared_trace_cannot_exhaust_approved_input_hashing(audit, tm
     audit.transition(tmp_path, previous, state)
     result = audit.derive(state, retained)
     assert result["checks_digest"] == checks_digest and result["checks_approved"] and result["measurement_complete"]
+
+
+def test_legacy_lifecycle_without_selection_manifest_validates(audit):
+    value = audit.new_record()
+    value.pop("selection_manifest", None)
+    audit.validate(value)
