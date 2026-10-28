@@ -3,9 +3,12 @@
 
 # Validation report
 
-The validation tool checks an execution’s [results directory](results-format.md)
-against its prepared benchmark inputs and produces a report. The execution
-results format and its constraints are defined separately from this output.
+The validation tool exists to check that saved execution results satisfy the
+[results format and constraints](results-format.md#constraints) before score
+analysis. It reads the results index and raw execution evidence, verifies that
+every configured agent/task pair is accounted for, and checks that the recorded
+outcomes agree with the native evidence and prepared inputs. When those checks
+pass, it produces the report described here.
 
 ## Generating the report
 
