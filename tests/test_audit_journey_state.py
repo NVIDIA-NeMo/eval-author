@@ -209,19 +209,44 @@ def test_audit_updates_cannot_change_authoring_progress(modules, tmp_path, journ
     assert state.state_path(tmp_path).read_bytes() == before
 
 
-@pytest.mark.parametrize("scoped", [False, True])
+@pytest.mark.parametrize(
+    "scope",
+    [
+        pytest.param(..., id="absent"),
+        pytest.param({}, id="empty_object"),
+        pytest.param({"confirmed": True, "cases": ["refund"]}, id="object"),
+        pytest.param([], id="empty_array"),
+        pytest.param(["refund", {"source": "retained decision"}], id="array"),
+        pytest.param("", id="empty_string"),
+        pytest.param("Historical refund scope", id="string"),
+        pytest.param(0, id="zero"),
+        pytest.param(2, id="integer"),
+        pytest.param(1.5, id="number"),
+        pytest.param(False, id="false"),
+        pytest.param(True, id="true"),
+        pytest.param(None, id="null"),
+    ],
+)
 @pytest.mark.parametrize("return_journey", ["create", "expand"])
 def test_audit_ethos_change_preserves_prior_authoring_until_return(
-    modules, tmp_path, monkeypatch, scoped, return_journey
+    modules, tmp_path, monkeypatch, scope, return_journey
 ):
     state, _ = modules
     saved = ready(modules, tmp_path)
     for journey in ("create", "expand"):
-        if scoped:
-            saved["scopes"][journey] = {"confirmed": True, "cases": ["refund"]}
+        if scope is not Ellipsis:
+            saved["scopes"][journey] = copy.deepcopy(scope)
         saved["journey_status"][journey] = "complete"
     state.save(tmp_path, saved)
+    for journey in (return_journey, "audit"):
+        unchanged = state.initialize(tmp_path, journey=journey, setup="harbor")
+        assert unchanged["scopes"] == saved["scopes"]
+        assert unchanged["journey_status"] == saved["journey_status"]
     before = state.state_path(tmp_path).read_bytes()
+    expected_scope = {} if scope is Ellipsis else copy.deepcopy(scope)
+    if not isinstance(expected_scope, dict):
+        expected_scope = {"legacy_context": expected_scope}
+    expected_scope.update(needs_review=True, confirmed=False)
     with monkeypatch.context() as patch:
         patch.setattr(state.first_eval_state, "observe", forbidden)
         patch.setattr(state.first_eval_state, "progress", forbidden)
@@ -234,9 +259,10 @@ def test_audit_ethos_change_preserves_prior_authoring_until_return(
         assert state.state_path(tmp_path).read_bytes() == before
         for journey in ("create", "expand"):
             assert loaded["journey_status"][journey] == "complete"
-            assert loaded["scopes"][journey]["needs_review"]
-            if scoped:
-                assert loaded["scopes"][journey]["cases"] == saved["scopes"][journey]["cases"]
+            assert loaded["scopes"][journey] == expected_scope
+        invalidated = copy.deepcopy(loaded)
+        state.invalidate_scopes(loaded)
+        assert loaded == invalidated
         state.initialize(tmp_path, journey="audit")
         confirmed = state.confirm_ethos(
             tmp_path,
@@ -245,11 +271,11 @@ def test_audit_ethos_change_preserves_prior_authoring_until_return(
             validation="Updated Ethos passed validation",
         )
         assert confirmed["journey_status"] == {"create": "complete", "expand": "complete"}
+        assert confirmed["scopes"] == loaded["scopes"]
     returned = state.initialize(tmp_path, journey=return_journey, setup="harbor")
     assert returned["journey_status"] == {"create": "in_progress", "expand": "in_progress"}
     assert not state.checklist(returned)[2]["complete"]
-    if scoped:
-        assert returned["scopes"][return_journey]["cases"] == saved["scopes"][return_journey]["cases"]
+    assert returned["scopes"] == loaded["scopes"]
 
 
 @pytest.mark.parametrize("change", ["changed", "missing"])

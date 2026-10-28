@@ -214,6 +214,8 @@ coverage or validate a runnable evaluation task.
 
 Shared internal progress and agreed scope are stored in
 `.eval-author/.working/journey-state.json`; they are not a second report or plan.
+When an audit reopens authoring review, legacy scope values that are not JSON
+objects are retained under `legacy_context` alongside the scope's review flags.
 
 `.eval-author/.working/` holds temporary construction files and the current state
 needed to recover unfinished work. Final task files and READMEs stay at their

@@ -364,7 +364,9 @@ def invalidate_scopes(state: dict) -> None:
     if state["journey"] == "audit":
         for journey in ("create", "expand"):
             if state["journey_status"].get(journey) == "complete":
-                state["scopes"].setdefault(journey, {})
+                scope = state["scopes"].setdefault(journey, {})
+                if not isinstance(scope, dict):
+                    state["scopes"][journey] = {"legacy_context": scope}
     for scope in state["scopes"].values():
         if isinstance(scope, dict):
             scope["needs_review"] = True
