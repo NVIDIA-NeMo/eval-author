@@ -352,6 +352,10 @@ that boundary. It cannot establish content approval or task acceptance. Treat
 saved approvals as historical, and defer reports, task-readiness checks, and
 artifact inspection. After completing and saving an unblocked prerequisite pass,
 omit `--state-only` so normal commands reconcile current content and evidence.
+For the audit journey, normal commands reconcile only Ethos: `task_readiness`,
+`first_eval_observations`, and `first_eval` are null, and creation progress cannot
+be updated until an authoring journey is selected. Retained authoring evidence
+does not select it as audit input.
 While the current journey is `audit`, `--state-only update` also merges the
 nonempty strings `scopes.audit.framework` and `scopes.audit.framework_source`
 into the existing scope. These observations persist even when prerequisites are
@@ -366,7 +370,7 @@ the top-level schema or grant approvals to older records.
 Put final task behavior in task READMEs and audit checks
 in the audit report. Do not create a separate first-eval or expansion plan file.
 Retire `first-eval.md`, `audit-progress.md`, and intent notes as active writers.
-Import legacy records once as unreviewed snapshots with provenance. Review the
+Import legacy records once as unreviewed references with provenance. Review the
 imported decisions before applying them; old notes never establish approval
 automatically, even when they describe a prior approval. Preserve conflicts and malformed
 records for resolution; do not replace them with fresh success state.
@@ -393,17 +397,14 @@ appropriate, never rewritten to match new decisions.
 Changing the agent retains cases, traces, Ethos findings, answers, draft references,
 and unresolved blockers while reopening the affected approvals. Agent-dependent
 prerequisite evidence keeps its source with status `unknown` for reassessment.
-For a change from a previously named agent, the helper retains the prior state in
-a content-hashed snapshot under `.eval-author/.working/history/agents/`, referenced
-by `ethos.source_findings`. This preserves the former agent identity, approval
-provenance, completion records, and pending work as historical evidence;
-`journey-state.json` remains the authoritative resume record. Review applicability
-before using that context for the new agent. Reuse the same agent identifier on
+`journey-state.json` remains the authoritative resume record; changing the agent
+does not create a separate state archive. Review applicability before using
+existing findings for the new agent. Reuse the same agent identifier on
 resume; different spellings do not establish that two agents are equivalent.
 
 All new working files, intermediate inputs, and temporary files live under
 `.eval-author/.working/`. Historical evidence with bound paths remains readable.
-Review imported snapshots before choosing how to continue interrupted legacy
+Review imported references before choosing how to continue interrupted legacy
 tasks. Keep those tasks at their original paths, preserving bound evidence and
 relative assets; explicitly select the active legacy task root in the shared
 journey scope when continuing it. Do not treat historical duplicate copies as
@@ -413,6 +414,30 @@ be written or read, retain observed findings in conversation and use the
 [state-failure procedure](#when-prerequisite-state-is-unavailable).
 Independent prerequisite checks may finish, but Ethos and downstream work wait
 until the pass can be saved. Preserve existing state rather than replacing it.
+
+## Temporary work and recovery
+
+`.eval-author/.working/` is temporary construction space and recovery state for
+unfinished work. Keep the current decisions, inputs, and validation evidence
+needed to resume that work; reference existing files instead of copying them.
+Final tasks and their READMEs stay at their documented permanent paths. Source
+control owns task and grader revision history. Eval Author must not create
+archive files or an `archives/` directory. Users decide how long to keep their
+results; do not expire or delete their results automatically.
+
+Agents may explore and use intermediate work freely. Keep routine state-update
+payloads, helper responses, observations, renderer inputs, polling output, and
+one-off scripts in memory or disposable scratch instead of saving every step.
+Use stdin where supported and continue obtaining fresh reconciled observations
+where the workflow requires them. Current approvals and claims still require
+their matching revisions and available evidence.
+
+When a tool needs a scratch file, use the existing
+[`working_paths.scratch_directory`](../scripts/working_paths.py) context manager
+under `.eval-author/.working/tmp/` and consume it within that context. It removes
+the directory on ordinary success and failure. Put outputs needed by the current
+workflow at their documented locations before recording evidence paths; do not
+bind approval or validation to a file that the scratch context will remove.
 
 ## Hand off
 
@@ -428,16 +453,18 @@ onboarding or convert confirmation into a claim of successful runtime execution.
 ## State helper commands
 
 Run with the assistant's Python 3.11+; this helper uses the standard library.
-Replace `<skill_dir>` with the core skill directory. Keep update payloads under
-`.eval-author/.working/tmp/` and use the revision returned by `show` to avoid
-replacing newer decisions.
+Replace `<skill_dir>` with the core skill directory. The `-` in `--input -`
+selects stdin for the partial JSON update; keep it when supplying input this way.
+Keep responses in memory under the
+[temporary-work policy](#temporary-work-and-recovery). Use the revision returned by
+`show` to avoid replacing newer decisions.
 
 ```bash
 python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository --state-only show
 python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository --state-only init \
   --agent account-support --journey create --setup gym
 python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository --state-only update \
-  --input /absolute/repository/.eval-author/.working/tmp/answers.json \
+  --input - \
   --expected-revision 1
 ```
 
@@ -523,19 +550,17 @@ python3 <skill_dir>/scripts/journey_state.py --repo /new/absolute/repository --s
 
 `rebind` is the explicit state-recovery exception: it clears approvals without
 inspecting Ethos or task evidence. Resume prerequisite commands with `--state-only`.
-It retains the exact previous state in a content-hashed snapshot under
-`.eval-author/.working/history/repositories/`, referenced by
-`ethos.source_findings`; `journey-state.json` remains the authoritative resume
-record. Existing agent history, findings, answers, draft and evidence references,
-scope choices, priorities, legacy imports, and unresolved blockers survive.
-Historical artifacts and paths inside them are not rewritten. Inspect any
-absolute references and recheck access in the destination before reusing them.
+`journey-state.json` remains the authoritative resume record, without a separate
+copy of the previous state. Existing findings, answers, draft and evidence
+references, scope choices, priorities, legacy imports, and unresolved blockers
+remain available for reassessment. Existing artifacts and paths inside them are
+not rewritten. Inspect any absolute references and recheck access in the
+destination before reusing them.
 
 All prerequisite statuses become `unknown` with their sources retained. Ethos
 and draft approval reopen, scopes require review, and journey completion resets.
-Accepted tasks become `draft`, keeping task and evidence hashes; their previous
-acceptance provenance remains in the snapshot. Recheck applicable prerequisites,
-review the saved intent and scope, and complete the existing acceptance workflow
+Accepted tasks become `draft`, keeping task and evidence hashes. Recheck
+applicable prerequisites, review the saved intent and scope, and complete the existing acceptance workflow
 before recording acceptance again. A rebind does not establish that the agent,
 environment, or task still works. `init` resumes normally after recovery; use its
 agent selection if the intended agent also changed. A stale revision or a
@@ -572,8 +597,9 @@ while preserving the recorded decision for review. An unrecorded task is
 **Unknown**; discovery, a task path, or a successful run cannot infer acceptance.
 The report reads this state for both the Harbor task directory and a NeMo Gym
 manifest under the nearest explicitly recorded task root. Report refresh and
-`show` do not accept tasks or rerun checks. Use `show`'s `task_readiness` for
-current status; `state.tasks` retains the original decision and provenance.
+`show` do not accept tasks or rerun checks. In an authoring journey, use `show`'s
+`task_readiness` for current status; `state.tasks` retains the original decision
+and provenance.
 
 Keep status labels out of task-local READMEs: those files are part of the task
 revision used by execution receipts. Display status in the generated suite
@@ -624,6 +650,6 @@ python3 <skill_dir>/scripts/journey_state.py --repo /absolute/repository import-
 The digest is for the exact saved bytes at `ethos.path`. An explicit `--ethos`
 must match that selection; the omitted flag retains the legacy `ETHOS.md`
 default. The digest cannot be set via an arbitrary state update.
-`import-legacy` retains old notes as unreviewed snapshots; review them before
+`import-legacy` records old notes as unreviewed references; review them before
 recording current decisions. Errors leave the
 prior valid record intact and never imply that prerequisites or Ethos passed.

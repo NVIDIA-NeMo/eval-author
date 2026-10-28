@@ -130,7 +130,7 @@ it never answered.
 ## Step 1 — Explore the codebase
 
 Time-box this to ~5 minutes of tool use. Read first, ask second. Greenfield
-projects will turn up nothing here, which is fine — move to the intent
+projects will find nothing here, which is fine — move to the intent
 interview and ask for Role first.
 
 1. **Find agent definitions and entry points.** Look for agent configs,

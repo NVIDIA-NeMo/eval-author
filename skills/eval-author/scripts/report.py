@@ -1393,20 +1393,7 @@ def refresh(
                 (markdown_output, markdown_content, old_markdown),
                 (output, content, old_bytes),
             ]
-            if old_state is None and previous is not None:
-                try:
-                    imported_path = working_path(repo, "report", "legacy-import.json")
-                except ValueError as exc:
-                    raise ReportError(str(exc)) from exc
-                if not imported_path.exists():
-                    imported = (
-                        json.dumps(previous, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n"
-                    ).encode()
-                    if len(imported) > MAX_REPORT_BYTES:
-                        raise ReportError("Legacy report snapshot exceeds the bounded output size.")
-                    outputs.insert(0, (imported_path, imported, None))
-            # Prepare every file before publishing. Preserve any import, then commit
-            # state before projections; a refresh repairs an interrupted publication.
+            # Prepare every file before publishing; a refresh repairs an interrupted publication.
             for destination, rendered, old in outputs:
                 if rendered == old:
                     continue

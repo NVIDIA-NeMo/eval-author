@@ -41,8 +41,10 @@ def facts(modules, repo):
     return creation.progress(repo, state.load_state(repo))
 
 
-def snapshots(repo, value):
-    return list(importlib.import_module("first_eval_history").snapshots(repo, value))
+def assert_current_record_only(repo, value):
+    assert "history" not in value and "history_head" not in value
+    assert not (repo / ".eval-author/.working/history").exists()
+    assert not (repo / ".eval-author/.working/archives").exists()
 
 
 def start(modules, repo, provider="harbor", examples=None):
@@ -417,7 +419,7 @@ def test_changed_suite_needs_a_separately_saved_current_presentation(modules, tm
     prior = facts(modules, tmp_path)
     before = modules[0].state_path(tmp_path).read_bytes()
     saved_value = state["scopes"]["create"]["first_eval"]
-    history = snapshots(tmp_path, saved_value)
+    assert_current_record_only(tmp_path, saved_value)
     assert prior["suite_review_ready"] and prior["suite_review_presented"]
     assert prior["suite_approved"] is already_approved
 
@@ -444,7 +446,7 @@ def test_changed_suite_needs_a_separately_saved_current_presentation(modules, tm
     with pytest.raises(ValueError, match="Present the current full suite"):
         save(modules, tmp_path, value)
     assert modules[0].state_path(tmp_path).read_bytes() == before
-    assert snapshots(tmp_path, modules[0].load_state(tmp_path)["scopes"]["create"]["first_eval"]) == history
+    assert modules[0].load_state(tmp_path)["scopes"]["create"]["first_eval"] == saved_value
     assert facts(modules, tmp_path)["suite_approved"] is already_approved
 
     approval = value.pop("suite_approval")
@@ -457,9 +459,8 @@ def test_changed_suite_needs_a_separately_saved_current_presentation(modules, tm
     assert facts(modules, tmp_path)["suite_approved"]
     assert facts(modules, tmp_path)["suite_digest"] == revised["suite_digest"]
     assert retained["tasks"] == saved_value["tasks"]
-    retained_history = snapshots(tmp_path, retained)
-    assert all(item in retained_history for item in history)
-    assert any(item["plan"] == saved_value["plan"] for item in retained_history)
+    assert retained["plan"] == value["plan"]
+    assert_current_record_only(tmp_path, retained)
 
 
 def test_suite_approval_is_revision_bound_but_survives_validation_and_report_refresh(modules, tmp_path):
@@ -713,7 +714,9 @@ def test_first_task_build_checkpoints_progress_without_granting_other_claims(mod
     assert progress["first_task_build"]["complete"]
     assert progress["next_stage"] == "build_progress"
     assert value["first_task_build"]["active_step"] is None
-    assert modules[0].load_state(tmp_path)["scopes"]["create"]["first_eval"]["history_head"]
+    retained = modules[0].load_state(tmp_path)["scopes"]["create"]["first_eval"]
+    assert retained["first_task_build"] == value["first_task_build"]
+    assert_current_record_only(tmp_path, retained)
 
 
 def test_first_task_build_retains_scoped_evidence_when_grader_changes(modules, tmp_path):
@@ -1188,7 +1191,7 @@ def test_state_only_resume_never_observes_creation_or_infers_fresh_evidence(modu
     assert modules[0].state_path(tmp_path).read_bytes() == before
 
 
-@pytest.mark.parametrize("decision", ["accepted", "declined"])
+@pytest.mark.parametrize("decision", ["pending", "accepted", "declined"])
 def test_audit_decision_preserves_complete_creation_and_missing_audit_evidence_blocks_only_audit(
     modules, tmp_path, decision
 ):
@@ -1198,19 +1201,162 @@ def test_audit_decision_preserves_complete_creation_and_missing_audit_evidence_b
     assert facts(modules, tmp_path)["complete"]
     assert saved["next_handoff"] == ("eval-author-audit" if decision == "accepted" else None)
     if decision == "accepted":
-        audit = modules[0].initialize(tmp_path, journey="audit")
-        modules[0].update(
+        modules[0].initialize(tmp_path, journey="audit", state_only=True)
+        audit = modules[0].update(
             tmp_path, {"blockers": [{"id": "data", "phase": "audit", "message": "No audit traces selected"}]}
         )
-        assert audit["ethos"] == saved["ethos"]
-        assert audit["scopes"]["create"] == saved["scopes"]["create"]
-        assert audit["journey_status"]["create"] == "complete"
+        for field in ("ethos", "scopes", "journey_status"):
+            assert audit[field] == saved[field]
         assert facts(modules, tmp_path)["complete"]
     else:
         assert saved["journey"] == "create"
+    assert facts(modules, tmp_path)["audit_decision"] == decision
 
 
-def test_revision_checks_history_and_current_ethos_review_cannot_be_bypassed(modules, tmp_path):
+def forbid_audit_creation_reads(modules, repo, monkeypatch):
+    state, creation = modules
+    metadata = {repo / "ETHOS.md", state.state_path(repo), repo / ".eval-author/.working/journey-state.lock"}
+    artifacts = {path for path in repo.rglob("*") if path.is_file()} - metadata
+
+    def fail(*args, **kwargs):
+        pytest.fail("Audit metadata reconciliation must not inspect creation or trace evidence")
+
+    for name in ("observe", "progress", "transition"):
+        monkeypatch.setattr(creation, name, fail)
+    for name in ("task_lifecycle", "task_digest"):
+        monkeypatch.setattr(state, name, fail)
+    file_digest = state._file_digest
+
+    def guard_digest(path, remaining):
+        if path != repo / "ETHOS.md":
+            fail()
+        return file_digest(path, remaining)
+
+    monkeypatch.setattr(state, "_file_digest", guard_digest)
+    for name in ("open", "stat", "lstat"):
+        original = getattr(Path, name)
+
+        def guard(path, *args, _original=original, **kwargs):
+            if path in artifacts:
+                fail()
+            return _original(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, name, guard)
+    for name in ("glob", "rglob", "iterdir"):
+        original = getattr(Path, name)
+
+        def guard_scan(path, *args, _original=original, **kwargs):
+            if path == repo or path.is_relative_to(repo):
+                fail()
+            return _original(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, name, guard_scan)
+
+
+@pytest.mark.parametrize("selection", ["candidates", "selected_subset"])
+@pytest.mark.parametrize("ethos_change", [None, "edit", "missing"])
+@pytest.mark.parametrize("origin", ["create", "expand"])
+def test_normal_audit_metadata_operations_preserve_creation_without_reading_its_evidence(
+    modules, tmp_path, monkeypatch, selection, ethos_change, origin
+):
+    complete(modules, tmp_path)
+    state, _ = modules
+    state.initialize(tmp_path, journey=origin, state_only=True)
+    original = state.load_state(tmp_path)
+    candidates = [evidence(tmp_path, f"runs/{name}.json")["path"] for name in ("selected", "other")]
+    if ethos_change == "edit":
+        (tmp_path / "ETHOS.md").write_text("# Revised behavior\n")
+    elif ethos_change == "missing":
+        (tmp_path / "ETHOS.md").unlink()
+    audit_scope = {"trace_candidates": candidates}
+    if selection == "selected_subset":
+        audit_scope.update(traces=candidates[:1], exclusions=candidates[1:], selection_source="Actual source choice")
+
+    forbid_audit_creation_reads(modules, tmp_path, monkeypatch)
+    switched = state.initialize(tmp_path, journey="audit", state_only=True)
+    assert switched["scopes"]["create"] == original["scopes"]["create"]
+    assert switched["journey_status"]["create"] == "complete"
+    assert switched["ethos"] == original["ethos"]
+    state.update(
+        tmp_path,
+        {
+            "prerequisites": {
+                key: {"status": "confirmed", "source": "Current audit prerequisite evidence"}
+                for key in ("skills", "python", "data")
+            }
+        },
+        state_only=True,
+    )
+    reconciled = state.load_state(tmp_path)
+    question = reconciled["pending_question"] if ethos_change else "Which evaluation suites should this audit include?"
+    updated = state.update(
+        tmp_path,
+        {"scopes": {"audit": audit_scope}, "pending_question": question},
+        expected_revision=reconciled["revision"],
+    )
+    before = state.state_path(tmp_path).read_bytes()
+    output = state.view(state.load_state(tmp_path))
+    assert output["first_eval"] is None and output["first_eval_observations"] is None
+    assert output["task_readiness"] is None and output["artifact_checks_deferred"] is False
+    assert updated["scopes"]["create"]["first_eval"] == original["scopes"]["create"]["first_eval"]
+    assert updated["scopes"]["audit"] == audit_scope and updated["pending_question"] == question
+    if ethos_change:
+        assert updated["ethos"]["stage"] == "review" and updated["ethos"]["confirmed_digest"] is None
+        assert updated["next_handoff"] == "ethos-orchestrate"
+        assert question == "ETHOS.md changed or is unavailable; review its intended behavior again."
+        assert not updated["journey_status"]
+    else:
+        assert updated["ethos"] == original["ethos"]
+        assert updated["journey_status"]["create"] == "complete"
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("journey", ["create", "expand"])
+@pytest.mark.parametrize("changed", ["task", "run_evidence"])
+def test_leaving_audit_reconciles_stale_creation_evidence(modules, tmp_path, journey, changed):
+    complete(modules, tmp_path)
+    state, _ = modules
+    value = state.load_state(tmp_path, state_only=True)["scopes"]["create"]["first_eval"]
+    state.initialize(tmp_path, journey="audit", state_only=True)
+    path = (
+        tmp_path / value["tasks"]["refund"]["path"] / "instruction.md"
+        if changed == "task"
+        else tmp_path / value["runs"][0]["evidence"][0]["path"]
+    )
+    path.write_text("Changed after the authoring review\n")
+    audit = state.load_state(tmp_path)
+    assert audit["journey_status"]["create"] == "complete"
+    assert audit["scopes"]["create"]["first_eval"] == value
+    assert state.view(audit)["first_eval"] is None
+
+    state.initialize(tmp_path, journey=journey, state_only=True)
+    current = state.load_state(tmp_path)
+    output = state.view(current)
+    assert current["journey_status"]["create"] == "in_progress"
+    assert output["first_eval"] is not None and not output["first_eval"]["complete"]
+    assert output["first_eval_observations"] is not None and output["task_readiness"] is not None
+    assert current["scopes"]["create"]["first_eval"] == value
+
+
+@pytest.mark.parametrize("change", ["typed_scope", "clear_scope", "completion"])
+def test_active_audit_cannot_modify_creation_scope_or_completion(modules, tmp_path, monkeypatch, change):
+    value = complete(modules, tmp_path)
+    state, _ = modules
+    audit = state.initialize(tmp_path, journey="audit", state_only=True)
+    patch = {
+        "typed_scope": {"scopes": {"create": {"first_eval": value}}},
+        "clear_scope": {"scopes": {"create": {}}},
+        "completion": {"journey_status": {"create": "complete"}},
+    }[change]
+    before = state.state_path(tmp_path).read_bytes()
+    forbid_audit_creation_reads(modules, tmp_path, monkeypatch)
+    with pytest.raises(ValueError, match="[Aa]uthoring|[Cc]reation"):
+        state.update(tmp_path, patch, expected_revision=audit["revision"])
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert state.load_state(tmp_path, state_only=True) == audit
+
+
+def test_revision_checks_and_current_ethos_review_cannot_be_bypassed(modules, tmp_path):
     value = ready(modules, tmp_path)
     saved = modules[0].load_state(tmp_path)
     with pytest.raises(ValueError, match="expected-revision"):
@@ -1223,7 +1369,7 @@ def test_revision_checks_history_and_current_ethos_review_cannot_be_bypassed(mod
     value["plan"]["breadth"] = "Changed design"
     with pytest.raises(ValueError, match="Confirm ETHOS.md"):
         save(modules, tmp_path, value)
-    assert saved["scopes"]["create"]["first_eval"]["history_head"]
+    assert_current_record_only(tmp_path, saved["scopes"]["create"]["first_eval"])
 
 
 @pytest.mark.parametrize("execution_path", ["harbor", "gym_harbor"])
@@ -1408,7 +1554,7 @@ def saved_design_question(modules, repo, value, request="Fresh first-evaluations
 
 
 @pytest.mark.parametrize("prepared", [False, True])
-def test_saved_design_question_preserves_history_but_stops_automatic_authoring(modules, tmp_path, prepared):
+def test_saved_design_question_preserves_current_progress_but_stops_automatic_authoring(modules, tmp_path, prepared):
     value = ready(modules, tmp_path) if prepared else start(modules, tmp_path)
     if not prepared:
         approve(modules, tmp_path, value)
@@ -1419,7 +1565,7 @@ def test_saved_design_question_preserves_history_but_stops_automatic_authoring(m
     assert not any(derived[key] for key in ("scope_approved", "first_task_approved", "execution_authorized"))
     retained = saved["scopes"]["create"]["first_eval"]
     assert all(retained[key] == prior[key] for key in ("plan_approval", "tasks", "runs"))
-    assert snapshots(tmp_path, retained)[0]["plan_approval"] == prior["plan_approval"]
+    assert_current_record_only(tmp_path, retained)
     with pytest.raises(ValueError, match="saved-design choice"):
         author(modules, tmp_path, value, "refund")
 
@@ -1500,7 +1646,6 @@ def test_saved_design_revise_or_new_preserves_artifacts_runs_and_reopens_the_rig
     assert facts(modules, tmp_path)["next_stage"] == ("traces" if decision == "new" else "proposal")
     assert not facts(modules, tmp_path)["execution_authorized"]
     assert (modules[1].trace_choice(updated) is None) is (decision == "new")
-    retained.pop("history_head", None)
     retained["plan"]["trace_choice"] = "none"
     save(modules, tmp_path, retained)
     approve(modules, tmp_path, retained)
@@ -1510,7 +1655,7 @@ def test_saved_design_revise_or_new_preserves_artifacts_runs_and_reopens_the_rig
 
 @pytest.mark.parametrize("decision", ["revise", "new"])
 @pytest.mark.parametrize("audit_status", ["pending", "accepted", "declined"])
-def test_replacing_saved_design_retires_prior_audit_invitation_without_losing_history(
+def test_replacing_saved_design_retires_prior_audit_invitation_and_retains_current_work(
     modules, tmp_path, decision, audit_status
 ):
     value = complete(modules, tmp_path)
@@ -1523,8 +1668,8 @@ def test_replacing_saved_design_retires_prior_audit_invitation_without_losing_hi
     retained = updated["scopes"]["create"]["first_eval"]
     assert retained["audit_invitation"] is None and updated["next_handoff"] is None
     assert facts(modules, tmp_path)["audit_decision"] is None
-    assert snapshots(tmp_path, retained)[0]["audit_invitation"] == previous_invitation
-    retained.pop("history_head")
+    assert retained["tasks"] == value["tasks"] and retained["runs"] == value["runs"]
+    assert_current_record_only(tmp_path, retained)
     retained["plan"]["trace_choice"] = "none"
     save(modules, tmp_path, retained)
     approve(modules, tmp_path, retained)
@@ -1702,7 +1847,7 @@ def test_terminal_or_control_native_job_supersedes_live_activity(modules, tmp_pa
         save(modules, tmp_path, value)
 
 
-def test_partial_selected_results_keep_the_new_job_progress_visible_and_retain_history(modules, tmp_path):
+def test_partial_selected_results_keep_current_job_progress_and_completed_attempts(modules, tmp_path):
     value = ready(modules, tmp_path)
     select(modules, tmp_path, value)
     run(modules, tmp_path, value, run_id="partial")
@@ -1710,7 +1855,7 @@ def test_partial_selected_results_keep_the_new_job_progress_visible_and_retain_h
     value["selected_run_ids"] = ["partial"]
     save(modules, tmp_path, value)
     assert facts(modules, tmp_path)["next_stage"] == "results"
-    activity = copy.deepcopy(native_activity(modules, tmp_path, value, tasks=["policy"]))
+    native_activity(modules, tmp_path, value, tasks=["policy"])
     save(modules, tmp_path, value)
     progress = facts(modules, tmp_path)
     assert progress["next_stage"] == "run_progress"
@@ -1723,7 +1868,10 @@ def test_partial_selected_results_keep_the_new_job_progress_visible_and_retain_h
     ]
     updated = save(modules, tmp_path, value)
     retained = updated["scopes"]["create"]["first_eval"]
-    assert snapshots(tmp_path, retained)[0]["run_progress"] == activity
+    assert retained["run_progress"] == value["run_progress"]
+    assert retained["runs"][0]["id"] == "partial"
+    assert len(retained["runs"][0]["attempts"]) == 1
+    assert_current_record_only(tmp_path, retained)
     assert facts(modules, tmp_path)["run_progress"]["status"] == "waiting"
 
 
@@ -1743,20 +1891,26 @@ def test_native_gym_progress_preserves_selected_row_repeat_denominator(modules, 
     assert progress["suite"]["completed_attempts"] == 0
 
 
-def test_native_status_snapshots_keep_historical_bytes_and_use_fresh_paths(modules, tmp_path):
+def test_native_status_updates_replace_one_current_recovery_file_under_revision_check(modules, tmp_path):
     value = ready(modules, tmp_path)
     select(modules, tmp_path, value)
     first = copy.deepcopy(native_activity(modules, tmp_path, value))
-    save(modules, tmp_path, value)
-    value["run_progress"]["evidence"] = [
-        evidence(tmp_path, ".eval-author/jobs/active-baseline/status-2.json", "Second native status")
-    ]
-    save(modules, tmp_path, value)
-    value["run_progress"]["evidence"] = [
-        evidence(tmp_path, first["evidence"][0]["path"], "Attempted replacement of historical status")
-    ]
-    with pytest.raises(ValueError, match="fresh evidence paths"):
-        save(modules, tmp_path, value)
+    original = save(modules, tmp_path, value)
+    current_path = first["evidence"][0]["path"]
+    value["run_progress"]["evidence"] = [evidence(tmp_path, current_path, "Native job is waiting for capacity")]
+    value["run_progress"].update(status="waiting", active_task_ids=[])
+    saved = save(modules, tmp_path, value)
+    assert saved["scopes"]["create"]["first_eval"]["run_progress"] == value["run_progress"]
+    assert facts(modules, tmp_path)["run_progress"]["status"] == "waiting"
+    before = modules[0].state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="State changed"):
+        modules[0].update(
+            tmp_path,
+            {"scopes": {"create": {"first_eval": value}}},
+            expected_revision=original["revision"],
+        )
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+    assert_current_record_only(tmp_path, saved["scopes"]["create"]["first_eval"])
 
 
 def active_native_run(modules, repo, value, *, run_id="active-baseline", attempt_tasks=None):
@@ -1846,7 +2000,7 @@ def test_running_native_records_require_prior_authority_current_checks_and_selec
         save(modules, tmp_path, value)
 
 
-def test_existing_running_record_can_remain_as_stale_history_but_not_be_updated_without_authority(modules, tmp_path):
+def test_existing_running_record_stays_in_current_inventory_but_cannot_update_without_authority(modules, tmp_path):
     value = ready(modules, tmp_path)
     select(modules, tmp_path, value)
     native = active_native_run(modules, tmp_path, value)
@@ -1901,15 +2055,14 @@ def legacy_history(modules, repo, *, count=3, padding=0):
         )
     state["revision"] += count
     state["scopes"]["create"]["first_eval"]["history"] = history
-    modules[0].save(repo, state)
-    return value, state, history
+    modules[0].state_path(repo).write_text(json.dumps(state))
+    return value, state
 
 
-def test_legacy_history_reads_and_renders_without_migration_then_migrates_on_explicit_update(modules, tmp_path):
-    value, original, history = legacy_history(modules, tmp_path)
+def test_legacy_history_reads_and_renders_passively_then_is_discarded_without_archiving(modules, tmp_path):
+    value, original = legacy_history(modules, tmp_path)
     path = modules[0].state_path(tmp_path)
     before = path.read_bytes()
-    archive = tmp_path / ".eval-author/.working/history/create"
     loaded = modules[0].load_state(tmp_path)
     assert modules[0].view(loaded)["state"]["scopes"] == original["scopes"]
     renderer = importlib.import_module("conversation_renderer")
@@ -1921,206 +2074,158 @@ def test_legacy_history_reads_and_renders_without_migration_then_migrates_on_exp
             "facts": {"observations": modules[1].observe(tmp_path, loaded)},
         }
     )
-    assert rendered
-    assert path.read_bytes() == before and not archive.exists()
-
+    assert rendered and not facts(modules, tmp_path)["scope_approved"]
+    assert path.read_bytes() == before
+    assert not (tmp_path / ".eval-author/.working/history").exists()
     saved = save(modules, tmp_path, value)
-    retained = saved["scopes"]["create"]["first_eval"]
-    assert "history" not in retained
-    assert snapshots(tmp_path, retained) == [item["record"] for item in reversed(history)]
     assert saved["schema_version"] == original["schema_version"] == 1
     assert saved["revision"] == original["revision"] + 1
-    assert len(list(archive.glob("*.json"))) == len(history)
-    save(modules, tmp_path, value, pending_question="Unrelated explicit update")
-    assert len(list(archive.glob("*.json"))) == len(history)
+    assert_current_record_only(tmp_path, saved["scopes"]["create"]["first_eval"])
+    updated = save(modules, tmp_path, value, pending_question="Unrelated explicit update")
+    assert updated["pending_question"] == "Unrelated explicit update"
+    assert_current_record_only(tmp_path, updated["scopes"]["create"]["first_eval"])
 
 
-def test_legacy_history_near_state_limit_migrates_before_size_check(modules, tmp_path):
-    value, _, history = legacy_history(modules, tmp_path, count=18, padding=110000)
+def test_legacy_history_near_state_limit_is_discarded_before_saving_current_recovery(modules, tmp_path):
+    value, _ = legacy_history(modules, tmp_path, count=18, padding=110000)
     state = modules[0]
     assert state.state_path(tmp_path).stat().st_size > state.MAX_BYTES * 0.9
     value["plan"]["presentation"]["coverage_note"] = "Updated design: " + "y" * 180000
     saved = save(modules, tmp_path, value)
     retained = saved["scopes"]["create"]["first_eval"]
     assert state.state_path(tmp_path).stat().st_size < state.MAX_BYTES // 4
-    archived = snapshots(tmp_path, retained)
-    assert len(archived) == len(history) + 1
-    assert archived[-1] == history[0]["record"]
     assert retained["plan"]["presentation"]["coverage_note"] == value["plan"]["presentation"]["coverage_note"]
+    assert_current_record_only(tmp_path, retained)
 
 
-def test_hundreds_of_native_progress_updates_still_allow_terminal_review_and_audit_handoff(modules, tmp_path):
+def test_hundreds_of_progress_updates_keep_only_current_recovery_before_terminal_review_and_audit(modules, tmp_path):
     value = ready(modules, tmp_path)
     select(modules, tmp_path, value)
     activity = native_activity(modules, tmp_path, value)
-    archive = tmp_path / ".eval-author/.working/history/create"
-    revisions = 250
-    for index in range(revisions):
-        activity["source"] = f"Inspected native status update {index}: " + "Retained native status detail. " * 70
+    files = {path for path in tmp_path.rglob("*") if path.is_file()}
+    for index in range(250):
+        activity["source"] = f"Inspected native status update {index}: " + "Current native status detail. " * 70
         activity["evidence"] = [
-            evidence(tmp_path, f".eval-author/jobs/active-baseline/status-{index}.json", f"Observed {index}")
+            evidence(tmp_path, activity["evidence"][0]["path"], f"Current provider status update {index}")
         ]
         saved = save(modules, tmp_path, value)
     retained = saved["scopes"]["create"]["first_eval"]
-    assert "history" not in retained and set(retained["history_head"]) == {"revision", "digest", "path"}
-    history_bytes = sum(path.stat().st_size for path in archive.glob("*.json"))
-    assert history_bytes > modules[0].MAX_BYTES
+    assert_current_record_only(tmp_path, retained)
+    assert retained["run_progress"] == activity
+    assert {path for path in tmp_path.rglob("*") if path.is_file()} == files
     assert modules[0].state_path(tmp_path).stat().st_size < modules[0].MAX_BYTES // 10
-    archived_progress = [item["run_progress"] for item in snapshots(tmp_path, retained) if item.get("run_progress")]
-    assert len(archived_progress) == revisions - 1
-    assert {item["source"].split(":")[0] for item in archived_progress} == {
-        f"Inspected native status update {index}" for index in range(revisions - 1)
-    }
     run(modules, tmp_path, value, run_id="active-baseline")
     review_run(modules, tmp_path, value, run_id="active-baseline")
     save(modules, tmp_path, value, journey_status={"create": "complete"})
     value["audit_invitation"] = {"status": "accepted", "source": "User accepts the audit invitation"}
     saved = save(modules, tmp_path, value)
     assert saved["next_handoff"] == "eval-author-audit" and facts(modules, tmp_path)["complete"]
+    assert_current_record_only(tmp_path, saved["scopes"]["create"]["first_eval"])
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"history": [{"record": {"plan_approval": {"digest": "a" * 64, "source": "Old approval"}}}]},
+        {"history_head": {"path": ".eval-author/.working/history/create/missing.json", "digest": "a" * 64}},
+        {"history": "Obsolete metadata", "history_head": {"path": "../unselected/unknown.json"}},
+    ],
+    ids=["inline-record", "missing-snapshot", "opaque-fields"],
+)
+def test_old_history_metadata_never_reads_previous_files_or_grants_authority(modules, tmp_path, monkeypatch, metadata):
+    value = start(modules, tmp_path)
+    state = modules[0].load_state(tmp_path)
+    state["scopes"]["create"]["first_eval"].update(copy.deepcopy(metadata))
+    path = modules[0].state_path(tmp_path)
+    path.write_text(json.dumps(state))
+    before = path.read_bytes()
+    original_open = Path.open
+
+    def no_old_files(target, *args, **kwargs):
+        assert ".working/history" not in target.as_posix()
+        assert "unselected" not in target.parts
+        return original_open(target, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", no_old_files)
+    loaded = modules[0].load_state(tmp_path)
+    assert all(loaded["scopes"]["create"]["first_eval"][key] == item for key, item in metadata.items())
+    assert not facts(modules, tmp_path)["scope_approved"]
+    assert path.read_bytes() == before
+    saved = save(modules, tmp_path, value)
+    assert_current_record_only(tmp_path, saved["scopes"]["create"]["first_eval"])
+    assert not facts(modules, tmp_path)["scope_approved"]
 
 
 @pytest.mark.parametrize("field", ["history", "history_head"])
-def test_automatic_history_cannot_be_cleared_or_replaced(modules, tmp_path, field):
+def test_updates_discard_supplied_obsolete_history_fields(modules, tmp_path, field):
     value = start(modules, tmp_path)
-    value["plan"]["presentation"]["coverage_note"] = "Revised design"
+    value[field] = {"path": ".eval-author/.working/history/create/missing.json", "record": "Ignored legacy input"}
     saved = save(modules, tmp_path, value)
-    before = modules[0].state_path(tmp_path).read_bytes()
-    value[field] = [] if field == "history" else None
-    if field == "history":
-        value[field] = [{"revision": 0, "digest": modules[1].fingerprint({}), "record": {}}]
-    with pytest.raises(ValueError, match="retained automatically"):
-        save(modules, tmp_path, value)
-    assert modules[0].state_path(tmp_path).read_bytes() == before
-    assert saved["scopes"]["create"]["first_eval"]["history_head"]
+    assert_current_record_only(tmp_path, saved["scopes"]["create"]["first_eval"])
 
 
-@pytest.mark.parametrize("problem", ["missing", "changed", "oversized", "symlink", "directory_symlink"])
-def test_unavailable_or_unsafe_archived_history_blocks_mutation_without_changing_state(modules, tmp_path, problem):
-    value = start(modules, tmp_path)
-    value["plan"]["presentation"]["coverage_note"] = "Revised design"
-    saved = save(modules, tmp_path, value)
-    retained = saved["scopes"]["create"]["first_eval"]
-    archive = tmp_path / retained["history_head"]["path"]
-    before = modules[0].state_path(tmp_path).read_bytes()
-    outside = tmp_path / "outside-history.json"
-    if problem == "missing":
-        archive.unlink()
-    elif problem == "changed":
-        archive.write_text("{}")
-    elif problem == "oversized":
-        archive.write_bytes(b"x" * (modules[0].MAX_BYTES + 1))
-    elif problem == "symlink":
-        archive.rename(outside)
-        archive.symlink_to(outside)
-    else:
-        target = tmp_path / "outside-history"
-        archive.parent.rename(target)
-        archive.parent.symlink_to(target, target_is_directory=True)
-    # Current state remains inspectable even if an earlier snapshot needs recovery.
-    assert modules[0].load_state(tmp_path)["revision"] == saved["revision"]
-    with pytest.raises(ValueError, match="history"):
-        save(modules, tmp_path, value, pending_question="Explicit mutation")
-    assert modules[0].state_path(tmp_path).read_bytes() == before
-
-
-@pytest.mark.parametrize("field", ["path", "digest", "revision"])
-def test_archived_history_reference_is_canonical_and_cannot_be_rewound(modules, tmp_path, field):
-    value = start(modules, tmp_path)
-    value["plan"]["presentation"]["coverage_note"] = "Revised design"
-    saved = save(modules, tmp_path, value)
-    retained = copy.deepcopy(saved["scopes"]["create"]["first_eval"])
-    head = retained["history_head"]
-    head[field] = {"path": ".eval-author/.working/history/create/../outside.json", "digest": "a" * 64, "revision": 0}[
-        field
-    ]
-    before = modules[0].state_path(tmp_path).read_bytes()
-    with pytest.raises(ValueError, match="history"):
-        save(modules, tmp_path, retained)
-    assert modules[0].state_path(tmp_path).read_bytes() == before
-
-
-@pytest.mark.parametrize("problem", ["duplicate_keys", "schema", "embedded_history", "revision_order"])
-def test_malformed_content_addressed_snapshot_is_rejected_even_when_its_bytes_match_the_digest(
-    modules, tmp_path, problem
+@pytest.mark.parametrize("field", ["history", "history_head"])
+def test_unrelated_update_can_drop_old_history_during_ethos_review_without_changing_creation_authority(
+    modules, tmp_path, field
 ):
     value = start(modules, tmp_path)
-    value["plan"]["presentation"]["coverage_note"] = "Revised design"
-    saved = save(modules, tmp_path, value)
-    retained = saved["scopes"]["create"]["first_eval"]
-    head = retained["history_head"]
-    archive = tmp_path / head["path"]
-    envelope = json.loads(archive.read_bytes())
-    if problem == "schema":
-        envelope["schema_version"] = True
-    elif problem == "embedded_history":
-        envelope["record"]["history"] = []
-    elif problem == "revision_order":
-        envelope["previous"] = head
-    payload = json.dumps(envelope).encode()
-    if problem == "duplicate_keys":
-        payload = payload.replace(b'{"schema_version": 1,', b'{"schema_version": 1, "schema_version": 1,', 1)
-    checksum = hashlib.sha256(payload).hexdigest()
-    head.update(path=f".eval-author/.working/history/create/{checksum}.json", digest=checksum)
-    (tmp_path / head["path"]).write_bytes(payload)
-    modules[0].save(tmp_path, saved)
-    before = modules[0].state_path(tmp_path).read_bytes()
-    with pytest.raises(ValueError, match="history"):
-        save(modules, tmp_path, value)
-    assert modules[0].state_path(tmp_path).read_bytes() == before
+    state, creation = modules
+    previous = state.load_state(tmp_path)
+    previous["ethos"]["stage"] = "review"
+    previous["scopes"]["create"]["first_eval"][field] = (
+        [{"record": copy.deepcopy(value)}]
+        if field == "history"
+        else {"path": ".eval-author/.working/history/create/unavailable.json", "digest": "a" * 64}
+    )
+    path = state.state_path(tmp_path)
+    path.write_text(json.dumps(previous))
+    original = copy.deepcopy(previous)
+    before = path.read_bytes()
+    proposed = copy.deepcopy(previous)
+    proposed["pending_question"] = "Review the current ETHOS.md"
+    creation.transition(tmp_path, previous, proposed)
+    assert previous == original and path.read_bytes() == before
+    assert_current_record_only(tmp_path, proposed["scopes"]["create"]["first_eval"])
+    changed = copy.deepcopy(value)
+    changed["plan"]["presentation"]["coverage_note"] = "Different task design while intent is unconfirmed"
+    with pytest.raises(ValueError, match="Confirm ETHOS.md"):
+        save(modules, tmp_path, changed)
+    assert path.read_bytes() == before
+    updated = state.update(
+        tmp_path,
+        {"pending_question": proposed["pending_question"]},
+        expected_revision=previous["revision"],
+    )
+    assert updated["ethos"]["stage"] == "review"
+    assert updated["pending_question"] == proposed["pending_question"]
+    assert_current_record_only(tmp_path, updated["scopes"]["create"]["first_eval"])
+    assert not facts(modules, tmp_path)["scope_approved"]
 
 
-@pytest.mark.parametrize("failure", ["snapshot", "state"])
-def test_interrupted_history_save_preserves_state_and_retry_reuses_any_orphan_snapshot(
-    modules, tmp_path, monkeypatch, failure
-):
-    value = start(modules, tmp_path)
+def test_interrupted_current_recovery_save_preserves_state_and_retry_creates_no_history(modules, tmp_path, monkeypatch):
+    value, original = legacy_history(modules, tmp_path)
     before = modules[0].state_path(tmp_path).read_bytes()
     value["plan"]["presentation"]["coverage_note"] = "Revised design"
     paths = importlib.import_module("working_paths")
     replace = paths.os.replace
 
-    def fail_replace(source, target):
-        if (failure == "state") == (Path(target).name == "journey-state.json"):
-            raise OSError("Interrupted persistence")
-        return replace(source, target)
+    def failed_replace(*_):
+        raise OSError("Interrupted current recovery save")
 
-    monkeypatch.setattr(paths.os, "replace", fail_replace)
-    with pytest.raises(OSError, match="Interrupted persistence"):
+    monkeypatch.setattr(paths.os, "replace", failed_replace)
+    with pytest.raises(OSError, match="Interrupted current recovery"):
         save(modules, tmp_path, value)
     assert modules[0].state_path(tmp_path).read_bytes() == before
-    archive = tmp_path / ".eval-author/.working/history/create"
-    orphans = list(archive.glob("*.json"))
-    assert len(orphans) == (1 if failure == "state" else 0)
-    assert not list(archive.glob(".*"))
+    assert not (tmp_path / ".eval-author/.working/history").exists()
+    assert not list(modules[0].state_path(tmp_path).parent.glob(".journey-state.json-*"))
     monkeypatch.setattr(paths.os, "replace", replace)
     saved = save(modules, tmp_path, value)
-    assert len(list(archive.glob("*.json"))) == 1
-    assert snapshots(tmp_path, saved["scopes"]["create"]["first_eval"])
+    assert saved["revision"] == original["revision"] + 1
+    assert saved["scopes"]["create"]["first_eval"]["plan"] == value["plan"]
+    assert_current_record_only(tmp_path, saved["scopes"]["create"]["first_eval"])
 
 
-def test_legacy_native_progress_evidence_stays_immutable_after_history_migration(modules, tmp_path):
-    value = ready(modules, tmp_path)
-    select(modules, tmp_path, value)
-    first = copy.deepcopy(native_activity(modules, tmp_path, value))
-    save(modules, tmp_path, value)
-    value["run_progress"]["evidence"] = [evidence(tmp_path, ".eval-author/jobs/active-baseline/later.json", "Later")]
-    save(modules, tmp_path, value)
-    state = modules[0].load_state(tmp_path)
-    retained = state["scopes"]["create"]["first_eval"]
-    previous = list(reversed(snapshots(tmp_path, retained)))
-    retained.pop("history_head")
-    retained["history"] = [
-        {"revision": index, "digest": modules[1].fingerprint(item), "record": item}
-        for index, item in enumerate(previous)
-    ]
-    modules[0].save(tmp_path, state)
-    save(modules, tmp_path, value)
-    value["run_progress"]["evidence"] = [evidence(tmp_path, first["evidence"][0]["path"], "Rewritten old status")]
-    with pytest.raises(ValueError, match="fresh evidence paths"):
-        save(modules, tmp_path, value)
-
-
-def test_revision_or_lock_conflict_never_writes_creation_snapshots(modules, tmp_path):
+def test_revision_or_lock_conflict_preserves_current_recovery_without_archiving(modules, tmp_path):
     value = start(modules, tmp_path)
     before = modules[0].state_path(tmp_path).read_bytes()
     value["plan"]["presentation"]["coverage_note"] = "Revised design"
@@ -2130,35 +2235,7 @@ def test_revision_or_lock_conflict_never_writes_creation_snapshots(modules, tmp_
     with paths.working_lock(paths.working_path(tmp_path, "journey-state.lock")), pytest.raises(OSError):
         save(modules, tmp_path, value)
     assert modules[0].state_path(tmp_path).read_bytes() == before
-    assert not (tmp_path / ".eval-author/.working/history/create").exists()
-
-
-def test_interrupted_legacy_migration_retries_without_losing_or_duplicating_snapshots(modules, tmp_path, monkeypatch):
-    value, _, history = legacy_history(modules, tmp_path)
-    before = modules[0].state_path(tmp_path).read_bytes()
-    paths = importlib.import_module("working_paths")
-    replace = paths.os.replace
-    writes = 0
-
-    def fail_second_snapshot(source, target):
-        nonlocal writes
-        if Path(target).parent.name == "create":
-            writes += 1
-            if writes == 2:
-                raise OSError("Interrupted migration")
-        return replace(source, target)
-
-    monkeypatch.setattr(paths.os, "replace", fail_second_snapshot)
-    with pytest.raises(OSError, match="Interrupted migration"):
-        save(modules, tmp_path, value)
-    assert modules[0].state_path(tmp_path).read_bytes() == before
-    archive = tmp_path / ".eval-author/.working/history/create"
-    assert len(list(archive.glob("*.json"))) == 1
-    monkeypatch.setattr(paths.os, "replace", replace)
-    saved = save(modules, tmp_path, value)
-    retained = saved["scopes"]["create"]["first_eval"]
-    assert snapshots(tmp_path, retained) == [item["record"] for item in reversed(history)]
-    assert len(list(archive.glob("*.json"))) == len(history)
+    assert_current_record_only(tmp_path, modules[0].load_state(tmp_path)["scopes"]["create"]["first_eval"])
 
 
 def pending_validation_setup(modules, repo, value):
@@ -2370,8 +2447,6 @@ def legacy_validated_tasks(modules, repo, *, first_build=False):
     value["suite_approval"] = None
     value["remaining_build"]["artifacts"] = None
     modules[0].save(repo, state)
-    value.pop("history_head", None)
-    value.pop("history", None)
     return value
 
 

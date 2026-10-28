@@ -124,9 +124,9 @@ Roots are project-relative and repeatable. Selected roots are retained in the
 internal report state. For authoring and handoff, keep the project root selected
 (`--task-root .`) unless the user selected a narrower scope. New tasks stay at
 `.eval-author/tasks/<slug>` throughout authoring and validation. Default task inventory
-excludes `.eval-author/.working`, `.eval-author/archives`, and historical
-`.eval-author/task-drafts` copies; select one of those roots explicitly to inspect
-its retained evidence. Separate selected directories remain separate rows, even
+excludes `.eval-author/.working` and legacy task-copy locations; select an
+existing root explicitly to inspect it. This compatibility exclusion does not
+authorize creating revision archives. Separate selected directories remain separate rows, even
 when their contents match. Ordinary nested checkouts are excluded unless
 explicitly selected.
 
@@ -157,9 +157,8 @@ reporting state. `.eval-author/.working/report/state.json` is the authoritative
 report metadata and last inventory snapshot; task status is projected from
 `.eval-author/.working/journey-state.json`. A legacy HTML report is imported
 once when that state is absent; later refreshes use the internal state and repair
-missing or edited HTML. The first import also saves the original validated records
-and metadata as `.eval-author/.working/report/legacy-import.json`. Review this
-snapshot and imported journey notes when resuming an old workflow. A legacy
+missing or edited HTML. Import updates the current report state without creating
+a historical copy. Review imported journey notes when resuming an old workflow. A legacy
 `task-drafts` directory may contain the only unfinished task and bound receipts;
 use `--task-root <existing-task-or-directory>` to inspect or continue it at its
 existing path. Default inventory exclusion does not mean that its work is obsolete.
@@ -188,8 +187,9 @@ or oversized READMEs (over 256 KiB) show an explicit unavailable message.
 ### Report metadata
 
 Task/run fields are validated by the schema constants in `scripts/report.py`.
-Use `--metadata <temporary-json-path>` for a bounded reporting-only patch; keep
-this input under `.eval-author/.working/report/` and remove it after refresh.
+Use `--metadata <temporary-json-path>` for a bounded reporting-only patch, following
+the [temporary-work policy](shared-prerequisites.md#temporary-work-and-recovery).
+Consume it in managed scratch during refresh instead of retaining the payload.
 For example, using actual discovered paths and a documented reward range and binary pass rule:
 
 ```json

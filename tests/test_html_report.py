@@ -1135,7 +1135,6 @@ def test_copied_script_and_template_installation(tmp_path):
         "working_paths.py",
         "journey_state.py",
         "first_eval_state.py",
-        "first_eval_history.py",
         "conversation_templates.py",
         "runtime_policy.py",
         "runtime-policy.json",
@@ -1795,15 +1794,14 @@ def test_legacy_html_imports_once_and_rebuilds_from_internal_state(tmp_path):
     assert report.refresh(tmp_path) == original
     assert json.loads(internal.read_text())["metadata"]["tasks"][path]["display_id"] == "reviewed-id"
     imported = internal.with_name("legacy-import.json")
-    assert json.loads(imported.read_text()) == original
-    imported_bytes = imported.read_bytes()
+    assert not imported.exists()
     html = tmp_path / ".eval-author/report.html"
     html.write_text("An edited projection is not authoritative metadata.")
     assert report.refresh(tmp_path) == original
     html.unlink()
     assert report.refresh(tmp_path) == original
     assert report.previous_report(html)[0] == original
-    assert imported.read_bytes() == imported_bytes
+    assert not imported.exists()
 
 
 def test_internal_snapshot_retains_incomplete_inventory_without_html(tmp_path):
@@ -1867,11 +1865,11 @@ def test_legacy_import_retains_unfinished_task_and_directs_explicit_resume(tmp_p
     path = ".eval-author/task-drafts/unfinished"
     (tmp_path / path).parent.mkdir(parents=True)
     shutil.move(tmp_path / original, tmp_path / path)
-    retained = report.refresh(tmp_path, task_roots=[".eval-author/task-drafts"])
+    report.refresh(tmp_path, task_roots=[".eval-author/task-drafts"])
     state = tmp_path / ".eval-author/.working/report/state.json"
     state.unlink()
     refreshed = report.refresh(tmp_path, task_roots=["."])
     assert refreshed["tasks"] == []
     assert any("--task-root .eval-author/task-drafts" in warning for warning in refreshed["warnings"])
-    assert json.loads(state.with_name("legacy-import.json").read_text()) == retained
+    assert not state.with_name("legacy-import.json").exists()
     assert report.refresh(tmp_path, task_roots=[path])["tasks"][0]["path"] == path

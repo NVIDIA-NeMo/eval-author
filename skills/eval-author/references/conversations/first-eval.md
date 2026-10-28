@@ -40,9 +40,9 @@ if it changes before the answer, present the updated saved design again.
 Continuing reuses applicable approvals, evidence, and authorization; it grants
 no new spending permission. Revising reopens proposal approval while retaining
 the source choice. A new proposal also reopens source selection. Both retain
-prior task and run records and historical evidence; choose stable new task IDs
+existing task and run records; choose stable new task IDs
 and directories when building new tasks rather than overwriting earlier work.
-Retire any old audit invitation and handoff into history when revising or
+Clear any old audit invitation and handoff when revising or
 starting a new proposal, so it cannot route or suppress the new completion handoff.
 Source changes and a replacement plan still require their ordinary checkpoints.
 
@@ -240,8 +240,11 @@ including environment work, return milestone results and evidence as they finish
 so the coordinator can update the shared progress. Yield during long checks so
 changed progress can be shown. Do not append deliberation, speculative next
 steps, command transcripts, or another checklist. Retain verbose command output
-in evidence logs and capture state-helper output instead of printing full state
-and history. A focused question remains appropriate when work needs a user decision.
+only when it supports a recorded result; keep helper responses and routine
+intermediates in memory under the
+[temporary-work policy](../shared-prerequisites.md#temporary-work-and-recovery)
+instead of saving or printing full state and history. A focused question remains
+appropriate when work needs a user decision.
 
 For `first_eval_build_progress` and `first_eval_remaining_progress`, include
 `facts.previous_progress` when a snapshot has already been shown for this build
@@ -276,7 +279,7 @@ completed rows from current receipts; a changed or missing receipt reopens its
 row and dependent work. A changed plan or first task requires rebinding build
 progress with empty receipts, then re-recording any still-applicable evidence.
 When replacing an earlier receipt, clear its dependent later receipts before
-recording their renewed checkpoints; earlier evidence remains in history.
+recording their renewed checkpoints; do not copy the earlier receipt into an archive.
 Absent legacy receipts remain pending. Pass only current build blockers
 in `facts.blockers`; the active row shows Blocked and the usual **Blockers**
 section explains the needed action. Missing agent credentials or later run
@@ -384,22 +387,23 @@ the revision-checked state interface:
   "status": "running",
   "active_task_ids": [],
   "source": "<actual native status observation reference>",
-  "evidence": [{"path": "<immutable saved status snapshot>", "digest": "<actual file digest>"}]
+  "evidence": [{"path": "<current saved native status record>", "digest": "<actual file digest>"}]
 }
 ```
 
 Use `running` or `waiting` only when observed in native job status. Name an active
 task only when that status identifies it, using a subset of the explicitly
-selected tasks; otherwise leave `active_task_ids` empty. Retain an immutable
-status snapshot with its exact run identity rather than binding progress to a
-changing log. A launch announcement, elapsed time, or unfinished attempt is not
-evidence that a job is running.
+selected tasks; otherwise leave `active_task_ids` empty. Keep a current status
+record with its exact run identity rather than binding progress to a changing
+log. Refresh that record and its saved digest when status changes; do not save
+a new file for every poll. A launch announcement, elapsed time, or unfinished
+attempt is not evidence that a job is running.
 
 Render `first_eval_run_progress` with fresh observations. Its applicability
 requires current suite approval, explicit authorized selection, environment and
-grading evidence, matching selection digest, and intact snapshot evidence. A
+grading evidence, matching selection digest, and intact current evidence. A
 matching current, explicitly selected actual-agent run with status `running`
-preserves the live snapshot; a terminal run or control record with that identity
+preserves the live progress record; a terminal run or control record with that identity
 retires it. The renderer's four fixed rows come from the template module and
 omit skill labels; they cover grading, execution,
 inspection of an actual attempt, and the final artifact refresh. The checklist
@@ -481,8 +485,9 @@ state. Identical supplied inputs produce identical Markdown.
 
 ## Saving the agreed design and evidence
 
-Use the existing `journey_state.py --repo <repository> update --input <patch.json>
---expected-revision <revision>` interface. A patch places `first_eval` inside the
+Use the existing [stdin update interface](../shared-prerequisites.md#state-helper-commands),
+`journey_state.py --repo <repository> update --input -
+--expected-revision <revision>`. A patch places `first_eval` inside
 `scopes.create`; preserve the rest of the saved record.
 The minimal initial record has this shape (replace descriptions with actual
 values):
@@ -555,11 +560,11 @@ attempt identities, statuses, rewards, and evidence. Explicitly save
 `selected_run_ids`; directory membership, append order, and a reviewed attempt do
 not select a run. Save `run_review` with `run_id`, `attempt_id`, the run's derived
 `run_digests[run_id]` as `digest`, inspection `source`, and material `limitations`.
-Write an immutable per-run Markdown review outside the task tree, such as
-`.eval-author/task-measurements/<run-id>-review.md`, identifying the same run and
+Write the selected run's current Markdown review outside the task tree, such as
+`.eval-author/.working/run-review.md`, identifying the same run and
 attempt and its observed findings. Bind it under `run_review.summary` as
 `{path, digest, run_id, attempt_id}` after inspecting the actual saved text.
-Do not bind this immutable review to the report-generated suite README, which
+Do not bind this review to the report-generated suite README, which
 changes on refresh. Missing or changed summary evidence reopens the review.
 
 After completion, `audit_invitation` records `{status: "pending", source: null}`;
@@ -582,7 +587,7 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_review_suite` | Every authored task's current environment and complete grading-validation evidence plus current report artifacts. Ground the summary in the approved design and `ETHOS.md`, link the HTML Tasks view or mirrored README, summarize each task and current validation/execution evidence, and end with the explicit suite-approval question. No run settings or run-only blockers. |
 | `first_eval_execution_settings` | Current authored-suite approval, when actual agent execution is being prepared. Display attempts, validation work, time/cost limits, and open questions, plus relevant run blockers. Do not repeat agent/model or task/example inventory bullets. This display never supplies spending authorization. |
 | `first_eval_ready_to_run` | Current suite approval, validation of every selected task, and a saved applicable settings display. Explain that graders accepted the known correct results and rejected the incorrect results tested; this validates grading rather than measuring agent performance. Announce execution only with applicable explicit authorization, access, and no blocking dependency; otherwise ask one focused question about the missing setting or authorization. |
-| `first_eval_run_progress` | Observed native launch or queued status with current authorized selection and immutable status evidence. Render the standard checklist without skill labels, evidence-derived completed/planned attempts, recorded execution errors, and only actually observed activity. No run-only approval pause or inferred activity. |
+| `first_eval_run_progress` | Observed native launch or queued status with current authorized selection and digest-bound current status evidence. Render the standard checklist without skill labels, evidence-derived completed/planned attempts, recorded execution errors, and only actually observed activity. No run-only approval pause or inferred activity. |
 | `first_eval_results` | Review an exact retained current actual-agent attempt when its evidence is available; otherwise present the incomplete inventory and missing-evidence blocker. Separate completed, quality-failing, infrastructure-failing, missing, and unavailable-evidence outcomes. Link verified evidence and rerun instructions, reconcile delivered work, and show completion only when justified. |
 | `first_eval_resume` | Derive the pending creation stage from saved decisions and fresh artifact observations, including an unresolved saved-design choice. Reuse applicable answers and authorization after that choice. It emits no welcome or initial readiness question. |
 | `first_eval_blockers` | One or more saved blockers preventing the current action, with specific reasons and needed actions. Preserve independent progress. |

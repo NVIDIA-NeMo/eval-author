@@ -5,10 +5,12 @@
 
 import copy
 import importlib
+import io
 import json
 import shutil
 import subprocess
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 
 import pytest
@@ -95,7 +97,7 @@ def test_unsafe_ethos_selection_cannot_replace_saved_state(state, tmp_path, rela
     assert not (tmp_path / ".eval-author/.working/history/ethos").exists()
 
 
-def test_retargeting_identical_ethos_reopens_approval_and_retains_history(state, tmp_path):
+def test_retargeting_identical_ethos_reopens_approval_without_archiving(state, tmp_path):
     setup_ready(state, tmp_path)
     original = ethos_ready(state, tmp_path)
     draft = tmp_path / ".eval-author/.working/approved-draft.md"
@@ -129,9 +131,8 @@ def test_retargeting_identical_ethos_reopens_approval_and_retains_history(state,
     assert changed["ethos"]["draft"] is None and not changed["ethos"]["draft_confirmed"]
     assert changed["scopes"]["create"]["needs_review"] and not changed["scopes"]["create"]["confirmed"]
     assert not changed["journey_status"]
-    archive = tmp_path / changed["ethos"]["source_findings"][-1]["path"]
-    assert archive.read_bytes() == before
-    assert json.loads(archive.read_text())["ethos"] == original["ethos"]
+    assert changed["ethos"]["source_findings"] == original["ethos"]["source_findings"]
+    assert not (tmp_path / ".eval-author/.working/history").exists()
     assert draft.read_bytes() == document.read_bytes()
     source = {"source": "User reviewed this path", "validation": "Selected document validated"}
     for path, revision in ((relative, original["revision"]), ("ETHOS.md", changed["revision"])):
@@ -154,7 +155,7 @@ def test_retargeting_identical_ethos_reopens_approval_and_retains_history(state,
     assert confirmed["scopes"]["create"]["needs_review"]
     same = state.update(tmp_path, {"ethos": {"path": relative}}, expected_revision=confirmed["revision"])
     assert same["ethos"] == confirmed["ethos"]
-    assert archive.read_bytes() == before
+    assert not (tmp_path / ".eval-author/.working/history").exists()
 
 
 @pytest.mark.parametrize("change", ["edit", "missing", "symlink", "parent_symlink"])
@@ -1072,7 +1073,7 @@ def test_agent_change_cannot_reuse_other_agents_ethos(state, tmp_path):
 
 @pytest.mark.parametrize("new_agent", ["account-support", "other-agent"])
 @pytest.mark.parametrize("stage", ["complete", "write"])
-def test_agent_change_preserves_historical_context_without_reusing_approval(state, tmp_path, new_agent, stage):
+def test_agent_change_keeps_current_context_without_reusing_approval(state, tmp_path, new_agent, stage):
     state.initialize(tmp_path, agent="Account Support", journey="create", setup="gym")
     state.update(
         tmp_path,
@@ -1124,7 +1125,6 @@ def test_agent_change_preserves_historical_context_without_reusing_approval(stat
             "next_handoff": "eval-author-audit",
         },
     )
-    before = state.state_path(tmp_path).read_bytes()
     changed = state.initialize(tmp_path, agent=new_agent)
     assert changed["agent"] == new_agent
     assert changed["ethos"]["stage"] == "review"
@@ -1133,7 +1133,7 @@ def test_agent_change_preserves_historical_context_without_reusing_approval(stat
     assert not changed["ethos"]["draft_confirmed"]
     assert changed["ethos"]["draft"] == original["ethos"]["draft"]
     assert draft.read_text() == "# Intended refund behavior\n"
-    assert changed["ethos"]["source_findings"][:-1] == findings
+    assert changed["ethos"]["source_findings"] == findings
     assert changed["ethos"]["prior_answers"] == answers
     assert changed["ethos"]["remaining_questions"] == original["ethos"]["remaining_questions"]
     for journey, scope in original["scopes"].items():
@@ -1146,13 +1146,7 @@ def test_agent_change_preserves_historical_context_without_reusing_approval(stat
             **answer,
             "status": "unknown" if key in state.AGENT_DEPENDENT else answer["status"],
         }
-    history = changed["ethos"]["source_findings"][-1]
-    assert Path(history["path"]).is_relative_to(".eval-author/.working")
-    archive = tmp_path / history["path"]
-    assert archive.read_bytes() == before
-    assert archive.stem == state.digest(before)
-    assert json.loads(archive.read_text())["agent"] == "Account Support"
-    assert "Account Support" in history["summary"]
+    assert not (tmp_path / ".eval-author/.working/history").exists()
     assert new_agent in changed["pending_question"] and "Account Support" in changed["pending_question"]
     assert changed["next_handoff"] == "eval-author"
     assert not state.checklist(changed)[1]["complete"]
@@ -1161,7 +1155,7 @@ def test_agent_change_preserves_historical_context_without_reusing_approval(stat
     assert resumed["ethos"] == changed["ethos"]
     assert resumed["scopes"] == changed["scopes"]
     assert resumed["pending_question"] == changed["pending_question"]
-    assert list(archive.parent.iterdir()) == [archive]
+    assert not (tmp_path / ".eval-author/.working/history").exists()
     persisted = state.state_path(tmp_path).read_bytes()
     assert state.import_legacy(tmp_path) == resumed
     assert state.state_path(tmp_path).read_bytes() == persisted
@@ -1191,20 +1185,17 @@ def test_agent_assignment_preserves_only_unresolved_legacy_review(state, tmp_pat
 def test_combined_identity_setup_and_flow_change_keeps_context_review_handoff(state, tmp_path):
     setup_ready(state, tmp_path)
     original = ethos_ready(state, tmp_path)
-    before = state.state_path(tmp_path).read_bytes()
     changed = state.initialize(tmp_path, agent="new-agent", journey="audit", setup="harbor")
     assert changed["agent"] == "new-agent" and changed["journey"] == "audit" and changed["setup"] == "harbor"
     assert changed["ethos"]["stage"] == "review"
     assert changed["ethos"]["confirmed_digest"] is None
     assert "assistant" in changed["pending_question"] and "new-agent" in changed["pending_question"]
     assert changed["next_handoff"] == "eval-author"
-    archive = tmp_path / changed["ethos"]["source_findings"][-1]["path"]
-    assert archive.read_bytes() == before
-    assert json.loads(archive.read_text()) == original
+    assert changed["ethos"]["source_findings"] == original["ethos"]["source_findings"]
+    assert not (tmp_path / ".eval-author/.working/history").exists()
 
 
-@pytest.mark.parametrize("failure_stage", ["archive", "state"])
-def test_agent_context_persistence_failure_leaves_current_state_intact(state, tmp_path, monkeypatch, failure_stage):
+def test_agent_context_persistence_failure_leaves_current_state_intact(state, tmp_path, monkeypatch):
     setup_ready(state, tmp_path)
     original = ethos_ready(state, tmp_path)
     before = state.state_path(tmp_path).read_bytes()
@@ -1213,15 +1204,13 @@ def test_agent_context_persistence_failure_leaves_current_state_intact(state, tm
         raise OSError("Storage unavailable")
 
     with monkeypatch.context() as patch:
-        patch.setattr(state, "atomic_write" if failure_stage == "archive" else "atomic_write_json", failed_write)
+        patch.setattr(state, "atomic_write_json", failed_write)
         with pytest.raises(OSError, match="Storage unavailable"):
             state.initialize(tmp_path, agent="other-agent")
     assert state.state_path(tmp_path).read_bytes() == before
     assert state.load_state(tmp_path) == original
     retried = state.initialize(tmp_path, agent="other-agent")
-    archive = tmp_path / retried["ethos"]["source_findings"][-1]["path"]
-    assert archive.read_bytes() == before
-    assert list(archive.parent.iterdir()) == [archive]
+    assert not (tmp_path / ".eval-author/.working/history").exists()
     assert retried["agent"] == "other-agent" and retried["ethos"]["confirmed_digest"] is None
 
 
@@ -1348,19 +1337,14 @@ def test_repository_rebind_preserves_context_and_reopens_readiness(state, tmp_pa
     for field in ("confirmed_digest", "confirmation_source", "validation", "draft_source"):
         assert rebound["ethos"][field] is None
     assert not rebound["ethos"]["draft_confirmed"]
-    assert rebound["ethos"]["source_findings"][:-1] == findings
-    history = rebound["ethos"]["source_findings"][-1]
-    archive = relocated / history["path"]
-    assert archive.is_relative_to(relocated / ".eval-author/.working/history/repositories")
-    assert archive.stem == state.digest(before)
-    assert archive.read_bytes() == before
-    assert str(original_repo) in history["summary"]
+    assert rebound["ethos"]["source_findings"] == findings
+    assert not (relocated / ".eval-author/.working/history").exists()
     assert rebound["scopes"]["create"] == {**original["scopes"]["create"], "confirmed": False, "needs_review": True}
     assert not rebound["journey_status"]
     assert rebound["tasks"][task]["evidence"] == original["tasks"][task]["evidence"]
     assert rebound["tasks"][task]["task_digest"] == original["tasks"][task]["task_digest"]
     assert state.task_lifecycle(relocated, rebound, task)["status"] == "draft"
-    assert history["path"] in rebound["tasks"][task]["source"]
+    assert str(original_repo) in rebound["tasks"][task]["source"]
     assert str(original_repo) in rebound["pending_question"]
     assert str(relocated) in rebound["pending_question"]
     assert rebound["next_handoff"] == "eval-author"
@@ -1369,7 +1353,7 @@ def test_repository_rebind_preserves_context_and_reopens_readiness(state, tmp_pa
     resumed = state.initialize(relocated)
     assert resumed["ethos"] == rebound["ethos"]
     assert resumed["tasks"] == rebound["tasks"]
-    assert list(archive.parent.iterdir()) == [archive]
+    assert not (relocated / ".eval-author/.working/history").exists()
     if relocation == "copy":
         assert state.state_path(original_repo).read_bytes() == before
         assert state.load_state(original_repo) == original
@@ -1394,8 +1378,7 @@ def test_repository_rebind_rejects_unreviewed_or_invalid_state(state, tmp_path, 
     assert not (tmp_path / ".eval-author/.working/history").exists()
 
 
-@pytest.mark.parametrize("failure_stage", ["archive", "state"])
-def test_repository_rebind_failure_preserves_prior_state(state, tmp_path, monkeypatch, failure_stage):
+def test_repository_rebind_failure_preserves_prior_state(state, tmp_path, monkeypatch):
     original = state.initialize(tmp_path, agent="assistant", journey="audit")
     original["repository"] = "/prior/repository"
     state.state_path(tmp_path).write_text(json.dumps(original))
@@ -1405,30 +1388,27 @@ def test_repository_rebind_failure_preserves_prior_state(state, tmp_path, monkey
         raise OSError("Storage unavailable")
 
     with monkeypatch.context() as patch:
-        patch.setattr(state, "atomic_write" if failure_stage == "archive" else "atomic_write_json", failed_write)
+        patch.setattr(state, "atomic_write_json", failed_write)
         with pytest.raises(OSError, match="Storage unavailable"):
             state.rebind(tmp_path, previous_repository=original["repository"], expected_revision=original["revision"])
     assert state.state_path(tmp_path).read_bytes() == before
     rebound = state.rebind(tmp_path, previous_repository=original["repository"], expected_revision=original["revision"])
-    archive = tmp_path / rebound["ethos"]["source_findings"][-1]["path"]
-    assert archive.read_bytes() == before
-    assert list(archive.parent.iterdir()) == [archive]
+    assert rebound["repository"] == str(tmp_path)
+    assert not (tmp_path / ".eval-author/.working/history").exists()
 
 
-def test_rebind_and_agent_changes_preserve_each_others_history(state, tmp_path):
+def test_rebind_and_agent_changes_keep_current_source_findings_without_snapshots(state, tmp_path):
     state.initialize(tmp_path, agent="first-agent", journey="audit")
+    findings = [{"path": "README.md", "summary": "User-supplied context to review"}]
+    state.update(tmp_path, {"ethos": {"source_findings": findings}})
     original = state.initialize(tmp_path, agent="second-agent")
-    previous_history = original["ethos"]["source_findings"][0]
     original["repository"] = "/prior/repository"
     state.state_path(tmp_path).write_text(json.dumps(original))
     rebound = state.rebind(tmp_path, previous_repository=original["repository"], expected_revision=original["revision"])
-    assert rebound["ethos"]["source_findings"][0] == previous_history
     changed = state.initialize(tmp_path, agent="third-agent")
-    assert changed["ethos"]["source_findings"][:-1] == rebound["ethos"]["source_findings"]
-    archive = tmp_path / changed["ethos"]["source_findings"][-1]["path"]
-    assert json.loads(archive.read_text()) == rebound
-    for finding in changed["ethos"]["source_findings"]:
-        assert (tmp_path / finding["path"]).is_file()
+    assert changed["ethos"]["source_findings"] == rebound["ethos"]["source_findings"] == findings
+    assert changed["agent"] == "third-agent" and changed["repository"] == str(tmp_path)
+    assert not (tmp_path / ".eval-author/.working/history").exists()
 
 
 def test_repository_rebind_cli_requires_reviewed_source_and_revision(state, tmp_path):
@@ -1477,7 +1457,7 @@ def test_formatted_state_limit_preserves_previous_bytes_and_revision(state, tmp_
     original = state.initialize(tmp_path, agent="assistant", journey="audit")
     before = state.state_path(tmp_path).read_bytes()
     proposed = copy.deepcopy(original)
-    scope = {"create": {"cases": ["refund"] * 128}}
+    scope = {"audit": {"cases": ["refund"] * 128}}
     proposed["scopes"] = scope
     persisted = {**proposed, "revision": proposed["revision"] + 1}
     compact_size = len(json.dumps(persisted, allow_nan=False).encode())
@@ -1572,16 +1552,63 @@ def test_legacy_import_is_idempotent_keeps_originals_and_never_imports_approval(
     assert imported["ethos"]["confirmed_digest"] is None
     assert len(imported["legacy_imports"]) == 1
     snapshot = imported["legacy_imports"][0]
-    assert (tmp_path / snapshot["archive"]).read_bytes() == old.read_bytes()
+    assert snapshot["source"] == old.relative_to(tmp_path).as_posix()
+    assert "archive" not in snapshot
     before = state.state_path(tmp_path).read_bytes()
     assert state.import_legacy(tmp_path) == imported
     assert state.state_path(tmp_path).read_bytes() == before
     old.write_text("A conflicting later note")
     changed = state.import_legacy(tmp_path)
     assert changed["legacy_imports"][-1]["status"] == "changed"
-    assert len(changed["legacy_imports"]) == 2
+    assert len(changed["legacy_imports"]) == 1
+    assert changed["legacy_imports"][0]["status"] == "changed"
     assert changed["blockers"][0]["id"] == "legacy-review"
-    assert (tmp_path / snapshot["archive"]).read_text().startswith("[x]")
+    assert old.read_text() == "A conflicting later note"
+    assert not (tmp_path / ".eval-author/.working/legacy").exists()
+
+
+@pytest.mark.parametrize("reverted", [False, True], ids=["unchanged-latest", "reverted-to-earlier"])
+def test_legacy_import_normalizes_old_versions_and_compares_only_latest_content(state, tmp_path, reverted):
+    original = state.initialize(tmp_path, journey="audit")
+    source = tmp_path / ".eval-author/intent-notes.md"
+    source.write_text("Earlier notes" if reverted else "Latest notes")
+    original["legacy_imports"] = []
+    saved_files = {}
+    for index, content in enumerate(("Earlier notes", "Latest notes")):
+        previous = tmp_path / f".eval-author/.working/legacy/intent-notes.md/{index}.md"
+        previous.parent.mkdir(parents=True, exist_ok=True)
+        previous.write_text(content)
+        saved_files[previous] = previous.read_bytes()
+        original["legacy_imports"].append(
+            {
+                "source": source.relative_to(tmp_path).as_posix(),
+                "digest": state.digest(previous.read_bytes()),
+                "archive": previous.relative_to(tmp_path).as_posix(),
+                "status": "unreviewed" if index == 0 else "changed",
+            }
+        )
+    original["blockers"] = [{"id": "run-source", "phase": "audit", "message": "Choose the recorded run"}]
+    original["pending_question"] = "Which recorded run should we use?"
+    state.save(tmp_path, original)
+    saved_files[source] = source.read_bytes()
+    existing_paths = {path for path in tmp_path.rglob("*") if path.is_file()}
+    imported = state.import_legacy(tmp_path)
+    assert imported["legacy_imports"] == [
+        {
+            "source": source.relative_to(tmp_path).as_posix(),
+            "digest": state.digest(source.read_bytes()),
+            "status": "changed",
+        }
+    ]
+    assert imported["revision"] == original["revision"] + 1
+    assert imported["pending_question"] == original["pending_question"]
+    assert imported["blockers"][:1] == original["blockers"]
+    assert any(item["id"] == "legacy-review" for item in imported["blockers"]) is reverted
+    assert all(path.read_bytes() == payload for path, payload in saved_files.items())
+    assert {path for path in tmp_path.rglob("*") if path.is_file()} == existing_paths
+    before = state.state_path(tmp_path).read_bytes()
+    assert state.import_legacy(tmp_path) == imported
+    assert state.state_path(tmp_path).read_bytes() == before
 
 
 def test_working_storage_rejects_escape_and_symlink(state, tmp_path):
@@ -1597,14 +1624,19 @@ def test_working_storage_rejects_escape_and_symlink(state, tmp_path):
     assert list(target.iterdir()) == []
 
 
-def test_owned_scratch_stays_under_working_and_cleans_only_itself(state, tmp_path):
+@pytest.mark.parametrize("failure", [False, True])
+def test_owned_scratch_stays_under_working_and_cleans_only_itself(state, tmp_path, failure):
     paths = importlib.import_module("working_paths")
     sentinel = paths.working_path(tmp_path, "notes.txt")
     sentinel.write_text("Keep")
-    with paths.scratch_directory(tmp_path, prefix="trial-") as scratch:
-        assert scratch.is_relative_to(tmp_path / ".eval-author/.working/tmp")
-        (scratch / "transient").write_text("Temporary")
+    with pytest.raises(RuntimeError, match="operation failed") if failure else nullcontext():
+        with paths.scratch_directory(tmp_path, prefix="trial-") as scratch:
+            assert scratch.is_relative_to(tmp_path / ".eval-author/.working/tmp")
+            (scratch / "transient").write_text("Temporary")
+            if failure:
+                raise RuntimeError("operation failed")
     assert not scratch.exists()
+    assert not any(scratch.parent.iterdir())
     assert sentinel.read_text() == "Keep"
 
 
@@ -1704,7 +1736,8 @@ def test_required_runtime_blocks_onboarding_until_resolved(
     assert not state.checklist(confirmed)[2]["complete"]
 
 
-def test_cli_roundtrip_matches_helpers_and_updates_no_domain_artifacts(state, tmp_path):
+@pytest.mark.parametrize("input_source", ["file", "stdin"])
+def test_cli_roundtrip_matches_helpers_and_updates_no_domain_artifacts(state, tmp_path, input_source):
     (tmp_path / "README.md").write_text("User source")
     init = subprocess.run(
         [
@@ -1725,12 +1758,12 @@ def test_cli_roundtrip_matches_helpers_and_updates_no_domain_artifacts(state, tm
     )
     assert init.returncode == 0, init.stderr
     initial = json.loads(init.stdout)
-    payload = tmp_path / ".eval-author/.working/answer.json"
-    payload.write_text(
-        json.dumps(
-            {"scopes": {"expand": {"cases": ["edge-case"], "confirmed": True}}, "pending_question": "Approve grading?"}
-        )
+    patch = json.dumps(
+        {"scopes": {"expand": {"cases": ["edge-case"], "confirmed": True}}, "pending_question": "Approve grading?"}
     )
+    payload = tmp_path / ".eval-author/.working/answer.json"
+    if input_source == "file":
+        payload.write_text(patch)
     result = subprocess.run(
         [
             sys.executable,
@@ -1739,18 +1772,122 @@ def test_cli_roundtrip_matches_helpers_and_updates_no_domain_artifacts(state, tm
             str(tmp_path),
             "update",
             "--input",
-            str(payload),
+            str(payload) if input_source == "file" else "-",
             "--expected-revision",
             str(initial["state"]["revision"]),
         ],
         text=True,
         capture_output=True,
+        input=patch if input_source == "stdin" else None,
     )
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["state"] == state.load_state(tmp_path)
     assert (tmp_path / "README.md").read_text() == "User source"
     assert {p.name for p in tmp_path.iterdir()} == {"README.md", ".eval-author"}
     assert not (tmp_path / "ETHOS.md").exists()
+    assert payload.exists() is (input_source == "file")
+
+
+@pytest.mark.parametrize("input_source", ["file", "stdin"])
+@pytest.mark.parametrize("invalid", ["duplicate", "malformed", "utf8", "schema", "stale_revision"])
+def test_cli_invalid_update_input_preserves_state_and_history(
+    state, tmp_path, monkeypatch, capsys, input_source, invalid
+):
+    original = state.initialize(tmp_path, journey="audit")
+    payload = b'{"pending_question": "Review?"}'
+    expected_revision = original["revision"]
+    if invalid == "duplicate":
+        payload = b'{"prerequisites": {"runtime": {"status": "missing", "status": "confirmed"}}}'
+    elif invalid == "malformed":
+        payload = b'{"pending_question":'
+    elif invalid == "utf8":
+        payload = b'{"pending_question": "\xff"}'
+    elif invalid == "schema":
+        payload = b'{"journey": "create"}'
+    else:
+        expected_revision -= 1
+    source = tmp_path / "patch.json"
+    if input_source == "file":
+        source.write_bytes(payload)
+    stream = io.TextIOWrapper(io.BytesIO(payload), encoding="utf-8")
+    monkeypatch.setattr(sys, "stdin", stream)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "journey_state.py",
+            "--repo",
+            str(tmp_path),
+            "update",
+            "--input",
+            str(source) if input_source == "file" else "-",
+            "--expected-revision",
+            str(expected_revision),
+        ],
+    )
+    working = state.state_path(tmp_path).parent
+    before = {path: path.read_bytes() for path in working.rglob("*") if path.is_file()}
+    assert state.main() == 2
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert json.loads(output.err)["persisted"] is False
+    assert {path: path.read_bytes() for path in working.rglob("*") if path.is_file()} == before
+    assert state.load_state(tmp_path) == original
+
+
+@pytest.mark.parametrize("input_source", ["file", "stdin"])
+@pytest.mark.parametrize("over_limit", [False, True])
+def test_cli_update_input_uses_utf8_byte_limit(state, tmp_path, monkeypatch, capsys, input_source, over_limit):
+    original = state.initialize(tmp_path, journey="audit")
+    working = state.state_path(tmp_path).parent
+    before = {path: path.read_bytes() for path in working.rglob("*") if path.is_file()}
+    monkeypatch.setattr(state, "MAX_BYTES", 4096)
+    patch = json.dumps({"pending_question": "Résumé 🦊"}, ensure_ascii=False).encode("utf-8")
+    payload = patch + b" " * (state.MAX_BYTES + over_limit - len(patch))
+    source = tmp_path / "patch.json"
+    if input_source == "file":
+        source.write_bytes(payload)
+    stream = io.BytesIO(payload + b"extra unread bytes" if over_limit else payload)
+    monkeypatch.setattr(sys, "stdin", io.TextIOWrapper(stream, encoding="utf-8"))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "journey_state.py",
+            "--repo",
+            str(tmp_path),
+            "update",
+            "--input",
+            str(source) if input_source == "file" else "-",
+            "--expected-revision",
+            str(original["revision"]),
+        ],
+    )
+    assert state.main() == (2 if over_limit else 0)
+    output = capsys.readouterr()
+    if over_limit:
+        assert "oversized" in json.loads(output.err)["error"].lower()
+        assert {path: path.read_bytes() for path in working.rglob("*") if path.is_file()} == before
+        if input_source == "stdin":
+            assert stream.tell() == state.MAX_BYTES + 1
+    else:
+        saved = json.loads(output.out)["state"]
+        assert saved["revision"] == original["revision"] + 1
+        assert saved["pending_question"] == "Résumé 🦊"
+
+
+def test_cli_update_file_input_rejects_symlink(state, tmp_path, monkeypatch, capsys):
+    original = state.initialize(tmp_path, journey="audit")
+    source = tmp_path / "patch.json"
+    source.write_text('{"pending_question": "Review?"}')
+    link = tmp_path / "input.json"
+    link.symlink_to(source)
+    before = state.state_path(tmp_path).read_bytes()
+    monkeypatch.setattr(sys, "argv", ["journey_state.py", "--repo", str(tmp_path), "update", "--input", str(link)])
+    assert state.main() == 2
+    assert "Unsafe or oversized" in json.loads(capsys.readouterr().err)["error"]
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert state.load_state(tmp_path) == original
 
 
 def task_fixture(state, repo):
@@ -2210,28 +2347,37 @@ def test_state_only_fresh_init_and_identity_changes_only_touch_state(state, tmp_
     forbid_artifact_checks(state, monkeypatch, [tmp_path / "ETHOS.md"])
     first = state.initialize(tmp_path, agent="first-agent", journey="create", setup="gym", state_only=True)
     assert first["revision"] == 1 and first["ethos"]["stage"] == "explore"
-    before = state.state_path(tmp_path).read_bytes()
     changed = state.initialize(tmp_path, agent="second-agent", journey="audit", state_only=True)
     assert changed["agent"] == "second-agent" and changed["journey"] == "audit"
-    archive = tmp_path / changed["ethos"]["source_findings"][-1]["path"]
-    assert archive.read_bytes() == before
+    assert not (tmp_path / ".eval-author/.working/history").exists()
     assert changed["ethos"]["confirmed_digest"] is None
 
 
 @pytest.mark.parametrize("draft_only", [False, True])
-@pytest.mark.parametrize("command", ["init", "show", "update"])
+@pytest.mark.parametrize(
+    "command,input_source", [("init", "file"), ("show", "file"), ("update", "file"), ("update", "stdin")]
+)
 def test_state_only_cli_defers_artifacts_and_current_approval(
-    state, tmp_path, monkeypatch, capsys, draft_only, command
+    state, tmp_path, monkeypatch, capsys, draft_only, command, input_source
 ):
     original, artifacts = prerequisite_history(state, tmp_path, draft_only=draft_only)
     payload = tmp_path / ".eval-author/.working/prerequisite-update.json"
-    payload.write_text(json.dumps({"ethos": {"stage": "review"}, "pending_question": "Review intent after checks"}))
+    patch = json.dumps({"ethos": {"stage": "review"}, "pending_question": "Review intent after checks"})
+    if input_source == "file":
+        payload.write_text(patch)
+    else:
+        monkeypatch.setattr(sys, "stdin", io.TextIOWrapper(io.BytesIO(patch.encode("utf-8")), encoding="utf-8"))
     before = state.state_path(tmp_path).read_bytes()
     arguments = ["journey_state.py", "--repo", str(tmp_path), "--state-only", command]
     if command == "init":
         arguments += ["--agent", "assistant", "--journey", "create", "--setup", "gym"]
     elif command == "update":
-        arguments += ["--input", str(payload), "--expected-revision", str(original["revision"])]
+        arguments += [
+            "--input",
+            str(payload) if input_source == "file" else "-",
+            "--expected-revision",
+            str(original["revision"]),
+        ]
     monkeypatch.setattr(sys, "argv", arguments)
     forbid_artifact_checks(state, monkeypatch, artifacts)
     assert state.main() == 0

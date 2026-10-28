@@ -332,14 +332,15 @@ def from_plan(value, contract=None):
 
 
 def active_path(root):
+    from .task_evidence import _repair_progress
+
+    progress = _repair_progress(root)
+    if progress["pending"]:
+        raise PlanError("repair invalidation is unfinished; resume record-repair before recording proof")
     marker = root / "private/active-construction.json"
     if not marker.exists() and not marker.is_symlink():
-        if (root / "private/repairs").is_dir():
-            from .task_evidence import _repairs
-
-            repairs = _repairs(root)
-            if repairs and repairs[-1]["superseded"].get("active-construction.json") is not None:
-                raise PlanError("activate the repaired canonical contract before recording fresh proof")
+        if progress["requires_activation"]:
+            raise PlanError("activate the repaired canonical contract before recording fresh proof")
         return root / PATH
     value, _ = load(marker)
     plan_format.fields(value, {"schema", "path", "sha256"})
@@ -359,17 +360,19 @@ def activate(root, path):
     path = path.resolve()
     if not path.is_relative_to(root / "private"):
         raise PlanError("active construction must be inside the workspace private directory")
-    # Historical proof stays attached to its old workspace and contract. A new
-    # workspace is required to activate a migrated contract after proof exists.
+    from .task_evidence import _repair_progress
+
+    progress = _repair_progress(root)
+    if progress["pending"]:
+        raise PlanError("repair invalidation is unfinished; resume record-repair before activation")
     if (root / "validation.json").exists() or (root / "private/active-construction.json").exists():
         raise PlanError("record the current revision's repair before activating another contract")
-    has_history = any((root / p).exists() for p in ("private/run-inputs", "private/probes", "private/repairs"))
-    if has_history:
-        from .task_evidence import _repairs
-
-        repairs = _repairs(root)
-        if not repairs or repairs[-1]["superseded"].get("active-construction.json") is None:
-            raise PlanError("retain the historical proof workspace; activate in a fresh workspace")
+    has_history = any(
+        (root / p).exists()
+        for p in ("private/run-inputs", "private/probes", "private/repairs", "private/repair-state.json")
+    )
+    if has_history and not progress["requires_activation"]:
+        raise PlanError("record a repair before activating another contract")
     document, sha = load(path)
     if document.get("schema") != SCHEMA:
         raise PlanError("activation requires a canonical construction contract")

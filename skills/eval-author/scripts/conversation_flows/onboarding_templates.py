@@ -35,6 +35,10 @@ CONTINUATION_JOURNEYS = {
 PREREQUISITES_COMPLETE = "The prerequisites for reviewing ETHOS.md are complete."
 PREREQUISITE_PROGRESS_INTRO = "Here’s what I already know about your setup and what I’m checking before we continue."
 PREREQUISITE_RESULTS_INTRO = "Here’s what the prerequisite checks found, including anything that still needs attention."
+AUDIT_ENTRY_STATE_FAILURE = (
+    "- **Saved progress:** {error} "
+    "**Needed:** Resolve the reported problem with saved progress, then retry the audit request."
+)
 PREREQUISITE_STATE_FAILURE = (
     "- **Save prerequisite findings:** {error} "
     "**Needed:** Resolve the state helper error, then retry the prerequisite checks."

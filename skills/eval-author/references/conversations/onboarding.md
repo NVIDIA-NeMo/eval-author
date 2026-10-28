@@ -70,6 +70,24 @@ permission inferred by rendering.
 
 ## When state is unavailable
 
+`audit_entry_failure` is a stateless response for an observed saved-state error
+during audit entry. Pass the payload through `--input -` on stdin:
+
+```json
+{
+  "stage": "audit_entry_failure",
+  "journey": "audit",
+  "facts": {"state_error": "Saved progress belongs to a different repository."}
+}
+```
+
+Supply only the observed nonempty error, at most 2,000 characters. This stage
+accepts no readiness, state, revision, or row facts, and is not a no-input
+preview. It emits only the shared Blockers heading and template-owned recovery
+instruction; it cannot establish prerequisites, confirmation, or absence of
+prior work. Rendering does not change entry routing or authorize inspection.
+Preserve the original state and follow the applicable recovery procedure.
+
 `prerequisite_failure` is the stateless response selected by the shared
 [state-failure procedure](../shared-prerequisites.md#when-prerequisite-state-is-unavailable).
 It requires no state file or write access and accepts no fabricated snapshot.
@@ -308,10 +326,11 @@ is introduced by these display specifications.
 
 Follow the [shared input contract](../conversation-rendering.md#input-envelope)
 when passing the payload to the renderer. Use stdin to avoid an extra artifact,
-or place an input payload under the existing `.eval-author/.working/tmp/`
-directory after readiness. Do not pipe a raw `show` response directly into the
-renderer: wrap its `state` with the stage, matching revision, and factual display
-inputs. Use state-only output only for `prerequisite_results`; normal artifact
+following the [temporary-work policy](../shared-prerequisites.md#temporary-work-and-recovery)
+when a tool requires a payload file after readiness. Do not pipe a raw `show`
+response directly into the renderer: wrap its `state` with the stage, matching
+revision, and factual display inputs. Use state-only output only for
+`prerequisite_results`; normal artifact
 reconciliation precedes other stateful stages.
 
 After the user answers, persist the real reply and follow the existing handoff.

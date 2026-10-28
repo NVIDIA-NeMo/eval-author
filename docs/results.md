@@ -214,11 +214,19 @@ coverage or validate a runnable evaluation task.
 Shared internal progress and agreed scope are stored in
 `.eval-author/.working/journey-state.json`; they are not a second report or plan.
 
+`.eval-author/.working/` holds temporary construction files and the current state
+needed to recover unfinished work. Final task files and READMEs stay at their
+documented paths; source control manages task and grader history. Eval Author
+does not create revision archives. You decide how long to keep evaluation
+results; they are not automatically expired or deleted.
+Routine update payloads, state-response copies, renderer inputs, and polling
+responses are temporary. Managed scratch is removed on ordinary completion or
+errors; that does not clear existing user files or results.
+
 These are typical paths relative to the repository being evaluated. The shared
 prerequisite flow keeps the selected `ETHOS.md` at its existing agent-local or
 repository-root path; see [document selection](getting-started.md#load-the-skills).
-Changing that selection reopens affected approvals and preserves its prior
-selection and provenance in `.eval-author/.working/history/ethos/`.
+Changing that selection reopens affected approvals in the current state.
 Workflows may stop before producing every artifact when prerequisites are missing.
 
 | Workflow | Main outputs |
