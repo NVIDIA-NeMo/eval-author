@@ -6,6 +6,9 @@ import importlib
 from pathlib import Path
 
 import pytest
+from test_audit_binding import measured as native_measurement
+from test_audit_state import selected
+from test_journey_state import ethos_ready, setup_ready
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 
@@ -18,23 +21,8 @@ def modules(monkeypatch):
 
 def ready(modules, repo):
     state, _ = modules
-    state.initialize(repo, agent="support", journey="audit")
-    state.update(
-        repo,
-        {
-            "prerequisites": {
-                key: {"status": "verified", "source": "Observed shared audit prerequisites"}
-                for key in state.COMMON_PREREQUISITES | {"data"}
-            }
-        },
-    )
-    (repo / "ETHOS.md").write_text("# Support agent intent\n")
-    return state.confirm_ethos(
-        repo,
-        reviewed_digest=state.ethos_digest(repo),
-        source="User confirmed the saved intent",
-        validation="Ethos parser accepted the saved document",
-    )
+    setup_ready(state, repo, journey="audit", setup=None)
+    return ethos_ready(state, repo)
 
 
 def forbidden(*_args, **_kwargs):
@@ -94,33 +82,29 @@ def test_typed_audit_cannot_be_dropped_or_replaced_with_an_incomplete_record(mod
 
 
 @pytest.mark.parametrize("journey", ["create", "expand"])
-def test_authoring_cannot_update_retained_audit_lifecycle_or_completion(modules, tmp_path, journey):
+@pytest.mark.parametrize("existing", [False, True])
+def test_authoring_preserves_audit_without_reading_or_changing_it(modules, tmp_path, monkeypatch, journey, existing):
     state, audit = modules
-    start_lifecycle(modules, tmp_path)
-    saved = state.initialize(tmp_path, journey=journey, setup="harbor")
-    lifecycle = copy.deepcopy(audit.record(saved))
-    lifecycle["suites"]["candidates"] = ["evals/refunds"]
-    original = state.state_path(tmp_path).read_bytes()
-    for patch in ({"scopes": {"audit": {"lifecycle": lifecycle}}}, {"journey_status": {"audit": "in_progress"}}):
-        with pytest.raises(ValueError, match="Select the audit journey"):
-            state.update(tmp_path, patch, expected_revision=saved["revision"])
-    assert state.state_path(tmp_path).read_bytes() == original
-
-
-@pytest.mark.parametrize("journey", ["create", "expand"])
-def test_new_audit_lifecycle_cannot_claim_completion_during_authoring(modules, tmp_path, journey):
-    state, audit = modules
-    ready(modules, tmp_path)
+    (start_lifecycle if existing else ready)(modules, tmp_path)
     saved = state.initialize(tmp_path, journey=journey, setup="harbor")
     saved["journey_status"][journey] = "complete"
     state.save(tmp_path, saved)
+    saved = state.load_state(tmp_path)
+    lifecycle = copy.deepcopy(audit.record(saved)) if existing else audit.new_record()
+    lifecycle["suites"]["candidates"] = ["evals/refunds"]
+    monkeypatch.setattr(audit, "observe", forbidden)
+    monkeypatch.setattr(audit, "derive", forbidden)
+    output = state.view(saved)
+    assert output["audit"] is None and output["audit_observations"] is None
     original = state.state_path(tmp_path).read_bytes()
-    with pytest.raises(ValueError, match="Select the audit journey"):
-        state.update(
-            tmp_path,
-            {"scopes": {"audit": {"lifecycle": audit.new_record()}}, "journey_status": {"audit": "complete"}},
-            expected_revision=saved["revision"],
-        )
+    scope = {"scopes": {"audit": {"lifecycle": lifecycle}}}
+    for patch in (
+        scope,
+        {"journey_status": {"audit": "in_progress"}},
+        {**scope, "journey_status": {"audit": "complete"}},
+    ):
+        with pytest.raises(ValueError, match="Select the audit journey"):
+            state.update(tmp_path, patch, expected_revision=saved["revision"])
     assert state.state_path(tmp_path).read_bytes() == original
     assert state.load_state(tmp_path)["journey_status"][journey] == "complete"
 
@@ -130,6 +114,8 @@ def test_domain_pending_checkpoint_survives_switch_and_resumes_without_reselecti
     saved = start_lifecycle(modules, tmp_path)
     lifecycle = copy.deepcopy(audit.record(saved))
     lifecycle["suites"]["candidates"] = ["evals/refunds"]
+    trace_choice = selected(audit)[1]["traces"]
+    lifecycle["traces"] = trace_choice
     lifecycle["pending"] = {
         "stage": "suite_selection",
         "digest": audit.fingerprint(lifecycle["suites"]),
@@ -143,6 +129,7 @@ def test_domain_pending_checkpoint_survives_switch_and_resumes_without_reselecti
     )
     switched = state.initialize(tmp_path, journey="create", setup="harbor")
     assert switched["pending_question"] is None
+    assert audit.record(switched)["traces"] == trace_choice
     resumed = state.initialize(tmp_path, journey="audit")
     output = state.view(resumed)
     assert audit.record(resumed) == lifecycle
@@ -150,12 +137,14 @@ def test_domain_pending_checkpoint_survives_switch_and_resumes_without_reselecti
     assert output["audit"]["pending_checkpoint"] == lifecycle["pending"]
 
 
-def test_state_only_framework_observation_preserves_typed_audit_without_artifact_reads(modules, tmp_path, monkeypatch):
+def test_state_only_update_and_view_preserve_typed_audit_without_artifact_reads(modules, tmp_path, monkeypatch):
     state, audit = modules
     saved = start_lifecycle(modules, tmp_path)
     monkeypatch.setattr(audit, "observe", forbidden)
+    monkeypatch.setattr(audit, "derive", forbidden)
     monkeypatch.setattr(audit, "transition", forbidden)
     monkeypatch.setattr(state.first_eval_state, "observe", forbidden)
+    monkeypatch.setattr(state.first_eval_state, "derive", forbidden)
     monkeypatch.setattr(state, "ethos_digest", forbidden)
     updated = state.update(
         tmp_path,
@@ -165,20 +154,9 @@ def test_state_only_framework_observation_preserves_typed_audit_without_artifact
     )
     assert audit.record(updated) == audit.record(saved)
     assert updated["scopes"]["audit"]["legacy_context"] == saved["scopes"]["audit"]["legacy_context"]
-
-
-def test_legacy_audit_completion_is_retained_without_current_completion_authority(modules, tmp_path):
-    state, _ = modules
-    saved = ready(modules, tmp_path)
-    saved["scopes"]["audit"] = {"confirmed": True, "traces": ["earlier-run.json"]}
-    saved["journey_status"]["audit"] = "complete"
-    state.save(tmp_path, saved)
-    original = state.state_path(tmp_path).read_bytes()
-    output = state.view(state.load_state(tmp_path))
-    assert output["state"]["journey_status"]["audit"] == "complete"
-    assert output["audit"] is None
-    assert not output["checklist"][2]["complete"]
-    assert state.state_path(tmp_path).read_bytes() == original
+    output = state.view(state.load_state(tmp_path, state_only=True), state_only=True)
+    for field in ("audit", "audit_observations", "first_eval", "first_eval_observations", "task_readiness"):
+        assert output[field] is None
 
 
 def test_audit_completion_without_scope_patch_still_requires_revision_and_typed_proof(modules, tmp_path):
@@ -243,24 +221,64 @@ def test_audit_ethos_change_preserves_prior_authoring_until_return(modules, tmp_
     assert not state.checklist(returned)[2]["complete"]
 
 
-def test_state_only_view_defers_both_domain_observations(modules, tmp_path, monkeypatch):
+def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path):
     state, audit = modules
-    ready(modules, tmp_path)
-    monkeypatch.setattr(audit, "observe", forbidden)
-    monkeypatch.setattr(audit, "derive", forbidden)
-    monkeypatch.setattr(state.first_eval_state, "observe", forbidden)
-    monkeypatch.setattr(state.first_eval_state, "derive", forbidden)
-    monkeypatch.setattr(state, "ethos_digest", forbidden)
-    output = state.view(state.load_state(tmp_path, state_only=True), state_only=True)
-    for field in ("audit", "audit_observations", "first_eval", "first_eval_observations", "task_readiness"):
-        assert output[field] is None
+    specification, trace, _, aggregate = native_measurement(tmp_path)
+    state.initialize(tmp_path, agent="example-agent", journey="audit")
+    state.update(
+        tmp_path,
+        {"prerequisites": {key: {"status": "confirmed", "source": "Local fixture"} for key in state.PREREQUISITES}},
+    )
+    state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path),
+        source="User confirmed the native fixture intent",
+        validation="Valid fixture",
+    )
+    _, lifecycle, _ = selected(audit)
+    for name in lifecycle["suite_files"]:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("fixture evaluation")
+    lifecycle["traces"]["paths"] = lifecycle["trace_files"] = [str(trace)]
+    lifecycle["specification"] = str(specification)
 
+    def save(**extra):
+        saved = state.update(
+            tmp_path,
+            {"scopes": {"audit": {"lifecycle": copy.deepcopy(lifecycle)}}, **extra},
+            expected_revision=state.load_state(tmp_path)["revision"],
+        )
+        return audit.progress(tmp_path, saved)
 
-def test_authoring_view_does_not_inspect_retained_audit_sources(modules, tmp_path, monkeypatch):
-    state, audit = modules
-    ready(modules, tmp_path)
-    state.initialize(tmp_path, journey="create", setup="harbor")
-    monkeypatch.setattr(audit, "observe", forbidden)
-    monkeypatch.setattr(audit, "derive", forbidden)
-    output = state.view(state.load_state(tmp_path))
-    assert output["audit"] is None and output["audit_observations"] is None
+    def ref(path):
+        return {"path": str(path), "digest": state.digest(path.read_bytes())}
+
+    progress = save()
+    lifecycle["checks_approval"] = {"digest": progress["checks_digest"], "source": "User approved these checks"}
+    assert save()["stage"] == "measurement"
+    lifecycle["measurement"] = {
+        "checks_digest": lifecycle["checks_approval"]["digest"],
+        "status": "complete",
+        "evidence": [ref(path) for path in [*sorted((tmp_path / "measurements").rglob("*.json")), aggregate]],
+        "source": "Native measurement and aggregate verification succeeded",
+    }
+    assert save()["measurement_complete"]
+    report = tmp_path / ".eval-author/audit-coverage-report.md"
+    report.write_text("# Findings\n\nLookup is exercised; unjudged behavior limits the findings.\n")
+    lifecycle["findings"] = {"report": ref(report), "source": "Presented findings and evidence limits"}
+    progress = save()
+    lifecycle["findings_review"] = {"digest": progress["findings_digest"], "source": "User accepted the findings only"}
+    save(journey_status={"audit": "complete"})
+
+    for changed in (False, True):
+        if changed:
+            trace.write_text(trace.read_text() + "\n")
+        before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+        resumed = state.view(state.load_state(tmp_path))
+        assert resumed["audit"]["stage"] == ("checks_review" if changed else "next_action")
+        assert resumed["audit"]["complete"] is (not changed)
+        assert resumed["checklist"][2]["complete"] is (not changed)
+        assert not resumed["audit"]["next_action_current"]
+        assert audit.record(resumed["state"]) == lifecycle
+        assert all(path.read_bytes() == contents for path, contents in before.items())
