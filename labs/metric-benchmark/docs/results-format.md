@@ -180,44 +180,30 @@ attempts, rather than applying scoring's attempt selection.
 
 ## Native evidence and relocation
 
-Preserve the native job files produced by the executor, including job and trial
-configuration, results, logs and available agent/verifier evidence. The validator
-requires each observed trial's `result.json` and checks the conditions below;
-it does not require every optional Harbor artifact or establish that a coverage
-adapter has all the evidence it needs. An adapter may impose additional requirements.
+Store the raw Harbor execution files under the results root. Each entry in
+`results.json` points to its trial directory through `native_results_path`, a
+relative POSIX path within that root. Keep the configuration, results, logs and
+available agent/verifier evidence; symlinks and special files are not allowed.
+The validator reads each observed trial’s Harbor 0.20.0 `result.json` and checks
+the task identity/checksum, trial directory name, agent configuration, status and
+configured measurement against the prepared inputs and results index.
 
-Evidence paths use relative POSIX syntax. Absolute paths, parent traversal,
-backslashes, colons and NUL characters are rejected. Referenced files must remain
-inside the results root without symlink traversal. The evidence tree must contain
-only ordinary files and directories; symlinks and special files are rejected.
-
-Each observed entry's `result.json` must parse as a Harbor 0.20.0 `TrialResult`.
-The validator compares its task name and legacy task checksum with the prepared
-Harbor task, its trial name with the directory name, its agent configuration with
-the selected prepared agent, and its status and configured measurement with the
-index. The legacy Harbor checksum and the benchmark input's SHA pin are different
-identities; neither substitutes for the other.
-
-Native task metadata must contain an absolute POSIX `config.task.path` ending
-with the task source's bundle-relative path. The validator derives the original
-producer root lexically and uses it to compare recorded agent input paths. It
-opens the locally supplied prepared inputs, not the producer's old filesystem.
-Non-path agent settings must still match. This path requirement currently applies
-even to agents without file inputs.
-
-Worker roots may differ, and completed evidence may be relocated with its input
-bundle. Input pins are verified according to the loading policy described in the
-[benchmark format](benchmark-format.md). These checks establish artifact
-consistency, not publisher authenticity, mutation activation, verifier correctness
-or scientific validity. They do not prove that trials came from one submission
-or prevent selection of favorable runs; the producer must record that provenance.
+The results directory can move with its prepared input bundle, and trials may
+come from different worker roots. The validator uses the supplied local inputs;
+it does not open paths on the original worker. Harbor’s recorded `config.task.path`
+must still be an absolute POSIX path ending in the task’s bundle-relative source
+path so recorded agent input paths can be compared. Validation establishes
+consistency with the prepared inputs, not the scientific validity of the results
+or whether all trials came from one submission.
 
 ## Validation report: `validation.json`
 
-This is the validator's output, separate from the executor's `results.json`.
-The output filename is chosen by the caller. Keep it outside the results root.
-A report is produced only after all checks succeed; explicitly unavailable
-observations do not themselves cause validation to fail.
+The `validate_results.py` CLI reads `results.json` and the raw execution evidence
+under `--results-root`, checks them against the case selected by `--benchmark` and
+`--case`, and writes this report to `--output` after all checks succeed. For example,
+`--output validation.json` names the output file; keep it outside the results root.
+Explicitly unavailable observations do not themselves cause validation to fail.
+The Python library returns the same report as a dictionary.
 
 | Field | Meaning | Source |
 | --- | --- | --- |
