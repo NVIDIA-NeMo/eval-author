@@ -232,11 +232,12 @@ settles this milestone's check-in without a second prompt.
 When no evaluations exist, explicitly explain that Ethos and this specification
 can establish what future tests should cover. Existing agent runs can still be
 examined and measured when selected, but their coverage is evidence about those
-runs and cannot complete the existing-suite audit lifecycle. Retain the
-specification-only review and offer first-eval creation. Without run evidence,
-proceed with the specification alone. Unresolved tool names remain open questions;
-do not invent names, silently omit material behaviors, or call a partial
-specification complete.
+runs and cannot complete the existing-suite audit lifecycle. Offer first-eval creation.
+
+If required traces are unavailable, pause the full audit. Continue
+specification-only work only if the user explicitly requests it. Unresolved
+tool names remain open questions; do not invent names, silently omit material
+behaviors, or call a partial specification complete.
 
 ## 3. Measure coverage
 
