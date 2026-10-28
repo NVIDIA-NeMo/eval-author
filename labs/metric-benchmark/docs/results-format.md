@@ -65,36 +65,45 @@ requirements for the native evidence they reference.
 JSON objects reject unknown fields and duplicate keys. Numbers must be finite;
 identifiers and reasons must be nonblank strings. There is no `schema_version`
 field in the current format. Optional fields may be omitted; serialized examples
-also show their explicit defaults.
+also show their explicit defaults. There is no `artifact_type` field: the
+results reader already knows which format it is loading.
 
 | Field | Required / default | Meaning |
 | --- | --- | --- |
-| `artifact_type` | Defaults to `raw_execution_results` | A label identifying this JSON document as execution results. If supplied, it must be exactly `raw_execution_results`. |
-| `experiment_id` | Required | ID supplied by the caller when starting this execution of the experiment; the local runner takes it from `--run-id`. |
-| `task_inventory` | Required | List of tasks configured for this case example, including tasks whose executions failed or are missing. |
-| `results` | Required, nonempty | Outcomes for each agent/task pair: one entry per attempt, including explicit entries for missing executions. |
+| `run_id` | Required | ID supplied by the caller when starting this execution of the experiment; the local runner takes it from `--run-id`. |
+| `task_inventory` | Required | Object containing the list of tasks configured for this case example, including tasks whose executions failed or are missing. |
+| `execution_results` | Required, nonempty | Outcomes for each agent/task pair: one entry per attempt, including explicit entries for missing executions. |
 
 For example, starting the runner with `--run-id trial-001` produces
-`"experiment_id": "trial-001"` in each case example's results index. The caller
+`"run_id": "trial-001"` in each case example's results index. The caller
 chooses this value; it is not generated automatically or read from the
 configuration's `benchmark_id`. The benchmark ID identifies the definition;
-the experiment ID identifies an execution of it. The per-entry `run_id` below
+the run ID identifies an execution of it. The per-result `agent_run_id` below
 identifies one agent's run within that execution.
 
-`task_inventory` contains `artifact_type` (default `task_references`) and a
-nonempty `tasks` array. Each task has `task_id`, a positive integer `revision`,
-and an optional `name` (default `null`). Task IDs are unique. The inventory must
-match the prepared case exactly, including order and optional task names.
+### Task inventory: `task_inventory`
 
-### Execution entries
-
-Each object in the top-level `results` array is an execution entry for one
-agent/task attempt, including attempts recorded as missing. The fields below
-belong inside each of those objects, not at the top level of `results.json`.
+The `task_inventory` object contains a required, nonempty `tasks` array. Each
+object in that array describes one task configured for the case example:
 
 | Field | Required / default | Meaning |
 | --- | --- | --- |
-| `run_id` | Required | One logical run selected for this agent. It is an opaque ID, even when it looks like a directory path. |
+| `task_id` | Required | Task ID from the prepared task manifest. |
+| `revision` | Required | Positive integer identifying the task revision. |
+| `name` | Defaults to `null` | Optional human-readable task name. |
+
+Task IDs are unique. The inventory must match the prepared case exactly,
+including task order and optional names. Each task is listed once here, even
+though the baseline and every mutant execute it separately.
+
+### Execution results: `execution_results`
+
+Each object in the top-level `execution_results` array describes one agent/task
+attempt, including attempts recorded as missing.
+
+| Field | Required / default | Meaning |
+| --- | --- | --- |
+| `agent_run_id` | Required | One logical run selected for this agent. It is an opaque ID, even when it looks like a directory path. |
 | `agent_bundle_id` | Required | Baseline or mutant ID from the prepared agent manifest. |
 | `framework_profile_id` | Defaults to `null` | Optional profile identity; it must stay consistent within a run. |
 | `evaluation` | Required | Task and attempt identity, defined below. |
@@ -112,7 +121,7 @@ belong inside each of those objects, not at the top level of `results.json`.
 - `task`: a task reference with the same fields as an inventory task. Its ID and revision must occur in the inventory.
 
 Every `(evaluation_id, execution)` pair is unique across the index. Reusing an
-`evaluation_id` must preserve the run and task identity. A `run_id` identifies
+`evaluation_id` must preserve the run and task identity. An `agent_run_id` identifies
 one agent/profile combination; different agents cannot share it.
 
 ### Measurements and unavailable observations
@@ -205,7 +214,7 @@ observations do not themselves cause validation to fail.
 | Field | Meaning |
 | --- | --- |
 | `case_id` | Selected prepared case. |
-| `experiment_id` | Execution identity copied from the index. |
+| `run_id` | Execution identity copied from the index. |
 | `expected_pairs` | Number of configured agents multiplied by number of tasks. |
 | `observations` | Number of execution entries, including missing entries and retries. |
 | `unavailable` | Entries with null configured measurements, each containing `agent`, `task`, `attempt`, and `reason`. |

@@ -1,9 +1,8 @@
 {
-  "artifact_type": "raw_execution_results",
-  "experiment_id": "mock-run-001",
-  "results": [
+  "execution_results": [
     {
       "agent_bundle_id": "baseline",
+      "agent_run_id": "agent-0000/run-0001",
       "evaluation": {
         "evaluation_id": "0/inspect-files",
         "execution": 1,
@@ -23,12 +22,12 @@
       "native_results_format": "directory",
       "native_results_path": "agents/agent-0000/run-0001/inspect-files__mock001",
       "outcome_category": null,
-      "run_id": "agent-0000/run-0001",
       "status": "succeeded",
       "unavailable_evidence": {}
     },
     {
       "agent_bundle_id": "baseline",
+      "agent_run_id": "agent-0000/run-0001",
       "evaluation": {
         "evaluation_id": "0/read-config",
         "execution": 1,
@@ -48,12 +47,12 @@
       "native_results_format": "directory",
       "native_results_path": "agents/agent-0000/run-0001/read-config__mock001",
       "outcome_category": null,
-      "run_id": "agent-0000/run-0001",
       "status": "succeeded",
       "unavailable_evidence": {}
     },
     {
       "agent_bundle_id": "baseline",
+      "agent_run_id": "agent-0000/run-0001",
       "evaluation": {
         "evaluation_id": "0/search-workspace",
         "execution": 1,
@@ -73,12 +72,12 @@
       "native_results_format": "directory",
       "native_results_path": "agents/agent-0000/run-0001/search-workspace__mock001",
       "outcome_category": null,
-      "run_id": "agent-0000/run-0001",
       "status": "succeeded",
       "unavailable_evidence": {}
     },
     {
       "agent_bundle_id": "mutant",
+      "agent_run_id": "agent-0001/run-0001",
       "evaluation": {
         "evaluation_id": "1/inspect-files",
         "execution": 1,
@@ -98,12 +97,12 @@
       "native_results_format": "directory",
       "native_results_path": "agents/agent-0001/run-0001/inspect-files__mock001",
       "outcome_category": null,
-      "run_id": "agent-0001/run-0001",
       "status": "succeeded",
       "unavailable_evidence": {}
     },
     {
       "agent_bundle_id": "mutant",
+      "agent_run_id": "agent-0001/run-0001",
       "evaluation": {
         "evaluation_id": "1/read-config",
         "execution": 1,
@@ -123,12 +122,12 @@
       "native_results_format": "directory",
       "native_results_path": "agents/agent-0001/run-0001/read-config__mock001",
       "outcome_category": null,
-      "run_id": "agent-0001/run-0001",
       "status": "succeeded",
       "unavailable_evidence": {}
     },
     {
       "agent_bundle_id": "mutant",
+      "agent_run_id": "agent-0001/run-0001",
       "evaluation": {
         "evaluation_id": "1/search-workspace",
         "execution": 1,
@@ -148,12 +147,12 @@
       "native_results_format": "directory",
       "native_results_path": "agents/agent-0001/run-0001/search-workspace__mock001",
       "outcome_category": null,
-      "run_id": "agent-0001/run-0001",
       "status": "succeeded",
       "unavailable_evidence": {}
     },
     {
       "agent_bundle_id": "mutant-no-search",
+      "agent_run_id": "agent-0002/run-0001",
       "evaluation": {
         "evaluation_id": "2/inspect-files",
         "execution": 1,
@@ -173,12 +172,12 @@
       "native_results_format": "directory",
       "native_results_path": "agents/agent-0002/run-0001/inspect-files__mock001",
       "outcome_category": null,
-      "run_id": "agent-0002/run-0001",
       "status": "succeeded",
       "unavailable_evidence": {}
     },
     {
       "agent_bundle_id": "mutant-no-search",
+      "agent_run_id": "agent-0002/run-0001",
       "evaluation": {
         "evaluation_id": "2/read-config",
         "execution": 1,
@@ -198,12 +197,12 @@
       "native_results_format": "directory",
       "native_results_path": "agents/agent-0002/run-0001/read-config__mock001",
       "outcome_category": null,
-      "run_id": "agent-0002/run-0001",
       "status": "succeeded",
       "unavailable_evidence": {}
     },
     {
       "agent_bundle_id": "mutant-no-search",
+      "agent_run_id": "agent-0002/run-0001",
       "evaluation": {
         "evaluation_id": "2/search-workspace",
         "execution": 1,
@@ -223,13 +222,12 @@
       "native_results_format": "directory",
       "native_results_path": "agents/agent-0002/run-0001/search-workspace__mock001",
       "outcome_category": null,
-      "run_id": "agent-0002/run-0001",
       "status": "succeeded",
       "unavailable_evidence": {}
     }
   ],
+  "run_id": "mock-run-001",
   "task_inventory": {
-    "artifact_type": "task_references",
     "tasks": [
       {
         "name": null,

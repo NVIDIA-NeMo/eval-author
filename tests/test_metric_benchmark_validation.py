@@ -70,7 +70,7 @@ def result_example(tmp_path, *, bundle=False):
             write_json(folder / "result.json", native)
             rows.append(
                 {
-                    "run_id": f"agent-{i:04d}/run-0001",
+                    "agent_run_id": f"agent-{i:04d}/run-0001",
                     "agent_bundle_id": agent.agent_bundle_id,
                     "evaluation": {"evaluation_id": f"{i}/{task.task_id}", "execution": 1, "task": task.model_dump()},
                     "status": "succeeded",
@@ -80,7 +80,11 @@ def result_example(tmp_path, *, bundle=False):
                 }
             )
     raw = RawResults.model_validate(
-        {"experiment_id": "run-1", "task_inventory": case.task_inventory.model_dump(), "results": rows}
+        {
+            "run_id": "run-1",
+            "task_inventory": case.task_inventory.model_dump(),
+            "execution_results": rows,
+        }
     )
     write_json(root / "results.json", raw)
     return loaded, case, raw, root, path
@@ -120,12 +124,12 @@ def test_contract_and_cli_parity(tmp_path):
 )
 def test_inconsistent_matrix_or_evidence_rejected(tmp_path, change):
     loaded, case, raw, root, _ = result_example(tmp_path)
-    native_path = root / raw.results[0].native_results_path / "result.json"
+    native_path = root / raw.execution_results[0].native_results_path / "result.json"
     native = json.loads(native_path.read_text())
     if change == "missing":
-        raw.results.pop()
+        raw.execution_results.pop()
     if change == "score":
-        raw.results[0].metrics["reward"].value = 0.2
+        raw.execution_results[0].metrics["reward"].value = 0.2
     if change == "task":
         native["task_name"] = "other"
     if change == "checksum":
@@ -137,7 +141,7 @@ def test_inconsistent_matrix_or_evidence_rejected(tmp_path, change):
     if change == "symlink":
         (root / "escape").symlink_to(tmp_path)
     if change == "repetition":
-        raw.results.append(raw.results[0].model_copy(deep=True))
+        raw.execution_results.append(raw.execution_results[0].model_copy(deep=True))
     native_path.write_text(json.dumps(native))
     with pytest.raises(ValueError):
         validate_results(raw, case, root, loaded.case(case.case_id).root, loaded.definition.scoring)
@@ -145,7 +149,7 @@ def test_inconsistent_matrix_or_evidence_rejected(tmp_path, change):
 
 def test_explicit_missing_observation_is_not_zero(tmp_path):
     loaded, case, raw, root, _ = result_example(tmp_path)
-    row = raw.results[0]
+    row = raw.execution_results[0]
     row.native_results_path = "unavailable/inspect-files"
     row.status = "missing"
     row.metrics["reward"].value = None
@@ -167,7 +171,7 @@ def test_relocated_bundle_and_native_evidence_validate_without_original_paths(tm
         validate_results(raw, case, moved / "results", loaded.case(case.case_id).root, loaded.definition.scoring)
         == before
     )
-    native_path = moved / "results" / raw.results[0].native_results_path / "result.json"
+    native_path = moved / "results" / raw.execution_results[0].native_results_path / "result.json"
     native = json.loads(native_path.read_text())
     native["config"]["agent"]["kwargs"]["bundle"] = "/unrelated/bundle.txt"
     native_path.write_text(json.dumps(native))
@@ -184,8 +188,8 @@ def test_empty_agent_does_not_default_to_oracle(tmp_path):
 
 def test_executor_run_names_are_not_directory_conventions(tmp_path):
     loaded, case, raw, root, _ = result_example(tmp_path)
-    for row in raw.results:
-        row.run_id = "external-job:" + row.agent_bundle_id
+    for row in raw.execution_results:
+        row.agent_run_id = "external-job:" + row.agent_bundle_id
     assert (
         validate_results(raw, case, root, loaded.case(case.case_id).root, loaded.definition.scoring)["expected_pairs"]
         == 9
@@ -198,12 +202,12 @@ def test_agent_set_errors_name_case_and_agents(tmp_path, unexpected):
 
     _, case, raw, _, _ = result_example(tmp_path)
     if unexpected:
-        for row in raw.results:
+        for row in raw.execution_results:
             if row.agent_bundle_id == "mutant":
                 row.agent_bundle_id = "unconfigured"
         message = "case rho-agent:.*missing agents:.*mutant.*unexpected agents:.*unconfigured"
     else:
-        raw.results = [row for row in raw.results if row.agent_bundle_id == "baseline"]
+        raw.execution_results = [row for row in raw.execution_results if row.agent_bundle_id == "baseline"]
         message = "case rho-agent:.*missing agents:.*mutant"
     with pytest.raises(ValueError, match=message):
         selection_for_results(case, raw, ScoringPolicy())
@@ -211,7 +215,7 @@ def test_agent_set_errors_name_case_and_agents(tmp_path, unexpected):
 
 def test_distinct_worker_roots_are_not_experiment_identity(tmp_path):
     loaded, case, raw, root, _ = result_example(tmp_path, bundle=True)
-    for i, row in enumerate(raw.results):
+    for i, row in enumerate(raw.execution_results):
         path = root / row.native_results_path / "result.json"
         trial = json.loads(path.read_text())
         producer = f"/worker-{i}/prepared"

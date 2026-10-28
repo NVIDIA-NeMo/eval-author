@@ -1,7 +1,6 @@
 {
   "case_id": "rho-agent",
   "expected_pairs": 9,
-  "experiment_id": "mock-run-001",
   "files": {
     "agents/agent-0000/run-0001/inspect-files__mock001/result.json": "sha256:dc1e6b859dc35b34974e07dd60fbb16aac8348ad51b299199d64d7b8836ae31f",
     "agents/agent-0000/run-0001/inspect-files__mock001/verifier/reward.txt": "sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
@@ -23,5 +22,6 @@
     "agents/agent-0002/run-0001/search-workspace__mock001/verifier/reward.txt": "sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
   },
   "observations": 9,
+  "run_id": "mock-run-001",
   "unavailable": []
 }

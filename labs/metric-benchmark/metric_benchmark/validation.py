@@ -66,8 +66,8 @@ def selection_for_results(case: Case, raw: RawResults, scoring: ScoringPolicy) -
     if raw.task_inventory != case.task_inventory:
         raise ValueError("results task inventory differs from benchmark case")
     runs: dict[str, str] = {}
-    for row in raw.results:
-        if runs.setdefault(row.agent_bundle_id, row.run_id) != row.run_id:
+    for row in raw.execution_results:
+        if runs.setdefault(row.agent_bundle_id, row.agent_run_id) != row.agent_run_id:
             raise ValueError(f"case {case.case_id}, agent {row.agent_bundle_id}: select one run per agent")
     expected = {agent.agent_bundle_id for agent in case.agents()}
     if set(runs) != expected:
@@ -113,7 +113,7 @@ def validate_results(
     groups: dict[tuple, list] = {}
     paths = set()
     unavailable = []
-    for row in raw.results:
+    for row in raw.execution_results:
         try:
             key = (row.agent_bundle_id, *row.evaluation.task.key())
             if key not in expected:
@@ -182,9 +182,9 @@ def validate_results(
     manifest.pop("results.json", None)
     return {
         "case_id": case.case_id,
-        "experiment_id": raw.experiment_id,
+        "run_id": raw.run_id,
         "expected_pairs": len(expected),
-        "observations": len(raw.results),
+        "observations": len(raw.execution_results),
         "unavailable": unavailable,
         "files": manifest,
     }
