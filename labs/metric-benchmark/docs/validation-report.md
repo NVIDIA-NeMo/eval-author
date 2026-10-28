@@ -17,11 +17,13 @@ pass, it produces the report described here.
 From the repository root, invoke the validation CLI with:
 
 ```bash
-uv run python labs/metric-benchmark/validate_results.py \
-  --benchmark experiment.yml \
-  --case case-id \
-  --results-root execution-results \
-  --output validation.json
+validation_args=(
+  --benchmark experiment.yml          # Experiment definition
+  --case case-id                      # Case to validate
+  --results-root execution-results    # Saved execution results
+  --output validation.json            # Report output path
+)
+uv run python labs/metric-benchmark/validate_results.py "${validation_args[@]}"
 ```
 
 Supply these required arguments:
