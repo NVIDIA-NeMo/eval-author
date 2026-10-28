@@ -122,17 +122,18 @@ initial proposal requires the user's explicit request, retained as
 `plan.breadth_request.source`, rather than an inferred preference or invented
 approval. Keep additional ideas out of this initial agreement.
 
-Derive concrete requests, expected behavior, outcomes, and grading from `ETHOS.md`
+Derive concrete requests, expected behavior, outcomes, and verifier rules from `ETHOS.md`
 and selected evidence. Include useful positive, negative, difficult, and boundary
 examples at the agreed breadth. Explain why the tasks help, what remains untested,
-and which will be built first. Do not use a model's current answer as grading
+and which will be built first. Do not use a model's current answer as verifier
 truth or replace subjective quality with brittle wording checks.
-Follow [proposed grading](../eval-author/references/conversations/first-eval.md#proposed-grading)
-when filling each task's Grading column, before resolving its validation setup.
+Follow the [first_eval task table contract](../eval-author/references/conversations/first_eval_templates.md)
+when saving each proposed task's verifier type and scoring rule, before resolving
+its validation setup.
 
 Reuse prerequisite findings and the selected source to make the proposal.
 Read only the additional agent interface or selected evidence needed to describe
-its input, observable result, and grading. Defer adapter investigation, hook
+its input, observable result, and verifier. Defer adapter investigation, hook
 design, environment preparation, and runtime implementation until design approval;
 unresolved execution details do not prevent this design review. Consult
 [execution dependencies](../eval-author/references/execution-dependencies.md) and
@@ -188,7 +189,7 @@ and bind the construction plan before recording native controls. Preserve
 correct inaction and nonbinary rewards when required by the task.
 
 Finish the task README following [Task documentation](../eval-author/references/suite-readme.md#task-documentation),
-including input, behavior, expected result, grading, a meaningful limitation,
+including input, behavior, expected result, verifier, a meaningful limitation,
 and setup/rerun instructions. Finalize it before revision-bound execution evidence;
 put later run results and evidence links in the outer suite README.
 
@@ -196,8 +197,12 @@ Satisfy [grader validation before authored-task review](../eval-author/reference
 for this task, including its actual model-based judge when used. Generate the
 report and Markdown mirror using [Report generation](../eval-author/references/suite-readme.md#report-generation)
 before `first_eval_review_first`. Link the actual Tasks view and task README,
-and report environment proof, grading validation, and actual-agent execution
+and report environment proof, verifier validation, and actual-agent execution
 separately. Missing or stale required validation or artifacts block review.
+Set each report task's `display_id` to its proposed task ID and save the
+implemented `scoring_rule` as report metadata. Use
+`first_eval_table_data.py` to read the authored row from the saved report
+snapshot, then pass it as `facts.task_rows` to the conversation renderer.
 Reports may be refreshed as drafts while validation remains blocked, without
 presenting an approval question or claiming review readiness.
 
@@ -218,6 +223,8 @@ reviewed approach; it does not claim individual review of every later task.
 Only after current first-task approval, render `first_eval_prepare_remaining`
 and build the remaining agreed tasks with the approved pattern. Reuse applicable
 proof and controls, refreshing the report after authoring, revisions, and validation.
+Read every authored row with `first_eval_table_data.py --stage review_suite`
+after the refresh and pass the returned `task_rows` to the renderer.
 Keep task paths stable; a blocked first task never unlocks remaining authoring.
 Follow the [remaining-task build checklist](../eval-author/references/conversations/first-eval.md#remaining-task-build-progress)
 for saved activity and coordinator-owned renderer updates throughout this work.

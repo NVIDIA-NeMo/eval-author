@@ -37,7 +37,7 @@ from urllib.parse import quote
 
 # Isolated Python invocations must resolve the bundled sibling, never cwd code.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from journey_state import load_state, task_lifecycle  # noqa: E402
+from journey_state import load_state, task_digest, task_lifecycle  # noqa: E402
 from journey_state import state_path as journey_state_path
 from search_tasks import search_tasks, within_task_scope  # noqa: E402
 from working_paths import working_path  # noqa: E402
@@ -83,6 +83,7 @@ TASK_METADATA = obj(
         "expected_outcome": TEXT,
         "grading_kind": {"enum": GRADING_KINDS + list(LEGACY_GRADING_KINDS)},
         "grading_rule": TEXT,
+        "scoring_rule": TEXT,
         "grading_summary": GRADING_SUMMARY,
         "source_refs": array(PATH),
     },
@@ -118,6 +119,7 @@ TASK_SCHEMA = obj(
         "expected_outcome": NULL_TEXT,
         "grading_kind": TEXT,
         "grading_rule": NULL_TEXT,
+        "scoring_rule": NULL_TEXT,
         "readme_revision": NULL_TEXT,
         "readme_path": PATH,
         "readme_html": {"type": ["string", "null"], "maxLength": 2 * 1024 * 1024},
@@ -136,6 +138,7 @@ TASK_SCHEMA["properties"]["title"] = NULL_TEXT
 # Accept the former split-title field when refreshing existing reports.
 TASK_SCHEMA["properties"]["heading_id"] = TEXT
 TASK_SCHEMA["properties"]["grading_summary"] = {"anyOf": [GRADING_SUMMARY, {"type": "null"}]}
+TASK_SCHEMA["properties"]["task_revision"] = NULL_TEXT
 ATTEMPT_SCHEMA = obj(
     {
         "id": TEXT,
@@ -546,7 +549,6 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
             if nested_checkout(root, directory):
                 excluded.add(path)
                 continue
-            overrides = metadata["tasks"].get(path, {})
             issues = []
             sections: dict[str, str | None] = {}
             revision = None
@@ -565,6 +567,16 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
                         break
                 issues.append("NeMo Gym workload candidate; native validation has not been run.")
             readme_path = readme.relative_to(repo).as_posix()
+            # A first_eval Gym task uses the root README while its report row uses a native workload path.
+            overrides = metadata["tasks"].get(path) or metadata["tasks"].get(
+                readme.parent.relative_to(repo).as_posix(), {}
+            )
+            task_revision = None
+            if overrides.get("scoring_rule"):
+                try:
+                    task_revision = task_digest(repo, readme.parent.relative_to(repo).as_posix())
+                except (OSError, ValueError):
+                    issues.append("Task content could not be bound to its scoring rule.")
             if readme.exists():
                 try:
                     content = read_bytes(local(repo, readme_path), MAX_README_BYTES)
@@ -616,6 +628,8 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
                     else grading_kind or "Not documented"
                 ),
                 "grading_rule": overrides.get("grading_rule"),
+                "scoring_rule": overrides.get("scoring_rule"),
+                "task_revision": task_revision,
                 "grading_summary": grading_summary,
                 "readme_revision": revision,
                 "readme_path": readme_path,

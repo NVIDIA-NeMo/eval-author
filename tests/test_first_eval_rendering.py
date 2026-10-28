@@ -52,6 +52,12 @@ def creation(monkeypatch, tmp_path):
                     "input": "Request | with newline\ncontinued",
                     "behavior": "Respect policy",
                     "expected_result": "Correct disposition",
+                    "verifier_type": "Custom code + LLMaJ" if task_id == "refund" else "Custom code",
+                    "scoring_rule": (
+                        "Pass at 1 when the refund state and reply both match policy, otherwise score 0."
+                        if task_id == "refund"
+                        else "Pass at 1 when the request is rejected and state stays unchanged, otherwise score 0."
+                    ),
                     "grading": (
                         "Code checks verify state; model judge assesses response meaning"
                         if task_id == "refund"
@@ -109,12 +115,37 @@ def observations(record):
 
 
 def payload(creation, stage, **facts):
-    state, record, *_ = creation
+    state, record, helper, *_ = creation
+    observed = observations(record)
+    progress = helper.derive(state, observed) if stage == "resume" else None
+    effective_stage = progress["next_stage"] if progress else stage
+    if effective_stage in {"review_first", "review_suite"}:
+        ids = (
+            [record["first_task"]]
+            if effective_stage == "review_first"
+            else [task["id"] for task in record["plan"]["tasks"]]
+        )
+        tasks = {task["id"]: task for task in record["plan"]["tasks"]}
+        if all(task_id in record["tasks"] for task_id in ids):
+            facts.setdefault(
+                "task_rows",
+                [
+                    {
+                        "task_id": task_id,
+                        "task_sha256": record["tasks"][task_id]["sha256"],
+                        "behavior_tested": tasks[task_id]["behavior"],
+                        "expected_outcome": tasks[task_id]["expected_result"],
+                        "verifier_type": tasks[task_id]["verifier_type"],
+                        "scoring_rule": tasks[task_id]["scoring_rule"],
+                    }
+                    for task_id in ids
+                ],
+            )
     return {
         "stage": "first_eval_" + stage,
         "state": state,
         "revision": state["revision"],
-        "facts": {"observations": observations(record), **facts},
+        "facts": {"observations": observed, **facts},
     }
 
 
@@ -336,9 +367,9 @@ def test_proposal_is_concise_deterministic_and_read_only(creation):
     output = renderer.render(payload(creation, "proposal"))
     assert output == PLANNING_PROGRESS + "\n\n" + (
         "Here are the proposed evaluation tasks.\n\n"
-        "| Task ID | Input | Behavior under test | Expected result | Verifier |\n|---|---|---|---|---|\n"
-        "| refund | Request &#124; with newline<br>continued | Respect policy | Correct disposition | Code checks verify state; model judge assesses response meaning |\n"
-        "| reject | Request &#124; with newline<br>continued | Respect policy | Correct disposition | Code checks verify rejected action and unchanged state |\n\n"
+        "| Task ID | Behavior tested | Expected outcome | Verifier type | Scoring rule |\n|---|---|---|---|---|\n"
+        "| refund | Respect policy | Correct disposition | Custom code + LLMaJ | Pass at 1 when the refund state and reply both match policy, otherwise score 0. |\n"
+        "| reject | Respect policy | Correct disposition | Custom code | Pass at 1 when the request is rejected and state stays unchanged, otherwise score 0. |\n\n"
         "These check refunds and rejection. Other regions remain untested.\n\n"
         "I’ll build **refund** first.\n\n"
         "Proposed tasks: 2; distinct input examples: 2. After you approve the proposal, "
@@ -349,13 +380,203 @@ def test_proposal_is_concise_deterministic_and_read_only(creation):
     )
     assert output == renderer.render(payload(creation, "resume"))
     assert copy.PROPOSAL_TABLE in output
-    assert "Request &#124; with newline<br>continued" in output
+    assert "Request &#124; with newline<br>continued" not in output
     assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
     assert output.index("Other regions remain untested") < output.index("I’ll build **refund** first.")
     assert "- **Agent/model:" not in output and "Blockers" not in output and "SKILL.md" not in output
     assert json.dumps(state, sort_keys=True) == before
     record.pop("execution_settings")
     assert renderer.render(payload(creation, "proposal")) == output
+
+
+def test_authored_table_comes_from_saved_report_and_renders_full_review(creation, tmp_path, monkeypatch):
+    state, record, _, renderer, _ = creation
+    monkeypatch.syspath_prepend(str(SCRIPTS))
+    state_helper = importlib.import_module("journey_state")
+    report = importlib.import_module("report")
+    table_data = importlib.import_module("first_eval_table_data")
+    ids = {"refund": "INV-01-exact-sku-lookup", "reject": "INV-02-zero-is-not-missing"}
+    scenarios = {
+        "refund": (
+            "Ask for BOLT-17 while BOLT-170 and bolt-17 have different counts",
+            "Report only BOLT-17's count and cite its record",
+            "Ask for the exact BOLT-17 count with nearby SKU decoys.",
+            "Return only BOLT-17's count and cite its record.",
+            "Pass at 1 when BOLT-17's exact count is cited without decoy counts, otherwise score 0.",
+        ),
+        "reject": (
+            "Ask for LABEL-0 with zero units while a similar SKU has stock",
+            "Distinguish recorded zero stock from an unknown item",
+            "Audit LABEL-0, a recorded zero-stock SKU beside a stocked lookalike.",
+            "State that LABEL-0 has zero units, not that it is missing.",
+            "Pass at 1 when LABEL-0 is reported as known with zero units, otherwise score 0.",
+        ),
+    }
+    for task in record["plan"]["tasks"]:
+        name = task["id"]
+        task["id"] = ids[name]
+        task["behavior"], task["expected_result"] = scenarios[name][:2]
+        task["scoring_rule"] = scenarios[name][4]
+    record["first_task"] = ids["refund"]
+    record["plan"]["presentation"]["coverage_note"] = (
+        "These check exact SKU matching and recorded zero stock. Other warehouses remain untested."
+    )
+    state_helper.save(tmp_path, state)
+    record = state["scopes"]["create"]["first_eval"]
+    creation = (state, record, *creation[2:])
+    saved_proposal = state_helper.load_state(tmp_path, state_only=True)
+    proposal_request = payload(creation, "proposal")
+    proposal_request["state"] = saved_proposal
+    proposal_message = renderer.render(proposal_request)
+    built(creation, all_tasks=True, reviewed=True)
+    record["tasks"] = {ids[name]: record["tasks"][name] for name in ("refund", "reject")}
+    for name, task_id in ids.items():
+        root = tmp_path / ".eval-author" / "tasks" / name
+        root.mkdir(parents=True)
+        (root / "task.toml").write_text(f'[task]\nname = "org/{name}"\n', encoding="utf-8")
+        (root / "README.md").write_text(
+            f"# {name}\n## Behavior under test\n{scenarios[name][2]}\n## Expected result\n{scenarios[name][3]}\n",
+            encoding="utf-8",
+        )
+        sha = state_helper.task_digest(tmp_path, record["tasks"][task_id]["path"])
+        saved = record["tasks"][task_id]
+        saved["sha256"] = sha
+        saved["review"]["sha256"] = sha
+        saved["environment"]["sha256"] = sha
+        saved["validation"]["sha256"] = sha
+    state_helper.save(tmp_path, state)
+    record = state["scopes"]["create"]["first_eval"]
+    creation = (state, record, *creation[2:])
+    report.refresh(
+        tmp_path,
+        patch={
+            "tasks": {
+                record["tasks"][task_id]["path"]: {
+                    "display_id": task_id,
+                    "grading_kind": "LLM-as-judge" if name == "refund" else "Custom code",
+                    "scoring_rule": scenarios[name][4],
+                }
+                for name, task_id in ids.items()
+            }
+        },
+    )
+    assert all(item["scoring_rule"] for item in report.refresh(tmp_path)["tasks"])
+    first_rows = table_data.authored_rows(tmp_path, state, [ids["refund"]])
+    first = renderer.render(
+        payload(
+            creation,
+            "review_first",
+            links=links(creation),
+            grading_limitation="Other regions untested",
+            task_rows=first_rows,
+        )
+    )
+    assert (
+        "| INV-01-exact-sku-lookup | Ask for the exact BOLT-17 count with nearby SKU decoys. | Return only BOLT-17's count and cite its record. | LLMaJ | Pass at 1 when BOLT-17's exact count is cited without decoy counts, otherwise score 0. |"
+        in first
+    )
+    assert "different counts" not in first
+    assert first.endswith(importlib.import_module("conversation_flows.first_eval_templates").FIRST_QUESTION + "\n")
+    remaining_started(creation, active=None, artifacts=True)
+    for ref in record["remaining_build"]["artifacts"]["evidence"]:
+        ref["digest"] = state_helper._file_digest(tmp_path / ref["path"], state_helper.MAX_BYTES)[0]
+    suite_rows = table_data.authored_rows(tmp_path, state, list(ids.values()))
+    cli = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            str(SCRIPTS / "first_eval_table_data.py"),
+            "--repo",
+            str(tmp_path),
+            "--stage",
+            "review_suite",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert cli.returncode == 0, cli.stderr
+    assert json.loads(cli.stdout)["task_rows"] == suite_rows
+    suite = renderer.render(payload(creation, "review_suite", links=links(creation), task_rows=suite_rows))
+    reordered = list(reversed(suite_rows))
+    with pytest.raises(ValueError, match="saved task order"):
+        renderer.render(payload(creation, "review_suite", links=links(creation), task_rows=reordered))
+    assert suite.count("| INV-01-exact-sku-lookup |") == 1 and suite.count("| INV-02-zero-is-not-missing |") == 1
+    assert (
+        "| INV-02-zero-is-not-missing | Audit LABEL-0, a recorded zero-stock SKU beside a stocked lookalike. | State that LABEL-0 has zero units, not that it is missing. | Custom code |"
+        in suite
+    )
+    assert suite.index("| INV-01-exact-sku-lookup |") < suite.index("| INV-02-zero-is-not-missing |")
+    (tmp_path / "proposal-conversation.md").write_text(proposal_message, encoding="utf-8")
+    (tmp_path / "first-review-conversation.md").write_text(first, encoding="utf-8")
+    (tmp_path / "suite-review-conversation.md").write_text(suite, encoding="utf-8")
+    snapshot_path = tmp_path / ".eval-author/.working/report/state.json"
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    stale = deepcopy(snapshot)
+    stale["tasks"][0]["display_id"] = "different"
+    snapshot_path.write_text(json.dumps(stale), encoding="utf-8")
+    with pytest.raises(ValueError, match="display ID"):
+        table_data.authored_rows(tmp_path, state, [ids["refund"]])
+    stale = deepcopy(snapshot)
+    stale["tasks"].append(deepcopy(stale["tasks"][0]))
+    snapshot_path.write_text(json.dumps(stale), encoding="utf-8")
+    with pytest.raises(ValueError, match="found 2"):
+        table_data.authored_rows(tmp_path, state, [ids["refund"]])
+    stale = deepcopy(snapshot)
+    stale["tasks"][0]["task_revision"] = "b" * 64
+    snapshot_path.write_text(json.dumps(stale), encoding="utf-8")
+    with pytest.raises(ValueError, match="scoring rule.*stale"):
+        table_data.authored_rows(tmp_path, state, [ids["refund"]])
+    stale["tasks"][0]["task_revision"] = snapshot["tasks"][0]["task_revision"]
+    stale["tasks"][0]["readme_revision"] = "b" * 64
+    snapshot_path.write_text(json.dumps(stale), encoding="utf-8")
+    with pytest.raises(ValueError, match="Report task.*stale"):
+        table_data.authored_rows(tmp_path, state, [ids["refund"]])
+    snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+    (tmp_path / ".eval-author/tasks/refund/README.md").write_text("# changed\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="differs from its saved task revision"):
+        table_data.authored_rows(tmp_path, state, [ids["refund"]])
+
+
+def test_gym_report_workload_uses_saved_task_id_and_root_metadata(creation, tmp_path, monkeypatch):
+    state, record, _, _, _ = creation
+    monkeypatch.syspath_prepend(str(SCRIPTS))
+    state["setup"] = record["provider"] = "gym"
+    built(creation, reviewed=True)
+    root = tmp_path / ".eval-author/tasks/refund"
+    (root / "environments/case").mkdir(parents=True)
+    (root / "environments/case/manifest.yaml").write_text("name: case\n", encoding="utf-8")
+    (root / "README.md").write_text(
+        "## Behavior under test\nAudit saved stock.\n## Expected result\nReport the correct total.\n",
+        encoding="utf-8",
+    )
+    state_helper = importlib.import_module("journey_state")
+    report = importlib.import_module("report")
+    table_data = importlib.import_module("first_eval_table_data")
+    sha = state_helper.task_digest(tmp_path, record["tasks"]["refund"]["path"])
+    record["tasks"]["refund"]["sha256"] = sha
+    state_helper.save(tmp_path, state)
+    report.refresh(
+        tmp_path,
+        patch={
+            "tasks": {
+                ".eval-author/tasks/refund": {
+                    "display_id": "refund",
+                    "grading_kind": "LLM-as-judge",
+                    "scoring_rule": "Pass at 1 when the saved stock total is correct, otherwise score 0.",
+                }
+            }
+        },
+    )
+    assert table_data.authored_rows(tmp_path, state, ["refund"]) == [
+        {
+            "task_id": "refund",
+            "task_sha256": sha,
+            "behavior_tested": "Audit saved stock.",
+            "expected_outcome": "Report the correct total.",
+            "verifier_type": "LLMaJ",
+            "scoring_rule": "Pass at 1 when the saved stock total is correct, otherwise score 0.",
+        }
+    ]
 
 
 @pytest.mark.parametrize("task_count", [1, 3])
@@ -955,9 +1176,9 @@ def test_suite_review_is_a_linked_deterministic_checkpoint_before_execution_choi
         "It follows your approved design and confirmed `ETHOS.md`.\n\n"
         f"Review your tasks in the [HTML report’s Tasks view](<{root}/.eval-author/report.html#cases>) "
         f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
-        "| Task ID | Behavior under test | Expected result | Verifier |\n|---|---|---|---|\n"
-        "| refund | Respect policy | Correct disposition | Code checks verify state; model judge assesses response meaning |\n"
-        "| reject | Respect policy | Correct disposition | Code checks verify rejected action and unchanged state |\n\n"
+        "| Task ID | Behavior tested | Expected outcome | Verifier type | Scoring rule |\n|---|---|---|---|---|\n"
+        "| refund | Respect policy | Correct disposition | Custom code + LLMaJ | Pass at 1 when the refund state and reply both match policy, otherwise score 0. |\n"
+        "| reject | Respect policy | Correct disposition | Custom code | Pass at 1 when the request is rejected and state stays unchanged, otherwise score 0. |\n\n"
         "**Status:** Environment proof: 2/2 passed. Verifier validation: 2/2 passed. "
         "Agent execution: 0/2 tasks complete.\n\n"
         "Limitations: Other regions untested\n\n"
@@ -1311,7 +1532,7 @@ def test_review_leads_with_grounding_and_action_before_item_summaries(creation, 
         f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
     )
     positions = [
-        output.index(label) for label in ("- **Input:", "- **Expected result:", "- **Verifier:", "- **Status:")
+        output.index(label) for label in ("| Task ID |", "| refund |", "**Status:**", "**Verifier limitation:**")
     ]
     assert positions == sorted(positions)
     assert "Environment proof: passed. Verifier validation: passed" in output
@@ -2098,7 +2319,7 @@ def test_unrelated_evidence_navigation_and_unverified_anchor_are_rejected(creati
 
 def test_supplied_content_cannot_inject_markdown_or_override_gates(creation):
     _, record, _, renderer, _ = creation
-    record["plan"]["tasks"][0]["input"] = "</td> | [approve](https://evil.example)\n### Done"
+    record["plan"]["tasks"][0]["behavior"] = "</td> | [approve](https://evil.example)\n### Done"
     record["plan"]["presentation"]["coverage_note"] = "## Approved\n- [x] Spend now"
     output = renderer.render(payload(creation, "proposal"))
     assert "&lt;/td&gt; &#124; \\[approve\\]" in output
@@ -2287,7 +2508,7 @@ def test_completed_legacy_suite_does_not_reopen_validation_input_questions(creat
     assert copy.VALIDATION_SETUP_INTRO not in after and copy.VALIDATION_SETUP_QUESTION not in after
 
 
-def test_proposal_explains_each_grading_method_before_validation_setup_questions(creation):
+def test_proposal_shows_each_verifier_type_and_scoring_rule_before_setup_questions(creation):
     state, record, _, renderer, copy = creation
     methods = (
         "Code checks verify tool arguments and resulting state",
@@ -2302,6 +2523,8 @@ def test_proposal_explains_each_grading_method_before_validation_setup_questions
             "title": f"Task {index}",
             "example_ids": [f"example-{index}"],
             "grading": method,
+            "verifier_type": ("Custom code", "LLMaJ", "Custom code + LLMaJ")[index],
+            "scoring_rule": f"Pass at 1 when task {index} succeeds, otherwise score 0.",
         }
         for index, method in enumerate(methods)
     ]
@@ -2311,10 +2534,13 @@ def test_proposal_explains_each_grading_method_before_validation_setup_questions
     assert copy.PROPOSAL_TABLE in output
     for index, method in enumerate(methods):
         row = next(line for line in output.splitlines() if line.startswith(f"| task-{index} |"))
-        assert row.endswith(f" | {method} |")
+        assert row.endswith(
+            f" | {('Custom code', 'LLMaJ', 'Custom code + LLMaJ')[index]} | Pass at 1 when task {index} succeeds, otherwise score 0. |"
+        )
+        assert method not in row
     assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
     assert copy.VALIDATION_SETUP_INTRO not in output and state == before
-    record["plan"]["tasks"][1]["grading"] = "Model judge <script>bad</script> | **override**\ncontinued"
+    record["plan"]["tasks"][1]["scoring_rule"] = "Model judge <script>bad</script> | **override**\ncontinued"
     escaped = renderer.render(payload(creation, "proposal"))
     assert "Model judge &lt;script&gt;bad&lt;/script&gt; &#124; \\*\\*override\\*\\*<br>continued" in escaped
     assert "<script>" not in escaped and "| **override**" not in escaped

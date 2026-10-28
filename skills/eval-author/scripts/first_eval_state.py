@@ -103,6 +103,11 @@ def validate(value: dict) -> None:
         _strings([task["id"] for task in planned])
         for task in planned:
             _strings(task["example_ids"])
+            for field in ("verifier_type", "scoring_rule"):
+                if field in task:
+                    _text(task[field])
+            if task.get("verifier_type") not in {None, "Custom code", "LLMaJ", "Custom code + LLMaJ"}:
+                raise ValueError("Unknown proposed verifier type")
         if value["first_task"] not in {task["id"] for task in planned}:
             raise ValueError("Choose the first task from the agreed design")
         choice = value["plan"].get("trace_choice")

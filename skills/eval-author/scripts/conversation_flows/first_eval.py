@@ -50,6 +50,7 @@ CONTENT_FIELDS = {
     "identity_limitations",
     "reconciliation",
     "missing_execution_question",
+    "task_rows",
 }
 LINK_FIELDS = {*copy.LINK_LABELS, "run_evidence", "attempt_evidence"}
 
@@ -193,6 +194,39 @@ def source_prompt(state: dict) -> str:
     return result
 
 
+def task_table(tasks: list[dict]) -> str:
+    rows = [copy.TASK_TABLE]
+    for task in tasks:
+        rows.append(
+            "| "
+            + " | ".join(
+                literal(task.get(key) or copy.NOT_DOCUMENTED, key, table=True)
+                for key in ("task_id", "behavior_tested", "expected_outcome", "verifier_type", "scoring_rule")
+            )
+            + " |"
+        )
+    return "\n".join(rows)
+
+
+def authored_rows(record: dict, facts: dict, observed: dict, task_ids: list[str]) -> list[dict]:
+    supplied = facts.get("task_rows")
+    if not isinstance(supplied, list) or len(supplied) != len(task_ids):
+        raise ValueError("Supply one current authored task row per reviewed task from the saved report snapshot")
+    rows = []
+    for task_id, row in zip(task_ids, supplied, strict=True):
+        row = mapping(
+            row,
+            "authored task row",
+            {"task_id", "task_sha256", "behavior_tested", "expected_outcome", "verifier_type", "scoring_rule"},
+        )
+        if row.get("task_id") != task_id or row.get("task_sha256") != observed["tasks"].get(task_id):
+            raise ValueError("Authored task rows must match the saved task order and fresh task digests")
+        if row["task_sha256"] != record["tasks"][task_id]["sha256"]:
+            raise ValueError("Authored task rows must describe current task files")
+        rows.append(row)
+    return rows
+
+
 def proposal(record: dict) -> str:
     plan = record["plan"]
     tasks = plan["tasks"]
@@ -208,21 +242,21 @@ def proposal(record: dict) -> str:
     presentation = plan.get("presentation", {})
     if not isinstance(presentation, dict):
         raise ValueError("Proposal presentation must be an object")
-    rows = [copy.PROPOSAL_TABLE]
-    for task in tasks:
-        rows.append(
-            "| "
-            + " | ".join(
-                literal(task.get(key), key, table=True)
-                for key in ("id", "input", "behavior", "expected_result", "grading")
-            )
-            + " |"
-        )
+    rows = [
+        {
+            "task_id": task["id"],
+            "behavior_tested": task.get("behavior"),
+            "expected_outcome": task.get("expected_result"),
+            "verifier_type": task.get("verifier_type"),
+            "scoring_rule": task.get("scoring_rule"),
+        }
+        for task in tasks
+    ]
     examples = len({example for task in tasks for example in task["example_ids"]})
     return "\n\n".join(
         [
             copy.PROPOSAL_INTRO,
-            "\n".join(rows),
+            task_table(rows),
             literal(presentation.get("coverage_note"), "coverage_note"),
             copy.FIRST_CHOICE.format(task_id=literal(record["first_task"], "first task ID")),
             copy.PROPOSAL_PROCESS.format(tasks=len(tasks), examples=examples),
@@ -448,13 +482,7 @@ def first_review(record: dict, progress: dict, facts: dict) -> str:
         and not (progress["first_task_build"]["current"] and progress["first_task_build"]["complete"])
     ):
         raise ValueError("Complete the current first-task build checklist before requesting first-task review")
-    values = {
-        key: literal(facts.get(key), key) for key in ("input", "expected_result", "grading", "grading_limitation")
-    }
-    values.update(
-        validation=copy.VALIDATION_PASSED if status["validated"] else copy.VALIDATION_PENDING,
-        execution=copy.EXECUTION_COMPLETED if status["executed"] else copy.EXECUTION_PENDING,
-    )
+    rows = authored_rows(record, facts, facts["observations"], [record["first_task"]])
     return "\n\n".join(
         [
             copy.FIRST_REVIEW_INTRO.format(task_id=literal(record["first_task"], "first task ID")),
@@ -462,7 +490,14 @@ def first_review(record: dict, progress: dict, facts: dict) -> str:
                 report=named_link(facts, "tasks_view", fragment=True, label=copy.FIRST_REVIEW_REPORT_LABEL),
                 readme=named_link(facts, "readme", label=copy.FIRST_REVIEW_README_LABEL),
             ),
-            copy.FIRST_REVIEW.format(**values),
+            task_table(rows),
+            copy.FIRST_REVIEW_STATUS.format(
+                validation=copy.VALIDATION_PASSED,
+                execution=copy.EXECUTION_COMPLETED if status["executed"] else copy.EXECUTION_PENDING,
+            ),
+            copy.VERIFIER_LIMITATION.format(limitation=literal(facts["grading_limitation"], "verifier limitation"))
+            if facts.get("grading_limitation")
+            else copy.NOT_DOCUMENTED_LIMITATION,
             named_link(facts, "task_readme"),
             copy.FIRST_QUESTION,
         ]
@@ -478,15 +513,7 @@ def suite_review(record: dict, progress: dict, facts: dict) -> str:
     if facts.get("blockers"):
         raise ValueError("Resolve task-review blockers before presenting the suite for approval")
     tasks = record["plan"]["tasks"]
-    rows = [copy.SUITE_REVIEW_TABLE]
-    for task in tasks:
-        rows.append(
-            "| "
-            + " | ".join(
-                literal(task.get(key), key, table=True) for key in ("id", "behavior", "expected_result", "grading")
-            )
-            + " |"
-        )
+    rows = authored_rows(record, facts, facts["observations"], [task["id"] for task in tasks])
     statuses = progress["tasks"].values()
     parts = [
         copy.SUITE_REVIEW_INTRO.format(
@@ -496,7 +523,7 @@ def suite_review(record: dict, progress: dict, facts: dict) -> str:
             report=named_link(facts, "tasks_view", fragment=True, label=copy.FIRST_REVIEW_REPORT_LABEL),
             readme=named_link(facts, "readme", label=copy.FIRST_REVIEW_README_LABEL),
         ),
-        "\n".join(rows),
+        task_table(rows),
         copy.SUITE_REVIEW_STATUS.format(
             tasks=len(tasks),
             environments=sum(status["environment_proven"] for status in statuses),
