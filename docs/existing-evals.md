@@ -140,9 +140,8 @@ milestone. Agreeing to this scope does not approve the final report's findings.
 **Shared progress** (`.eval-author/.working/journey-state.json`) saves suite and
 trace selections separately, review decisions, measurement status, pending
 questions, and the next action. Returning to an audit, including after another
-workflow, resumes its pending decision or first unfinished step. There is no
-separate audit progress file. Requests only to validate a specification or
-measure or aggregate coverage stay within that scope.
+workflow, resumes its pending decision or first unfinished step. Requests only
+to validate a specification or measure or aggregate coverage stay within that scope.
 
 Changes to the agent, Ethos, selected scope, specification, cases, graders, or
 traces reopen check review and dependent measurement and findings. Changing only
