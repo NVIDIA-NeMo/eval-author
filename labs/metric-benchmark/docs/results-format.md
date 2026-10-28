@@ -88,6 +88,10 @@ match the prepared case exactly, including order and optional task names.
 
 ### Execution entries
 
+Each object in the top-level `results` array is an execution entry for one
+agent/task attempt, including attempts recorded as missing. The fields below
+belong inside each of those objects, not at the top level of `results.json`.
+
 | Field | Required / default | Meaning |
 | --- | --- | --- |
 | `run_id` | Required | One logical run selected for this agent. It is an opaque ID, even when it looks like a directory path. |
