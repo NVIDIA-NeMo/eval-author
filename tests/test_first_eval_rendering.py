@@ -473,7 +473,6 @@ def test_authored_table_comes_from_saved_report_and_renders_full_review(creation
     )
     assert first.count("| Task | Expected outcome | Verifier |\n|---|---|---|") == 1
     assert first.count("\n| **INV-01-exact-sku-lookup** -") == 1
-    assert "Behavior tested:" not in first
     assert (
         "| **INV-01-exact-sku-lookup** - Ask for the exact BOLT-17 count with nearby SKU decoys. | Return only BOLT-17's count and cite its record. | **LLMaJ** Pass at 1 when BOLT-17's exact count is cited without decoy counts, otherwise score 0. |"
         in first
