@@ -9,4 +9,9 @@
 - [x] **Agree on how your agent behaves using [ETHOS.md](https://github.com/NVIDIA/skills/blob/main/skills/ethos-orchestrate/README.md)**
 - [ ] **Build, run, and review your first evaluations** — **We're here**
 
-We’re ready to build your evaluation suite. Ready to continue?
+We’ll use your confirmed `ETHOS.md` to propose your first evaluation tasks. Existing traces can help us use realistic requests, but they aren’t required.
+
+Would you like to use existing traces, or start from `ETHOS.md`?
+
+- Start from ETHOS.md
+- Use existing traces

@@ -317,7 +317,7 @@ def test_completion_pause_marks_only_shared_steps_complete(conversation, state_m
     assert result.count("- [x]") == 2
     assert result.count("- [ ]") == 1
     assert result.count("**We're here**") == 1
-    assert result.endswith("Ready to continue?\n")
+    assert result == golden_output(FIXTURES / f"confirmed-{journey}.md")
     assert "ETHOS.md" in result
 
 
@@ -688,7 +688,7 @@ def test_saved_endpoint_blocker_allows_initial_planning_handoff(conversation, st
     before = copy.deepcopy(payload)
     result = conversation.render(payload)
     assert "### Blockers" not in result
-    assert result.endswith("We’re ready to build your evaluation suite. Ready to continue?\n")
+    assert result == golden_output(FIXTURES / "confirmed-deferred-endpoint.md")
     assert "- [ ] **Build, run, and review your first evaluations** — **We're here**" in result
     assert payload == before
 
