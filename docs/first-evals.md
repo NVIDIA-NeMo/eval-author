@@ -70,10 +70,26 @@ validation, and the README/report refresh.
 You then review the whole authored suite in the HTML report or mirrored README
 and approve the tasks or request changes. Every task's required grader checks,
 including model-based checks when used, must pass before this review.
-After you approve the suite, Eval Author presents the concrete settings,
-attempt counts, limits, and unresolved execution needs. Approving the design or
-tasks does not authorize paid runs; applicable prior authorization is reused.
-Repeating an input adds attempts rather than new examples.
+After you approve the suite, Eval Author first checks in separately about saving
+evaluation trajectories for a future audit against `ETHOS.md`. When saving is
+optional, you choose whether to save and can select a local trajectory directory
+before discussing the other execution settings. If your integration already
+saves trajectories, Eval Author explains the native capture and its location,
+then continues without asking you to enable it again. The defaults are
+fresh run directories under `.eval-author/jobs/` for Harbor and `.eval-author/runs/` for
+NeMo Gym. A separate trajectory destination uses the integration's supported
+capture or export settings; baseline results remain in the repository. If the
+integration cannot separate those locations, Eval Author explains the limitation
+and the supported repository-local location. The choice includes known storage
+or cost implications and carries forward for this suite's resumed work and
+authorized reruns, including commands
+in the suite README. A new suite gets its own choice.
+
+After that check-in, Eval Author presents the concrete run settings, attempt
+counts, limits, and unresolved execution needs, with a brief reminder of the
+saved trajectory choice and directory. Approving the design or tasks, or choosing
+trajectory saving, does not authorize paid runs; applicable prior authorization
+is reused. Repeating an input adds attempts rather than new examples.
 During execution, a standard checklist shows completed attempts, observed run
 status, and execution errors.
 
@@ -82,8 +98,10 @@ A supported runtime is required for full onboarding and authoring; see
 requires a compatible connection, access, and the selected environment backend.
 A combined Gym–Harbor setup needs a configured bridge. If the actual-agent
 adapter or bridge is missing, Eval Author gives you a copyable implementation
-prompt for a separate chat in your chosen coding harness. Your tasks, graders,
-and evidence stay saved; independent work can continue. Return with the
+prompt for a separate chat in your chosen coding harness after collecting the
+trajectory-saving preference. The prompt includes logging support and your chosen
+directory. Your tasks, graders, and evidence stay saved; independent work can
+continue. Return with the
 integration changes and check results so Eval Author can recheck the connection.
 Completing that engineering work does not authorize agent runs. Other blocked
 work is explained with the action needed to continue.
@@ -93,6 +111,14 @@ and missing attempts. It links an exact saved attempt and the suite README's
 rerun instructions, so you can inspect or repeat the same selection. Low agent
 scores can still provide a valid baseline; successful task checks alone do not
 measure your agent's performance. See [Read your results](results.md).
+
+Saved trajectories and their locations are linked from the suite README alongside
+the existing report and rerun instructions. Eval Author checks whether the saved
+evidence can be read by the audit flow or its supported converter. If saving is
+declined, unsupported, or produces unusable evidence, it explains the future-audit
+limitation; task creation and valid baseline results remain usable. Scores alone
+cannot replace interaction trajectories. Saving consent does not start an audit,
+authorize additional paid runs, or trigger a rerun to fill missing evidence.
 
 When the agreed suite is complete, Eval Author asks whether you want to audit
 its coverage and grading against `ETHOS.md`. The audit starts only if you accept;

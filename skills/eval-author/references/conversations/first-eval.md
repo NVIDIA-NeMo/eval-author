@@ -44,6 +44,8 @@ existing task and run records; choose stable new task IDs
 and directories when building new tasks rather than overwriting earlier work.
 Clear any old audit invitation and handoff when revising or
 starting a new proposal, so it cannot route or suppress the new completion handoff.
+Starting a new suite also clears its saved trajectory-capture preference; continuing
+or revising the same suite preserves it.
 Source changes and a replacement plan still require their ordinary checkpoints.
 
 Skip this choice when the current user request explicitly identifies the saved
@@ -370,9 +372,110 @@ at the start of the response turn, before recording the user's decision.
 The digest binds the approved plan and exact task revisions. Changed task files
 or design reopen approval; later validation results or report refreshes alone
 do not. Missing legacy fields remain unknown, rather than implied approval.
-Historical evidence stays readable. Only after current suite approval, present
-the execution-settings checklist and resolve missing run decisions. Suite approval
-authorizes the task design, not spending or extra evaluations.
+Historical evidence stays readable. Only after current suite approval, resolve
+the separate trajectory-saving check-in below, then present the execution-settings
+checklist and resolve missing run decisions. Suite approval authorizes the task
+design, not spending or extra evaluations.
+
+## Save evaluation trajectories
+
+After current suite approval, use `first_eval_trajectory_settings` for a separate
+check-in before the other execution settings. Explain whether the selected
+integration already saves trajectories, can optionally save them, or cannot
+provide them.
+Use the [Harbor](../../../eval-author-first-eval/references/harbor-first-eval.md#7-connect-the-agent)
+or [native Gym](../../../eval-author-first-eval/references/gym-first-eval.md#7-connect-the-agent)
+capture guidance to inspect support. Do this before the
+[missing-integration handoff](#missing-actual-agent-integration-handoff): when a
+custom adapter is still needed, collect the saving preference as optional so its
+engineering prompt can include the required logging support. Keep the saving
+explanation and question in this check-in, without appending the execution-settings
+checklist, run blockers, or adapter prompt.
+
+Save the optional `execution_settings.trajectory_capture` object through the
+revision-checked state interface:
+
+```json
+{
+  "mode": "optional",
+  "directory": ".eval-author/jobs",
+  "contents": "<actual inputs, responses, tool calls and results the integration retains>",
+  "implications": "<known local storage or capture cost implications and material limits>",
+  "choice": null,
+  "source": null
+}
+```
+
+`mode` is `automatic`, `optional`, or `unsupported`. For automatic native capture,
+explain what is already saved and reuse it; do not ask the user to enable it again.
+For optional capture, the template supplies the saving question and directory
+choice. Emit this check-in as the final response and end the turn. Wait for the
+user's reply before presenting other execution settings or the adapter handoff.
+Record the actual answer as boolean `choice` and its provenance in `source`;
+both remain `null` while pending. For automatic or unsupported capture, keep
+`choice: null` and record the inspected finding in nonempty `source`; present the
+dedicated disclosure, then continue without a redundant consent pause.
+Use nonempty, specific `contents` as a noun phrase and `implications` as a concise
+clause that includes known storage/cost effects and material limits; do not invent
+a zero-cost claim or imply that unavailable interactions will be captured. Fixed questions,
+choices, and explanations remain only in the template module.
+
+The directory is local: use a canonical repository-relative or absolute path,
+with `.eval-author/jobs` for Harbor and `.eval-author/runs` for native Gym as the
+default locations beside native run evidence. Let the user select another local
+directory for trajectories only. Mandatory baseline results and receipts remain
+under repository-local native job/run roots, where the state helper can inspect
+them. Configure a separate capture destination only through supported native
+retention, export, or adapter settings. If the integration cannot separate capture
+and job roots, use a supported repository-local native output root or explain the
+requested location's limitation; do not move baseline evidence outside the
+repository or claim an arbitrary destination is configured. Preserve native
+run/attempt identities and use fresh capture paths; do not put run evidence in
+finalized task directories. Explain the actual captured content and its location,
+including any known storage or cost implications.
+Auditing interactions against `ETHOS.md` needs usable trajectories; scores and
+pass/fail summaries alone do not supply them. Declining additional saving does
+not disable native result collection or health evidence required for the baseline.
+
+Reuse the current suite's saved choice and directory after interruption and for
+subsequent authorized reruns, including commands the user runs independently.
+A resumed pending optional choice returns to `first_eval_trajectory_settings`
+before the other settings. A resolved answer does not need another check-in.
+Do not treat it as a global preference for other suites. An absent field in an
+older record is unknown: preserve existing results and resolve the choice only
+before a new actual-agent launch or authorization by inspecting and saving the
+capture setting. Legacy records remain readable, and observing an existing job
+does not require reconstructing its capture setting. If support or material
+capture implications change, explain the change and resolve only affected settings.
+When an optional-saving decision needs to be revisited, save the changed capture
+contents, directory, or implications with `choice: null` and `source: null`, then
+return to the separate check-in. Keep the existing answer when those fields are
+unchanged.
+
+Save the user's optional-saving answer before configuring capture and binding
+the resulting native configuration in `selection`. Present the other execution
+settings only after this check-in is resolved; their capture entry is a concise
+summary of the saved choice and directory, without repeating the saving question
+or full explanation. Record that execution-settings display and save execution
+authorization separately, after binding the native configuration. Answering the
+saving question alone does not authorize execution or spending. The display digest omits
+only capture `choice` and `source`, so recording an answer does not force a repeat
+of unchanged displayed settings; native selection authorization still binds the
+capture choice. Use the state helper's derived digests. A changed directory,
+capture mode, content description, or implications requires an updated display.
+
+After the authorized run, inspect each selected actual-agent attempt's retained
+evidence using the provider guidance. Check native identities, readability, and
+audit-format compatibility; a configured path or successful score is not proof
+of capture. Retain available failed-attempt evidence and explain missing,
+partial, unsupported, or unusable trajectories in the existing run review and
+[suite guide](../suite-readme.md#review-and-rerun-guidance). Keep baseline outcomes
+and task acceptance separate from these future-audit limitations. Offline
+validation or supported conversion must honor the saved capture preference and
+the provider's limits on creating additional files. Saving consent never starts
+an audit, authorizes new model calls, or permits rerunning
+the agent to manufacture missing evidence. New production integrations remain
+external engineering work.
 
 ## Agent-run progress
 
@@ -544,8 +647,9 @@ file digests from SHA-256 of their actual bytes. Never invent a digest from a
 filename, intended result, or approval. The state helper enforces previously saved checkpoints, so approval cannot be
 combined with the dependent generation in one update.
 
-After current suite approval, when preparing execution, save `execution_settings`;
-after presenting it, record
+After current suite approval, save `execution_settings` including
+[trajectory saving](#save-evaluation-trajectories), and resolve that separate
+check-in first. After presenting `first_eval_execution_settings`, record
 `execution_settings_presented` with the current derived `settings_digest` and
 the actual delivered message reference. `selection` retains the explicit config
 reference, selected `cases`, agent/model identity, source, and applicable
@@ -585,11 +689,12 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_prepare_remaining` | Saved approval of the current first-task revision and environment proof. Initial explanation and skill-labeled checklist for building the remainder, checking environments, validating all graders, and refreshing artifacts. |
 | `first_eval_remaining_progress` | Current remaining-build activity after first-task approval; compact checklist with evidence-derived task counts, responsible skills, short statuses, and current build blockers. |
 | `first_eval_review_suite` | Every authored task's current environment and complete grading-validation evidence plus current report artifacts. Ground the summary in the approved design and `ETHOS.md`, link the HTML Tasks view or mirrored README, summarize each task and current validation/execution evidence, and end with the explicit suite-approval question. No run settings or run-only blockers. |
-| `first_eval_execution_settings` | Current authored-suite approval, when actual agent execution is being prepared. Display attempts, validation work, time/cost limits, and open questions, plus relevant run blockers. Do not repeat agent/model or task/example inventory bullets. This display never supplies spending authorization. |
+| `first_eval_trajectory_settings` | Current authored-suite approval and inspected capture settings. Explain the audit need, captured content, local directory, and storage/cost implications before other execution settings or a custom-adapter handoff. Ask only the optional-saving question and end the turn while it is pending. Automatic or unsupported capture gets a dedicated disclosure without a redundant consent pause. |
+| `first_eval_execution_settings` | Current authored-suite approval and resolved trajectory-saving check-in, when actual agent execution is being prepared. Display attempts, validation work, time/cost limits, a concise saved capture choice/directory summary, and open questions, plus relevant run blockers. Do not repeat the saving question or explanation, agent/model, or task/example inventory bullets. This display never supplies spending authorization. |
 | `first_eval_ready_to_run` | Current suite approval, validation of every selected task, and a saved applicable settings display. Explain that graders accepted the known correct results and rejected the incorrect results tested; this validates grading rather than measuring agent performance. Announce execution only with applicable explicit authorization, access, and no blocking dependency; otherwise ask one focused question about the missing setting or authorization. |
 | `first_eval_run_progress` | Observed native launch or queued status with current authorized selection and digest-bound current status evidence. Render the standard checklist without skill labels, evidence-derived completed/planned attempts, recorded execution errors, and only actually observed activity. No run-only approval pause or inferred activity. |
 | `first_eval_results` | Review an exact retained current actual-agent attempt when its evidence is available; otherwise present the incomplete inventory and missing-evidence blocker. Separate completed, quality-failing, infrastructure-failing, missing, and unavailable-evidence outcomes. Link verified evidence and rerun instructions, reconcile delivered work, and show completion only when justified. |
-| `first_eval_resume` | Derive the pending creation stage from saved decisions and fresh artifact observations, including an unresolved saved-design choice. Reuse applicable answers and authorization after that choice. It emits no welcome or initial readiness question. |
+| `first_eval_resume` | Derive the pending creation stage from saved decisions and fresh artifact observations, including an unresolved saved-design or optional trajectory-saving choice. Reuse applicable answers and authorization after those choices. It emits no welcome or initial readiness question. |
 | `first_eval_blockers` | One or more saved blockers preventing the current action, with specific reasons and needed actions. Preserve independent progress. |
 
 The proposal uses the saved plan's `presentation.coverage_note` for its usefulness,
@@ -605,6 +710,8 @@ document.
 Late execution settings come from the saved record's `execution_settings`, with
 existing plan-presentation fields retained as a compatibility fallback. They
 contain `agent_model`, `attempts`, `validation`, `limits`, and `open_questions`.
+The optional `trajectory_capture` object follows
+[Save evaluation trajectories](#save-evaluation-trajectories).
 Retain target/model and selection details for reproducibility without repeating
 them as settings bullets. Ask a focused question only when a target-agent model choice is
 still missing. Record the actual display
@@ -699,7 +806,10 @@ without duplicating the report or README links.
 
 When actual-agent execution is being prepared and inspection establishes that
 its supported adapter, entry point, or configured Gym–Harbor bridge is missing,
-use the renderer's external engineering handoff. Do not ask for an Eval Author
+first resolve the separate [trajectory-saving check-in](#save-evaluation-trajectories),
+then use `first_eval_blockers` for the renderer's external engineering handoff if
+the remaining execution settings are not ready. Do not
+ask for an Eval Author
 scope override to implement the production integration or offer to build it in
 this workflow. Preserve independent task authoring, grader validation, and review;
 a target-agent connection is not a judge dependency, and a working judge does
@@ -716,7 +826,9 @@ matching `facts.blockers` entry can supply the observed reason. The renderer
 owns its step label and needed action regardless of caller wording, and adds a
 copyable coding-agent prompt after **Blockers**; fixed handoff copy lives only in
 [first_eval_templates.py](../../scripts/conversation_flows/first_eval_templates.py).
-Do not replace that output with a permission question. Defer this run-only
+Do not replace that output with a permission question or append the saving
+question to the blocker output; use its dedicated stage while that choice is
+pending. Defer this run-only
 blocker during independent proposals, task preparation, validation, and authored
 task review rather than appending the handoff to those checkpoints.
 
@@ -728,10 +840,15 @@ selected by membership. Keep existing tasks, graders, source selections,
 construction declarations, and evidence intact. The user can copy the prompt
 into a separate chat in their chosen coding harness; displaying it does not
 authorize dispatching that chat, changing the agent, or starting a model run.
+The prompt also carries the saved trajectory choice and directory and requires
+logging support through the selected provider's interfaces. Its fixed wording
+belongs to the template module; do not append a separate implementation brief.
 
 On return, inspect the changed integration and its reported checks. Recheck the
 installed adapter or entry point, native configuration, selected task/row and
 example mapping, reset behavior, and output collection against the actual agent.
+Check the implemented capture capability and saved-directory settings against
+the agreed preference before rebinding the native configuration.
 A configured Gym–Harbor path must use that bridge; direct Harbor execution of
 converted tasks does not satisfy it. Do not substitute controls, a fixture/demo
 target, or another agent for the user's agent. Preserve limitations and failed

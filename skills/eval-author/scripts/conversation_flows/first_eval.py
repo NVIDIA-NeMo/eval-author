@@ -25,6 +25,7 @@ STAGES = {
         "saved_design",
         "proposal",
         "validation_setup",
+        "trajectory_settings",
         "execution_settings",
         "prepare_first",
         "build_progress",
@@ -114,6 +115,14 @@ def applicable_blockers(state: dict) -> dict:
 
 def adapter_handoff(state: dict, reason: str) -> str:
     record = first_eval_state.record(state)
+    capture = first_eval_state.trajectory_capture(record) if record else None
+    if (
+        record is None
+        or not capture
+        or capture["mode"] == "unsupported"
+        or not first_eval_state.trajectory_capture_resolved(record)
+    ):
+        raise ValueError("Resolve local trajectory saving before generating the agent-integration prompt")
     provider = state["setup"]
     if provider not in {"harbor", "gym"}:
         raise ValueError("Select the evaluation provider before an agent-integration handoff")
@@ -138,6 +147,10 @@ def adapter_handoff(state: dict, reason: str) -> str:
         if record and approved
         else [],
         "missing_connection": reason,
+        "trajectory_capture": {
+            "enabled": capture["mode"] == "automatic" or capture["choice"],
+            "directory": str(PurePosixPath(state["repository"]) / capture["directory"]),
+        },
     }
     return copy.ADAPTER_HANDOFF.format(context=json_context(context))
 
@@ -156,12 +169,17 @@ def blocker_section(state: dict, facts: dict, stage: str) -> str | None:
         explained[key] = entry
     full_blockers = stage in {"execution_settings", "ready_to_run", "run_progress", "results", "blockers"}
     adapter = saved.get(copy.ADAPTER_BLOCKER_ID)
+    record = first_eval_state.record(state)
+    capture = first_eval_state.trajectory_capture(record) if record else None
+    capture_ready = bool(
+        record and capture and capture["mode"] != "unsupported" and first_eval_state.trajectory_capture_resolved(record)
+    )
     if adapter and adapter["phase"] == "create" and (full_blockers or copy.ADAPTER_BLOCKER_ID in explained):
         entry = explained.get(copy.ADAPTER_BLOCKER_ID, {})
         explained[copy.ADAPTER_BLOCKER_ID] = {
             "step": copy.ADAPTER_BLOCKER_STEP,
             "reason": text(entry.get("reason") or adapter["message"], "missing agent integration"),
-            "needed": copy.ADAPTER_BLOCKER_NEEDED,
+            "needed": copy.ADAPTER_BLOCKER_NEEDED if capture_ready else copy.ADAPTER_CAPTURE_NEEDED,
         }
     if full_blockers and set(explained) != set(saved):
         raise ValueError("Saved blockers must be explained with a specific needed action")
@@ -175,7 +193,8 @@ def blocker_section(state: dict, facts: dict, stage: str) -> str | None:
         for _, entry in sorted(explained.items())
     )
     if adapter and adapter["phase"] == "create" and copy.ADAPTER_BLOCKER_ID in explained:
-        lines.extend(["", adapter_handoff(state, explained[copy.ADAPTER_BLOCKER_ID]["reason"])])
+        if capture_ready:
+            lines.extend(["", adapter_handoff(state, explained[copy.ADAPTER_BLOCKER_ID]["reason"])])
     return "\n".join(lines)
 
 
@@ -286,6 +305,46 @@ def saved_design(state: dict, record: dict, observed: dict) -> str:
     )
 
 
+def trajectory_choices() -> str:
+    return "\n".join(f"- **{choice}**" for choice in copy.TRAJECTORY_CHOICES)
+
+
+def trajectory_settings(record: dict) -> str:
+    capture = first_eval_state.trajectory_capture(record)
+    if capture is None:
+        return ""
+    parts = []
+    if capture["mode"] == "unsupported":
+        parts.extend(
+            [
+                copy.TRAJECTORY_UNSUPPORTED,
+                literal(capture["contents"], "trajectory capture limitation"),
+                copy.TRAJECTORY_INTRO,
+                literal(capture["implications"], "trajectory capture implications"),
+            ]
+        )
+    else:
+        if capture["mode"] == "optional" and capture["choice"] is None:
+            parts.append(copy.TRAJECTORY_QUESTION)
+        parts.append(
+            copy.TRAJECTORY_CONTENTS.format(contents=literal(capture["contents"], "trajectory contents").rstrip("."))
+            + " "
+            + copy.TRAJECTORY_INTRO
+        )
+        if capture["choice"] is not False:
+            parts.append(
+                copy.TRAJECTORY_DETAILS.format(
+                    directory=literal(capture["directory"], "trajectory directory"),
+                    implications=literal(capture["implications"], "trajectory implications").rstrip("."),
+                )
+            )
+        if capture["mode"] == "automatic":
+            parts.append(copy.TRAJECTORY_AUTOMATIC)
+        elif capture["choice"] is not None:
+            parts.append(copy.TRAJECTORY_ENABLED if capture["choice"] else copy.TRAJECTORY_DECLINED)
+    return "\n\n".join(parts)
+
+
 def execution_settings(record: dict) -> str:
     settings = first_eval_state.execution_settings(record)
     questions = settings.get("open_questions")
@@ -298,7 +357,16 @@ def execution_settings(record: dict) -> str:
         "; ".join(literal(item, "open question") for item in questions) or copy.NO_OPEN_QUESTIONS,
     )
     bullets = "\n".join(f"- **{label}:** {value}" for label, value in zip(copy.SETTINGS_LABELS, values, strict=True))
-    return "\n\n".join([copy.SETTINGS_INTRO, bullets])
+    capture = first_eval_state.trajectory_capture(record)
+    summary = ""
+    if capture:
+        status = capture["mode"] if capture["mode"] != "optional" else "enabled" if capture["choice"] else "declined"
+        summary = copy.TRAJECTORY_SUMMARY.format(status=copy.TRAJECTORY_SUMMARY_STATUS[status])
+        if capture["mode"] != "unsupported":
+            summary += " " + copy.TRAJECTORY_SUMMARY_DIRECTORY.format(
+                directory=literal(capture["directory"], "trajectory directory")
+            )
+    return "\n\n".join(part for part in [copy.SETTINGS_INTRO, bullets, summary] if part)
 
 
 def validation_setup(record: dict, progress: dict) -> str:
@@ -778,14 +846,23 @@ def render(payload: dict) -> str:
             if not progress["scope_approved"]:
                 raise ValueError("Save scope approval before preparing tasks")
             raise ValueError("Resolve and save verifier validation setup before task construction")
-        elif stage == "execution_settings":
+        elif stage in {"trajectory_settings", "execution_settings"}:
             if not progress["scope_approved"]:
                 raise ValueError("Save scope approval before displaying execution settings")
             if not progress["first_task_approved"]:
                 raise ValueError("Review and approve the first task before displaying execution settings")
             if not progress["suite_approved"]:
                 raise ValueError("Review and approve the suite before choosing how to run it")
-            result = execution_settings(record)
+            if first_eval_state.trajectory_capture(record) is None:
+                raise ValueError("Inspect and save trajectory capture settings before preparing new agent execution")
+            if stage == "trajectory_settings":
+                result = trajectory_settings(record)
+            else:
+                if not first_eval_state.trajectory_capture_resolved(record):
+                    raise ValueError(
+                        "Resolve trajectory saving in its separate check-in before displaying execution settings"
+                    )
+                result = execution_settings(record)
         elif stage == "prepare_first":
             if not progress["scope_approved"]:
                 raise ValueError("Save scope approval before preparing the first task")
@@ -817,6 +894,10 @@ def render(payload: dict) -> str:
         elif stage == "ready_to_run":
             if not progress["suite_approved"]:
                 raise ValueError("Review and approve the suite before choosing how to run it")
+            if first_eval_state.trajectory_capture(record) is None:
+                raise ValueError("Inspect and save trajectory capture settings before preparing new agent execution")
+            if not first_eval_state.trajectory_capture_resolved(record):
+                raise ValueError("Resolve trajectory saving in its separate check-in before preparing execution")
             if progress["next_stage"] == "execution_settings":
                 raise ValueError("Display and save execution settings before announcing execution")
             if not progress["first_task_approved"] or not all(
@@ -853,8 +934,11 @@ def render(payload: dict) -> str:
             blocked = bool(applicable_blockers(state))
             completed_results = bool(progress["complete"] and not blocked)
             result = results(record, {**progress, "complete": completed_results}, facts, state["journey"])
-    if blocked := blocker_section(state, facts, stage):
-        result += "\n\n" + blocked
+    if stage != "trajectory_settings":
+        if blocked := blocker_section(state, facts, stage):
+            result += "\n\n" + blocked
+    if stage == "trajectory_settings" and record and not first_eval_state.trajectory_capture_resolved(record):
+        result += "\n\n" + trajectory_choices()
     if stage == "validation_setup":
         result += "\n\n" + copy.VALIDATION_SETUP_QUESTION
     if stage == "results" and not completed_results:

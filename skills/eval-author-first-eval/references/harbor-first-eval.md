@@ -74,7 +74,8 @@ after the external engineering work.
 
 When supported, write `.eval-author/run.yaml` using the installed Harbor
 JobConfig schema. Explicitly select exactly the agreed tasks, actual agent and
-model settings, agreed attempts per task, and jobs under `.eval-author/jobs/`.
+model settings, agreed attempts per task, and repository-local jobs under
+`.eval-author/jobs/` by default.
 Use the parent skill's authorized attempt count and limits; directory membership
 never selects tasks. Do not include unrelated
 drafts merely because they share a parent directory. Resolve paths from the
@@ -82,6 +83,19 @@ repository root and reference credential environment variables rather than
 embedding secrets. Configure request delivery, conversation state, and output
 collection through supported interfaces. Configuration is not proof of a working
 agent connection.
+
+Apply the shared [trajectory-saving check-in](../../eval-author/references/conversations/first-eval.md#save-evaluation-trajectories)
+to the selected adapter before other execution settings or a missing-integration
+handoff. Harbor has no universal capture switch: inspect the
+installed adapter's supported options and output contract. If it already writes
+ATIF, explain and reuse that native capture. Otherwise enable its existing
+optional capture when selected; a custom action/reply JSON file is not an ATIF
+trajectory. Keep an unsupported capability visible without implementing a new
+adapter here. Bind the saved trajectory directory through supported capture or
+export settings, keeping baseline results and receipts under the repository-local
+native job root. Apply the shared procedure's limitation when the adapter cannot
+separate those roots. Include the verified settings in
+the saved full-suite and single-task commands so independent reruns preserve them.
 
 ## 8. Validate the evals
 
@@ -128,6 +142,13 @@ harbor job start -c .eval-author/run.yaml
 
 Retain outputs, actions, rewards, exceptions, and exact commands for every
 selected task under fresh job paths. Low agent scores do not invalidate a working
-suite. Return to the parent skill for exact-run review, reconciliation, and
+suite. For capture, inspect the actual `agent/trajectory.json` or adapter-declared
+ATIF path for each selected native trial, associated with that trial's retained result
+and task identity. Validate the saved bytes with the installed Harbor
+`harbor.models.trajectories.Trajectory.model_validate_json` parser used by audit
+measurement; file presence or a viewer opening it is insufficient. Preserve the
+original and describe unavailable or invalid capture in the existing run review.
+If the parser is unavailable, report that usability remains unverified.
+Return to the parent skill for exact-run review, reconciliation, and
 linked full-suite and single-task rerun instructions. Label NOP/Oracle commands as task validation and the actual
 agent command as evaluation; use new trial and job names so reruns preserve prior evidence.

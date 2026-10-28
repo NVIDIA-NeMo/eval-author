@@ -168,7 +168,7 @@ def ready(modules, repo, provider="harbor", examples=None):
     return value
 
 
-def select(modules, repo, value, repeats=1):
+def select(modules, repo, value, repeats=1, *, capture=None, authorize=True, legacy=False):
     value["execution_settings"] = {
         "agent_model": "actual-agent / configured-model",
         "attempts": str(repeats),
@@ -176,12 +176,15 @@ def select(modules, repo, value, repeats=1):
         "limits": "180 seconds; no retries; $1 maximum",
         "open_questions": [],
     }
+    if not legacy:
+        value["execution_settings"]["trajectory_capture"] = copy.deepcopy(capture or capture_settings("automatic"))
     save(modules, repo, value)
-    value["execution_settings_presented"] = {
-        "digest": facts(modules, repo)["settings_digest"],
-        "source": "Displayed the concrete execution limits",
-    }
-    save(modules, repo, value)
+    if modules[1].trajectory_capture_resolved(value):
+        value["execution_settings_presented"] = {
+            "digest": facts(modules, repo)["settings_digest"],
+            "source": "Displayed the concrete execution limits",
+        }
+        save(modules, repo, value)
     value["selection"] = {
         "config": evidence(repo, ".eval-author/run.yaml", "explicit task selection"),
         "cases": [
@@ -198,11 +201,18 @@ def select(modules, repo, value, repeats=1):
         for case in value["selection"]["cases"]:
             case["rows"] = list(range(1, len(case["example_ids"]) + 1))
     save(modules, repo, value)
+    if not authorize:
+        return
     value["selection"]["authorization"] = {
         "digest": facts(modules, repo)["selection_digest"],
         "source": "User authorizes this exact bounded run",
     }
-    save(modules, repo, value)
+    if legacy:
+        saved = modules[0].load_state(repo)
+        saved["scopes"]["create"]["first_eval"] = copy.deepcopy(value)
+        modules[0].save(repo, saved)
+    else:
+        save(modules, repo, value)
 
 
 def run(modules, repo, value, run_id="baseline"):
@@ -258,9 +268,9 @@ def review_run(modules, repo, value, run_id="baseline"):
     return save(modules, repo, value)
 
 
-def complete(modules, repo, provider="harbor", examples=None, repeats=1):
+def complete(modules, repo, provider="harbor", examples=None, repeats=1, *, legacy=False):
     value = ready(modules, repo, provider, examples)
-    select(modules, repo, value, repeats)
+    select(modules, repo, value, repeats, legacy=legacy)
     run(modules, repo, value)
     review_run(modules, repo, value)
     save(modules, repo, value, journey_status={"create": "complete"})
@@ -1398,6 +1408,375 @@ def test_open_execution_questions_cannot_authorize_runs_and_fallback_fields_stay
     assert not modules[1].derive(state, observed)["execution_authorized"]
     legacy["plan"]["presentation"].update(settings)
     assert modules[1].derive(state, observed)["execution_settings_resolved"]
+
+
+def capture_settings(mode="optional", choice=None, directory=".eval-author/jobs"):
+    return {
+        "mode": mode,
+        "directory": directory,
+        "contents": "Native agent messages, tool calls, and tool results supported by this adapter",
+        "implications": "Additional local storage; no additional model calls",
+        "choice": choice,
+        "source": (
+            "Inspected the installed adapter's capture support"
+            if mode != "optional"
+            else "User chooses trajectory capture for this suite"
+            if choice is not None
+            else None
+        ),
+    }
+
+
+@pytest.mark.parametrize("choice", [False, True])
+@pytest.mark.parametrize("provider", ["harbor", "gym"])
+def test_capture_check_in_precedes_execution_settings_and_survives_resume_and_runs(modules, tmp_path, choice, provider):
+    value = ready(modules, tmp_path, provider)
+    select(modules, tmp_path, value, capture=capture_settings(), authorize=False)
+    prior = facts(modules, tmp_path)
+    assert prior["next_stage"] == "trajectory_settings" and not prior["execution_settings_presented"]
+    assert not prior["execution_settings_resolved"] and not prior["execution_authorized"]
+    saved_design_question(modules, tmp_path, value, request="Resume while trajectory saving is unanswered")
+    value["saved_design_review"].update(decision="continue", source="User continues the interrupted capture check-in")
+    save(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["next_stage"] == "trajectory_settings"
+    answer_source = "User answers only the capture choice"
+    value["execution_settings"]["trajectory_capture"].update(choice=choice, source=answer_source)
+    saved = save(modules, tmp_path, value)
+    current = facts(modules, tmp_path)
+    assert current["settings_digest"] == prior["settings_digest"]
+    assert current["selection_digest"] != prior["selection_digest"]
+    assert current["next_stage"] == "execution_settings" and current["execution_settings_resolved"]
+    assert not current["execution_settings_presented"] and not current["execution_authorized"]
+    assert value["audit_invitation"] is None
+    assert modules[1].trajectory_capture(saved["scopes"]["create"]["first_eval"])["choice"] is choice
+    displayed = {
+        "digest": current["settings_digest"],
+        "source": "Displayed execution settings after the capture answer",
+    }
+    value["execution_settings_presented"] = displayed
+    save(modules, tmp_path, value)
+    assert not facts(modules, tmp_path)["execution_authorized"]
+    value["selection"]["authorization"] = {
+        "digest": current["selection_digest"],
+        "source": "User separately authorizes this exact bounded run",
+    }
+    save(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["execution_authorized"]
+    saved_design_question(modules, tmp_path, value)
+    value["saved_design_review"].update(decision="continue", source="User continues the same suite")
+    save(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["execution_authorized"]
+    run(modules, tmp_path, value)
+    review_run(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["complete"]
+    value["selection"]["authorization"]["source"] = "User authorizes another run within the same bounds"
+    save(modules, tmp_path, value)
+    run(modules, tmp_path, value, run_id="rerun")
+    review_run(modules, tmp_path, value, run_id="rerun")
+    assert facts(modules, tmp_path)["complete"]
+    assert modules[1].trajectory_capture(value)["choice"] is choice
+    assert value["execution_settings_presented"] == displayed
+
+
+@pytest.mark.parametrize("answer_with_display", [False, True])
+def test_execution_settings_display_cannot_skip_the_saved_capture_answer(modules, tmp_path, answer_with_display):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, capture=capture_settings(), authorize=False)
+    prior = facts(modules, tmp_path)
+    value["execution_settings_presented"] = {
+        "digest": prior["settings_digest"],
+        "source": "Attempt to combine trajectory capture and execution settings",
+    }
+    if answer_with_display:
+        value["execution_settings"]["trajectory_capture"].update(choice=True, source="User chooses local capture")
+    before = modules[0].state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="Save the trajectory capture answer before displaying execution settings"):
+        save(modules, tmp_path, value)
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+    assert facts(modules, tmp_path)["next_stage"] == "trajectory_settings"
+
+
+def test_new_optional_capture_answer_must_be_saved_before_execution_settings_display(modules, tmp_path):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, legacy=True, authorize=False)
+    value["execution_settings"]["trajectory_capture"] = capture_settings(choice=True)
+    candidate = modules[0].load_state(tmp_path)
+    candidate["scopes"]["create"]["first_eval"] = copy.deepcopy(value)
+    current = modules[1].derive(candidate, modules[1].observe(tmp_path, candidate))
+    value["execution_settings_presented"] = {
+        "digest": current["settings_digest"],
+        "source": "Attempt to add a new capture answer and execution settings together",
+    }
+    with pytest.raises(ValueError, match="Save the trajectory capture answer before displaying execution settings"):
+        save(modules, tmp_path, value)
+
+
+@pytest.mark.parametrize("choice", [False, True])
+def test_saved_combined_capture_display_remains_readable_and_answerable(modules, tmp_path, choice):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, capture=capture_settings(), authorize=False)
+    value["execution_settings_presented"] = {
+        "digest": facts(modules, tmp_path)["settings_digest"],
+        "source": "Legacy combined settings and capture presentation",
+    }
+    historical = modules[0].load_state(tmp_path)
+    historical["scopes"]["create"]["first_eval"] = copy.deepcopy(value)
+    modules[0].save(tmp_path, historical)
+    assert facts(modules, tmp_path)["next_stage"] == "trajectory_settings"
+    assert facts(modules, tmp_path)["execution_settings_presented"]
+    value["execution_settings"]["trajectory_capture"].update(choice=choice, source="User resolves the saved question")
+    save(modules, tmp_path, value)
+    current = facts(modules, tmp_path)
+    assert current["execution_settings_presented"] and current["execution_settings_resolved"]
+    assert current["next_stage"] == "ready_to_run" and not current["execution_authorized"]
+
+
+def test_pending_capture_choice_cannot_authorize_execution(modules, tmp_path):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, capture=capture_settings(), authorize=False)
+    value["selection"]["authorization"] = {
+        "digest": facts(modules, tmp_path)["selection_digest"],
+        "source": "User permits execution without answering the optional capture choice",
+    }
+    before = modules[0].state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="execution authorization"):
+        save(modules, tmp_path, value)
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+    assert not facts(modules, tmp_path)["execution_settings_resolved"]
+
+
+@pytest.mark.parametrize("mode", ["automatic", "unsupported"])
+def test_capture_without_a_supported_choice_does_not_add_an_authorization_gate(modules, tmp_path, mode):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, capture=capture_settings(mode, directory="/tmp/evaluation results"))
+    assert facts(modules, tmp_path)["execution_settings_resolved"]
+    assert facts(modules, tmp_path)["execution_authorized"]
+    assert modules[1].trajectory_capture_resolved(value)
+
+
+def test_changing_capture_answer_invalidates_authorization_but_not_its_display(modules, tmp_path):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, capture=capture_settings(choice=True))
+    prior = facts(modules, tmp_path)
+    value["execution_settings"]["trajectory_capture"].update(choice=False, source="User turns capture off")
+    save(modules, tmp_path, value)
+    current = facts(modules, tmp_path)
+    assert current["settings_digest"] == prior["settings_digest"]
+    assert current["execution_settings_presented"] and current["selection_current"]
+    assert current["selection_digest"] != prior["selection_digest"]
+    assert not current["execution_authorized"]
+    value["selection"]["authorization"] = {
+        "digest": current["selection_digest"],
+        "source": "User explicitly authorizes the revised capture choice and bounded run",
+    }
+    save(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["execution_authorized"]
+    value["execution_settings"]["trajectory_capture"]["source"] = "Retained original explicit reply reference"
+    save(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["execution_authorized"]
+    assert facts(modules, tmp_path)["selection_digest"] == current["selection_digest"]
+
+
+@pytest.mark.parametrize("changed", ["directory", "contents", "implications", "config"])
+def test_capture_configuration_changes_reopen_execution_without_reapproving_suite(modules, tmp_path, changed):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, capture=capture_settings(choice=True))
+    prior = facts(modules, tmp_path)
+    if changed == "config":
+        value["selection"]["config"] = evidence(
+            tmp_path, ".eval-author/run.yaml", "Changed native capture configuration"
+        )
+    else:
+        value["execution_settings"]["trajectory_capture"][changed] = (
+            ".eval-author/runs" if changed == "directory" else "Changed supported capture setting"
+        )
+    save(modules, tmp_path, value)
+    current = facts(modules, tmp_path)
+    assert current["plan_digest"] == prior["plan_digest"] and current["suite_approved"]
+    assert not current["execution_authorized"]
+    assert current["execution_settings_presented"] is (changed == "config")
+
+
+@pytest.mark.parametrize("choice", [False, True])
+@pytest.mark.parametrize(
+    "field,updated",
+    [
+        ("directory", "/tmp/evaluation trajectories"),
+        ("contents", "Agent messages and full tool results, including uploaded documents"),
+        ("implications", "Saving now adds a per-attempt storage charge"),
+    ],
+)
+def test_material_capture_changes_can_reopen_the_choice_without_reusing_authorization(
+    modules, tmp_path, choice, field, updated
+):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, capture=capture_settings(choice=choice))
+    prior = facts(modules, tmp_path)
+    capture = value["execution_settings"]["trajectory_capture"]
+    capture.update({field: updated, "choice": None, "source": None})
+    save(modules, tmp_path, value)
+    current = facts(modules, tmp_path)
+    assert current["suite_approved"] and current["plan_digest"] == prior["plan_digest"]
+    assert current["next_stage"] == "trajectory_settings"
+    assert current["settings_digest"] != prior["settings_digest"]
+    assert not current["execution_settings_presented"] and not current["execution_authorized"]
+    assert not current["execution_settings_resolved"] and value["audit_invitation"] is None
+
+    capture.update(choice=choice, source="User answers again after reviewing changed capture conditions")
+    save(modules, tmp_path, value)
+    answered = facts(modules, tmp_path)
+    assert answered["next_stage"] == "execution_settings"
+    assert answered["settings_digest"] == current["settings_digest"]
+    assert not answered["execution_authorized"]
+    value["selection"]["settings_digest"] = answered["settings_digest"]
+    value["selection"]["config"] = evidence(tmp_path, ".eval-author/run.yaml", "Updated native capture configuration")
+    value["execution_settings_presented"] = {
+        "digest": answered["settings_digest"],
+        "source": "Displayed the revised execution settings after the new saving answer",
+    }
+    save(modules, tmp_path, value)
+    displayed = facts(modules, tmp_path)
+    assert not displayed["execution_authorized"]
+    value["selection"]["authorization"] = {
+        "digest": displayed["selection_digest"],
+        "source": "User separately authorizes the revised run",
+    }
+    save(modules, tmp_path, value)
+    assert facts(modules, tmp_path)["execution_authorized"]
+
+
+@pytest.mark.parametrize("decision", ["revise", "new"])
+@pytest.mark.parametrize("choice", [False, True])
+def test_capture_answer_is_reused_for_revision_and_reset_for_a_new_suite(modules, tmp_path, decision, choice):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, capture=capture_settings(choice=choice))
+    saved_design_question(modules, tmp_path, value)
+    value["saved_design_review"].update(decision=decision, source=f"User chooses {decision}")
+    saved = save(modules, tmp_path, value)
+    capture = modules[1].trajectory_capture(saved["scopes"]["create"]["first_eval"])
+    assert capture["choice"] is (None if decision == "new" else choice)
+    assert (capture["source"] is None) is (decision == "new")
+    assert not facts(modules, tmp_path)["execution_authorized"]
+
+
+@pytest.mark.parametrize("change", ["remove", "forget_answer"])
+@pytest.mark.parametrize("choice", [False, True])
+def test_capture_preference_cannot_be_lost_on_same_suite_updates(modules, tmp_path, change, choice):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, capture=capture_settings(choice=choice))
+    before = modules[0].state_path(tmp_path).read_bytes()
+    if change == "remove":
+        del value["execution_settings"]["trajectory_capture"]
+    else:
+        value["execution_settings"]["trajectory_capture"].update(choice=None, source=None)
+    with pytest.raises(ValueError, match="Retain .*trajectory capture"):
+        save(modules, tmp_path, value)
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+
+
+def test_legacy_complete_suite_keeps_exact_digests_without_capture_metadata(modules, tmp_path):
+    value = complete(modules, tmp_path, legacy=True)
+    current = facts(modules, tmp_path)
+    helper = modules[1]
+    assert helper.trajectory_capture(value) is None and helper.trajectory_capture_resolved(value)
+    assert current["complete"] and current["execution_authorized"]
+    assert current["settings_digest"] == helper.fingerprint(
+        {"plan_digest": current["plan_digest"], "settings": value["execution_settings"]}
+    )
+    assert current["selection_digest"] == helper.fingerprint(
+        {
+            "selection": {key: item for key, item in value["selection"].items() if key != "authorization"},
+            "plan_digest": current["plan_digest"],
+            "tasks": {key: value["tasks"][key]["sha256"] for key in value["tasks"]},
+        }
+    )
+
+
+def test_new_execution_authorization_requires_capture_settings(modules, tmp_path):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, legacy=True, authorize=False)
+    value["selection"]["authorization"] = {
+        "digest": facts(modules, tmp_path)["selection_digest"],
+        "source": "User authorizes a new run before capture support was inspected",
+    }
+    before = modules[0].state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="trajectory capture settings before authorizing"):
+        save(modules, tmp_path, value)
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("representation", ["activity", "run"])
+def test_legacy_authorization_cannot_start_another_job_without_capture_settings(modules, tmp_path, representation):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, legacy=True)
+    assert facts(modules, tmp_path)["execution_authorized"]
+    if representation == "activity":
+        native_activity(modules, tmp_path, value)
+    else:
+        active_native_run(modules, tmp_path, value)
+    before = modules[0].state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="trajectory capture settings before recording a new native launch"):
+        save(modules, tmp_path, value)
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("existing", ["activity", "run"])
+@pytest.mark.parametrize("observation", ["activity", "run"])
+def test_existing_legacy_job_remains_observable_without_retroactive_capture_settings(
+    modules, tmp_path, existing, observation
+):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, legacy=True)
+    if existing == "activity":
+        native_activity(modules, tmp_path, value)
+    else:
+        active_native_run(modules, tmp_path, value)
+    historical = modules[0].load_state(tmp_path)
+    historical["scopes"]["create"]["first_eval"] = copy.deepcopy(value)
+    modules[0].save(tmp_path, historical)
+    if observation == "activity":
+        native_activity(modules, tmp_path, value, status="waiting")
+    elif existing == "activity":
+        active_native_run(modules, tmp_path, value)
+    else:
+        value["runs"][0]["source"] = "Observed another update from the same legacy native job"
+    saved = save(modules, tmp_path, value)
+    assert modules[1].trajectory_capture(saved["scopes"]["create"]["first_eval"]) is None
+    assert facts(modules, tmp_path)["execution_authorized"]
+    if observation == "activity":
+        assert facts(modules, tmp_path)["run_progress"]["current"]
+    else:
+        assert facts(modules, tmp_path)["runs"]["active-baseline"]["reviewable"]
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"mode": "enabled"},
+        {"directory": "../results"},
+        {"directory": "~/results"},
+        {"directory": "results/./capture"},
+        {"directory": "results/"},
+        {"directory": "https://example.com/capture"},
+        {"directory": "//server/results"},
+        {"directory": "results\nother"},
+        {"contents": " "},
+        {"implications": None},
+        {"choice": "yes"},
+        {"choice": 1},
+        {"choice": True},
+        {"source": "Answer supplied while choice remains pending"},
+        {"mode": "automatic", "choice": True, "source": "Inspected automatic output"},
+        {"mode": "unsupported"},
+        {"outcome": "saved"},
+    ],
+)
+def test_capture_settings_reject_malformed_choices_paths_and_outcome_metadata(modules, tmp_path, patch):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, authorize=False)
+    value["execution_settings"]["trajectory_capture"] = {**capture_settings(), **patch}
+    with pytest.raises(ValueError):
+        save(modules, tmp_path, value)
 
 
 def saved_design_question(modules, repo, value, request="Fresh first-evaluations request"):

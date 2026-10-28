@@ -88,8 +88,9 @@ Use it alongside [Shared prerequisites and Ethos](shared-prerequisites.md).
 Shared rendering guidance does not change those workflow gates.
 
 [First evaluation rendering](conversations/first-eval.md) continues creation
-with optional traces, design and first-task review, validation, execution
-settings, results, and the optional audit handoff. Its stages require reconciled
+with optional traces, design and first-task review, validation, a separate
+trajectory-saving check-in before execution settings, results, and the optional
+audit handoff. Its stages require reconciled
 saved state and use the `first_eval_` prefix; they have no stateless preview.
 
 [conversation_renderer.py](../scripts/conversation_renderer.py) dispatches through

@@ -73,6 +73,47 @@ def _settings_fields(settings: object) -> bool:
     )
 
 
+def _trajectory_capture(value: object) -> None:
+    if not isinstance(value, dict) or set(value) != {
+        "mode",
+        "directory",
+        "contents",
+        "implications",
+        "choice",
+        "source",
+    }:
+        raise ValueError("Trajectory capture requires its mode, directory, contents, implications, choice, and source")
+    if value["mode"] not in {"automatic", "optional", "unsupported"}:
+        raise ValueError("Unknown trajectory capture mode")
+    for field in ("directory", "contents", "implications"):
+        _text(value[field])
+    directory = value["directory"]
+    path = PurePosixPath(directory)
+    if (
+        path.as_posix() != directory
+        or directory == "."
+        or ".." in path.parts
+        or "~" in directory
+        or "\\" in directory
+        or directory.startswith("//")
+        or any(ord(char) < 32 for char in directory)
+    ):
+        raise ValueError("Trajectory capture directory must be a canonical local path without .. or ~")
+    choice = value["choice"]
+    if value["mode"] == "optional":
+        if choice is not None and type(choice) is not bool:
+            raise ValueError("Optional trajectory capture choice must be a boolean or pending")
+        if choice is None:
+            if value["source"] is not None:
+                raise ValueError("Pending trajectory capture cannot imply a user answer")
+        else:
+            _text(value["source"])
+    else:
+        if choice is not None:
+            raise ValueError("Automatic or unsupported trajectory capture does not require a user choice")
+        _text(value["source"])
+
+
 def record(state: dict) -> dict | None:
     scope = state["scopes"].get("create", {})
     return scope.get("first_eval") if isinstance(scope, dict) else None
@@ -320,6 +361,9 @@ def validate(value: dict) -> None:
             raise ValueError(
                 "Execution settings require agent_model, attempts, validation, limits, and a list of open_questions"
             )
+        settings = execution_settings(value)
+        if "trajectory_capture" in settings:
+            _trajectory_capture(settings["trajectory_capture"])
     except (KeyError, TypeError, AttributeError) as exc:
         raise ValueError("Malformed structured creation record") from exc
 
@@ -375,6 +419,28 @@ def observe(repo, state: dict) -> dict:
 
 def execution_settings(value: dict) -> dict:
     return value.get("execution_settings", value["plan"].get("presentation", {}))
+
+
+def trajectory_capture(value: dict) -> dict | None:
+    return execution_settings(value).get("trajectory_capture")
+
+
+def trajectory_capture_resolved(value: dict) -> bool:
+    capture = trajectory_capture(value)
+    return capture is None or capture["mode"] != "optional" or type(capture["choice"]) is bool
+
+
+def _displayed_settings(value: dict) -> dict:
+    settings = execution_settings(value)
+    capture = trajectory_capture(value)
+    if capture is None:
+        return settings
+    # The answer resolves the displayed choice; effective configuration still
+    # binds execution authorization through the native selection and choice.
+    return {
+        **settings,
+        "trajectory_capture": {key: item for key, item in capture.items() if key not in {"choice", "source"}},
+    }
 
 
 def _build_progress(value: dict, observed: dict, plan_digest: str) -> dict:
@@ -546,21 +612,25 @@ def derive(state: dict, observed: object) -> dict | None:
     suite_approved = bool(
         suite_presented and value.get("suite_approval") and value["suite_approval"]["digest"] == suite_digest
     )
-    settings_digest = fingerprint({"plan_digest": plan_digest, "settings": execution_settings(value)})
+    settings_digest = fingerprint({"plan_digest": plan_digest, "settings": _displayed_settings(value)})
     settings = execution_settings(value)
-    settings_resolved = bool(_settings_fields(settings) and not settings["open_questions"])
+    settings_resolved = bool(
+        _settings_fields(settings) and not settings["open_questions"] and trajectory_capture_resolved(value)
+    )
     settings_shown = bool(
         suite_approved
         and value.get("execution_settings_presented")
         and value["execution_settings_presented"]["digest"] == settings_digest
     )
     selection = value["selection"]
+    capture = trajectory_capture(value)
     selection_digest = (
         fingerprint(
             {
                 "selection": {key: item for key, item in selection.items() if key != "authorization"},
                 "plan_digest": plan_digest,
                 "tasks": {key: value["tasks"].get(key, {}).get("sha256") for key in planned},
+                **({"trajectory_capture_choice": capture["choice"]} if capture is not None else {}),
             }
         )
         if selection
@@ -763,6 +833,8 @@ def derive(state: dict, observed: object) -> dict | None:
         if value.get("remaining_build") and not suite_approved
         else "prepare_remaining"
         if not suite_approved
+        else "trajectory_settings"
+        if not trajectory_capture_resolved(value)
         else "execution_settings"
         if not settings_shown
         else "remaining_progress"
@@ -828,6 +900,7 @@ def transition(repo, previous: dict, updated: dict) -> None:
     saved_review = after.get("saved_design_review")
     prior_review = (before or {}).get("saved_design_review")
     replacing_design = False
+    new_design = False
     if prior_review is not None and saved_review is None:
         raise ValueError("Retain the saved-design review and its user decision")
     if saved_review and saved_review != prior_review:
@@ -864,8 +937,12 @@ def transition(repo, previous: dict, updated: dict) -> None:
                 if updated["next_handoff"] == "eval-author-audit":
                     updated["next_handoff"] = None
             if saved_review["decision"] == "new":
+                new_design = True
                 after["plan"].pop("trace_choice", None)
                 updated["scopes"]["create"].pop("trace_choice", None)
+                capture = trajectory_capture(after)
+                if capture and capture["mode"] == "optional":
+                    capture.update(choice=None, source=None)
     old = progress(repo, previous) if before else None
     now = progress(repo, updated)
     assert now is not None
@@ -952,6 +1029,21 @@ def transition(repo, previous: dict, updated: dict) -> None:
             raise ValueError("Only an incomplete remaining-task build step may be active")
     if before and "execution_settings" in before and "execution_settings" not in after:
         raise ValueError("Retain adopted execution settings; revise them instead of removing them")
+    prior_capture = trajectory_capture(before) if before else None
+    capture = trajectory_capture(after)
+    if prior_capture is not None and capture is None and not new_design:
+        raise ValueError("Retain adopted trajectory capture settings for this suite")
+    if (
+        prior_capture
+        and prior_capture["mode"] == "optional"
+        and type(prior_capture["choice"]) is bool
+        and capture
+        and capture["mode"] == "optional"
+        and capture["choice"] is None
+        and not new_design
+        and all(capture[key] == prior_capture[key] for key in ("directory", "contents", "implications"))
+    ):
+        raise ValueError("Retain the trajectory capture answer for this suite and its authorized reruns")
     if before != after and updated["ethos"]["stage"] != "complete":
         raise ValueError("Confirm ETHOS.md before changing creation decisions or evidence")
     if (
@@ -1019,6 +1111,16 @@ def transition(repo, previous: dict, updated: dict) -> None:
     if shown and shown != (before or {}).get("execution_settings_presented"):
         if not (old and old["suite_approved"] and now["suite_approved"] and now["execution_settings_presented"]):
             raise ValueError("Approve the full suite before recording current execution settings display")
+        if not trajectory_capture_resolved(after) or (
+            capture is not None
+            and capture["mode"] == "optional"
+            and not (
+                prior_capture is not None
+                and prior_capture["mode"] == "optional"
+                and type(prior_capture["choice"]) is bool
+            )
+        ):
+            raise ValueError("Save the trajectory capture answer before displaying execution settings")
     authorization = (after["selection"] or {}).get("authorization")
     if authorization and authorization != ((before or {}).get("selection") or {}).get("authorization"):
         if not (
@@ -1033,6 +1135,22 @@ def transition(repo, previous: dict, updated: dict) -> None:
             raise ValueError(
                 "Display current settings after first-task approval before recording execution authorization"
             )
+        if capture is None:
+            raise ValueError("Record trajectory capture settings before authorizing new execution")
+    prior_runs = {run["id"]: run for run in (before or {}).get("runs", [])}
+    prior_activity = (before or {}).get("run_progress")
+
+    def known_live_job(run_id: str, selection_digest: str) -> bool:
+        native = prior_runs.get(run_id)
+        return bool(
+            native
+            and native["status"] == "running"
+            and native["selection_digest"] == selection_digest
+            or prior_activity
+            and prior_activity["run_id"] == run_id
+            and prior_activity["selection_digest"] == selection_digest
+        )
+
     activity = after.get("run_progress")
     if activity and activity != (before or {}).get("run_progress"):
         if not (
@@ -1044,7 +1162,10 @@ def transition(repo, previous: dict, updated: dict) -> None:
             raise ValueError(
                 "Save current execution authorization and task checks before recording native run progress"
             )
-    prior_runs = {run["id"]: run for run in (before or {}).get("runs", [])}
+        if not known_live_job(activity["run_id"], activity["selection_digest"]) and (
+            prior_capture is None or capture is None
+        ):
+            raise ValueError("Save trajectory capture settings before recording a new native launch")
     for run in after["runs"]:
         if run["status"] == "running" and run != prior_runs.get(run["id"]):
             prior_run = prior_runs.get(run["id"])
@@ -1063,6 +1184,8 @@ def transition(repo, previous: dict, updated: dict) -> None:
                 raise ValueError(
                     "Save authorization, task checks, and explicit selection before recording a running native job"
                 )
+            if not known_live_job(run["id"], run["selection_digest"]) and (prior_capture is None or capture is None):
+                raise ValueError("Save trajectory capture settings before recording a new native launch")
     added = after["tasks"].keys() - prior_tasks.keys()
     if added and not (old and old["scope_approved"] and now["scope_approved"]):
         raise ValueError("Save task-design approval before creating tasks")
