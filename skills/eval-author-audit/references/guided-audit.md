@@ -24,7 +24,8 @@ Use the existing [journey-state CLI](../../eval-author/references/shared-prerequ
 to save the versioned `scopes.audit.lifecycle` record with the latest
 `--expected-revision`. On a stale revision, reload before applying the answer.
 Use [`audit_state.py`](../../eval-author/scripts/audit_state.py) as the schema
-source of truth and normal `show` for current audit progress. Preserve framework
+source of truth. Read current audit progress using `journey_state.py show`
+without `--state-only`; the command returns a state snapshot. Preserve framework
 metadata and legacy scope fields when updating the lifecycle.
 
 Save suite and trace selections separately, with candidates, exclusions, bounds,
@@ -34,10 +35,10 @@ The same record holds check approval, measurement, findings acceptance, the next
 action, and `pending`. Keep that checkpoint inside the audit lifecycle
 when switching journeys. On return, resume its applicable pending decision or
 the earliest unfinished, non-deferred milestone. State-only entry reads no
-artifacts; normal inspection reads only selected sources and retained references.
+artifacts; inspection without `--state-only` reads only selected sources and retained references.
 Legacy notes and existing files alone do not establish approval or completion.
 
-Use normal `show`'s `audit.checks_digest` for `checks_approval: {digest, source}`
+Use the state snapshot's `audit.checks_digest` for `checks_approval: {digest, source}`
 and save that approval before updating `measurement`. After native measurement
 and [report.py](../scripts/audit_spec/report.py) `--verify-existing <aggregate>`
 validation, record `measurement: {checks_digest, status, evidence, source}`.
@@ -49,7 +50,7 @@ independent work. Native scripts establish measurement correctness; the lifecycl
 checks retained bytes.
 
 Save `findings: {report: {path, digest}, source}` for the coverage report and bind
-`findings_review: {digest, source}` to `show`'s `audit.findings_digest`. Bind
+`findings_review: {digest, source}` to the state snapshot's `audit.findings_digest`. Bind
 `next_action: {kind, findings_digest, source}` to that same current digest only
 when the user selects it. Findings remain in `audit-coverage-report.md`; link it
 whenever it is created or updated.

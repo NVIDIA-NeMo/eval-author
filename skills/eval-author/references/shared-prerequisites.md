@@ -89,8 +89,9 @@ For reusable context, continue these steps in the same turn when unblocked:
    and `prerequisite_results`, using the canonical trace blocker when applicable.
    Stop before Ethos or audit artifact inspection; do not offer a trace-free full
    audit or generate runs. Preserve prior scope, completion, evidence, and Ethos.
-4. After saving an unblocked prerequisite pass, use normal `show` to reconcile
-   Ethos. Audit state operations leave authoring artifacts unread; their completion
+4. After saving an unblocked prerequisite pass, read the current journey state
+   using `journey_state.py show` without `--state-only` to reconcile Ethos.
+   Audit state operations leave authoring artifacts unread; their completion
    is historical. Unchanged confirmed content needs no review for a new goal/chat.
    Changed/missing content, changed intent, or an unresolved review follows the
    [Ethos adapter](ethos-confirmation.md); retain its actual pending review.
@@ -451,7 +452,9 @@ with a free-form source or task-preparation question.
 stage, prerequisite findings and answers, confirmations, task status, pending questions, and next action.
 Use `scripts/journey_state.py --repo <repository> <command>` for `show`, `init`,
 `update`, `confirm-ethos`, `record-task`, `import-legacy`, and `rebind`; inspect its help for command inputs.
-Its validation and atomic writes are allowed bounded local commands, not runtime
+The `show` command reads saved progress and returns a JSON state snapshot.
+Without `--state-only`, it also reconciles the selected artifacts.
+The state helper's validation and atomic writes are allowed bounded local commands, not runtime
 probes. State identifies the repository, agent, goal, selected setup, answer
 provenance, Ethos path/digest, and journey-specific progress. Never store secrets.
 
@@ -461,9 +464,9 @@ Ethos, draft, or task-evidence artifacts; `artifact_checks_deferred: true` recor
 that boundary. It cannot establish content approval or task acceptance. Treat
 saved approvals as historical, and defer reports, task-readiness checks, and
 artifact inspection. After completing and saving an unblocked prerequisite pass,
-omit `--state-only` so normal commands reconcile current content and evidence.
-For the audit journey, normal commands reconcile Ethos and the selected audit
-lifecycle's evidence: `task_readiness`,
+omit `--state-only` so commands reconcile current content and evidence.
+For the audit journey, commands run without `--state-only` reconcile Ethos and
+the selected audit lifecycle's evidence: `task_readiness`,
 `first_eval_observations`, and `first_eval` are null, and creation progress cannot
 be updated until an authoring journey is selected. Retained authoring evidence
 does not select it as audit input.
@@ -480,10 +483,11 @@ updates require the latest `--expected-revision`. These fields do not change
 the top-level schema or grant approvals to older records.
 Audit uses `scopes.audit.lifecycle` as defined by the
 [audit lifecycle contract](../../eval-author-audit/references/guided-audit.md#decisions-and-progress).
-Normal audit `show` returns `audit_observations` and derived `audit` progress;
-typed audit updates and audit completion require the latest `--expected-revision`.
+For audit state read without `--state-only`, the returned state snapshot includes
+`audit_observations` and derived `audit` progress.
+Typed audit updates and audit completion require the latest `--expected-revision`.
 Both audit fields are null during state-only inspection or an authoring journey.
-Forward normal audit observations as `facts.audit_observations` when using the
+Forward the snapshot's `audit_observations` as `facts.audit_observations` when using the
 [onboarding continuation renderer](conversations/onboarding.md).
 Put final task behavior in task READMEs and audit checks
 in the audit report. Do not create a separate first-eval or expansion plan file.
