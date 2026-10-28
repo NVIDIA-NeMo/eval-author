@@ -22,8 +22,6 @@ NeMo Gym's `nemo_gym.environment.scaffold.scaffold_environment(kind="environment
 name=<module_name>, root=<task_path>)`. Use a valid Python module name for the
 NeMo Gym environment. Do not call the audit-driven `task_pipeline.py scaffold` route:
 first evaluations require no coverage report or uncovered-tool selector.
-When recording the Gym draft, save the generated environment manifest's exact
-repository-relative path as `tasks[<task-id>].workload_path`.
 Do not create remaining task directories or rows before first-task review approval.
 One reviewed task may map to several explicitly agreed complete dataset rows;
 retain verifier metadata and count distinct examples separately from repeats.
