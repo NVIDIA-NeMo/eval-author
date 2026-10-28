@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from test_audit_binding import measured as native_measurement
-from test_audit_state import selected
+from test_audit_state import reviewed, selected
 from test_journey_state import ethos_ready, setup_ready
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
@@ -219,6 +219,77 @@ def test_audit_ethos_change_preserves_prior_authoring_until_return(modules, tmp_
     returned = state.initialize(tmp_path, journey="create", setup="harbor")
     assert returned["journey_status"] == {"create": "in_progress", "expand": "in_progress"}
     assert not state.checklist(returned)[2]["complete"]
+
+
+@pytest.mark.parametrize("change", ["changed", "missing"])
+def test_ethos_review_pauses_audit_evidence_reads_until_reconfirmed(modules, tmp_path, monkeypatch, change):
+    state, audit = modules
+    saved = ready(modules, tmp_path)
+    _, lifecycle, observed = reviewed(audit)
+    saved["scopes"]["audit"] = {"lifecycle": lifecycle}
+    saved["journey_status"]["audit"] = "complete"
+    digest = audit.derive(saved, observed)["checks_digest"]
+    lifecycle["checks_approval"]["digest"] = lifecycle["measurement"]["checks_digest"] = digest
+    digest = audit.derive(saved, observed)["findings_digest"]
+    lifecycle["findings_review"]["digest"] = digest
+    lifecycle["pending"] = {
+        "stage": "next_action",
+        "digest": digest,
+        "question": "Would you like improvement proposals?",
+        "source": "User reviewed the findings",
+    }
+    state.save(tmp_path, saved)
+    reads = []
+    allowed = True
+    file_digest = state._file_digest
+
+    def read(path, remaining):
+        name = path.relative_to(tmp_path).as_posix()
+        if name not in observed["files"]:
+            return file_digest(path, remaining)
+        assert allowed, "Audit evidence must not be read during Ethos review"
+        reads.append(name)
+        return observed["files"][name], 1
+
+    monkeypatch.setattr(state, "_file_digest", read)
+    assert state.view(state.load_state(tmp_path))["checklist"][2]["complete"]
+    assert set(reads) == set(observed["files"])
+    reads.clear()
+    allowed = False
+    ethos = tmp_path / "ETHOS.md"
+    if change == "changed":
+        ethos.write_text("# Changed intent\n")
+    else:
+        ethos.unlink()
+    before = state.state_path(tmp_path).read_bytes()
+    viewed = state.view(state.load_state(tmp_path))
+    assert state.state_path(tmp_path).read_bytes() == before
+    updated = state.update(
+        tmp_path,
+        {"scopes": {"audit": {"framework": "Harbor", "framework_source": "User framework answer"}}},
+        expected_revision=viewed["state"]["revision"],
+    )
+    for output in (viewed, state.view(updated)):
+        assert output["state"]["ethos"]["stage"] == "review"
+        assert (
+            output["state"]["pending_question"]
+            == "ETHOS.md changed or is unavailable; review its intended behavior again."
+        )
+        assert output["checklist"][1]["current"] and not output["checklist"][2]["complete"]
+        assert output["audit_observations"] == {"files": {}}
+        assert audit.record(output["state"]) == lifecycle
+    assert not reads
+    ethos.write_text("# Reviewed updated intent\n")
+    assert state.view(state.load_state(tmp_path))["audit_observations"] == {"files": {}}
+    allowed = True
+    confirmed = state.confirm_ethos(
+        tmp_path,
+        reviewed_digest=state.ethos_digest(tmp_path),
+        source="User reconfirmed the updated intent",
+        validation="Updated Ethos passed validation",
+    )
+    state.view(confirmed)
+    assert set(reads) == set(observed["files"])
 
 
 def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path):

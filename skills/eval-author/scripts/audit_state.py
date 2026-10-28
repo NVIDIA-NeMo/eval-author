@@ -195,6 +195,8 @@ def observe(repo, state: dict) -> dict:
     from journey_state import MAX_TASK_BYTES, _file_digest
 
     observed = {"files": {}}
+    if state["ethos"]["stage"] != "complete":
+        return observed
     remaining = MAX_TASK_BYTES
     for name in sorted(_sources(state)):
         path = Path(repo) / name
