@@ -110,18 +110,35 @@ def test_authoring_preserves_audit_without_reading_or_changing_it(modules, tmp_p
     assert state.load_state(tmp_path)["journey_status"][journey] == "complete"
 
 
-def test_domain_pending_checkpoint_survives_switch_and_resumes_without_reselection(modules, tmp_path):
+@pytest.mark.parametrize("stage", ["suite_selection", "findings_review", "next_action"])
+def test_domain_pending_checkpoint_survives_switch_and_resumes_without_reselection(
+    modules, tmp_path, monkeypatch, stage
+):
     state, audit = modules
     saved = start_lifecycle(modules, tmp_path)
-    lifecycle = copy.deepcopy(audit.record(saved))
-    lifecycle["suites"]["candidates"] = ["evals/refunds"]
-    trace_choice = selected(audit)[1]["traces"]
-    lifecycle["traces"] = trace_choice
+    if stage == "suite_selection":
+        lifecycle = copy.deepcopy(audit.record(saved))
+        lifecycle["suites"]["candidates"] = ["evals/refunds"]
+        lifecycle["traces"] = selected(audit)[1]["traces"]
+        observed = {"files": {}}
+    else:
+        _, lifecycle, observed = reviewed(audit)
+        saved["scopes"]["audit"]["lifecycle"] = lifecycle
+        lifecycle["measurement"]["status"] = "partial"
+        digest = audit.derive(saved, observed)["checks_digest"]
+        lifecycle["checks_approval"]["digest"] = lifecycle["measurement"]["checks_digest"] = digest
+        lifecycle["findings_review"]["digest"] = audit.derive(saved, observed)["findings_digest"]
+        if stage == "findings_review":
+            lifecycle["findings_review"] = None
+        state.save(tmp_path, saved)
+    trace_choice = copy.deepcopy(lifecycle["traces"])
+    saved["scopes"]["audit"]["lifecycle"] = lifecycle
+    monkeypatch.setattr(audit, "observe", lambda *_: observed)
     lifecycle["pending"] = {
-        "stage": "suite_selection",
-        "digest": audit.fingerprint(lifecycle["suites"]),
-        "question": "Which evaluation suites should be included?",
-        "source": "Presented the bounded suite inventory",
+        "stage": stage,
+        "digest": audit.derive(saved, observed)["checkpoint_digests"][stage],
+        "question": f"Please resolve {stage}",
+        "source": "Presented the current audit decision",
     }
     state.update(
         tmp_path,
@@ -132,10 +149,13 @@ def test_domain_pending_checkpoint_survives_switch_and_resumes_without_reselecti
     assert switched["pending_question"] is None
     assert audit.record(switched)["traces"] == trace_choice
     resumed = state.initialize(tmp_path, journey="audit")
+    resumed = state.update(tmp_path, {"prerequisites": saved["prerequisites"]}, expected_revision=resumed["revision"])
     output = state.view(resumed)
     assert audit.record(resumed) == lifecycle
-    assert output["audit"]["stage"] == "suite_selection"
+    assert output["audit"]["stage"] == stage
     assert output["audit"]["pending_checkpoint"] == lifecycle["pending"]
+    assert output["state"]["pending_question"] == lifecycle["pending"]["question"]
+    assert not output["audit"]["complete"] and not output["checklist"][2]["complete"]
 
 
 def test_state_only_update_and_view_preserve_typed_audit_without_artifact_reads(modules, tmp_path, monkeypatch):

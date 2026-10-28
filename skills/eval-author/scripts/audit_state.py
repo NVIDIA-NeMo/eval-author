@@ -300,6 +300,14 @@ def derive(state: dict, observed: dict) -> dict | None:
     }
     stage = next((name for name in STAGES if not resolved[name]), "complete")
     pending = value["pending"]
+    if (
+        pending
+        and current_partial
+        and pending["stage"] == ("next_action" if reviewed else "findings_review")
+        and not resolved[pending["stage"]]
+        and pending["digest"] == findings_digest
+    ):
+        stage = pending["stage"]
     applicable = bool(pending and pending["stage"] == stage and checkpoint_digests[stage] == pending["digest"])
     return {
         "stage": stage,
