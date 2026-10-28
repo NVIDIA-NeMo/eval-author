@@ -203,6 +203,10 @@ Set each report task's `display_id` to its proposed task ID and save the
 implemented `scoring_rule` as report metadata. Use
 `first_eval_table_data.py` to read the authored row from the saved report
 snapshot, then pass it as `facts.task_rows` to the conversation renderer.
+Render `first_eval_review_first` and present its output unchanged. Its single
+authored task appears in the same three-column table as the proposal and suite
+review, with the task ID and behavior in the Task cell. Don't turn that row into
+labeled lines.
 Reports may be refreshed as drafts while validation remains blocked, without
 presenting an approval question or claiming review readiness.
 

@@ -26,10 +26,11 @@ Confirming `ETHOS.md` alone does not resume that design. Earlier artifacts stay 
 
 Source selection and the task proposal show your overall progress, with setup
 and `ETHOS.md` complete and evaluation creation marked as the current step.
-The task proposal uses three columns: behavior tested, expected outcome, and
-verifier. The first cell starts with the task ID. The verifier cell shows its
-type and scoring rule, including what earns a pass. Coverage notes explain the
-main limits, including any unresolved model judge setup.
+The task proposal uses three columns: Task, Expected outcome, and Verifier.
+The Task cell starts with the task ID and describes the behavior tested. The
+Verifier cell shows its type and scoring rule, including what earns a pass.
+Coverage notes explain the main limits, including any unresolved model judge
+setup.
 You can change the proposal or approve it and the
 first task to build. Task labels use stable IDs throughout the conversation so
 you can match them to the report and task directories. Expected results are

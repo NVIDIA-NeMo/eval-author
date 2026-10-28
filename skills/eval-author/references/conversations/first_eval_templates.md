@@ -9,11 +9,11 @@ table. The fixed column copy lives in
 Render the full checkpoint with `conversation_renderer.py`. Don't paste a second
 table definition into a skill or report.
 
-Display the task ID in bold before the behavior in the first cell, separated
-by ` - `. Display the verifier type in bold before the scoring rule in the
-Verifier cell. Keep the five saved fields separate so the report and later
-checks retain their exact values. This compact layout gives narrow chat panes
-fewer columns to fit.
+Display the task ID in bold before the behavior in the Task cell, separated by
+` - `. Display the verifier type in bold before the scoring rule in the Verifier
+cell. Keep the five saved fields separate so the report and later checks retain
+their exact values. This compact layout gives narrow chat panes fewer columns
+to fit.
 
 Each proposed task in `scopes.create.first_eval.plan.tasks[]` needs a stable
 `id`, a plain-language `behavior`, an `expected_result`, a `verifier_type`,

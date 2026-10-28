@@ -367,7 +367,7 @@ def test_proposal_is_concise_deterministic_and_read_only(creation):
     output = renderer.render(payload(creation, "proposal"))
     assert output == PLANNING_PROGRESS + "\n\n" + (
         "Here are the proposed evaluation tasks.\n\n"
-        "| Behavior tested | Expected outcome | Verifier |\n|---|---|---|\n"
+        "| Task | Expected outcome | Verifier |\n|---|---|---|\n"
         "| **refund** - Respect policy | Correct disposition | **Custom code + LLMaJ** Pass at 1 when the refund state and reply both match policy, otherwise score 0. |\n"
         "| **reject** - Respect policy | Correct disposition | **Custom code** Pass at 1 when the request is rejected and state stays unchanged, otherwise score 0. |\n\n"
         "These check refunds and rejection. Other regions remain untested.\n\n"
@@ -471,6 +471,9 @@ def test_authored_table_comes_from_saved_report_and_renders_full_review(creation
             task_rows=first_rows,
         )
     )
+    assert first.count("| Task | Expected outcome | Verifier |\n|---|---|---|") == 1
+    assert first.count("\n| **INV-01-exact-sku-lookup** -") == 1
+    assert "Behavior tested:" not in first
     assert (
         "| **INV-01-exact-sku-lookup** - Ask for the exact BOLT-17 count with nearby SKU decoys. | Return only BOLT-17's count and cite its record. | **LLMaJ** Pass at 1 when BOLT-17's exact count is cited without decoy counts, otherwise score 0. |"
         in first
@@ -1179,7 +1182,7 @@ def test_suite_review_is_a_linked_deterministic_checkpoint_before_execution_choi
         "It follows your approved design and confirmed `ETHOS.md`.\n\n"
         f"Review your tasks in the [HTML report’s Tasks view](<{root}/.eval-author/report.html#cases>) "
         f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
-        "| Behavior tested | Expected outcome | Verifier |\n|---|---|---|\n"
+        "| Task | Expected outcome | Verifier |\n|---|---|---|\n"
         "| **refund** - Respect policy | Correct disposition | **Custom code + LLMaJ** Pass at 1 when the refund state and reply both match policy, otherwise score 0. |\n"
         "| **reject** - Respect policy | Correct disposition | **Custom code** Pass at 1 when the request is rejected and state stays unchanged, otherwise score 0. |\n\n"
         "**Status:** Environment proof: 2/2 passed. Verifier validation: 2/2 passed. "
@@ -1535,8 +1538,7 @@ def test_review_leads_with_grounding_and_action_before_item_summaries(creation, 
         f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
     )
     positions = [
-        output.index(label)
-        for label in ("| Behavior tested |", "| **refund** -", "**Status:**", "**Verifier limitation:**")
+        output.index(label) for label in ("| Task |", "| **refund** -", "**Status:**", "**Verifier limitation:**")
     ]
     assert positions == sorted(positions)
     assert "Environment proof: passed. Verifier validation: passed" in output
