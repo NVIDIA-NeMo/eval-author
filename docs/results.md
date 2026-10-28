@@ -224,7 +224,7 @@ Shared internal progress and agreed scope are stored in
 
 `.eval-author/.working/` holds temporary construction files and the current state
 needed to recover unfinished work. Final task files and READMEs stay at their
-documented paths; source control manages task and grader history. Eval Author
+documented paths; source control manages task and verifier history. Eval Author
 does not create revision archives. You decide how long to keep evaluation
 results; they are not automatically expired or deleted.
 Routine update payloads, state-response copies, renderer inputs, and polling

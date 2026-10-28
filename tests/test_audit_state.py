@@ -26,7 +26,7 @@ def selected(audit):
     value.update(
         suites=selection(["suites/refund"]),
         traces=selection(["runs"]),
-        suite_files=["suites/refund/cases.json", "suites/refund/grader.py"],
+        suite_files=["suites/refund/cases.json", "suites/refund/verifier.py"],
         trace_files=["runs/refund.json"],
         specification=".eval-author/audit.md",
     )
