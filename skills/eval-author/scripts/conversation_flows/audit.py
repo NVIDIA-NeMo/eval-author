@@ -29,8 +29,8 @@ PHASES = {
 STAGES = {"audit_" + stage for stage in {*PHASES.values(), "blockers", "resume"}}
 COMMON_FACTS = {"audit_observations", "links", "blockers"}
 STAGE_FACTS = {
-    "suites": {"suites"},
-    "traces": set(),
+    "suites": {"suites", "report_action"},
+    "traces": {"report_action"},
     "checks": {"checks", "validation", "report_action", "limits", "changes"},
     "measurement": {"progress", "report_action"},
     "findings": {"conclusion", "findings", "limits", "recommendations", "report_action"},
@@ -163,7 +163,7 @@ def measurement_status(lifecycle: dict, audit: dict) -> str:
         if measurement["status"] == "deferred":
             return copy.MEASUREMENT_DEFERRED + " " + literal(measurement["source"], "deferral reason")
         if measurement["status"] == "partial":
-            return copy.MEASUREMENT_PARTIAL
+            return copy.MEASUREMENT_PARTIAL if audit["measurement_evidence_current"] else copy.MEASUREMENT_STALE
         return copy.MEASUREMENT_STALE
     return copy.MEASUREMENT_PENDING
 
@@ -330,8 +330,6 @@ def render(payload: dict) -> str:
         parts = [copy.MEASUREMENT_PROGRESS, scope(state, lifecycle), measurement_status(lifecycle, audit)]
         if facts.get("progress"):
             parts.append(literal(facts["progress"], "measurement progress"))
-        if "report_action" in facts:
-            parts.append(report_notice(state, lifecycle, facts))
     else:
         parts = [
             copy.REVIEW_ACCEPTED,
@@ -344,6 +342,8 @@ def render(payload: dict) -> str:
             parts.append(copy.NEXT_ACTIONS[lifecycle["next_action"]["kind"]])
         elif pending and (recommended := recommendation_section(facts)):
             parts.append(recommended)
+    if stage in {"suites", "traces", "measurement"} and "report_action" in facts:
+        parts.append(report_notice(state, lifecycle, facts))
     parts.append(progress(state, audit, stage))
     if question:
         parts.append(question)

@@ -334,6 +334,31 @@ def test_resume_replays_the_current_checkpoint(modules, stage):
     assert modules[2].render(payload) == expected
 
 
+@pytest.mark.parametrize("stage", ["suites", "traces"])
+@pytest.mark.parametrize("action,notice", [("created", "I created"), ("updated", "I updated"), ("unchanged", "Review")])
+def test_selection_checkpoint_can_announce_a_report_without_advancing(modules, stage, action, notice):
+    payload = checkpoint(modules, stage)
+    report_links(payload, modules)
+    payload["facts"]["report_action"] = action
+    original = copy.deepcopy(payload)
+    target = payload["facts"]["links"]["report"]["target"]
+    output = modules[2].render(payload)
+    assert f"{notice} [Audit coverage report](<{target}>)." in output
+    assert output.rstrip().endswith(domain(payload, modules)["pending"]["question"])
+    assert payload == original
+    payload["stage"] = "audit_resume"
+    assert modules[2].render(payload) == output
+
+
+def test_selection_report_notice_requires_its_bound_report_link(modules):
+    payload = checkpoint(modules, "suites")
+    report_links(payload, modules)
+    payload["facts"]["report_action"] = "created"
+    payload["facts"].pop("links")
+    with pytest.raises(ValueError, match="links.report"):
+        modules[2].render(payload)
+
+
 @pytest.mark.parametrize("stage", ["suites", "traces", "checks", "findings"])
 @pytest.mark.parametrize("change", ["missing", "stale", "contradictory"])
 def test_decision_requires_the_current_saved_question(modules, stage, change):
@@ -443,7 +468,8 @@ def test_explicit_pending_next_action_still_resumes(modules):
     assert modules[2].render(payload).rstrip().endswith(question)
 
 
-def test_accepted_partial_findings_resume_without_a_new_question(modules):
+@pytest.mark.parametrize("change", ["missing", "changed"])
+def test_accepted_partial_findings_resume_without_a_new_question(modules, change):
     payload = checkpoint(modules, "next_action")
     lifecycle = domain(payload, modules)
     lifecycle["measurement"].update(status="partial", source="User accepted limited findings and deferred the rest.")
@@ -452,13 +478,18 @@ def test_accepted_partial_findings_resume_without_a_new_question(modules):
     payload["stage"] = "audit_resume"
     assert modules[2].render(payload) == output
     assert "You’ve accepted the audit findings." in output and "?" not in output
+    assert "Measurement is partial; the successful subset does not complete the agreed scope." in output
     assert "- [ ] **Review evaluation coverage, identify gaps, and recommend improvements**" in output
     evidence = lifecycle["measurement"]["evidence"][0]
-    payload["facts"]["audit_observations"]["files"][evidence["path"]] = modules[1].fingerprint("Changed evidence")
+    payload["facts"]["audit_observations"]["files"][evidence["path"]] = (
+        None if change == "missing" else modules[1].fingerprint("Changed evidence")
+    )
     resumed = modules[2].render(payload)
     payload["stage"] = "audit_measurement"
     assert resumed == modules[2].render(payload)
     assert "You’ve accepted the audit findings." not in resumed
+    assert "Saved measurements are missing, changed, or no longer applicable" in resumed
+    assert "Measurement is partial" not in resumed
 
 
 def test_plain_text_findings_cannot_inject_html_or_links(modules):

@@ -326,6 +326,7 @@ def derive(state: dict, observed: dict) -> dict | None:
         "checkpoint_digests": checkpoint_digests,
         "checks_digest": checks_digest,
         "checks_approved": approved,
+        "measurement_evidence_current": evidence_current,
         "measurement_complete": measured,
         "findings_digest": findings_digest,
         "findings_reviewed": reviewed,

@@ -33,8 +33,8 @@ Every stage accepts `audit_observations`, optional `links`, and applicable
 
 | Stage | Additional facts and behavior |
 |---|---|
-| `audit_suites` | `suites`: `{path, label, description}` rows matching saved candidates exactly. Empty candidates ask for a location. |
-| `audit_traces` | No additional fields. Requires resolved suite selection and unresolved trace selection. |
+| `audit_suites` | `suites`: `{path, label, description}` rows matching saved candidates exactly. Empty candidates ask for a location. Optional `report_action`. |
+| `audit_traces` | Optional `report_action`. Requires resolved suite selection and unresolved trace selection. |
 | `audit_checks` | `checks`: lists keyed by `tools`, `capabilities`, `failure_cases`, and `grading`, with `{check, evidence}` rows; use empty lists for absent areas. Requires `validation: "passed"`, `report_action`, `limits`, optional `changes`, a current checks digest and report. |
 | `audit_measurement` | Optional `progress` and `report_action`. Requires current check approval and unresolved measurement; emits no decision question. |
 | `audit_findings` | `conclusion`, `findings`, `limits`, `recommendations`, `report_action`. Requires current checks/findings and complete measurement or explicit deferral. |
@@ -43,9 +43,9 @@ Every stage accepts `audit_observations`, optional `links`, and applicable
 | `audit_resume` | Resolves to the blocker or current milestone using its facts; accepted findings resolve to acknowledgement. |
 
 `report_action` is `created`, `updated`, or `unchanged`, matching this turn's
-actual work. Save the report in `lifecycle.findings.report` even at checks review;
-its digest must match observations. Include action and link when writing during
-measurement or a blocked turn. A preliminary report does not establish approval.
+actual work. Save the report in `lifecycle.findings.report`; its digest must match
+observations. Include action and link when writing during source selection,
+measurement, or a blocked turn. A preliminary report does not establish approval.
 
 `limits` and optional `changes` are plain-text lists. Preserve material conversion
 losses, missing methods, excluded runs, and grading limitations. Saved suite/trace
