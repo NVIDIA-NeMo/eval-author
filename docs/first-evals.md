@@ -26,13 +26,9 @@ Confirming `ETHOS.md` alone does not resume that design. Earlier artifacts stay 
 
 Source selection and the task proposal show your overall progress, with setup
 and `ETHOS.md` complete and evaluation creation marked as the current step.
-The task proposal uses three columns: Task, Expected outcome, and Verifier.
-The Task cell starts with the task ID and describes the behavior tested. The
-Verifier cell shows its type and scoring rule, including what earns a pass.
-Coverage notes explain the main limits, including any unresolved model judge
-setup.
-You can change the proposal or approve it and the
-first task to build. Task labels use stable IDs throughout the conversation so
+The task proposal explains the inputs, intended behaviors, expected results,
+verifiers, and remaining coverage gaps. You can change the proposal or approve
+it and the first task to build. Task labels use stable IDs throughout the conversation so
 you can match them to the report and task directories. Expected results are
 [brief summaries with detailed criteria in each task README](results.md#review-generated-cases).
 The default starting proposal has one to three tasks, with one example each;
@@ -44,9 +40,8 @@ before creating any task. If a model verifier needs a judge choice, access, or
 authorization, it asks for those inputs and the validation limits up front.
 Existing applicable settings and authorization are reused without another
 approval pause. It then builds one task, proves its environment, and validates
-its verifier before presenting its README and report for review. The first-task
-review uses the same table columns with the authored details from the report.
-Compact build checklists show completed, active, pending, and blocked steps, with the
+its verifier before presenting its README and report for review. Compact
+build checklists show completed, active, pending, and blocked steps, with the
 responsible skill beside each item. The review separates environment proof and
 successful verifier validation from whether your actual agent has run.
 You can request revisions to that task before the remaining tasks are created.
@@ -70,10 +65,10 @@ report is `.eval-author/report.html`, with a Markdown counterpart in
 After you approve the first task, Eval Author builds and validates the remainder.
 Its checklist shows task counts and progress through environment checks, verifier
 validation, and the README/report refresh.
-You then review the whole authored suite in the same three-column table.
-The HTML report and mirrored README have more detail. Approve the tasks or
-request changes. Every task's required verifier checks,
-including model-based checks when used, must pass before this review.
+You then review the whole authored suite, with more detail in the HTML report
+or mirrored README. Approve the tasks or request changes. Every task's required
+verifier checks, including model-based checks when used, must pass before this
+review.
 After you approve the suite, Eval Author presents the concrete settings,
 attempt counts, limits, and unresolved execution needs. Approving the design or
 tasks does not authorize paid runs; applicable prior authorization is reused.
