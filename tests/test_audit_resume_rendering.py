@@ -59,6 +59,57 @@ def forbid_io(*_args, **_kwargs):
     raise AssertionError("Rendering must derive only from supplied state and observations")
 
 
+@pytest.mark.parametrize("context", ["ethos_review", "legacy_audit"])
+def test_resume_forwards_view_observations_without_audit_lifecycle(modules, monkeypatch, context):
+    state_helper, audit, renderer = modules
+    payload = presentation(modules)
+    state = payload["state"]
+    if context == "ethos_review":
+        state["scopes"] = {}
+        state["journey_status"] = {}
+        state["ethos"]["stage"] = "review"
+        question = "Does this describe the intended support behavior?"
+        payload["facts"]["ethos"] = {
+            "status": "existing",
+            "link": state["repository"] + "/" + state["ethos"]["path"],
+            "summary": "The support agent answers refund questions.",
+        }
+    else:
+        state["scopes"]["audit"] = {"confirmed": True, "traces": ["runs/old.json"]}
+        state["journey_status"]["audit"] = "complete"
+        question = "Which evaluation suites should this audit include?"
+    state["pending_question"] = question
+    saved = copy.deepcopy(state)
+    viewed = state_helper.view(state)
+    assert viewed["audit_observations"] == {"files": {}}
+    assert viewed["audit"] is None
+    assert not viewed["checklist"][2]["complete"]
+    assert state == saved
+    payload["state"] = viewed["state"]
+    payload["facts"]["audit_observations"] = viewed["audit_observations"]
+    original = copy.deepcopy(payload)
+    monkeypatch.setattr(Path, "open", forbid_io)
+    monkeypatch.setattr(Path, "read_bytes", forbid_io)
+    monkeypatch.setattr(Path, "read_text", forbid_io)
+    monkeypatch.setattr(state_helper, "now", forbid_io)
+    monkeypatch.setattr(audit, "observe", forbid_io)
+    output = renderer.render(payload)
+    assert question in output
+    assert f"- [ ] **{state_helper.JOURNEYS['audit']}**" in output
+    assert output.count("- [x]") == (1 if context == "ethos_review" else 2)
+    assert payload == original
+
+
+@pytest.mark.parametrize("observed", [{"files": {"runs/old.json": "a" * 64}}, {"files": []}])
+def test_observations_without_audit_lifecycle_must_be_empty(modules, observed):
+    _, _, renderer = modules
+    payload = presentation(modules)
+    payload["state"]["scopes"] = {}
+    payload["facts"]["audit_observations"] = observed
+    with pytest.raises(ValueError, match="require a saved audit lifecycle"):
+        renderer.render(payload)
+
+
 @pytest.mark.parametrize("stage", ["resume", "results"])
 def test_audit_resume_recovers_domain_pending_after_switch_without_io(modules, monkeypatch, stage):
     state_helper, audit, renderer = modules

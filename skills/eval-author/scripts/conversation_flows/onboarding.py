@@ -406,11 +406,11 @@ def render(payload: dict) -> str:
         if not isinstance(observed, dict):
             raise ValueError("Supply freshly observed audit artifacts")
         lifecycle = audit_state.record(state)
-        if lifecycle is None:
+        if lifecycle is None and observed != {"files": {}}:
             raise ValueError("Audit observations require a saved audit lifecycle")
         audit = audit_state.derive(state, observed)
         state = journey_state.audit_presentation_state(state, audit)
-        recorded = lifecycle["pending"]
+        recorded = lifecycle["pending"] if lifecycle is not None else None
         if (
             recorded
             and audit
