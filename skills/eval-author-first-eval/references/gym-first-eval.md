@@ -73,20 +73,13 @@ output paths. If integration is missing when execution is ready, use the
 retaining task and verifier work. Grader setup remains a separate dependency;
 verifier controls cannot prove the user's agent is connected.
 
-Apply the shared [trajectory-saving check-in](../../eval-author/references/conversations/first-eval.md#save-evaluation-trajectories)
-to the actual composition before other execution settings or a missing-integration
-handoff. Reuse its existing native capture or enable supported
-optional capture when selected. `observability_enabled` only captures model calls
-that pass through the rollout-prefixed Gym Model Server; direct-provider calls
-can bypass it. Retain complete Responses input/history and outputs in native
-rollout JSONL, including any `ng_trajectory` attachment, rather than only an
-aggregate export. An attachment alone is not audit-ready ATIF. Inspect supported
-startup and capture/export settings; keep baseline rollouts, results, and receipts
-under the repository-local native run root. Preserve a supported separate
-trajectory destination in the configuration and standalone rerun commands,
-following the shared procedure when native capture cannot be separated from that
-root. Keep the configured Gym–Harbor
-bridge and its original ATIF artifacts when that path is selected.
+Follow the shared [trajectory-saving procedure](../../eval-author/references/conversations/first-eval.md#save-evaluation-trajectories),
+inspecting native startup and capture/export settings. `observability_enabled`
+captures only model calls through the rollout-prefixed Gym Model Server; direct-provider
+calls can bypass it. Retain complete Responses input/history and outputs in native
+rollout JSONL, including `ng_trajectory` attachments; aggregates or attachments
+alone are not audit-ready ATIF. Preserve the configured Gym–Harbor bridge and
+original ATIF artifacts when selected.
 
 Propose one attempt per selected example for the initial baseline unless the
 agreed purpose requires repeats. Record the count and cost in shared scope. A Harbor
@@ -140,28 +133,25 @@ paths resolved from the documented working directory. A working suite requires
 native execution of the actual agent and recorded rewards, even when scores are
 low.
 
-Verify already-saved interaction evidence offline, matching each selected
-actual-agent attempt's native rollout/task/repeat identities. Prefer an explicitly
-identified original ATIF for a bridged run and validate it read-only with Harbor's
-audit parser; do not copy it merely to verify usability.
+Match retained evidence to each selected attempt's native rollout/task/repeat
+identities. Prefer an identified original ATIF for a bridged run and validate it
+read-only with [Harbor's audit parser](harbor-first-eval.md#9-evaluate-the-agent);
+do not copy it merely to verify usability.
 
 Check the saved `execution_settings.trajectory_capture` before creating conversion
 artifacts. When capture is enabled (`mode: automatic`, or `mode: optional` with
 `choice: true`), use the existing [`gym-to-atif` converter](../../gym-to-atif/SKILL.md),
-selecting the attempt's one-based physical JSONL row and following its existing
-source-selection rules for projections. Preserve original native outputs and keep
-its source, converted ATIF, and receipt under fresh per-attempt paths in the saved
-supported trajectory destination, including conversion losses or uncertainties,
-and validate the ATIF with Harbor's audit parser.
+selecting the attempt's one-based physical JSONL row under its projection rules.
+Preserve original native outputs; keep source, ATIF, receipt, and conversion limits
+under fresh per-attempt paths in the saved supported trajectory destination, and
+validate the ATIF with Harbor's audit parser.
 When optional saving is declined or pending, capture is unsupported, or
 the setting is absent, do not invoke the converter or create optional persisted
-trajectory copies. Retain required native results and inspect any already-saved
-original ATIF read-only as above; otherwise explain that conversion was not
-performed and audit usability remains unverified.
+trajectory copies. Retain required native results and inspect existing ATIF
+read-only; otherwise explain that conversion was not performed and audit usability
+remains unverified.
 
-Missing history, unsupported content, and failed conversions remain limitations
-in the existing run review; do not rerun the agent or replace its baseline result
-to repair capture.
-If the converter or parser is unavailable, report that usability remains unverified.
+Record missing history, unsupported content, and conversion failures under the
+shared procedure; do not rerun the agent or replace its baseline result to repair capture.
 Return to the parent skill for reconciliation and linked rerun instructions. Report NeMo Gym
 control results in their own terms, without labeling them Harbor NOP/Oracle jobs.

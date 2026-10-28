@@ -255,10 +255,8 @@ do not establish agent performance.
 
 After approval of the authored suite, resolve [saving evaluation trajectories](../eval-author/references/conversations/first-eval.md#save-evaluation-trajectories)
 through `first_eval_trajectory_settings` before the other execution settings or
-any custom-adapter engineering handoff. Wait for an optional-saving answer in
-that separate check-in; automatic or unsupported capture needs its disclosure
-without a redundant consent pause. Reuse the current suite's saved preference
-on resume and authorized reruns.
+any custom-adapter engineering handoff. Wait for an optional-saving answer in that
+separate check-in; follow the shared contract for disclosure, persistence, and reuse.
 
 Then use `first_eval_execution_settings` when concrete agent runs are ready.
 The conversation contract owns its
@@ -269,8 +267,7 @@ task generation or either task review. Required grading validation has already
 passed before either authored-task review; it does not wait for this checkpoint.
 Reuse applicable previously displayed settings and prior authorization without
 another generic approval gate. This checklist includes only a concise summary
-of the saved trajectory choice and directory; keep its explanation and question
-in the preceding check-in.
+of the saved trajectory choice and directory.
 
 Paid work requires explicit authorization within its concrete displayed bounds.
 Design approval, task approval, or positive feedback alone grants no spending
@@ -308,10 +305,8 @@ material limitations. Save the exact reviewed run and attempt; later runs must
 not silently change that identity. Separate completed attempts, agent-quality
 failures, infrastructure failures, and missing attempts in the reply and saved
 summary. Do not invent traces or model-health information.
-Verify retained trajectories through the selected provider's capture guidance
-and record future-audit limitations in that review, independently of baseline
-completion. Follow the shared [saving procedure](../eval-author/references/conversations/first-eval.md#save-evaluation-trajectories)
-when capture is missing or unusable.
+Apply the shared [capture verification](../eval-author/references/conversations/first-eval.md#save-evaluation-trajectories)
+and selected provider guidance to retained trajectories and future-audit limitations.
 
 Maintain [review and rerun guidance](../eval-author/references/suite-readme.md#review-and-rerun-guidance)
 in the suite README. Link the verified rerun heading as the template requires,
