@@ -26,9 +26,10 @@ Confirming `ETHOS.md` alone does not resume that design. Earlier artifacts stay 
 
 Source selection and the task proposal show your overall progress, with setup
 and `ETHOS.md` complete and evaluation creation marked as the current step.
-The task proposal shows each task's ID, behavior tested, expected outcome,
-verifier type, and scoring rule. The rule says what earns a pass. Coverage notes
-explain the main limits, including any unresolved model judge setup.
+The task proposal uses three columns: behavior tested, expected outcome, and
+verifier. The first cell starts with the task ID. The verifier cell shows its
+type and scoring rule, including what earns a pass. Coverage notes explain the
+main limits, including any unresolved model judge setup.
 You can change the proposal or approve it and the
 first task to build. Task labels use stable IDs throughout the conversation so
 you can match them to the report and task directories. Expected results are
@@ -68,7 +69,7 @@ report is `.eval-author/report.html`, with a Markdown counterpart in
 After you approve the first task, Eval Author builds and validates the remainder.
 Its checklist shows task counts and progress through environment checks, verifier
 validation, and the README/report refresh.
-You then review the whole authored suite in the same five-column table.
+You then review the whole authored suite in the same three-column table.
 The HTML report and mirrored README have more detail. Approve the tasks or
 request changes. Every task's required verifier checks,
 including model-based checks when used, must pass before this review.

@@ -367,9 +367,9 @@ def test_proposal_is_concise_deterministic_and_read_only(creation):
     output = renderer.render(payload(creation, "proposal"))
     assert output == PLANNING_PROGRESS + "\n\n" + (
         "Here are the proposed evaluation tasks.\n\n"
-        "| Task ID | Behavior tested | Expected outcome | Verifier type | Scoring rule |\n|---|---|---|---|---|\n"
-        "| refund | Respect policy | Correct disposition | Custom code + LLMaJ | Pass at 1 when the refund state and reply both match policy, otherwise score 0. |\n"
-        "| reject | Respect policy | Correct disposition | Custom code | Pass at 1 when the request is rejected and state stays unchanged, otherwise score 0. |\n\n"
+        "| Behavior tested | Expected outcome | Verifier |\n|---|---|---|\n"
+        "| **refund** - Respect policy | Correct disposition | **Custom code + LLMaJ** Pass at 1 when the refund state and reply both match policy, otherwise score 0. |\n"
+        "| **reject** - Respect policy | Correct disposition | **Custom code** Pass at 1 when the request is rejected and state stays unchanged, otherwise score 0. |\n\n"
         "These check refunds and rejection. Other regions remain untested.\n\n"
         "I’ll build **refund** first.\n\n"
         "Proposed tasks: 2; distinct input examples: 2. After you approve the proposal, "
@@ -472,7 +472,7 @@ def test_authored_table_comes_from_saved_report_and_renders_full_review(creation
         )
     )
     assert (
-        "| INV-01-exact-sku-lookup | Ask for the exact BOLT-17 count with nearby SKU decoys. | Return only BOLT-17's count and cite its record. | LLMaJ | Pass at 1 when BOLT-17's exact count is cited without decoy counts, otherwise score 0. |"
+        "| **INV-01-exact-sku-lookup** - Ask for the exact BOLT-17 count with nearby SKU decoys. | Return only BOLT-17's count and cite its record. | **LLMaJ** Pass at 1 when BOLT-17's exact count is cited without decoy counts, otherwise score 0. |"
         in first
     )
     assert "different counts" not in first
@@ -500,12 +500,13 @@ def test_authored_table_comes_from_saved_report_and_renders_full_review(creation
     reordered = list(reversed(suite_rows))
     with pytest.raises(ValueError, match="saved task order"):
         renderer.render(payload(creation, "review_suite", links=links(creation), task_rows=reordered))
-    assert suite.count("| INV-01-exact-sku-lookup |") == 1 and suite.count("| INV-02-zero-is-not-missing |") == 1
+    assert suite.count("| **INV-01-exact-sku-lookup** -") == 1
+    assert suite.count("| **INV-02-zero-is-not-missing** -") == 1
     assert (
-        "| INV-02-zero-is-not-missing | Audit LABEL-0, a recorded zero-stock SKU beside a stocked lookalike. | State that LABEL-0 has zero units, not that it is missing. | Custom code |"
+        "| **INV-02-zero-is-not-missing** - Audit LABEL-0, a recorded zero-stock SKU beside a stocked lookalike. | State that LABEL-0 has zero units, not that it is missing. | **Custom code** "
         in suite
     )
-    assert suite.index("| INV-01-exact-sku-lookup |") < suite.index("| INV-02-zero-is-not-missing |")
+    assert suite.index("| **INV-01-exact-sku-lookup** -") < suite.index("| **INV-02-zero-is-not-missing** -")
     (tmp_path / "proposal-conversation.md").write_text(proposal_message, encoding="utf-8")
     (tmp_path / "first-review-conversation.md").write_text(first, encoding="utf-8")
     (tmp_path / "suite-review-conversation.md").write_text(suite, encoding="utf-8")
@@ -602,7 +603,9 @@ def test_task_ids_are_literal_in_tables_and_build_labels(creation, stage):
         build_started(creation)
     output = renderer.render(payload(creation, stage))
     escaped = r"refund\_\*\[choice\]&#124;&lt;b&gt;"
-    if stage in {"proposal", "saved_design"}:
+    if stage == "proposal":
+        assert f"| **{escaped}<br>next** - Respect policy |" in output
+    elif stage == "saved_design":
         assert f"| {escaped}<br>next |" in output
     if stage == "proposal":
         assert f"I’ll build **{escaped} next** first." in output
@@ -1176,9 +1179,9 @@ def test_suite_review_is_a_linked_deterministic_checkpoint_before_execution_choi
         "It follows your approved design and confirmed `ETHOS.md`.\n\n"
         f"Review your tasks in the [HTML report’s Tasks view](<{root}/.eval-author/report.html#cases>) "
         f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
-        "| Task ID | Behavior tested | Expected outcome | Verifier type | Scoring rule |\n|---|---|---|---|---|\n"
-        "| refund | Respect policy | Correct disposition | Custom code + LLMaJ | Pass at 1 when the refund state and reply both match policy, otherwise score 0. |\n"
-        "| reject | Respect policy | Correct disposition | Custom code | Pass at 1 when the request is rejected and state stays unchanged, otherwise score 0. |\n\n"
+        "| Behavior tested | Expected outcome | Verifier |\n|---|---|---|\n"
+        "| **refund** - Respect policy | Correct disposition | **Custom code + LLMaJ** Pass at 1 when the refund state and reply both match policy, otherwise score 0. |\n"
+        "| **reject** - Respect policy | Correct disposition | **Custom code** Pass at 1 when the request is rejected and state stays unchanged, otherwise score 0. |\n\n"
         "**Status:** Environment proof: 2/2 passed. Verifier validation: 2/2 passed. "
         "Agent execution: 0/2 tasks complete.\n\n"
         "Limitations: Other regions untested\n\n"
@@ -1532,7 +1535,8 @@ def test_review_leads_with_grounding_and_action_before_item_summaries(creation, 
         f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
     )
     positions = [
-        output.index(label) for label in ("| Task ID |", "| refund |", "**Status:**", "**Verifier limitation:**")
+        output.index(label)
+        for label in ("| Behavior tested |", "| **refund** -", "**Status:**", "**Verifier limitation:**")
     ]
     assert positions == sorted(positions)
     assert "Environment proof: passed. Verifier validation: passed" in output
@@ -2533,9 +2537,9 @@ def test_proposal_shows_each_verifier_type_and_scoring_rule_before_setup_questio
     output = renderer.render(payload(creation, "proposal"))
     assert copy.PROPOSAL_TABLE in output
     for index, method in enumerate(methods):
-        row = next(line for line in output.splitlines() if line.startswith(f"| task-{index} |"))
+        row = next(line for line in output.splitlines() if line.startswith(f"| **task-{index}** -"))
         assert row.endswith(
-            f" | {('Custom code', 'LLMaJ', 'Custom code + LLMaJ')[index]} | Pass at 1 when task {index} succeeds, otherwise score 0. |"
+            f" | **{('Custom code', 'LLMaJ', 'Custom code + LLMaJ')[index]}** Pass at 1 when task {index} succeeds, otherwise score 0. |"
         )
         assert method not in row
     assert output.endswith(copy.PROPOSAL_QUESTION + "\n")

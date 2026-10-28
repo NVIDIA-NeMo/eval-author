@@ -197,14 +197,12 @@ def source_prompt(state: dict) -> str:
 def task_table(tasks: list[dict]) -> str:
     rows = [copy.TASK_TABLE]
     for task in tasks:
-        rows.append(
-            "| "
-            + " | ".join(
-                literal(task.get(key) or copy.NOT_DOCUMENTED, key, table=True)
-                for key in ("task_id", "behavior_tested", "expected_outcome", "verifier_type", "scoring_rule")
-            )
-            + " |"
-        )
+        task_id = literal(task.get("task_id") or copy.NOT_DOCUMENTED, "task_id", table=True)
+        behavior = literal(task.get("behavior_tested") or copy.NOT_DOCUMENTED, "behavior_tested", table=True)
+        expected = literal(task.get("expected_outcome") or copy.NOT_DOCUMENTED, "expected_outcome", table=True)
+        verifier_type = literal(task.get("verifier_type") or copy.NOT_DOCUMENTED, "verifier_type", table=True)
+        scoring = literal(task.get("scoring_rule") or copy.NOT_DOCUMENTED, "scoring_rule", table=True)
+        rows.append(f"| **{task_id}** - {behavior} | {expected} | **{verifier_type}** {scoring} |")
     return "\n".join(rows)
 
 

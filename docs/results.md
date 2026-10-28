@@ -87,9 +87,9 @@ The selected journey’s `scopes` entry in `.eval-author/.working/journey-state.
 cases, and acceptance criteria. Task drafts and run results show which checks
 have actually completed. Use the [generated case review guide](#review-generated-cases)
 to inspect the authored cases and their available evidence.
-The first_eval proposal and authored reviews use the same five-column task
+The first_eval proposal and authored reviews use the same three-column task
 table. Authored rows come from `.eval-author/.working/report/state.json`
-after a report refresh. Each row keeps the proposed task ID and shows the
+after a report refresh. Each row starts with the proposed task ID and shows the
 authored behavior, expected outcome, verifier type, and documented scoring rule.
 
 Task controls check the task and its verifier: NeMo Gym's known-correct and negative
