@@ -17,10 +17,11 @@ from test_skill_contract import (
 )
 
 
-def measured(tmp_path, evidence_class="agent_under_test"):
+def measured(tmp_path, evidence_class="agent_under_test", *, trace=None):
     audit = _write_audit(tmp_path)
-    trace = tmp_path / "trace.json"
-    _write_atif_trace(trace, tool_calls=["customer.lookup"])
+    if trace is None:
+        trace = tmp_path / "trace.json"
+        _write_atif_trace(trace, tool_calls=["customer.lookup"])
     judgments = tmp_path / "judgments.json"
     _write_capability_judgments(judgments, trace=trace)
     out = tmp_path / "measurements"

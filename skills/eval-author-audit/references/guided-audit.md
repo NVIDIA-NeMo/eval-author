@@ -141,12 +141,31 @@ first; do not batch a broad inventory alongside loading these instructions.
 If the location is unknown, ask the next focused source question rather than searching the checkout, home
 directory, platform accounts, or unrelated jobs for candidate traces.
 
-Once selected, inspect only that source to establish which records are accessible
-and usable. Audit measurement accepts local ATIF files or Harbor trial directories
-containing ATIF; selecting a remote source does not grant access or make it ATIF.
-For other formats or inaccessible services, explain the needed local export or
-appropriate supported conversion. Do not query Intake or start platform discovery
-from this skill. Preserve the source selection and describe the limitation.
+Once selected, inspect only that source. Use local ATIF directly, including ATIF
+in Harbor trials. Prepare Gym JSON or explicitly selected JSONL rows with
+[`gym-to-atif`](../../gym-to-atif/SKILL.md), preserving its original-ATIF preference,
+receipts, and losses. Use [`mlflow-to-atif`](../../mlflow-to-atif/SKILL.md) for complete
+local `Trace.to_dict()` exports. For a selected MLflow record, check the complete
+export for pagination and unique trace IDs before passing that record through
+`--input -`; retain its original export and exact ID. Do not fetch remote traces,
+query Intake, or generate runs to fill gaps.
+
+For selected local trace records, save a private selection manifest before check
+approval and set lifecycle `selection_manifest` to its path; leave it null when
+traces are unavailable. Record each original source path and digest,
+format, exact record selector, explicit suite/task/run mapping with its provenance,
+evidence class, required methods, conversion options, and exclusions with reasons.
+Keep original files in `trace_files`; never infer mappings from filenames. Missing
+or ambiguous mappings remain unresolved. Keep this manifest stable during
+execution; changed selections must reopen check review.
+
+Retain preparation outcomes separately: for each selection link its source and
+record to prepared ATIF, conversion metadata/losses, and measurement artifacts, or
+record the missing, failed, or excluded outcome and reason. Include this outcome
+record and the prepared files, receipts, and native results as `{path, digest}`
+references in `measurement.evidence`. Before measurement or reuse, verify the
+original bytes and selected record, mapping, and retained references. Changed
+originals require preparation again even when prepared ATIF is unchanged.
 
 When the selected run folder is missing, explain that measurement is unavailable.
 If the confirmed evaluation definitions are accessible, offer the remaining
@@ -253,6 +272,12 @@ arguments to aggregation, or use a fresh output directory containing only that
 set. Do not recursively aggregate a shared measurements directory containing
 other audits' results. Reused coverage must belong to the current selected scope
 as well as match the current specification and trace inputs.
+Pass the saved task, run, and evidence class explicitly to native measurement.
+Only mapped agent-under-test runs from selected suites can establish suite
+coverage; production runs and task controls cannot substitute for them. Retain
+their evidence roles and unresolved selections in the report. Use only applicable
+coverage files from the retained outcomes and verify the aggregate before saving
+measurement; conversion success alone does not complete measurement.
 
 Complete when the agreed measurement scope has been processed and aggregated
 successfully, even when coverage is low. If some inputs fail, report only the

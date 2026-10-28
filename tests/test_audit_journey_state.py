@@ -3,13 +3,16 @@
 
 import copy
 import importlib
+import json
 import shutil
 from pathlib import Path
 
 import pytest
 from test_audit_binding import measured as native_measurement
 from test_audit_state import reviewed, selected
+from test_gym_to_atif import rollout
 from test_journey_state import ethos_ready, setup_ready
+from test_skill_contract import _MLFLOW_TO_ATIF, _mlflow_export, _run_json_script, _write_atif_trace
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 
@@ -398,9 +401,36 @@ def test_rebind_reopens_audit_approval_after_unchanged_ethos_is_reconfirmed(modu
     assert all((relocated / name).read_bytes() == contents for name, contents in evidence.items())
 
 
-def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path):
+@pytest.mark.parametrize("format", ["atif", "gym", "mlflow"])
+def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path, format):
     state, audit = modules
-    specification, trace, _, aggregate = native_measurement(tmp_path)
+    source = tmp_path / ("source.jsonl" if format == "gym" else "source.json")
+    selector = None
+    prepared = tmp_path / "prepared"
+    if format == "atif":
+        _write_atif_trace(source, tool_calls=["customer.lookup"])
+        trace = source
+    else:
+        if format == "gym":
+            source.write_text("invalid unselected row\n" + json.dumps(rollout()) + "\n")
+            selector = 2
+            converter = SCRIPTS.parents[1] / "gym-to-atif/scripts/gym_to_atif.py"
+            arguments = ["--input", str(source), "--row", str(selector)]
+        else:
+            payload = _mlflow_export()
+            payload["traces"].append({"info": {"trace_id": "unselected"}, "data": "invalid unselected trace"})
+            source.write_text(json.dumps(payload))
+            selector = "tr-fixture"
+            selected_trace = tmp_path / "selected.json"
+            selected_trace.write_text(
+                json.dumps(next(t for t in payload["traces"] if t["info"]["trace_id"] == selector))
+            )
+            converter = _MLFLOW_TO_ATIF
+            arguments = ["--input", str(selected_trace), "--agent-name", "example-agent"]
+        code, result, stderr = _run_json_script(converter, *arguments, "--output-dir", str(prepared))
+        assert code == 0, stderr or result
+        trace = prepared / "trace.atif.json" if format == "gym" else Path(result["files"][0])
+    specification, trace, _, aggregate = native_measurement(tmp_path, trace=trace)
     state.initialize(tmp_path, agent="example-agent", journey="audit")
     state.update(
         tmp_path,
@@ -417,8 +447,24 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
         path = tmp_path / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("fixture evaluation")
-    lifecycle["traces"]["paths"] = lifecycle["trace_files"] = [str(trace)]
+    lifecycle["traces"]["paths"] = lifecycle["trace_files"] = [str(source)]
     lifecycle["specification"] = str(specification)
+    manifest = tmp_path / "selection.json"
+    trajectory = json.loads(trace.read_text())
+    manifest.write_text(
+        json.dumps(
+            {
+                "path": str(source),
+                "format": format,
+                "selector": selector,
+                "suite": lifecycle["suites"]["paths"][0],
+                "task_id": "fixture",
+                "run_id": trajectory.get("trajectory_id") or trajectory["session_id"],
+                "evidence_class": "agent_under_test",
+            }
+        )
+    )
+    lifecycle["selection_manifest"] = str(manifest)
 
     def save(**extra):
         saved = state.update(
@@ -437,7 +483,14 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
     lifecycle["measurement"] = {
         "checks_digest": lifecycle["checks_approval"]["digest"],
         "status": "complete",
-        "evidence": [ref(path) for path in [*sorted((tmp_path / "measurements").rglob("*.json")), aggregate]],
+        "evidence": [
+            ref(path)
+            for path in [
+                *sorted(prepared.glob("*.json")),
+                *sorted((tmp_path / "measurements").rglob("*.json")),
+                aggregate,
+            ]
+        ],
         "source": "Native measurement and aggregate verification succeeded",
     }
     assert save()["measurement_complete"]
@@ -448,14 +501,21 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
     lifecycle["findings_review"] = {"digest": progress["findings_digest"], "source": "User accepted the findings only"}
     save(journey_status={"audit": "complete"})
 
-    for changed in (False, True):
+    for changed in [None, source, manifest, *sorted(prepared.glob("*.json")), aggregate]:
+        expected_stage = (
+            "next_action" if changed is None else "checks_review" if changed in (source, manifest) else "measurement"
+        )
+        original = changed.read_bytes() if changed else b""
         if changed:
-            trace.write_text(trace.read_text() + "\n")
+            changed.write_bytes(original + b"\n")
         before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
         resumed = state.view(state.load_state(tmp_path))
-        assert resumed["audit"]["stage"] == ("checks_review" if changed else "next_action")
+        assert resumed["audit"]["stage"] == expected_stage
+        assert resumed["audit"]["checks_approved"] is (expected_stage != "checks_review")
         assert resumed["audit"]["complete"] is (not changed)
         assert resumed["checklist"][2]["complete"] is (not changed)
         assert not resumed["audit"]["next_action_current"]
         assert audit.record(resumed["state"]) == lifecycle
         assert all(path.read_bytes() == contents for path, contents in before.items())
+        if changed:
+            changed.write_bytes(original)
