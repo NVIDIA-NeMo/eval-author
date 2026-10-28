@@ -62,7 +62,7 @@ without repeating this execution phase.
 Execution implementations produce the shared [results format](results-format.md):
 a case-level index and native trial evidence. That specification defines the
 layout, identities, measurements, unavailable observations and attempt handling,
-with a checked-in [mock output directory](results-format.md#example-output).
+with a checked-in [mock output directory](results-format.md#mock-results).
 
 The supporting [`validate_results.py` tool](tools.md#validate-a-results-directory)
 checks the output against the prepared case before analysis. It validates

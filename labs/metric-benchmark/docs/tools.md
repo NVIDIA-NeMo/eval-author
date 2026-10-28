@@ -153,8 +153,9 @@ are still verified. Invalid inputs exit nonzero. Existing output files may be
 reused only if their contents are identical; use a new output path for changed results.
 
 The [results format specification](results-format.md) defines the index, native
-evidence requirements, matrix accounting and validation report. Start with its
-[example output](results-format.md#example-output) to review the checked-in mock directory.
+evidence requirements and matrix accounting. The [validation report](validation-report.md)
+defines the tool’s output. Start with the [mock results](results-format.md#mock-results)
+to review the checked-in mock directory.
 
 `test_contract_and_cli_parity` in
 [the validation tests](../../../tests/test_metric_benchmark_validation.py)
