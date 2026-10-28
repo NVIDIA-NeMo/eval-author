@@ -29,7 +29,7 @@ metadata and legacy scope fields when updating the lifecycle.
 
 Save suite and trace selections separately, with candidates, exclusions, bounds,
 and decision provenance. Set `specification` to its file path; list the selected
-case and grader paths in `suite_files` and selected run paths in `trace_files`.
+case and verifier paths in `suite_files` and selected run paths in `trace_files`.
 The same record holds check approval, measurement, findings acceptance, the next
 action, and `pending`. Keep that checkpoint inside the audit lifecycle
 when switching journeys. On return, resume its applicable pending decision or
@@ -56,7 +56,7 @@ when the user selects it. Findings remain in `audit-coverage-report.md`; link it
 whenever it is created or updated.
 
 Treat changed inputs conservatively: changes to the agent, confirmed Ethos,
-selected scope, specification bytes, or selected case, grader, or trace bytes
+selected scope, specification bytes, or selected case, verifier, or trace bytes
 reopen check review and all dependent measurement and findings. A change only to
 the findings report reopens findings review. Record findings acceptance in state
 without rewriting the report merely to mark it accepted. Acceptance can complete

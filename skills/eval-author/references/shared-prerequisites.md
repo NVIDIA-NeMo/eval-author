@@ -523,7 +523,7 @@ until the pass can be saved. Preserve existing state rather than replacing it.
 unfinished work. Keep the current decisions, inputs, and validation evidence
 needed to resume that work; reference existing files instead of copying them.
 Final tasks and their READMEs stay at their documented permanent paths. Source
-control owns task and grader revision history. Eval Author must not create
+control owns task and verifier revision history. Eval Author must not create
 archive files or an `archives/` directory. Users decide how long to keep their
 results; do not expire or delete their results automatically.
 

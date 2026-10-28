@@ -135,7 +135,7 @@ questions, and the next action. Returning to an audit, including after another
 workflow, resumes its pending decision or first unfinished step. Requests only
 to validate a specification or measure or aggregate coverage stay within that scope.
 
-Changes to the agent, Ethos, selected scope, specification, cases, graders, or
+Changes to the agent, Ethos, selected scope, specification, cases, verifiers, or
 traces reopen check review and dependent measurement and findings. Changing only
 the findings report requires findings review again. Saved progress therefore
 reflects the current inputs when you resume.
