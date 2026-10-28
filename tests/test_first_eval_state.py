@@ -1191,7 +1191,7 @@ def test_state_only_resume_never_observes_creation_or_infers_fresh_evidence(modu
     assert modules[0].state_path(tmp_path).read_bytes() == before
 
 
-@pytest.mark.parametrize("decision", ["accepted", "declined"])
+@pytest.mark.parametrize("decision", ["pending", "accepted", "declined"])
 def test_audit_decision_preserves_complete_creation_and_missing_audit_evidence_blocks_only_audit(
     modules, tmp_path, decision
 ):
@@ -1201,16 +1201,159 @@ def test_audit_decision_preserves_complete_creation_and_missing_audit_evidence_b
     assert facts(modules, tmp_path)["complete"]
     assert saved["next_handoff"] == ("eval-author-audit" if decision == "accepted" else None)
     if decision == "accepted":
-        audit = modules[0].initialize(tmp_path, journey="audit")
-        modules[0].update(
+        modules[0].initialize(tmp_path, journey="audit", state_only=True)
+        audit = modules[0].update(
             tmp_path, {"blockers": [{"id": "data", "phase": "audit", "message": "No audit traces selected"}]}
         )
-        assert audit["ethos"] == saved["ethos"]
-        assert audit["scopes"]["create"] == saved["scopes"]["create"]
-        assert audit["journey_status"]["create"] == "complete"
+        for field in ("ethos", "scopes", "journey_status"):
+            assert audit[field] == saved[field]
         assert facts(modules, tmp_path)["complete"]
     else:
         assert saved["journey"] == "create"
+    assert facts(modules, tmp_path)["audit_decision"] == decision
+
+
+def forbid_audit_creation_reads(modules, repo, monkeypatch):
+    state, creation = modules
+    metadata = {repo / "ETHOS.md", state.state_path(repo), repo / ".eval-author/.working/journey-state.lock"}
+    artifacts = {path for path in repo.rglob("*") if path.is_file()} - metadata
+
+    def fail(*args, **kwargs):
+        pytest.fail("Audit metadata reconciliation must not inspect creation or trace evidence")
+
+    for name in ("observe", "progress", "transition"):
+        monkeypatch.setattr(creation, name, fail)
+    for name in ("task_lifecycle", "task_digest"):
+        monkeypatch.setattr(state, name, fail)
+    file_digest = state._file_digest
+
+    def guard_digest(path, remaining):
+        if path != repo / "ETHOS.md":
+            fail()
+        return file_digest(path, remaining)
+
+    monkeypatch.setattr(state, "_file_digest", guard_digest)
+    for name in ("open", "stat", "lstat"):
+        original = getattr(Path, name)
+
+        def guard(path, *args, _original=original, **kwargs):
+            if path in artifacts:
+                fail()
+            return _original(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, name, guard)
+    for name in ("glob", "rglob", "iterdir"):
+        original = getattr(Path, name)
+
+        def guard_scan(path, *args, _original=original, **kwargs):
+            if path == repo or path.is_relative_to(repo):
+                fail()
+            return _original(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, name, guard_scan)
+
+
+@pytest.mark.parametrize("selection", ["candidates", "selected_subset"])
+@pytest.mark.parametrize("ethos_change", [None, "edit", "missing"])
+@pytest.mark.parametrize("origin", ["create", "expand"])
+def test_normal_audit_metadata_operations_preserve_creation_without_reading_its_evidence(
+    modules, tmp_path, monkeypatch, selection, ethos_change, origin
+):
+    complete(modules, tmp_path)
+    state, _ = modules
+    state.initialize(tmp_path, journey=origin, state_only=True)
+    original = state.load_state(tmp_path)
+    candidates = [evidence(tmp_path, f"runs/{name}.json")["path"] for name in ("selected", "other")]
+    if ethos_change == "edit":
+        (tmp_path / "ETHOS.md").write_text("# Revised behavior\n")
+    elif ethos_change == "missing":
+        (tmp_path / "ETHOS.md").unlink()
+    audit_scope = {"trace_candidates": candidates}
+    if selection == "selected_subset":
+        audit_scope.update(traces=candidates[:1], exclusions=candidates[1:], selection_source="Actual source choice")
+
+    forbid_audit_creation_reads(modules, tmp_path, monkeypatch)
+    switched = state.initialize(tmp_path, journey="audit", state_only=True)
+    assert switched["scopes"]["create"] == original["scopes"]["create"]
+    assert switched["journey_status"]["create"] == "complete"
+    assert switched["ethos"] == original["ethos"]
+    state.update(
+        tmp_path,
+        {
+            "prerequisites": {
+                key: {"status": "confirmed", "source": "Current audit prerequisite evidence"}
+                for key in ("skills", "python", "data")
+            }
+        },
+        state_only=True,
+    )
+    reconciled = state.load_state(tmp_path)
+    question = reconciled["pending_question"] if ethos_change else "Which evaluation suites should this audit include?"
+    updated = state.update(
+        tmp_path,
+        {"scopes": {"audit": audit_scope}, "pending_question": question},
+        expected_revision=reconciled["revision"],
+    )
+    before = state.state_path(tmp_path).read_bytes()
+    output = state.view(state.load_state(tmp_path))
+    assert output["first_eval"] is None and output["first_eval_observations"] is None
+    assert output["task_readiness"] is None and output["artifact_checks_deferred"] is False
+    assert updated["scopes"]["create"]["first_eval"] == original["scopes"]["create"]["first_eval"]
+    assert updated["scopes"]["audit"] == audit_scope and updated["pending_question"] == question
+    if ethos_change:
+        assert updated["ethos"]["stage"] == "review" and updated["ethos"]["confirmed_digest"] is None
+        assert updated["next_handoff"] == "ethos-orchestrate"
+        assert question == "ETHOS.md changed or is unavailable; review its intended behavior again."
+        assert not updated["journey_status"]
+    else:
+        assert updated["ethos"] == original["ethos"]
+        assert updated["journey_status"]["create"] == "complete"
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("journey", ["create", "expand"])
+@pytest.mark.parametrize("changed", ["task", "run_evidence"])
+def test_leaving_audit_reconciles_stale_creation_evidence(modules, tmp_path, journey, changed):
+    complete(modules, tmp_path)
+    state, _ = modules
+    value = state.load_state(tmp_path, state_only=True)["scopes"]["create"]["first_eval"]
+    state.initialize(tmp_path, journey="audit", state_only=True)
+    path = (
+        tmp_path / value["tasks"]["refund"]["path"] / "instruction.md"
+        if changed == "task"
+        else tmp_path / value["runs"][0]["evidence"][0]["path"]
+    )
+    path.write_text("Changed after the authoring review\n")
+    audit = state.load_state(tmp_path)
+    assert audit["journey_status"]["create"] == "complete"
+    assert audit["scopes"]["create"]["first_eval"] == value
+    assert state.view(audit)["first_eval"] is None
+
+    state.initialize(tmp_path, journey=journey, state_only=True)
+    current = state.load_state(tmp_path)
+    output = state.view(current)
+    assert current["journey_status"]["create"] == "in_progress"
+    assert output["first_eval"] is not None and not output["first_eval"]["complete"]
+    assert output["first_eval_observations"] is not None and output["task_readiness"] is not None
+    assert current["scopes"]["create"]["first_eval"] == value
+
+
+@pytest.mark.parametrize("change", ["typed_scope", "clear_scope", "completion"])
+def test_active_audit_cannot_modify_creation_scope_or_completion(modules, tmp_path, monkeypatch, change):
+    value = complete(modules, tmp_path)
+    state, _ = modules
+    audit = state.initialize(tmp_path, journey="audit", state_only=True)
+    patch = {
+        "typed_scope": {"scopes": {"create": {"first_eval": value}}},
+        "clear_scope": {"scopes": {"create": {}}},
+        "completion": {"journey_status": {"create": "complete"}},
+    }[change]
+    before = state.state_path(tmp_path).read_bytes()
+    forbid_audit_creation_reads(modules, tmp_path, monkeypatch)
+    with pytest.raises(ValueError, match="[Aa]uthoring|[Cc]reation"):
+        state.update(tmp_path, patch, expected_revision=audit["revision"])
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert state.load_state(tmp_path, state_only=True) == audit
 
 
 def test_revision_checks_and_current_ethos_review_cannot_be_bypassed(modules, tmp_path):

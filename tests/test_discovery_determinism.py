@@ -11,7 +11,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import check_report_facts as factual
 import discovery_determinism as determinism
-from test_skill_contract import _run_discover, _write_task
+from test_skill_contract import _import_discover, _write_task
 
 
 def capture(tmp_path, report, index, code=1, **identity):
@@ -22,8 +22,37 @@ def capture(tmp_path, report, index, code=1, **identity):
 
 
 @pytest.mark.parametrize("case", ["harbor", "gym", "mixed", "empty", "malformed", "ignored", "dropped", "missing-env"])
-def test_actual_discovery_repeats(tmp_path, monkeypatch, case):
-    """Run real Explore/Judge with installed Harbor and controlled fake NeMo Gym; no Solve tasks."""
+def test_actual_discovery_repeats(tmp_path, monkeypatch, capsys, case):
+    """Run real Explore/Judge with installed Harbor and fixed host readiness; no Solve tasks."""
+    import asyncio
+    import importlib.metadata
+
+    discover = _import_discover(monkeypatch)
+    judge = importlib.import_module("providers.harbor._judge")
+    # Runtime startup and backend availability are inputs, not repeatability guarantees.
+    harbor_runtime = {
+        "python": ".".join(str(part) for part in sys.version_info[:3]),
+        "harbor_importable": True,
+        "harbor_version": importlib.metadata.version("harbor"),
+        "harbor_cli": None,
+    }
+    monkeypatch.setattr(discover._probe, "probe", lambda root: harbor_runtime.copy())
+    monkeypatch.setattr(
+        discover.gym_probe,
+        "probe",
+        lambda root, cli: {
+            "gym_available": False,
+            "gym_version": None,
+            "gym_cli": None,
+            "gym_reason": "NeMo Gym is unavailable in this fixture.",
+        },
+    )
+    monkeypatch.setattr(
+        judge,
+        "backend_check",
+        lambda *args: judge._check("backend", judge.FAIL, "Backend unavailable in this fixture."),
+    )
+    monkeypatch.setattr(judge, "_harbor_executable", lambda: None)
     repo = tmp_path / "repo"
     repo.mkdir()
     if case not in {"gym", "empty"}:
@@ -48,8 +77,22 @@ def test_actual_discovery_repeats(tmp_path, monkeypatch, case):
     records = []
     for index, cwd in enumerate([tmp_path, repo]):
         monkeypatch.chdir(cwd)
-        code, report = _run_discover(repo)
+        code = asyncio.run(discover._main(["--repo", str(repo)]))
+        report = json.loads(capsys.readouterr().out)
+        assert report["proven"] is True
+        assert report["task_count"] == (0 if case in {"gym", "empty"} else 2 if case == "dropped" else 1)
+        if case not in {"gym", "empty"}:
+            assert len(report["configs"]) == 1
+            checks = {item["name"]: item["status"] for item in report["configs"][0]["checks"]}
+            assert checks["schema"] == ("fail" if case == "malformed" else "pass")
+            if case != "malformed":
+                assert checks["resolution"] == "pass"
+                assert checks["coverage"] == ("fail" if case == "dropped" else "pass")
+        if case == "missing-env":
+            required = report["configs"][0]["required_env_vars"]
+            assert required == [{"name": "DETERMINISM_ABSENT", "default": None, "declared_in": "dataset/a/task.toml"}]
         records.append(capture(tmp_path, report, index, code))
+    assert records[0]["decision"] == records[1]["decision"]
     assert determinism.compare(records)["passed"]
     if case == "mixed":
         assert records[0]["decision"]["gym_manifests"][0]["judge"]["status"] == "blocked"
@@ -75,8 +118,6 @@ def minimal():
 
 
 def test_discovery_excludes_internal_configs_and_legacy_copies(tmp_path, monkeypatch):
-    from test_skill_contract import _import_discover
-
     discover = _import_discover(monkeypatch)
     current = tmp_path / ".eval-author/tasks/current"
     _write_task(current)
@@ -95,8 +136,6 @@ def test_discovery_excludes_internal_configs_and_legacy_copies(tmp_path, monkeyp
 def test_harbor_config_resolution_uses_selected_repository_for_scratch(tmp_path, monkeypatch):
     import asyncio
     import importlib
-
-    from test_skill_contract import _import_discover
 
     pytest.importorskip("harbor")
     _import_discover(monkeypatch)
@@ -215,8 +254,6 @@ def test_discovery_sample_survives_creation_and_concurrent_completion_order(tmp_
     import asyncio
     import shutil
     import time
-
-    from test_skill_contract import _import_discover
 
     discover = _import_discover(monkeypatch)
     repo = tmp_path / "repo"
