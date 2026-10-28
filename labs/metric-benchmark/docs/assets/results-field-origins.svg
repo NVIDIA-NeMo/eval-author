@@ -56,11 +56,11 @@
 <rect x="800" y="388" width="764" height="184" rx="12" fill="#edf5fd" stroke="#2867aa" stroke-opacity=".35"/>
 <rect x="800" y="404" width="4" height="152" rx="2" fill="#2867aa"/>
 <text x="820" y="420" class="heading" style="fill:#2867aa">results.json → task references</text>
-<text x="820" y="448" class="code">task_inventory.tasks[]</text>
+<text x="820" y="448" class="code">task_inventory[]</text>
 <text x="820" y="477" class="code">execution_results[].evaluation.task</text>
 <text x="820" y="510" class="code">  {task_id, revision, name}</text>
 <text x="820" y="540" class="small">The same YAML task fields are copied to both locations.</text>
-<text x="820" y="562" class="small">task_inventory is an object; its tasks array is required and nonempty.</text>
+<text x="820" y="562" class="small">task_inventory is itself a required, nonempty array.</text>
 <path d="M650 477 H736 V448 H780 M736 477 H780" fill="none" stroke="#2867aa" stroke-width="2" marker-end="url(#yaml)"/>
 <text x="664" y="465" class="small" style="fill:#2867aa">copy</text>
 <rect x="36" y="592" width="614" height="130" rx="12" fill="#edf5fd" stroke="#2867aa" stroke-opacity=".35"/>
@@ -84,7 +84,7 @@
 <text x="56" y="832" class="code">job name = run-0001</text>
 <text x="56" y="862" class="code">task_id = inspect-files  (from tasks.yml)</text>
 <text x="56" y="893" class="small">Current runner: one attempt per pair; directory evidence.</text>
-<text x="56" y="925" class="small">These ID spellings are the local runner’s convention.</text>
+<text x="56" y="925" class="small">Naming convention only; otherwise opaque IDs within the case.</text>
 <rect x="800" y="742" width="764" height="206" rx="12" fill="#fff6e8" stroke="#a56414" stroke-opacity=".35"/>
 <rect x="800" y="758" width="4" height="174" rx="2" fill="#a56414"/>
 <text x="820" y="774" class="heading" style="fill:#a56414">results.json → execution_results[]</text>

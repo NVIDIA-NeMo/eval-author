@@ -227,23 +227,21 @@
     }
   ],
   "run_id": "mock-run-001",
-  "task_inventory": {
-    "tasks": [
-      {
-        "name": null,
-        "revision": 1,
-        "task_id": "inspect-files"
-      },
-      {
-        "name": null,
-        "revision": 1,
-        "task_id": "read-config"
-      },
-      {
-        "name": null,
-        "revision": 1,
-        "task_id": "search-workspace"
-      }
-    ]
-  }
+  "task_inventory": [
+    {
+      "name": null,
+      "revision": 1,
+      "task_id": "inspect-files"
+    },
+    {
+      "name": null,
+      "revision": 1,
+      "task_id": "read-config"
+    },
+    {
+      "name": null,
+      "revision": 1,
+      "task_id": "search-workspace"
+    }
+  ]
 }

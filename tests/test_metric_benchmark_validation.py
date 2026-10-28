@@ -82,12 +82,33 @@ def result_example(tmp_path, *, bundle=False):
     raw = RawResults.model_validate(
         {
             "run_id": "run-1",
-            "task_inventory": case.task_inventory.model_dump(),
+            "task_inventory": [task.model_dump() for task in case.task_inventory.tasks],
             "execution_results": rows,
         }
     )
     write_json(root / "results.json", raw)
     return loaded, case, raw, root, path
+
+
+@pytest.mark.parametrize("field", ["task_inventory", "execution_results"])
+@pytest.mark.parametrize("shape", ["missing", "empty", "object"])
+def test_results_arrays_are_required_and_nonempty(field, shape):
+    data = read_json(RESULT_FIXTURE / "execution-results/results.json")
+    if shape == "missing":
+        del data[field]
+    elif shape == "empty":
+        data[field] = []
+    else:
+        data[field] = {"tasks": data[field]}
+    with pytest.raises(ValueError, match=field):
+        RawResults.model_validate(data)
+
+
+def test_results_task_inventory_rejects_duplicate_ids():
+    data = read_json(RESULT_FIXTURE / "execution-results/results.json")
+    data["task_inventory"].append(dict(data["task_inventory"][0]))
+    with pytest.raises(ValueError, match="duplicate task IDs"):
+        RawResults.model_validate(data)
 
 
 def test_contract_and_cli_parity(tmp_path):

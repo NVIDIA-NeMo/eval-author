@@ -97,16 +97,17 @@ class Execution(Model):
 
 class RawResults(Model):
     run_id: Text
-    task_inventory: Tasks
+    task_inventory: list[Task] = Field(min_length=1)
     execution_results: list[Execution] = Field(min_length=1)
 
     @model_validator(mode="after")
     def consistent_executions(self) -> Self:
+        unique([task.task_id for task in self.task_inventory], "task IDs")
         unique(
             [(r.evaluation.evaluation_id, r.evaluation.execution) for r in self.execution_results],
             "execution identities",
         )
-        allowed = {task.key() for task in self.task_inventory.tasks}
+        allowed = {task.key() for task in self.task_inventory}
         runs: dict[str, tuple] = {}
         evaluations: dict[str, tuple] = {}
         for row in self.execution_results:

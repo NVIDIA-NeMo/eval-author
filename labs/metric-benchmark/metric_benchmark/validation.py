@@ -63,7 +63,7 @@ def native_observation(trial: TrialResult, metric: str) -> tuple[str, Score]:
 
 
 def selection_for_results(case: Case, raw: RawResults, scoring: ScoringPolicy) -> ScoringConfig:
-    if raw.task_inventory != case.task_inventory:
+    if raw.task_inventory != case.task_inventory.tasks:
         raise ValueError("results task inventory differs from benchmark case")
     runs: dict[str, str] = {}
     for row in raw.execution_results:

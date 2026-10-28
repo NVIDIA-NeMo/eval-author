@@ -70,7 +70,7 @@ also show their explicit defaults.
 | Field | Required / default | Meaning | Source |
 | --- | --- | --- | --- |
 | `run_id` | Required | ID supplied by the caller when starting this execution of the experiment; the local runner takes it from `--run-id`. | CLI: `--run-id`. |
-| `task_inventory` | Required | Object containing the list of tasks configured for this case example, including tasks whose executions failed or are missing. | YAML: `tasks.yml` → `tasks`, referenced by `experiment.yml` → `cases[].tasks.path`. |
+| `task_inventory` | Required, nonempty | Array of tasks configured for this case example, including tasks whose executions failed or are missing. | YAML: `tasks.yml` → `tasks`, referenced by `experiment.yml` → `cases[].tasks.path`. |
 | `execution_results` | Required, nonempty | Outcomes for each agent/task pair: one entry per attempt, including explicit entries for missing executions. | Runner-generated from the configured agents/tasks and Harbor trial results. |
 
 For example, starting the runner with `--run-id trial-001` produces
@@ -83,8 +83,8 @@ conventions, not requirements imposed by the validator.
 
 ### Task inventory: `task_inventory`
 
-The `task_inventory` object contains a required, nonempty `tasks` array. Each
-object in that array describes one task configured for the case example:
+The `task_inventory` field is a required, nonempty array, just like
+`execution_results`. Each object describes one task configured for the case example:
 
 | Field | Required / default | Meaning | Source |
 | --- | --- | --- | --- |
@@ -102,10 +102,13 @@ Each object in the top-level `execution_results` array describes one agent/task
 attempt, including attempts recorded as missing. The runner assigns an agent ID
 from its position in the execution list, such as `agent-0000` for the baseline.
 This generated ID is separate from the configured `agent_bundle_id`.
+The ID shapes shown below are naming conventions. Otherwise, `agent_run_id` and
+`evaluation_id` are opaque IDs, unique to an agent run or evaluation within this
+case’s results index; consumers do not need to parse their components.
 
 | Field | Required / default | Meaning | Source |
 | --- | --- | --- | --- |
-| `agent_run_id` | Required | One logical run selected for this agent. It is an opaque ID, even when it looks like a directory path. | Runner-generated as `<runner agent ID>/<job name>`; for example, `agent-0000/run-0001`. |
+| `agent_run_id` | Required | Unique ID for one agent run within the case’s results index, shared by its task executions. | Runner-generated as `<runner agent ID>/<job name>`; for example, `agent-0000/run-0001`. |
 | `agent_bundle_id` | Required | Baseline or mutant ID from the prepared agent manifest. | YAML: `agent.yml` → `baseline.agent_bundle_id` or `mutants[].agent_bundle_id`. |
 | `framework_profile_id` | Defaults to `null` | Optional profile identity; it must stay consistent within a run. | Optional producer metadata; the local runner leaves it `null`. |
 | `evaluation` | Required | Task and attempt identity, defined below. | Runner-generated identity and attempt, plus a task reference from `tasks.yml`; see below. |
@@ -120,7 +123,7 @@ This generated ID is separate from the configured `agent_bundle_id`.
 
 | Field | Required / default | Meaning | Source |
 | --- | --- | --- | --- |
-| `evaluation_id` | Required | Logical evaluation identity, shared by retries of the same task/run. | Runner-generated as `<runner agent ID>/<task_id>`; for example, `agent-0000/inspect-files`. The task ID comes from `tasks.yml`, not the optional task name. |
+| `evaluation_id` | Required | Unique ID for one evaluation within the case’s results index, shared by retries of the same task/run. | Runner-generated as `<runner agent ID>/<task_id>`; for example, `agent-0000/inspect-files`. The task ID comes from `tasks.yml`, not the optional task name. |
 | `execution` | Required | Positive integer attempt number. | Runner-generated; the local runner sets `1`. |
 | `task` | Required | Task reference with the same fields as an inventory task. Its ID and revision must occur in the inventory. | YAML: `tasks.yml` → the matching `tasks[]` entry’s `task_id`, `revision`, and optional `name`. |
 
