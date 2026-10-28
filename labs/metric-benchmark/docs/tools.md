@@ -139,18 +139,11 @@ expose their format through `model_json_schema()`.
 
 ## Validate a results directory
 
-```bash
-uv run python labs/metric-benchmark/validate_results.py \
-  --benchmark experiment.yml --case case-id \
-  --results-root execution-results --output validation.json
-```
+See [Generating the report](validation-report.md#generating-the-report) for the
+CLI invocation, required arguments, and output behavior.
 
 Library: `validate_results(raw, case, root, input_root, scoring, *, allow_unsigned=False)`.
-The CLI loads the selected case from the benchmark, validates its results, and
-writes the report to `--output`. Keep that output outside `--results-root`.
-Add `--allow-unsigned` while iterating with missing input pins; supplied hashes
-are still verified. Invalid inputs exit nonzero. Existing output files may be
-reused only if their contents are identical; use a new output path for changed results.
+It returns the report as a dictionary after all validation checks succeed.
 
 The [results format specification](results-format.md) defines the index, native
 evidence requirements and matrix accounting. The [validation report](validation-report.md)

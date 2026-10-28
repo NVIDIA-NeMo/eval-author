@@ -3,24 +3,45 @@
 
 # Validation report
 
-The validation tool exists to check that saved execution results satisfy the
+The validation tool checks that saved execution results satisfy the
 [results format and constraints](results-format.md#constraints) before score
-analysis. It reads the results index and raw execution evidence, verifies that
+analysis. 
+
+It reads the results index and raw execution evidence, verifies that
 every configured agent/task pair is accounted for, and checks that the recorded
 outcomes agree with the native evidence and prepared inputs. When those checks
 pass, it produces the report described here.
 
 ## Generating the report
 
-The `validate_results.py` CLI reads `results.json` and the raw execution evidence
-under `--results-root`, checks them against the case selected by `--benchmark` and
-`--case`, and writes this report to `--output` after all checks succeed. For example,
-`--output validation.json` names the output file; keep it outside the results root.
-Explicitly unavailable observations do not themselves cause validation to fail.
-The Python library returns the same report as a dictionary.
+From the repository root, invoke the validation CLI with:
 
-If any constraint fails, validation fails as a whole and no new report is written.
-See [tool usage](tools.md#validate-a-results-directory) for CLI and library examples.
+```bash
+uv run python labs/metric-benchmark/validate_results.py \
+  --benchmark experiment.yml \
+  --case case-id \
+  --results-root execution-results \
+  --output validation.json
+```
+
+Supply these required arguments:
+
+- `--benchmark`: path to the experiment YAML file and its references to prepared inputs.
+- `--case`: the `case_id` from that experiment whose results you want to validate.
+- `--results-root`: directory containing `results.json` and the raw execution evidence for that case.
+- `--output`: path for the validation report, outside the results root; `validation.json` is an example filename.
+
+Optionally, add `--allow-unsigned` when input SHA pins are missing during iteration;
+any supplied pins are still verified.
+
+The CLI checks the results against the selected case and writes the report only
+if all checks succeed. Explicitly unavailable observations do not themselves
+cause validation to fail. If any constraint fails, the command exits nonzero and
+no new report is written. An existing output file can be reused only if its
+contents are identical; choose a new output path for changed results.
+
+The [Python library](tools.md#validate-a-results-directory) returns the same report
+as a dictionary.
 
 ## Report format: `validation.json`
 
