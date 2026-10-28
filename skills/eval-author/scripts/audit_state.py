@@ -258,6 +258,7 @@ def derive(state: dict, observed: dict) -> dict | None:
         and value["trace_files"]
         and value["suites"]["status"] == value["traces"]["status"] == "selected"
     )
+    current_partial = bool(evidence_current and measurement["status"] == "partial")
     deferred = bool(current and measurement["status"] == "deferred")
     findings = value["findings"]
     findings_digest = None
@@ -271,7 +272,7 @@ def derive(state: dict, observed: dict) -> dict | None:
             }
         )
     reviewed = bool(
-        (measured or deferred)
+        (measured or current_partial or deferred)
         and findings_digest
         and value["findings_review"]
         and value["findings_review"]["digest"] == findings_digest
@@ -346,7 +347,7 @@ def transition(repo, previous: dict, updated: dict) -> None:
             if value["status"] == "complete" and not current["measurement_complete"]:
                 raise ValueError("Completed measurement requires current selected evidence")
         if field == "findings_review" and not current["findings_reviewed"]:
-            raise ValueError("Review current findings after measurement or explicit deferral")
+            raise ValueError("Review current findings from complete, partial, or explicitly deferred measurement")
         if field == "next_action" and not current["next_action_current"]:
             raise ValueError("Select a next action explicitly against reviewed current findings")
         if field == "pending" and not current["pending_checkpoint"]:

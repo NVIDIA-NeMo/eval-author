@@ -159,17 +159,54 @@ def test_measurement_requires_previously_saved_approval(audit, monkeypatch, toge
 
 
 @pytest.mark.parametrize("status", ["partial", "deferred"])
-def test_partial_or_deferred_measurement_cannot_complete_audit(audit, status):
+def test_partial_or_deferred_findings_acceptance_preserves_unfinished_measurement(audit, monkeypatch, status):
     state, value, observed = measured(audit)
     value["measurement"]["status"] = status
     value["measurement"]["source"] = "User defers measurement" if status == "deferred" else "One method failed"
+    previous = copy.deepcopy(state)
     value["findings_review"] = {
         "digest": audit.derive(state, observed)["findings_digest"],
         "source": "User accepts limitations",
     }
-    result = audit.derive(state, observed)
+    monkeypatch.setattr(audit, "observe", lambda *_: observed)
+    audit.transition(Path("/synthetic"), previous, state)
+    resumed = json.loads(json.dumps(state))
+    assert audit.record(resumed)["findings_review"] == value["findings_review"]
+    result = audit.derive(resumed, observed)
+    assert result["findings_reviewed"]
     assert not result["measurement_complete"] and not result["complete"]
-    assert result["findings_reviewed"] == (status == "deferred")
+    assert result["stage"] == ("next_action" if status == "deferred" else "measurement")
+    assert value["next_action"] is None and not result["next_action_current"]
+
+
+@pytest.mark.parametrize("change", ["report", "measurement", "changed_evidence", "missing_evidence"])
+def test_partial_findings_acceptance_requires_current_measurement_and_evidence(audit, monkeypatch, change):
+    state, value, observed = measured(audit)
+    value["measurement"]["status"] = "partial"
+    value["findings_review"] = {
+        "digest": audit.derive(state, observed)["findings_digest"],
+        "source": "User accepts partial findings",
+    }
+    assert audit.derive(state, observed)["findings_reviewed"]
+    previous = copy.deepcopy(state)
+    if change == "report":
+        report = value["findings"]["report"]
+        report["digest"] = observed["files"][report["path"]] = audit.fingerprint("revised findings")
+    elif change == "measurement":
+        value["measurement"]["status"] = "complete"
+    else:
+        evidence = value["measurement"]["evidence"][0]
+        observed["files"][evidence["path"]] = (
+            None if change == "missing_evidence" else audit.fingerprint("changed evidence")
+        )
+    result = audit.derive(state, observed)
+    assert result["checks_approved"] and not result["findings_reviewed"] and not result["complete"]
+    if change in {"changed_evidence", "missing_evidence"}:
+        assert result["findings_digest"] is not None
+        value["findings_review"]["digest"] = result["findings_digest"]
+        monkeypatch.setattr(audit, "observe", lambda *_: observed)
+        with pytest.raises(ValueError, match="Review current findings"):
+            audit.transition(Path("/synthetic"), previous, state)
 
 
 def test_improvement_requires_its_own_explicit_current_decision(audit, monkeypatch):
