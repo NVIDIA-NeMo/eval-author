@@ -166,8 +166,8 @@ An inaccessible eval directory or a missing report does not establish no evals.
 Keep an unresolved eval location open and ask for an accessible source; offer
 independent specification work if useful, carrying that limitation forward.
 If the user explicitly defers suite selection and requests independent
-specification drafting, keep this milestone incomplete and use the accepted
-Ethos and registry. Retain the pending suite question; check approval, trace
+specification drafting, keep suite selection pending and draft from the confirmed
+Ethos and tool registry. Retain the pending suite question; check approval, trace
 inspection, and measurement still wait for suite selection or explicit
 confirmation that no suites exist. Do not present candidate suites as selected
 or their findings as findings about the user's confirmed evaluation scope.
