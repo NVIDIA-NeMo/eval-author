@@ -29,7 +29,7 @@ checks live in [validation.py](../metric_benchmark/validation.py).
 Each prepared case example has a results directory with two kinds of JSON files:
 
 - **`results.json` at the root** is the experiment runner's summary of all agent/task executions for that example. Each entry names the agent and task, records the attempt, status and measurement, and points to the directory containing its evidence. This summary file is what this document calls the **results index**.
-- **`result.json` inside each trial directory** is Harbor's detailed record of one execution attempt. It contains the native configuration and outcome that the validator compares with the corresponding summary entry.
+- **`result.json` inside each trial directory** is Harbor's detailed record of one execution attempt. It contains the native configuration and outcome that the validator compares with the corresponding summary entry. This is Harbor's standard format.
 
 The directory groups trials by agent and run:
 
@@ -69,10 +69,17 @@ also show their explicit defaults.
 
 | Field | Required / default | Meaning |
 | --- | --- | --- |
-| `artifact_type` | Defaults to `raw_execution_results` | Fixed artifact discriminator. |
-| `experiment_id` | Required | Identity of this execution of the experiment, distinct from the benchmark definition's ID. |
-| `task_inventory` | Required | Complete task inventory for the selected case. |
-| `results` | Required, nonempty | Execution entries accounting for every configured agent/task pair. |
+| `artifact_type` | Defaults to `raw_execution_results` | A label identifying this JSON document as execution results. If supplied, it must be exactly `raw_execution_results`. |
+| `experiment_id` | Required | ID supplied by the caller when starting this execution of the experiment; the local runner takes it from `--run-id`. |
+| `task_inventory` | Required | List of tasks configured for this case example, including tasks whose executions failed or are missing. |
+| `results` | Required, nonempty | Outcomes for each agent/task pair: one entry per attempt, including explicit entries for missing executions. |
+
+For example, starting the runner with `--run-id trial-001` produces
+`"experiment_id": "trial-001"` in each case example's results index. The caller
+chooses this value; it is not generated automatically or read from the
+configuration's `benchmark_id`. The benchmark ID identifies the definition;
+the experiment ID identifies an execution of it. The per-entry `run_id` below
+identifies one agent's run within that execution.
 
 `task_inventory` contains `artifact_type` (default `task_references`) and a
 nonempty `tasks` array. Each task has `task_id`, a positive integer `revision`,
