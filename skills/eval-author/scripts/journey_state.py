@@ -361,6 +361,10 @@ def draft_digest(repo: Path, draft: dict) -> str:
 def invalidate_scopes(state: dict) -> None:
     # Keep selected cases/traces and user priorities available for review. Only
     # their agreement is stale; a change to intent is not a request to forget them.
+    if state["journey"] == "audit":
+        for journey in ("create", "expand"):
+            if state["journey_status"].get(journey) == "complete":
+                state["scopes"].setdefault(journey, {})
     for scope in state["scopes"].values():
         if isinstance(scope, dict):
             scope["needs_review"] = True
