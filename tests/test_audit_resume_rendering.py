@@ -59,9 +59,28 @@ def forbid_io(*_args, **_kwargs):
     raise AssertionError("Rendering must derive only from supplied state and observations")
 
 
-@pytest.mark.parametrize("context", ["ethos_review", "legacy_audit"])
-def test_resume_forwards_view_observations_without_audit_lifecycle(modules, monkeypatch, context):
+@pytest.fixture
+def render_read_only(modules, monkeypatch):
     state_helper, audit, renderer = modules
+
+    def invoke(payload):
+        original = copy.deepcopy(payload)
+        with monkeypatch.context() as patch:
+            for method in ("open", "read_bytes", "read_text"):
+                patch.setattr(Path, method, forbid_io)
+            patch.setattr(state_helper, "now", forbid_io)
+            patch.setattr(audit, "observe", forbid_io)
+            try:
+                return renderer.render(payload)
+            finally:
+                assert payload == original
+
+    return invoke
+
+
+@pytest.mark.parametrize("context", ["ethos_review", "legacy_audit"])
+def test_resume_forwards_view_observations_without_audit_lifecycle(modules, render_read_only, context):
+    state_helper = modules[0]
     payload = presentation(modules)
     state = payload["state"]
     if context == "ethos_review":
@@ -87,94 +106,79 @@ def test_resume_forwards_view_observations_without_audit_lifecycle(modules, monk
     assert state == saved
     payload["state"] = viewed["state"]
     payload["facts"]["audit_observations"] = viewed["audit_observations"]
-    original = copy.deepcopy(payload)
-    monkeypatch.setattr(Path, "open", forbid_io)
-    monkeypatch.setattr(Path, "read_bytes", forbid_io)
-    monkeypatch.setattr(Path, "read_text", forbid_io)
-    monkeypatch.setattr(state_helper, "now", forbid_io)
-    monkeypatch.setattr(audit, "observe", forbid_io)
-    output = renderer.render(payload)
+    output = render_read_only(payload)
     assert question in output
     assert f"- [ ] **{state_helper.JOURNEYS['audit']}**" in output
     assert output.count("- [x]") == (1 if context == "ethos_review" else 2)
-    assert payload == original
 
 
 @pytest.mark.parametrize("observed", [{"files": {"runs/old.json": "a" * 64}}, {"files": []}])
-def test_observations_without_audit_lifecycle_must_be_empty(modules, observed):
-    _, _, renderer = modules
+def test_observations_without_audit_lifecycle_must_be_empty(modules, render_read_only, observed):
     payload = presentation(modules)
     payload["state"]["scopes"] = {}
     payload["facts"]["audit_observations"] = observed
     with pytest.raises(ValueError, match="require a saved audit lifecycle"):
-        renderer.render(payload)
+        render_read_only(payload)
 
 
-@pytest.mark.parametrize("stage", ["resume", "results"])
-def test_audit_resume_recovers_domain_pending_after_switch_without_io(modules, monkeypatch, stage):
-    state_helper, audit, renderer = modules
+@pytest.mark.parametrize("stage,stale", [("resume", False), ("results", False), ("resume", True)])
+def test_pending_checkpoint_recovery_and_view_authority(modules, monkeypatch, render_read_only, stage, stale):
+    state_helper, audit, _ = modules
     payload = presentation(modules, stage=stage)
-    pending = audit.record(payload["state"])["pending"]
-    assert payload["state"]["pending_question"] is None
-    original = copy.deepcopy(payload)
-    monkeypatch.setattr(Path, "open", forbid_io)
-    monkeypatch.setattr(Path, "read_bytes", forbid_io)
-    monkeypatch.setattr(Path, "read_text", forbid_io)
-    monkeypatch.setattr(state_helper, "now", forbid_io)
-    monkeypatch.setattr(audit, "observe", forbid_io)
-    output = renderer.render(payload)
-    assert output.rstrip().endswith(pending["question"])
+    state = payload["state"]
+    lifecycle = audit.record(state)
+    question = lifecycle["pending"]["question"]
+    assert state["pending_question"] is None
+    if stale:
+        state["pending_question"] = question
+        lifecycle["suites"]["candidates"].append("suites/policy")
+    output = render_read_only(payload)
+    assert (question in output) is not stale
+    if not stale:
+        assert output.rstrip().endswith(question)
     assert output.count("- [x]") == 2 and output.count("- [ ]") == 1
     assert "We're here" in output
-    assert payload == original
-
-
-@pytest.mark.parametrize("stage", ["resume", "results"])
-def test_current_observations_allow_completed_audit_checklist_without_io(modules, monkeypatch, stage):
-    state_helper, audit, renderer = modules
-    payload = presentation(modules, complete=True, stage=stage)
-    original = copy.deepcopy(payload)
-    monkeypatch.setattr(Path, "open", forbid_io)
-    monkeypatch.setattr(state_helper, "now", forbid_io)
+    original = copy.deepcopy(state)
+    monkeypatch.setattr(audit, "observe", lambda *_: payload["facts"]["audit_observations"])
+    viewed = state_helper.view(state)
+    assert viewed["state"]["pending_question"] == (None if stale else question)
+    assert state == original
     monkeypatch.setattr(audit, "observe", forbid_io)
-    output = renderer.render(payload)
-    assert output.count("- [x]") == 3
-    assert "- [ ]" not in output and "We're here" not in output
-    assert payload == original
+    deferred = state_helper.view(state, state_only=True)
+    assert deferred["state"] == state == original
+    assert deferred["audit"] is None and deferred["audit_observations"] is None
+    if stale:
+        payload["facts"]["question"] = question
+        with pytest.raises(ValueError, match="checkpoint is stale"):
+            render_read_only(payload)
 
 
-@pytest.mark.parametrize("observation", ["missing", "stale"])
-def test_completed_audit_without_current_observations_stays_unchecked(modules, observation):
-    _, audit, renderer = modules
-    payload = presentation(modules, complete=True)
+@pytest.mark.parametrize(
+    "stage,observation,completed",
+    [
+        ("resume", "current", True),
+        ("results", "current", True),
+        ("resume", "missing", False),
+        ("resume", "stale", False),
+    ],
+)
+def test_audit_completion_requires_current_observations(modules, render_read_only, stage, observation, completed):
+    audit = modules[1]
+    payload = presentation(modules, complete=True, stage=stage)
     if observation == "missing":
         payload["facts"].pop("audit_observations")
-    else:
+    elif observation == "stale":
         evidence = audit.record(payload["state"])["measurement"]["evidence"][0]
         payload["facts"]["audit_observations"]["files"][evidence["path"]] = None
-    output = renderer.render(payload)
-    assert output.count("- [x]") == 2 and output.count("- [ ]") == 1
-    assert "We're here" in output
-
-
-def test_stale_audit_checkpoint_cannot_reappear_through_global_question_or_fact(modules):
-    _, audit, renderer = modules
-    payload = presentation(modules)
-    lifecycle = audit.record(payload["state"])
-    question = lifecycle["pending"]["question"]
-    payload["state"]["pending_question"] = question
-    lifecycle["suites"]["candidates"].append("suites/policy")
-    original = copy.deepcopy(payload)
-    assert question not in renderer.render(payload)
-    assert payload == original
-    payload["facts"]["question"] = question
-    with pytest.raises(ValueError, match="checkpoint is stale"):
-        renderer.render(payload)
+    output = render_read_only(payload)
+    assert output.count("- [x]") == (3 if completed else 2)
+    assert output.count("- [ ]") == (0 if completed else 1)
+    assert ("We're here" in output) is not completed
 
 
 @pytest.mark.parametrize("phase", ["setup", "ethos"])
-def test_audit_pending_does_not_replace_shared_blocker_question(modules, phase):
-    state_helper, audit, renderer = modules
+def test_audit_pending_does_not_replace_shared_blocker_question(modules, render_read_only, phase):
+    state_helper, audit, _ = modules
     payload = presentation(modules)
     shared_question = "Which source resolves the prerequisite uncertainty?"
     payload["state"]["pending_question"] = shared_question
@@ -184,7 +188,7 @@ def test_audit_pending_does_not_replace_shared_blocker_question(modules, phase):
     payload["facts"]["blockers"] = [
         {"id": "shared-review", "step": "Shared review", "reason": "Source remains unresolved", "needed": "User answer"}
     ]
-    output = renderer.render(payload)
+    output = render_read_only(payload)
     assert shared_question in output
     assert audit.record(payload["state"])["pending"]["question"] not in output
     derived = audit.derive(payload["state"], payload["facts"]["audit_observations"])
@@ -195,41 +199,19 @@ def test_audit_pending_does_not_replace_shared_blocker_question(modules, phase):
     "journey,stage",
     [("create", "resume"), ("expand", "results"), ("audit", "prerequisite_results"), ("audit", "ethos")],
 )
-def test_audit_observations_are_rejected_outside_normal_audit_continuation(modules, journey, stage):
-    _, _, renderer = modules
+def test_audit_observations_are_rejected_outside_normal_audit_continuation(modules, render_read_only, journey, stage):
     payload = presentation(modules, stage=stage)
     payload["state"]["journey"] = journey
     with pytest.raises(ValueError, match="facts must be an object"):
-        renderer.render(payload)
+        render_read_only(payload)
 
 
 @pytest.mark.parametrize("override", ["derived_fact", "observation_flag"])
-def test_renderer_rejects_derived_audit_completion_override(modules, override):
-    _, _, renderer = modules
+def test_renderer_rejects_derived_audit_completion_override(modules, render_read_only, override):
     payload = presentation(modules)
     if override == "derived_fact":
         payload["facts"]["audit"] = {"complete": True}
     else:
         payload["facts"]["audit_observations"]["complete"] = True
     with pytest.raises(ValueError):
-        renderer.render(payload)
-
-
-@pytest.mark.parametrize("stale", [False, True])
-def test_view_projects_audit_question_without_mutating_saved_state_or_state_only_output(modules, monkeypatch, stale):
-    state_helper, audit, _ = modules
-    payload = presentation(modules)
-    state = payload["state"]
-    lifecycle = audit.record(state)
-    question = lifecycle["pending"]["question"]
-    if stale:
-        state["pending_question"] = question
-        lifecycle["suites"]["candidates"].append("suites/policy")
-    original = copy.deepcopy(state)
-    monkeypatch.setattr(audit, "observe", lambda *_: payload["facts"]["audit_observations"])
-    output = state_helper.view(state)
-    assert output["state"]["pending_question"] == (None if stale else question)
-    assert state == original
-    deferred = state_helper.view(state, state_only=True)
-    assert deferred["state"] == original
-    assert deferred["audit"] is None and deferred["audit_observations"] is None
+        render_read_only(payload)

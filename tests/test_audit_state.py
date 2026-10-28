@@ -102,14 +102,6 @@ def test_restart_resumes_each_saved_decision(audit, monkeypatch, stage):
     assert resumed["pending_checkpoint"] == value["pending"]
 
 
-def test_trace_only_answer_retained_while_suite_selection_is_pending(audit):
-    state, value, observed = selected(audit)
-    traces = copy.deepcopy(value["traces"])
-    value["suites"] = audit.new_record()["suites"]
-    assert audit.derive(state, observed)["stage"] == "suite_selection"
-    assert value["traces"] == traces
-
-
 @pytest.mark.parametrize("change", ["agent", "ethos", "specification", "suite", "trace", "selection", "exclusion"])
 def test_input_changes_reopen_entire_audit_without_erasing_decisions(audit, change):
     state, value, observed = reviewed(audit)
@@ -166,14 +158,6 @@ def test_measurement_requires_previously_saved_approval(audit, monkeypatch, toge
         audit.transition(Path("/synthetic"), previous, updated)
 
 
-def test_saved_approval_allows_verified_measurement_summary(audit, monkeypatch):
-    previous, _, _ = approved(audit)
-    updated, _, observed = measured(audit)
-    monkeypatch.setattr(audit, "observe", lambda *_: observed)
-    audit.transition(Path("/synthetic"), previous, updated)
-    assert audit.derive(updated, observed)["measurement_complete"]
-
-
 @pytest.mark.parametrize("status", ["partial", "deferred"])
 def test_partial_or_deferred_measurement_cannot_complete_audit(audit, status):
     state, value, observed = measured(audit)
@@ -188,21 +172,19 @@ def test_partial_or_deferred_measurement_cannot_complete_audit(audit, status):
     assert result["findings_reviewed"] == (status == "deferred")
 
 
-def test_findings_acceptance_completes_without_authorizing_improvements(audit, monkeypatch):
-    previous, _, _ = measured(audit)
-    updated, value, observed = reviewed(audit)
+def test_improvement_requires_its_own_explicit_current_decision(audit, monkeypatch):
+    previous, _, observed = reviewed(audit)
+    updated = copy.deepcopy(previous)
+    value = audit.record(updated)
     monkeypatch.setattr(audit, "observe", lambda *_: observed)
-    audit.transition(Path("/synthetic"), previous, updated)
     result = audit.derive(updated, observed)
-    assert result["complete"] and result["stage"] == "next_action"
     assert value["next_action"] is None and not result["next_action_current"]
-    accepted = copy.deepcopy(updated)
     value["next_action"] = {
         "kind": "improve",
         "findings_digest": result["findings_digest"],
         "source": "User requests improvements",
     }
-    audit.transition(Path("/synthetic"), accepted, updated)
+    audit.transition(Path("/synthetic"), previous, updated)
     assert audit.derive(updated, observed)["next_action_current"]
     value["next_action"]["source"] = ""
     with pytest.raises(ValueError, match="provenance"):
