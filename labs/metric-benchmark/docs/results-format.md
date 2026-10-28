@@ -133,10 +133,11 @@ one agent/profile combination; different agents cannot share it.
 
 ### Measurements and unavailable observations
 
-A metric value is an object with required `value` and optional `reason`:
+Each execution result’s `metrics` field is an object keyed by metric name (such
+as `reward`), where each entry contains a required `value` and optional `reason`:
 
 ```json
-{"value": 0.0, "reason": null}
+{"metrics": {"reward": {"value": 0.0, "reason": null}}}
 ```
 
 A numeric value must be finite and have no non-null reason. An unavailable value
