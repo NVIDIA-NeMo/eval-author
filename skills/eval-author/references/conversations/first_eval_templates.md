@@ -33,12 +33,17 @@ saved task path. Set `display_id` to the proposed `id` and add
 `grading_kind` and `grading_rule` as existing report schema keys. They are
 internal compatibility fields. The first_eval conversation calls them
 verifier type and scoring rule.
+For NeMo Gym, also save the scaffold's exact environment manifest path in
+`tasks[<task-id>].workload_path`. The report can list both that workload and
+resource configuration under the task root. The authored-row reader joins the
+manifest path and checks the saved task root's revision, regardless of which
+nested README the report selects.
 
 Read the authored rows from `.eval-author/.working/report/state.json` with
 `first_eval_table_data.py --repo <repository> --stage review_first` or
 `--stage review_suite`. Pass its `task_rows` unchanged in the renderer's
 `facts`, alongside fresh `observations` from `first_eval_state.observe`.
-The reader joins saved task paths, checks the report's stable display IDs and
+The reader joins saved task workloads, checks the report's stable display IDs and
 README revisions, and binds rows to current task digests. A missing or
 ambiguous authored task blocks review until the report is corrected and
 refreshed. Legacy rows without a documented score display

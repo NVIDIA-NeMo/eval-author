@@ -91,6 +91,8 @@ The first_eval proposal and authored reviews use the same three-column task
 table. Authored rows come from `.eval-author/.working/report/state.json`
 after a report refresh. Each row starts with the proposed task ID and shows the
 authored behavior, expected outcome, verifier type, and documented scoring rule.
+For NeMo Gym tasks, the saved task entry identifies its environment manifest so
+the authored row can be distinguished from resource configuration rows.
 
 Task controls check the task and its verifier: NeMo Gym's known-correct and negative
 verifier fixtures, or Harbor's no-op baseline and reference solution. Results

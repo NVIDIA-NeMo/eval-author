@@ -207,6 +207,23 @@ def validate(value: dict) -> None:
                 or len(PurePosixPath(task["path"]).parts) != 3
             ):
                 raise ValueError("Keep created tasks in .eval-author/tasks/<slug>")
+            workload = task.get("workload_path")
+            if workload is not None:
+                if value["provider"] != "gym":
+                    raise ValueError("Only NeMo Gym tasks have a workload path")
+                _path(workload)
+                try:
+                    relative_workload = PurePosixPath(workload).relative_to(PurePosixPath(task["path"]))
+                except ValueError as exc:
+                    raise ValueError("NeMo Gym workload must be inside its saved task") from exc
+                parts = relative_workload.parts
+                if not (
+                    len(parts) in {3, 4}
+                    and parts[-3] == "environments"
+                    and parts[-1] == "manifest.yaml"
+                    and (len(parts) == 3 or parts[0] == "gym")
+                ):
+                    raise ValueError("NeMo Gym workload must name an environment manifest")
             _digest(task["sha256"])
             _decision(task.get("review"), "sha256")
             if task.get("review") and task["review"]["decision"] not in {"approved", "changes_requested"}:

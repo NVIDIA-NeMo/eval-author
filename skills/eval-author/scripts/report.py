@@ -567,14 +567,24 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
                         break
                 issues.append("NeMo Gym workload candidate; native validation has not been run.")
             readme_path = readme.relative_to(repo).as_posix()
-            # A first_eval Gym task uses the root README while its report row uses a native workload path.
-            overrides = metadata["tasks"].get(path) or metadata["tasks"].get(
-                readme.parent.relative_to(repo).as_posix(), {}
+            # Native Gym READMEs can sit below the task root, so use the nearest
+            # metadata owner on the workload path to bind the whole saved task.
+            owner = next(
+                (
+                    parent.as_posix()
+                    for parent in (PurePosixPath(path), *PurePosixPath(path).parents)
+                    if parent.as_posix() in metadata["tasks"]
+                ),
+                None,
             )
+            overrides = metadata["tasks"].get(owner, {})
             task_revision = None
             if overrides.get("scoring_rule"):
                 try:
-                    task_revision = task_digest(repo, readme.parent.relative_to(repo).as_posix())
+                    revision_root = (
+                        owner if owner and local(repo, owner).is_dir() else readme.parent.relative_to(repo).as_posix()
+                    )
+                    task_revision = task_digest(repo, revision_root)
                 except (OSError, ValueError):
                     issues.append("Task content could not be bound to its scoring rule.")
             if readme.exists():

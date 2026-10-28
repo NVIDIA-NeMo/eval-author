@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 import first_eval_state
 import journey_state
@@ -32,16 +32,13 @@ def _report_snapshot(repo: Path) -> dict:
     return snapshot
 
 
-def _matches(item: dict, root: str, provider: str) -> bool:
+def _matches(item: dict, task: dict, provider: str) -> bool:
     if item["provider"] != provider or item["status"] != "found":
         return False
     if provider == "harbor":
+        root = task["path"]
         return item["path"] == root and item["readme_path"] == root + "/README.md"
-    return (
-        PurePosixPath(item["path"]).is_relative_to(PurePosixPath(root))
-        and item["path"] != root
-        and item["readme_path"] == root + "/README.md"
-    )
+    return item["path"] == task["workload_path"]
 
 
 def authored_rows(repo: Path, state: dict, task_ids: list[str]) -> list[dict]:
@@ -55,7 +52,9 @@ def authored_rows(repo: Path, state: dict, task_ids: list[str]) -> list[dict]:
         saved = record["tasks"].get(task_id)
         if not saved or observed["tasks"].get(task_id) != saved["sha256"]:
             raise ValueError(f"Authored task {task_id} differs from its saved task revision")
-        matches = [item for item in snapshot["tasks"] if _matches(item, saved["path"], record["provider"])]
+        if record["provider"] == "gym" and not saved.get("workload_path"):
+            raise ValueError(f"NeMo Gym task {task_id} needs its saved environment workload path")
+        matches = [item for item in snapshot["tasks"] if _matches(item, saved, record["provider"])]
         if len(matches) != 1:
             raise ValueError(f"Expected one current report task for {task_id}, found {len(matches)}")
         item = matches[0]

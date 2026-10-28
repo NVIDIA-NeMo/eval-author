@@ -540,7 +540,8 @@ def test_authored_table_comes_from_saved_report_and_renders_full_review(creation
         table_data.authored_rows(tmp_path, state, [ids["refund"]])
 
 
-def test_gym_report_workload_uses_saved_task_id_and_root_metadata(creation, tmp_path, monkeypatch):
+@pytest.mark.parametrize("nested_readmes", [False, True])
+def test_gym_report_workload_uses_saved_task_id_and_root_metadata(creation, tmp_path, monkeypatch, nested_readmes):
     state, record, _, _, _ = creation
     monkeypatch.syspath_prepend(str(SCRIPTS))
     state["setup"] = record["provider"] = "gym"
@@ -548,6 +549,21 @@ def test_gym_report_workload_uses_saved_task_id_and_root_metadata(creation, tmp_
     root = tmp_path / ".eval-author/tasks/refund"
     (root / "environments/case").mkdir(parents=True)
     (root / "environments/case/manifest.yaml").write_text("name: case\n", encoding="utf-8")
+    (root / "environments/case/config.yaml").write_text("name: case\n", encoding="utf-8")
+    (root / "environments/case/data").mkdir()
+    (root / "environments/case/data/example.jsonl").write_text("{}\n", encoding="utf-8")
+    (root / "resources_servers/case/configs").mkdir(parents=True)
+    (root / "resources_servers/case/configs/case.yaml").write_text("name: case\n", encoding="utf-8")
+    (root / "resources_servers/case/app.py").write_text("# Resource server fixture\n", encoding="utf-8")
+    if nested_readmes:
+        (root / "environments/case/README.md").write_text(
+            "## Behavior under test\nAudit saved stock.\n## Expected result\nReport the correct total.\n",
+            encoding="utf-8",
+        )
+        (root / "resources_servers/case/README.md").write_text(
+            "## Behavior under test\nConfigure the resource server.\n## Expected result\nThe server starts.\n",
+            encoding="utf-8",
+        )
     (root / "README.md").write_text(
         "## Behavior under test\nAudit saved stock.\n## Expected result\nReport the correct total.\n",
         encoding="utf-8",
@@ -555,10 +571,12 @@ def test_gym_report_workload_uses_saved_task_id_and_root_metadata(creation, tmp_
     state_helper = importlib.import_module("journey_state")
     report = importlib.import_module("report")
     table_data = importlib.import_module("first_eval_table_data")
+    workload_path = ".eval-author/tasks/refund/environments/case/manifest.yaml"
+    record["tasks"]["refund"]["workload_path"] = workload_path
     sha = state_helper.task_digest(tmp_path, record["tasks"]["refund"]["path"])
     record["tasks"]["refund"]["sha256"] = sha
     state_helper.save(tmp_path, state)
-    report.refresh(
+    refreshed = report.refresh(
         tmp_path,
         patch={
             "tasks": {
@@ -570,6 +588,19 @@ def test_gym_report_workload_uses_saved_task_id_and_root_metadata(creation, tmp_
             }
         },
     )
+    gym_rows = [item for item in refreshed["tasks"] if item["provider"] == "gym"]
+    assert {item["path"] for item in gym_rows} == {
+        workload_path,
+        ".eval-author/tasks/refund/resources_servers/case/configs/case.yaml",
+    }
+    manifest_row = next(item for item in gym_rows if item["path"] == workload_path)
+    assert manifest_row["task_revision"] == sha
+    assert manifest_row["display_id"] == "refund"
+    assert manifest_row["readme_path"] == (
+        ".eval-author/tasks/refund/environments/case/README.md"
+        if nested_readmes
+        else ".eval-author/tasks/refund/README.md"
+    )
     assert table_data.authored_rows(tmp_path, state, ["refund"]) == [
         {
             "task_id": "refund",
@@ -580,6 +611,16 @@ def test_gym_report_workload_uses_saved_task_id_and_root_metadata(creation, tmp_
             "scoring_rule": "Pass at 1 when the saved stock total is correct, otherwise score 0.",
         }
     ]
+    without_workload = state_helper.load_state(tmp_path, state_only=True)
+    without_workload["scopes"]["create"]["first_eval"]["tasks"]["refund"].pop("workload_path")
+    with pytest.raises(ValueError, match="needs its saved environment workload path"):
+        table_data.authored_rows(tmp_path, without_workload, ["refund"])
+    invalid_workload = state_helper.load_state(tmp_path, state_only=True)
+    invalid_workload["scopes"]["create"]["first_eval"]["tasks"]["refund"]["workload_path"] = (
+        ".eval-author/tasks/refund/resources_servers/case/configs/case.yaml"
+    )
+    with pytest.raises(ValueError, match="environment manifest"):
+        importlib.import_module("first_eval_state").validate(invalid_workload["scopes"]["create"]["first_eval"])
 
 
 @pytest.mark.parametrize("task_count", [1, 3])
