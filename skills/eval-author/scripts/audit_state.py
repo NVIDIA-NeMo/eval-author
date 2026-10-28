@@ -192,20 +192,17 @@ def _sources(state: dict) -> set[str]:
 
 
 def observe(repo, state: dict) -> dict:
-    from journey_state import MAX_TASK_BYTES, _file_digest
+    from journey_state import _file_digest
 
     observed = {"files": {}}
     if state["ethos"]["stage"] != "complete":
         return observed
-    remaining = MAX_TASK_BYTES
     for name in sorted(_sources(state)):
         path = Path(repo) / name
         try:
             if any(part.is_symlink() for part in (path, *path.parents)):
                 raise ValueError("Audit files must not traverse symlinks")
-            digest, size = _file_digest(path, remaining)
-            observed["files"][name] = digest
-            remaining -= size
+            observed["files"][name] = _file_digest(path, None)[0]
         except (OSError, ValueError):
             observed["files"][name] = None
     return observed

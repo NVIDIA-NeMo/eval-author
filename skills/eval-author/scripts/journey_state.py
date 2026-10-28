@@ -438,15 +438,17 @@ def _task_local_path(repo: Path, relative: str) -> Path:
     return path
 
 
-def _file_digest(path: Path, remaining: int) -> tuple[str, int]:
-    """Read bounded regular files only; never follow a final-component symlink."""
+def _file_digest(path: Path, remaining: int | None) -> tuple[str, int]:
+    """Hash regular files with an optional byte limit; never follow a final-component symlink."""
     if not stat.S_ISREG(path.lstat().st_mode):
         raise ValueError("Task content or evidence must be a regular file")
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     with os.fdopen(os.open(path, flags), "rb") as stream:
         info = os.fstat(stream.fileno())
-        if not stat.S_ISREG(info.st_mode) or info.st_size > remaining:
+        if not stat.S_ISREG(info.st_mode) or (remaining is not None and info.st_size > remaining):
             raise ValueError("Task content or evidence is not a bounded regular file")
+        if remaining is None:
+            return hashlib.file_digest(stream, "sha256").hexdigest(), info.st_size
         payload = stream.read(remaining + 1)
         if len(payload) > remaining:
             raise ValueError("Task content or evidence exceeds the byte limit")
