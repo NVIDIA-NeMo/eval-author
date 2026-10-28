@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import copy
+import hashlib
 import importlib
 import json
 from pathlib import Path
@@ -282,3 +283,42 @@ def test_observation_hashes_only_declared_files_without_writes(audit, tmp_path):
     assert set(observed["files"]) == set(paths)
     assert all(observed["files"].values())
     assert all((tmp_path / name).read_bytes() == data for name, data in original.items())
+
+
+@pytest.mark.parametrize(
+    "trace_mib,prepared_name", [(40, "a-prepared.json"), (40, "z-prepared.json"), (128, "a-prepared.json")]
+)
+def test_retained_prepared_trace_cannot_exhaust_approved_input_hashing(audit, tmp_path, trace_mib, prepared_name):
+    state, value, _ = selected(audit)
+    state["repository"] = str(tmp_path)
+    for name in value["suite_files"] + [value["specification"]]:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("selected fixture")
+    trace = tmp_path / value["trace_files"][0]
+    trace.parent.mkdir(parents=True)
+    with trace.open("wb") as stream:
+        stream.truncate(trace_mib * 1024 * 1024)
+    observed = audit.observe(tmp_path, state)
+    assert all(observed["files"].values())
+    checks_digest = audit.derive(state, observed)["checks_digest"]
+    value["checks_approval"] = {"digest": checks_digest, "source": "User approved the selected inputs"}
+    assert audit.derive(state, observed)["checks_approved"]
+    previous = copy.deepcopy(state)
+
+    prepared = trace.with_name(prepared_name)
+    with prepared.open("wb") as stream:
+        stream.truncate(25 * 1024 * 1024)
+    with prepared.open("rb") as stream:
+        prepared_digest = hashlib.file_digest(stream, "sha256").hexdigest()
+    value["measurement"] = {
+        "checks_digest": checks_digest,
+        "status": "complete",
+        "evidence": [{"path": prepared.relative_to(tmp_path).as_posix(), "digest": prepared_digest}],
+        "source": "Measurement retained the prepared trace",
+    }
+    retained = audit.observe(tmp_path, state)
+    assert {name: retained["files"][name] for name in observed["files"]} == observed["files"]
+    audit.transition(tmp_path, previous, state)
+    result = audit.derive(state, retained)
+    assert result["checks_digest"] == checks_digest and result["checks_approved"] and result["measurement_complete"]
