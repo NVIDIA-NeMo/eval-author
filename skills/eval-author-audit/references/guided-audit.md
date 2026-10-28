@@ -35,8 +35,7 @@ action, and `pending`. Keep that checkpoint inside the audit lifecycle
 when switching journeys. On return, resume its applicable pending decision or
 the earliest unfinished, non-deferred milestone. State-only entry reads no
 artifacts; normal inspection reads only selected sources and retained references.
-Do not create an `audit-progress.md`. Legacy notes and existing files alone do
-not establish approval or completion.
+Legacy notes and existing files alone do not establish approval or completion.
 
 Use normal `show`'s `audit.checks_digest` for `checks_approval: {digest, source}`
 and save that approval before updating `measurement`. After native measurement
