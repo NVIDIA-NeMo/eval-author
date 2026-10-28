@@ -499,11 +499,11 @@ values):
   "plan": {
     "trace_choice": "none",
     "tasks": [{
-      "id": "INV-01-exact-sku-lookup",
+      "id": "<stable task ID>",
       "example_ids": ["<distinct input ID>"],
       "title": "<task title>",
       "input": "<request and relevant starting state>",
-      "behavior": "<natural-language request or scenario>",
+      "behavior": "<behavior under test>",
       "expected_result": "<concise observable success summary>",
       "verifier_type": "Custom code + LLMaJ",
       "scoring_rule": "Pass at 1 when the exact SKU count is cited and no decoy count is used, otherwise score 0."
