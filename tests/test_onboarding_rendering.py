@@ -4,7 +4,10 @@
 """Keep prerequisite findings, optional advice, and the next action distinct."""
 
 import importlib
+import json
 import re
+import subprocess
+import sys
 from copy import deepcopy
 from pathlib import Path
 
@@ -298,3 +301,100 @@ def test_goal_switch_does_not_infer_a_new_source_pause(onboarding):
     state["journey_status"]["audit"] = "in_progress"
     output = renderer.render(request)
     assert flow.TRACE_QUESTION not in output and "confirmed and validated" not in output
+
+
+def test_audit_entry_failure_renders_only_escaped_saved_progress_error_without_io(onboarding, monkeypatch):
+    state_helper, renderer, shared, _, _ = onboarding
+    copy = importlib.import_module("conversation_flows.onboarding_templates")
+    request = {
+        "stage": "audit_entry_failure",
+        "journey": "audit",
+        "facts": {"state_error": "Saved **state** is corrupt | <foreign>\n# injected"},
+    }
+    before = deepcopy(request)
+
+    def unexpected_io(*args, **kwargs):
+        pytest.fail("Saved-progress errors must render without artifacts, state writes, or clocks")
+
+    monkeypatch.setattr(Path, "open", unexpected_io)
+    for name in ("now", "load_state", "initialize", "update", "save"):
+        monkeypatch.setattr(state_helper, name, unexpected_io)
+    output = renderer.render(request)
+    escaped = "Saved \\*\\*state\\*\\* is corrupt &#124; &lt;foreign&gt; \\# injected"
+    assert output == shared.BLOCKERS + "\n\n" + copy.AUDIT_ENTRY_STATE_FAILURE.format(error=escaped) + "\n"
+    assert renderer.render(request) == output and request == before
+    assert copy.WELCOME not in output and copy.READY not in output
+    assert copy.TABLE_HEADER not in output and "- [x]" not in output and "- [ ]" not in output
+    assert copy.PREREQUISITES_COMPLETE not in output and copy.PREREQUISITE_UNSAVED_NOTICE not in output
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"ready": True},
+        {"ready": False},
+        {"state": {}},
+        {"revision": 1},
+        {"rows": {}},
+        {"journey": "create"},
+        {"journey": "expand"},
+        {"journey": None},
+        {"facts": {"state_error": "Unreadable state", "rows": {}}},
+        {"facts": {"state_error": "Unreadable state", "question": "Continue?"}},
+        {"facts": {}},
+    ],
+)
+def test_audit_entry_failure_rejects_readiness_state_and_unrelated_facts(onboarding, patch):
+    _, renderer, _, _, _ = onboarding
+    request = {"stage": "audit_entry_failure", "journey": "audit", "facts": {"state_error": "Unreadable state"}}
+    request.update(patch)
+    before = deepcopy(request)
+    with pytest.raises(ValueError):
+        renderer.render(request)
+    assert request == before
+
+
+@pytest.mark.parametrize("error", [None, "", "  ", [], "x" * 2001])
+def test_audit_entry_failure_requires_a_bounded_nonempty_error(onboarding, error):
+    _, renderer, _, _, _ = onboarding
+    with pytest.raises(ValueError):
+        renderer.render({"stage": "audit_entry_failure", "journey": "audit", "facts": {"state_error": error}})
+    boundary = renderer.render(
+        {"stage": "audit_entry_failure", "journey": "audit", "facts": {"state_error": "x" * 2000}}
+    )
+    assert "x" * 2000 in boundary
+
+
+def test_audit_entry_failure_cli_stdin_matches_rendering_and_is_not_a_preview(onboarding, tmp_path):
+    _, renderer, _, _, _ = onboarding
+    request = {"stage": "audit_entry_failure", "journey": "audit", "facts": {"state_error": "Foreign saved state"}}
+    script = str(Path(renderer.__file__))
+    expected = renderer.render(request)
+    result = subprocess.run(
+        [sys.executable, script, "--input", "-"],
+        input=json.dumps(request),
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0 and result.stderr == "" and result.stdout == expected
+    assert "audit_entry_failure" not in renderer.PREVIEWS
+    preview = subprocess.run(
+        [sys.executable, script, "--stage", "audit_entry_failure", "--journey", "audit"],
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+    )
+    assert preview.returncode == 2 and preview.stdout == ""
+    assert "invalid choice" in preview.stderr
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize("ready", [None, False])
+def test_prerequisite_failure_still_requires_the_actual_readiness_reply(onboarding, ready):
+    _, renderer, _, _, _ = onboarding
+    request = {"stage": "prerequisite_failure", "journey": "audit", "facts": {"state_error": "Unreadable state"}}
+    if ready is not None:
+        request["ready"] = ready
+    with pytest.raises(ValueError, match="readiness reply"):
+        renderer.render(request)
