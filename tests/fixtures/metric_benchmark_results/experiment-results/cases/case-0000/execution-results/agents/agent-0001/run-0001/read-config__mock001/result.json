@@ -1,0 +1,31 @@
+{
+  "agent_info": {
+    "name": "nop",
+    "version": "mock"
+  },
+  "config": {
+    "agent": {
+      "name": "nop"
+    },
+    "task": {
+      "path": "/mock/metric-benchmark/inputs/tasks/workspace/read-config"
+    },
+    "trial_name": "read-config__mock001",
+    "trials_dir": "/mock/metric-benchmark/execution-results/agents/agent-0001/run-0001"
+  },
+  "finished_at": "2026-01-01T00:00:01Z",
+  "id": "6fb740de-c0c5-5490-a768-96b1649047c1",
+  "started_at": "2026-01-01T00:00:00Z",
+  "task_checksum": "7c30f9ac0af560fd18ac77ad275582ab7d4160fe034f81e4c3a03e3f7508b4c7",
+  "task_id": {
+    "path": "/mock/metric-benchmark/inputs/tasks/workspace/read-config"
+  },
+  "task_name": "read-config",
+  "trial_name": "read-config__mock001",
+  "trial_uri": "file:///mock/metric-benchmark/execution-results/agents/agent-0001/run-0001/read-config__mock001",
+  "verifier_result": {
+    "rewards": {
+      "reward": 0.0
+    }
+  }
+}

@@ -42,7 +42,6 @@ class Task(Model):
 
 
 class Tasks(Model):
-    artifact_type: Literal["task_references"] = "task_references"
     tasks: list[Task] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -79,7 +78,7 @@ def resolve_evidence(root: Path, value: str) -> Path:
 
 
 class Execution(Model):
-    run_id: Text
+    agent_run_id: Text
     agent_bundle_id: Text
     framework_profile_id: Text | None = None
     evaluation: Evaluation
@@ -96,25 +95,34 @@ class Execution(Model):
         return self
 
 
+class ExecutionManifest(Model):
+    benchmark_sha256: Digest
+    run_id: Text
+    cases: dict[Text, Text] = Field(min_length=1)
+
+
 class RawResults(Model):
-    artifact_type: Literal["raw_execution_results"] = "raw_execution_results"
-    experiment_id: Text
-    task_inventory: Tasks
-    results: list[Execution] = Field(min_length=1)
+    run_id: Text
+    task_inventory: list[Task] = Field(min_length=1)
+    execution_results: list[Execution] = Field(min_length=1)
 
     @model_validator(mode="after")
     def consistent_executions(self) -> Self:
-        unique([(r.evaluation.evaluation_id, r.evaluation.execution) for r in self.results], "execution identities")
-        allowed = {task.key() for task in self.task_inventory.tasks}
+        unique([task.task_id for task in self.task_inventory], "task IDs")
+        unique(
+            [(r.evaluation.evaluation_id, r.evaluation.execution) for r in self.execution_results],
+            "execution identities",
+        )
+        allowed = {task.key() for task in self.task_inventory}
         runs: dict[str, tuple] = {}
         evaluations: dict[str, tuple] = {}
-        for row in self.results:
+        for row in self.execution_results:
             if row.evaluation.task.key() not in allowed:
                 raise ValueError("execution references an unknown task revision")
             identity = row.agent_bundle_id, row.framework_profile_id
-            if runs.setdefault(row.run_id, identity) != identity:
+            if runs.setdefault(row.agent_run_id, identity) != identity:
                 raise ValueError("one run must identify one agent and profile")
-            identity = row.run_id, row.evaluation.task.key()
+            identity = row.agent_run_id, row.evaluation.task.key()
             if evaluations.setdefault(row.evaluation.evaluation_id, identity) != identity:
                 raise ValueError("evaluation retries must identify the same run and task")
         return self

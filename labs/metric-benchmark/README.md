@@ -32,3 +32,4 @@ See the [architecture](docs/architecture.md) and [stage descriptions](docs/stage
 for how the experiment works.
 
 For preparing bundles, use the [benchmark format specification](docs/benchmark-format.md).
+For execution outputs, use the [results format specification](docs/results-format.md).

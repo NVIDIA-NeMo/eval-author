@@ -136,3 +136,31 @@ loading was explicitly enabled.
 The [format specification](benchmark-format.md) describes validation rules.
 `BenchmarkDefinition`, `CaseDefinition`, `AgentManifest`, and `TaskManifest` also
 expose their format through `model_json_schema()`.
+
+## Validate a results directory
+
+See [Generating the report](validation-report.md#generating-the-report) for the
+CLI invocation, required arguments, and output behavior.
+
+Library: `validate_experiment_results(loaded, root, *, case_id=None)` returns the
+same report as the CLI. Pass a `LoadedBenchmark` from `load_benchmark` and the
+whole experiment output root; `case_id` optionally selects one case.
+
+The per-case `validate_results(raw, case, root, input_root, scoring, *, allow_unsigned=False)`
+function remains available for execution and analysis libraries. Its `root` is
+that case’s results directory, and it returns the individual case report.
+
+The [results format specification](results-format.md) defines the index, native
+evidence requirements and matrix accounting. The [validation report](validation-report.md)
+defines the tool’s output. Start with the [mock results](results-format.md#mock-results)
+to review the checked-in mock directory.
+
+`test_contract_and_cli_parity` in
+[the validation tests](../../../tests/test_metric_benchmark_validation.py)
+materializes the synthetic input tasks, copies the mock output to a temporary
+directory, and checks that the library and CLI reproduce the checked-in report.
+To exercise that example without Docker or model calls:
+
+```bash
+uv run --locked pytest tests/test_metric_benchmark_validation.py -k contract_and_cli_parity -q
+```
