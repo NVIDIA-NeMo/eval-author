@@ -462,7 +462,8 @@ that boundary. It cannot establish content approval or task acceptance. Treat
 saved approvals as historical, and defer reports, task-readiness checks, and
 artifact inspection. After completing and saving an unblocked prerequisite pass,
 omit `--state-only` so normal commands reconcile current content and evidence.
-For the audit journey, normal commands reconcile only Ethos: `task_readiness`,
+For the audit journey, normal commands reconcile Ethos and the selected audit
+lifecycle's evidence: `task_readiness`,
 `first_eval_observations`, and `first_eval` are null, and creation progress cannot
 be updated until an authoring journey is selected. Retained authoring evidence
 does not select it as audit input.
@@ -477,6 +478,13 @@ Creation uses the additive `scopes.create.first_eval` record described in the
 `show` returns its reconciled progress and artifact observations; creation
 updates require the latest `--expected-revision`. These fields do not change
 the top-level schema or grant approvals to older records.
+Audit uses `scopes.audit.lifecycle` as defined by the
+[audit lifecycle contract](../../eval-author-audit/references/guided-audit.md#decisions-and-progress).
+Normal audit `show` returns `audit_observations` and derived `audit` progress;
+typed audit updates and audit completion require the latest `--expected-revision`.
+Both audit fields are null during state-only inspection or an authoring journey.
+Forward normal audit observations as `facts.audit_observations` when using the
+[onboarding continuation renderer](conversations/onboarding.md).
 Put final task behavior in task READMEs and audit checks
 in the audit report. Do not create a separate first-eval or expansion plan file.
 Retire `first-eval.md`, `audit-progress.md`, and intent notes as active writers.

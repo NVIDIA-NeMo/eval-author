@@ -137,11 +137,17 @@ and failure cases and links directly to the full **Intended coverage** section.
 It asks which intended checks are missing or incorrect and names the next
 milestone. Agreeing to this scope does not approve the final report's findings.
 
-**Shared progress** (`.eval-author/.working/journey-state.json`) records conversation state:
-selected paths, limitations, answered or pending questions, and the next action.
-On return to an already-started audit, Eval Author resumes unfinished milestones
-with completed work and prior answers intact. Requests only to validate a
-specification or measure or aggregate coverage stay within that scope.
+**Shared progress** (`.eval-author/.working/journey-state.json`) saves suite and
+trace selections separately, review decisions, measurement status, pending
+questions, and the next action. Returning to an audit, including after another
+workflow, resumes its pending decision or first unfinished step. There is no
+separate audit progress file. Requests only to validate a specification or
+measure or aggregate coverage stay within that scope.
+
+Changes to the agent, Ethos, selected scope, specification, cases, graders, or
+traces reopen check review and dependent measurement and findings. Changing only
+the findings report requires findings review again. Saved progress therefore
+reflects the current inputs when you resume.
 
 Coverage measurement compares that specification with recorded ATIF traces.
 ATIF is a structured record of an agent's interaction. Measurements are saved
@@ -177,8 +183,10 @@ The review ends with a concrete offer to help with the next step. For an existin
 suite with supported gaps, Eval Author names the main gaps and offers to propose
 new or improved evaluation tasks, ranked with their expected behavior, verifier,
 and supporting evidence. It explicitly asks whether you want those proposals,
-ends the turn, and waits. Accepting the findings alone does not start proposal
-work. Accepting the findings and that offer moves directly
+ends the turn, and waits. Accepting the findings can complete a fully measured
+audit while you leave the next action undecided; it does not start proposal
+work. A deferred or partial measurement remains unfinished after findings review.
+Accepting the findings and that offer moves directly
 into the proposal workflow, reusing the report, specification, selected sources,
 and prior answers.
 

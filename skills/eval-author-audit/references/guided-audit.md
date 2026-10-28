@@ -20,19 +20,48 @@ pending source selection blocks reads from that source. A pending content review
 blocks dependent measurement. Retain explicit deferrals and continue independent
 work that is already authorized.
 
-Store suite and trace selections separately, including candidates, exclusions,
-and source bounds, in `.eval-author/.working/journey-state.json`. It also owns
-completed stages, accepted content, unanswered questions, deferrals, evidence
-references, and next action. Do not write an `audit-progress.md`. Import explicit
-legacy decisions once with provenance; a saved file alone is not confirmation.
-Keep findings in `audit-coverage-report.md` and measurements in their native
-artifacts. Link the Markdown report whenever it is created or updated.
+Use the existing [journey-state CLI](../../eval-author/references/shared-prerequisites.md#state-helper-commands)
+to save the versioned `scopes.audit.lifecycle` record with the latest
+`--expected-revision`. On a stale revision, reload before applying the answer.
+Use [`audit_state.py`](../../eval-author/scripts/audit_state.py) as the schema
+source of truth and normal `show` for current audit progress. Preserve framework
+metadata and legacy scope fields when updating the lifecycle.
 
-On return, resume the pending decision or earliest unfinished, non-deferred
-stage. Changed Ethos, audit items, or traces reopen affected work and mark its
-findings stale or unmeasured. Preserve old measurements rather than altering them.
-The confirmed Ethos comes from [Ethos confirmation](../../eval-author/references/ethos-confirmation.md)
-and is not reviewed again unless relevant content changes.
+Save suite and trace selections separately, with candidates, exclusions, bounds,
+and decision provenance. Set `specification` to its file path; list the selected
+case and grader paths in `suite_files` and selected run paths in `trace_files`.
+The same record holds check approval, measurement, findings acceptance, the next
+action, and `pending`. Keep that checkpoint inside the audit lifecycle
+when switching journeys. On return, resume its applicable pending decision or
+the earliest unfinished, non-deferred milestone. State-only entry reads no
+artifacts; normal inspection reads only selected sources and retained references.
+Do not create an `audit-progress.md`. Legacy notes and existing files alone do
+not establish approval or completion.
+
+Use normal `show`'s `audit.checks_digest` for `checks_approval: {digest, source}`
+and save that approval before updating `measurement`. After native measurement
+and [report.py](../scripts/audit_spec/report.py) `--verify-existing <aggregate>`
+validation, record `measurement: {checks_digest, status, evidence, source}`.
+Its `evidence` is an explicit list of `{path, digest}` artifact references; its
+`source` identifies the verification. Use `complete` only when all selected runs
+and required methods succeeded; failed or missing work stays `partial`. Use
+`deferred` with the user's decision and reason in `source` when they choose
+independent work. Native scripts establish measurement correctness; the lifecycle
+checks retained bytes.
+
+Save `findings: {report: {path, digest}, source}` for the coverage report and bind
+`findings_review: {digest, source}` to `show`'s `audit.findings_digest`. Bind
+`next_action: {kind, findings_digest, source}` to that same current digest only
+when the user selects it. Findings remain in `audit-coverage-report.md`; link it
+whenever it is created or updated.
+
+Treat changed inputs conservatively: changes to the agent, confirmed Ethos,
+selected scope, specification bytes, or selected case, grader, or trace bytes
+reopen check review and all dependent measurement and findings. A change only to
+the findings report reopens findings review. Record findings acceptance in state
+without rewriting the report merely to mark it accepted. Acceptance can complete
+a fully measured audit while the next action remains undecided; improvement
+requires its own explicit user answer.
 
 ## 1. Confirm evals and traces
 
@@ -138,9 +167,11 @@ An inaccessible eval directory or a missing report does not establish no evals.
 Keep an unresolved eval location open and ask for an accessible source; offer
 independent specification work if useful, carrying that limitation forward.
 If the user explicitly defers suite selection and requests independent
-specification work, keep this milestone incomplete and use the accepted Ethos
-and registry. Do not present candidate suites as selected or their findings as
-findings about the user's confirmed evaluation scope.
+specification drafting, keep this milestone incomplete and use the accepted
+Ethos and registry. Retain the pending suite question; check approval, trace
+inspection, and measurement still wait for suite selection or explicit
+confirmation that no suites exist. Do not present candidate suites as selected
+or their findings as findings about the user's confirmed evaluation scope.
 
 ## 2. Define what the evals should cover
 
@@ -201,10 +232,12 @@ settles this milestone's check-in without a second prompt.
 
 When no evaluations exist, explicitly explain that Ethos and this specification
 can establish what future tests should cover. Existing agent runs can still be
-examined when selected, but their coverage is evidence about those runs, not an
-evaluation suite that does not exist. Without run evidence, proceed with the
-specification alone. Unresolved tool names remain open questions; do not invent
-names, silently omit material behaviors, or call a partial specification complete.
+examined and measured when selected, but their coverage is evidence about those
+runs and cannot complete the existing-suite audit lifecycle. Retain the
+specification-only review and offer first-eval creation. Without run evidence,
+proceed with the specification alone. Unresolved tool names remain open questions;
+do not invent names, silently omit material behaviors, or call a partial
+specification complete.
 
 ## 3. Measure coverage
 
