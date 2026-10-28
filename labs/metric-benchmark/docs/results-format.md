@@ -99,11 +99,13 @@ though the baseline and every mutant execute it separately.
 ### Execution results: `execution_results`
 
 Each object in the top-level `execution_results` array describes one agent/task
-attempt, including attempts recorded as missing.
+attempt, including attempts recorded as missing. The runner assigns an agent ID
+from its position in the execution list, such as `agent-0000` for the baseline.
+This generated ID is separate from the configured `agent_bundle_id`.
 
 | Field | Required / default | Meaning | Source |
 | --- | --- | --- | --- |
-| `agent_run_id` | Required | One logical run selected for this agent. It is an opaque ID, even when it looks like a directory path. | Runner-generated; locally `agent-0000/run-0001`, using the agent’s ordinal. |
+| `agent_run_id` | Required | One logical run selected for this agent. It is an opaque ID, even when it looks like a directory path. | Runner-generated as `<runner agent ID>/<job name>`; for example, `agent-0000/run-0001`. |
 | `agent_bundle_id` | Required | Baseline or mutant ID from the prepared agent manifest. | YAML: `agent.yml` → `baseline.agent_bundle_id` or `mutants[].agent_bundle_id`. |
 | `framework_profile_id` | Defaults to `null` | Optional profile identity; it must stay consistent within a run. | Optional producer metadata; the local runner leaves it `null`. |
 | `evaluation` | Required | Task and attempt identity, defined below. | Runner-generated identity and attempt, plus a task reference from `tasks.yml`; see below. |
@@ -118,7 +120,7 @@ attempt, including attempts recorded as missing.
 
 | Field | Required / default | Meaning | Source |
 | --- | --- | --- | --- |
-| `evaluation_id` | Required | Logical evaluation identity, shared by retries of the same task/run. | Runner-generated from the agent ordinal and YAML task ID; locally `agent-0000/inspect-files`. |
+| `evaluation_id` | Required | Logical evaluation identity, shared by retries of the same task/run. | Runner-generated as `<runner agent ID>/<task_id>`; for example, `agent-0000/inspect-files`. The task ID comes from `tasks.yml`, not the optional task name. |
 | `execution` | Required | Positive integer attempt number. | Runner-generated; the local runner sets `1`. |
 | `task` | Required | Task reference with the same fields as an inventory task. Its ID and revision must occur in the inventory. | YAML: `tasks.yml` → the matching `tasks[]` entry’s `task_id`, `revision`, and optional `name`. |
 
