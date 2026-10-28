@@ -209,6 +209,15 @@ are described below.
 | `confirmed` | Saved complete Ethos and applicable completed prerequisites, before downstream work has started; saved document confirmation and the selected pending decision. Fresh creation without a structured saved design or source choice shows the canonical first-eval source choice directly; other cases retain their continuation. A relevant blocker takes precedence. |
 | `resume` | Saved pending decision or unfinished work; current progress and question, without a welcome, initial readiness question, or invented continuation approval |
 
+For normal audit `resume`, `results`, or `confirmed`, forward the same snapshot's
+`audit_observations` from `journey_state.py show` as `facts.audit_observations`.
+The renderer derives current audit completion and the applicable saved checkpoint
+from those observations and `scopes.audit.lifecycle`; do not pass derived approval
+or completion flags. Without observations, audit completion remains unchecked.
+These facts are unavailable to other journeys or state-only stages. Pending audit
+questions never replace unresolved prerequisite or Ethos questions, and rendering
+does not persist its question projection or inspect artifact files.
+
 Known continuation prompts from earlier wording remain readable. For fresh
 creation without a structured saved design or source choice, they render as the
 combined source checkpoint instead of an extra readiness gate; other cases keep

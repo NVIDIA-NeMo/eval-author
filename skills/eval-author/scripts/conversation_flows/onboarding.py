@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from urllib.parse import urlsplit
 
+import audit_state
 import conversation_templates as shared
 import first_eval_state
 import journey_state
@@ -45,10 +46,10 @@ ROW_PREREQUISITES = {
 }
 
 
-def checklist(journey: str, state: dict | None = None, *, state_only: bool = False) -> str:
+def checklist(journey: str, state: dict | None = None, *, state_only: bool = False, audit: dict | None = None) -> str:
     rows = (
         journey_state.checklist(
-            {**state, "blockers": active_blockers(state, state_only=state_only)}, state_only=state_only
+            {**state, "blockers": active_blockers(state, state_only=state_only)}, state_only=state_only, audit=audit
         )
         if state is not None
         else [
@@ -233,8 +234,8 @@ def ethos_context(state: dict, facts: dict) -> tuple[str, str | None, str | None
     return status, link(target, "ETHOS.md"), summary
 
 
-def next_steps(state: dict, facts: dict, stage: str) -> str:
-    progress = journey_state.checklist(state)
+def next_steps(state: dict, facts: dict, stage: str, *, audit: dict | None = None) -> str:
+    progress = journey_state.checklist(state, audit=audit)
     if not progress[0]["complete"]:
         raise ValueError("Prerequisites are incomplete; record the unresolved blocker and supply its explanation")
     question = pending_question(state, facts)
@@ -253,7 +254,7 @@ def next_steps(state: dict, facts: dict, stage: str) -> str:
         raise ValueError("Confirmation pause requires confirmed ETHOS.md and no started downstream work or intent gaps")
     if stage == "confirmed" and question not in confirmation_questions:
         raise ValueError("Clear the answered review question before presenting the confirmation pause")
-    paragraphs = [shared.NEXT_STEPS, checklist(journey, state)]
+    paragraphs = [shared.NEXT_STEPS, checklist(journey, state, audit=audit)]
     if confirmed:
         if state["ethos"]["remaining_questions"]:
             raise ValueError("Resolve the saved intent questions before presenting confirmed ETHOS.md")
@@ -396,7 +397,28 @@ def render(payload: dict) -> str:
     fact_keys = {"rows", "recommendations", "blockers"}
     if not state_only:
         fact_keys |= {"ethos", "question", "draft"}
+    if state["journey"] == "audit" and stage in {"resume", "results", "confirmed"}:
+        fact_keys.add("audit_observations")
     facts = mapping(payload.get("facts", {}), "facts", fact_keys)
+    audit = None
+    if "audit_observations" in facts:
+        observed = facts["audit_observations"]
+        if not isinstance(observed, dict):
+            raise ValueError("Supply freshly observed audit artifacts")
+        lifecycle = audit_state.record(state)
+        if lifecycle is None:
+            raise ValueError("Audit observations require a saved audit lifecycle")
+        audit = audit_state.derive(state, observed)
+        state = journey_state.audit_presentation_state(state, audit)
+        recorded = lifecycle["pending"]
+        if (
+            recorded
+            and audit
+            and not audit["pending_checkpoint"]
+            and "question" in facts
+            and all(row["complete"] for row in journey_state.checklist(state)[:2])
+        ):
+            raise ValueError("The saved audit checkpoint is stale; record the current question before rendering")
     if not state_only:
         pending_question(state, facts)  # Reject contradictory questions even on blocked turns.
     paragraphs = []
@@ -414,5 +436,5 @@ def render(payload: dict) -> str:
             raise ValueError("Prerequisites are incomplete; record the unresolved blocker and supply its explanation")
         paragraphs.append(copy.PREREQUISITES_COMPLETE)
     else:
-        paragraphs.append(next_steps(state, facts, stage))
+        paragraphs.append(next_steps(state, facts, stage, audit=audit))
     return "\n\n".join(paragraphs) + "\n"

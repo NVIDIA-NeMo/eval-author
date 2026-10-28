@@ -125,7 +125,7 @@ The audit uses four artifact names consistently, regardless of review state:
 | **Audit specification** | `.eval-author/audit.md` | Intended checks and evidence requirements |
 | **Audit coverage report** | `.eval-author/audit-coverage-report.md` | Readable scope, test mappings, findings, limits, and next actions |
 | **Coverage measurements (JSON)** | `.eval-author/audit-coverage-report.json` | Generated measured results aggregated over the selected runs, when available |
-| **Journey state (internal)** | `.eval-author/.working/journey-state.json` | Shared conversation state, selected paths, pending questions, and next action |
+| **Journey state (internal)** | `.eval-author/.working/journey-state.json` | Saved scope and review decisions, partial progress, pending questions, and next action |
 
 Start with the Audit coverage report. It links the specification and available
 supporting evidence. A mapping to an existing test describes what that test is
@@ -147,8 +147,10 @@ moving to the named next milestone. Approving this scope is separate from
 reviewing the findings at the final report milestone.
 
 Measurement details live under `.eval-author/audit-measurements/`;
-the Coverage measurements (JSON) file combines the available results. The Audit coverage
-report explains what those results mean.
+the Coverage measurements (JSON) file combines only the current selected inputs.
+The Audit coverage report explains what those results mean. Journey state saves
+a measurement summary and references its evidence; failed inputs and missing
+methods keep measurement partial.
 
 Without usable traces, coverage is **unmeasured**, not 0%; the specification can
 still be completed and the report prepared while measurement remains
@@ -169,10 +171,10 @@ updates the report, its final response explicitly says so and links it, even if 
 audit stops at an intermediate checkpoint. When an audit resumes, changed
 inputs are reconciled with the report before its findings are treated as current.
 
-Open Audit progress for the current milestone, selected eval
-and trace paths, limitations, answered or pending questions, and next action.
-This workflow record lets Eval Author resume unfinished work without repeating
-completed milestones and stays separate from the report and evidence.
+Journey state saves audit decisions and the pending checkpoint across chats
+and workflow switches. Accepting findings records the answer without rewriting
+the report to mark it accepted. See [audit resumption](existing-evals.md#audit-coverage)
+for how changed inputs reopen review and measurement.
 
 At the report review, Eval Author names the main supported gaps and offers to
 [propose new or improved evaluation tasks](existing-evals.md#propose-new-evaluations).

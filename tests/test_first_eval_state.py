@@ -1304,7 +1304,8 @@ def test_normal_audit_metadata_operations_preserve_creation_without_reading_its_
         assert updated["ethos"]["stage"] == "review" and updated["ethos"]["confirmed_digest"] is None
         assert updated["next_handoff"] == "ethos-orchestrate"
         assert question == "ETHOS.md changed or is unavailable; review its intended behavior again."
-        assert not updated["journey_status"]
+        assert updated["journey_status"]["create"] == "complete"
+        assert updated["scopes"]["create"]["needs_review"]
     else:
         assert updated["ethos"] == original["ethos"]
         assert updated["journey_status"]["create"] == "complete"
