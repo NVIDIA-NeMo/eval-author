@@ -419,7 +419,7 @@ def test_task_paths_keep_same_named_parent_directories_distinct(tmp_path):
         paths.append(path)
     first = report.refresh(tmp_path)
     assert [t["path"] for t in first["tasks"]] == sorted(paths)
-    assert len({report.task_sort(t)[0] for t in first["tasks"]}) == 3
+    assert len({t["id"] for t in first["tasks"]}) == 3
     # Search scope and overlapping roots do not define sections or duplicate rows.
     second = report.refresh(tmp_path, task_roots=[".", ".eval-author/suites/chat/tasks"])
     assert second["tasks"] == first["tasks"]
@@ -759,7 +759,8 @@ def test_harbor_and_gym_workloads_share_reports_without_harbor_links_for_gym(tmp
 
 
 @pytest.mark.parametrize("grading_kind", ["Custom code", "LLM-as-judge", "Custom code + LLM-as-judge"])
-def test_browser_task_titles_graders_and_gym_actions(tmp_path, grading_kind):
+@pytest.mark.parametrize("with_proposals", [False, True])
+def test_browser_task_titles_graders_and_gym_actions(tmp_path, grading_kind, with_proposals):
     node = shutil.which("node")
     if not node:
         pytest.skip("Node is needed to exercise task rendering")
@@ -770,10 +771,19 @@ def test_browser_task_titles_graders_and_gym_actions(tmp_path, grading_kind):
     source_path = "environments/gym case/manifest.yaml"
     write(tmp_path, source_path, "name: example\n")
     write(tmp_path, "environments/gym case/README.md", "## Behavior under test\nNeMo Gym.\n## Expected result\nSaved.")
+    if with_proposals:
+        import first_eval_state
+        import journey_state
+        from test_first_eval_state import start
+
+        start((journey_state, first_eval_state), tmp_path)
     data = report.refresh(
         tmp_path,
         patch={"tasks": {harbor_path: {"grading_kind": grading_kind, "grading_rule": "All state checks pass."}}},
     )
+    proposal_count = 2 if with_proposals else 0
+    assert all(item["status"] == "proposed" for item in data["tasks"][:proposal_count])
+    assert [item["path"] for item in data["tasks"][proposal_count:]] == [harbor_path, source_path]
     source = (SCRIPTS / "report-template.html").read_text()
     helper = source[source.index("function drawCases()") : source.index("function runRow(")]
     program = r"""
@@ -798,6 +808,9 @@ const context={data:input.data,byId:id=>ids[id],
 vm.createContext(context);vm.runInContext(input.helper+'drawCases();',context);
 function descendants(node){return [node,...node.children.flatMap(descendants)];}
 function taskRows(){return descendants(ids['case-tables']).filter(node=>node.tag==='tr'&&node.dataset.task);}
+assert.equal(descendants(ids['case-tables']).filter(node=>node.tag==='table').length,1);
+assert(!descendants(ids['case-tables']).some(node=>node.tag==='h2'));
+assert.deepEqual(taskRows().map(row=>row.dataset.task),input.data.tasks.map(task=>task.id));
 for(const table of descendants(ids['case-tables']).filter(node=>node.tag==='table')){
   assert.deepEqual(table.children[0].children[0].children.map(node=>node.textContent),
     ['Task','Status','Behavior','Expected outcome','Verifier','Actions']);
@@ -812,7 +825,15 @@ for(const row of taskRows()){
   assert.equal(row.children[1].children[1].attrs.role,'tooltip');
   assert.equal(row.children[1].children[0].attrs['aria-describedby'],row.children[1].children[1].id);
   assert.equal(row.children[4].children[0].textContent,task.grading_kind);
-  assert.equal(row.children[4].children[1].textContent,task.grading_summary||'No verifier description documented in README.');
+  assert.equal(row.children[4].children[1].textContent,task.status==='proposed'?(task.proposed_grading||'No grading design saved.'):(task.grading_summary||'No verifier description documented in README.'));
+  if(task.status==='proposed'){
+    assert.equal(row.children[5].children.length,1);
+    assert.equal(row.children[5].children[0].textContent,'Not authored');
+    assert(!descendants(row.children[0]).some(node=>node.className==='small muted task-path'));
+  }
+}
+if(input.data.plan_counts){
+  assert(descendants(ids['case-tables']).some(node=>node.textContent==='Saved plan: 2 proposed · 0 authored · 0 validated · 0 executed.'));
 }
 assert(!descendants(ids['case-tables']).some(node=>String(node.textContent).includes('All state checks pass.')));
 const links=descendants(ids['case-tables']).filter(node=>node.tag==='a');
@@ -830,12 +851,24 @@ assert.equal(taskRows()[0].children[0].children[0].textContent,'gym case');
 ids.search.value='approve refunds';vm.runInContext('drawCases();',context);
 assert.equal(taskRows().length,1);
 assert.equal(taskRows()[0].children[0].children[0].textContent,'R1 (Policy): Approve refunds');
-const harbor=input.data.tasks.find(task=>task.provider==='harbor');
+const harbor=input.data.tasks.find(task=>task.provider==='harbor'&&task.path);
+harbor.plan_task_id='IMP-01';
+for(const query of ['IMP-01','imp-01']){
+  ids.search.value=query;vm.runInContext('drawCases();',context);
+  assert.deepEqual(taskRows().map(row=>row.dataset.task),[harbor.id]);
+  assert(descendants(taskRows()[0]).some(node=>node.textContent==='Task ID: IMP-01'));
+  assert.equal(ids['no-cases'].hidden,true);
+}
 ids.search.value=harbor.grading_kind;vm.runInContext('drawCases();',context);
 assert.equal(taskRows().length,1);
 delete harbor.title;
 vm.runInContext('drawCases();',context);
 assert.equal(taskRows()[0].children[0].children[0].textContent,'org/refund');
+if(input.data.plan_counts){
+  ids.search.value='proposed';vm.runInContext('drawCases();',context);
+  assert.equal(taskRows().length,2);
+  assert(taskRows().every(row=>row.children[1].children[0].textContent==='Proposed'));
+}
 """
     result = subprocess.run(
         [node, "-e", program],
@@ -1425,26 +1458,44 @@ def markdown_tokens(tmp_path):
     return MarkdownIt("commonmark").enable("table").parse((tmp_path / ".eval-author/README.md").read_text())
 
 
-def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path):
+@pytest.mark.parametrize("with_proposals", [False, True])
+def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path, with_proposals):
     path = task(
         tmp_path,
         readme="# Refund policy\n## Behavior under test\nRefund authorization.\n## Expected result\nOnly approved refunds are stored.\n",
     )
     other = "evals/other suite/tasks/with # fragment"
     shutil.copytree(tmp_path / path, tmp_path / other)
+    sibling = task(tmp_path, name="alpha", readme="# Alpha task\n")
+    if with_proposals:
+        import first_eval_state
+        import journey_state
+        from test_first_eval_state import start
+
+        start((journey_state, first_eval_state), tmp_path)
     run_path = job(tmp_path)
     trial(tmp_path, run_path + "/pass")
     trial(tmp_path, run_path + "/fail", reward=0)
     patch = rule(run_path)
-    patch["tasks"] = {path: {"grading_kind": "deterministic", "grading_rule": "All state checks pass."}}
+    patch["tasks"] = {
+        path: {"display_id": "A-refund", "grading_kind": "deterministic", "grading_rule": "All state checks pass."},
+        sibling: {"display_id": "Z-alpha"},
+        other: {"display_id": "00-other"},
+    }
     data = report.refresh(tmp_path, patch=patch)
+    proposal_count = 2 if with_proposals else 0
+    assert all(item["status"] == "proposed" for item in data["tasks"][:proposal_count])
+    assert [item["path"] for item in data["tasks"][proposal_count:]] == [path, sibling, other]
     tokens = markdown_tokens(tmp_path)
     headings = [(token.tag, tokens[i + 1].content) for i, token in enumerate(tokens) if token.type == "heading_open"]
     assert [(tag, text) for tag, text in headings if tag == "h2"] == [("h2", "Tasks"), ("h2", "Runs")]
-    assert len([token for token in tokens if token.type == "table_open"]) == 3
-    assert ("h3", "tasks") in headings
-    assert ("h3", "evals/other suite/tasks") in headings
+    assert len([token for token in tokens if token.type == "table_open"]) == 2
+    assert not any(tag == "h3" for tag, _ in headings)
     raw = (tmp_path / ".eval-author/README.md").read_text()
+    rows = [line for line in raw.splitlines() if line.startswith("| <strong><code>")]
+    assert len(rows) == len(data["tasks"])
+    for row, item in zip(rows, data["tasks"], strict=True):
+        assert row.startswith("| <strong><code>" + report.markdown_text(item["title"] or item["name"]) + "</code>")
     assert "Settings" not in raw
     assert "http://127.0.0.1:8081/task-definitions/with%20%23%20fragment" in raw
     assert "[Task README](../evals/other%20suite/tasks/with%20%23%20fragment/README.md)" in raw
@@ -1454,8 +1505,9 @@ def test_markdown_mirrors_report_tabs_rows_and_links(tmp_path):
     text = " ".join(child.content for token in tokens for child in token.children or [] if child.type == "text")
     for item in data["tasks"]:
         for field in ("title", "behavior", "expected_outcome"):
-            assert item[field] in text
-    assert "| Task | Status | Behavior | Expected outcome | Verifier | Actions |" in raw
+            if item[field]:
+                assert item[field] in text
+    assert raw.count("| Task | Status | Behavior | Expected outcome | Verifier | Actions |") == 1
     assert "| Custom code<br>" in raw
     assert "All state checks pass." not in text
     assert "| Not documented<br>" in raw
@@ -1629,7 +1681,9 @@ def test_markdown_preserves_warnings_missing_data_and_stale_status(tmp_path):
         assert report.markdown_text(warning) in raw
     assert "Inventory unverified" in raw
     assert "Saved Task README snapshot" in raw
-    assert "Review saved artifacts" in raw
+    assert "Review saved artifacts" not in raw
+    assert f"[Task README](tasks/{Path(path).name}/README.md)" not in raw
+    assert "[View task]" not in raw
     assert "http://127.0.0.1" not in raw
     assert "Source artifacts were not found in this scan" in raw
     report.refresh(tmp_path, task_roots=["empty"], jobs_roots=["empty"])

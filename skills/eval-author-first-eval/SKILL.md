@@ -139,7 +139,8 @@ unresolved execution details do not prevent this design review. Consult
 [environment preparation](../eval-author-environment/SKILL.md) when that work is due.
 Retain an untestable requirement as blocked; only the user can change its scope.
 
-Save the proposed design and render `first_eval_proposal`. The initial review
+Save the proposed design, refresh its [report projection](../eval-author/references/suite-readme.md#saved-first-evaluation-plan),
+and render `first_eval_proposal`. The initial review
 starts with the overall progress checklist, then the task table, scope explanation,
 chosen first task, and final feedback question defined by the template. It contains
 no execution-settings checklist, run-only blockers, or spending request. If a design
@@ -202,8 +203,8 @@ Reports may be refreshed as drafts while validation remains blocked, without
 presenting an approval question or claiming review readiness.
 
 The report's Runs table currently reads native Harbor jobs; native Gym evidence
-remains linked from the suite README. Keep planned-but-uncreated tasks, separate
-review/validation/execution findings, exact attempt navigation, model identity,
+remains linked from the suite README. Keep separate review/validation/execution
+findings, exact attempt navigation, model identity,
 and evidence limitations explicit in the saved summary. Do not claim missing
 report capabilities exist; record required report-owner work as a blocker or
 limitation instead of inventing UI behavior.
