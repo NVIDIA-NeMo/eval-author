@@ -3,6 +3,7 @@
 
 import copy
 import importlib
+import shutil
 from pathlib import Path
 
 import pytest
@@ -290,6 +291,55 @@ def test_ethos_review_pauses_audit_evidence_reads_until_reconfirmed(modules, tmp
     )
     state.view(confirmed)
     assert set(reads) == set(observed["files"])
+
+
+@pytest.mark.parametrize("relocation", ["move", "copy"])
+def test_rebind_reopens_audit_approval_after_unchanged_ethos_is_reconfirmed(modules, tmp_path, relocation):
+    state, audit = modules
+    original = tmp_path / "original"
+    original.mkdir()
+    saved = ready(modules, original)
+    _, lifecycle, observed = reviewed(audit)
+    saved["scopes"]["audit"] = {"lifecycle": lifecycle}
+    saved["journey_status"]["audit"] = "complete"
+    for name in observed["files"]:
+        path = original / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(name)
+    observed = audit.observe(original, saved)
+    for ref in lifecycle["measurement"]["evidence"] + [lifecycle["findings"]["report"]]:
+        ref["digest"] = observed["files"][ref["path"]]
+    digest = audit.derive(saved, observed)["checks_digest"]
+    lifecycle["checks_approval"]["digest"] = lifecycle["measurement"]["checks_digest"] = digest
+    lifecycle["findings_review"]["digest"] = audit.derive(saved, observed)["findings_digest"]
+    state.save(original, saved)
+    assert state.view(state.load_state(original))["checklist"][2]["complete"]
+    evidence = {name: (original / name).read_bytes() for name in [*observed["files"], "ETHOS.md"]}
+
+    relocated = tmp_path / "relocated"
+    if relocation == "move":
+        original.rename(relocated)
+    else:
+        shutil.copytree(original, relocated)
+    rebound = state.rebind(relocated, previous_repository=str(original), expected_revision=saved["revision"])
+    state.update(relocated, {"prerequisites": saved["prerequisites"]}, expected_revision=rebound["revision"])
+    state.confirm_ethos(
+        relocated,
+        reviewed_digest=saved["ethos"]["confirmed_digest"],
+        source="User reconfirmed unchanged intent in the relocated repository",
+        validation="Unchanged Ethos passed validation",
+    )
+    resumed = state.view(state.load_state(relocated))
+    assert all(row["complete"] for row in resumed["checklist"][:2])
+    assert resumed["audit"]["stage"] == "checks_review"
+    assert not any(
+        resumed["audit"][field]
+        for field in ("checks_approved", "measurement_complete", "findings_reviewed", "complete")
+    )
+    assert not resumed["checklist"][2]["complete"]
+    assert audit.record(resumed["state"]) == lifecycle
+    assert resumed["audit_observations"] == observed
+    assert all((relocated / name).read_bytes() == contents for name, contents in evidence.items())
 
 
 def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path):

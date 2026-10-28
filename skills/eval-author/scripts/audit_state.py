@@ -235,6 +235,7 @@ def derive(state: dict, observed: dict) -> dict | None:
     ):
         checks_digest = fingerprint(
             {
+                "repository": state["repository"],
                 "agent": state["agent"],
                 "ethos": {key: state["ethos"][key] for key in ("path", "confirmed_digest")},
                 "scope": {
