@@ -47,6 +47,10 @@ as a dictionary.
 
 ## Report format: `validation.json`
 
+The validation report records what passed. Generally speaking, this is not needed
+downstream, but can be useful to sanity check that the results validated are what
+is expected.
+
 | Field | Meaning | Source |
 | --- | --- | --- |
 | `run_id` | Execution identity shared by the selected cases. | `execution.json` → `run_id`, originally the runner’s `--run-id`. |
