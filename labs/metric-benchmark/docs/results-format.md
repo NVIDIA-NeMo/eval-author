@@ -65,32 +65,32 @@ requirements for the native evidence they reference.
 JSON objects reject unknown fields and duplicate keys. Numbers must be finite;
 identifiers and reasons must be nonblank strings. There is no `schema_version`
 field in the current format. Optional fields may be omitted; serialized examples
-also show their explicit defaults. There is no `artifact_type` field: the
-results reader already knows which format it is loading.
+also show their explicit defaults.
 
-| Field | Required / default | Meaning |
-| --- | --- | --- |
-| `run_id` | Required | ID supplied by the caller when starting this execution of the experiment; the local runner takes it from `--run-id`. |
-| `task_inventory` | Required | Object containing the list of tasks configured for this case example, including tasks whose executions failed or are missing. |
-| `execution_results` | Required, nonempty | Outcomes for each agent/task pair: one entry per attempt, including explicit entries for missing executions. |
+| Field | Required / default | Meaning | Source |
+| --- | --- | --- | --- |
+| `run_id` | Required | ID supplied by the caller when starting this execution of the experiment; the local runner takes it from `--run-id`. | CLI: `--run-id`. |
+| `task_inventory` | Required | Object containing the list of tasks configured for this case example, including tasks whose executions failed or are missing. | YAML: `tasks.yml` → `tasks`, referenced by `experiment.yml` → `cases[].tasks.path`. |
+| `execution_results` | Required, nonempty | Outcomes for each agent/task pair: one entry per attempt, including explicit entries for missing executions. | Runner-generated from the configured agents/tasks and Harbor trial results. |
 
 For example, starting the runner with `--run-id trial-001` produces
-`"run_id": "trial-001"` in each case example's results index. The caller
-chooses this value; it is not generated automatically or read from the
-configuration's `benchmark_id`. The benchmark ID identifies the definition;
-the run ID identifies an execution of it. The per-result `agent_run_id` below
+`"run_id": "trial-001"` in each case example's results index. The per-result `agent_run_id` below
 identifies one agent's run within that execution.
+
+The sources below describe the local runner. `agent.yml` and `tasks.yml` are the
+manifest files referenced by `experiment.yml`; generated ID spellings are runner
+conventions, not requirements imposed by the validator.
 
 ### Task inventory: `task_inventory`
 
 The `task_inventory` object contains a required, nonempty `tasks` array. Each
 object in that array describes one task configured for the case example:
 
-| Field | Required / default | Meaning |
-| --- | --- | --- |
-| `task_id` | Required | Task ID from the prepared task manifest. |
-| `revision` | Required | Positive integer identifying the task revision. |
-| `name` | Defaults to `null` | Optional human-readable task name. |
+| Field | Required / default | Meaning | Source |
+| --- | --- | --- | --- |
+| `task_id` | Required | Task ID from the prepared task manifest. | YAML: `tasks.yml` → `tasks[].task_id`. |
+| `revision` | Required | Positive integer identifying the task revision. | YAML: `tasks.yml` → `tasks[].revision`. |
+| `name` | Defaults to `null` | Optional human-readable task name. | YAML: optional `tasks.yml` → `tasks[].name`; otherwise `null`. |
 
 Task IDs are unique. The inventory must match the prepared case exactly,
 including task order and optional names. Each task is listed once here, even
@@ -101,24 +101,26 @@ though the baseline and every mutant execute it separately.
 Each object in the top-level `execution_results` array describes one agent/task
 attempt, including attempts recorded as missing.
 
-| Field | Required / default | Meaning |
-| --- | --- | --- |
-| `agent_run_id` | Required | One logical run selected for this agent. It is an opaque ID, even when it looks like a directory path. |
-| `agent_bundle_id` | Required | Baseline or mutant ID from the prepared agent manifest. |
-| `framework_profile_id` | Defaults to `null` | Optional profile identity; it must stay consistent within a run. |
-| `evaluation` | Required | Task and attempt identity, defined below. |
-| `status` | Required | Native outcome: `succeeded`, `error`, or an explicit `missing` execution. |
-| `metrics` | Defaults to `{}` in the model | Map from measurement names to score objects. Validation requires the experiment's configured metric to be present. |
-| `native_results_path` | Required | Relative trial-directory path, or a nonexistent location for a missing execution. |
-| `native_results_format` | Required | Use `directory` for the current native validator. The model also recognizes `tar.gz`, but observed archives are not supported by this validator. |
-| `unavailable_evidence` | Defaults to `{}` | Map from evidence names to reasons. Missing executions require a `native_results` reason. |
-| `outcome_category` | Defaults to `null` | Optional descriptive metadata; it does not determine status or scoring. |
+| Field | Required / default | Meaning | Source |
+| --- | --- | --- | --- |
+| `agent_run_id` | Required | One logical run selected for this agent. It is an opaque ID, even when it looks like a directory path. | Runner-generated; locally `agent-0000/run-0001`, using the agent’s ordinal. |
+| `agent_bundle_id` | Required | Baseline or mutant ID from the prepared agent manifest. | YAML: `agent.yml` → `baseline.agent_bundle_id` or `mutants[].agent_bundle_id`. |
+| `framework_profile_id` | Defaults to `null` | Optional profile identity; it must stay consistent within a run. | Optional producer metadata; the local runner leaves it `null`. |
+| `evaluation` | Required | Task and attempt identity, defined below. | Runner-generated identity and attempt, plus a task reference from `tasks.yml`; see below. |
+| `status` | Required | Native outcome: `succeeded`, `error`, or an explicit `missing` execution. | Harbor: derived from the native trial outcome. A producer explicitly declares `missing`. |
+| `metrics` | Defaults to `{}` in the model | Map from measurement names to score objects. Validation requires the experiment's configured metric to be present. | YAML: `experiment.yml` → `scoring.metric` (default `reward`) selects the key. Harbor: `result.json` → `verifier_result.rewards` supplies the value; the runner derives unavailable reasons. |
+| `native_results_path` | Required | Relative trial-directory path, or a nonexistent location for a missing execution. | Runner-generated relative path to the Harbor trial directory; a producer supplies a placeholder for missing evidence. |
+| `native_results_format` | Required | Use `directory` for the current native validator. The model also recognizes `tar.gz`, but observed archives are not supported by this validator. | Runner-generated; the local runner sets `directory`. |
+| `unavailable_evidence` | Defaults to `{}` | Map from evidence names to reasons. Missing executions require a `native_results` reason. | Optional producer-supplied reasons; the local runner leaves this empty and rejects incomplete jobs. |
+| `outcome_category` | Defaults to `null` | Optional descriptive metadata; it does not determine status or scoring. | Optional producer metadata; the local runner leaves it `null`. |
 
 `evaluation` contains:
 
-- `evaluation_id`: the logical evaluation identity, shared by retries of the same task/run.
-- `execution`: a positive integer attempt number.
-- `task`: a task reference with the same fields as an inventory task. Its ID and revision must occur in the inventory.
+| Field | Required / default | Meaning | Source |
+| --- | --- | --- | --- |
+| `evaluation_id` | Required | Logical evaluation identity, shared by retries of the same task/run. | Runner-generated from the agent ordinal and YAML task ID; locally `agent-0000/inspect-files`. |
+| `execution` | Required | Positive integer attempt number. | Runner-generated; the local runner sets `1`. |
+| `task` | Required | Task reference with the same fields as an inventory task. Its ID and revision must occur in the inventory. | YAML: `tasks.yml` → the matching `tasks[]` entry’s `task_id`, `revision`, and optional `name`. |
 
 Every `(evaluation_id, execution)` pair is unique across the index. Reusing an
 `evaluation_id` must preserve the run and task identity. An `agent_run_id` identifies
@@ -211,14 +213,14 @@ The output filename is chosen by the caller. Keep it outside the results root.
 A report is produced only after all checks succeed; explicitly unavailable
 observations do not themselves cause validation to fail.
 
-| Field | Meaning |
-| --- | --- |
-| `case_id` | Selected prepared case. |
-| `run_id` | Execution identity copied from the index. |
-| `expected_pairs` | Number of configured agents multiplied by number of tasks. |
-| `observations` | Number of execution entries, including missing entries and retries. |
-| `unavailable` | Entries with null configured measurements, each containing `agent`, `task`, `attempt`, and `reason`. |
-| `files` | Map of relative evidence-file paths to `sha256:<hex>` digests. |
+| Field | Meaning | Source |
+| --- | --- | --- |
+| `case_id` | Selected prepared case. | YAML: `experiment.yml` → `cases[].case_id`, selected by the validator’s `--case` flag. |
+| `run_id` | Execution identity copied from the index. | Copied from `results.json` → `run_id`, originally supplied by the execution CLI’s `--run-id`. |
+| `expected_pairs` | Number of configured agents multiplied by number of tasks. | Validator-generated from the selected case’s `agent.yml` and `tasks.yml` manifests. |
+| `observations` | Number of execution entries, including missing entries and retries. | Validator-generated count of `results.json` → `execution_results`. |
+| `unavailable` | Entries with null configured measurements, each containing `agent`, `task`, `attempt`, and `reason`. | Validator-generated from execution entries whose configured metric value is `null`. |
+| `files` | Map of relative evidence-file paths to `sha256:<hex>` digests. | Validator-generated by hashing evidence files under CLI `--results-root`. |
 
 The file manifest covers ordinary files under the results root except the
 root-level `results.json`. Consumers hash the index separately; an execution
