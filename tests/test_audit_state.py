@@ -77,10 +77,18 @@ def reviewed(audit):
 
 
 @pytest.mark.parametrize(
-    "stage", ["suite_selection", "trace_selection", "checks_review", "findings_review", "next_action"]
+    "stage,partial",
+    [
+        (stage, False)
+        for stage in ("suite_selection", "trace_selection", "checks_review", "findings_review", "next_action")
+    ]
+    + [("findings_review", True), ("next_action", True)],
 )
-def test_restart_resumes_each_saved_decision(audit, monkeypatch, stage):
+def test_restart_resumes_each_saved_decision(audit, monkeypatch, stage, partial):
     state, value, observed = reviewed(audit)
+    if partial:
+        value["measurement"]["status"] = "partial"
+        value["findings_review"]["digest"] = audit.derive(state, observed)["findings_digest"]
     if stage == "suite_selection":
         value["suites"] = audit.new_record()["suites"]
     elif stage == "trace_selection":
@@ -101,6 +109,56 @@ def test_restart_resumes_each_saved_decision(audit, monkeypatch, stage):
     resumed = audit.derive(json.loads(json.dumps(state)), observed)
     assert resumed["stage"] == stage
     assert resumed["pending_checkpoint"] == value["pending"]
+    if partial:
+        assert not resumed["measurement_complete"] and not resumed["complete"]
+        previous = copy.deepcopy(state)
+        if stage == "findings_review":
+            value["findings_review"] = {"digest": resumed["findings_digest"], "source": "User accepts partial findings"}
+        else:
+            value["next_action"] = {
+                "kind": "improve",
+                "findings_digest": resumed["findings_digest"],
+                "source": "User requests improvements",
+            }
+        audit.transition(Path("/synthetic"), previous, state)
+        answered = audit.derive(state, observed)
+        assert answered["stage"] == "measurement" and answered["pending_checkpoint"] is None
+        assert answered["findings_reviewed"] and answered["next_action_current"] == (stage == "next_action")
+        assert not answered["measurement_complete"] and not answered["complete"]
+
+
+@pytest.mark.parametrize(
+    "stage,change",
+    [
+        ("findings_review", "evidence"),
+        ("findings_review", "report"),
+        ("next_action", "evidence"),
+        ("next_action", "report"),
+        ("next_action", "approval"),
+    ],
+)
+def test_partial_checkpoint_requires_current_findings_and_applicable_decision(audit, monkeypatch, stage, change):
+    state, value, observed = measured(audit)
+    value["measurement"]["status"] = "partial"
+    digest = audit.derive(state, observed)["findings_digest"]
+    if stage == "next_action":
+        value["findings_review"] = {"digest": digest, "source": "User accepts partial findings"}
+    previous = copy.deepcopy(state)
+    value["pending"] = {"stage": stage, "digest": digest, "question": "Continue?", "source": "Presented findings"}
+    assert audit.derive(state, observed)["pending_checkpoint"] == value["pending"]
+    if change == "approval":
+        value["findings_review"] = None
+    else:
+        ref = value["findings"]["report"] if change == "report" else value["measurement"]["evidence"][0]
+        observed["files"][ref["path"]] = audit.fingerprint("changed bytes")
+        if change == "evidence":
+            value["pending"]["digest"] = audit.derive(state, observed)["findings_digest"]
+    result = audit.derive(state, observed)
+    assert result["stage"] == "measurement" and result["pending_checkpoint"] is None
+    assert not result["measurement_complete"] and not result["complete"]
+    monkeypatch.setattr(audit, "observe", lambda *_: observed)
+    with pytest.raises(ValueError, match="Pending audit checkpoint"):
+        audit.transition(Path("/synthetic"), previous, state)
 
 
 @pytest.mark.parametrize("change", ["agent", "ethos", "specification", "suite", "trace", "selection", "exclusion"])
