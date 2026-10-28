@@ -30,7 +30,9 @@ def benchmark_identity(loaded: LoadedBenchmark) -> str:
         sources.extend(source for agent in case.agents() for source in agent.inputs.values())
         for source in sources:
             if source.sha256 is None and source.path not in unsigned:
-                unsigned[source.path] = input_digest(source.resolve(prepared.root, allow_unsigned=True))
+                unsigned[source.path] = input_digest(
+                    source.resolve(prepared.root, allow_unsigned=prepared.allow_unsigned)
+                )
     if not unsigned:
         return loaded.identity
     return digest_bytes(json_bytes({"benchmark_sha256": loaded.identity, "unsigned_inputs": unsigned}))
@@ -54,17 +56,13 @@ def run_harbor(config: JobConfig) -> None:
     asyncio.run(run())
 
 
-def job_configuration(loaded: LoadedBenchmark, prepared: LoadedCase, agent_index: int, root: Path) -> JobConfig:
+def job_configuration(
+    loaded: LoadedBenchmark, prepared: LoadedCase, agent_index: int, root: Path, paths: list[Path]
+) -> JobConfig:
     case = prepared.case
     settings = loaded.definition.execution
     if set(settings.environment) - EnvironmentConfig.model_fields.keys():
         raise ValueError("unknown Harbor environment setting")
-    paths = [
-        case.task_sources[t.task_id].resolve(prepared.root, allow_unsigned=prepared.allow_unsigned)
-        for t in sorted(case.task_inventory.tasks, key=lambda t: t.key())
-    ]
-    if len(set(paths)) != len(paths):
-        raise ValueError(f"case {case.case_id}: task sources must have distinct paths")
     return JobConfig.model_validate(
         {
             "job_name": "run-0001",
@@ -150,19 +148,26 @@ def execute_benchmark(
     output = output.resolve()
     # Resolve and validate all jobs before launching any, so a bad later case
     # cannot spend a valid earlier case's execution budget.
-    jobs = {
-        (ordinal, i): job_configuration(loaded, prepared, i, case_root(output, ordinal))
-        for ordinal, prepared in enumerate(loaded.cases.values())
-        for i in range(len(prepared.case.agents()))
+    jobs = {}
+    for ordinal, prepared in enumerate(loaded.cases.values()):
+        case = prepared.case
+        paths = [
+            case.task_sources[t.task_id].resolve(prepared.root, allow_unsigned=prepared.allow_unsigned)
+            for t in sorted(case.task_inventory.tasks, key=lambda t: t.key())
+        ]
+        if len(set(paths)) != len(paths):
+            raise ValueError(f"case {case.case_id}: task sources must have distinct paths")
+        for i in range(len(case.agents())):
+            jobs[ordinal, i] = job_configuration(loaded, prepared, i, case_root(output, ordinal), paths)
+    inputs_path = output / "execution-inputs.json"
+    inputs = {
+        "benchmark_sha256": identity,
+        "benchmark": loaded.definition.model_dump(mode="json"),
+        "run_id": run_id,
     }
-    write_json(
-        output / "execution-inputs.json",
-        {
-            "benchmark_sha256": identity,
-            "benchmark": loaded.definition.model_dump(mode="json"),
-            "run_id": run_id,
-        },
-    )
+    if inputs_path.exists() and read_json(inputs_path) != inputs:
+        raise ValueError("benchmark inputs, configuration, or run ID changed; use a new output directory")
+    write_json(inputs_path, inputs)
     indexes = {}
     for ordinal, prepared in enumerate(loaded.cases.values()):
         case = prepared.case

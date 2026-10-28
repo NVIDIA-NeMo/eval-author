@@ -40,12 +40,67 @@ def test_order_full_matrix_and_verified_resume(tmp_path):
     raw = read_json(case_root(output, 0) / "results.json")
     assert isinstance(raw, dict)
     assert len(raw["execution_results"]) == 9
-    with pytest.raises(ValueError, match="different contents"):
+    with pytest.raises(ValueError, match="changed; use a new output directory"):
         execute_benchmark(loaded, "other-run", output, runner=runner)
     evidence = case_root(output, 0) / raw["execution_results"][0]["native_results_path"] / "result.json"
     evidence.write_text("{}")
     with pytest.raises(ValueError, match="job changed"):
         execute_benchmark(loaded, "run", output, runner=runner)
+
+
+def test_two_cases_produce_distinct_results_and_resume(tmp_path):
+    import yaml
+    from metric_benchmark.io import input_digest
+    from metric_benchmark.validation import validate_experiment_results
+
+    path, definition = prepared_benchmark(tmp_path / "inputs")
+    first = definition["cases"][0]
+    agent_path = path.parent / "second-agent.yml"
+    agents = yaml.safe_load((path.parent / first["agent"]["path"]).read_text())
+    agents["baseline"]["agent_bundle_id"] = "second-baseline"
+    agents["baseline"]["harbor"] = {"name": "nop"}
+    agents["mutants"] = [{**agents["mutants"][0], "agent_bundle_id": "second-mutant", "harbor": {"name": "oracle"}}]
+    agent_path.write_text(yaml.safe_dump(agents))
+    definition["cases"].append(
+        {**first, "case_id": "second-case", "agent": {"path": agent_path.name, "sha256": input_digest(agent_path)}}
+    )
+    path.write_text(yaml.safe_dump(definition))
+    loaded = load_benchmark(path)
+    output = tmp_path / "out"
+    calls = []
+
+    def runner(config):
+        calls.append((config.jobs_dir.relative_to(output).parts[1], config.agents[0].name))
+        fake_harbor(config)
+
+    manifest = execute_benchmark(loaded, "run", output, runner=runner)
+    assert calls == [
+        ("case-0000", "oracle"),
+        ("case-0000", "nop"),
+        ("case-0000", "nop"),
+        ("case-0001", "nop"),
+        ("case-0001", "oracle"),
+    ]
+    assert manifest["cases"] == {
+        first["case_id"]: "cases/case-0000/execution-results/results.json",
+        "second-case": "cases/case-0001/execution-results/results.json",
+    }
+    for ordinal, prepared in enumerate(loaded.cases.values()):
+        raw = read_json(case_root(output, ordinal) / "results.json")
+        assert isinstance(raw, dict)
+        rows = raw["execution_results"]
+        assert {(row["agent_bundle_id"], row["evaluation"]["task"]["task_id"]) for row in rows} == {
+            (agent.agent_bundle_id, task.task_id)
+            for agent in prepared.case.agents()
+            for task in prepared.case.task_inventory.tasks
+        }
+        assert [row["metrics"]["reward"]["value"] for row in rows] == (
+            [1.0] * 3 + [0.0] * 6 if ordinal == 0 else [0.0] * 3 + [1.0] * 3
+        )
+    validate_experiment_results(loaded, output)
+    before = {p.relative_to(output): p.read_bytes() for p in output.rglob("*") if p.is_file()}
+    assert execute_benchmark(loaded, "run", output, runner=lambda _: pytest.fail("must not replay")) == manifest
+    assert {p.relative_to(output): p.read_bytes() for p in output.rglob("*") if p.is_file()} == before
 
 
 def test_failure_between_agents_reuses_completed_job(tmp_path):
@@ -286,7 +341,7 @@ def test_unsigned_input_changes_refuse_completed_job_reuse(tmp_path, changed):
     execute_benchmark(load_benchmark(path, allow_unsigned=True), "run", output, runner=fake_harbor)
     with (path.parent / changed).open("a") as stream:
         stream.write("\n")
-    with pytest.raises(ValueError, match="different contents"):
+    with pytest.raises(ValueError, match="changed; use a new output directory"):
         execute_benchmark(
             load_benchmark(path, allow_unsigned=True),
             "run",
