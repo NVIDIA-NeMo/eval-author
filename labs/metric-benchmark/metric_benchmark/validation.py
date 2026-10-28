@@ -204,7 +204,9 @@ def validate_experiment_results(loaded: LoadedBenchmark, root: Path, *, case_id:
     missing = selected.keys() - manifest.cases.keys()
     unexpected = manifest.cases.keys() - loaded.cases.keys()
     if missing or unexpected:
-        raise ValueError(f"results case inventory differs; missing: {sorted(missing)}; unexpected: {sorted(unexpected)}")
+        raise ValueError(
+            f"results case inventory differs; missing: {sorted(missing)}; unexpected: {sorted(unexpected)}"
+        )
     reports = {}
     directories = set()
     for selected_id, prepared in selected.items():

@@ -5,8 +5,8 @@ import json
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 import yaml
@@ -97,6 +97,7 @@ def result_example(tmp_path, *, bundle=False):
 @pytest.mark.parametrize("shape", ["missing", "empty", "object"])
 def test_results_arrays_are_required_and_nonempty(field, shape):
     data = read_json(RESULT_FIXTURE / "experiment-results" / CASE_RESULTS / "results.json")
+    assert isinstance(data, dict)
     if shape == "missing":
         del data[field]
     elif shape == "empty":
@@ -109,6 +110,7 @@ def test_results_arrays_are_required_and_nonempty(field, shape):
 
 def test_results_task_inventory_rejects_duplicate_ids():
     data = read_json(RESULT_FIXTURE / "experiment-results" / CASE_RESULTS / "results.json")
+    assert isinstance(data, dict)
     data["task_inventory"].append(dict(data["task_inventory"][0]))
     with pytest.raises(ValueError, match="duplicate task IDs"):
         RawResults.model_validate(data)
