@@ -59,3 +59,10 @@ defines the output format.
 
 See the [`run_evals.py` command guide](run-evals.md) for arguments, the output
 layout, completed-job reuse, interrupted-job recovery, and the Python API.
+
+### Helix exploration
+
+The exploratory [submit](submit-helix-evals.md) and
+[download](download-helix-results.md) tools schedule prepared cases and collect
+native task evidence. Their collection format is not yet qualified for score
+analysis; the existing local execution and validation tools are unchanged.
