@@ -10,7 +10,7 @@ from metric_benchmark.config import load_benchmark
 from metric_benchmark.execution import case_root, execute_benchmark
 from metric_benchmark.io import read_json
 from metric_benchmark.pipeline import run_experiment
-from test_metric_benchmark_config import LAB, SUBSETS_PATH, prepared_benchmark
+from test_metric_benchmark_config import LAB, SUBSETS_PATH, prepared_benchmark, write_definition
 from test_metric_benchmark_execution import fake_harbor
 from test_metric_benchmark_signing import remove_pins
 
@@ -27,10 +27,14 @@ covered = {e['task']['task_id'] for e in r['baseline_evidence']}
 required = set(r['case_description']['required'])
 Path(a.output).write_text(json.dumps({'value': len(covered & required)/len(required)}))
 """)
-    config["coverage"]["command"] = [sys.executable, str(adapter)]
+    analysis = yaml.safe_load((path.parent / "analysis.yml").read_text())
+    analysis["coverage"]["command"] = [sys.executable, str(adapter)]
     if two_cases:
-        config["cases"].append({**config["cases"][0], "case_id": "another-case"})
-    path.write_text(yaml.safe_dump(config))
+        cases = yaml.safe_load((path.parent / "cases.yml").read_text())
+        cases.append({**cases[0], "case_id": "another-case"})
+        write_definition(path, "cases.yml", cases)
+        analysis["case_settings"]["another-case"] = analysis["case_settings"]["rho-agent"]
+    write_definition(path, "analysis.yml", analysis)
     return path, adapter
 
 
@@ -78,8 +82,8 @@ def test_manual_stage_clis_match_orchestration(tmp_path, case_id, ordinal):
 
     cli(
         "validate_results.py",
-        "--benchmark",
-        path,
+        "--cases",
+        path.parent / "cases.yml",
         "--results-root",
         native,
         "--output",
@@ -87,8 +91,10 @@ def test_manual_stage_clis_match_orchestration(tmp_path, case_id, ordinal):
     )
     cli(
         "compute_mutant_scores.py",
-        "--benchmark",
-        path,
+        "--analysis",
+        path.parent / "analysis.yml",
+        "--cases",
+        path.parent / "cases.yml",
         "--case",
         case_id,
         "--results-root",
@@ -98,8 +104,10 @@ def test_manual_stage_clis_match_orchestration(tmp_path, case_id, ordinal):
     )
     cli(
         "compute_coverage.py",
-        "--benchmark",
-        path,
+        "--analysis",
+        path.parent / "analysis.yml",
+        "--cases",
+        path.parent / "cases.yml",
         "--case",
         case_id,
         "--results-root",
@@ -126,7 +134,7 @@ def test_manual_stage_clis_match_orchestration(tmp_path, case_id, ordinal):
 def test_malformed_later_case_fails_before_any_coverage(tmp_path):
     path, adapter = experiment(tmp_path, two_cases=True)
     native = tmp_path / "native"
-    execute_benchmark(load_benchmark(path), "run", native, runner=fake_harbor)
+    execute_benchmark(load_benchmark(path).execution, "run", native, runner=fake_harbor)
     (case_root(native, 1) / "results.json").write_text("{}")
     marker = tmp_path / "called"
     adapter.write_text(f"from pathlib import Path\nPath({str(marker)!r}).touch()\n")
@@ -154,8 +162,8 @@ def test_cached_only_never_executes_agents(tmp_path):
 
 def test_shipped_smoke_definition_pins_are_current():
     loaded = load_benchmark(LAB / "examples/smoke/experiment.yml")
-    assert len(loaded.cases) == 1
-    assert len(loaded.subsets[next(iter(loaded.cases))].eval_subsets) == 3
+    assert len(loaded.analysis.inputs.cases) == 1
+    assert len(loaded.analysis.load_subsets(next(iter(loaded.analysis.inputs.cases))).eval_subsets) == 3
 
 
 def test_changed_analysis_version_requires_new_output_but_reuses_execution(tmp_path, monkeypatch):
@@ -178,7 +186,7 @@ def test_changed_analysis_version_requires_new_output_but_reuses_execution(tmp_p
 def test_post_analysis_evidence_change_prevents_completion(tmp_path):
     path, adapter = experiment(tmp_path)
     native = tmp_path / "native"
-    execute_benchmark(load_benchmark(path), "run", native, runner=fake_harbor)
+    execute_benchmark(load_benchmark(path).execution, "run", native, runner=fake_harbor)
     changed = case_root(native, 0) / "changed-during-analysis.txt"
     adapter.write_text(adapter.read_text() + f"\nPath({str(changed)!r}).write_text('accidental modification')\n")
     output = tmp_path / "analysis"
@@ -191,8 +199,8 @@ def test_post_analysis_evidence_change_prevents_completion(tmp_path):
 def test_saved_execution_manifest_rejects_another_run(tmp_path):
     path, _ = experiment(tmp_path)
     native = tmp_path / "native"
-    execute_benchmark(load_benchmark(path), "run", native, runner=fake_harbor)
-    with pytest.raises(ValueError, match="execution manifest does not match benchmark/run identity"):
+    execute_benchmark(load_benchmark(path).execution, "run", native, runner=fake_harbor)
+    with pytest.raises(ValueError, match="execution manifest does not match cases/run identity"):
         run_experiment(path, "another-run", tmp_path / "analysis", results_root=native)
 
 
@@ -232,7 +240,14 @@ def test_unsigned_opt_in_reaches_execution_and_each_benchmark_cli(tmp_path):
         ("run_experiment.py", ["--run-id", "run", "--output", str(output), "--results", str(native), "--cached-only"]),
     ]
     for tool, arguments in commands:
-        command = [sys.executable, str(LAB / tool), "--benchmark", str(path), *arguments]
+        stage_args = ["--cases", str(path.parent / "cases.yml")]
+        if tool == "run_evals.py":
+            stage_args += ["--execution", str(path.parent / "execution.yml")]
+        elif tool in ("compute_mutant_scores.py", "compute_coverage.py"):
+            stage_args += ["--analysis", str(path.parent / "analysis.yml")]
+        elif tool == "run_experiment.py":
+            stage_args = ["--benchmark", str(path)]
+        command = [sys.executable, str(LAB / tool), *stage_args, *arguments]
         strict = subprocess.run(command, capture_output=True, text=True)
         assert strict.returncode == 2 and "missing SHA" in strict.stderr, (tool, strict.stderr)
         unsigned = subprocess.run([*command, "--allow-unsigned"], capture_output=True, text=True)
@@ -241,23 +256,40 @@ def test_unsigned_opt_in_reaches_execution_and_each_benchmark_cli(tmp_path):
     assert read_json(tmp_path / "coverage.json") == read_json(analysis / "coverage-scores.json")
 
 
-@pytest.mark.parametrize("during_analysis", [False, True])
-def test_unsigned_input_changes_reject_saved_execution(tmp_path, during_analysis):
+def test_analysis_changes_reuse_execution_without_executable_inputs(tmp_path):
+    import shutil
+
+    from test_metric_benchmark_config import case_definition
+
+    path, _ = experiment(tmp_path)
+    native = tmp_path / "native"
+    execute_benchmark(load_benchmark(path).execution, "run", native, runner=fake_harbor)
+    original = run_experiment(path, "run", tmp_path / "first", results_root=native)
+    settings = yaml.safe_load((path.parent / "analysis.yml").read_text())
+    settings["scoring"] = {"direction": "lower_is_better"}
+    write_definition(path, "analysis.yml", settings)
+    for source in case_definition(path)["task_sources"].values():
+        shutil.rmtree(path.parent / source["path"])
+    result = run_experiment(path, "run", tmp_path / "second", results_root=native)
+    assert result["execution_sha256"] == original["execution_sha256"]
+    assert result["analysis_sha256"] != original["analysis_sha256"]
+    score = read_json(tmp_path / "second/analysis/case-0000/mutant-scores.json")
+    assert isinstance(score, dict)
+    assert all(value["value"] == -1 for value in score["scores"].values())
+
+
+def test_unsigned_analysis_changes_during_execution_are_rejected(tmp_path):
     path, adapter = experiment(tmp_path)
     remove_pins(path.parent)
     native = tmp_path / "native"
-    execute_benchmark(load_benchmark(path, allow_unsigned=True), "run", native, runner=fake_harbor)
+    execute_benchmark(load_benchmark(path, allow_unsigned=True).execution, "run", native, runner=fake_harbor)
     changed = path.parent / SUBSETS_PATH
-    if during_analysis:
-        adapter.write_text(adapter.read_text() + f"\nwith Path({str(changed)!r}).open('a') as f: f.write('\\n')\n")
-        message = "benchmark inputs changed during execution"
-    else:
-        with changed.open("a") as stream:
-            stream.write("\n")
-        adapter.write_text("raise AssertionError('changed inputs must fail before coverage')")
-        message = "execution manifest does not match benchmark/run identity"
+    adapter.write_text(
+        adapter.read_text()
+        + f"\np = Path({str(changed)!r}); data=json.loads(p.read_text()); data['sampling_parameters']['seed']=9876; p.write_text(json.dumps(data))\n"
+    )
     output = tmp_path / "analysis"
-    with pytest.raises(ValueError, match=message):
+    with pytest.raises(ValueError, match="analysis inputs changed during execution"):
         run_experiment(path, "run", output, results_root=native, allow_unsigned=True)
     assert not (output / "experiment.json").exists()
 
@@ -267,7 +299,7 @@ def test_shared_validator_rejects_reused_case_directory_before_coverage(tmp_path
 
     path, adapter = experiment(tmp_path, two_cases=True)
     native = tmp_path / "native"
-    execute_benchmark(load_benchmark(path), "run", native, runner=fake_harbor)
+    execute_benchmark(load_benchmark(path).execution, "run", native, runner=fake_harbor)
     manifest_path = native / "execution.json"
     manifest = json.loads(manifest_path.read_text())
     manifest["cases"]["another-case"] = manifest["cases"]["rho-agent"]
