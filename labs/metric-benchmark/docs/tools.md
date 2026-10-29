@@ -24,73 +24,8 @@ directory layout, manifest fields, relative paths, and content pins:
 
 ## Signing a benchmark
 
-Iterate with SHA fields omitted. When the prepared inputs are ready, sign the
-bundle from the repository root:
-
-```bash
-uv run labs/metric-benchmark/tools/sha-sign benchmark/experiment.yml
-```
-
-`sha-sign` reads the experiment and walks every case's referenced manifests and
-inputs. It checks paths, file types, schemas and subset task IDs before writing
-anything. It adds `sha256` to task sources, agent inputs, descriptions, subsets,
-and agent/tasks manifest references, working from input files up to the
-experiment. Shared manifests are updated once. It does not run agents or the
-metric tool, and it does not modify task files, agent files or JSON inputs.
-
-If any reference already has a SHA field, signing stops without writing files
-and lists those fields' locations. Delete those fields, or explicitly re-sign
-the current contents with `--resign`:
-
-```bash
-uv run labs/metric-benchmark/tools/sha-sign benchmark/experiment.yml --resign
-```
-
-`--resign` replaces old pins, including ones that no longer match edited inputs.
-Signing edits only SHA fields, preserving comments, key order, quoting and
-formatting elsewhere. New SHA fields are inserted into their reference mapping;
-existing pins keep their plain or quoted scalar style. Block-scalar, anchored or
-tagged SHA values must be changed to plain or quoted scalars before re-signing.
-The input files should not be edited while signing. Inputs cannot include
-manifests that the signer itself rewrites, since doing so would invalidate their
-hashes.
-
-Once signed, readers verify each supplied digest as they load its reference.
-`load_benchmark()` verifies all inputs; `read_benchmark()` verifies the manifests
-it reads, and individual artifact loaders verify their own inputs. Omitting a
-digest requires explicit `allow_unsigned=True` when loading during iteration.
-SHA signing fixes expected contents; it does not authenticate a publisher.
-
-To check that the entire benchmark is signed correctly without changing files:
-
-```bash
-uv run labs/metric-benchmark/tools/sha-sign benchmark/experiment.yml --check
-```
-
-`--check` requires a SHA on every input reference and verifies it against the
-current contents. It stops at the first validation error, including a missing,
-null or incorrect digest, and reports the input context. It uses the same strict
-`load_benchmark()` path as normal full loading. To fill missing pins throughout
-an unsigned bundle, run signing without `--check`; use `--resign` if some pins
-already exist. Success exits with status zero; validation failures exit nonzero.
-`--check` and `--resign` are mutually exclusive.
-The top-level experiment has no self-hash, and inline cases have no separate
-hash: their agent, tasks and subsets references are checked instead.
-
-To sign or check from Python:
-
-```python
-from pathlib import Path
-from metric_benchmark.signing import check_benchmark, sign_benchmark
-
-experiment = Path("benchmark/experiment.yml")
-changed_files = sign_benchmark(experiment, resign=False)
-check_benchmark(experiment)
-```
-
-`sign_benchmark()` returns the paths of YAML files it changed.
-`check_benchmark()` returns normally on success and raises on missing or invalid
-pins or inputs. Re-signing does not require existing pins to match.
+See the [`sha-sign` command guide](sha-sign.md) for signing, re-signing, checking
+pins, and the Python API.
 
 ## Reading benchmarks
 
@@ -120,9 +55,8 @@ benchmark = load_benchmark(Path("benchmark/experiment.yml"), allow_unsigned=True
 
 This permits missing pins but still verifies every supplied digest. The lighter
 `read_benchmark()` and individual artifact loaders accept the same keyword,
-also defaulting to `False`. The downstream execution and analysis PRs add
-`--allow-unsigned` to their benchmark-reading CLIs; `sha-sign --check` always
-requires all pins.
+also defaulting to `False`. Benchmark-reading CLIs accept `--allow-unsigned`
+for iteration; `sha-sign --check` always requires all pins.
 
 Use `read_benchmark(path)` from the same module when only the experiment and
 inline cases and referenced agent/task manifests are needed. It does not open
@@ -139,28 +73,11 @@ expose their format through `model_json_schema()`.
 
 ## Validate a results directory
 
-See [Generating the report](validation-report.md#generating-the-report) for the
-CLI invocation, required arguments, and output behavior.
+See the [`validate_results.py` command guide](validate-results.md) for arguments,
+output behavior, and the Python API. The [validation report](validation-report.md)
+defines the output format.
 
-Library: `validate_experiment_results(loaded, root, *, case_id=None)` returns the
-same report as the CLI. Pass a `LoadedBenchmark` from `load_benchmark` and the
-whole experiment output root; `case_id` optionally selects one case.
+## Execute the eval tasks
 
-The per-case `validate_results(raw, case, root, input_root, scoring, *, allow_unsigned=False)`
-function remains available for execution and analysis libraries. Its `root` is
-that case’s results directory, and it returns the individual case report.
-
-The [results format specification](results-format.md) defines the index, native
-evidence requirements and matrix accounting. The [validation report](validation-report.md)
-defines the tool’s output. Start with the [mock results](results-format.md#mock-results)
-to review the checked-in mock directory.
-
-`test_contract_and_cli_parity` in
-[the validation tests](../../../tests/test_metric_benchmark_validation.py)
-materializes the synthetic input tasks, copies the mock output to a temporary
-directory, and checks that the library and CLI reproduce the checked-in report.
-To exercise that example without Docker or model calls:
-
-```bash
-uv run --locked pytest tests/test_metric_benchmark_validation.py -k contract_and_cli_parity -q
-```
+See the [`run_evals.py` command guide](run-evals.md) for arguments, the output
+layout, completed-job reuse, interrupted-job recovery, and the Python API.
