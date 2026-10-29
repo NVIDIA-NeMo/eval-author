@@ -9,7 +9,7 @@ Compute a mutation-testing score for each predefined task subset.
 
 ```bash
 uv run python labs/metric-benchmark/compute_mutant_scores.py \
-  --benchmark experiment.yml --case case-id \
+  --cases cases.yml --analysis analysis.yml --case case-id \
   --results-root experiment-results --output mutant-scores.json
 ```
 
@@ -19,7 +19,7 @@ The CLI derives selection from the configured case and `agent_run_id` values in
 the selected case’s `results.json`, which must contain one run per agent. No selection file needs to be
 authored. Pass the whole experiment directory as `--results-root`; `execution.json`
 locates the case selected by `--case`, regardless of its directory name.
-Only the experiment YAML with its inline cases, referenced agent and task
+Only cases.yml and analysis.yml, referenced agent and task
 manifests, the selected subset manifest, `execution.json`, and the selected
 case’s `results.json` are required. Task directories, agent bundles, case descriptions,
 and native trial evidence are not needed for this arithmetic stage. The command

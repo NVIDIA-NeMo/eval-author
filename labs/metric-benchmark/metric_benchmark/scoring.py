@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from metric_benchmark.config import LoadedBenchmark, LoadedCase, ScoringConfig, read_benchmark
+from metric_benchmark.config import LoadedAnalysis, LoadedCase, ScoringConfig, load_analysis
 from metric_benchmark.io import cli, digest_bytes, json_bytes, read_json, write_json
 from metric_benchmark.models import (
     Digest,
@@ -149,13 +149,15 @@ def compute_mutant_scores(raw: RawResults, subsets: Subsets, config: ScoringConf
 
 
 def load_score_inputs(
-    benchmark: Path, case_id: str, results_root: Path, *, allow_unsigned: bool = False
-) -> tuple[LoadedBenchmark, LoadedCase, RawResults, Subsets, ScoringConfig, Path]:
+    cases: Path, analysis: Path, case_id: str, results_root: Path, *, allow_unsigned: bool = False
+) -> tuple[LoadedAnalysis, LoadedCase, RawResults, Subsets, ScoringConfig, Path]:
     """Load a selected case's analysis inputs without requiring execution sources."""
-    loaded = read_benchmark(benchmark, allow_unsigned=allow_unsigned)
-    prepared = loaded.case(case_id)
+    loaded = load_analysis(cases, analysis, allow_unsigned=allow_unsigned)
+    prepared = loaded.inputs.case(case_id)
     case = prepared.case
     manifest = ExecutionManifest.model_validate(read_json(resolve_evidence(results_root, "execution.json")))
+    if manifest.cases_sha256 != loaded.inputs.identity:
+        raise ValueError("execution case definitions differ from supplied cases")
     if case_id not in manifest.cases:
         raise ValueError(f"case {case_id}: missing from execution.json")
     index = resolve_evidence(results_root, manifest.cases[case_id])
@@ -164,13 +166,14 @@ def load_score_inputs(
     raw = RawResults.model_validate(read_json(index))
     if raw.run_id != manifest.run_id:
         raise ValueError(f"case {case_id}: run_id differs from execution.json")
-    subsets = case.load_subsets(prepared.root, allow_unsigned=allow_unsigned)
-    return loaded, prepared, raw, subsets, selection_for_results(case, raw, loaded.definition.scoring), index.parent
+    subsets = loaded.load_subsets(case_id)
+    return loaded, prepared, raw, subsets, selection_for_results(case, raw, loaded.settings.scoring), index.parent
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--benchmark", type=Path, required=True)
+    parser.add_argument("--cases", type=Path, required=True)
+    parser.add_argument("--analysis", type=Path, required=True)
     parser.add_argument(
         "--allow-unsigned", action="store_true", help="allow missing input pins; still verify supplied SHAs"
     )
@@ -180,7 +183,7 @@ def main() -> None:
 
     def run(args: argparse.Namespace) -> None:
         _, _, raw, subsets, selection, _ = load_score_inputs(
-            args.benchmark, args.case, args.results_root, allow_unsigned=args.allow_unsigned
+            args.cases, args.analysis, args.case, args.results_root, allow_unsigned=args.allow_unsigned
         )
         write_json(args.output, compute_mutant_scores(raw, subsets, selection))
 

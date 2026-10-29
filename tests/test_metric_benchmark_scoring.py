@@ -171,13 +171,17 @@ def test_configured_scoring_cli_needs_no_generated_selection(tmp_path):
     loaded, case, raw, root, path = result_example(tmp_path)
     import shutil
 
+    from metric_benchmark.config import load_analysis
+
+    analysis = load_analysis(path.parent / "cases.yml", path.parent / "analysis.yml")
     expected = compute_mutant_scores(
-        raw, loaded.subsets[case.case_id], selection_for_results(case, raw, loaded.definition.scoring)
+        raw, analysis.load_subsets(case.case_id), selection_for_results(case, raw, analysis.settings.scoring)
     )
     write_json(
         tmp_path / "execution.json",
         {
-            "benchmark_sha256": loaded.identity,
+            "execution_sha256": loaded.identity,
+            "cases_sha256": loaded.identity,
             "run_id": raw.run_id,
             "cases": {case.case_id: (root.relative_to(tmp_path) / "results.json").as_posix()},
         },
@@ -185,15 +189,17 @@ def test_configured_scoring_cli_needs_no_generated_selection(tmp_path):
     # Scoring needs only the definition, fixed subsets and execution indexes.
     for source in case.task_sources.values():
         shutil.rmtree(loaded.root / source.path)
-    (loaded.root / case.case_description.path).unlink()
+    (loaded.root / analysis.settings.case_settings[case.case_id].description.path).unlink()
     shutil.rmtree(root / "agents")
     out = tmp_path / "scores.json"
     subprocess.run(
         [
             sys.executable,
             str(LAB / "compute_mutant_scores.py"),
-            "--benchmark",
-            str(path),
+            "--cases",
+            str(path.parent / "cases.yml"),
+            "--analysis",
+            str(path.parent / "analysis.yml"),
             "--case",
             case.case_id,
             "--results-root",
@@ -225,7 +231,8 @@ def test_analysis_index_rejects_mismatched_or_unsafe_case_paths(tmp_path, change
 
     loaded, case, raw, root, path = result_example(tmp_path)
     manifest = {
-        "benchmark_sha256": loaded.identity,
+        "execution_sha256": loaded.identity,
+        "cases_sha256": loaded.identity,
         "run_id": raw.run_id,
         "cases": {case.case_id: (root.relative_to(tmp_path) / "results.json").as_posix()},
     }
@@ -240,4 +247,4 @@ def test_analysis_index_rejects_mismatched_or_unsafe_case_paths(tmp_path, change
         manifest["cases"][case.case_id] = "results/other.json"
     write_json(tmp_path / "execution.json", manifest)
     with pytest.raises(ValueError):
-        load_score_inputs(path, case.case_id, tmp_path)
+        load_score_inputs(path.parent / "cases.yml", path.parent / "analysis.yml", case.case_id, tmp_path)
