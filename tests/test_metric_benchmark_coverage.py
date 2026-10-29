@@ -126,23 +126,24 @@ def test_benchmark_cli_runs_cold_without_selection_or_coverage_config_files(tmp_
     import subprocess
 
     import yaml
-    from metric_benchmark.config import read_benchmark
+    from metric_benchmark.config import load_cases
     from metric_benchmark.io import write_json
-    from test_metric_benchmark_config import LAB, case_definition, prepared_benchmark, write_case
+    from test_metric_benchmark_config import LAB, case_definition, prepared_benchmark, write_case, write_definition
 
     args = coverage_example(tmp_path)
     path, definition = prepared_benchmark(tmp_path / "inputs")
     case = case_definition(path)
     case["mutants"] = [agent for agent in case["mutants"] if agent["agent_bundle_id"] in args[2].mutant_bundle_ids]
     write_case(path, case)
-    definition = yaml.safe_load(path.read_text())
+    definition = yaml.safe_load((path.parent / "analysis.yml").read_text())
     definition["coverage"] = args[3].model_dump(mode="json")
-    path.write_text(yaml.safe_dump(definition))
+    write_definition(path, "analysis.yml", definition)
     write_json(args[-2] / "results.json", args[0])
     write_json(
         tmp_path / "execution.json",
         {
-            "benchmark_sha256": read_benchmark(path).identity,
+            "cases_sha256": load_cases(path.parent / "cases.yml").identity,
+            "execution_sha256": "sha256:" + "a" * 64,
             "run_id": args[0].run_id,
             "cases": {"rho-agent": (args[-2].relative_to(tmp_path) / "results.json").as_posix()},
         },
@@ -157,8 +158,10 @@ def test_benchmark_cli_runs_cold_without_selection_or_coverage_config_files(tmp_
     command = [
         sys.executable,
         str(LAB / "compute_coverage.py"),
-        "--benchmark",
-        str(path),
+        "--cases",
+        str(path.parent / "cases.yml"),
+        "--analysis",
+        str(path.parent / "analysis.yml"),
         "--case",
         "rho-agent",
         "--results-root",

@@ -9,7 +9,7 @@ Compute coverage for each predefined task subset using its baseline evidence.
 
 ```bash
 uv run python labs/metric-benchmark/compute_coverage.py \
-  --benchmark experiment.yml --case case-id --results-root experiment-results \
+  --cases cases.yml --analysis analysis.yml --case case-id --results-root experiment-results \
   --work-root coverage-evidence --output coverage-scores.json
 ```
 
@@ -18,7 +18,7 @@ uv run python labs/metric-benchmark/compute_coverage.py \
 As with validation and mutant scoring, `--results-root` is the whole experiment
 directory; `execution.json` locates the selected case and its baseline evidence.
 The configured CLI reads the case description, fixed subsets, coverage settings,
-and selection from the experiment's inline case and the results index, with one run per agent.
+and selection from the case definitions and analysis settings and the results index, with one run per agent.
 It verifies the selected subset and description pins and reads baseline evidence;
 it does not require the prepared task directories or agent bundles. It does not
 perform the separate native results validation stage. Programmatic callers use
