@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+case_settings:
+  gen-agent:
+    description:
+      path: agents/gen-agent/description.json
+    subsets:
+      path: tasks/workspace/subsets.json
+coverage:
+  system_id: synthetic
+  system_revision: '1'
+  command:
+  - python
+  - /adapter.py
