@@ -24,73 +24,8 @@ directory layout, manifest fields, relative paths, and content pins:
 
 ## Signing a benchmark
 
-Iterate with SHA fields omitted. When the prepared inputs are ready, sign the
-bundle from the repository root:
-
-```bash
-uv run labs/metric-benchmark/tools/sha-sign benchmark/experiment.yml
-```
-
-`sha-sign` reads the experiment and walks every case's referenced manifests and
-inputs. It checks paths, file types, schemas and subset task IDs before writing
-anything. It adds `sha256` to task sources, agent inputs, descriptions, subsets,
-and agent/tasks manifest references, working from input files up to the
-experiment. Shared manifests are updated once. It does not run agents or the
-metric tool, and it does not modify task files, agent files or JSON inputs.
-
-If any reference already has a SHA field, signing stops without writing files
-and lists those fields' locations. Delete those fields, or explicitly re-sign
-the current contents with `--resign`:
-
-```bash
-uv run labs/metric-benchmark/tools/sha-sign benchmark/experiment.yml --resign
-```
-
-`--resign` replaces old pins, including ones that no longer match edited inputs.
-Signing edits only SHA fields, preserving comments, key order, quoting and
-formatting elsewhere. New SHA fields are inserted into their reference mapping;
-existing pins keep their plain or quoted scalar style. Block-scalar, anchored or
-tagged SHA values must be changed to plain or quoted scalars before re-signing.
-The input files should not be edited while signing. Inputs cannot include
-manifests that the signer itself rewrites, since doing so would invalidate their
-hashes.
-
-Once signed, readers verify each supplied digest as they load its reference.
-`load_benchmark()` verifies all inputs; `read_benchmark()` verifies the manifests
-it reads, and individual artifact loaders verify their own inputs. Omitting a
-digest requires explicit `allow_unsigned=True` when loading during iteration.
-SHA signing fixes expected contents; it does not authenticate a publisher.
-
-To check that the entire benchmark is signed correctly without changing files:
-
-```bash
-uv run labs/metric-benchmark/tools/sha-sign benchmark/experiment.yml --check
-```
-
-`--check` requires a SHA on every input reference and verifies it against the
-current contents. It stops at the first validation error, including a missing,
-null or incorrect digest, and reports the input context. It uses the same strict
-`load_benchmark()` path as normal full loading. To fill missing pins throughout
-an unsigned bundle, run signing without `--check`; use `--resign` if some pins
-already exist. Success exits with status zero; validation failures exit nonzero.
-`--check` and `--resign` are mutually exclusive.
-The top-level experiment has no self-hash, and inline cases have no separate
-hash: their agent, tasks and subsets references are checked instead.
-
-To sign or check from Python:
-
-```python
-from pathlib import Path
-from metric_benchmark.signing import check_benchmark, sign_benchmark
-
-experiment = Path("benchmark/experiment.yml")
-changed_files = sign_benchmark(experiment, resign=False)
-check_benchmark(experiment)
-```
-
-`sign_benchmark()` returns the paths of YAML files it changed.
-`check_benchmark()` returns normally on success and raises on missing or invalid
-pins or inputs. Re-signing does not require existing pins to match.
+See the [`sha-sign` command guide](sha-sign.md) for signing, re-signing, checking
+pins, and the Python API.
 
 ## Reading benchmarks
 
@@ -138,89 +73,11 @@ expose their format through `model_json_schema()`.
 
 ## Validate a results directory
 
-See [Generating the report](validation-report.md#generating-the-report) for the
-CLI invocation, required arguments, and output behavior.
-
-Library: `validate_experiment_results(loaded, root, *, case_id=None)` returns the
-same report as the CLI. Pass a `LoadedBenchmark` from `load_benchmark` and the
-whole experiment output root; `case_id` optionally selects one case.
-
-The per-case `validate_results(raw, case, root, input_root, scoring, *, allow_unsigned=False)`
-function remains available for execution and analysis libraries. Its `root` is
-that case’s results directory, and it returns the individual case report.
-
-The [results format specification](results-format.md) defines the index, native
-evidence requirements and matrix accounting. The [validation report](validation-report.md)
-defines the tool’s output. Start with the [mock results](results-format.md#mock-results)
-to review the checked-in mock directory.
-
-`test_contract_and_cli_parity` in
-[the validation tests](../../../tests/test_metric_benchmark_validation.py)
-materializes the synthetic input tasks, copies the mock output to a temporary
-directory, and checks that the library and CLI reproduce the checked-in report.
-To exercise that example without Docker or model calls:
-
-```bash
-uv run --locked pytest tests/test_metric_benchmark_validation.py -k contract_and_cli_parity -q
-```
+See the [`validate_results.py` command guide](validate-results.md) for arguments,
+output behavior, and the Python API. The [validation report](validation-report.md)
+defines the output format.
 
 ## Execute the eval tasks
 
-```bash
-uv run python labs/metric-benchmark/run_evals.py \
-  --benchmark experiment.yml --run-id trial-1 --output private-run
-```
-
-Library: `execute_benchmark(loaded_benchmark, run_id, output)`.
-The loop follows case order, then baseline and mutant order. Each job runs the
-whole task inventory once, with retries disabled and configured task concurrency.
-Outputs are indexed by case ID in `execution.json`:
-
-```text
-private-run/
-  execution-inputs.json
-  execution.json
-  cases/case-0000/execution-results/
-    results.json
-    agents/agent-0000/
-      request.json
-      native-request.json
-      receipt.json
-      run-0001/                 # Intact native Harbor job
-        result.json
-        config.json
-        lock.json
-        task-name__suffix/      # Native trial, indexed using metadata
-          result.json
-          agent/
-          verifier/
-```
-
-Numeric folder aliases are stable within a definition. The index carries actual
-case, agent, task and run identities. Each case index has `run_id` from
-`--run-id`, a `task_inventory` array, and an `execution_results` array. Each observation has an
-`agent_run_id` for its agent’s job; `native_results_path` locates the trial evidence.
-See the [results format](results-format.md) for the complete contract.
-No model or private service is involved in
-the orchestration itself. Prepared agents may call models when executed.
-
-Rerunning the command verifies completed job receipts and skips those jobs.
-Completed outputs and prepared inputs can be moved together: request identities
-bind the benchmark, case, agent and execution settings. With `--allow-unsigned`,
-the runner hashes inputs without pins when computing this identity, so editing an
-unsigned bundle also requires a fresh output directory. This does not sign or
-rewrite the prepared manifests. The retained
-`native-request.json` records effective Harbor settings and exact original task
-paths for collecting saved trials; collection does not guess identities from
-path suffixes. Harbor version remains pinned. Native evidence is never rewritten.
-This supports collection/reuse of completed jobs, not migration of an active
-Harbor job. Older draft output formats require explicit conversion before reuse;
-the runner does not rewrite their requests or receipts.
-Changed inputs or evidence require a new output directory. An interrupted native
-job is preserved and must be explicitly completed with Harbor's own resume
-mechanism before this runner can collect it; the runner never silently retries
-partial observations. Do not run two writers against the same output directory.
-
-The optional `METRIC_BENCHMARK_DOCKER_TEST=1` execution test runs nine local
-Oracle/NOP trials and checks CLI-to-library resume. It requires Docker and the
-`python:3.12-slim` image; it does not call a model or a benchmark service.
+See the [`run_evals.py` command guide](run-evals.md) for arguments, the output
+layout, completed-job reuse, interrupted-job recovery, and the Python API.
