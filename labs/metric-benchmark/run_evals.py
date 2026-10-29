@@ -12,6 +12,7 @@ from metric_benchmark.io import cli
 
 
 def main() -> None:
+    """Parse execution arguments, load the benchmark, and invoke the execution library."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--benchmark", type=Path, required=True)
     parser.add_argument(

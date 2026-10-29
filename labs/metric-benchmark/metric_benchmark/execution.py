@@ -20,32 +20,37 @@ from metric_benchmark.validation import agent_config, native_observation, valida
 
 
 def benchmark_identity(loaded: LoadedBenchmark) -> str:
-    """Bind unsigned iteration inputs as well as the experiment definition."""
+    """Compute the benchmark reuse fingerprint, including the contents of inputs without SHA pins."""
     unsigned = {}
     for entry in loaded.definition.cases:
-        prepared = loaded.case(entry.case_id)
-        case = prepared.case
+        loaded_case = loaded.case(entry.case_id)
+        case = loaded_case.case
         sources = [entry.agent, entry.tasks, entry.subsets, case.case_description, *case.task_sources.values()]
         sources.extend(source for agent in case.agents() for source in agent.inputs.values())
         for source in sources:
             if source.sha256 is None and source.path not in unsigned:
                 unsigned[source.path] = input_digest(
-                    source.resolve(prepared.root, allow_unsigned=prepared.allow_unsigned)
+                    source.resolve(loaded_case.root, allow_unsigned=loaded_case.allow_unsigned)
                 )
     if not unsigned:
         return loaded.identity
     return digest_bytes(json_bytes({"benchmark_sha256": loaded.identity, "unsigned_inputs": unsigned}))
 
 
-def case_root(output: Path, ordinal: int) -> Path:
-    return output / "cases" / f"case-{ordinal:04d}" / "execution-results"
+def case_root(output: Path, case_index: int) -> Path:
+    """Locate a case’s results directory by its zero-based position in the benchmark."""
+    return output / "cases" / f"case-{case_index:04d}" / "execution-results"
 
 
-def agent_run_id(index: int) -> str:
-    return f"agent-{index:04d}/run-0001"
+def agent_run_id(agent_index: int) -> str:
+    """Return the local executor’s logical run ID for an agent’s zero-based position."""
+    return f"agent-{agent_index:04d}/run-0001"
 
 
 def run_harbor(config: JobConfig) -> None:
+    """Run one agent’s full task inventory through Harbor and wait for completion.
+    Harbor schedules the task trials using the configured concurrency.
+    """
     from harbor.job import Job
 
     async def run():
@@ -56,9 +61,12 @@ def run_harbor(config: JobConfig) -> None:
 
 
 def job_configuration(
-    loaded: LoadedBenchmark, prepared: LoadedCase, agent_index: int, root: Path, paths: list[Path]
+    loaded: LoadedBenchmark, loaded_case: LoadedCase, agent_index: int, root: Path, paths: list[Path]
 ) -> JobConfig:
-    case = prepared.case
+    """Build and validate a Harbor job for one agent and all supplied task paths.
+    Resolve the agent’s input files and execution settings without starting the job.
+    """
+    case = loaded_case.case
     settings = loaded.definition.execution
     if set(settings.environment) - EnvironmentConfig.model_fields.keys():
         raise ValueError("unknown Harbor environment setting")
@@ -72,7 +80,7 @@ def job_configuration(
             "environment": settings.environment,
             "agents": [
                 agent_config(
-                    case.agents()[agent_index], prepared.root, allow_unsigned=prepared.allow_unsigned
+                    case.agents()[agent_index], loaded_case.root, allow_unsigned=loaded_case.allow_unsigned
                 ).model_dump(mode="json")
             ],
             "tasks": [{"path": str(path)} for path in paths],
@@ -82,7 +90,9 @@ def job_configuration(
 
 
 def collect_job(case: Case, agent_index: int, root: Path, request: JobConfig, metric: str) -> list[Execution]:
-    """Read native metadata; never derive task identities from trial suffixes."""
+    """Read a finished Harbor job into one Execution record per task, including status, score, and evidence path.
+    Use saved task paths to identify tasks; reject unfinished jobs and missing, duplicate, or unexpected tasks.
+    """
     agent = case.agents()[agent_index]
     directory = root / "agents" / f"agent-{agent_index:04d}" / "run-0001"
     job = read_json(resolve_evidence(directory, "result.json"))
@@ -133,11 +143,8 @@ def execute_benchmark(
     *,
     runner: Callable[[JobConfig], None] = run_harbor,
 ) -> dict:
-    """Run baseline then mutants for each case; reuse only verified completed jobs.
-
-    A partial native job is never silently restarted. Complete it with Harbor's
-    own resume command or choose a new output directory. Completed earlier jobs
-    remain reusable, including when a later agent fails before creating its job.
+    """Run one Harbor job per case/agent and publish validated case results plus an experiment manifest.
+    Reuse verified completed jobs; leave incomplete jobs for explicit Harbor recovery.
     """
     if not run_id.strip():
         raise ValueError("run_id must be nonempty")
@@ -148,16 +155,18 @@ def execute_benchmark(
     # Resolve and validate all jobs before launching any, so a bad later case
     # cannot spend a valid earlier case's execution budget.
     jobs = {}
-    for ordinal, prepared in enumerate(loaded.cases.values()):
-        case = prepared.case
+    for case_index, loaded_case in enumerate(loaded.cases.values()):
+        case = loaded_case.case
         paths = [
-            case.task_sources[t.task_id].resolve(prepared.root, allow_unsigned=prepared.allow_unsigned)
+            case.task_sources[t.task_id].resolve(loaded_case.root, allow_unsigned=loaded_case.allow_unsigned)
             for t in sorted(case.task_inventory.tasks, key=lambda t: t.key())
         ]
         if len(set(paths)) != len(paths):
             raise ValueError(f"case {case.case_id}: task sources must have distinct paths")
-        for i in range(len(case.agents())):
-            jobs[ordinal, i] = job_configuration(loaded, prepared, i, case_root(output, ordinal), paths)
+        for agent_index in range(len(case.agents())):
+            jobs[case_index, agent_index] = job_configuration(
+                loaded, loaded_case, agent_index, case_root(output, case_index), paths
+            )
     inputs_path = output / "execution-inputs.json"
     inputs = {
         "benchmark_sha256": identity,
@@ -168,13 +177,14 @@ def execute_benchmark(
         raise ValueError("benchmark inputs, configuration, or run ID changed; use a new output directory")
     write_json(inputs_path, inputs)
     indexes = {}
-    for ordinal, prepared in enumerate(loaded.cases.values()):
-        case = prepared.case
-        root = case_root(output, ordinal)
+    # Each agent gets one job containing all case tasks; Harbor schedules the individual trials.
+    for case_index, loaded_case in enumerate(loaded.cases.values()):
+        case = loaded_case.case
+        root = case_root(output, case_index)
         rows = []
         for agent_index, agent in enumerate(case.agents()):
             try:
-                config = jobs[ordinal, agent_index]
+                config = jobs[case_index, agent_index]
                 parent = config.jobs_dir
                 directory = parent / config.job_name
                 receipt_path = parent / "receipt.json"
@@ -218,7 +228,7 @@ def execute_benchmark(
                 raise ValueError(f"case {case.case_id}, agent {agent.agent_bundle_id}: {error}") from error
         raw = RawResults(run_id=run_id, task_inventory=case.task_inventory.tasks, execution_results=rows)
         validate_results(
-            raw, case, root, prepared.root, loaded.definition.scoring, allow_unsigned=loaded.allow_unsigned
+            raw, case, root, loaded_case.root, loaded.definition.scoring, allow_unsigned=loaded.allow_unsigned
         )
         write_json(root / "results.json", raw)
         indexes[case.case_id] = (root / "results.json").relative_to(output).as_posix()
