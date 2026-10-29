@@ -23,7 +23,7 @@ Python tool and library API:
 1. **Run mutants x eval tasks:** run the baseline and every mutant against the
    benchmark tasks and save the results. The [local execution script](docs/run-evals.md) uses a
    basic Harbor loop; support for **NeMo Helix** will follow.
-2. **Compute mutant scores:** measure degradation across the mutants for each
+2. **[Compute mutant scores](docs/compute-mutant-scores.md):** measure degradation across the mutants for each
    predefined task subset.
 3. **Compute coverage:** evaluate our metric on those same subsets.
 4. **Correlation:** compare the paired coverage and mutant scores across subsets.
