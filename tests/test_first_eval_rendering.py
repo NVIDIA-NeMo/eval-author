@@ -1507,6 +1507,38 @@ def test_adapter_prompt_carries_the_saving_choice_and_selected_directory(creatio
     assert "repository-local paths" in output
 
 
+@pytest.mark.parametrize("stage", ["execution_settings", "ready_to_run", "blockers"])
+@pytest.mark.parametrize("provider", ["harbor", "gym", "gym_harbor"])
+def test_unsupported_capture_allows_adapter_handoff_with_saving_disabled(creation, stage, provider):
+    state, record, helper, renderer, copy = creation
+    state["setup"] = record["provider"] = "gym" if provider == "gym" else "harbor"
+    if provider == "gym_harbor":
+        record["plan"]["execution_path"] = "gym_harbor"
+    capture = configure_capture(creation, mode="unsupported")
+    capture.update(
+        contents="Scores only, with no supported interaction export",
+        implications="Coverage audits need trajectories from another source",
+    )
+    selected(creation)
+    state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Missing configured connection"}]
+    request = payload(creation, stage)
+    before = deepcopy(request)
+    assert helper.trajectory_capture_resolved(record)
+    output = renderer.render(request)
+    context = adapter_context(output)
+    assert context["provider"] == provider
+    assert context["trajectory_capture"] == {
+        "enabled": False,
+        "directory": str(Path(state["repository"]) / capture["directory"]),
+        "limitations": [capture["contents"], capture["implications"]],
+    }
+    assert copy.ADAPTER_BLOCKER_NEEDED in output
+    assert copy.ADAPTER_CAPTURE_NEEDED not in output and copy.TRAJECTORY_QUESTION not in output
+    assert "When capture is unsupported, keep saving disabled" in output
+    assert copy.RUN_PROGRESS not in output and copy.AUDIT_QUESTION not in output
+    assert request == before
+
+
 @pytest.mark.parametrize("design", ["missing", "unapproved", "approved"])
 def test_pending_capture_keeps_the_adapter_handoff_out_of_the_saving_check_in(creation, design):
     state, _, _, renderer, copy = creation

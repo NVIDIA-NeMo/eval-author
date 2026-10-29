@@ -282,8 +282,8 @@ configuration that invokes the actual agent with the agreed task inputs and
 returns its responses, ordered actions, errors, and observable state in the form
 the existing verifiers expect. For a selected Gym-Harbor path, preserve that bridge.
 
-Implement configurable local trajectory logging using trajectory_capture in the
-saved context. When enabled, save each actual-agent attempt under the selected
+Configure local trajectory logging where supported using trajectory_capture in
+the saved context. When enabled, save each actual-agent attempt under the selected
 directory with stable run/attempt identities and fresh paths that preserve prior
 outputs. Keep required native results and baseline receipts at their existing
 repository-local paths; this directory configures trajectory saving separately.
@@ -294,7 +294,10 @@ custom action/reply logs alone are not sufficient for an Eval Author audit.
 Keep this setting and directory in the generated configuration and rerun commands
 so trajectories are saved when the user runs the evaluations independently.
 When optional saving is declined, leave it disabled and explain any native logging
-that cannot be disabled. Verify the saved format with the existing parser or
+that cannot be disabled. When capture is unsupported, keep saving disabled and
+carry the saved limitations into the configuration and rerun instructions.
+Continue connecting the agent without requiring capture support.
+When saving is enabled, verify the saved format with the existing parser or
 converter using offline fixtures; do not launch model runs to prove logging
 without separate authorization. Report unsupported capture instead of claiming
 trajectories were saved.

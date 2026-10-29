@@ -116,12 +116,7 @@ def applicable_blockers(state: dict) -> dict:
 def adapter_handoff(state: dict, reason: str) -> str:
     record = first_eval_state.record(state)
     capture = first_eval_state.trajectory_capture(record) if record else None
-    if (
-        record is None
-        or not capture
-        or capture["mode"] == "unsupported"
-        or not first_eval_state.trajectory_capture_resolved(record)
-    ):
+    if record is None or not capture or not first_eval_state.trajectory_capture_resolved(record):
         raise ValueError("Resolve local trajectory saving before generating the agent-integration prompt")
     provider = state["setup"]
     if provider not in {"harbor", "gym"}:
@@ -148,8 +143,13 @@ def adapter_handoff(state: dict, reason: str) -> str:
         else [],
         "missing_connection": reason,
         "trajectory_capture": {
-            "enabled": capture["mode"] == "automatic" or capture["choice"],
+            "enabled": capture["mode"] == "automatic" or capture["choice"] is True,
             "directory": str(PurePosixPath(state["repository"]) / capture["directory"]),
+            **(
+                {"limitations": [capture["contents"], capture["implications"]]}
+                if capture["mode"] == "unsupported"
+                else {}
+            ),
         },
     }
     return copy.ADAPTER_HANDOFF.format(context=json_context(context))
@@ -171,9 +171,7 @@ def blocker_section(state: dict, facts: dict, stage: str) -> str | None:
     adapter = saved.get(copy.ADAPTER_BLOCKER_ID)
     record = first_eval_state.record(state)
     capture = first_eval_state.trajectory_capture(record) if record else None
-    capture_ready = bool(
-        record and capture and capture["mode"] != "unsupported" and first_eval_state.trajectory_capture_resolved(record)
-    )
+    capture_ready = bool(record and capture and first_eval_state.trajectory_capture_resolved(record))
     if adapter and adapter["phase"] == "create" and (full_blockers or copy.ADAPTER_BLOCKER_ID in explained):
         entry = explained.get(copy.ADAPTER_BLOCKER_ID, {})
         explained[copy.ADAPTER_BLOCKER_ID] = {
