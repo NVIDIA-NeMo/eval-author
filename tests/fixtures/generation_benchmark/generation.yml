@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+system_id: eval-author
+system_revision: '1'
+command:
+- python
+- /generation-adapter.py
+settings: {}
+inputs:
+  agent_config:
+    path: configs/agent-oracle.yaml
+    kind: file
+  generator_config:
+    path: configs/generator.yaml
+    kind: file

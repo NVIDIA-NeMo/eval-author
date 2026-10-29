@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+import argparse
+import sys
+from pathlib import Path
+
+_ROOT = Path(__file__).resolve().parents[1]
+_METRIC = _ROOT.parent / "metric-benchmark"
+for _path in (_METRIC, _ROOT):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
+
+from generation_benchmark.signing import check_generation_benchmark, sign_generation_benchmark  # noqa: E402
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="sha-sign", description="Sign or check a prepared generation benchmark.")
+    parser.add_argument("experiment", type=Path)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--resign", action="store_true", help="update existing pins after editing a benchmark")
+    mode.add_argument("--check", action="store_true", help="require and verify every SHA field without writing files")
+    args = parser.parse_args()
+    try:
+        if args.check:
+            check_generation_benchmark(args.experiment)
+            print("All benchmark inputs are signed and verified.")
+        else:
+            for changed in sign_generation_benchmark(args.experiment, resign=args.resign):
+                print(changed)
+    except (ValueError, OSError) as error:
+        print(error, file=sys.stderr)
+        raise SystemExit(1) from None
+
+
+if __name__ == "__main__":
+    main()
