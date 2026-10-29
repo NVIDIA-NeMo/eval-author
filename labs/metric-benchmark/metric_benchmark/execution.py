@@ -3,7 +3,6 @@
 
 """Sequential case/agent orchestration of native Harbor jobs."""
 
-import argparse
 import asyncio
 import sys
 from collections.abc import Callable
@@ -14,8 +13,8 @@ from harbor.models.job.config import JobConfig
 from harbor.models.trial.config import EnvironmentConfig
 from harbor.models.trial.result import TrialResult
 
-from metric_benchmark.config import Case, LoadedBenchmark, LoadedCase, file_manifest, load_benchmark
-from metric_benchmark.io import cli, digest_bytes, digest_file, input_digest, json_bytes, read_json, write_json
+from metric_benchmark.config import Case, LoadedBenchmark, LoadedCase, file_manifest
+from metric_benchmark.io import digest_bytes, digest_file, input_digest, json_bytes, read_json, write_json
 from metric_benchmark.models import Execution, ExecutionManifest, RawResults, Text, resolve_evidence
 from metric_benchmark.validation import agent_config, native_observation, validate_results
 
@@ -226,18 +225,3 @@ def execute_benchmark(
     result = ExecutionManifest(benchmark_sha256=identity, run_id=run_id, cases=indexes).model_dump()
     write_json(output / "execution.json", result)
     return result
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--benchmark", type=Path, required=True)
-    parser.add_argument(
-        "--allow-unsigned", action="store_true", help="allow missing input pins; still verify supplied SHAs"
-    )
-    parser.add_argument("--run-id", required=True)
-    parser.add_argument("--output", type=Path, required=True)
-
-    def run(args):
-        execute_benchmark(load_benchmark(args.benchmark, allow_unsigned=args.allow_unsigned), args.run_id, args.output)
-
-    cli(parser, run)
