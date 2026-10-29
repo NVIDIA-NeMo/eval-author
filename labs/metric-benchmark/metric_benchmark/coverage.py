@@ -170,7 +170,8 @@ def invoke_coverage(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--benchmark", type=Path, required=True)
+    parser.add_argument("--cases", type=Path, required=True)
+    parser.add_argument("--analysis", type=Path, required=True)
     parser.add_argument(
         "--allow-unsigned", action="store_true", help="allow missing input pins; still verify supplied SHAs"
     )
@@ -181,17 +182,17 @@ def main() -> None:
     parser.add_argument("--cached-only", action="store_true")
 
     def run(args: argparse.Namespace) -> None:
-        loaded, prepared, raw, subsets, selection, record_root = load_score_inputs(
-            args.benchmark, args.case, args.results_root, allow_unsigned=args.allow_unsigned
+        loaded, _, raw, subsets, selection, record_root = load_score_inputs(
+            args.cases, args.analysis, args.case, args.results_root, allow_unsigned=args.allow_unsigned
         )
-        description = prepared.case.load_description(prepared.root, allow_unsigned=prepared.allow_unsigned)
+        description = loaded.load_description(args.case)
         write_json(
             args.output,
             invoke_coverage(
                 raw,
                 subsets,
                 selection,
-                loaded.definition.coverage,
+                loaded.settings.coverage,
                 description,
                 record_root,
                 args.work_root,
