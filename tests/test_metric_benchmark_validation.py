@@ -258,7 +258,7 @@ def test_all_cases_and_case_filter_use_the_same_root(tmp_path):
     second = Path("cases/case-0001/execution-results")
     shutil.copytree(root / CASE_RESULTS, root / second)
     manifest = json.loads((root / "execution.json").read_text())
-    manifest["execution_sha256"] = loaded.identity
+    manifest["cases_sha256"] = loaded.identity
     manifest["cases"]["second-case"] = (second / "results.json").as_posix()
     (root / "execution.json").write_text(json.dumps(manifest))
     report = validate_experiment_results(loaded, root)

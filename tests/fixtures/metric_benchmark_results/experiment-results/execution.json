@@ -3,5 +3,6 @@
   "cases": {
     "rho-agent": "cases/case-0000/execution-results/results.json"
   },
-  "run_id": "mock-run-001"
+  "run_id": "mock-run-001",
+  "cases_sha256": "sha256:670d1cac62a4938f17f44b0d50e915472947847542ce7cb3a3ca76599d202d8a"
 }

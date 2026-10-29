@@ -76,6 +76,7 @@ are storage labels, not case identities.
 | Field | Required / default | Meaning | Source |
 | --- | --- | --- | --- |
 | `run_id` | Required | Execution ID shared by all case indexes. | CLI: the runner’s `--run-id`. |
+| `cases_sha256` | Required | Resolved case metadata identity, checked by analysis without executable files. | Runner-generated digest of the case definitions. |
 | `execution_sha256` | Required | Execution-only identity recorded by the runner. | Runner-generated SHA-256 digest. |
 | `cases` | Required, nonempty | Map from configured case IDs to relative `results.json` paths. | YAML: `cases.yml` → each `case_id`; paths are runner-generated. |
 
@@ -94,7 +95,7 @@ also show their explicit defaults.
 | Field | Required / default | Meaning | Source |
 | --- | --- | --- | --- |
 | `run_id` | Required | ID supplied by the caller when starting this execution of the experiment; the local runner takes it from `--run-id`. | CLI: `--run-id`. |
-| `task_inventory` | Required, nonempty | Array of tasks configured for this case example, including tasks whose executions failed or are missing. | YAML: `tasks.yml` → `tasks`, referenced by `experiment.yml` → `cases[].tasks.path`. |
+| `task_inventory` | Required, nonempty | Array of tasks configured for this case example, including tasks whose executions failed or are missing. | YAML: `tasks.yml` → `tasks`, referenced by `cases.yml` → `[].tasks.path`. |
 | `execution_results` | Required, nonempty | Outcomes for each agent/task pair: one entry per attempt, including explicit entries for missing executions. | Runner-generated from the configured agents/tasks and Harbor trial results. |
 
 For example, starting the runner with `--run-id trial-001` produces

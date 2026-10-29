@@ -206,6 +206,8 @@ def validate_results(
 
 def validate_experiment_results(loaded: LoadedCases, root: Path, *, case_id: str | None = None) -> dict:
     manifest = ExecutionManifest.model_validate(read_json(resolve_evidence(root, "execution.json")))
+    if manifest.cases_sha256 != loaded.identity:
+        raise ValueError("execution case definitions differ from supplied cases")
     selected = {case_id: loaded.case(case_id)} if case_id is not None else loaded.cases
     missing = selected.keys() - manifest.cases.keys()
     unexpected = manifest.cases.keys() - loaded.cases.keys()

@@ -57,7 +57,7 @@
   <text x="781" y="226" class="label">Benchmark tasks</text>
   <text x="781" y="254" class="detail">Tasks + verifiers</text>
   <text x="1014" y="226" class="label">experiment.yml</text>
-  <text x="1014" y="254" class="detail">Defines cases inline</text>
+  <text x="1014" y="254" class="detail">References cases and settings</text>
   <rect x="64" y="294" width="490" height="110" rx="12" class="card" stroke="#b9dcd0"/>
   <text x="86" y="327" class="label">Construct eval subsets</text>
   <text x="86" y="356" class="detail">Pinned task inventory + fixed seed</text>

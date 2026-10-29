@@ -253,6 +253,8 @@ def execute_benchmark(
         validate_results(raw, case, root, loaded_case.root, allow_unsigned=loaded.inputs.allow_unsigned)
         write_json(root / "results.json", raw)
         indexes[case.case_id] = (root / "results.json").relative_to(output).as_posix()
-    result = ExecutionManifest(execution_sha256=identity, run_id=run_id, cases=indexes).model_dump()
+    result = ExecutionManifest(
+        cases_sha256=loaded.inputs.identity, execution_sha256=identity, run_id=run_id, cases=indexes
+    ).model_dump()
     write_json(output / "execution.json", result)
     return result
