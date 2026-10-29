@@ -8,18 +8,22 @@ import tempfile
 from pathlib import Path
 
 import yaml
+from pydantic import TypeAdapter
 
 from metric_benchmark.config import (
     AgentManifest,
+    AnalysisSettings,
     BenchmarkDefinition,
     Case,
+    CaseDefinition,
+    LocalExecution,
     PinnedInput,
     TaskManifest,
     load_benchmark,
     read_yaml,
 )
 from metric_benchmark.io import digest_bytes, input_digest, read_json
-from metric_benchmark.models import Subsets
+from metric_benchmark.models import Subsets, unique
 
 
 def _sha_edits(node: yaml.Node, before, after, text: str) -> list[tuple[int, int, str]]:
@@ -60,7 +64,7 @@ def _sha_edits(node: yaml.Node, before, after, text: str) -> list[tuple[int, int
     return edits
 
 
-def _yaml_bytes(path: Path, data: dict) -> bytes:
+def _yaml_bytes(path: Path, data: dict | list) -> bytes:
     # Parser positions let us change pins without reformatting YAML or losing comments.
     text = path.read_bytes().decode("utf-8")
     node = yaml.compose(text, Loader=yaml.SafeLoader)
@@ -84,39 +88,56 @@ def _replace(path: Path, data: bytes) -> None:
             temporary.unlink(missing_ok=True)
 
 
-def _collect(path: Path) -> tuple[dict[Path, dict], dict[tuple[Path, str], tuple[dict, Path, bool]]]:
+def _collect(path: Path) -> tuple[dict[Path, dict | list], dict[tuple[Path, str], tuple[dict, Path, bool]]]:
     root = path.parent
-    documents: dict[Path, dict] = {}
+    documents: dict[Path, dict | list] = {}
     references: dict[tuple[Path, str], tuple[dict, Path, bool]] = {}
 
-    def document(target: Path) -> dict:
+    def document(target: Path):
         if target not in documents:
             data = read_yaml(target)
-            if not isinstance(data, dict):
-                raise ValueError(f"{target.relative_to(root)} must be a YAML mapping")
+            if not isinstance(data, (dict, list)):
+                raise ValueError(f"{target.name} must be a YAML mapping or list")
             documents[target] = data
         return documents[target]
 
-    def reference(owner: Path, label: str, data: dict, source: PinnedInput, *, manifest: bool = False) -> Path:
+    def reference(owner: Path, label: str, data: dict, source: PinnedInput, *, manifest=False, base=None) -> Path:
         try:
-            target = source.resolve(root, verify_digest=False)
+            target = source.resolve(base or root, verify_digest=False)
         except (OSError, ValueError) as error:
-            raise ValueError(f"{owner.relative_to(root)}:{label}: {error}") from error
+            raise ValueError(f"{owner.name}:{label}: {error}") from error
         references[owner, label] = data, target, manifest
         return target
 
     experiment = document(path)
     definition = BenchmarkDefinition.model_validate(experiment)
-    for entry, raw_case in zip(definition.cases, experiment["cases"], strict=True):
+    cases_path = reference(path, "cases", experiment["cases"], definition.cases, manifest=True)
+    execution_path = reference(path, "execution", experiment["execution"], definition.execution, manifest=True)
+    analysis_path = reference(path, "analysis", experiment["analysis"], definition.analysis, manifest=True)
+    LocalExecution.model_validate(document(execution_path))
+    analysis_data = document(analysis_path)
+    analysis = AnalysisSettings.model_validate(analysis_data)
+    cases_data = document(cases_path)
+    entries = TypeAdapter(list[CaseDefinition]).validate_python(cases_data)
+    if not entries:
+        raise ValueError("cases must not be empty")
+    unique([entry.case_id for entry in entries], "case IDs")
+    if set(analysis.case_settings) != {entry.case_id for entry in entries}:
+        raise ValueError("analysis case_settings must match the cases exactly")
+    root = cases_path.parent
+    for entry, raw_case in zip(entries, cases_data, strict=True):
         label = f"cases[{entry.case_id}]"
-        agent_path = reference(path, f"{label}.agent", raw_case["agent"], entry.agent, manifest=True)
-        tasks_path = reference(path, f"{label}.tasks", raw_case["tasks"], entry.tasks, manifest=True)
+        agent_path = reference(cases_path, f"{label}.agent", raw_case["agent"], entry.agent, manifest=True)
+        tasks_path = reference(cases_path, f"{label}.tasks", raw_case["tasks"], entry.tasks, manifest=True)
         agent_data, tasks_data = document(agent_path), document(tasks_path)
         agent, tasks = AgentManifest.model_validate(agent_data), TaskManifest.model_validate(tasks_data)
         case = Case.from_manifests(entry, agent, tasks)
-        subset_path = reference(path, f"{label}.subsets", raw_case["subsets"], entry.subsets)
+        settings, raw_settings = analysis.case_settings[entry.case_id], analysis_data["case_settings"][entry.case_id]
+        subset_path = reference(analysis_path, f"{label}.subsets", raw_settings["subsets"], settings.subsets)
         Subsets.model_validate(read_json(subset_path)).resolve_tasks(case.task_inventory)
-        description = reference(agent_path, "description", agent_data["description"], agent.description)
+        description = reference(
+            analysis_path, f"{label}.description", raw_settings["description"], settings.description
+        )
         if not isinstance(read_json(description), dict):
             raise ValueError(f"case {entry.case_id}: case description must be a JSON object")
         for i, (task, raw_task) in enumerate(zip(tasks.tasks, tasks_data["tasks"], strict=True)):
@@ -126,13 +147,16 @@ def _collect(path: Path) -> tuple[dict[Path, dict], dict[tuple[Path, str], tuple
             agent_label = "baseline" if i == 0 else f"mutants[{i - 1}]"
             for name, source in version.inputs.items():
                 reference(agent_path, f"{agent_label}.inputs.{name}", raw_version["inputs"][name], source)
-
     return documents, references
 
 
 def check_benchmark(path: Path) -> None:
     """Require and verify every input pin without writing files."""
-    load_benchmark(path)
+    loaded = load_benchmark(path)
+    loaded.execution.inputs.verify_execution_inputs()
+    for case_id in loaded.analysis.inputs.cases:
+        loaded.analysis.load_subsets(case_id)
+        loaded.analysis.load_description(case_id)
 
 
 def sign_benchmark(path: Path, *, resign: bool = False) -> list[Path]:
@@ -156,13 +180,22 @@ def sign_benchmark(path: Path, *, resign: bool = False) -> list[Path]:
             if any(target == item or target in item.parents for item in documents):
                 raise ValueError(f"input overlaps a manifest being signed: {target.relative_to(root)}")
             data["sha256"] = input_digest(target)
-    # The schema has two manifest levels: experiment -> agent/tasks -> leaf inputs.
-    # If nested manifests are added, finalize their children before hashing parents.
-    planned = {target: _yaml_bytes(target, data) for target, data in documents.items() if target != path}
-    for data, target, manifest in references.values():
-        if manifest:
-            data["sha256"] = digest_bytes(planned[target])
-    planned[path] = _yaml_bytes(path, documents[path])
+    planned = {}
+    active = set()
+
+    def finalize(target):
+        if target in active:
+            raise ValueError("cyclic manifest references")
+        if target not in planned:
+            active.add(target)
+            for (owner, _), (data, child, manifest) in references.items():
+                if owner == target and manifest:
+                    data["sha256"] = digest_bytes(finalize(child))
+            planned[target] = _yaml_bytes(target, documents[target])
+            active.remove(target)
+        return planned[target]
+
+    finalize(path)
     changed = []
     for target, content in planned.items():
         if target.read_bytes() != content:

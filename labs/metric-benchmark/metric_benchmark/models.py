@@ -96,7 +96,7 @@ class Execution(Model):
 
 
 class ExecutionManifest(Model):
-    benchmark_sha256: Digest
+    execution_sha256: Digest
     run_id: Text
     cases: dict[Text, Text] = Field(min_length=1)
 

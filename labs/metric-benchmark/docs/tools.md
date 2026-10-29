@@ -13,63 +13,41 @@ These tools consume externally prepared cases. A prepared case contains:
 
 ## Benchmark config
 
-The [benchmark format specification](benchmark-format.md) defines the recommended
-directory layout, manifest fields, relative paths, and content pins:
-
-- [Agents](benchmark-format.md#agents-agentyml): baseline, mutants and intended behavior.
-- [Tasks](benchmark-format.md#tasks-tasksyml): task inventory and source directories.
-- [Subsets](benchmark-format.md#subsets-subsetsjson): fixed task memberships.
-- [Cases](benchmark-format.md#experiment-and-inline-cases-experimentyml): inline combinations of agents, tasks and subsets.
-- [Experiment](benchmark-format.md#experiment-and-inline-cases-experimentyml): case list and execution/analysis settings.
+The [format specification](benchmark-format.md) defines the experiment's three
+references: [cases](benchmark-format.md#cases-casesyml),
+[execution settings](benchmark-format.md#execution-executionyml), and
+[analysis settings](benchmark-format.md#analysis-analysisyml).
 
 ## Signing a benchmark
 
-See the [`sha-sign` command guide](sha-sign.md) for signing, re-signing, checking
-pins, and the Python API.
+See [`sha-sign`](sha-sign.md) for signing, re-signing, checking pins, and the Python API.
 
 ## Reading benchmarks
 
-Unpack a benchmark bundle and pass its `experiment.yml` to the Python library.
-From the repository root:
-
-```bash
-PYTHONPATH=labs/metric-benchmark uv run python - <<'PYTHON'
-from pathlib import Path
-from metric_benchmark.config import load_benchmark
-
-benchmark = load_benchmark(Path("benchmark/experiment.yml"))
-prepared = benchmark.case("rho-agent")
-subsets = benchmark.subsets["rho-agent"]
-PYTHON
-```
-
-`load_benchmark(path)` is the full entry point: it reads the experiment, verifies
-all referenced manifests, task sources and agent inputs, and loads every case's
-subsets and description. The returned object holds the experiment definition,
-resolved cases, subsets, and descriptions. Loading requires SHA-256 digests by
-default. During iteration, explicitly opt in to unsigned inputs:
+From the repository root, put `labs/metric-benchmark` on `PYTHONPATH` to import the
+libraries. Standalone stage loaders take the cases file and their settings file:
 
 ```python
-benchmark = load_benchmark(Path("benchmark/experiment.yml"), allow_unsigned=True)
+from pathlib import Path
+from metric_benchmark.config import load_execution, load_analysis, load_benchmark
+
+execution = load_execution(Path("benchmark/cases.yml"), Path("benchmark/execution.yml"))
+analysis = load_analysis(Path("benchmark/cases.yml"), Path("benchmark/analysis.yml"))
+subsets = analysis.load_subsets("rho-agent")
+experiment = load_benchmark(Path("benchmark/experiment.yml"))
 ```
 
-This permits missing pins but still verifies every supplied digest. The lighter
-`read_benchmark()` and individual artifact loaders accept the same keyword,
-also defaulting to `False`. Benchmark-reading CLIs accept `--allow-unsigned`
-for iteration; `sha-sign --check` always requires all pins.
+`load_execution` verifies executable inputs. `load_analysis` reads only metadata
+and settings; subset and description loaders verify the artifacts they read.
+`load_cases(path)` reads case/agent/task metadata for full native result validation.
+`load_benchmark` composes execution and analysis objects for orchestration; execution
+verifies its own inputs before launching jobs. It does not eagerly open executable
+inputs, subsets, or descriptions. Use `sha-sign --check` to verify the entire bundle.
 
-Use `read_benchmark(path)` from the same module when only the experiment and
-inline cases and referenced agent/task manifests are needed. It does not open
-task sources, agent bundles, subsets, or descriptions. With this lighter reader,
-load a selected case's subsets or description through
-`prepared.case.load_subsets(prepared.root, allow_unsigned=prepared.allow_unsigned)` or
-`prepared.case.load_description(prepared.root, allow_unsigned=prepared.allow_unsigned)`;
-each verifies the referenced artifact and requires a digest unless unsigned
-loading was explicitly enabled.
-
-The [format specification](benchmark-format.md) describes validation rules.
-`BenchmarkDefinition`, `CaseDefinition`, `AgentManifest`, and `TaskManifest` also
-expose their format through `model_json_schema()`.
+Loading requires pins by default. All these entrypoints accept
+`allow_unsigned=True` during iteration, still verifying supplied pins. The CLI
+spelling is `--allow-unsigned`. Metadata loading requires the referenced YAML
+manifests, but analysis does not require their executable agent/task directories.
 
 ## Validate a results directory
 

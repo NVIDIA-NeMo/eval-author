@@ -67,7 +67,7 @@
   <text x="672" y="327" class="label">Subset manifest</text>
   <text x="672" y="356" class="detail">Named subsets + explicit task IDs</text>
   <text x="672" y="383" class="small">Versioned subsets.json · algorithm + fixed seed recorded</text>
-  <text x="64" y="431" class="small">Experiment YAML defines cases; each selects agent, tasks, and subset manifests.</text>
+  <text x="64" y="431" class="small">Experiment YAML references cases, execution settings, and analysis settings.</text>
 
   <g transform="translate(0 110)">
   <path d="M310 336 V364" class="flow"/>

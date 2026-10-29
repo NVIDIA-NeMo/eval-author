@@ -1,5 +1,5 @@
 {
-  "benchmark_sha256": "sha256:bbd8b9dd1fbdbfe2ccf8fce5b106254cbfdd8b13e05b9d613347aa976203be6f",
+  "execution_sha256": "sha256:bbd8b9dd1fbdbfe2ccf8fce5b106254cbfdd8b13e05b9d613347aa976203be6f",
   "cases": {
     "rho-agent": "cases/case-0000/execution-results/results.json"
   },

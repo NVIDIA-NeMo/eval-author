@@ -9,17 +9,17 @@ Run each prepared case’s baseline and mutants against its Harbor task inventor
 
 ```bash
 uv run python labs/metric-benchmark/run_evals.py \
-  --benchmark experiment.yml --run-id trial-1 --output private-run
+  --cases cases.yml --execution execution.yml --run-id trial-1 --output private-run
 ```
 
-Supply `--benchmark` for the benchmark YAML, `--run-id` for this execution's
+Supply `--cases` for case definitions, `--execution` for Harbor settings, `--run-id` for this execution's
 identifier, and `--output` for the experiment results directory. Run from the
 repository root after `uv sync --locked`; the default execution environment
 requires Docker. Prepared agents may have additional runtime or credential
 requirements defined by their benchmark bundle.
 
-The benchmark YAML is the command's only configuration file. Its referenced
-manifests supply the agents and tasks. All inputs require SHA pins by default;
+The cases file references manifests supplying the agents and tasks. Execution
+settings do not reference cases or analysis. All inputs require SHA pins by default;
 add `--allow-unsigned` while iterating to permit missing pins, while still
 verifying any supplied pins.
 
@@ -51,7 +51,7 @@ private-run/
 
 Numeric folder aliases are stable within a definition. The index carries actual
 case, agent, task and run identities. Each case index has `run_id` from
-`--run-id`, a `task_inventory` array, and an `execution_results` array. Each observation has an
+`--run-id`, a `task_inventory` array, and an `execution_results` array. Each observation retains all native reward metrics and has an
 `agent_run_id` for its agent’s job; `native_results_path` locates the trial evidence.
 See the [results format](results-format.md) for the complete contract.
 No model or private service is involved in
@@ -61,9 +61,9 @@ the orchestration itself. Prepared agents may call models when executed.
 
 Rerunning the command verifies completed job receipts and skips those jobs.
 Completed outputs and prepared inputs can be moved together. Reuse currently
-requires the entire benchmark configuration to match, including analysis settings
-and subset manifests, as well as the run ID and prepared inputs. Changing an
-analysis-only setting therefore also requires a fresh execution output directory.
+requires the execution inputs, effective execution settings, and run ID to match.
+Analysis settings, subsets, descriptions, and experiment revision may change
+without invalidating completed jobs.
 With `--allow-unsigned`, the runner hashes inputs without pins when computing this identity, so editing an
 unsigned bundle also requires a fresh output directory. This does not sign or
 rewrite the prepared manifests. The retained
@@ -95,9 +95,9 @@ changing its evidence makes reuse fail.
 
 ## Python library
 
-`execute_benchmark(loaded_benchmark, run_id, output)` runs the same stage as the
-CLI and returns the experiment manifest. Obtain `loaded_benchmark` with
-[`load_benchmark`](tools.md#reading-benchmarks). A future NeMo Helix implementation
+`execute_benchmark(loaded_execution, run_id, output)` runs the same stage as the
+CLI and returns the experiment manifest. Obtain `loaded_execution` with
+[`load_execution`](tools.md#reading-benchmarks). A future NeMo Helix implementation
 can produce the same [results contract](results-format.md).
 
 ## Local smoke test

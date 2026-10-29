@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+case_settings:
+  rho-agent:
+    description:
+      path: agents/rho-agent/description.json
+      sha256: sha256:fcb4a1e2e0a78fc9dd624d72c123d73b5547d8185a567874b2581114357a957a
+      kind: file
+    subsets:
+      path: tasks/workspace/subsets.json
+      sha256: sha256:c9b05fb9ca48d0f7ca01fd1dc755d68b909eceadf3d094edcadd7aa3b162a786
+coverage:
+  system_id: synthetic
+  system_revision: '1'
+  command:
+  - python
+  - /adapter.py

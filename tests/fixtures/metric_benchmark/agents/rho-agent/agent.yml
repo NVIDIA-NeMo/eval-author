@@ -16,7 +16,3 @@ mutants:
   revision: '1'
   harbor:
     name: nop
-description:
-  path: agents/rho-agent/description.json
-  sha256: sha256:fcb4a1e2e0a78fc9dd624d72c123d73b5547d8185a567874b2581114357a957a
-  kind: file

@@ -12,14 +12,14 @@ From the repository root, invoke the validation CLI with:
 
 ```bash
 uv run python labs/metric-benchmark/validate_results.py \
-  --benchmark experiment.yml \
+  --cases cases.yml \
   --results-root experiment-results \
   --output validation.json
 ```
 
 Supply these required arguments:
 
-- `--benchmark`: path to the experiment YAML file and its references to prepared inputs.
+- `--cases`: path to the case definitions and their prepared agent/task manifests.
 - `--results-root`: whole experiment output directory containing `execution.json` and the case results directories.
 - `--output`: path for the validation report, outside the results root; `validation.json` is an example filename.
 
@@ -39,10 +39,10 @@ contents are identical; choose a new output path for changed results.
 ## Python library
 
 `validate_experiment_results(loaded, root, *, case_id=None)` returns the
-same report as the CLI. Pass a `LoadedBenchmark` from `load_benchmark` and the
+same report as the CLI. Pass `LoadedCases` from `load_cases` and the
 whole experiment output root; `case_id` optionally selects one case.
 
-The per-case `validate_results(raw, case, root, input_root, scoring, *, allow_unsigned=False)`
+The per-case `validate_results(raw, case, root, input_root, *, allow_unsigned=False)`
 function remains available for execution and analysis libraries. Its `root` is
 that case’s results directory, and it returns the individual case report.
 

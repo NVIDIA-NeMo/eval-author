@@ -76,13 +76,13 @@ are storage labels, not case identities.
 | Field | Required / default | Meaning | Source |
 | --- | --- | --- | --- |
 | `run_id` | Required | Execution ID shared by all case indexes. | CLI: the runner’s `--run-id`. |
-| `benchmark_sha256` | Required | Benchmark identity recorded by the execution runner. | Runner-generated SHA-256 digest. |
-| `cases` | Required, nonempty | Map from configured case IDs to relative `results.json` paths. | YAML: `experiment.yml` → `cases[].case_id`; paths are runner-generated. |
+| `execution_sha256` | Required | Execution-only identity recorded by the runner. | Runner-generated SHA-256 digest. |
+| `cases` | Required, nonempty | Map from configured case IDs to relative `results.json` paths. | YAML: `cases.yml` → each `case_id`; paths are runner-generated. |
 
 For example, `cases` may contain
 `{"rho-agent": "cases/case-0000/execution-results/results.json"}`. The validator
 uses this mapping and checks the supplied prepared inputs; it does not recompute
-the runner’s `benchmark_sha256` identity.
+the runner’s `execution_sha256` identity.
 
 ### Results index: `results.json`
 
@@ -136,7 +136,7 @@ case’s results index; consumers do not need to parse their components.
 | `framework_profile_id` | Defaults to `null` | Optional profile identity; it must stay consistent within a run. | Optional producer metadata; the local runner leaves it `null`. |
 | `evaluation` | Required | Task and attempt identity, defined below. | Runner-generated identity and attempt, plus a task reference from `tasks.yml`; see below. |
 | `status` | Required | Native outcome: `succeeded`, `error`, or an explicit `missing` execution. | Harbor: derived from the native trial outcome. A producer explicitly declares `missing`. |
-| `metrics` | Defaults to `{}` in the model | Map from measurement names to score objects. Validation requires the experiment's configured metric to be present. | YAML: `experiment.yml` → `scoring.metric` (default `reward`) selects the key. Harbor: `result.json` → `verifier_result.rewards` supplies the value; the runner derives unavailable reasons. |
+| `metrics` | Defaults to `{}` in the model | Map from all native reward names to score objects; if no rewards exist, a null `reward` records unavailability. | Harbor: `result.json` → `verifier_result.rewards` supplies the value; the runner derives unavailable reasons. |
 | `native_results_path` | Required | Relative trial-directory path, or a nonexistent location for a missing execution. | Runner-generated relative path to the Harbor trial directory; a producer supplies a placeholder for missing evidence. |
 | `native_results_format` | Required | Use `directory` for the current native validator. The model also recognizes `tar.gz`, but observed archives are not supported by this validator. | Runner-generated; the local runner sets `directory`. |
 | `unavailable_evidence` | Defaults to `{}` | Map from evidence names to reasons. Missing executions require a `native_results` reason. | Optional producer-supplied reasons; the local runner leaves this empty and rejects incomplete jobs. |
@@ -163,7 +163,8 @@ A numeric value must be finite and have no non-null reason. An unavailable value
 must be `null` and have a nonblank reason. Zero and negative numbers are valid
 measurements; neither means that evidence is absent.
 
-For the configured metric, the index must agree with native Harbor observations:
+For every native reward metric, the index must agree with native Harbor observations.
+When no rewards are present, a null `reward` entry records unavailability:
 
 | Situation | Status | Metric value and reason |
 | --- | --- | --- |
@@ -204,10 +205,10 @@ Every `(evaluation_id, execution)` pair is unique across the index. Reusing an
 one agent/profile combination; different agents cannot share it.
 
 One run per agent and one logical `evaluation_id` per agent/task pair are
-allowed. The experiment's `scoring.attempt_policy` controls retries:
+allowed. Analysis's `scoring.attempt_policy` controls which recorded attempts it accepts:
 
 - `only` (default): exactly one execution entry per pair.
-- `latest`: multiple attempts of the same evaluation are permitted. Validation checks all supplied attempts; downstream scoring selects the highest attempt number, not the best reward.
+- `latest`: multiple attempts of the same evaluation are permitted. Native validation checks all supplied attempts; downstream scoring selects the highest attempt number, not the best reward.
 
 Independent repetitions with different evaluation IDs for the same pair are
 ambiguous and rejected. Native trial evidence cannot be reused by multiple
@@ -222,13 +223,13 @@ relative POSIX path within that case directory. Keep the configuration, results,
 available agent/verifier evidence; symlinks and special files are not allowed.
 The validator reads each observed trial’s Harbor 0.20.0 `result.json` and checks
 the task identity/checksum, trial directory name, agent configuration, status and
-configured measurement against the prepared inputs and results index.
+all native measurements against the prepared inputs and results index.
 
 A missing execution still occupies its agent/task position in the index, and its
 `native_results_path` must not exist. An unfinished native trial is rejected;
 it cannot be presented as a completed observation. Multi-step trials without
 an execution exception are rejected because no aggregation policy is implemented.
-Validation compares the configured metric, including its reason, against the
+Validation compares every indexed metric, including its reason, against the
 native observation. Other metric keys are schema-checked but are not compared
 against native measurements by this validator.
 
