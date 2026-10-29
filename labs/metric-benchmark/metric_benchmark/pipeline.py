@@ -13,8 +13,8 @@ from harbor.models.job.config import JobConfig
 from metric_benchmark.config import load_benchmark
 from metric_benchmark.correlation import correlate
 from metric_benchmark.coverage import invoke_coverage
-from metric_benchmark.execution import benchmark_identity, execute_benchmark, run_harbor
-from metric_benchmark.io import cli, digest_file, read_json, write_json
+from metric_benchmark.execution import execute_benchmark, run_harbor
+from metric_benchmark.io import cli, digest_file, file_manifest, read_json, write_json
 from metric_benchmark.models import ExecutionManifest, RawResults, resolve_evidence
 from metric_benchmark.scoring import compute_mutant_scores, identity
 from metric_benchmark.validation import selection_for_results, validate_experiment_results
@@ -45,7 +45,8 @@ def run_experiment(
     prohibits new coverage-system invocations. No stage CLI is used internally.
     """
     loaded = load_benchmark(benchmark, allow_unsigned=allow_unsigned)
-    benchmark_sha256 = benchmark_identity(loaded)
+    analysis = loaded.analysis
+    analysis_sha256 = analysis.identity
     if cached_only and results_root is None:
         raise ValueError("cached_only requires an existing results_root")
     if not run_id.strip():
@@ -54,7 +55,7 @@ def run_experiment(
         write_json(
             output / "experiment-inputs.json",
             {
-                "benchmark_sha256": benchmark_sha256,
+                "analysis_sha256": analysis_sha256,
                 "benchmark": loaded.definition.model_dump(mode="json"),
                 "run_id": run_id,
                 "implementation": implementation(),
@@ -67,43 +68,56 @@ def run_experiment(
         ) from error
     if results_root is None:
         results_root = output / "execution"
-        execute_benchmark(loaded, run_id, results_root, runner=runner)
+        execute_benchmark(loaded.execution, run_id, results_root, runner=runner)
+        write_json(output / "validation.json", validate_experiment_results(analysis.inputs, results_root))
     manifest = ExecutionManifest.model_validate(read_json(resolve_evidence(results_root, "execution.json")))
-    if manifest.run_id != run_id or manifest.benchmark_sha256 != benchmark_sha256:
-        raise ValueError("execution manifest does not match benchmark/run identity")
-    validation = validate_experiment_results(loaded, results_root)
-    write_json(output / "validation.json", validation)
+    if manifest.run_id != run_id or manifest.cases_sha256 != analysis.inputs.identity:
+        raise ValueError("execution manifest does not match cases/run identity")
+    if manifest.cases.keys() != analysis.inputs.cases.keys():
+        raise ValueError("results case inventory differs from configured cases")
+    evidence = file_manifest(results_root)
+    write_json(output / "execution-evidence.json", evidence)
     prepared = []
+    directories = set()
     # Freeze and validate every case before invoking any coverage system.
-    for ordinal, prepared_case in enumerate(loaded.cases.values()):
+    for ordinal, prepared_case in enumerate(analysis.inputs.cases.values()):
         case = prepared_case.case
         index = resolve_evidence(results_root, manifest.cases[case.case_id])
+        if index.name != "results.json":
+            raise ValueError(f"case {case.case_id}: index must be named results.json")
+        if index.parent in directories:
+            raise ValueError("results directory reused by multiple cases")
+        directories.add(index.parent)
         raw = RawResults.model_validate(read_json(index))
+        if raw.run_id != manifest.run_id:
+            raise ValueError(f"case {case.case_id}: run_id differs from execution.json")
         destination = output / "analysis" / f"case-{ordinal:04d}"
-        write_json(destination / "selection.json", selection_for_results(case, raw, loaded.definition.scoring))
-        write_json(destination / "coverage-config.json", loaded.definition.coverage)
-        write_json(destination / "subsets.json", loaded.subsets[case.case_id])
-        write_json(destination / "case-description.json", loaded.descriptions[case.case_id])
-        prepared.append((prepared_case, raw, index.parent, destination))
+        write_json(destination / "selection.json", selection_for_results(case, raw, analysis.settings.scoring))
+        write_json(destination / "coverage-config.json", analysis.settings.coverage)
+        write_json(destination / "subsets.json", analysis.load_subsets(case.case_id))
+        write_json(destination / "case-description.json", analysis.load_description(case.case_id))
+        mutants = compute_mutant_scores(
+            raw, analysis.load_subsets(case.case_id), selection_for_results(case, raw, analysis.settings.scoring)
+        )
+        prepared.append((prepared_case, raw, index.parent, destination, mutants))
     results = {}
-    for prepared_case, raw, native, destination in prepared:
+    for prepared_case, raw, native, destination, mutants in prepared:
         case = prepared_case.case
-        subsets = loaded.subsets[case.case_id]
-        selection = selection_for_results(case, raw, loaded.definition.scoring)
-        mutants = compute_mutant_scores(raw, subsets, selection)
+        subsets = analysis.load_subsets(case.case_id)
+        selection = selection_for_results(case, raw, analysis.settings.scoring)
         write_json(destination / "mutant-scores.json", mutants)
         coverage = invoke_coverage(
             raw,
             subsets,
             selection,
-            loaded.definition.coverage,
-            loaded.descriptions[case.case_id],
+            analysis.settings.coverage,
+            analysis.load_description(case.case_id),
             native,
             destination / "coverage-evidence",
             cached_only=cached_only,
         )
         write_json(destination / "coverage-scores.json", coverage)
-        correlation = correlate(coverage, mutants, missing_policy=loaded.definition.missing_policy)
+        correlation = correlate(coverage, mutants, missing_policy=analysis.settings.missing_policy)
         write_json(destination / "correlation.json", correlation)
         results[case.case_id] = {
             "correlation": (destination / "correlation.json").relative_to(output).as_posix(),
@@ -111,17 +125,16 @@ def run_experiment(
         }
     # A trusted adapter can access the host. Detect input/evidence modification
     # before publishing experiment completion, including changes to earlier cases.
-    if benchmark_identity(load_benchmark(benchmark, allow_unsigned=allow_unsigned)) != benchmark_sha256:
-        raise ValueError("benchmark inputs changed during execution")
-    if (
-        ExecutionManifest.model_validate(read_json(results_root / "execution.json")) != manifest
-        or validate_experiment_results(loaded, results_root) != validation
-    ):
+    if load_benchmark(benchmark, allow_unsigned=allow_unsigned).analysis.identity != analysis_sha256:
+        raise ValueError("analysis inputs changed during execution")
+    if file_manifest(results_root) != evidence:
         raise ValueError("execution evidence changed during analysis")
-    for _, raw, native, _ in prepared:
-        if RawResults.model_validate(read_json(native / "results.json")) != raw:
-            raise ValueError("execution evidence changed during analysis")
-    result = {"benchmark_sha256": benchmark_sha256, "run_id": run_id, "cases": results}
+    result = {
+        "analysis_sha256": analysis_sha256,
+        "execution_sha256": manifest.execution_sha256,
+        "run_id": run_id,
+        "cases": results,
+    }
     write_json(output / "experiment.json", result)
     return result
 

@@ -4,23 +4,11 @@
 benchmark_id: smoke
 revision: 1
 cases:
-- case_id: smoke-case
-  agent:
-    path: agents/smoke-agent/agent.yml
-    sha256: sha256:4c8734a81c2d3db86450484f99404ae95096f139fe26f979aa48c6f7bcc1f12e
-  tasks:
-    path: tasks/smoke-tasks/tasks.yml
-    sha256: sha256:75840e2e0d60e67a37efe02fd41fd4c5de51c4961e2de6e90bc09255660db73a
-  subsets:
-    path: tasks/smoke-tasks/subsets.json
-    sha256: sha256:4da87feadaca70f87f194f2c52c90e8a0bea596e1be823710e9280e709b20518
-coverage:
-  system_id: synthetic-subset-size
-  system_revision: '1'
-  command:
-  - /usr/bin/env
-  - python3
-  - -c
-  - 'import json; from pathlib import Path; r=json.loads(Path(''request.json'').read_text());
-    Path(''response.json'').write_text(json.dumps({''value'': len(r[''tasks'']) /
-    2}))'
+  sha256: sha256:5998782c2489839b5be27c026e82e10340d3c00f6ec08c055f4160bbb6ed7945
+  path: cases.yml
+execution:
+  sha256: sha256:3e7868e54726a1816ef6539bc6c7c6f4bdc82e9d31b9f82219b85330ff25e1d0
+  path: execution.yml
+analysis:
+  sha256: sha256:689263d3f2016723750707edb12c32046f7b4b0ced0e4ca0209593c969a376cb
+  path: analysis.yml
