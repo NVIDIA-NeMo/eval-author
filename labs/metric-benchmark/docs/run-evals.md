@@ -95,6 +95,9 @@ changing its evidence makes reuse fail.
 
 ## Python library
 
+See the [function call flow](assets/execution-call-flow.svg) for the CLI entry
+point, execution loops, Harbor calls, and saved-job branches.
+
 `execute_benchmark(loaded_benchmark, run_id, output)` runs the same stage as the
 CLI and returns the experiment manifest. Obtain `loaded_benchmark` with
 [`load_benchmark`](tools.md#reading-benchmarks). A future NeMo Helix implementation
