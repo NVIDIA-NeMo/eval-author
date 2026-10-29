@@ -136,6 +136,65 @@ def collect_job(case: Case, agent_index: int, root: Path, request: JobConfig, me
     return sorted(rows, key=lambda r: r.evaluation.task.key())
 
 
+def run_or_reuse_job(
+    loaded: LoadedBenchmark,
+    case: Case,
+    agent_index: int,
+    root: Path,
+    config: JobConfig,
+    identity: str,
+    *,
+    runner: Callable[[JobConfig], None] = run_harbor,
+) -> list[Execution]:
+    """Run or verify one agent’s Harbor job, collect its task observations, and seal completed evidence.
+    Preserve partial jobs for explicit recovery and report failures with case and agent context.
+    """
+    agent = case.agents()[agent_index]
+    try:
+        parent = config.jobs_dir
+        directory = parent / config.job_name
+        receipt_path = parent / "receipt.json"
+        sealed = receipt_path.exists()
+        request = {
+            "benchmark_sha256": identity,
+            "case_id": case.case_id,
+            "agent_bundle_id": agent.agent_bundle_id,
+            "execution": loaded.definition.execution.model_dump(mode="json"),
+        }
+        write_json(parent / "request.json", request)
+        native_path = parent / "native-request.json"
+        if not native_path.exists():
+            if directory.exists() or sealed:
+                raise ValueError("existing job lacks native-request.json; original task bindings are required")
+            write_json(native_path, config)
+        native_request = JobConfig.model_validate(read_json(resolve_evidence(parent, "native-request.json")))
+        expected = {
+            "configuration_sha256": digest_bytes(json_bytes(request)),
+            "native_request_sha256": digest_file(native_path),
+        }
+        print(
+            f"case {case.case_id}, agent {agent.agent_bundle_id} ({agent_index + 1}/{len(case.agents())}): "
+            + ("checking saved job" if directory.exists() else "running Harbor"),
+            file=sys.stderr,
+        )
+        if sealed:
+            receipt = read_json(resolve_evidence(parent, "receipt.json"))
+            if receipt != {**expected, "files": file_manifest(directory)}:
+                raise ValueError("completed Harbor job changed")
+        elif not directory.exists():
+            # An unstarted request is reusable only at its original paths;
+            # relocation support applies to completed jobs.
+            if native_request != config:
+                raise ValueError("unstarted job request moved; use a new output for this execution")
+            runner(config)
+        collected = collect_job(case, agent_index, root, native_request, loaded.definition.scoring.metric)
+        if not sealed:
+            write_json(receipt_path, {**expected, "files": file_manifest(directory)})
+        return collected
+    except (OSError, ValueError) as error:
+        raise ValueError(f"case {case.case_id}, agent {agent.agent_bundle_id}: {error}") from error
+
+
 def execute_benchmark(
     loaded: LoadedBenchmark,
     run_id: Text,
@@ -182,50 +241,12 @@ def execute_benchmark(
         case = loaded_case.case
         root = case_root(output, case_index)
         rows = []
-        for agent_index, agent in enumerate(case.agents()):
-            try:
-                config = jobs[case_index, agent_index]
-                parent = config.jobs_dir
-                directory = parent / config.job_name
-                receipt_path = parent / "receipt.json"
-                request = {
-                    "benchmark_sha256": identity,
-                    "case_id": case.case_id,
-                    "agent_bundle_id": agent.agent_bundle_id,
-                    "execution": loaded.definition.execution.model_dump(mode="json"),
-                }
-                write_json(parent / "request.json", request)
-                native_path = parent / "native-request.json"
-                if not native_path.exists():
-                    if directory.exists() or receipt_path.exists():
-                        raise ValueError("existing job lacks native-request.json; original task bindings are required")
-                    write_json(native_path, config)
-                native_request = JobConfig.model_validate(read_json(resolve_evidence(parent, "native-request.json")))
-                expected = {
-                    "configuration_sha256": digest_bytes(json_bytes(request)),
-                    "native_request_sha256": digest_file(native_path),
-                }
-                print(
-                    f"case {case.case_id}, agent {agent.agent_bundle_id} ({agent_index + 1}/{len(case.agents())}): "
-                    + ("checking saved job" if directory.exists() else "running Harbor"),
-                    file=sys.stderr,
+        for agent_index in range(len(case.agents())):
+            rows.extend(
+                run_or_reuse_job(
+                    loaded, case, agent_index, root, jobs[case_index, agent_index], identity, runner=runner
                 )
-                if receipt_path.exists():
-                    receipt = read_json(resolve_evidence(parent, "receipt.json"))
-                    if receipt != {**expected, "files": file_manifest(directory)}:
-                        raise ValueError("completed Harbor job changed")
-                elif not directory.exists():
-                    # An unstarted request is reusable only at its original paths;
-                    # relocation support applies to completed jobs.
-                    if native_request != config:
-                        raise ValueError("unstarted job request moved; use a new output for this execution")
-                    runner(config)
-                collected = collect_job(case, agent_index, root, native_request, loaded.definition.scoring.metric)
-                if not receipt_path.exists():
-                    write_json(receipt_path, {**expected, "files": file_manifest(directory)})
-                rows.extend(collected)
-            except (OSError, ValueError) as error:
-                raise ValueError(f"case {case.case_id}, agent {agent.agent_bundle_id}: {error}") from error
+            )
         raw = RawResults(run_id=run_id, task_inventory=case.task_inventory.tasks, execution_results=rows)
         validate_results(
             raw, case, root, loaded_case.root, loaded.definition.scoring, allow_unsigned=loaded.allow_unsigned

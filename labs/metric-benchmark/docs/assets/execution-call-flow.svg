@@ -3,7 +3,7 @@
 
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1740" viewBox="0 0 1440 1740" role="img" aria-labelledby="title desc">
 <title id="title">Local execution: function calls and control flow</title>
-<desc id="desc">main calls io.cli, which parses arguments and calls run(args). run calls load_benchmark and then execute_benchmark. The library validates all job configurations first, then loops over cases and agents. Only a new job calls run_harbor, which calls asyncio.run, Job.create and job.run. Completed jobs are verified and collected; incomplete jobs require explicit Harbor recovery. Each case is validated and indexed, then an experiment manifest is written.</desc>
+<desc id="desc">main calls io.cli, which parses arguments and calls run(args). run calls load_benchmark and then execute_benchmark. The library validates all job configurations first, then loops over cases and agents, calling run_or_reuse_job for each agent. Only a new job calls run_harbor, which calls asyncio.run, Job.create and job.run. Completed jobs are verified and collected; incomplete jobs require explicit Harbor recovery. Each case is validated and indexed, then an experiment manifest is written.</desc>
 <defs>
 <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9 Z" fill="#64748b"/></marker>
 <style>
@@ -72,10 +72,10 @@ text { font-family: Arial, Helvetica, sans-serif; fill: #1e293b; }
 <text x="68" y="655" class="label" style="fill:#22785e">FOR EACH CASE  ·  sequential, in configuration order</text>
 <text x="68" y="682" class="detail">case_root() chooses this case’s output directory. Start an empty list of observations.</text>
 <rect x="68" y="701" width="1304" height="628" rx="14" fill="#fff" stroke="#b9dccc"/>
-<text x="88" y="733" class="label" style="fill:#22785e">FOR EACH AGENT  ·  baseline first, then every mutant</text>
+<text x="88" y="733" class="label" style="fill:#22785e">FOR EACH AGENT  ·  baseline first, then every mutant  →  run_or_reuse_job(...)</text>
 <rect x="108" y="753" width="1224" height="78" rx="12" fill="#f7faf9" stroke="#d4e5dd"/>
 <text x="128" y="783" class="mono">write_json(request) → write_json(native request) if absent → read_json(native request)</text>
-<text x="128" y="812" class="small">Preserve exact task bindings; compute expected request digests before choosing the path below.</text>
+<text x="128" y="812" class="small">run_or_reuse_job() handles requests and chooses a path using sealed = receipt_path.exists().</text>
 <path d="M720 831 V846 H273 V864" class="flow"/>
 <path d="M720 831 V864" class="flow"/>
 <path d="M720 831 V846 H1167 V864" class="flow"/>
@@ -109,8 +109,8 @@ text { font-family: Arial, Helvetica, sans-serif; fill: #1e293b; }
 <text x="128" y="1204" class="mono">read_json() → TrialResult.model_validate() → native_observation() → Execution.model_validate()</text>
 <text x="128" y="1232" class="small">Require a finished, complete task matrix; attach agent_run_id(); return observations sorted by task.</text>
 <path d="M720 1247 V1262" class="flow"/>
-<text x="128" y="1286" class="detail">If no receipt: file_manifest() → write_json(receipt). Append observations; continue with the next agent.</text>
-<text x="88" y="1313" class="small">All three branches pass through collect_job(); missing or incomplete evidence raises an error.</text>
+<text x="128" y="1286" class="detail">If not sealed: file_manifest() → write_json(receipt). Return observations to execute_benchmark().</text>
+<text x="88" y="1313" class="small">execute_benchmark() appends those observations and continues to the next agent; failures stop execution.</text>
 <path d="M720 1329 V1350" class="flow"/>
 <rect x="108" y="1354" width="1224" height="122" rx="12" fill="#e3f1eb" stroke="#acd1be"/>
 <text x="128" y="1385" class="label" style="fill:#22785e">AFTER ALL AGENTS IN THIS CASE</text>
