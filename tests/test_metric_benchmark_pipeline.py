@@ -307,3 +307,55 @@ def test_shared_validator_rejects_reused_case_directory_before_coverage(tmp_path
     adapter.write_text("raise AssertionError('invalid results must fail before coverage')")
     with pytest.raises(ValueError, match="results directory reused by multiple cases"):
         run_experiment(path, "run", tmp_path / "analysis", results_root=native)
+
+
+def test_signed_metadata_analyzes_unsigned_execution_without_sources(tmp_path):
+    import shutil
+
+    from metric_benchmark.io import file_manifest
+    from metric_benchmark.signing import sign_benchmark
+    from test_metric_benchmark_config import case_definition, write_case
+
+    path, _ = experiment(tmp_path)
+    bundle = path.parent / "agent-bundle"
+    bundle.mkdir()
+    (bundle / "agent.py").write_text("# prepared runtime\n")
+    case = case_definition(path)
+    case["baseline"]["inputs"] = {"bundle": {"path": bundle.name, "kind": "directory"}}
+    case["baseline"]["harbor"]["kwargs"] = {"bundle": "{input:bundle}"}
+    write_case(path, case)
+    remove_pins(path.parent)
+    native = tmp_path / "native"
+    manifest = execute_benchmark(load_benchmark(path, allow_unsigned=True).execution, "run", native, runner=fake_harbor)
+    before = file_manifest(native)
+    sign_benchmark(path)
+    for source in case["task_sources"].values():
+        shutil.rmtree(path.parent / source["path"])
+    shutil.rmtree(bundle)
+    loaded = load_benchmark(path)
+    assert loaded.analysis.inputs.identity == manifest["cases_sha256"]
+    standalone = tmp_path / "standalone.json"
+    subprocess.run(
+        [
+            sys.executable,
+            str(LAB / "compute_mutant_scores.py"),
+            "--cases",
+            str(path.parent / "cases.yml"),
+            "--analysis",
+            str(path.parent / "analysis.yml"),
+            "--case",
+            "rho-agent",
+            "--results-root",
+            str(native),
+            "--output",
+            str(standalone),
+        ],
+        check=True,
+    )
+    output = tmp_path / "analysis"
+    result = run_experiment(
+        path, "run", output, results_root=native, runner=lambda _: pytest.fail("must not execute agents")
+    )
+    assert result["execution_sha256"] == manifest["execution_sha256"]
+    assert standalone.read_bytes() == (output / "analysis/case-0000/mutant-scores.json").read_bytes()
+    assert file_manifest(native) == before
