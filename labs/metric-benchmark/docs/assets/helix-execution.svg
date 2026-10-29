@@ -1,0 +1,81 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1040" viewBox="0 0 1200 1040" role="img" aria-labelledby="title desc">
+  <title id="title">Metric benchmark execution on Helix — proposal</title>
+  <desc id="desc">External prep supplies cases and published inputs. A local submit tool saves run IDs and starts Helix runs for each baseline and mutant. A separate download tool checks every task. If unfinished or failed it reports status; if complete it downloads native evidence and publishes the shared results directory for analysis.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#60738c"/></marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #20314a; }
+      .title { font-size: 30px; font-weight: 700; }
+      .heading { font-size: 23px; font-weight: 700; }
+      .body { font-size: 18px; }
+      .small { font-size: 16px; fill: #50627a; }
+      .label { font-size: 14px; font-weight: 700; letter-spacing: 1.3px; }
+      .mono { font-family: monospace; font-size: 17px; }
+      .line { fill: none; stroke: #60738c; stroke-width: 2.5; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1200" height="1040" rx="24" fill="#f8fafc"/>
+  <text x="60" y="52" class="title">Run the metric benchmark on Helix</text>
+  <text x="60" y="80" class="small">Proposed interface · two tools within the execution stage</text>
+
+  <rect x="60" y="108" width="1080" height="100" rx="16" fill="#eff9f6" stroke="#b8ddce"/>
+  <text x="84" y="136" class="label" style="fill:#16856b">EXTERNAL PREP</text>
+  <text x="84" y="165" class="heading">Prepared cases + published inputs</text>
+  <text x="84" y="191" class="body">cases.yaml · uploaded baseline and mutants · pinned tasksets and images · input mapping</text>
+  <path d="M 300 208 V 245" class="line"/>
+
+  <rect x="60" y="245" width="480" height="150" rx="16" fill="#eef5ff" stroke="#b4cceb"/>
+  <text x="84" y="275" class="label" style="fill:#326baa">LOCAL TOOL 1</text>
+  <text x="84" y="307" class="heading">Submit on Helix</text>
+  <text x="84" y="338" class="body">One remote run per case × agent</text>
+  <text x="84" y="367" class="mono">submit_helix_evals.py</text>
+
+  <path d="M 540 320 H 660" class="line"/>
+  <text x="600" y="303" text-anchor="middle" class="small">submit</text>
+  <rect x="660" y="245" width="480" height="150" rx="16" fill="#e8f3fc" stroke="#93bedc"/>
+  <text x="684" y="275" class="label" style="fill:#326baa">EXISTING HELIX INSTANCE</text>
+  <text x="684" y="307" class="heading">(Baseline + mutants) × eval tasks</text>
+  <text x="684" y="338" class="body">Helix schedules parallel task jobs</text>
+  <text x="684" y="367" class="body">The local submit command has exited</text>
+
+  <path d="M 300 395 V 455" class="line"/>
+  <rect x="60" y="455" width="480" height="110" rx="16" fill="#fff" stroke="#c9d5e3"/>
+  <text x="84" y="487" class="heading">Saved submission record</text>
+  <text x="84" y="517" class="mono">submission.json</text>
+  <text x="84" y="544" class="small">Run IDs · input identities · task/agent mapping</text>
+
+  <path d="M 900 395 V 455" class="line"/>
+  <text x="920" y="430" class="small">status + artifacts</text>
+  <path d="M 540 510 H 660" class="line"/>
+  <rect x="660" y="455" width="480" height="175" rx="16" fill="#eef5ff" stroke="#b4cceb"/>
+  <text x="684" y="485" class="label" style="fill:#326baa">LOCAL TOOL 2 · INVOKE LATER</text>
+  <text x="684" y="517" class="heading">Check &amp; download</text>
+  <text x="684" y="548" class="body">Check every run, task, and artifact</text>
+  <text x="684" y="575" class="body">Is the complete matrix ready?</text>
+  <text x="684" y="606" class="mono">download_helix_results.py</text>
+
+  <path d="M 810 630 V 670 H 300 V 720" class="line"/>
+  <text x="420" y="660" class="small">Yes: download native evidence and validate</text>
+  <path d="M 980 630 V 720" class="line"/>
+  <text x="1000" y="686" class="small">No</text>
+
+  <rect x="60" y="720" width="480" height="130" rx="16" fill="#eff9f6" stroke="#b8ddce"/>
+  <text x="84" y="753" class="heading">Publish the results directory</text>
+  <text x="84" y="785" class="mono">execution.json · results.json</text>
+  <text x="84" y="815" class="body">All native trials and baseline traces</text>
+
+  <rect x="660" y="720" width="480" height="130" rx="16" fill="#fff6e7" stroke="#e7cb94"/>
+  <text x="684" y="753" class="heading">Report status and exit</text>
+  <text x="684" y="785" class="body">Still running / packaging: try again later</text>
+  <text x="684" y="815" class="body">Terminal failure: identify what failed</text>
+
+  <path d="M 300 850 V 900" class="line"/>
+  <rect x="60" y="900" width="480" height="95" rx="16" fill="#f3effb" stroke="#cfc0e8"/>
+  <text x="84" y="935" class="heading">Existing score analysis</text>
+  <text x="84" y="967" class="body">Mutant scores · coverage · correlation</text>
+  <text x="684" y="934" class="small">No complete results directory is published</text>
+  <text x="684" y="960" class="small">until evidence has been collected and validated.</text>
+</svg>

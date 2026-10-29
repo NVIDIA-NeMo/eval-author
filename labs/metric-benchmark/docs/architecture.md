@@ -133,6 +133,13 @@ native output of that agent running the benchmark. The
 layout. Invocation, scheduling, and collection are internal to the execution
 implementation; they do not add generic experiment stages.
 
+The [Helix execution proposal](submit-helix-evals.md) separates submission from
+completion checking and download. It assumes the instance and uploaded inputs
+already exist, and includes a focused [flow diagram](assets/helix-execution.svg).
+These are two operations within execution, not additional experiment stages.
+The proposed importer must first resolve the
+[native-evidence compatibility requirements](download-helix-results.md#compatibility-before-implementation).
+
 ## 3. Score analysis
 
 Score analysis consumes the results directory and produces the benchmark's score.

@@ -59,3 +59,11 @@ defines the output format.
 
 See the [`run_evals.py` command guide](run-evals.md) for arguments, the output
 layout, completed-job reuse, interrupted-job recovery, and the Python API.
+
+### Proposed Helix execution
+
+The documentation-only proposal splits remote execution into
+[`submit_helix_evals.py`](submit-helix-evals.md) and
+[`download_helix_results.py`](download-helix-results.md): submit prepared cases,
+then check completion and collect a local results directory. These commands are
+not implemented; see the [Helix flow diagram](assets/helix-execution.svg).
