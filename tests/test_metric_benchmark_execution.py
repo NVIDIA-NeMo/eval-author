@@ -422,3 +422,47 @@ def test_analysis_changes_reuse_execution_and_preserve_all_rewards(tmp_path):
     assert isinstance(raw, dict)
     assert all(set(row["metrics"]) == {"reward", "cost"} for row in raw["execution_results"])
     assert changed.analysis.settings.scoring.metric == "cost"
+
+
+@pytest.mark.parametrize("changed", [None, "bundle.txt", "tasks/workspace/inspect-files/instruction.md"])
+def test_signing_unsigned_execution_preserves_resume_and_validation(tmp_path, changed):
+    from metric_benchmark.io import file_manifest
+    from metric_benchmark.signing import sign_benchmark
+    from metric_benchmark.validation import validate_experiment_results
+    from test_metric_benchmark_signing import remove_pins
+
+    path, _ = prepared_benchmark(tmp_path / "inputs")
+    bundle = path.parent / "bundle.txt"
+    bundle.write_text("prepared agent dependency")
+    case = case_definition(path)
+    case["baseline"]["inputs"] = {"bundle": {"path": bundle.name}}
+    case["baseline"]["harbor"]["kwargs"] = {"bundle": "{input:bundle}"}
+    write_case(path, case)
+    remove_pins(path.parent)
+    unsigned = load_execution(path.parent / "cases.yml", path.parent / "execution.yml", allow_unsigned=True)
+    output = tmp_path / "out"
+    first = execute_benchmark(unsigned, "run", output, runner=fake_harbor)
+    report = validate_experiment_results(unsigned.inputs, output)
+    before = file_manifest(output)
+    assert unsigned.inputs.case("rho-agent").case.baseline.inputs["bundle"].sha256 is None
+    if changed:
+        with (path.parent / changed).open("a") as stream:
+            stream.write("\nchanged contents\n")
+    sign_benchmark(path)
+    signed = load_execution(path.parent / "cases.yml", path.parent / "execution.yml")
+    assert signed.inputs.case("rho-agent").case.baseline.inputs["bundle"].sha256 is not None
+
+    def forbidden(_):
+        pytest.fail("saved jobs must not execute again")
+
+    if changed:
+        assert signed.inputs.identity != first["cases_sha256"]
+        with pytest.raises(ValueError, match="changed; use a new output directory"):
+            execute_benchmark(signed, "run", output, runner=forbidden)
+        with pytest.raises(ValueError, match="execution case definitions differ"):
+            validate_experiment_results(signed.inputs, output)
+    else:
+        assert signed.inputs.identity == first["cases_sha256"]
+        assert execute_benchmark(signed, "run", output, runner=forbidden) == first
+        assert validate_experiment_results(signed.inputs, output) == report
+    assert file_manifest(output) == before

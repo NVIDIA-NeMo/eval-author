@@ -13,8 +13,8 @@ from harbor.models.job.config import JobConfig
 from harbor.models.trial.config import EnvironmentConfig
 from harbor.models.trial.result import TrialResult
 
-from metric_benchmark.config import Case, LoadedCase, LoadedExecution, PinnedInput, file_manifest
-from metric_benchmark.io import digest_bytes, digest_file, input_digest, json_bytes, read_json, write_json
+from metric_benchmark.config import Case, LoadedCase, LoadedExecution, file_manifest
+from metric_benchmark.io import digest_bytes, digest_file, json_bytes, read_json, write_json
 from metric_benchmark.models import Execution, ExecutionManifest, RawResults, Text, resolve_evidence
 from metric_benchmark.validation import agent_config, native_measurements, validate_results
 
@@ -25,18 +25,9 @@ def execution_identity(loaded: LoadedExecution, *, verify: bool = True) -> str:
     Analysis can compare pinned identities without opening executable inputs.
     Unsigned sources require their contents to establish the same identity.
     """
-    cases = []
-    for prepared in loaded.inputs.cases.values():
-        case = prepared.case.model_dump()
-        sources = list(case["task_sources"].values())
-        sources.extend(source for agent in [case["baseline"], *case["mutants"]] for source in agent["inputs"].values())
-        for source in sources:
-            reference = PinnedInput.model_validate(source)
-            if verify or reference.sha256 is None:
-                path = reference.resolve(prepared.root, allow_unsigned=prepared.allow_unsigned)
-                source["sha256"] = reference.sha256 or input_digest(path)
-        cases.append(case)
-    return digest_bytes(json_bytes({"cases": cases, "execution": loaded.settings.model_dump()}))
+    return digest_bytes(
+        json_bytes({"cases": loaded.inputs.identity_payload(verify=verify), "execution": loaded.settings.model_dump()})
+    )
 
 
 def case_root(output: Path, case_index: int) -> Path:

@@ -226,7 +226,28 @@ class LoadedCases:
 
     @property
     def identity(self) -> str:
-        return digest_bytes(json_bytes([item.case.model_dump() for item in self.cases.values()]))
+        return digest_bytes(json_bytes(self.identity_payload()))
+
+    def identity_payload(self, *, verify: bool = False) -> list[dict]:
+        """Use content digests whether inputs were signed before or after execution.
+
+        Signed metadata suffices for analysis without executable inputs. Unsigned
+        sources must still be available to establish their content identity.
+        """
+        cases = []
+        for prepared in self.cases.values():
+            case = prepared.case.model_dump()
+            sources = list(case["task_sources"].values())
+            sources.extend(
+                source for agent in [case["baseline"], *case["mutants"]] for source in agent["inputs"].values()
+            )
+            for source in sources:
+                reference = PinnedInput.model_validate(source)
+                if verify or reference.sha256 is None:
+                    path = reference.resolve(prepared.root, allow_unsigned=prepared.allow_unsigned)
+                    source["sha256"] = reference.sha256 or input_digest(path)
+            cases.append(case)
+        return cases
 
     def verify_execution_inputs(self) -> None:
         for prepared in self.cases.values():

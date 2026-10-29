@@ -175,7 +175,8 @@ def test_inconsistent_matrix_or_evidence_rejected(tmp_path, change):
         validate_results(raw, case, root, loaded.case(case.case_id).root)
 
 
-def test_explicit_missing_observation_is_not_zero(tmp_path):
+@pytest.mark.parametrize("empty_metrics", [False, True])
+def test_explicit_missing_observation_is_not_zero(tmp_path, empty_metrics):
     loaded, case, raw, root, _ = result_example(tmp_path)
     row = raw.execution_results[0]
     row.native_results_path = "unavailable/inspect-files"
@@ -183,6 +184,11 @@ def test_explicit_missing_observation_is_not_zero(tmp_path):
     row.metrics["reward"].value = None
     row.metrics["reward"].reason = "worker never started"
     row.unavailable_evidence = {"native_results": "worker never started"}
+    if empty_metrics:
+        row.metrics = {}
+        with pytest.raises(ValueError, match="missing execution needs unavailable score"):
+            validate_results(raw, case, root, loaded.case(case.case_id).root)
+        return
     report = validate_results(raw, case, root, loaded.case(case.case_id).root)
     assert report["unavailable"][0]["reason"] == "worker never started"
 

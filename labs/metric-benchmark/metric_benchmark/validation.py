@@ -135,8 +135,10 @@ def validate_results(
                 raise ValueError("unexpected agent or task in results")
             groups.setdefault(key, []).append(row)
             if row.status == "missing":
-                if any(score.value is not None for score in row.metrics.values()) or not row.unavailable_evidence.get(
-                    "native_results"
+                if (
+                    not row.metrics
+                    or any(score.value is not None for score in row.metrics.values())
+                    or not row.unavailable_evidence.get("native_results")
                 ):
                     raise ValueError("missing execution needs unavailable score and evidence reason")
                 if (root / row.native_results_path).exists():

@@ -177,6 +177,10 @@ is provided by `sha-sign --check`.
 Execution identity covers the resolved case definitions, executable content pins
 (or actual contents during unsigned iteration), and effective execution settings.
 It excludes analysis settings, descriptions, subsets, and experiment labels/revision.
+Signing unchanged inputs preserves both execution and case identities, so saved
+jobs remain reusable and their results remain valid. Unsigned case identities
+require executable inputs to compute missing content digests; sign the bundle
+before removing those inputs for analysis elsewhere.
 Reformatting an unsigned manifest alone does not change its execution meaning.
 Analysis records its settings and inputs alongside the selected execution evidence.
 Use a new analysis output directory for a new hypothesis; saved executions remain
