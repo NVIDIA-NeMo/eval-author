@@ -20,6 +20,11 @@ fixed subset manifest.
 | 3. Compute coverage | `compute_coverage.py` |
 | 4. Correlation | `correlate.py` |
 
+Stage 1's output is checked by [`validate_results.py`](tools.md#validate-a-results-directory)
+before analysis. It verifies execution's [results format](results-format.md) rather than
+producing a stage output, so it is not numbered above; see
+[Results-directory contract](#results-directory-contract).
+
 ## Stage contract
 
 Each stage has declared inputs, parameters, outputs, and completion criteria.
