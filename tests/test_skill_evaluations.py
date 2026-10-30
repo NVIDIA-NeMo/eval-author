@@ -42,6 +42,18 @@ def test_ci_evaluation_is_advisory_and_always_attempts_artifact_upload():
     assert stage["if"] == "always()" and "skill-fallback" in stage["run"]
 
 
+def test_static_and_live_installs_match_the_reported_evaluator_revision():
+    root = Path(__file__).resolve().parents[1]
+    assert collector.EVALUATOR_REVISION == "3fd2cf57e4a2af01f282e001f7515b6e76f18ec7"
+    for filename, job_name, step_name in (
+        ("ci.yml", "skill-evaluator", "Install pinned evaluation tools"),
+        ("skill-evaluation-live.yml", "evaluate", "Install isolated evaluator runtime"),
+    ):
+        workflow = yaml.safe_load((root / ".github/workflows" / filename).read_text())
+        install = next(step["run"] for step in workflow["jobs"][job_name]["steps"] if step.get("name") == step_name)
+        assert f"git+https://github.com/NVIDIA/SkillEvaluator.git@{collector.EVALUATOR_REVISION}" in install
+
+
 def test_only_skillspector_security_is_skipped():
     workflow = Path(__file__).resolve().parents[1] / ".github/workflows/ci.yml"
     steps = yaml.safe_load(workflow.read_text())["jobs"]["skill-evaluator"]["steps"]
@@ -135,6 +147,7 @@ def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch
 
     def execute(argv, cwd, env, log, timeout):
         assert "--no-llm" in argv and "--no-dedup" in argv
+        assert argv[argv.index("--tiers") + 1] == "1"
         assert "security" not in argv[argv.index("--checks") + 1].split(",")
         assert "SECRET_PROVIDER_KEY" not in env
         if "eval-author" == Path(argv[2]).name:
