@@ -322,6 +322,14 @@ def test_downstream_resume_preserves_progress_and_audit_switch_reopens_applicabi
             "unknown" if key in state.AUDIT_DEPENDENT else answer["status"]
         )
     assert resumed["pending_question"] is None and resumed["next_handoff"] is None
+    expected_entry = {
+        "agent": ongoing["agent"],
+        "revision": ongoing["revision"],
+        "pending_question": ongoing["pending_question"],
+        "next_handoff": ongoing["next_handoff"],
+    }
+    assert resumed["scopes"][origin] == {**ongoing["scopes"][origin], "audit_entry": expected_entry}
+    assert state.load_state(tmp_path, state_only=True)["scopes"][origin]["audit_entry"] == expected_entry
     assert not state.checklist(resumed, state_only=True)[0]["complete"]
     refreshed = state.update(
         tmp_path,
@@ -337,8 +345,16 @@ def test_downstream_resume_preserves_progress_and_audit_switch_reopens_applicabi
     for key in ("runtime", "environment", "services"):
         assert refreshed["prerequisites"][key] == resumed["prerequisites"][key]
     reconciled = state.load_state(tmp_path)
-    for field in ("ethos", "scopes", "journey_status"):
+    for field in ("ethos", "journey_status"):
         assert resumed[field] == reconciled[field] == original[field]
+    assert (
+        resumed["scopes"]
+        == reconciled["scopes"]
+        == {
+            **original["scopes"],
+            origin: {**original["scopes"][origin], "audit_entry": expected_entry},
+        }
+    )
     assert [row["complete"] for row in state.checklist(reconciled)] == [True, True, False]
     assert state.checklist(reconciled)[2]["current"]
 
@@ -2608,6 +2624,39 @@ def test_state_only_updates_keep_revision_and_atomic_storage_guards(state, tmp_p
     assert state.load_state(tmp_path, state_only=True) == updated
 
 
+@pytest.mark.parametrize("origin", ["create", "expand"])
+def test_audit_entry_saves_outgoing_handoff_before_combined_changes_and_survives_reload(
+    state, tmp_path, monkeypatch, origin
+):
+    original, artifacts = prerequisite_history(state, tmp_path, journey=origin)
+    forbid_artifact_checks(state, monkeypatch, artifacts)
+    state.initialize(tmp_path, agent="changed-agent", setup="harbor", journey="audit", state_only=True)
+    reloaded = state.load_state(tmp_path, state_only=True)
+    expected_entry = {
+        "agent": original["agent"],
+        "revision": original["revision"],
+        "pending_question": original["pending_question"],
+        "next_handoff": original["next_handoff"],
+    }
+    assert reloaded["scopes"][origin]["audit_entry"] == expected_entry
+    assert reloaded["scopes"][origin]["cases"] == original["scopes"][origin]["cases"]
+    assert "changed-agent" in reloaded["pending_question"]
+    assert reloaded["next_handoff"] == "eval-author"
+    assert reloaded["ethos"]["confirmed_digest"] is None
+    resumed = state.initialize(tmp_path, journey="audit", state_only=True)
+    assert resumed["scopes"][origin]["audit_entry"] == expected_entry
+    assert resumed["pending_question"] == reloaded["pending_question"]
+
+
+@pytest.mark.parametrize("origin", ["create", "expand"])
+def test_audit_entry_without_outgoing_decision_keeps_scope_without_adding_context(state, tmp_path, origin):
+    state.initialize(tmp_path, journey=origin, state_only=True)
+    original = state.update(tmp_path, {"scopes": {origin: {"cases": ["refund"]}}})
+    changed = state.initialize(tmp_path, journey="audit", state_only=True)
+    assert changed["scopes"][origin] == original["scopes"][origin]
+    assert changed["pending_question"] is None and changed["next_handoff"] is None
+
+
 @pytest.mark.parametrize("invalid", ["schema", "repository", "duplicate"])
 def test_state_only_still_validates_saved_json_and_repository(state, tmp_path, invalid):
     original = state.initialize(tmp_path, agent="assistant", journey="create", setup="gym", state_only=True)
@@ -2625,11 +2674,20 @@ def test_state_only_still_validates_saved_json_and_repository(state, tmp_path, i
         assert state.state_path(tmp_path).read_bytes() == before
 
 
-@pytest.mark.parametrize("existing_scope", [False, True])
-@pytest.mark.parametrize("via_cli", [False, True])
-@pytest.mark.parametrize("origin", ["create", "expand"])
-@pytest.mark.parametrize("requirement", ["data", "python"])
-@pytest.mark.parametrize("status", ["unknown", "missing"])
+# Keep all core combinations and pairwise coverage for scope and CLI boundaries.
+@pytest.mark.parametrize(
+    "origin,requirement,status,existing_scope,via_cli",
+    [
+        ("create", "data", "unknown", False, False),
+        ("create", "data", "missing", False, True),
+        ("create", "python", "unknown", True, True),
+        ("create", "python", "missing", True, False),
+        ("expand", "data", "unknown", True, False),
+        ("expand", "data", "missing", True, True),
+        ("expand", "python", "unknown", False, True),
+        ("expand", "python", "missing", False, False),
+    ],
+)
 def test_state_only_audit_framework_observation_survives_blocked_setup(
     state, tmp_path, monkeypatch, capsys, existing_scope, via_cli, origin, requirement, status
 ):

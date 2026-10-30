@@ -418,15 +418,20 @@ suite and run selections. Exercise these conversation contexts independently:
 | Conversation context | Required introduction |
 | --- | --- |
 | Direct acceptance of the offered audit handoff in the active conversation | Continue the handoff without repeating the welcome |
-| A separate explicit audit request later in the same conversation | Show the audit welcome and saved-progress checklist |
-| A separate request or audit resume in a new chat opened in the known repository | Show the audit welcome and saved-progress checklist |
+| A separate explicit audit request later in the same conversation | Show the audit welcome and current audit checklist |
+| A separate request or audit resume in a new chat opened in the known repository | Show the audit welcome and current audit checklist |
 | A reply continuing an active audit in the current conversation | Resume the pending decision without repeating the welcome |
 
 For separate requests, use “Audit the suite and runs we just reviewed.” Compare
 `audit_welcome` with the canonical renderer output and input authority. Inspect
 that its welcome, state-derived checklist, and saved-answer reuse note appear
-promptly in commentary before bounded checks. Ethos stays unchecked until
-reconciliation; saved authoring completion does not complete the audit.
+promptly in commentary before bounded checks. The checklist reflects current
+audit readiness, including reopened audit-specific prerequisites. Ethos stays
+unchecked until reconciliation. The approval note appears only with a saved
+confirmation. Saved authoring completion does not complete the audit.
+After switching from creation or improvement, reload state in a new turn and
+verify the outgoing question and handoff remain in the originating scope's
+`audit_entry`. They must not become the active audit question.
 
 The same turn must reach the actual pending decision, or proposed-check review
 when inputs are settled. A readiness question, checklist-only turn, or repeated

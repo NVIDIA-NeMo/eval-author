@@ -362,7 +362,7 @@ def test_audit_welcome_preserves_saved_progress_without_claiming_artifact_confir
     output = renderer.render(request)
 
     assert output.startswith(copy.WELCOME_WITH_CHECKLIST + "\n\n")
-    assert output.endswith(copy.AUDIT_REUSE_NOTICE + "\n")
+    assert output.endswith(copy.AUDIT_REUSE_NOTICE + " " + copy.AUDIT_ETHOS_REUSE_NOTICE + "\n")
     assert len(re.findall(r"^- \[[ x]\] ", output, re.MULTILINE)) == 3
     assert output.count("- [x]") == (1 if trace_status == "confirmed" else 0)
     assert f"- [ ] **{shared.CHECKLIST_LABELS[1]}**" in output
@@ -371,6 +371,44 @@ def test_audit_welcome_preserves_saved_progress_without_claiming_artifact_confir
     assert all(pause not in output for pause in copy.CONTINUATION.values())
     assert "confirmed and validated" not in output and copy.TABLE_HEADER not in output
     assert renderer.render(request) == output and request == before
+
+
+@pytest.mark.parametrize("origin", ["create", "expand"])
+@pytest.mark.parametrize("confirmed", [False, True])
+def test_audit_welcome_after_initialize_shows_current_readiness_and_actual_approval(
+    onboarding, monkeypatch, origin, confirmed
+):
+    helper, renderer, _, state, _ = onboarding
+    copy = importlib.import_module("conversation_flows.onboarding_templates")
+    if confirmed:
+        confirmed_request(onboarding, question="Review the completed authoring results")
+    state["journey"] = origin
+    state["blockers"] = []
+    state["scopes"][origin] = {"cases": ["refund"], "confirmed": True}
+    for key in helper.PREREQUISITES:
+        state["prerequisites"][key] = {"status": "verified", "source": "Earlier authoring check"}
+    repo = Path(state["repository"])
+    helper.save(repo, state)
+    original = deepcopy(state)
+
+    def unexpected_artifacts(*args, **kwargs):
+        pytest.fail("Audit entry must defer artifact inspection")
+
+    monkeypatch.setattr(helper, "ethos_digest", unexpected_artifacts)
+    monkeypatch.setattr(helper, "draft_digest", unexpected_artifacts)
+    monkeypatch.setattr(helper.first_eval_state, "observe", unexpected_artifacts)
+    audit = helper.initialize(repo, journey="audit", state_only=True)
+    saved_bytes = helper.state_path(repo).read_bytes()
+    output = renderer.render({"stage": "audit_welcome", "state": audit, "revision": audit["revision"]})
+
+    assert "- [x]" not in output and output.count("- [ ]") == 3
+    assert copy.AUDIT_REUSE_NOTICE in output
+    assert (copy.AUDIT_ETHOS_REUSE_NOTICE in output) is confirmed
+    assert copy.READY not in output
+    assert audit["ethos"] == original["ethos"]
+    for key, answer in original["prerequisites"].items():
+        assert audit["prerequisites"][key]["source"] == answer["source"]
+    assert helper.state_path(repo).read_bytes() == saved_bytes
 
 
 @pytest.mark.parametrize(

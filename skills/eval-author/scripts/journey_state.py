@@ -628,6 +628,22 @@ def initialize(
     with working_lock(working_path(repo, "journey-state.lock")):
         state = load_state(repo, state_only=state_only) if state_path(repo).exists() else new_state(repo)
         previous_agent = state["agent"]
+        previous_journey = state["journey"]
+        if (
+            journey == "audit"
+            and previous_journey in {"create", "expand"}
+            and (state["pending_question"] or state["next_handoff"])
+        ):
+            # Identity and setup changes below may clear the outgoing decision.
+            scope = state["scopes"].setdefault(previous_journey, {})
+            if not isinstance(scope, dict):
+                raise ValueError("Saved authoring scope must be a mapping to retain its audit-entry context")
+            scope["audit_entry"] = {
+                "agent": previous_agent,
+                "revision": state["revision"],
+                "pending_question": state["pending_question"],
+                "next_handoff": state["next_handoff"],
+            }
         agent_changed = agent is not None and previous_agent is not None and agent != previous_agent
         if agent is not None and agent != previous_agent:
             state["agent"] = agent

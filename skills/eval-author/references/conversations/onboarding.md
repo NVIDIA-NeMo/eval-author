@@ -81,8 +81,11 @@ is not a no-input preview. The saved journey must be `audit`; no `ready`,
 
 It renders the canonical welcome, state-derived checklist, and saved-answer
 reuse notice from [onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py).
-The checklist reflects saved prerequisite progress; Ethos and downstream steps
-remain unchecked until artifact reconciliation, without invalidating saved approval.
+The checklist shows current audit readiness. A goal switch reopens audit-specific
+checks, so every item may be unchecked while earlier answers remain available.
+Ethos and downstream steps remain unchecked until artifact reconciliation,
+without discarding saved approval. The approval note appears only when the
+snapshot records an Ethos confirmation with provenance.
 
 The [entry procedure](../shared-prerequisites.md#return-to-an-audit) owns when to
 publish or omit this welcome. The stage emits no question, preserves saved state,

@@ -1,20 +1,18 @@
 ---
 name: eval-author-audit
 description: >-
-  For a fresh full audit, read the eval-author core skill at ../eval-author/SKILL.md,
-  use its pure conversation renderer for orientation and end the turn before
-  repository inspection or prerequisite work.
-  First use the core's audit-entry lookup to reuse confirmed creation or improvement
-  context and select a welcome/checklist or direct handoff without repeated setup.
-  Review evaluation coverage, identify gaps, and recommend improvements with
-  milestone check-ins and user-confirmed eval and trace sources.
-  Generate, validate, measure, and report on an audit-spec coverage denominator
-  for Eval Author. Use when the user wants a hand-editable audit.md file derived
-  from Ethos, needs schema enforcement for declared tools, capabilities, failure
-  cases, evidence, and references, wants to measure which audit items one ATIF
-  trace covers, wants to aggregate coverage across measured traces, or accepts
-  a coverage audit of existing evals. Changes
-  none of the user's source, and saves audit artifacts under `.eval-author/`.
+  Audit evaluation coverage, find gaps, and recommend improvements against ETHOS.md.
+  Use for "audit my existing evals", "generate audit.md from ETHOS.md", schema
+  validation, measuring an ATIF trace, or aggregating coverage reports.
+  Full audits first read ../eval-author/SKILL.md and follow its bounded audit-entry
+  lookup. Reuse applicable saved context. Separate returning requests show a welcome
+  and current audit checklist, then continue without another readiness pause.
+  Fresh full audits use the core's rendered orientation and end the turn before
+  repository inspection or prerequisites. Scoped commands keep their scope.
+  Use milestone check-ins and user-confirmed eval and trace sources. Generate a
+  hand-editable audit.md, validate declared tools, capabilities, failure cases,
+  evidence, and references, then measure and aggregate coverage. Save artifacts
+  under .eval-author/ without changing the agent source.
 triggers:
   - audit my existing evals
   - generate audit.md from ETHOS.md

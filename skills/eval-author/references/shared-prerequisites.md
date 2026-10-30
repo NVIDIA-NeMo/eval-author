@@ -68,9 +68,13 @@ Do not search other chats to classify conversational continuity.
 
 For reusable context, continue these steps in the same turn when unblocked:
 
-1. Retain the handoff and original scope before `--state-only init --journey audit`
-   clears the previous journey's pending question/handoff. Preserve agent and
-   provider; for same-journey resumes, preserve the actual pending decision.
+1. Use `--state-only init --journey audit`. Before clearing the active question
+   and handoff, the helper saves the outgoing authoring decision in
+   `scopes.<origin>.audit_entry`, alongside the retained scope. Read that context
+   on recovery instead of relying on conversation memory. It records the prior
+   agent, revision, question, and handoff without approving audit inputs or
+   making the old question active. Preserve agent and provider. Same-journey
+   resumes preserve the actual pending audit decision.
    When a welcome is due, render `audit_welcome` from that fresh state-only audit
    snapshot and publish it in commentary immediately, before prerequisite probes,
    artifact inspection, or recovering additional context. Continue in this same
@@ -629,8 +633,11 @@ The helper's audit `runtime_requirements` describe audit tooling independently
 of the selected NeMo Gym or Harbor source format.
 
 `scopes` is keyed by journey and holds agreed source bounds, scope tables,
-case inventory, and downstream decisions. Updating a journey's scope replaces
-that entry, so read and preserve unaffected fields first. `journey_status` maps
+case inventory, and downstream decisions. On entry to audit from creation or
+improvement, `audit_entry` in the originating scope retains the latest outgoing
+agent, state revision, pending question, and handoff. This is recovery context,
+not an audit decision or a separate progress record. Updating a journey's scope
+replaces that entry, so read and preserve unaffected fields first. `journey_status` maps
 a journey to `pending`, `in_progress`, or `complete`. Blockers have `id`, `phase`
 (`setup`, `ethos`, or a journey), and `message`. For a prerequisite blocker, use
 its prerequisite key as `id`, or `evaluation_format` for the

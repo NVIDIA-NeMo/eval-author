@@ -2088,6 +2088,29 @@ def _markdown_anchors(document: Path) -> set[str]:
     return anchors
 
 
+@pytest.mark.parametrize(
+    "skill_dir,examples",
+    [
+        (
+            _CORE_DIR,
+            (
+                "help me with my evals",
+                "help me onboard to expand my evals",
+                "what's the state of the eval suite here?",
+                "what happened in this trace?",
+            ),
+        ),
+        (_AUDIT_DIR, ("audit my existing evals", "generate audit.md from ETHOS.md")),
+    ],
+)
+def test_entry_descriptions_keep_examples_for_description_only_hosts(skill_dir, examples):
+    frontmatter, _ = _frontmatter_and_body(skill_dir)
+    description = frontmatter["description"]
+    assert len(description) <= 1024
+    for example in examples:
+        assert example in description
+
+
 def test_ethos_confirmation_handoff_resources_resolve() -> None:
     """The shared handoff and canonical orchestrator remain reachable."""
     reference = _CORE_DIR / "references" / "ethos-confirmation.md"

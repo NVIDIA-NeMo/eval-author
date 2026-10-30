@@ -1,20 +1,18 @@
 ---
 name: eval-author
 description: >-
-  For fresh creation, audit, expansion, or undecided eval-help requests, read
-  this skill, show its fixed welcome with a checklist and call to action or goal
-  choices, then end the turn before repository work. Scoped utilities keep their
-  requested scope.
-  Explicit audit requests first use this skill's bounded saved-context lookup;
-  returning users reuse confirmed prerequisites and Ethos. Separate audit requests
-  still get a welcome and progress checklist without another readiness pause.
-  Build first evals from a required Ethos, work on existing evaluation suites
-  in a user's repository, derive an environment from trace
-  evidence (experimental), or understand an agent run from NeMo Intake. Owns the evidence
-  standard for every Eval Author sub-flow. Routes requests to create or discover evals,
-  audit existing suites, propose improvements, or inspect traces.
-  Requires a confirmed ETHOS.md for creating, auditing, and improving
-  evaluations, without changing the agent's implementation.
+  Use for "help me with my evals", "help me onboard to expand my evals",
+  "what's the state of the eval suite here?", "what happened in this trace?",
+  or requests to create, discover, audit, or improve evaluations.
+  For fresh full workflows, read this skill, show its rendered orientation,
+  and end the turn before repository work. Scoped utilities keep their scope.
+  Explicit audits first check bounded saved context. Returning audits reuse
+  applicable prerequisites and confirmed Ethos. Separate requests show a welcome
+  and current audit checklist without another readiness pause.
+  Build first evals from ETHOS.md, work on existing suites, inspect a NeMo Intake
+  run, or derive a trace environment (experimental). Owns the evidence standard
+  for every Eval Author flow. Creating, auditing, and improving evals require
+  confirmed ETHOS.md and do not change the agent implementation.
 triggers:
   - help me build evals for my agent
   - my agent has no evals yet

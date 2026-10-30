@@ -127,6 +127,12 @@ The audit uses four artifact names consistently, regardless of review state:
 | **Coverage measurements (JSON)** | `.eval-author/audit-coverage-report.json` | Generated measured results aggregated over the selected runs, when available |
 | **Journey state (internal)** | `.eval-author/.working/journey-state.json` | Shared conversation state, selected paths, pending questions, and next action |
 
+When you switch from creating or improving evaluations into an audit, the
+originating journey's `scopes` entry keeps its last question and handoff in
+`audit_entry`, with the agent and state revision. This context survives an
+interrupted turn. The top-level pending question still belongs to the active
+conversation.
+
 Start with the Audit coverage report. It links the specification and available
 supporting evidence. A mapping to an existing test describes what that test is
 designed to address; it does not establish that a recorded run satisfied the

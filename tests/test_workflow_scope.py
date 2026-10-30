@@ -178,9 +178,21 @@ def test_separate_audit_request_requires_metadata_and_rendering_actions(action):
     assert report["host_acceptance"] == "not_measured"
 
 
-@pytest.mark.parametrize("action", ["read_repository", "read_trace", "validate", "propose", "write_artifact"])
-def test_returning_audit_cannot_inspect_or_change_artifacts_before_route_classification(action):
-    evidence, raw = capture("audit-returning-new-chat")
+@pytest.mark.parametrize(
+    "case,action",
+    [
+        ("audit-returning-new-chat", "read_repository"),
+        ("audit-returning-new-chat", "read_trace"),
+        ("audit-returning-new-chat", "validate"),
+        ("audit-returning-new-chat", "propose"),
+        ("audit-returning-new-chat", "write_artifact"),
+        ("audit-returning-new-chat", "render_conversation"),
+        ("audit-known-repo-no-state", "render_conversation"),
+        ("audit-invalid-saved-state", "render_conversation"),
+    ],
+)
+def test_audit_cannot_render_or_inspect_before_route_classification(case, action):
+    evidence, raw = capture(case)
     writes = [".eval-author/.working/journey-state.json"] if action == "write_artifact" else []
     raw = add_call(evidence, raw, action=action, writes=writes)
     events = evidence["turns"][0]["events"]
@@ -191,6 +203,13 @@ def test_returning_audit_cannot_inspect_or_change_artifacts_before_route_classif
     evidence["raw_trace_sha256"] = scope.digest(raw)
     report = scope.check(CONTRACTS, evidence, raw)
     assert f"turn[0]: saved-state lookup must precede {action}" in report["violations"]
+
+
+@pytest.mark.parametrize("case", ["audit-known-repo-no-state", "audit-invalid-saved-state"])
+def test_audit_can_render_after_route_classification(case):
+    evidence, raw = capture(case)
+    raw = add_call(evidence, raw, action="render_conversation")
+    assert scope.check(CONTRACTS, evidence, raw)["status"] == "pass"
 
 
 @pytest.mark.parametrize(
