@@ -41,6 +41,18 @@ def ethos_ready(state, repo):
     )
 
 
+def save_legacy_state(state, repo, patch):
+    # Legacy records remain readable, but fresh updates cannot manufacture their approvals.
+    saved = state.load_state(repo)
+    for field, value in patch.items():
+        if field in {"scopes", "journey_status"}:
+            saved[field].update(value)
+        else:
+            saved[field] = value
+    state.save(repo, saved)
+    return saved
+
+
 @pytest.mark.parametrize("journey", ["create", "audit", "expand"])
 def test_confirm_and_resume_agent_local_ethos_without_relocating_it(state, tmp_path, journey):
     ready = setup_ready(state, tmp_path, journey=journey)
@@ -400,7 +412,7 @@ def test_audit_ready_without_runners_containers_or_execution_credentials(state, 
 def test_unresolved_or_legacy_exempt_traces_cannot_establish_audit_readiness(state, tmp_path, status):
     audit_ready(state, tmp_path)
     ethos_ready(state, tmp_path)
-    legacy = state.update(tmp_path, {"journey_status": {"audit": "complete"}})
+    legacy = save_legacy_state(state, tmp_path, {"journey_status": {"audit": "complete"}})
     if status is None:
         del legacy["prerequisites"]["data"]
     else:
@@ -589,7 +601,8 @@ def test_first_authoring_provider_preserves_audit_progress(
     state, tmp_path, provider, journey, audit_status, state_only, separate_selection
 ):
     audit_ready(state, tmp_path, setup=None)
-    original = state.update(
+    original = save_legacy_state(
+        state,
         tmp_path,
         {
             "scopes": {
@@ -698,7 +711,8 @@ def test_runtime_exemption_is_only_valid_for_audit(state, tmp_path, journey):
 def test_audit_exemptions_and_weaker_python_cannot_establish_authoring_readiness(state, tmp_path, provider, journey):
     audit_ready(state, tmp_path, setup=provider)
     ethos_ready(state, tmp_path)
-    original = state.update(
+    original = save_legacy_state(
+        state,
         tmp_path,
         {
             "scopes": {"audit": {"traces": ["selected.json"], "confirmed": True}},
@@ -737,6 +751,7 @@ def test_compatible_journey_resume_preserves_prerequisite_evidence(state, tmp_pa
             "next_handoff": "current-flow",
             "journey_status": {before: "in_progress"},
         },
+        expected_revision=state.load_state(tmp_path)["revision"],
     )
     resumed = state.initialize(tmp_path, journey=after)
     assert resumed["prerequisites"] == original["prerequisites"]
@@ -1137,7 +1152,8 @@ def test_agent_change_keeps_current_context_without_reusing_approval(state, tmp_
     )
     if stage == "complete":
         ethos_ready(state, tmp_path)
-    original = state.update(
+    original = save_legacy_state(
+        state,
         tmp_path,
         {
             "scopes": {
@@ -1249,7 +1265,8 @@ def test_agent_context_persistence_failure_leaves_current_state_intact(state, tm
 def test_changed_ethos_loses_approval_without_mutating_on_show(state, tmp_path, change, review_pending):
     setup_ready(state, tmp_path)
     ethos_ready(state, tmp_path)
-    state.update(
+    save_legacy_state(
+        state,
         tmp_path,
         {
             "scopes": {"audit": {"traces": ["selected.json"], "confirmed": True}},

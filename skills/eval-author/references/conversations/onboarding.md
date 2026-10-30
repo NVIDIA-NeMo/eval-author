@@ -165,9 +165,9 @@ Blockers. It accepts no Ethos, draft, or question facts and renders no checklist
 saved pending question, or continuation invitation; a canonical blocker may
 supply its own prerequisite question.
 
-`results`, `ethos`, `confirmed`, and `resume` require normal artifact-reconciled
-state from `show` or `load_state`, never a state-only snapshot. The renderer never
-checks artifact files or digests itself, so an old in-memory state is
+`results`, `ethos`, `confirmed`, and `resume` require artifact-reconciled state.
+Read it with `journey_state.py show` without `--state-only`, or call `load_state`
+with artifact checks enabled. The renderer never checks artifact files or digests itself, so an old in-memory state is
 insufficient. Use the returned `state` and exact `revision`; do not construct a
 success state, maintain a separate checklist, or add presentation state flags.
 The stage table below defines each response's supported content.
@@ -218,6 +218,17 @@ are described below.
 | `ethos` | Later Ethos-only action; Next Steps, state-derived checklist, and inspected Ethos/draft/question without rows or Recommendations |
 | `confirmed` | Saved complete Ethos and applicable completed prerequisites, before downstream work has started; saved document confirmation and the selected pending decision. Fresh creation without a structured saved design or source choice shows the canonical first-eval source choice directly; other cases retain their continuation. A relevant blocker takes precedence. |
 | `resume` | Saved pending decision or unfinished work; current progress and question, without a welcome, initial readiness question, or invented continuation approval |
+
+When rendering `resume`, `results`, or `confirmed` for the audit journey, read
+the current journey state using `journey_state.py show` without `--state-only`.
+Forward the returned state snapshot's `audit_observations` as
+`facts.audit_observations`, alongside its `state` and matching `revision`.
+The renderer derives current audit completion and the applicable saved checkpoint
+from those observations and `scopes.audit.lifecycle`; do not pass derived approval
+or completion flags. Without observations, audit completion remains unchecked.
+These facts are unavailable to other journeys or state-only stages. Pending audit
+questions never replace unresolved prerequisite or Ethos questions, and rendering
+does not persist its question projection or inspect artifact files.
 
 Known continuation prompts from earlier wording remain readable. For fresh
 creation without a structured saved design or source choice, they render as the
@@ -357,8 +368,8 @@ is introduced by these display specifications.
 Follow the [shared input contract](../conversation-rendering.md#input-envelope)
 when passing the payload to the renderer. Use stdin to avoid an extra artifact,
 following the [temporary-work policy](../shared-prerequisites.md#temporary-work-and-recovery)
-when a tool requires a payload file after readiness. Do not pipe a raw `show`
-response directly into the renderer: wrap its `state` with the stage, matching
+when a tool requires a payload file after readiness. Do not pipe the raw state
+snapshot directly into the renderer: wrap its `state` with the stage, matching
 revision, and factual display inputs. Use state-only output only for
 `prerequisite_results`; normal artifact
 reconciliation precedes other stateful stages.

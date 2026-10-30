@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import audit_state  # noqa: E402
 import first_eval_state  # noqa: E402
 from conversation_templates import CHECKLIST_LABELS, JOURNEYS  # noqa: E402
 from runtime_policy import load as runtime_policy  # noqa: E402
@@ -267,6 +268,9 @@ def validate(state: dict, *, check_size: bool = True) -> None:
     creation_scope = state["scopes"].get("create", {})
     if isinstance(creation_scope, dict) and "first_eval" in creation_scope:
         first_eval_state.validate(creation_scope["first_eval"])
+    audit_scope = state["scopes"].get("audit", {})
+    if isinstance(audit_scope, dict) and "lifecycle" in audit_scope:
+        audit_state.validate(audit_scope["lifecycle"])
     if any(value not in ("pending", "in_progress", "complete") for value in state["journey_status"].values()):
         raise ValueError("Invalid journey completion status")
     _validate_tasks(state.get("tasks", {}))
@@ -357,11 +361,21 @@ def draft_digest(repo: Path, draft: dict) -> str:
 def invalidate_scopes(state: dict) -> None:
     # Keep selected cases/traces and user priorities available for review. Only
     # their agreement is stale; a change to intent is not a request to forget them.
+    if state["journey"] == "audit":
+        for journey in ("create", "expand"):
+            if state["journey_status"].get(journey) == "complete":
+                scope = state["scopes"].setdefault(journey, {})
+                if not isinstance(scope, dict):
+                    state["scopes"][journey] = {"legacy_context": scope}
     for scope in state["scopes"].values():
         if isinstance(scope, dict):
             scope["needs_review"] = True
             scope["confirmed"] = False
-    state["journey_status"] = {}
+    state["journey_status"] = {
+        journey: status
+        for journey, status in state["journey_status"].items()
+        if state["journey"] == "audit" and journey in {"create", "expand"}
+    }
 
 
 def load_state(repo: Path, *, state_only: bool = False) -> dict:
@@ -430,15 +444,17 @@ def _task_local_path(repo: Path, relative: str) -> Path:
     return path
 
 
-def _file_digest(path: Path, remaining: int) -> tuple[str, int]:
-    """Read bounded regular files only; never follow a final-component symlink."""
+def _file_digest(path: Path, remaining: int | None) -> tuple[str, int]:
+    """Hash regular files with an optional byte limit; never follow a final-component symlink."""
     if not stat.S_ISREG(path.lstat().st_mode):
         raise ValueError("Task content or evidence must be a regular file")
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     with os.fdopen(os.open(path, flags), "rb") as stream:
         info = os.fstat(stream.fileno())
-        if not stat.S_ISREG(info.st_mode) or info.st_size > remaining:
+        if not stat.S_ISREG(info.st_mode) or (remaining is not None and info.st_size > remaining):
             raise ValueError("Task content or evidence is not a bounded regular file")
+        if remaining is None:
+            return hashlib.file_digest(stream, "sha256").hexdigest(), info.st_size
         payload = stream.read(remaining + 1)
         if len(payload) > remaining:
             raise ValueError("Task content or evidence exceeds the byte limit")
@@ -527,7 +543,7 @@ def task_lifecycle(repo: Path, state: dict, task_path: str) -> dict:
     return {"status": "unknown", "reason": "No task acceptance decision is recorded"}
 
 
-def checklist(state: dict, *, state_only: bool = False) -> list[dict]:
+def checklist(state: dict, *, state_only: bool = False, audit: dict | None = None) -> list[dict]:
     """Project reconciled saved facts; never inspect artifacts from a renderer."""
     blocked = {item["phase"] for item in state["blockers"]}
     journey = state["journey"]
@@ -542,6 +558,10 @@ def checklist(state: dict, *, state_only: bool = False) -> list[dict]:
     )
     ethos_done = not state_only and state["ethos"]["stage"] == "complete" and "ethos" not in blocked
     completed = state["journey_status"].get(journey) == "complete" and journey not in blocked
+    if journey == "audit":
+        completed = bool(completed and audit and audit["complete"])
+    elif isinstance(state["scopes"].get(journey), dict):
+        completed = completed and not state["scopes"][journey].get("needs_review")
     rows = [
         {
             "label": CHECKLIST_LABELS[0],
@@ -569,6 +589,18 @@ def checklist(state: dict, *, state_only: bool = False) -> list[dict]:
     return rows
 
 
+def audit_presentation_state(state: dict, audit: dict | None) -> dict:
+    if state["journey"] != "audit" or audit is None or not all(row["complete"] for row in checklist(state)[:2]):
+        return state
+    pending = audit["pending_checkpoint"]
+    recorded = (audit_state.record(state) or {}).get("pending")
+    if pending:
+        return {**state, "pending_question": pending["question"]}
+    if recorded and state["pending_question"] == recorded["question"]:
+        return {**state, "pending_question": None}
+    return state
+
+
 def view(state: dict, *, state_only: bool = False) -> dict:
     policy = runtime_policy()
     provider = policy["providers"].get(state["setup"])
@@ -582,6 +614,10 @@ def view(state: dict, *, state_only: bool = False) -> dict:
     authoring_checks = not state_only and state["journey"] != "audit"
     observations = first_eval_state.observe(Path(state["repository"]), state) if authoring_checks else None
     creation = first_eval_state.derive(state, observations) if authoring_checks else None
+    audit_checks = not state_only and state["journey"] == "audit"
+    audit_observations = audit_state.observe(Path(state["repository"]), state) if audit_checks else None
+    audit = audit_state.derive(state, audit_observations) if audit_observations is not None else None
+    state = audit_presentation_state(state, audit)
     if (
         creation is not None
         and not creation["complete"]
@@ -597,11 +633,13 @@ def view(state: dict, *, state_only: bool = False) -> dict:
             if not authoring_checks
             else {task: task_lifecycle(Path(state["repository"]), state, task) for task in state.get("tasks", {})}
         ),
-        "checklist": checklist(state, state_only=state_only) if state["journey"] else [],
+        "checklist": checklist(state, state_only=state_only, audit=audit) if state["journey"] else [],
         "runtime_requirements": requirements,
         "confirmation_is_runtime_evidence": False,
         "first_eval_observations": observations,
         "first_eval": creation,
+        "audit_observations": audit_observations,
+        "audit": audit,
     }
 
 
@@ -693,6 +731,15 @@ def initialize(
                 f"Agent changed from {previous_agent!r} to {agent!r}; review which saved context and decisions still apply."
             )
             state["next_handoff"] = "eval-author"
+        if state["journey"] != "audit":
+            for selected in ("create", "expand"):
+                scope = state["scopes"].get(selected)
+                if (
+                    state["journey_status"].get(selected) == "complete"
+                    and isinstance(scope, dict)
+                    and scope.get("needs_review")
+                ):
+                    state["journey_status"][selected] = "in_progress"
         save(repo, state)
         return state
 
@@ -780,9 +827,10 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         previous = copy.deepcopy(state)
         create_patch = patch.get("scopes", {}).get("create") if isinstance(patch.get("scopes"), dict) else None
         if state["journey"] == "audit" and any(
-            isinstance(patch.get(field), dict) and "create" in patch[field] for field in ("scopes", "journey_status")
+            isinstance(patch.get(field), dict) and {"create", "expand"} & patch[field].keys()
+            for field in ("scopes", "journey_status")
         ):
-            raise ValueError("Select an authoring journey before updating creation progress")
+            raise ValueError("Select an authoring journey before updating creation progress or expansion progress")
         prior_create = state["scopes"].get("create", {})
         if (
             isinstance(patch.get("scopes"), dict)
@@ -797,6 +845,23 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         )
         if typed_create and expected_revision is None:
             raise ValueError("Creation scope updates require --expected-revision from the latest show")
+        scope_patch = patch.get("scopes", {})
+        audit_patch = scope_patch.get("audit") if isinstance(scope_patch, dict) else None
+        prior_audit = state["scopes"].get("audit", {})
+        retained_audit = isinstance(prior_audit, dict) and "lifecycle" in prior_audit
+        if (
+            isinstance(scope_patch, dict)
+            and "audit" in scope_patch
+            and retained_audit
+            and not isinstance(audit_patch, dict)
+        ):
+            raise ValueError("Retain structured audit progress when updating its scope")
+        typed_audit = isinstance(audit_patch, dict) and ("lifecycle" in audit_patch or retained_audit)
+        audit_status = isinstance(patch.get("journey_status"), dict) and "audit" in patch["journey_status"]
+        if (typed_audit or audit_status) and state["journey"] != "audit":
+            raise ValueError("Select the audit journey before updating audit progress")
+        if (typed_audit or audit_status) and expected_revision is None:
+            raise ValueError("Audit scope and completion updates require --expected-revision from the latest show")
         if expected_revision is not None and expected_revision != state["revision"]:
             raise ValueError("State changed; reload before updating")
         selected_path = patch.get("ethos", {}).get("path", state["ethos"]["path"])
@@ -820,6 +885,8 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                 changes = copy.deepcopy(value)
                 if field == "scopes" and typed_create:
                     changes["create"] = {**copy.deepcopy(prior_create), **changes["create"]}
+                if field == "scopes" and isinstance(audit_patch, dict) and isinstance(prior_audit, dict):
+                    changes["audit"] = {**copy.deepcopy(prior_audit), **changes["audit"]}
                 state[field].update(changes)
             else:
                 state[field] = copy.deepcopy(value)
@@ -856,6 +923,13 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             creation = first_eval_state.progress(repo, state)
             if patch.get("journey_status", {}).get("create") == "complete" and creation and not creation["complete"]:
                 raise ValueError("Creation completion requires current selected native runs and their exact review")
+        if not state_only and state["journey"] == "audit":
+            audit = audit_state.transition(repo, previous, state)
+            if patch.get("journey_status", {}).get("audit") == "complete":
+                if audit is None:
+                    audit = audit_state.progress(repo, state)
+                if not audit or not audit["complete"]:
+                    raise ValueError("Audit completion requires current typed progress and reviewed findings")
         if (
             not state_only
             and state["ethos"]["draft_confirmed"]
