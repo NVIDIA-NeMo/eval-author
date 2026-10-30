@@ -13,28 +13,17 @@ from harbor.models.job.config import JobConfig
 from harbor.models.trial.config import EnvironmentConfig
 from harbor.models.trial.result import TrialResult
 
-from metric_benchmark.config import Case, LoadedBenchmark, LoadedCase, file_manifest
-from metric_benchmark.io import digest_bytes, digest_file, input_digest, json_bytes, read_json, write_json
+from metric_benchmark.config import Case, LoadedCase, LoadedExecution, file_manifest
+from metric_benchmark.io import digest_bytes, digest_file, json_bytes, read_json, write_json
 from metric_benchmark.models import Execution, ExecutionManifest, RawResults, Text, resolve_evidence
-from metric_benchmark.validation import agent_config, native_observation, validate_results
+from metric_benchmark.validation import agent_config, native_measurements, validate_results
 
 
-def benchmark_identity(loaded: LoadedBenchmark) -> str:
-    """Compute the benchmark reuse fingerprint, including the contents of inputs without SHA pins."""
-    unsigned = {}
-    for entry in loaded.definition.cases:
-        loaded_case = loaded.case(entry.case_id)
-        case = loaded_case.case
-        sources = [entry.agent, entry.tasks, entry.subsets, case.case_description, *case.task_sources.values()]
-        sources.extend(source for agent in case.agents() for source in agent.inputs.values())
-        for source in sources:
-            if source.sha256 is None and source.path not in unsigned:
-                unsigned[source.path] = input_digest(
-                    source.resolve(loaded_case.root, allow_unsigned=loaded_case.allow_unsigned)
-                )
-    if not unsigned:
-        return loaded.identity
-    return digest_bytes(json_bytes({"benchmark_sha256": loaded.identity, "unsigned_inputs": unsigned}))
+def execution_identity(loaded: LoadedExecution) -> str:
+    """Identify execution inputs independently of analysis and experiment metadata."""
+    return digest_bytes(
+        json_bytes({"cases": loaded.inputs.identity_payload(verify=True), "execution": loaded.settings.model_dump()})
+    )
 
 
 def case_root(output: Path, case_index: int) -> Path:
@@ -61,13 +50,13 @@ def run_harbor(config: JobConfig) -> None:
 
 
 def job_configuration(
-    loaded: LoadedBenchmark, loaded_case: LoadedCase, agent_index: int, root: Path, paths: list[Path]
+    loaded: LoadedExecution, loaded_case: LoadedCase, agent_index: int, root: Path, paths: list[Path]
 ) -> JobConfig:
     """Build and validate a Harbor job for one agent and all supplied task paths.
     Resolve the agent’s input files and execution settings without starting the job.
     """
     case = loaded_case.case
-    settings = loaded.definition.execution
+    settings = loaded.settings
     if set(settings.environment) - EnvironmentConfig.model_fields.keys():
         raise ValueError("unknown Harbor environment setting")
     return JobConfig.model_validate(
@@ -89,7 +78,7 @@ def job_configuration(
     )
 
 
-def collect_job(case: Case, agent_index: int, root: Path, request: JobConfig, metric: str) -> list[Execution]:
+def collect_job(case: Case, agent_index: int, root: Path, request: JobConfig) -> list[Execution]:
     """Read a finished Harbor job into one Execution record per task, including status, score, and evidence path.
     Use saved task paths to identify tasks; reject unfinished jobs and missing, duplicate, or unexpected tasks.
     """
@@ -113,7 +102,7 @@ def collect_job(case: Case, agent_index: int, root: Path, request: JobConfig, me
         if task is None or task.task_id in seen:
             raise ValueError("unexpected or repeated native task in Harbor job")
         seen.add(task.task_id)
-        status, score = native_observation(native, metric)
+        status, metrics = native_measurements(native)
         rows.append(
             Execution.model_validate(
                 {
@@ -125,7 +114,7 @@ def collect_job(case: Case, agent_index: int, root: Path, request: JobConfig, me
                         "task": task.model_dump(),
                     },
                     "status": status,
-                    "metrics": {metric: score.model_dump()},
+                    "metrics": {name: score.model_dump() for name, score in metrics.items()},
                     "native_results_path": result_path.parent.relative_to(root).as_posix(),
                     "native_results_format": "directory",
                 }
@@ -137,7 +126,7 @@ def collect_job(case: Case, agent_index: int, root: Path, request: JobConfig, me
 
 
 def run_or_reuse_job(
-    loaded: LoadedBenchmark,
+    loaded: LoadedExecution,
     case: Case,
     agent_index: int,
     root: Path,
@@ -156,10 +145,10 @@ def run_or_reuse_job(
         receipt_path = parent / "receipt.json"
         sealed = receipt_path.exists()
         request = {
-            "benchmark_sha256": identity,
+            "execution_sha256": identity,
             "case_id": case.case_id,
             "agent_bundle_id": agent.agent_bundle_id,
-            "execution": loaded.definition.execution.model_dump(mode="json"),
+            "execution": loaded.settings.model_dump(mode="json"),
         }
         write_json(parent / "request.json", request)
         native_path = parent / "native-request.json"
@@ -187,7 +176,7 @@ def run_or_reuse_job(
             if native_request != config:
                 raise ValueError("unstarted job request moved; use a new output for this execution")
             runner(config)
-        collected = collect_job(case, agent_index, root, native_request, loaded.definition.scoring.metric)
+        collected = collect_job(case, agent_index, root, native_request)
         if not sealed:
             write_json(receipt_path, {**expected, "files": file_manifest(directory)})
         return collected
@@ -196,7 +185,7 @@ def run_or_reuse_job(
 
 
 def execute_benchmark(
-    loaded: LoadedBenchmark,
+    loaded: LoadedExecution,
     run_id: Text,
     output: Path,
     *,
@@ -207,14 +196,14 @@ def execute_benchmark(
     """
     if not run_id.strip():
         raise ValueError("run_id must be nonempty")
-    if version("harbor") != loaded.definition.execution.harbor_version:
+    if version("harbor") != loaded.settings.harbor_version:
         raise ValueError("installed Harbor version differs from benchmark execution version")
-    identity = benchmark_identity(loaded)
+    identity = execution_identity(loaded)
     output = output.resolve()
     # Resolve and validate all jobs before launching any, so a bad later case
     # cannot spend a valid earlier case's execution budget.
     jobs = {}
-    for case_index, loaded_case in enumerate(loaded.cases.values()):
+    for case_index, loaded_case in enumerate(loaded.inputs.cases.values()):
         case = loaded_case.case
         paths = [
             case.task_sources[t.task_id].resolve(loaded_case.root, allow_unsigned=loaded_case.allow_unsigned)
@@ -228,16 +217,16 @@ def execute_benchmark(
             )
     inputs_path = output / "execution-inputs.json"
     inputs = {
-        "benchmark_sha256": identity,
-        "benchmark": loaded.definition.model_dump(mode="json"),
+        "execution_sha256": identity,
+        "execution": loaded.settings.model_dump(mode="json"),
         "run_id": run_id,
     }
     if inputs_path.exists() and read_json(inputs_path) != inputs:
-        raise ValueError("benchmark inputs, configuration, or run ID changed; use a new output directory")
+        raise ValueError("execution inputs, settings, or run ID changed; use a new output directory")
     write_json(inputs_path, inputs)
     indexes = {}
     # Each agent gets one job containing all case tasks; Harbor schedules the individual trials.
-    for case_index, loaded_case in enumerate(loaded.cases.values()):
+    for case_index, loaded_case in enumerate(loaded.inputs.cases.values()):
         case = loaded_case.case
         root = case_root(output, case_index)
         rows = []
@@ -248,11 +237,11 @@ def execute_benchmark(
                 )
             )
         raw = RawResults(run_id=run_id, task_inventory=case.task_inventory.tasks, execution_results=rows)
-        validate_results(
-            raw, case, root, loaded_case.root, loaded.definition.scoring, allow_unsigned=loaded.allow_unsigned
-        )
+        validate_results(raw, case, root, loaded_case.root, allow_unsigned=loaded.inputs.allow_unsigned)
         write_json(root / "results.json", raw)
         indexes[case.case_id] = (root / "results.json").relative_to(output).as_posix()
-    result = ExecutionManifest(benchmark_sha256=identity, run_id=run_id, cases=indexes).model_dump()
+    result = ExecutionManifest(
+        cases_sha256=loaded.inputs.identity, execution_sha256=identity, run_id=run_id, cases=indexes
+    ).model_dump()
     write_json(output / "execution.json", result)
     return result

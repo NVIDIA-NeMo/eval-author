@@ -12,11 +12,11 @@ import pytest
 import yaml
 from harbor.models.task.task import Task as HarborTask
 from harbor.models.trial.result import TrialResult
-from metric_benchmark.config import ScoringPolicy, load_benchmark
+from metric_benchmark.config import ScoringPolicy, load_cases
 from metric_benchmark.io import read_json, write_json
 from metric_benchmark.models import RawResults
 from metric_benchmark.validation import agent_config, task_checksum, validate_experiment_results, validate_results
-from test_metric_benchmark_config import FIXTURE, LAB, case_definition, prepared_benchmark, write_case
+from test_metric_benchmark_config import FIXTURE, LAB, case_definition, prepared_benchmark, write_case, write_definition
 
 RESULT_FIXTURE = FIXTURE.parent / "metric_benchmark_results"
 CASE_RESULTS = Path("cases/case-0000/execution-results")
@@ -55,7 +55,7 @@ def result_example(tmp_path, *, bundle=False):
             agent["inputs"] = {"bundle": {"path": "bundle.txt", "sha256": input_digest(source)}}
             agent["harbor"]["kwargs"] = {"bundle": "{input:bundle}"}
         write_case(path, case_data)
-    loaded = load_benchmark(path)
+    loaded = load_cases(path.parent / "cases.yml")
     case = loaded.case("rho-agent").case
     root = tmp_path / "results"
     rows = []
@@ -119,14 +119,12 @@ def test_results_task_inventory_rejects_duplicate_ids():
 @pytest.mark.parametrize("case_id", [None, "rho-agent"])
 def test_contract_and_cli_parity(tmp_path, case_id):
     path, _ = prepared_benchmark(tmp_path / "inputs")
-    loaded = load_benchmark(path)
+    loaded = load_cases(path.parent / "cases.yml")
     case = loaded.case("rho-agent").case
     root = tmp_path / "experiment-results"
     shutil.copytree(RESULT_FIXTURE / "experiment-results", root)
     raw = RawResults.model_validate(read_json(root / CASE_RESULTS / "results.json"))
-    case_report = validate_results(
-        raw, case, root / CASE_RESULTS, loaded.case(case.case_id).root, loaded.definition.scoring
-    )
+    case_report = validate_results(raw, case, root / CASE_RESULTS, loaded.case(case.case_id).root)
     report = validate_experiment_results(loaded, root, case_id=case_id)
     assert case_report["expected_pairs"] == 9
     assert report["cases"]["rho-agent"] == case_report
@@ -136,8 +134,8 @@ def test_contract_and_cli_parity(tmp_path, case_id):
         [
             sys.executable,
             str(LAB / "validate_results.py"),
-            "--benchmark",
-            str(path),
+            "--cases",
+            str(path.parent / "cases.yml"),
             *(["--case", case_id] if case_id is not None else []),
             "--results-root",
             str(root),
@@ -174,10 +172,11 @@ def test_inconsistent_matrix_or_evidence_rejected(tmp_path, change):
         raw.execution_results.append(raw.execution_results[0].model_copy(deep=True))
     native_path.write_text(json.dumps(native))
     with pytest.raises(ValueError):
-        validate_results(raw, case, root, loaded.case(case.case_id).root, loaded.definition.scoring)
+        validate_results(raw, case, root, loaded.case(case.case_id).root)
 
 
-def test_explicit_missing_observation_is_not_zero(tmp_path):
+@pytest.mark.parametrize("empty_metrics", [False, True])
+def test_explicit_missing_observation_is_not_zero(tmp_path, empty_metrics):
     loaded, case, raw, root, _ = result_example(tmp_path)
     row = raw.execution_results[0]
     row.native_results_path = "unavailable/inspect-files"
@@ -185,28 +184,30 @@ def test_explicit_missing_observation_is_not_zero(tmp_path):
     row.metrics["reward"].value = None
     row.metrics["reward"].reason = "worker never started"
     row.unavailable_evidence = {"native_results": "worker never started"}
-    report = validate_results(raw, case, root, loaded.case(case.case_id).root, loaded.definition.scoring)
+    if empty_metrics:
+        row.metrics = {}
+        with pytest.raises(ValueError, match="missing execution needs unavailable score"):
+            validate_results(raw, case, root, loaded.case(case.case_id).root)
+        return
+    report = validate_results(raw, case, root, loaded.case(case.case_id).root)
     assert report["unavailable"][0]["reason"] == "worker never started"
 
 
 def test_relocated_bundle_and_native_evidence_validate_without_original_paths(tmp_path):
     original = tmp_path / "producer"
     loaded, case, raw, root, path = result_example(original, bundle=True)
-    before = validate_results(raw, case, root, loaded.case(case.case_id).root, loaded.definition.scoring)
+    before = validate_results(raw, case, root, loaded.case(case.case_id).root)
     moved = tmp_path / "consumer"
     shutil.move(original, moved)
-    loaded = load_benchmark(moved / "inputs/experiment.yml")
+    loaded = load_cases(moved / "inputs/cases.yml")
     case = loaded.case("rho-agent").case
-    assert (
-        validate_results(raw, case, moved / "results", loaded.case(case.case_id).root, loaded.definition.scoring)
-        == before
-    )
+    assert validate_results(raw, case, moved / "results", loaded.case(case.case_id).root) == before
     native_path = moved / "results" / raw.execution_results[0].native_results_path / "result.json"
     native = json.loads(native_path.read_text())
     native["config"]["agent"]["kwargs"]["bundle"] = "/unrelated/bundle.txt"
     native_path.write_text(json.dumps(native))
     with pytest.raises(ValueError, match="case rho-agent, agent baseline, task inspect-files.*agent configuration"):
-        validate_results(raw, case, moved / "results", loaded.case(case.case_id).root, loaded.definition.scoring)
+        validate_results(raw, case, moved / "results", loaded.case(case.case_id).root)
 
 
 def test_empty_agent_does_not_default_to_oracle(tmp_path):
@@ -220,10 +221,7 @@ def test_executor_run_names_are_not_directory_conventions(tmp_path):
     loaded, case, raw, root, _ = result_example(tmp_path)
     for row in raw.execution_results:
         row.agent_run_id = "external-job:" + row.agent_bundle_id
-    assert (
-        validate_results(raw, case, root, loaded.case(case.case_id).root, loaded.definition.scoring)["expected_pairs"]
-        == 9
-    )
+    assert validate_results(raw, case, root, loaded.case(case.case_id).root)["expected_pairs"] == 9
 
 
 @pytest.mark.parametrize("unexpected", [False, True])
@@ -252,23 +250,21 @@ def test_distinct_worker_roots_are_not_experiment_identity(tmp_path):
         trial["config"]["task"]["path"] = producer + "/" + case.task_sources[row.evaluation.task.task_id].path
         trial["config"]["agent"]["kwargs"]["bundle"] = producer + "/bundle.txt"
         path.write_text(json.dumps(trial))
-    assert (
-        validate_results(raw, case, root, loaded.case(case.case_id).root, loaded.definition.scoring)["expected_pairs"]
-        == 9
-    )
+    assert validate_results(raw, case, root, loaded.case(case.case_id).root)["expected_pairs"] == 9
 
 
 def test_all_cases_and_case_filter_use_the_same_root(tmp_path):
     path, definition = prepared_benchmark(tmp_path / "inputs")
-    definition["cases"].append({**definition["cases"][0], "case_id": "second-case"})
-    path.write_text(yaml.safe_dump(definition, sort_keys=False))
-    loaded = load_benchmark(path)
+    cases = yaml.safe_load((path.parent / "cases.yml").read_text())
+    cases.append({**cases[0], "case_id": "second-case"})
+    write_definition(path, "cases.yml", cases)
+    loaded = load_cases(path.parent / "cases.yml")
     root = tmp_path / "experiment-results"
     shutil.copytree(RESULT_FIXTURE / "experiment-results", root)
     second = Path("cases/case-0001/execution-results")
     shutil.copytree(root / CASE_RESULTS, root / second)
     manifest = json.loads((root / "execution.json").read_text())
-    manifest["benchmark_sha256"] = loaded.identity
+    manifest["cases_sha256"] = loaded.identity
     manifest["cases"]["second-case"] = (second / "results.json").as_posix()
     (root / "execution.json").write_text(json.dumps(manifest))
     report = validate_experiment_results(loaded, root)
@@ -311,8 +307,8 @@ def test_invalid_experiment_index_rejected_without_report(tmp_path, change):
         [
             sys.executable,
             str(LAB / "validate_results.py"),
-            "--benchmark",
-            str(path),
+            "--cases",
+            str(path.parent / "cases.yml"),
             "--results-root",
             str(root),
             "--output",

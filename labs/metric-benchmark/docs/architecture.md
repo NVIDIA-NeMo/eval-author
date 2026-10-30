@@ -45,30 +45,20 @@ coverage, and correlation. Prep is external to those stages.
 
 ## Benchmark definition
 
-A metric benchmark consists of an experiment with inline cases and linked manifests. SHA-256 pins are optional during
-iteration with explicit unsigned loading; default loading requires every input
-to be pinned. Established benchmarks pin every reference to fix their inputs:
+A metric benchmark is one experiment referencing three configuration files:
 
-- **Experiment YAML (`experiment.yml`):** defines inline cases and configures execution,
-  metric computation, and scoring.
-- **Case entry (inside `experiment.yml`):** combines an agent manifest, a tasks manifest,
-  and a prepared subset manifest.
-- **Agent manifest (`agent.yml`):** defines the baseline, mutants, and intended
-  behavior description, with references to prepared dependencies.
-- **Tasks manifest (`tasks.yml`):** defines the fixed inventory and task locations.
-- **Subset manifest:** records the list of exact task memberships and their
-  preparation seed. It is bound to the task inventory, independently of case IDs.
+- **Cases (`cases.yml`):** selects agent and task manifests for each case ID.
+- **Execution (`execution.yml`):** configures the local Harbor loop.
+- **Analysis (`analysis.yml`):** selects descriptions and fixed subsets by case ID,
+  and configures coverage, scoring, and missing-data handling.
 
-Prep produces these fixed inputs. Cases can share agents, tasks and subsets;
-experiments combine these inputs through their inline case definitions.
-Different metric configurations can reuse the same prepared inputs.
-
-After unpacking a benchmark, all paths resolve relative to the bundle root—the
-folder containing the experiment YAML. Nested manifests can reference shared
-inputs without `../`. Supplied SHA-256 pins verify their links. The
-[benchmark format specification](benchmark-format.md) specifies the directory
-layout and fields. Each execution produces its own results while retaining the
-configured input identities.
+`experiment.yml` references these three files directly. Standalone execution takes
+cases plus execution settings; analysis takes cases plus analysis settings and
+saved results. The orchestrator passes the same loaded objects to stage libraries.
+Analysis reads case metadata without requiring executable agent/task directories.
+Execution reuse depends only on execution inputs and settings, so analysis-only
+changes can reuse saved observations. See the [format specification](benchmark-format.md)
+for references, content pins, and the example layout.
 
 ## 1. Prep
 
@@ -83,7 +73,7 @@ consumes them; it does not regenerate or select mutants based on its results.
 
 ### Supplied inputs
 
-A run receives five supplied inputs. Case packages provide the first four;
+A run receives five supplied inputs. Preparation supplies the first four;
 the experiment configuration specifies how to use them. The table describes
 their logical contents.
 
@@ -91,15 +81,15 @@ their logical contents.
 | --- | --- |
 | Baseline agent | An executable bundle with an immutable identity and a documented invocation contract |
 | Mutants | Executable bundles with distinct identities, their baseline relationship, and mutation descriptions |
-| Case description | Stable case identity and intended agent behavior; an Ethos is one possible representation |
+| Case description | Prepared description of intended agent behavior, referenced by case ID through `analysis.case_settings`; an Ethos is one possible representation |
 | Benchmark tasks | Fixed task membership, task identities, environments, correctness verifiers, and a versioned subset manifest |
-| Experiment configuration | `experiment.yml`: inline cases and their input references, execution settings, coverage-system settings and permitted evidence, and scoring parameters |
+| Experiment configuration | `experiment.yml`: references to cases, execution settings, and analysis settings |
 
 Baseline and mutant bundles are prepared and checked before release.
 Tasks and their environments are ready for execution. At present only Harbor tasks are used.
 
-The configuration supplies the choices that determine execution: the fixed subset manifest,
-scoring rules, and the coverage-tool command and settings. Analysis derives one
+Execution settings determine the Harbor loop. Analysis settings supply the fixed
+subset manifest, scoring rules, and coverage-tool command and settings. Analysis derives one
 agent run per configured agent from the results index.
 The program validates these inputs before using them. Missing or inconsistent
 inputs cause an error.

@@ -3,12 +3,12 @@
 
 """Read a versioned benchmark definition and verify its prepared local inputs."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Self
 
 import yaml
-from pydantic import Field, JsonValue, model_validator
+from pydantic import Field, JsonValue, TypeAdapter, model_validator
 
 from metric_benchmark.io import digest_bytes, json_bytes, read_json, verify_input
 from metric_benchmark.io import file_manifest as file_manifest
@@ -88,7 +88,6 @@ class CoverageConfig(Model):
 class AgentManifest(Model):
     baseline: Agent
     mutants: list[Agent] = Field(min_length=1)
-    description: PinnedInput
 
 
 class TaskSource(Task):
@@ -120,12 +119,11 @@ class CaseDefinition(Model):
     case_id: Text
     agent: PinnedInput
     tasks: PinnedInput
-    subsets: PinnedInput
 
     @model_validator(mode="after")
     def file_references(self) -> Self:
-        if any(source.kind != "file" for source in (self.agent, self.tasks, self.subsets)):
-            raise ValueError("agent, tasks and subsets must reference manifest files")
+        if any(source.kind != "file" for source in (self.agent, self.tasks)):
+            raise ValueError("agent and tasks must reference manifest files")
         return self
 
 
@@ -133,8 +131,6 @@ class Case(Model):
     case_id: Text
     task_inventory: Tasks
     task_sources: dict[Text, PinnedInput]
-    case_description: PinnedInput
-    subsets: PinnedInput
     baseline: Agent
     mutants: list[Agent] = Field(min_length=1)
 
@@ -142,10 +138,8 @@ class Case(Model):
     def from_manifests(cls, definition: CaseDefinition, agent: AgentManifest, tasks: TaskManifest) -> Self:
         return cls(
             case_id=definition.case_id,
-            subsets=definition.subsets,
             baseline=agent.baseline,
             mutants=agent.mutants,
-            case_description=agent.description,
             task_inventory=tasks.task_inventory,
             task_sources=tasks.task_sources,
         )
@@ -160,26 +154,7 @@ class Case(Model):
             raise ValueError("task_sources must match the task inventory")
         if any(source.kind != "directory" for source in self.task_sources.values()):
             raise ValueError("Harbor task sources must be directories")
-        if self.subsets.kind != "file" or self.case_description.kind != "file":
-            raise ValueError("subsets and case description must be files")
         return self
-
-    def load_subsets(self, root: Path, *, allow_unsigned: bool = False) -> Subsets:
-        try:
-            subsets = Subsets.model_validate(read_json(self.subsets.resolve(root, allow_unsigned=allow_unsigned)))
-            subsets.resolve_tasks(self.task_inventory)
-            return subsets
-        except (OSError, ValueError) as error:
-            raise ValueError(f"case {self.case_id}, subsets: {error}") from error
-
-    def load_description(self, root: Path, *, allow_unsigned: bool = False) -> dict:
-        try:
-            description = read_json(self.case_description.resolve(root, allow_unsigned=allow_unsigned))
-            if not isinstance(description, dict):
-                raise ValueError("case description must be a JSON object")
-            return description
-        except (OSError, ValueError) as error:
-            raise ValueError(f"case {self.case_id}, case_description: {error}") from error
 
     def selection(self, run_ids: dict[str, str], scoring: ScoringPolicy) -> ScoringConfig:
         return ScoringConfig(
@@ -198,18 +173,35 @@ class LocalExecution(Model):
     environment: dict[str, JsonValue] = Field(default_factory=lambda: dict[str, JsonValue](type="docker"))
 
 
+class CaseAnalysis(Model):
+    subsets: PinnedInput
+    description: PinnedInput
+
+    @model_validator(mode="after")
+    def file_references(self) -> Self:
+        if self.subsets.kind != "file" or self.description.kind != "file":
+            raise ValueError("subsets and description must reference files")
+        return self
+
+
+class AnalysisSettings(Model):
+    case_settings: dict[Text, CaseAnalysis] = Field(min_length=1)
+    coverage: CoverageConfig
+    scoring: ScoringPolicy = Field(default_factory=ScoringPolicy)
+    missing_policy: Literal["error", "exclude"] = "error"
+
+
 class BenchmarkDefinition(Model):
     benchmark_id: Text
     revision: int = Field(ge=1)
-    cases: list[CaseDefinition] = Field(min_length=1)
-    coverage: CoverageConfig
-    scoring: ScoringPolicy = Field(default_factory=ScoringPolicy)
-    execution: LocalExecution = Field(default_factory=LocalExecution)
-    missing_policy: Literal["error", "exclude"] = "error"
+    cases: PinnedInput
+    execution: PinnedInput
+    analysis: PinnedInput
 
     @model_validator(mode="after")
-    def unique_cases(self) -> Self:
-        unique([case.case_id for case in self.cases], "case IDs")
+    def file_references(self) -> Self:
+        if any(source.kind != "file" for source in (self.cases, self.execution, self.analysis)):
+            raise ValueError("cases, execution and analysis must reference files")
         return self
 
 
@@ -221,12 +213,9 @@ class LoadedCase:
 
 
 @dataclass(frozen=True)
-class LoadedBenchmark:
-    definition: BenchmarkDefinition
-    root: Path
+class LoadedCases:
     cases: dict[str, LoadedCase]
-    subsets: dict[str, Subsets] = field(default_factory=dict)
-    descriptions: dict[str, dict] = field(default_factory=dict)
+    root: Path
     allow_unsigned: bool = False
 
     def case(self, case_id: str) -> LoadedCase:
@@ -236,7 +225,97 @@ class LoadedBenchmark:
 
     @property
     def identity(self) -> str:
-        return digest_bytes(json_bytes(self.definition))
+        return digest_bytes(json_bytes(self.identity_payload()))
+
+    def identity_payload(self, *, verify: bool = False) -> list[dict]:
+        """Use content digests whether inputs were signed before or after execution.
+
+        Signed metadata suffices for analysis without executable inputs. Unsigned
+        sources must still be available to establish their content identity.
+        """
+        cases = []
+        for prepared in self.cases.values():
+            case = prepared.case.model_dump()
+            sources = list(case["task_sources"].values())
+            sources.extend(
+                source for agent in [case["baseline"], *case["mutants"]] for source in agent["inputs"].values()
+            )
+            for source in sources:
+                reference = PinnedInput.model_validate(source)
+                if verify or reference.sha256 is None:
+                    path = reference.resolve(prepared.root, allow_unsigned=prepared.allow_unsigned)
+                    source["sha256"] = reference.sha256 or input_digest(path)
+            cases.append(case)
+        return cases
+
+    def verify_execution_inputs(self) -> None:
+        for prepared in self.cases.values():
+            case = prepared.case
+            sources = [(f"task {name}", source) for name, source in case.task_sources.items()]
+            sources.extend(
+                (f"agent {agent.agent_bundle_id}, input {name}", source)
+                for agent in case.agents()
+                for name, source in agent.inputs.items()
+            )
+            for label, source in sources:
+                try:
+                    source.resolve(self.root, allow_unsigned=self.allow_unsigned)
+                except (OSError, ValueError) as error:
+                    raise ValueError(f"case {case.case_id}: {label}: {error}") from error
+
+
+@dataclass(frozen=True)
+class LoadedExecution:
+    inputs: LoadedCases
+    settings: LocalExecution
+
+
+@dataclass(frozen=True)
+class LoadedAnalysis:
+    inputs: LoadedCases
+    settings: AnalysisSettings
+
+    def load_subsets(self, case_id: str) -> Subsets:
+        prepared = self.inputs.case(case_id)
+        try:
+            source = self.settings.case_settings[case_id].subsets
+            subsets = Subsets.model_validate(
+                read_json(source.resolve(self.inputs.root, allow_unsigned=self.inputs.allow_unsigned))
+            )
+            subsets.resolve_tasks(prepared.case.task_inventory)
+            return subsets
+        except (OSError, ValueError) as error:
+            raise ValueError(f"case {case_id}, subsets: {error}") from error
+
+    def load_description(self, case_id: str) -> dict:
+        self.inputs.case(case_id)
+        try:
+            source = self.settings.case_settings[case_id].description
+            description = read_json(source.resolve(self.inputs.root, allow_unsigned=self.inputs.allow_unsigned))
+            if not isinstance(description, dict):
+                raise ValueError("case description must be a JSON object")
+            return description
+        except (OSError, ValueError) as error:
+            raise ValueError(f"case {case_id}, case_description: {error}") from error
+
+    @property
+    def identity(self) -> str:
+        artifacts = {}
+        for case_id in self.inputs.cases:
+            artifacts[case_id] = {
+                "subsets": self.load_subsets(case_id).model_dump(),
+                "description": self.load_description(case_id),
+            }
+        return digest_bytes(
+            json_bytes({"cases": self.inputs.identity, "settings": self.settings.model_dump(), "artifacts": artifacts})
+        )
+
+
+@dataclass(frozen=True)
+class LoadedBenchmark:
+    definition: BenchmarkDefinition
+    execution: LoadedExecution
+    analysis: LoadedAnalysis
 
 
 def read_yaml(path: Path) -> object:
@@ -246,12 +325,15 @@ def read_yaml(path: Path) -> object:
         raise ValueError(f"invalid YAML in {path.name}: {error}") from error
 
 
-def read_benchmark(path: Path, *, allow_unsigned: bool = False) -> LoadedBenchmark:
-    """Read inline cases and referenced agent/task manifests without execution inputs."""
-    definition = BenchmarkDefinition.model_validate(read_yaml(path))
+def load_cases(path: Path, *, allow_unsigned: bool = False) -> LoadedCases:
+    """Read case and agent/task metadata without opening executable inputs."""
+    definitions = TypeAdapter(list[CaseDefinition]).validate_python(read_yaml(path))
+    if not definitions:
+        raise ValueError("cases must not be empty")
+    unique([entry.case_id for entry in definitions], "case IDs")
     root = path.resolve().parent
     cases = {}
-    for entry in definition.cases:
+    for entry in definitions:
         try:
             agent = AgentManifest.model_validate(read_yaml(entry.agent.resolve(root, allow_unsigned=allow_unsigned)))
             tasks = TaskManifest.model_validate(read_yaml(entry.tasks.resolve(root, allow_unsigned=allow_unsigned)))
@@ -259,28 +341,31 @@ def read_benchmark(path: Path, *, allow_unsigned: bool = False) -> LoadedBenchma
         except (OSError, ValueError) as error:
             raise ValueError(f"case {entry.case_id}: {error}") from error
         cases[case.case_id] = LoadedCase(case, root, allow_unsigned=allow_unsigned)
-    return LoadedBenchmark(definition, root, cases, allow_unsigned=allow_unsigned)
+    return LoadedCases(cases, root, allow_unsigned)
+
+
+def load_execution(cases: Path, execution: Path, *, allow_unsigned: bool = False) -> LoadedExecution:
+    inputs = load_cases(cases, allow_unsigned=allow_unsigned)
+    settings = LocalExecution.model_validate(read_yaml(execution))
+    inputs.verify_execution_inputs()
+    return LoadedExecution(inputs, settings)
+
+
+def load_analysis(cases: Path, analysis: Path, *, allow_unsigned: bool = False) -> LoadedAnalysis:
+    inputs = load_cases(cases, allow_unsigned=allow_unsigned)
+    settings = AnalysisSettings.model_validate(read_yaml(analysis))
+    if settings.case_settings.keys() != inputs.cases.keys():
+        raise ValueError("analysis case_settings must match the cases exactly")
+    return LoadedAnalysis(inputs, settings)
 
 
 def load_benchmark(path: Path, *, allow_unsigned: bool = False) -> LoadedBenchmark:
-    """Load and verify all prepared inputs for execution and full validation."""
-    loaded = read_benchmark(path, allow_unsigned=allow_unsigned)
-    for prepared in loaded.cases.values():
-        case, root = prepared.case, prepared.root
-        try:
-            for task_id, source in case.task_sources.items():
-                try:
-                    source.resolve(root, allow_unsigned=allow_unsigned)
-                except (OSError, ValueError) as error:
-                    raise ValueError(f"task {task_id}: {error}") from error
-            for agent in case.agents():
-                for name, source in agent.inputs.items():
-                    try:
-                        source.resolve(root, allow_unsigned=allow_unsigned)
-                    except (OSError, ValueError) as error:
-                        raise ValueError(f"agent {agent.agent_bundle_id}, input {name}: {error}") from error
-        except (OSError, ValueError) as error:
-            raise ValueError(f"case {case.case_id}: {error}") from error
-        loaded.subsets[case.case_id] = case.load_subsets(root, allow_unsigned=allow_unsigned)
-        loaded.descriptions[case.case_id] = case.load_description(root, allow_unsigned=allow_unsigned)
-    return loaded
+    """Read the experiment and stage configurations without opening executable inputs."""
+    definition = BenchmarkDefinition.model_validate(read_yaml(path))
+    root = path.resolve().parent
+    cases_path = definition.cases.resolve(root, allow_unsigned=allow_unsigned)
+    execution_path = definition.execution.resolve(root, allow_unsigned=allow_unsigned)
+    analysis_path = definition.analysis.resolve(root, allow_unsigned=allow_unsigned)
+    analysis = load_analysis(cases_path, analysis_path, allow_unsigned=allow_unsigned)
+    execution = LoadedExecution(analysis.inputs, LocalExecution.model_validate(read_yaml(execution_path)))
+    return LoadedBenchmark(definition, execution, analysis)

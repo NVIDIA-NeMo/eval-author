@@ -14,11 +14,11 @@ from harbor.models.trial.result import TrialResult
 from metric_benchmark.config import (
     Agent,
     Case,
-    LoadedBenchmark,
+    LoadedCases,
     ScoringConfig,
     ScoringPolicy,
     file_manifest,
-    load_benchmark,
+    load_cases,
 )
 from metric_benchmark.io import cli, read_json, write_json
 from metric_benchmark.models import ExecutionManifest, RawResults, Score, resolve_evidence
@@ -70,6 +70,13 @@ def native_observation(trial: TrialResult, metric: str) -> tuple[str, Score]:
     return "succeeded", Score(value=rewards[metric])
 
 
+def native_measurements(trial: TrialResult) -> tuple[str, dict[str, Score]]:
+    rewards = trial.verifier_result.rewards if trial.verifier_result else None
+    measurements = {metric: native_observation(trial, metric)[1] for metric in (rewards or {"reward": None})}
+    status, _ = native_observation(trial, next(iter(measurements)))
+    return status, measurements
+
+
 def selection_for_results(case: Case, raw: RawResults, scoring: ScoringPolicy) -> ScoringConfig:
     if raw.task_inventory != case.task_inventory.tasks:
         raise ValueError("results task inventory differs from benchmark case")
@@ -100,7 +107,7 @@ def recorded_input_root(task_path: Path | None, relative: str) -> Path:
 
 
 def validate_results(
-    raw: RawResults, case: Case, root: Path, input_root: Path, scoring: ScoringPolicy, *, allow_unsigned: bool = False
+    raw: RawResults, case: Case, root: Path, input_root: Path, *, allow_unsigned: bool = False
 ) -> dict:
     """Validate an accounted matrix; unavailable observations remain unavailable.
 
@@ -109,7 +116,7 @@ def validate_results(
     """
     # Revalidate callers' mutable model instances as well as file inputs.
     raw = RawResults.model_validate(raw.model_dump())
-    selection = selection_for_results(case, raw, scoring)
+    selection_for_results(case, raw, ScoringPolicy())
     agents = {a.agent_bundle_id: a for a in case.agents()}
     expected = {(a, t.task_id, t.revision) for a in agents for t in case.task_inventory.tasks}
     tasks = {
@@ -127,11 +134,12 @@ def validate_results(
             if key not in expected:
                 raise ValueError("unexpected agent or task in results")
             groups.setdefault(key, []).append(row)
-            if scoring.metric not in row.metrics:
-                raise ValueError("measurement must be numeric or explicitly unavailable")
-            score = row.metrics[scoring.metric]
             if row.status == "missing":
-                if score.value is not None or not row.unavailable_evidence.get("native_results"):
+                if (
+                    not row.metrics
+                    or any(score.value is not None for score in row.metrics.values())
+                    or not row.unavailable_evidence.get("native_results")
+                ):
                     raise ValueError("missing execution needs unavailable score and evidence reason")
                 if (root / row.native_results_path).exists():
                     raise ValueError("missing execution unexpectedly has native evidence")
@@ -160,18 +168,20 @@ def validate_results(
                     )
                 if trial.config.agent != configs[config_key]:
                     raise ValueError("native agent configuration differs from benchmark")
-                status, observed = native_observation(trial, scoring.metric)
-                if status != row.status or score != observed:
+                status, observed = native_measurements(trial)
+                if status != row.status or row.metrics != observed:
                     raise ValueError("native status or measurement differs from index")
-            if score.value is None:
-                unavailable.append(
-                    {
-                        "agent": row.agent_bundle_id,
-                        "task": key[1],
-                        "attempt": row.evaluation.execution,
-                        "reason": score.reason,
-                    }
-                )
+            for metric, score in row.metrics.items():
+                if score.value is None:
+                    unavailable.append(
+                        {
+                            "agent": row.agent_bundle_id,
+                            "task": key[1],
+                            "attempt": row.evaluation.execution,
+                            "metric": metric,
+                            "reason": score.reason,
+                        }
+                    )
         except (OSError, ValueError) as error:
             raise ValueError(
                 f"case {case.case_id}, agent {row.agent_bundle_id}, task {row.evaluation.task.task_id}, "
@@ -182,8 +192,6 @@ def validate_results(
     for rows in groups.values():
         if len({r.evaluation.evaluation_id for r in rows}) != 1:
             raise ValueError("ambiguous repetitions for agent/task")
-        if len(rows) != 1 and selection.attempt_policy == "only":
-            raise ValueError("multiple attempts with attempt_policy=only")
     manifest = file_manifest(root)
     # Derived reports are outside this root. The index is hashed separately by
     # consumers, so it may be published after validation by an execution backend.
@@ -198,8 +206,10 @@ def validate_results(
     }
 
 
-def validate_experiment_results(loaded: LoadedBenchmark, root: Path, *, case_id: str | None = None) -> dict:
+def validate_experiment_results(loaded: LoadedCases, root: Path, *, case_id: str | None = None) -> dict:
     manifest = ExecutionManifest.model_validate(read_json(resolve_evidence(root, "execution.json")))
+    if manifest.cases_sha256 != loaded.identity:
+        raise ValueError("execution case definitions differ from supplied cases")
     selected = {case_id: loaded.case(case_id)} if case_id is not None else loaded.cases
     missing = selected.keys() - manifest.cases.keys()
     unexpected = manifest.cases.keys() - loaded.cases.keys()
@@ -225,7 +235,6 @@ def validate_experiment_results(loaded: LoadedBenchmark, root: Path, *, case_id:
                 prepared.case,
                 index.parent,
                 prepared.root,
-                loaded.definition.scoring,
                 allow_unsigned=prepared.allow_unsigned,
             )
         except (OSError, ValueError) as error:
@@ -235,7 +244,7 @@ def validate_experiment_results(loaded: LoadedBenchmark, root: Path, *, case_id:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--benchmark", type=Path, required=True)
+    parser.add_argument("--cases", type=Path, required=True)
     parser.add_argument(
         "--allow-unsigned", action="store_true", help="allow missing input pins; still verify supplied SHAs"
     )
@@ -244,7 +253,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
 
     def run(args):
-        loaded = load_benchmark(args.benchmark, allow_unsigned=args.allow_unsigned)
+        loaded = load_cases(args.cases, allow_unsigned=args.allow_unsigned)
         write_json(args.output, validate_experiment_results(loaded, args.results_root, case_id=args.case))
 
     cli(parser, run)

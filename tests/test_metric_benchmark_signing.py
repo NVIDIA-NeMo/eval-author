@@ -49,8 +49,8 @@ def test_unsigned_to_signed_library_and_cli_round_trip(tmp_path):
     with pytest.raises(ValueError, match="missing SHA"):
         load_benchmark(experiment)
     unsigned = load_benchmark(experiment, allow_unsigned=True)
-    assert unsigned.allow_unsigned
-    assert unsigned.case("rho-agent").allow_unsigned
+    assert unsigned.execution.inputs.allow_unsigned
+    assert unsigned.execution.inputs.case("rho-agent").allow_unsigned
     before = manifest_bytes(tmp_path)
     check = sha_cli(experiment, "--check")
     assert check.returncode == 2 and "missing SHA" in check.stderr
@@ -58,12 +58,12 @@ def test_unsigned_to_signed_library_and_cli_round_trip(tmp_path):
     signed = sha_cli(experiment)
     assert signed.returncode == 0, signed.stderr
     check_benchmark(experiment)
-    assert not load_benchmark(experiment).allow_unsigned
+    assert not load_benchmark(experiment).execution.inputs.allow_unsigned
     assert sha_cli(experiment, "--check").returncode == 0
     assert sign_benchmark(experiment, resign=True) == []
     (bundle / "agent.py").write_text("print('changed agent')\n")
     with pytest.raises(ValueError, match="input digest differs"):
-        load_benchmark(experiment, allow_unsigned=True)
+        load_benchmark(experiment, allow_unsigned=True).execution.inputs.verify_execution_inputs()
     with pytest.raises(ValueError, match="input digest differs"):
         check_benchmark(experiment)
     assert sha_cli(experiment, "--resign").returncode == 0
@@ -74,14 +74,15 @@ def test_unsigned_to_signed_library_and_cli_round_trip(tmp_path):
 @pytest.mark.parametrize("newline", [b"\n", b"\r\n"])
 def test_resign_preserves_comments_quotes_and_formatting(tmp_path, flow, newline):
     experiment, _ = prepared_benchmark(tmp_path)
+    cases_path = tmp_path / "cases.yml"
     if flow:
-        raw = experiment.read_text()
+        raw = cases_path.read_text()
         raw = re.sub(
             r"  agent:\n    path: ([^\n]+)\n    sha256: ([^\n]+)\n",
             r"""  agent: {path: '\1', sha256: "\2"} # keep inline comment\n""",
             raw,
         )
-        experiment.write_text(raw)
+        cases_path.write_text(raw)
     agent_path = tmp_path / AGENT_DIR / "agent.yml"
     agent_path.write_text(
         re.sub(r"sha256: (sha256:[a-f0-9]+)", r"sha256: '\1' # keep SHA comment", agent_path.read_text())
@@ -106,7 +107,8 @@ def test_resign_preserves_comments_quotes_and_formatting(tmp_path, flow, newline
 @pytest.mark.parametrize("style", ["block", "flow", "null"])
 def test_sign_inserts_missing_sha_without_losing_comments(tmp_path, style):
     experiment = unsigned_benchmark(tmp_path)
-    raw = experiment.read_text()
+    cases_path = tmp_path / "cases.yml"
+    raw = cases_path.read_text()
     if style == "flow":
         raw = raw.replace(
             "  agent:\n    path: agents/rho-agent/agent.yml\n",
@@ -118,10 +120,10 @@ def test_sign_inserts_missing_sha_without_losing_comments(tmp_path, style):
         )
     else:
         raw = raw.replace("    path: agents/rho-agent/agent.yml\n", "    path: agents/rho-agent/agent.yml # retained\n")
-    experiment.write_text(raw)
+    cases_path.write_text(raw)
     sign_benchmark(experiment, resign=style == "null")
     check_benchmark(experiment)
-    assert "# retained" in experiment.read_text()
+    assert "# retained" in cases_path.read_text()
     assert sign_benchmark(experiment, resign=True) == []
 
 
@@ -131,8 +133,8 @@ def test_signing_refusal_and_invalid_input_leave_every_manifest_unchanged(tmp_pa
     result = sha_cli(experiment)
     assert result.returncode == 2
     assert "--resign" in result.stderr
-    assert "experiment.yml:cases[rho-agent].agent" in result.stderr
-    assert "agents/rho-agent/agent.yml:description" in result.stderr
+    assert "cases.yml:cases[rho-agent].agent" in result.stderr
+    assert "analysis.yml:cases[rho-agent].description" in result.stderr
     assert manifest_bytes(tmp_path) == before
     # A later missing task directory must be discovered before any earlier pins are written.
     shutil.rmtree(tmp_path / TASK_DIR / "search-workspace")

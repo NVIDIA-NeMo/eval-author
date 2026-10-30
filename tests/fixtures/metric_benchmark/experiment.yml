@@ -1,23 +1,14 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Prepared case contents and subsets stay fixed when experiment settings change.
 benchmark_id: rho-metric-validity
 revision: 1
 cases:
-- case_id: rho-agent
-  agent:
-    path: agents/rho-agent/agent.yml
-    sha256: sha256:d5f2748f94d1a3c14054bb7a6f10ffd6a3888956b2e96f948e53db42fe8db662
-  tasks:
-    path: tasks/workspace/tasks.yml
-    sha256: sha256:247e20d159875c87f97c01b58fe7d9115c9e849f0b3779a1a5081788d9d1f93f
-  subsets:
-    path: tasks/workspace/subsets.json
-    sha256: sha256:c9b05fb9ca48d0f7ca01fd1dc755d68b909eceadf3d094edcadd7aa3b162a786
-coverage:
-  system_id: synthetic
-  system_revision: '1'
-  command:
-  - python
-  - /adapter.py
+  path: cases.yml
+  sha256: sha256:cf58ce28cb663c8262733ca171b5b4ce59f4adce251e985838bd4e9fcb1fb910
+execution:
+  path: execution.yml
+  sha256: sha256:3e7868e54726a1816ef6539bc6c7c6f4bdc82e9d31b9f82219b85330ff25e1d0
+analysis:
+  path: analysis.yml
+  sha256: sha256:a014a0633291ec1f6ea1227c5e60244608a87af75805c88dc3aade384422830a

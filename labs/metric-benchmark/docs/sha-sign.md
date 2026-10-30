@@ -15,8 +15,8 @@ uv run labs/metric-benchmark/tools/sha-sign benchmark/experiment.yml
 `sha-sign` reads the experiment and walks every case's referenced manifests and
 inputs. It checks paths, file types, schemas and subset task IDs before writing
 anything. It adds `sha256` to task sources, agent inputs, descriptions, subsets,
-and agent/tasks manifest references, working from input files up to the
-experiment. Shared manifests are updated once. It does not run agents or the
+agent/task manifest references, and cases/execution/analysis references, working
+from input files up to the experiment. Shared manifests are updated once. It does not run agents or the
 metric tool, and it does not modify task files, agent files or JSON inputs.
 
 If any reference already has a SHA field, signing stops without writing files
@@ -37,8 +37,8 @@ manifests that the signer itself rewrites, since doing so would invalidate their
 hashes.
 
 Once signed, readers verify each supplied digest as they load its reference.
-`load_benchmark()` verifies all inputs; `read_benchmark()` verifies the manifests
-it reads, and individual artifact loaders verify their own inputs. Omitting a
+`load_cases()` verifies metadata; stage loaders and artifact loaders verify the
+inputs they consume. `check_benchmark()` verifies every prepared input. Omitting a
 digest requires explicit `allow_unsigned=True` when loading during iteration.
 SHA signing fixes expected contents; it does not authenticate a publisher.
 
@@ -51,12 +51,12 @@ uv run labs/metric-benchmark/tools/sha-sign benchmark/experiment.yml --check
 `--check` requires a SHA on every input reference and verifies it against the
 current contents. It stops at the first validation error, including a missing,
 null or incorrect digest, and reports the input context. It uses the same strict
-`load_benchmark()` path as normal full loading. To fill missing pins throughout
+`check_benchmark()` path as full bundle verification. To fill missing pins throughout
 an unsigned bundle, run signing without `--check`; use `--resign` if some pins
 already exist. Success exits with status zero; validation failures exit nonzero.
 `--check` and `--resign` are mutually exclusive.
-The top-level experiment has no self-hash, and inline cases have no separate
-hash: their agent, tasks and subsets references are checked instead.
+The top-level experiment has no self-hash; it pins the three configuration files.
+The cases and analysis files pin their own referenced inputs.
 
 To sign or check from Python:
 

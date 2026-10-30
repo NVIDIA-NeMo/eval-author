@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+- case_id: rho-agent
+  agent:
+    path: agents/rho-agent/agent.yml
+    sha256: sha256:dd5ad215b00f9d5e726c48ea80097db48a7fe7e28060e23194a95844b6b6ffc3
+  tasks:
+    path: tasks/workspace/tasks.yml
+    sha256: sha256:247e20d159875c87f97c01b58fe7d9115c9e849f0b3779a1a5081788d9d1f93f
