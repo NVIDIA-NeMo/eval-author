@@ -14,7 +14,7 @@ def workflow():
     return yaml.safe_load(path.read_text())
 
 
-def test_live_experiment_is_main_only_and_explicitly_enabled():
+def test_live_experiment_automatically_runs_on_main_like_semantic_regression():
     config = workflow()
     triggers = config.get("on", config.get(True))
     assert triggers["push"]["branches"] == ["main"]
@@ -25,7 +25,9 @@ def test_live_experiment_is_main_only_and_explicitly_enabled():
     assert "github.ref == 'refs/heads/main'" in live["if"]
     assert "github.event_name == 'push'" in live["if"]
     assert "github.event_name == 'schedule'" in live["if"]
-    assert "vars.ANTI_CHEAT_LIVE_ENABLED == 'true'" in live["if"]
+    semantic = yaml.safe_load((ROOT / ".github/workflows/semantic-regression.yml").read_text())
+    assert " ".join(live["if"].split()) == " ".join(semantic["jobs"]["live"]["if"].split())
+    assert "vars." not in live["if"]
     assert "github.event_name == 'workflow_dispatch' && inputs.run_live" in live["if"]
     assert live["environment"] == "semantic-regression"
     assert live["timeout-minutes"] <= 60

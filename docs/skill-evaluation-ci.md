@@ -27,7 +27,7 @@ The independent [verifier-cheat panel](determinism-checks.md#verifier-cheat-pane
 also runs real Harbor/Docker evaluation controls without model credentials.
 Its fixed-fixture measurements are not SkillEvaluator or semantic-regression scores.
 The separate [live anti-cheat experiment](determinism-checks.md#live-anti-cheat-experiment)
-uses model calls only on explicitly enabled `main` runs. PRs receive a plan, not
+automatically runs model calls on `main` pushes and its daily schedule. PRs receive a plan, not
 live execution; the credential-free verifier-cheat panel remains unchanged.
 
 Tier 3 requires a skill-owned `evals/evals.json`; missing datasets are reported

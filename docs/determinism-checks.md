@@ -87,13 +87,13 @@ the behavioral checks themselves provide the finite-case reference label.
 The [workflow](../.github/workflows/anti-cheat-live.yml) plans without credentials
 on same-repository PRs. Live execution requires `refs/heads/main` and either:
 
-- a push or daily scheduled run with `ANTI_CHEAT_LIVE_ENABLED=true`; or
+- a push (including a merged PR) or daily scheduled run, automatically; or
 - manual dispatch with `run_live=true` (the default is planning only).
 
 The live job reuses the `semantic-regression` GitHub environment and its
 `INFERENCE_HUB_API_KEY` secret. Maintain that environment's `main`-only branch
-restriction in GitHub settings. These code changes do not enable the variable,
-create credentials, change environment protection, or make this a required merge
+restriction in GitHub settings. No enable variable is required. These code changes
+do not create credentials, change environment protection, or make this a required merge
 check. A scheduled run executes main's current revision, not necessarily a newly
 merged revision. Planning is not a successful live measurement.
 The runner checkpoints after each cell and has a 50-minute overall budget within
