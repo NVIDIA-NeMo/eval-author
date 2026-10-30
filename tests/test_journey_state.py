@@ -1457,7 +1457,7 @@ def test_formatted_state_limit_preserves_previous_bytes_and_revision(state, tmp_
     original = state.initialize(tmp_path, agent="assistant", journey="audit")
     before = state.state_path(tmp_path).read_bytes()
     proposed = copy.deepcopy(original)
-    scope = {"create": {"cases": ["refund"] * 128}}
+    scope = {"audit": {"cases": ["refund"] * 128}}
     proposed["scopes"] = scope
     persisted = {**proposed, "revision": proposed["revision"] + 1}
     compact_size = len(json.dumps(persisted, allow_nan=False).encode())

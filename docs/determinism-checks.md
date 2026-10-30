@@ -195,8 +195,11 @@ Synthetic receipt tests do not establish verifier quality or real-agent success.
 manifest-specific `.attempts` directory. Acceptance requires every registered
 non-diagnostic closure attempt, including failed or interrupted attempts, all controls, and at
 least two distinct agent runs. Copying a trace to another path cannot create a
-fresh run. Repair through a new manifest, retaining the previous manifest,
-ledger and results; do not delete failed entries to obtain acceptance. This is
+fresh run. An explicit repair may update the current manifest in place, carrying
+its repair count and requiring fresh controls and agent evidence. It resets
+registrations for the old manifest while leaving native results untouched;
+source control owns version history. Do not otherwise delete failed entries to
+obtain acceptance. This is
 local integrity/accounting, not a tamper-proof execution attestation.
 
 `task_pipeline.py verify` rebuilds bound before/after aggregates and requires the

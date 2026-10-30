@@ -22,7 +22,15 @@ from . import onboarding_templates as copy
 
 JOURNEYS = (None, *shared.JOURNEYS)
 PREVIEWS = {"orientation", "goal_selected", "prerequisites"}
-STAGES = PREVIEWS | {"prerequisite_failure", "prerequisite_results", "results", "ethos", "confirmed", "resume"}
+STAGES = PREVIEWS | {
+    "audit_entry_failure",
+    "prerequisite_failure",
+    "prerequisite_results",
+    "results",
+    "ethos",
+    "confirmed",
+    "resume",
+}
 MAX_STATE_ERROR_CHARS = 2000
 ROW_PREREQUISITES = {
     "skills": ("skills", "ethos_skills"),
@@ -295,6 +303,25 @@ def next_steps(state: dict, facts: dict, stage: str) -> str:
     return "\n\n".join(paragraphs)
 
 
+def state_error(facts: dict) -> str:
+    error = text(facts.get("state_error"), "state_error")
+    if len(error) > MAX_STATE_ERROR_CHARS:
+        raise ValueError(f"state_error exceeds the {MAX_STATE_ERROR_CHARS}-character limit")
+    return error
+
+
+def audit_entry_failure(payload: dict) -> str:
+    payload = mapping(payload, "audit entry failure", {"stage", "journey", "facts"})
+    if payload.get("journey") != "audit":
+        raise ValueError("Audit entry failure requires journey audit")
+    facts = mapping(payload.get("facts"), "audit entry failure facts", {"state_error"})
+    paragraphs = [
+        shared.BLOCKERS,
+        copy.AUDIT_ENTRY_STATE_FAILURE.format(error=literal(state_error(facts), "state_error")),
+    ]
+    return "\n\n".join(paragraphs) + "\n"
+
+
 def prerequisite_failure(payload: dict) -> str:
     payload = mapping(payload, "prerequisite failure", {"stage", "journey", "ready", "facts"})
     journey = payload.get("journey")
@@ -303,9 +330,7 @@ def prerequisite_failure(payload: dict) -> str:
     if payload.get("ready") is not True:
         raise ValueError("Wait for the user's readiness reply before checking prerequisites")
     facts = mapping(payload.get("facts"), "prerequisite failure facts", {"rows", "state_error"})
-    error = text(facts.get("state_error"), "state_error")
-    if len(error) > MAX_STATE_ERROR_CHARS:
-        raise ValueError(f"state_error exceeds the {MAX_STATE_ERROR_CHARS}-character limit")
+    error = state_error(facts)
     paragraphs = [
         copy.PREREQUISITE_RESULTS_INTRO,
         prerequisite_table(journey, facts),
@@ -319,6 +344,8 @@ def prerequisite_failure(payload: dict) -> str:
 def render(payload: dict) -> str:
     """Pure rendering: no clocks, filesystem access, state writes, or workflow execution."""
     stage = payload["stage"]
+    if stage == "audit_entry_failure":
+        return audit_entry_failure(payload)
     if stage == "prerequisite_failure":
         return prerequisite_failure(payload)
     if stage in PREVIEWS:

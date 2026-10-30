@@ -3,7 +3,7 @@
 <!-- Editable SVG: labels are text; no external fonts, scripts, or assets. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1320" viewBox="0 0 1280 1320" role="img" aria-labelledby="title description">
   <title id="title">Metric benchmark: from case examples to correlation</title>
-  <desc id="description">Three phases: prepare case examples for the experiment; run the baseline and mutants against all eval tasks; analyze the saved results. Prep supplies the agent, mutants, case description, benchmark tasks, and experiment configuration. It constructs subsets using a fixed seed and bundles their exact memberships in an authoritative versioned manifest. Execution produces a shared results directory. Analysis consumes the prepared subset manifest, computes mutant scores from baseline and mutant outcomes, and computes coverage from the case description and baseline evidence using metric computation such as Eval Author. The two scores are joined by subset for correlation. Configuration governs execution and analysis. Prep is outside the experiment; the local Harbor loop and future NeMo Helix implementation are planned execution backends.</desc>
+  <desc id="description">Three phases: prepare case examples for the experiment; run the baseline and mutants against all eval tasks; analyze the saved results. Prep supplies the agent, mutants, case description, benchmark tasks, and experiment configuration. It constructs subsets using a fixed seed and bundles their exact memberships in an authoritative task-inventory-bound manifest. Execution produces a shared results directory. Analysis consumes the prepared subset manifest, computes mutant scores from baseline and mutant outcomes, and computes coverage from the case description and baseline evidence using metric computation such as Eval Author. The two scores are joined by subset for correlation. Configuration governs execution and analysis. Prep is outside the experiment; execution uses the local Harbor loop; NeMo Helix is a future backend.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M1 1 L9 5 L1 9 Z" fill="#64748b"/>
@@ -56,8 +56,8 @@
   <text x="548" y="254" class="detail">Intended behavior</text>
   <text x="781" y="226" class="label">Benchmark tasks</text>
   <text x="781" y="254" class="detail">Tasks + verifiers</text>
-  <text x="1014" y="226" class="label">benchmark.yaml</text>
-  <text x="1014" y="254" class="detail">Fixed configuration</text>
+  <text x="1014" y="226" class="label">experiment.yml</text>
+  <text x="1014" y="254" class="detail">Defines cases inline</text>
   <rect x="64" y="294" width="490" height="110" rx="12" class="card" stroke="#b9dcd0"/>
   <text x="86" y="327" class="label">Construct eval subsets</text>
   <text x="86" y="356" class="detail">Pinned task inventory + fixed seed</text>
@@ -65,9 +65,9 @@
   <path d="M554 349 H646" class="flow"/>
   <rect x="650" y="294" width="566" height="110" rx="12" fill="#d9eee6" stroke="#a7cdbf" stroke-width="1.5"/>
   <text x="672" y="327" class="label">Subset manifest</text>
-  <text x="672" y="356" class="detail">Stable subset IDs + exact task membership</text>
+  <text x="672" y="356" class="detail">Named subsets + explicit task IDs</text>
   <text x="672" y="383" class="small">Versioned subsets.json · algorithm + fixed seed recorded</text>
-  <text x="64" y="431" class="small">Prep emits benchmark.yaml + its input artifacts. The orchestrator reads the YAML and invokes Python stage tools.</text>
+  <text x="64" y="431" class="small">Experiment YAML defines cases; each selects agent, tasks, and subset manifests.</text>
 
   <g transform="translate(0 110)">
   <path d="M310 336 V364" class="flow"/>
@@ -83,7 +83,7 @@
   <text x="86" y="475" class="label">Execute evals</text>
   <text x="86" y="505" class="detail">Mutants + baseline x eval tasks</text>
   <text x="86" y="535" class="small">One full benchmark per agent; local jobs run in sequence.</text>
-  <text x="86" y="560" class="small">Planned Python tools: local Harbor, then NeMo Helix.</text>
+  <text x="86" y="560" class="small">Local Harbor tool now; NeMo Helix in the future.</text>
   <path d="M554 510 H646" class="flow"/>
   <rect x="650" y="442" width="566" height="136" rx="12" fill="#e0edfc" stroke="#9ebfe6" stroke-width="1.5"/>
   <text x="672" y="474" class="label">Results directory</text>

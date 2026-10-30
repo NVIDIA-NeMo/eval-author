@@ -176,7 +176,7 @@ def ready(modules, repo, provider="harbor", examples=None):
 
 def present_execution_settings(modules, repo, value):
     value["execution_settings_presented"] = {
-        "digest": facts(modules, repo)["settings_digest"],
+        "digest": facts(modules, repo)["presentation_digest"],
         "source": "Displayed the concrete execution limits",
     }
     return save(modules, repo, value)
@@ -186,7 +186,7 @@ def authorize_execution(
     modules, repo, value, *, legacy=False, source="User separately authorizes this exact bounded run"
 ):
     value["selection"]["authorization"] = {
-        "digest": facts(modules, repo)["selection_digest"],
+        "digest": facts(modules, repo)["authorization_digest"],
         "source": source,
     }
     return (save_legacy if legacy else save)(modules, repo, value)
@@ -385,7 +385,7 @@ def test_full_suite_review_requires_validation_before_later_execution_settings(m
         present_suite(modules, tmp_path, value)
     value.pop("suite_review_presented")
     value["execution_settings_presented"] = {
-        "digest": progress["settings_digest"],
+        "digest": progress["presentation_digest"],
         "source": "Premature run settings before all-task approval",
     }
     with pytest.raises(ValueError, match="Approve the full suite"):
@@ -1211,7 +1211,7 @@ def test_state_only_resume_never_observes_creation_or_infers_fresh_evidence(modu
     assert modules[0].state_path(tmp_path).read_bytes() == before
 
 
-@pytest.mark.parametrize("decision", ["accepted", "declined"])
+@pytest.mark.parametrize("decision", ["pending", "accepted", "declined"])
 def test_audit_decision_preserves_complete_creation_and_missing_audit_evidence_blocks_only_audit(
     modules, tmp_path, decision
 ):
@@ -1221,16 +1221,159 @@ def test_audit_decision_preserves_complete_creation_and_missing_audit_evidence_b
     assert facts(modules, tmp_path)["complete"]
     assert saved["next_handoff"] == ("eval-author-audit" if decision == "accepted" else None)
     if decision == "accepted":
-        audit = modules[0].initialize(tmp_path, journey="audit")
-        modules[0].update(
+        modules[0].initialize(tmp_path, journey="audit", state_only=True)
+        audit = modules[0].update(
             tmp_path, {"blockers": [{"id": "data", "phase": "audit", "message": "No audit traces selected"}]}
         )
-        assert audit["ethos"] == saved["ethos"]
-        assert audit["scopes"]["create"] == saved["scopes"]["create"]
-        assert audit["journey_status"]["create"] == "complete"
+        for field in ("ethos", "scopes", "journey_status"):
+            assert audit[field] == saved[field]
         assert facts(modules, tmp_path)["complete"]
     else:
         assert saved["journey"] == "create"
+    assert facts(modules, tmp_path)["audit_decision"] == decision
+
+
+def forbid_audit_creation_reads(modules, repo, monkeypatch):
+    state, creation = modules
+    metadata = {repo / "ETHOS.md", state.state_path(repo), repo / ".eval-author/.working/journey-state.lock"}
+    artifacts = {path for path in repo.rglob("*") if path.is_file()} - metadata
+
+    def fail(*args, **kwargs):
+        pytest.fail("Audit metadata reconciliation must not inspect creation or trace evidence")
+
+    for name in ("observe", "progress", "transition"):
+        monkeypatch.setattr(creation, name, fail)
+    for name in ("task_lifecycle", "task_digest"):
+        monkeypatch.setattr(state, name, fail)
+    file_digest = state._file_digest
+
+    def guard_digest(path, remaining):
+        if path != repo / "ETHOS.md":
+            fail()
+        return file_digest(path, remaining)
+
+    monkeypatch.setattr(state, "_file_digest", guard_digest)
+    for name in ("open", "stat", "lstat"):
+        original = getattr(Path, name)
+
+        def guard(path, *args, _original=original, **kwargs):
+            if path in artifacts:
+                fail()
+            return _original(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, name, guard)
+    for name in ("glob", "rglob", "iterdir"):
+        original = getattr(Path, name)
+
+        def guard_scan(path, *args, _original=original, **kwargs):
+            if path == repo or path.is_relative_to(repo):
+                fail()
+            return _original(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, name, guard_scan)
+
+
+@pytest.mark.parametrize("selection", ["candidates", "selected_subset"])
+@pytest.mark.parametrize("ethos_change", [None, "edit", "missing"])
+@pytest.mark.parametrize("origin", ["create", "expand"])
+def test_normal_audit_metadata_operations_preserve_creation_without_reading_its_evidence(
+    modules, tmp_path, monkeypatch, selection, ethos_change, origin
+):
+    complete(modules, tmp_path)
+    state, _ = modules
+    state.initialize(tmp_path, journey=origin, state_only=True)
+    original = state.load_state(tmp_path)
+    candidates = [evidence(tmp_path, f"runs/{name}.json")["path"] for name in ("selected", "other")]
+    if ethos_change == "edit":
+        (tmp_path / "ETHOS.md").write_text("# Revised behavior\n")
+    elif ethos_change == "missing":
+        (tmp_path / "ETHOS.md").unlink()
+    audit_scope = {"trace_candidates": candidates}
+    if selection == "selected_subset":
+        audit_scope.update(traces=candidates[:1], exclusions=candidates[1:], selection_source="Actual source choice")
+
+    forbid_audit_creation_reads(modules, tmp_path, monkeypatch)
+    switched = state.initialize(tmp_path, journey="audit", state_only=True)
+    assert switched["scopes"]["create"] == original["scopes"]["create"]
+    assert switched["journey_status"]["create"] == "complete"
+    assert switched["ethos"] == original["ethos"]
+    state.update(
+        tmp_path,
+        {
+            "prerequisites": {
+                key: {"status": "confirmed", "source": "Current audit prerequisite evidence"}
+                for key in ("skills", "python", "data")
+            }
+        },
+        state_only=True,
+    )
+    reconciled = state.load_state(tmp_path)
+    question = reconciled["pending_question"] if ethos_change else "Which evaluation suites should this audit include?"
+    updated = state.update(
+        tmp_path,
+        {"scopes": {"audit": audit_scope}, "pending_question": question},
+        expected_revision=reconciled["revision"],
+    )
+    before = state.state_path(tmp_path).read_bytes()
+    output = state.view(state.load_state(tmp_path))
+    assert output["first_eval"] is None and output["first_eval_observations"] is None
+    assert output["task_readiness"] is None and output["artifact_checks_deferred"] is False
+    assert updated["scopes"]["create"]["first_eval"] == original["scopes"]["create"]["first_eval"]
+    assert updated["scopes"]["audit"] == audit_scope and updated["pending_question"] == question
+    if ethos_change:
+        assert updated["ethos"]["stage"] == "review" and updated["ethos"]["confirmed_digest"] is None
+        assert updated["next_handoff"] == "ethos-orchestrate"
+        assert question == "ETHOS.md changed or is unavailable; review its intended behavior again."
+        assert not updated["journey_status"]
+    else:
+        assert updated["ethos"] == original["ethos"]
+        assert updated["journey_status"]["create"] == "complete"
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("journey", ["create", "expand"])
+@pytest.mark.parametrize("changed", ["task", "run_evidence"])
+def test_leaving_audit_reconciles_stale_creation_evidence(modules, tmp_path, journey, changed):
+    complete(modules, tmp_path)
+    state, _ = modules
+    value = state.load_state(tmp_path, state_only=True)["scopes"]["create"]["first_eval"]
+    state.initialize(tmp_path, journey="audit", state_only=True)
+    path = (
+        tmp_path / value["tasks"]["refund"]["path"] / "instruction.md"
+        if changed == "task"
+        else tmp_path / value["runs"][0]["evidence"][0]["path"]
+    )
+    path.write_text("Changed after the authoring review\n")
+    audit = state.load_state(tmp_path)
+    assert audit["journey_status"]["create"] == "complete"
+    assert audit["scopes"]["create"]["first_eval"] == value
+    assert state.view(audit)["first_eval"] is None
+
+    state.initialize(tmp_path, journey=journey, state_only=True)
+    current = state.load_state(tmp_path)
+    output = state.view(current)
+    assert current["journey_status"]["create"] == "in_progress"
+    assert output["first_eval"] is not None and not output["first_eval"]["complete"]
+    assert output["first_eval_observations"] is not None and output["task_readiness"] is not None
+    assert current["scopes"]["create"]["first_eval"] == value
+
+
+@pytest.mark.parametrize("change", ["typed_scope", "clear_scope", "completion"])
+def test_active_audit_cannot_modify_creation_scope_or_completion(modules, tmp_path, monkeypatch, change):
+    value = complete(modules, tmp_path)
+    state, _ = modules
+    audit = state.initialize(tmp_path, journey="audit", state_only=True)
+    patch = {
+        "typed_scope": {"scopes": {"create": {"first_eval": value}}},
+        "clear_scope": {"scopes": {"create": {}}},
+        "completion": {"journey_status": {"create": "complete"}},
+    }[change]
+    before = state.state_path(tmp_path).read_bytes()
+    forbid_audit_creation_reads(modules, tmp_path, monkeypatch)
+    with pytest.raises(ValueError, match="[Aa]uthoring|[Cc]reation"):
+        state.update(tmp_path, patch, expected_revision=audit["revision"])
+    assert state.state_path(tmp_path).read_bytes() == before
+    assert state.load_state(tmp_path, state_only=True) == audit
 
 
 def test_revision_checks_and_current_ethos_review_cannot_be_bypassed(modules, tmp_path):
@@ -1293,7 +1436,7 @@ def test_gym_harbor_requires_current_bridge_evidence_not_just_converted_tasks(mo
     value["selection"]["bridge"] = {"source": "Inspected configured bridge's native proof", "evidence": [bridge]}
     save(modules, tmp_path, value)
     value["selection"]["authorization"] = {
-        "digest": facts(modules, tmp_path)["selection_digest"],
+        "digest": facts(modules, tmp_path)["authorization_digest"],
         "source": "Approved bounded bridge execution",
     }
     save(modules, tmp_path, value)
@@ -1306,7 +1449,7 @@ def test_display_and_spending_authority_require_reviewed_task_and_current_receip
     value = start(modules, tmp_path)
     approve(modules, tmp_path, value)
     value["execution_settings_presented"] = {
-        "digest": facts(modules, tmp_path)["settings_digest"],
+        "digest": facts(modules, tmp_path)["presentation_digest"],
         "source": "Premature display",
     }
     with pytest.raises(ValueError, match="Approve the full suite"):
@@ -1317,7 +1460,7 @@ def test_display_and_spending_authority_require_reviewed_task_and_current_receip
     state["scopes"]["create"]["first_eval"].pop("execution_settings_presented")
     derived = modules[1].derive(state, observed)
     assert not derived["execution_authorized"]
-    assert derived["next_stage"] == "execution_settings"
+    assert derived["complete"] and derived["next_stage"] == "results"
 
 
 @pytest.mark.parametrize("provider", ["harbor", "gym"])
@@ -1342,13 +1485,13 @@ def test_changed_execution_limits_need_a_separately_saved_current_presentation(
     observed = modules[1].observe(tmp_path, candidate)
     revised = modules[1].derive(candidate, observed)
     value["execution_settings_presented"] = {
-        "digest": revised["settings_digest"],
+        "digest": revised["presentation_digest"],
         "source": "Displayed the revised $100 limit",
     }
     value["selection"]["settings_digest"] = revised["settings_digest"]
     candidate["scopes"]["create"]["first_eval"] = copy.deepcopy(value)
     value["selection"]["authorization"] = {
-        "digest": modules[1].derive(candidate, observed)["selection_digest"],
+        "digest": modules[1].derive(candidate, observed)["authorization_digest"],
         "source": "User approves the revised $100 limit",
     }
     with pytest.raises(ValueError, match="Display current settings"):
@@ -1397,14 +1540,14 @@ def test_open_execution_questions_cannot_authorize_runs_and_fallback_fields_stay
     value["execution_settings"]["open_questions"] = ["Which model should execute the selected tasks?"]
     save(modules, tmp_path, value, journey_status={"create": "in_progress"})
     value["execution_settings_presented"] = {
-        "digest": facts(modules, tmp_path)["settings_digest"],
+        "digest": facts(modules, tmp_path)["presentation_digest"],
         "source": "Displayed unresolved execution choices",
     }
     save(modules, tmp_path, value)
     value["selection"]["settings_digest"] = facts(modules, tmp_path)["settings_digest"]
     save(modules, tmp_path, value)
     value["selection"]["authorization"] = {
-        "digest": facts(modules, tmp_path)["selection_digest"],
+        "digest": facts(modules, tmp_path)["authorization_digest"],
         "source": "Attempt to authorize unresolved choices",
     }
     with pytest.raises(ValueError, match="execution authorization"):
@@ -1455,7 +1598,8 @@ def test_capture_check_in_precedes_execution_settings_and_survives_resume_and_ru
     saved = save(modules, tmp_path, value)
     current = facts(modules, tmp_path)
     assert current["settings_digest"] == prior["settings_digest"]
-    assert current["selection_digest"] != prior["selection_digest"]
+    assert current["selection_digest"] == prior["selection_digest"]
+    assert current["authorization_digest"] != prior["authorization_digest"]
     assert current["next_stage"] == "execution_settings" and current["execution_settings_resolved"]
     assert not current["execution_settings_presented"] and not current["execution_authorized"]
     assert value["audit_invitation"] is None
@@ -1488,7 +1632,7 @@ def test_execution_settings_display_cannot_skip_the_saved_capture_answer(modules
     candidate["scopes"]["create"]["first_eval"] = copy.deepcopy(value)
     current = modules[1].derive(candidate, modules[1].observe(tmp_path, candidate))
     value["execution_settings_presented"] = {
-        "digest": current["settings_digest"],
+        "digest": current["presentation_digest"],
         "source": "Attempt to combine trajectory capture and execution settings",
     }
     before = modules[0].state_path(tmp_path).read_bytes()
@@ -1505,7 +1649,7 @@ def test_saved_combined_capture_display_remains_readable_and_answerable(modules,
     value = ready(modules, tmp_path)
     select(modules, tmp_path, value, capture=capture_settings(), authorize=False)
     value["execution_settings_presented"] = {
-        "digest": facts(modules, tmp_path)["settings_digest"],
+        "digest": facts(modules, tmp_path)["presentation_digest"],
         "source": "Legacy combined settings and capture presentation",
     }
     save_legacy(modules, tmp_path, value)
@@ -1550,7 +1694,8 @@ def test_changing_capture_answer_invalidates_authorization_but_not_its_display(m
     current = facts(modules, tmp_path)
     assert current["settings_digest"] == prior["settings_digest"]
     assert current["execution_settings_presented"] and current["selection_current"]
-    assert current["selection_digest"] != prior["selection_digest"]
+    assert current["selection_digest"] == prior["selection_digest"]
+    assert current["authorization_digest"] != prior["authorization_digest"]
     assert not current["execution_authorized"]
     authorize_execution(modules, tmp_path, value)
     assert facts(modules, tmp_path)["execution_authorized"]
@@ -1601,7 +1746,8 @@ def test_material_capture_changes_can_reopen_the_choice_without_reusing_authoriz
     current = facts(modules, tmp_path)
     assert current["suite_approved"] and current["plan_digest"] == prior["plan_digest"]
     assert current["next_stage"] == "trajectory_settings"
-    assert current["settings_digest"] != prior["settings_digest"]
+    assert current["settings_digest"] == prior["settings_digest"]
+    assert current["presentation_digest"] != prior["presentation_digest"]
     assert not current["execution_settings_presented"] and not current["execution_authorized"]
     assert not current["execution_settings_resolved"] and value["audit_invitation"] is None
 
@@ -1664,6 +1810,52 @@ def test_legacy_complete_suite_keeps_exact_digests_without_capture_metadata(modu
             "tasks": {key: value["tasks"][key]["sha256"] for key in value["tasks"]},
         }
     )
+
+
+@pytest.mark.parametrize("provider", ["harbor", "gym"])
+@pytest.mark.parametrize("change", ["legacy", "choice", "directory", "pending"])
+def test_capture_changes_preserve_completed_evidence_but_require_new_run_permission(
+    modules, tmp_path, provider, change
+):
+    if change == "legacy":
+        value = complete(modules, tmp_path, provider=provider, legacy=True)
+    else:
+        value = ready(modules, tmp_path, provider)
+        select(modules, tmp_path, value, capture=capture_settings(choice=True))
+        run(modules, tmp_path, value)
+        review_run(modules, tmp_path, value)
+    prior = facts(modules, tmp_path)
+    if change == "legacy":
+        value["execution_settings"]["trajectory_capture"] = capture_settings("automatic")
+    else:
+        capture = value["execution_settings"]["trajectory_capture"]
+        if change == "choice":
+            capture.update(choice=False, source="User declines future saving")
+        elif change == "directory":
+            capture["directory"] = ".eval-author/new-trajectories"
+        else:
+            capture.update(directory=".eval-author/new-trajectories", choice=None, source=None)
+    saved = save(modules, tmp_path, value)
+    current = facts(modules, tmp_path)
+    assert current["complete"] and current["next_stage"] == "results"
+    assert current["selection_current"] and current["reviewed_run_current"]
+    assert current["runs"] == prior["runs"] and current["suite"] == prior["suite"]
+    assert current["selection_digest"] == prior["selection_digest"]
+    assert current["authorization_digest"] != prior["authorization_digest"]
+    assert not current["execution_authorized"]
+    assert saved["scopes"]["create"]["first_eval"]["runs"] == value["runs"]
+    before = modules[0].state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError, match="Save authorization"):
+        active_native_run(modules, tmp_path, value)
+        save(modules, tmp_path, value)
+    assert modules[0].state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("directory", ["runs/v1~rc", "/tmp/runs/v1~rc"])
+def test_capture_directory_allows_literal_tildes(modules, tmp_path, directory):
+    value = ready(modules, tmp_path)
+    select(modules, tmp_path, value, capture=capture_settings("automatic", directory=directory))
+    assert facts(modules, tmp_path)["execution_authorized"]
 
 
 @pytest.mark.parametrize("representation", ["activity", "run"])

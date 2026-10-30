@@ -8,10 +8,11 @@
 Use this shared reporting contract for Harbor and NeMo Gym.
 
 `.eval-author/report.html` defines the case/run review content.
-Its Tasks tab lists discovered Harbor tasks and NeMo Gym workload definitions by directory,
+Its Tasks tab lists the current saved first-evaluation plan alongside discovered
+Harbor tasks and NeMo Gym workload definitions in one table, with **Proposed** rows first,
 including tasks being authored and accepted tasks at their stable paths, with
 Task, Status, Behavior, Expected outcome, Verifier, and Actions columns.
-Task shows the complete task README's first H1 title,
+For authored tasks, Task shows the complete task README's first H1 title,
 including any ID prefix, such as `IMP-01: bare docs link`, in bold monospace,
 followed by its path in monospace. There is no separate ID header, additional task
 description, or provider label. The title falls back to the native task name when
@@ -35,17 +36,18 @@ with the report. Malformed or duplicate markers stop the refresh without
 publishing either output; repair the markers while preserving the content.
 
 Within that section, each report content tab becomes an H2 section in tab order
-(`## Tasks`, then `## Runs`); omit Settings. Directory groups become H3s,
-tables keep the same columns and ordering, and native score labels replace visual
+(`## Tasks`, then `## Runs`); omit Settings. Tables keep the same columns and
+ordering as the HTML, and native score labels replace visual
 bars. Legacy trials becomes an H3 under Runs. Preserve statuses, warnings,
 record diagnostics, and missing-data labels. Edit task documentation, native
 artifacts, or supported reporting metadata to update generated content, then
 refresh. Maintain operational and rerun guidance outside the marked section for
 both providers.
 
-Display **Draft**, **Accepted**, or **Unknown** and any status reason in the Tasks
-table in both outputs, using [Task status](shared-prerequisites.md#task-status).
-In the HTML, each status is a badge (Draft grey, Accepted green, Unknown amber)
+Display **Proposed**, **Draft**, **Accepted**, or **Unknown** and any status reason in the Tasks
+table in both outputs, using [Task status](shared-prerequisites.md#task-status)
+for authored tasks.
+In the HTML, each status is a badge
 and the reason appears in a popover on hover or keyboard focus; Markdown prints
 the reason as text.
 Shared journey state owns these decisions; reporting metadata and native run
@@ -54,6 +56,34 @@ revision or evidence changed; **Unknown** means no valid task status is availabl
 Keep inventory findings such as `found` or `unverified` separate from acceptance.
 Refresh after status changes without editing task-local READMEs, which belong
 to the revision checked by execution receipts.
+
+### Saved first-evaluation plan
+
+Project the current `scopes.create.first_eval.plan.tasks` from shared journey
+state into both outputs. Show an unbuilt task as **Proposed** while design
+approval is pending and after approval; keep the design decision separate from
+task acceptance, validation, and execution. Use the saved task ID, behavior,
+`expected_result`, and `grading` text without inferring missing descriptions.
+Do not invent artifact paths, create task files, or offer README, source, or
+viewer actions for unbuilt tasks.
+
+Reconcile a proposal with authored inventory through its stable `plan_task_id`
+and the recorded task root in `first_eval.tasks`, including native Gym definitions
+below that root. Use one canonical native definition per bound root and preserve
+the authored task's README content and existing readiness rules. Show separate
+proposed, authored, validated, and executed task counts for the full current plan,
+independent of selected artifact roots; authored rows still respect those roots.
+Authored counts use saved authoring records, including missing or unverified
+tasks. Validation and execution require current bound evidence, not design
+approval or files alone.
+Unrelated discovered tasks remain in the catalog without inflating plan counts.
+
+Refresh after saving or revising a proposal, including task removals, and before
+the first authored-task review. Rebuild proposed rows from the current plan on
+every refresh or resume; old report snapshots and plan history cannot restore
+removed proposals, including during an incomplete artifact scan.
+
+### Artifact actions
 
 Task README actions become relative links to the source documentation (or the
 HTML's saved snapshot when the source is unverified). NeMo Gym source actions link
@@ -134,8 +164,8 @@ use `--task-root <existing-task-or-directory>` to inspect or continue it at its
 existing path. Default inventory exclusion does not mean that its work is obsolete.
 Never hand-edit the HTML or rebuild the UI per task.
 Task READMEs and native evidence take precedence. Refresh repairs a missing or edited generated section while
-preserving surrounding documentation. Deleted records disappear after a complete
-scan; incomplete inventories retain prior in-scope records as unverified.
+preserving surrounding documentation. Deleted artifact records disappear after a complete
+scan; incomplete inventories retain prior in-scope artifact records as unverified.
 State and both outputs are prepared before publication; each file is updated
 atomically, with state committed first. An interruption between updates is repaired
 by the next refresh. An OS advisory lock prevents concurrent refreshes and releases
@@ -145,7 +175,8 @@ Exit 0 means complete file inventory, 1 means a published incomplete inventory
 with warnings, and 2 means the refresh failed. None establishes evaluation
 validity or success.
 
-Each task row includes a Task README action below its viewer or source action. It opens the saved
+An authored task row includes a Task README action when a readable README or
+retained snapshot is available. It opens the saved
 README as Markdown in a modal, including headings, tables, and code blocks.
 The preview is embedded for offline use, sandboxed, and blocks scripts,
 images, and link navigation inside the preview. Open the source README via its
@@ -168,6 +199,7 @@ For example, using actual discovered paths and a documented reward range and bin
       "display_id": "refund-01",
       "grading_kind": "Custom code",
       "grading_rule": "All refund-state assertions pass.",
+      "scoring_rule": "Pass at 1 when all refund-state assertions pass, otherwise score 0.",
       "grading_summary": "Checks saved refund state against policy rules.",
       "source_refs": [".eval-author/tasks/refund-policy/README.md"]
     }
@@ -183,6 +215,11 @@ For example, using actual discovered paths and a documented reward range and bin
   }
 }
 ```
+
+For first_eval authored reviews, match `display_id` to the proposed task ID
+and record the implemented `scoring_rule` in one short sentence. A run's
+`pass_value` describes how to interpret that run. It does not supply a
+missing task scoring rule.
 
 At each run handoff, record its actual role, reward key, and documented reward
 range in this metadata patch before refreshing. Record a pass rule only when
@@ -224,14 +261,11 @@ trials when fixed evidence paths are required; they appear under Legacy trials.
 Report refresh reads evidence and never launches, rewrites, or combines runs.
 
 Optional imported `behavior` and `expected_outcome` fields require project-relative
-`source_refs`. Unique README sections take precedence. Test-case sections use each
-discovered task's immediate parent directory. Headings and row paths omit the
-leading `.eval-author/` for display; section identities, stored paths, and viewer
-commands retain the full project-relative paths. Do not invent product-area
-labels, derive categories from task-name prefixes, or rename directories for the
-report. Directories with the same basename under different suites remain separate.
-Tasks sharing a parent appear together, even if they belong to different run
-configurations; these are filesystem sections, not inferred suite memberships.
+`source_refs`. Unique README sections take precedence. Task row paths omit the
+leading `.eval-author/` for display; stored paths and viewer commands retain the
+full project-relative paths. Harbor viewer launch roots remain each discovered
+task's immediate parent directory. Do not rename directories for the report.
+Tasks with the same basename under different suites remain distinct.
 Report grading types are `Custom code`, `LLM-as-judge`,
 `Custom code + LLM-as-judge`, and `Not documented`. Refresh accepts the legacy
 `deterministic`, `model`, `hybrid`, and `unknown` values and normalizes both stored

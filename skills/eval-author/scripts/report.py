@@ -37,7 +37,8 @@ from urllib.parse import quote
 
 # Isolated Python invocations must resolve the bundled sibling, never cwd code.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from journey_state import load_state, task_lifecycle  # noqa: E402
+import first_eval_state  # noqa: E402
+from journey_state import load_state, task_digest, task_lifecycle  # noqa: E402
 from journey_state import state_path as journey_state_path
 from search_tasks import search_tasks, within_task_scope  # noqa: E402
 from working_paths import working_path  # noqa: E402
@@ -61,6 +62,7 @@ LEGACY_GRADING_KINDS = {
 }
 GRADING_SUMMARY = {"type": "string", "maxLength": 200, "pattern": r"^\S+(?: \S+){4,9}$"}
 NO_GRADING_SUMMARY = "No verifier description documented in README."
+PLAN_COUNT_FIELDS = ("proposed", "authored", "validated", "executed")
 
 
 def obj(properties: dict, required: list[str] | None = None) -> dict:
@@ -83,6 +85,7 @@ TASK_METADATA = obj(
         "expected_outcome": TEXT,
         "grading_kind": {"enum": GRADING_KINDS + list(LEGACY_GRADING_KINDS)},
         "grading_rule": TEXT,
+        "scoring_rule": TEXT,
         "grading_summary": GRADING_SUMMARY,
         "source_refs": array(PATH),
     },
@@ -111,31 +114,46 @@ TASK_SCHEMA = obj(
     {
         "id": TEXT,
         "provider": {"enum": ["harbor", "gym"]},
-        "path": PATH,
+        "path": {"anyOf": [PATH, {"type": "null"}]},
         "display_id": TEXT,
         "name": TEXT,
         "behavior": NULL_TEXT,
         "expected_outcome": NULL_TEXT,
         "grading_kind": TEXT,
         "grading_rule": NULL_TEXT,
+        "scoring_rule": NULL_TEXT,
         "readme_revision": NULL_TEXT,
-        "readme_path": PATH,
+        "readme_path": {"anyOf": [PATH, {"type": "null"}]},
         "readme_html": {"type": ["string", "null"], "maxLength": 2 * 1024 * 1024},
-        "status": {"enum": ["found", "unverified"]},
+        "status": {"enum": ["found", "unverified", "proposed"]},
         "issues": array(TEXT),
     }
 )
 # Older v1 snapshots lack readiness. Refresh always derives it from journey state;
 # retained HTML, report metadata, and inventory status cannot establish acceptance.
 TASK_SCHEMA["properties"].update(
-    readiness={"enum": ["draft", "accepted", "unknown"]},
+    readiness={"enum": ["draft", "accepted", "unknown", "proposed"]},
     readiness_reason=TEXT,
+    plan_task_id=TEXT,
+    proposed_grading=NULL_TEXT,
 )
 # Keep new README-derived fields optional when reading older version-1 reports.
 TASK_SCHEMA["properties"]["title"] = NULL_TEXT
 # Accept the former split-title field when refreshing existing reports.
 TASK_SCHEMA["properties"]["heading_id"] = TEXT
 TASK_SCHEMA["properties"]["grading_summary"] = {"anyOf": [GRADING_SUMMARY, {"type": "null"}]}
+TASK_SCHEMA["properties"]["task_revision"] = NULL_TEXT
+TASK_SCHEMA["allOf"] = [
+    {
+        "if": {"properties": {"status": {"const": "proposed"}}},
+        "then": {"properties": {key: {"type": "null"} for key in ("path", "readme_path", "readme_html")}},
+        "else": {"properties": {"path": PATH}},
+    },
+    {
+        "if": {"properties": {"readme_html": {"type": "string"}}},
+        "then": {"properties": {"readme_path": PATH}},
+    },
+]
 ATTEMPT_SCHEMA = obj(
     {
         "id": TEXT,
@@ -193,6 +211,7 @@ REPORT_SCHEMA = obj(
         "inventory": obj({"complete": {"type": "boolean"}, "excluded": array(PATH)}),
     }
 )
+REPORT_SCHEMA["properties"]["plan_counts"] = obj({key: {"type": "integer", "minimum": 0} for key in PLAN_COUNT_FIELDS})
 
 
 class ReportError(ValueError):
@@ -386,8 +405,13 @@ def nested_checkout(repo: Path, path: Path) -> bool:
     return False
 
 
-def task_sort(task: dict) -> tuple[str, str, str]:
-    return (PurePosixPath(task["path"]).parent.as_posix(), task["display_id"], task["path"])
+def task_sort(task: dict) -> tuple[bool, str, str, str]:
+    return (
+        task["status"] != "proposed",
+        PurePosixPath(task["path"]).parent.as_posix() if task["path"] else "",
+        task["display_id"],
+        task["path"] or "",
+    )
 
 
 def render_readme(source: str) -> str:
@@ -546,7 +570,6 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
             if nested_checkout(root, directory):
                 excluded.add(path)
                 continue
-            overrides = metadata["tasks"].get(path, {})
             issues = []
             sections: dict[str, str | None] = {}
             revision = None
@@ -565,6 +588,26 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
                         break
                 issues.append("NeMo Gym workload candidate; native validation has not been run.")
             readme_path = readme.relative_to(repo).as_posix()
+            # Native Gym READMEs can sit below the task root, so use the nearest
+            # metadata owner on the workload path to bind the whole saved task.
+            owner = next(
+                (
+                    parent.as_posix()
+                    for parent in (PurePosixPath(path), *PurePosixPath(path).parents)
+                    if parent.as_posix() in metadata["tasks"]
+                ),
+                None,
+            )
+            overrides = metadata["tasks"].get(owner, {})
+            task_revision = None
+            if overrides.get("scoring_rule"):
+                try:
+                    revision_root = (
+                        owner if owner and local(repo, owner).is_dir() else readme.parent.relative_to(repo).as_posix()
+                    )
+                    task_revision = task_digest(repo, revision_root)
+                except (OSError, ValueError):
+                    issues.append("Task content could not be bound to its scoring rule.")
             if readme.exists():
                 try:
                     content = read_bytes(local(repo, readme_path), MAX_README_BYTES)
@@ -616,6 +659,8 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
                     else grading_kind or "Not documented"
                 ),
                 "grading_rule": overrides.get("grading_rule"),
+                "scoring_rule": overrides.get("scoring_rule"),
+                "task_revision": task_revision,
                 "grading_summary": grading_summary,
                 "readme_revision": revision,
                 "readme_path": readme_path,
@@ -630,10 +675,8 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
     )
 
 
-def apply_task_readiness(repo: Path, tasks: list[dict]) -> list[str]:
-    """Project workflow acceptance without modifying task files or saved decisions."""
-    if not tasks:
-        return []
+def apply_task_readiness(repo: Path, tasks: list[dict], metadata: dict) -> tuple[list[str], dict | None]:
+    """Reconcile the current saved plan and acceptance without changing workflow state."""
     state = None
     reason = "No task acceptance has been recorded."
     warnings = []
@@ -642,9 +685,14 @@ def apply_task_readiness(repo: Path, tasks: list[dict]) -> list[str]:
         if path.exists():
             state = load_state(repo)
     except (OSError, ValueError, TypeError, KeyError):
-        reason = "Shared workflow state is unavailable or invalid; task readiness is unknown."
+        reason = "Shared workflow state is unavailable or invalid; task readiness and saved proposals are unavailable."
         warnings.append(reason)
+    counts = None
+    if state is not None:
+        counts = project_plan(repo, state, tasks, metadata)
     for task in tasks:
+        if task["status"] == "proposed":
+            continue
         try:
             result = (
                 task_lifecycle(repo, state, task["path"])
@@ -656,7 +704,87 @@ def apply_task_readiness(repo: Path, tasks: list[dict]) -> list[str]:
             result = {"status": "unknown", "reason": "Task readiness is unavailable for this inventory path."}
         task["readiness"] = result["status"]
         task["readiness_reason"] = result["reason"]
-    return warnings
+    return warnings, counts
+
+
+def design_text(value: object) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value if len(value) <= 2000 else value[:1999] + "…"
+
+
+def project_plan(repo: Path, state: dict, tasks: list[dict], metadata: dict) -> dict | None:
+    value = first_eval_state.record(state)
+    if value is None:
+        return None
+    progress = first_eval_state.progress(repo, state)
+    assert progress is not None
+    counts = dict.fromkeys(PLAN_COUNT_FIELDS, 0)
+    for planned in value["plan"]["tasks"]:
+        task_id = planned["id"]
+        authored = value["tasks"].get(task_id)
+        counts["authored" if authored else "proposed"] += 1
+        for field in ("validated", "executed"):
+            counts[field] += int(progress["tasks"][task_id][field])
+        matches = []
+        if authored:
+            root = Path(authored["path"])
+            matches = [
+                task
+                for task in tasks
+                if task["path"] and task["provider"] == value["provider"] and Path(task["path"]).is_relative_to(root)
+            ]
+            if not matches and not any(within_task_scope(root, Path(scope)) for scope in metadata["task_roots"]):
+                continue
+            if matches:
+                # A native task can expose several discovery candidates; the plan owns one logical row.
+                matches.sort(
+                    key=lambda task: (
+                        task["status"] != "found",
+                        task["path"] != authored.get("workload_path", authored["path"]),
+                        Path(task["path"]).name != "manifest.yaml",
+                        task["path"],
+                    )
+                )
+                for duplicate in matches[1:]:
+                    tasks.remove(duplicate)
+                matches = matches[:1]
+        if not matches:
+            proposed = not authored
+            matches = [
+                {
+                    "id": value["provider"] + ":" + (authored["path"] if authored else "proposal:" + task_id),
+                    "provider": value["provider"],
+                    "path": authored["path"] if authored else None,
+                    "display_id": task_id,
+                    "name": task_id,
+                    "title": task_id,
+                    "behavior": design_text(planned.get("behavior")),
+                    "expected_outcome": design_text(planned.get("expected_result")),
+                    "grading_kind": "Proposed grading" if proposed else "Not documented",
+                    "grading_rule": None,
+                    "scoring_rule": None,
+                    "grading_summary": None,
+                    "proposed_grading": design_text(planned.get("grading")),
+                    "readme_revision": None,
+                    "readme_path": None,
+                    "readme_html": None,
+                    "status": "proposed" if proposed else "unverified",
+                    "readiness": "proposed" if proposed else "unknown",
+                    "readiness_reason": (
+                        "Design approved; task has not been authored."
+                        if progress["plan_approved"]
+                        else "Awaiting design approval; task has not been authored."
+                    )
+                    if proposed
+                    else "Recorded task artifacts were not found in this scan.",
+                    "issues": [] if proposed else ["Recorded task artifacts were not found in this scan."],
+                }
+            ]
+            tasks.extend(matches)
+        for task in matches:
+            task["plan_task_id"] = task_id
+    return counts
 
 
 def within_run_scope(path: Path, root: Path) -> bool:
@@ -1028,43 +1156,50 @@ def render_markdown(data: dict) -> str:
     for warning in data["warnings"]:
         lines.extend([f"> {markdown_text(warning)}", ""])
     lines.extend(["## Tasks", ""])
-    directory = None
+    if "plan_counts" in data:
+        lines.extend([plan_summary(data["plan_counts"]), ""])
+    if data["tasks"]:
+        lines.extend(
+            [
+                "| Task | Status | Behavior | Expected outcome | Verifier | Actions |",
+                "| --- | --- | --- | --- | --- | --- |",
+            ]
+        )
     for task in data["tasks"]:
-        parent = PurePosixPath(task["path"]).parent.as_posix()
-        if parent != directory:
-            if directory is not None:
-                lines.append("")
-            directory = parent
-            lines.extend(
-                [
-                    "### " + markdown_text(parent.removeprefix(".eval-author/")),
-                    "",
-                    "| Task | Status | Behavior | Expected outcome | Verifier | Actions |",
-                    "| --- | --- | --- | --- | --- | --- |",
-                ]
-            )
         grading = task["grading_kind"]
         name = []
         if task["status"] == "unverified":
             name.append("Inventory unverified")
         name.extend(task["issues"])
-        if task["status"] == "found" and task["provider"] == "harbor":
+        if task["status"] == "proposed":
+            actions = ["Not authored"]
+        elif task["status"] == "found" and task["provider"] == "harbor":
             route = "task-definitions/" + quote(PurePosixPath(task["path"]).name, safe="")
             actions = [f"[View task](http://127.0.0.1:8081/{route})"]
         elif task["status"] == "found":
             actions = [artifact_link("NeMo Gym source", task["path"])]
         else:
-            actions = [artifact_link("Review saved artifacts", task["path"])]
-        if task["readme_html"] is None:
-            actions.append("No readable README was available when this report was generated.")
-        elif task["status"] == "unverified":
-            actions.append("[Saved Task README snapshot](report.html#cases)")
-        else:
-            actions.append(artifact_link("Task README", task["readme_path"]))
+            actions = []
+        if task["status"] != "proposed":
+            if task["readme_html"] is None:
+                actions.append("No readable README was available when this report was generated.")
+            elif task["status"] == "unverified":
+                actions.append("[Saved Task README snapshot](report.html#cases)")
+            else:
+                actions.append(artifact_link("Task README", task["readme_path"]))
         name_cell = [
             "<strong><code>" + markdown_text(task.get("title") or task["name"]) + "</code></strong>",
+            *(
+                ["Task ID: " + markdown_text(task["plan_task_id"])]
+                if task.get("plan_task_id") and task["plan_task_id"] != (task.get("title") or task["name"])
+                else []
+            ),
             *(markdown_text(part) for part in name),
-            "<code>" + markdown_text(task["path"].removeprefix(".eval-author/")) + "</code>",
+            *(
+                ["<code>" + markdown_text(task["path"].removeprefix(".eval-author/")) + "</code>"]
+                if task["path"]
+                else []
+            ),
         ]
         cells = [
             "<br>".join(name_cell),
@@ -1073,7 +1208,7 @@ def render_markdown(data: dict) -> str:
             + markdown_text(task.get("readiness_reason", "No task acceptance has been recorded.")),
             markdown_text(task["behavior"] or "Not documented"),
             markdown_text(task["expected_outcome"] or "Not documented"),
-            markdown_text(grading) + "<br>" + markdown_text(task.get("grading_summary") or NO_GRADING_SUMMARY),
+            markdown_text(grading) + "<br>" + markdown_text(task_grading_summary(task)),
             "<br>".join(actions),
         ]
         lines.append("| " + " | ".join(cells) + " |")
@@ -1090,6 +1225,16 @@ def render_markdown(data: dict) -> str:
         lines.extend(markdown_runs(data["standalone_trials"], "Trial"))
     lines.extend(["", README_END.decode()])
     return "\n".join(lines).rstrip() + "\n"
+
+
+def task_grading_summary(task: dict) -> str:
+    if task["status"] == "proposed":
+        return task.get("proposed_grading") or "No grading design saved."
+    return task.get("grading_summary") or NO_GRADING_SUMMARY
+
+
+def plan_summary(counts: dict) -> str:
+    return "Saved plan: " + " · ".join(f"{counts[key]} {key}" for key in PLAN_COUNT_FIELDS) + "."
 
 
 def update_markdown(existing: bytes | None, rendered: str) -> bytes:
@@ -1225,13 +1370,20 @@ def refresh(
                 roots = metadata["task_roots" if key == "tasks" else "jobs_roots"]
                 within_scope = within_task_scope if key == "tasks" else within_run_scope
                 for old in (previous or {}).get(key, []):
+                    # Proposals are rebuilt only from the current plan, even when a scan is incomplete.
+                    if key == "tasks" and (old["status"] == "proposed" or old["readme_path"] is None):
+                        continue
                     if key == "standalone_trials" and old["path"] in owned_trials:
                         continue
                     in_scope = any(within_scope(Path(old["path"]), Path(root)) for root in roots)
                     if old["path"] not in current and in_scope and not complete:
                         issues = sorted(set(old["issues"] + ["Source artifacts were not found in this scan."]))
-                        records.append({**old, "status": "unverified", "issues": issues})
-            warnings.extend(apply_task_readiness(repo, tasks))
+                        retained = {**old, "status": "unverified", "issues": issues}
+                        if key == "tasks":
+                            retained.pop("plan_task_id", None)
+                        records.append(retained)
+            readiness_warnings, plan_counts = apply_task_readiness(repo, tasks, metadata)
+            warnings.extend(readiness_warnings)
             tasks.sort(key=task_sort)
             runs.sort(key=run_sort)
             standalone_trials.sort(key=run_sort)
@@ -1244,6 +1396,8 @@ def refresh(
                 "warnings": warnings,
                 "inventory": {"complete": tasks_complete and runs_complete, "excluded": excluded},
             }
+            if plan_counts is not None:
+                data["plan_counts"] = plan_counts
             validate(data, REPORT_SCHEMA)
             payload = json.dumps(data, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False)
             payload = payload.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
@@ -1322,6 +1476,7 @@ def main() -> int:
                     "report": ".eval-author/report.html",
                     "readme": ".eval-author/README.md",
                     "tasks": len(data["tasks"]),
+                    **({"plan_counts": data["plan_counts"]} if "plan_counts" in data else {}),
                     "runs": len(data["runs"]),
                     "standalone_trials": len(data["standalone_trials"]),
                     "complete": data["inventory"]["complete"],

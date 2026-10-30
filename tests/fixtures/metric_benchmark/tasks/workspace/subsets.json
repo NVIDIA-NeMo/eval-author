@@ -1,0 +1,26 @@
+{
+  "artifact_type": "eval_subset_definitions",
+  "eval_subsets": [
+    {
+      "eval_subset_id": "subset-000001",
+      "task_ids": [
+        "inspect-files"
+      ]
+    },
+    {
+      "eval_subset_id": "subset-000002",
+      "task_ids": [
+        "read-config"
+      ]
+    },
+    {
+      "eval_subset_id": "subset-000003",
+      "task_ids": [
+        "search-workspace"
+      ]
+    }
+  ],
+  "sampling_parameters": {
+    "seed": 42
+  }
+}

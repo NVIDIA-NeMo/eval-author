@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+baseline:
+  agent_bundle_id: baseline
+  revision: '1'
+  harbor:
+    name: oracle
+mutants:
+# Synthetic stand-ins illustrating a cohort; these do not implement real Rho faults.
+- agent_bundle_id: mutant
+  revision: '1'
+  harbor:
+    name: nop
+- agent_bundle_id: mutant-no-search
+  revision: '1'
+  harbor:
+    name: nop
+description:
+  path: agents/rho-agent/description.json
+  sha256: sha256:fcb4a1e2e0a78fc9dd624d72c123d73b5547d8185a567874b2581114357a957a
+  kind: file

@@ -14,7 +14,7 @@ h1{font-size:30px;margin:0}h2{font-size:23px;margin:28px 0 14px}p{margin:8px 0}.
 nav{display:flex;gap:18px;flex-shrink:0}button,input,select{font:inherit}button,a{touch-action:manipulation}button{cursor:pointer}
 [role=tab]{border:0;border-bottom:2px solid transparent;background:transparent;padding:10px 5px;white-space:nowrap;color:#65736b}
 [role=tab][aria-selected=true]{color:#355300;border-color:#76b900;background:rgb(239,247,223)}:focus-visible{outline:2px solid #76b900;outline-offset:3px}
-[hidden]{display:none!important}.section-header{display:flex;align-items:center;justify-content:space-between;gap:20px}.section-header h2{margin:0}#case-tables h2{overflow-wrap:anywhere}.task-path{font-family:ui-monospace,monospace}
+[hidden]{display:none!important}.section-header{display:flex;align-items:center;justify-content:space-between;gap:20px}.section-header h2{margin:0}.task-path{font-family:ui-monospace,monospace}
 input,select{padding:10px;border:1px solid #cdd5cb;border-radius:5px;background:white;max-width:100%}#search{width:320px}
 .card{background:white;border:1px solid #dce1d8;border-radius:8px;padding:20px}.table-card{padding:0;overflow-x:auto;margin-top:14px}
 table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #e4e7df;padding:16px 12px;overflow-wrap:anywhere}
@@ -30,6 +30,7 @@ th{font-size:12px;color:#65736b;background:#fafbf8}tr:last-child td{border-botto
 dialog{width:min(680px,94vw);max-height:85vh;border:1px solid #bccbbf;border-radius:10px;padding:24px;color:#203029}dialog::backdrop{background:#17241d88}dialog h2{margin-top:0}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f6f1;padding:14px;font:13px/1.65 ui-monospace,monospace}.close{float:right}.empty{margin-top:20px}
 
 .task-actions .text-link{display:block;margin-bottom:10px}
+.badge-proposed{background:#edf1fa;color:#354f7c;border-color:#bccbe3}
 #readme-preview{width:min(960px,94vw)}#readme-path{overflow-wrap:anywhere}#readme-frame{display:block;width:100%;height:65vh;border:0;background:white}
 @media(max-width:1100px){header{flex-wrap:wrap}nav{width:100%;flex-wrap:wrap;gap:12px}}@media(max-width:650px){header,main{padding:18px}h1{font-size:26px}.section-header{align-items:stretch;flex-direction:column}#search{width:100%}}
 @media print{nav,#search,#settings,dialog{display:none!important}[role=tabpanel]{display:block!important}body{background:white}}
@@ -140,7 +141,7 @@ const readmeDialog=byId('readme-preview');
 byId('close-readme').addEventListener('click',()=>readmeDialog.close());
 readmeDialog.addEventListener('close',()=>byId('readme-frame').removeAttribute('srcdoc'));
 function readmeAction(task){
-  const button=element('button','Task README','text-link');button.type='button';
+  const button=element('button',task.status==='unverified'?'Saved Task README snapshot':'Task README','text-link');button.type='button';
   button.addEventListener('click',()=>{
     byId('readme-path').textContent=displayTaskPath(task.readme_path);
     const frame=byId('readme-frame');const message=byId('readme-message');
@@ -153,44 +154,47 @@ function readmeAction(task){
 }
 function drawCases(){
   const container=byId('case-tables');container.replaceChildren();
+  if(data.plan_counts)container.append(element('p','Saved plan: '+['proposed','authored','validated','executed'].map(key=>data.plan_counts[key]+' '+key).join(' · ')+'.','muted plan-counts'));
   const query=byId('search').value.toLowerCase();
-  const tasks=data.tasks.filter(t=>[t.display_id,t.title,t.name,t.path,t.behavior,t.expected_outcome,t.grading_kind,t.grading_summary,t.grading_rule,t.readiness].filter(Boolean).join(' ').toLowerCase().includes(query));
+  const tasks=data.tasks.filter(t=>[t.display_id,t.plan_task_id,t.title,t.name,t.path,t.behavior,t.expected_outcome,t.grading_kind,t.grading_summary,t.grading_rule,t.proposed_grading,t.readiness].filter(Boolean).join(' ').toLowerCase().includes(query));
   byId('no-cases').hidden=tasks.length>0;
-  for(const directory of [...new Set(tasks.map(t=>parent(t.path)))]){
-    const section=element('section');section.append(element('h2',displayTaskPath(directory)));
-    const card=element('div',undefined,'card table-card');
-    const table=element('table',undefined,'case-table');
-    const head=element('thead');const tr=element('tr');
-    for(const title of ['Task','Status','Behavior','Expected outcome','Verifier','Actions'])tr.append(element('th',title));
-    head.append(tr);table.append(head);const body=element('tbody');
-    for(const task of tasks.filter(t=>parent(t.path)===directory)){
-      const row=element('tr');row.dataset.task=task.id;
-      const name=element('td');
-      name.append(element('div',task.title||task.name,'case-name'));
-      if(task.status==='unverified')name.append(element('span','Inventory unverified','status'));
-      name.append(element('p',displayTaskPath(task.path),'small muted task-path'));name.title=task.issues.join('\n');
-      const readiness=element('td',undefined,'task-readiness');
-      const state=({draft:'draft',accepted:'accepted'})[task.readiness]||'unknown';
-      const badge=element('strong',({draft:'Draft',accepted:'Accepted',unknown:'Unknown'})[state],'badge badge-'+state);
-      const note=element('p',task.readiness_reason||'No task acceptance has been recorded.','readiness-note');
-      note.id='readiness-note-'+row.dataset.task.replace(/[^A-Za-z0-9_-]/g,'-');note.setAttribute('role','tooltip');
-      badge.tabIndex=0;badge.setAttribute('aria-describedby',note.id);
-      readiness.append(badge,note);
-      // Fixed placement keeps the note from being clipped by the scrolling table card.
-      const place=()=>{const box=badge.getBoundingClientRect();note.style.left=Math.max(12,Math.min(box.left,innerWidth-note.offsetWidth-12))+'px';const below=box.bottom+6;note.style.top=(below+note.offsetHeight>innerHeight-12?Math.max(12,box.top-note.offsetHeight-6):below)+'px';};
-      readiness.addEventListener('mouseenter',place);badge.addEventListener('focus',place);
-      row.append(name,readiness,element('td',task.behavior||'Not documented'),element('td',task.expected_outcome||'Not documented'));
-      const action=element('td',undefined,'task-actions');
-      if(task.provider==='harbor')action.append(viewerAction('View task','tasks',parent(task.path),'task-definitions/'+encodeURIComponent(task.path.split('/').pop()),task.status==='found',task));
-      else if(task.status==='found'){
-        const source=element('a','NeMo Gym source','text-link');source.href='../'+task.path.split('/').map(encodeURIComponent).join('/');action.append(source);
-      }
-      action.append(readmeAction(task));
-      const grader=element('td');grader.append(element('div',task.grading_kind,'grader-kind'),element('p',task.grading_summary||'No verifier description documented in README.','small muted'));
-      row.append(grader,action);body.append(row);
+  if(!tasks.length)return;
+  const card=element('div',undefined,'card table-card');
+  const table=element('table',undefined,'case-table');
+  const head=element('thead');const tr=element('tr');
+  for(const title of ['Task','Status','Behavior','Expected outcome','Verifier','Actions'])tr.append(element('th',title));
+  head.append(tr);table.append(head);const body=element('tbody');
+  for(const task of tasks){
+    const row=element('tr');row.dataset.task=task.id;
+    const name=element('td');
+    name.append(element('div',task.title||task.name,'case-name'));
+    if(task.plan_task_id&&task.plan_task_id!==(task.title||task.name))name.append(element('p','Task ID: '+task.plan_task_id,'small muted'));
+    if(task.status==='unverified')name.append(element('span','Inventory unverified','status'));
+    if(task.path)name.append(element('p',displayTaskPath(task.path),'small muted task-path'));name.title=task.issues.join('\n');
+    const readiness=element('td',undefined,'task-readiness');
+    const state=({draft:'draft',accepted:'accepted',proposed:'proposed'})[task.readiness]||'unknown';
+    const badge=element('strong',({draft:'Draft',accepted:'Accepted',unknown:'Unknown',proposed:'Proposed'})[state],'badge badge-'+state);
+    const note=element('p',task.readiness_reason||'No task acceptance has been recorded.','readiness-note');
+    note.id='readiness-note-'+row.dataset.task.replace(/[^A-Za-z0-9_-]/g,'-');note.setAttribute('role','tooltip');
+    badge.tabIndex=0;badge.setAttribute('aria-describedby',note.id);
+    readiness.append(badge,note);
+    // Fixed placement keeps the note from being clipped by the scrolling table card.
+    const place=()=>{const box=badge.getBoundingClientRect();note.style.left=Math.max(12,Math.min(box.left,innerWidth-note.offsetWidth-12))+'px';const below=box.bottom+6;note.style.top=(below+note.offsetHeight>innerHeight-12?Math.max(12,box.top-note.offsetHeight-6):below)+'px';};
+    readiness.addEventListener('mouseenter',place);badge.addEventListener('focus',place);
+    row.append(name,readiness,element('td',task.behavior||'Not documented'),element('td',task.expected_outcome||'Not documented'));
+    const action=element('td',undefined,'task-actions');
+    if(task.status==='proposed')action.append(element('span','Not authored','small muted'));
+    else if(task.provider==='harbor'&&task.status==='found')action.append(viewerAction('View task','tasks',parent(task.path),'task-definitions/'+encodeURIComponent(task.path.split('/').pop()),true,task));
+    else if(task.status==='found'){
+      const source=element('a','NeMo Gym source','text-link');source.href='../'+task.path.split('/').map(encodeURIComponent).join('/');action.append(source);
     }
-    table.append(body);card.append(table);section.append(card);container.append(section);
+    if(task.readme_html!=null)action.append(readmeAction(task));
+    else if(task.status!=='proposed')action.append(element('span','No readable README was available when this report was generated.','small muted'));
+    const summary=task.status==='proposed'?(task.proposed_grading||'No grading design saved.'):(task.grading_summary||'No verifier description documented in README.');
+    const grader=element('td');grader.append(element('div',task.grading_kind,'grader-kind'),element('p',summary,'small muted'));
+    row.append(grader,action);body.append(row);
   }
+  table.append(body);card.append(table);container.append(card);
 }
 function runRow(run){
   const row=element('tr');row.dataset.path=run.path;row.dataset.kind=run.kind;

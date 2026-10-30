@@ -121,7 +121,7 @@ def test_stale_active_contract_does_not_move_reports_during_repair(tmp_path):
             argparse.Namespace(task_dir=root, reason_code="verifier_defect", note="Repair a declared check")
         )
     assert report.read_bytes() == before
-    assert not (root / "private/repairs/repair-1.json").exists()
+    assert not (root / "private/repair-state.json").exists()
 
 
 def test_canonical_repair_preserves_sources_and_requires_fresh_selection(tmp_path):
@@ -136,7 +136,6 @@ def test_canonical_repair_preserves_sources_and_requires_fresh_selection(tmp_pat
     first = root / "private/construction-v2.json"
     helpers.save(first, value)
     construction.activate(root, first)
-    marker = (root / "private/active-construction.json").read_bytes()
     args = helpers.driver._parser().parse_args(
         [
             "record-run-inputs",
@@ -158,9 +157,11 @@ def test_canonical_repair_preserves_sources_and_requires_fresh_selection(tmp_pat
             task_dir=root, reason_code="verifier_defect", note="Correct a declared check before another attempt"
         )
     )
-    archive = root / "private/repairs/repair-1"
-    assert (archive / "construction.json").read_bytes() == first.read_bytes()
-    assert (archive / "active-construction.json").read_bytes() == marker
+    progress = json.loads((root / "private/repair-state.json").read_text())
+    assert progress["count"] == 1
+    assert progress["requires_activation"]
+    assert not (root / "private/repairs").exists()
+    assert not (root / "private/active-construction.json").exists()
     assert original.read_bytes() == original_bytes
     with pytest.raises(construction.PlanError, match="activate the repaired"):
         construction.active_path(root)
@@ -169,6 +170,42 @@ def test_canonical_repair_preserves_sources_and_requires_fresh_selection(tmp_pat
     construction.activate(root, second)
     assert construction.active_path(root) == second
     assert task_evidence._repairs(root)[0]["index"] == 1
+
+
+def test_interrupted_repair_resumes_without_copies_or_another_budget_entry(tmp_path, monkeypatch):
+    import argparse
+
+    helpers, root, _ = fresh_workspace(tmp_path)
+    value = construction.from_trace(root)
+    for requirement in value["requirements"]:
+        requirement["authority"] = {"basis": "specification", "reference": "Synthetic fixture requirement"}
+    contract = root / "private/construction-v2.json"
+    helpers.save(contract, value)
+    construction.activate(root, contract)
+    marker = root / "private/active-construction.json"
+    unlink = Path.unlink
+
+    def interrupted(path, *args, **kwargs):
+        if path == marker:
+            raise OSError("interrupted while invalidating the selected contract")
+        return unlink(path, *args, **kwargs)
+
+    args = argparse.Namespace(task_dir=root, reason_code="verifier_defect", note="Correct a declared check")
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "unlink", interrupted)
+        with pytest.raises(OSError, match="interrupted"):
+            task_evidence._record_repair(args)
+    progress = json.loads((root / "private/repair-state.json").read_text())
+    assert progress["count"] == 1 and progress["pending"]
+    assert not (root / "reproducibility.json").exists()
+    with pytest.raises(construction.PlanError, match="resume record-repair"):
+        construction.active_path(root)
+    result = task_evidence._record_repair(args)
+    assert result["repair"] == 1
+    assert result["repairs_remaining"] == 2
+    assert not marker.exists()
+    assert not (root / "private/repairs").exists()
+    assert json.loads((root / "private/repair-state.json").read_text())["pending"] == {}
 
 
 def test_admission_requires_privacy_and_rechecks_reviewed_findings(tmp_path):

@@ -15,7 +15,7 @@ fixed subset manifest.
 
 | Stage | Tool |
 | --- | --- |
-| 1. Run mutants x eval tasks | Planned local Harbor loop; future NeMo Helix implementation |
+| 1. Run mutants x eval tasks | `run_evals.py` (local Harbor); future NeMo Helix implementation |
 | 2. Compute mutant scores | `compute_mutant_scores.py` |
 | 3. Compute coverage | `compute_coverage.py` |
 | 4. Correlation | `correlate.py` |
@@ -39,7 +39,7 @@ mutants and produce the results directory consumed by analysis.
 **Inputs:** prepared agent bundles, benchmark tasks, and experiment execution
 settings.
 
-**Implementations:** the first execution script will run Harbor tasks in a
+**Implementations:** the execution script runs Harbor tasks in a
 basic local loop: baseline first, then the configured mutants, with one Harbor job per agent
 covering the full benchmark. Agent jobs run sequentially. Task concurrency within
 a Harbor job is an explicit execution setting; a fully sequential run uses one
@@ -49,8 +49,8 @@ the selected run; repetition aggregation remains future work.
 This phase is expected to be expensive: with `M` mutants and `T` tasks, even a
 single execution per pair requires `(M + 1) × T` task executions before retries.
 The baseline is included because mutant scoring compares its outcomes with each
-mutant's outcomes. The repository currently supplies the analysis tools; the
-local Harbor loop is the first execution implementation to add here.
+mutant's outcomes. The local Harbor loop produces the shared index and native evidence used by
+the analysis tools.
 
 A future NeMo Helix implementation will use an orchestrator to run evaluations at
 scale. Each implementation owns invocation, scheduling, retries, and collection
@@ -59,94 +59,16 @@ without repeating this execution phase.
 
 ### Results-directory contract
 
-**Proposed layout:** agent first, then benchmark run, with native trial outputs
-inside each run. One results root represents one case and benchmark revision.
+Execution implementations produce the shared [results format](results-format.md):
+an experiment index mapping case IDs to case-level indexes and native trial
+evidence. That specification defines the
+layout, identities, measurements, unavailable observations and attempt handling,
+with a checked-in [mock output directory](results-format.md#mock-results).
 
-```text
-execution-results/
-  results.json                         # Shared analysis index and task inventory
-  agents/
-    baseline/
-      run-0001/                        # One intact Harbor job directory
-        config.json
-        lock.json
-        result.json                    # Harbor's job-level result
-        job.log
-        task-a__<trial-suffix>/
-          config.json
-          lock.json
-          result.json                  # Harbor's per-trial result
-          agent/                       # Agent execution evidence
-          verifier/                    # Verifier outputs
-          ...                          # Other native Harbor artifacts
-        task-b__<trial-suffix>/
-          ...
-    mutant-001/
-      run-0001/
-        ...                            # Same benchmark, this mutant's results
-    mutant-002/
-      run-0001/
-        ...
-```
-
-The native portion shown is illustrative of Harbor's single-step trial layout;
-its actual files depend on the pinned Harbor version and task type. The local
-implementation chooses the agent/run parent directory and preserves the native
-job contents, including native trial names. Explicit run names avoid using a
-timestamp as the benchmark's logical run identity.
-
-Agent-first matches the proposed execution loop and keeps each Harbor job's
-configuration, aggregate results, and task evidence together. A task-first tree
-would split that job across multiple directories. A second physical copy is
-unnecessary: the shared index supports either agent-wise or task-wise views.
-Separate run directories allow later executions without overwriting earlier
-ones; the current scorer selects one run per agent.
-
-**Index:** `results.json` uses the existing v1 `raw_execution_results` schema.
-It includes the complete benchmark/task inventory and each execution's agent,
-run, task revision, attempt, status, measurements, and native-evidence location.
-This shared index is distinct from Harbor's own job and trial `result.json`
-files. All evidence paths are relative to `execution-results/`. For example:
-
-```json
-{
-  "native_results_path": "agents/mutant-001/run-0001/task-a__x7k2p9m",
-  "native_results_format": "directory"
-}
-```
-
-This is an excerpt of an execution entry, not a complete results index. It points
-to one trial, not the whole job directory. Folder labels are filesystem-safe
-aliases; the index carries the actual agent and task identities. A run identity
-is unique across the results index even when agents reuse the folder label
-`run-0001`. Native trial names can contain generated suffixes, and analysis never
-parses those names to recover task identities, repetitions, or retry order.
-
-The current reader already supports these relative paths and native directories
-or archives. Existing commands accept explicit index and evidence-root paths;
-the new producers will adopt this layout, but the reader does not yet enforce
-these folder names. The local Harbor implementation still needs the code that
-builds the shared index from native job/trial metadata.
-
-The NeMo Helix implementation will export the same agent/run layout and index with
-task-level evidence in a supported format. Its scheduling and storage can differ
-internally. Analysis reads the common index and evidence without a NeMo Helix-specific
-service API. An archive can replace a trial directory when the index explicitly
-declares its path and format; the native evidence contents still need to be
-readable by the coverage implementation.
-
-**Completion contract:** the output accounts for the configured agent-by-task
-matrix and identifies failed attempts and unavailable measurements explicitly.
-A completed task with a zero reward remains distinct from an execution error.
-The output index and referenced evidence agree on identities and formats.
-A full execution-completeness validator is still to be implemented; the existing
-analysis tools validate the index and handle unavailable observations according
-to their scoring policy.
-
-The shared contract covers directory contents as well as paths: measurements
-have consistent meanings, and the evidence formats are readable by the coverage
-implementation. A NeMo Helix implementation will produce that same contract rather
-than making analysis interpret NeMo Helix-specific result metadata.
+The supporting [`validate_results.py` tool](tools.md#validate-a-results-directory)
+checks all cases by default, or one selected case, against the prepared inputs
+before analysis. It validates
+execution's output contract; it is not an additional scoring stage.
 
 ## 2. Compute mutant scores
 

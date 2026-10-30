@@ -93,12 +93,12 @@ def _trajectory_capture(value: object) -> None:
         path.as_posix() != directory
         or directory == "."
         or ".." in path.parts
-        or "~" in directory
+        or directory.startswith("~")
         or "\\" in directory
         or directory.startswith("//")
         or any(ord(char) < 32 for char in directory)
     ):
-        raise ValueError("Trajectory capture directory must be a canonical local path without .. or ~")
+        raise ValueError("Trajectory capture directory must be a canonical local path without .. or home expansion")
     choice = value["choice"]
     if value["mode"] == "optional":
         if choice is not None and type(choice) is not bool:
@@ -144,6 +144,11 @@ def validate(value: dict) -> None:
         _strings([task["id"] for task in planned])
         for task in planned:
             _strings(task["example_ids"])
+            for field in ("verifier_type", "scoring_rule"):
+                if field in task:
+                    _text(task[field])
+            if task.get("verifier_type") not in {None, "Custom code", "LLMaJ", "Custom code + LLMaJ"}:
+                raise ValueError("Unknown proposed verifier type")
         if value["first_task"] not in {task["id"] for task in planned}:
             raise ValueError("Choose the first task from the agreed design")
         choice = value["plan"].get("trace_choice")
@@ -243,6 +248,23 @@ def validate(value: dict) -> None:
                 or len(PurePosixPath(task["path"]).parts) != 3
             ):
                 raise ValueError("Keep created tasks in .eval-author/tasks/<slug>")
+            workload = task.get("workload_path")
+            if workload is not None:
+                if value["provider"] != "gym":
+                    raise ValueError("Only NeMo Gym tasks have a workload path")
+                _path(workload)
+                try:
+                    relative_workload = PurePosixPath(workload).relative_to(PurePosixPath(task["path"]))
+                except ValueError as exc:
+                    raise ValueError("NeMo Gym workload must be inside its saved task") from exc
+                parts = relative_workload.parts
+                if not (
+                    len(parts) in {3, 4}
+                    and parts[-3] == "environments"
+                    and parts[-1] == "manifest.yaml"
+                    and (len(parts) == 3 or parts[0] == "gym")
+                ):
+                    raise ValueError("NeMo Gym workload must name an environment manifest")
             _digest(task["sha256"])
             _decision(task.get("review"), "sha256")
             if task.get("review") and task["review"]["decision"] not in {"approved", "changes_requested"}:
@@ -435,8 +457,7 @@ def _displayed_settings(value: dict) -> dict:
     capture = trajectory_capture(value)
     if capture is None:
         return settings
-    # The answer resolves the displayed choice; effective configuration still
-    # binds execution authorization through the native selection and choice.
+    # The answer resolves the displayed choice without requiring another display.
     return {
         **settings,
         "trajectory_capture": {key: item for key, item in capture.items() if key not in {"choice", "source"}},
@@ -612,15 +633,21 @@ def derive(state: dict, observed: object) -> dict | None:
     suite_approved = bool(
         suite_presented and value.get("suite_approval") and value["suite_approval"]["digest"] == suite_digest
     )
-    settings_digest = fingerprint({"plan_digest": plan_digest, "settings": _displayed_settings(value)})
     settings = execution_settings(value)
+    settings_digest = fingerprint(
+        {
+            "plan_digest": plan_digest,
+            "settings": {key: item for key, item in settings.items() if key != "trajectory_capture"},
+        }
+    )
+    presentation_digest = fingerprint({"plan_digest": plan_digest, "settings": _displayed_settings(value)})
     settings_resolved = bool(
         _settings_fields(settings) and not settings["open_questions"] and trajectory_capture_resolved(value)
     )
     settings_shown = bool(
         suite_approved
         and value.get("execution_settings_presented")
-        and value["execution_settings_presented"]["digest"] == settings_digest
+        and value["execution_settings_presented"]["digest"] == presentation_digest
     )
     selection = value["selection"]
     capture = trajectory_capture(value)
@@ -630,13 +657,22 @@ def derive(state: dict, observed: object) -> dict | None:
                 "selection": {key: item for key, item in selection.items() if key != "authorization"},
                 "plan_digest": plan_digest,
                 "tasks": {key: value["tasks"].get(key, {}).get("sha256") for key in planned},
-                **({"trajectory_capture_choice": capture["choice"]} if capture is not None else {}),
             }
         )
         if selection
         else None
     )
     selected = {case["task_id"]: case for case in selection["cases"]} if selection else {}
+    authorization_digest = (
+        fingerprint(
+            {
+                "selection_digest": selection_digest,
+                "trajectory_capture": {key: item for key, item in capture.items() if key != "source"},
+            }
+        )
+        if capture is not None
+        else selection_digest
+    )
     bridge = selection.get("bridge") if selection else None
     bridge_current = bool(bridge and all(current(ref) for ref in bridge["evidence"]))
     selection_current = bool(
@@ -655,7 +691,7 @@ def derive(state: dict, observed: object) -> dict | None:
         and settings_shown
         and settings_resolved
         and selection.get("authorization")
-        and selection["authorization"]["digest"] == selection_digest
+        and selection["authorization"]["digest"] == authorization_digest
     )
     runs, run_digests = {}, {}
     for run in value["runs"]:
@@ -833,6 +869,8 @@ def derive(state: dict, observed: object) -> dict | None:
         if value.get("remaining_build") and not suite_approved
         else "prepare_remaining"
         if not suite_approved
+        else "results"
+        if complete
         else "trajectory_settings"
         if not trajectory_capture_resolved(value)
         else "execution_settings"
@@ -863,6 +901,8 @@ def derive(state: dict, observed: object) -> dict | None:
         "suite_review_presented": suite_presented,
         "suite_approved": suite_approved,
         "settings_digest": settings_digest,
+        "presentation_digest": presentation_digest,
+        "authorization_digest": authorization_digest,
         "execution_settings_presented": settings_shown,
         "execution_settings_resolved": settings_resolved,
         "first_task_approved": first_approved,
@@ -1129,6 +1169,7 @@ def transition(repo, previous: dict, updated: dict) -> None:
             and now["suite_approved"]
             and old["execution_settings_presented"]
             and old["settings_digest"] == now["settings_digest"]
+            and old["presentation_digest"] == now["presentation_digest"]
             and now["execution_settings_presented"]
             and now["execution_authorized"]
         ):
@@ -1143,12 +1184,12 @@ def transition(repo, previous: dict, updated: dict) -> None:
     def known_live_job(run_id: str, selection_digest: str) -> bool:
         native = prior_runs.get(run_id)
         return bool(
-            native
-            and native["status"] == "running"
-            and native["selection_digest"] == selection_digest
-            or prior_activity
-            and prior_activity["run_id"] == run_id
-            and prior_activity["selection_digest"] == selection_digest
+            (native and native["status"] == "running" and native["selection_digest"] == selection_digest)
+            or (
+                prior_activity
+                and prior_activity["run_id"] == run_id
+                and prior_activity["selection_digest"] == selection_digest
+            )
         )
 
     activity = after.get("run_progress")

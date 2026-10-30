@@ -2900,11 +2900,10 @@ def test_record_validation_records_per_check_evidence(tmp_path: Path) -> None:
     assert code == 0, check
 
 
-def test_repair_archives_failed_proof_and_allows_fresh_proof(tmp_path: Path) -> None:
+def test_repair_invalidates_failed_proof_in_place_and_allows_fresh_proof(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
     _candidate(task_dir)
     _ready_environment(task_dir, oracle_reward=0.0, oracle_exception={"type": "RuntimeError"})
-    failed_validation = (task_dir / "validation.json").read_bytes()
 
     code, result = _run(
         "record-repair",
@@ -2920,8 +2919,10 @@ def test_repair_archives_failed_proof_and_allows_fresh_proof(tmp_path: Path) -> 
     assert result["repairs_remaining"] == 2
     assert not (task_dir / "validation.json").exists()
     assert not (task_dir / "reproducibility.json").exists()
-    archived = task_dir / "private" / "repairs" / "repair-1" / "validation.json"
-    assert archived.is_file() and archived.read_bytes() == failed_validation
+    progress = json.loads((task_dir / "private/repair-state.json").read_text())
+    assert progress["count"] == 1
+    assert progress["pending"] == {}
+    assert not (task_dir / "private/repairs").exists()
 
     # Fix the task, then re-prove with a fresh, distinct job set.
     (task_dir / "task" / "solution" / "solve.sh").write_text(
@@ -2935,7 +2936,8 @@ def test_repair_archives_failed_proof_and_allows_fresh_proof(tmp_path: Path) -> 
     assert summary["environment"]["status"] == "ready"
     code, check = _run("check", "--task-dir", str(task_dir))
     assert code == 0, check
-    assert check["repairs"] == 1
+    assert check["repairs"] == 0
+    assert not (task_dir / "private/repair-state.json").exists()
 
 
 def test_repair_requires_recorded_proof_and_refuses_after_finalize(tmp_path: Path) -> None:
@@ -3002,9 +3004,23 @@ def test_repair_budget_is_bounded(tmp_path: Path) -> None:
     assert "repair budget exhausted" in result["error"]
 
 
-def test_repair_ledger_detects_tampered_archive(tmp_path: Path) -> None:
+def test_legacy_repair_budget_does_not_require_report_archives(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
     _candidate(task_dir)
+    legacy = task_dir / "private/repairs/repair-1.json"
+    legacy.parent.mkdir()
+    _write_json(
+        legacy,
+        {
+            "schema": "nemo.eval_author.trace_environment_repair.v1",
+            "index": 1,
+            "reason_code": "oracle_failure",
+            "note": "Continue a repair created by an earlier version.",
+            "superseded": {"validation.json": {"sha256": "sha256:" + "0" * 64}},
+        },
+    )
+    assert _TRACE_ENVIRONMENT._repairs(task_dir) == [{"index": 1}]
+    assert not (legacy.parent / "repair-1").exists()
     _ready_environment(task_dir, oracle_reward=0.0)
     code, result = _run(
         "record-repair",
@@ -3013,16 +3029,12 @@ def test_repair_ledger_detects_tampered_archive(tmp_path: Path) -> None:
         "--reason-code",
         "oracle_failure",
         "--note",
-        "The reference solution installed the wrong fixture variant.",
+        "Fix the existing reference solution in place.",
     )
     assert code == 0, result
-    archived = task_dir / "private" / "repairs" / "repair-1" / "validation.json"
-    archived.write_text("{}", encoding="utf-8")
-
-    code, check = _run("check", "--task-dir", str(task_dir))
-
-    assert code == 1
-    assert any("repair 1 archive" in error for error in check["errors"])
+    assert result["repair"] == 2
+    assert list(legacy.parent.iterdir()) == [legacy]
+    assert _TRACE_ENVIRONMENT._repairs(task_dir) == [{"index": 1}, {"index": 2}]
 
 
 def test_reconstructed_state_basis_flows_to_the_public_product(tmp_path: Path) -> None:

@@ -32,7 +32,9 @@ SAVED_DESIGN_CHOICES = (
 )
 SAVED_DESIGN_QUESTION = "Would you like to continue this saved design, revise it, or start a new proposal?"
 PROPOSAL_INTRO = "Here are the proposed evaluation tasks."
-PROPOSAL_TABLE = "| Task ID | Input | Behavior under test | Expected result | Verifier |\n|---|---|---|---|---|"
+TASK_TABLE = "| Task | Expected outcome | Verifier |\n|---|---|---|"
+PROPOSAL_TABLE = TASK_TABLE
+NOT_DOCUMENTED = "Not documented"
 FIRST_CHOICE = "I’ll build **{task_id}** first."
 PROPOSAL_PROCESS = (
     "Proposed tasks: {tasks}; distinct input examples: {examples}. "
@@ -112,7 +114,7 @@ SUITE_REVIEW_INTRO = (
     "It follows your approved design and confirmed `ETHOS.md`."
 )
 SUITE_REVIEW_ACTION = "Review your tasks in the {report} or {readme}."
-SUITE_REVIEW_TABLE = "| Task ID | Behavior under test | Expected result | Verifier |\n|---|---|---|---|"
+SUITE_REVIEW_TABLE = TASK_TABLE
 SUITE_REVIEW_STATUS = (
     "**Status:** Environment proof: {environments}/{tasks} passed. Verifier validation: {validated}/{tasks} passed. "
     "Agent execution: {executed}/{tasks} tasks complete."
@@ -121,8 +123,9 @@ SUITE_QUESTION = "Do these tasks look good? Approve the suite or tell me what to
 SETTINGS_INTRO = "Here are the settings for running the approved tasks."
 SETTINGS_LABELS = ("Attempts", "Validation", "Time/cost limits", "Open questions")
 NO_OPEN_QUESTIONS = "None."
-TRAJECTORY_INTRO = "Eval Author needs them to audit your suite’s coverage against `ETHOS.md` later."
+TRAJECTORY_INTRO = "Eval Author needs trajectories to audit your suite’s coverage against `ETHOS.md` later."
 TRAJECTORY_CONTENTS = "These records include {contents}."
+TRAJECTORY_RETAINED = "It retains {contents}."
 TRAJECTORY_DETAILS = (
     "I’ll save them locally in {directory}, with a new folder for each run. "
     "{implications}, and you can choose a different location."
@@ -130,8 +133,7 @@ TRAJECTORY_DETAILS = (
 TRAJECTORY_QUESTION = "**Would you like to save a record of each evaluation run?**"
 TRAJECTORY_CHOICES = ("Yes, save them", "No, don’t save them")
 TRAJECTORY_AUTOMATIC = (
-    "The selected integration already saves trajectories automatically. "
-    "I’ll reuse that behavior and directory; you can choose another local directory."
+    "The selected integration already saves trajectories automatically. I’ll reuse that behavior and directory."
 )
 TRAJECTORY_ENABLED = "Selected: save trajectories locally for this suite and its reruns."
 TRAJECTORY_DECLINED = (
@@ -139,15 +141,17 @@ TRAJECTORY_DECLINED = (
     "Native logs are unchanged."
 )
 TRAJECTORY_UNSUPPORTED = (
-    "The selected integration cannot save audit-usable trajectories through its supported configuration. "
-    "Audit measurement will need trajectories from another source or a later authorized run with capture support."
+    "The selected integration cannot save audit-usable trajectories through its supported configuration."
 )
 TRAJECTORY_SUMMARY = "**Trajectory saving:** {status}"
 TRAJECTORY_SUMMARY_STATUS = {
     "automatic": "Automatic.",
     "enabled": "Save locally.",
-    "declined": TRAJECTORY_DECLINED,
-    "unsupported": "Unsupported by this integration.",
+    "declined": "Off (declined).",
+    "unsupported": (
+        "Unsupported by this integration. Coverage audits against `ETHOS.md` need trajectories "
+        "from another source or a later authorized run with capture support."
+    ),
 }
 TRAJECTORY_SUMMARY_DIRECTORY = "**Local destination:** {directory}."
 CHECKS_PASSED = (
@@ -174,12 +178,11 @@ RUN_TASK_UNKNOWN = "The runtime hasn’t reported a current task."
 RUN_EVIDENCE_PENDING = (
     "Some recorded results have missing or outdated evidence; they aren’t included in completed-attempt counts."
 )
-FIRST_REVIEW = (
-    "- **Input:** {input}\n"
-    "- **Expected result:** {expected_result}\n"
-    "- **Verifier:** {grading} Limitation: {grading_limitation}\n"
-    "- **Status:** Environment proof: passed. Verifier validation: {validation}. Agent execution: {execution}."
+FIRST_REVIEW_STATUS = (
+    "**Status:** Environment proof: passed. Verifier validation: {validation}. Agent execution: {execution}."
 )
+VERIFIER_LIMITATION = "**Verifier limitation:** {limitation}"
+NOT_DOCUMENTED_LIMITATION = "**Verifier limitation:** Not documented."
 VALIDATION_PASSED = "passed"
 VALIDATION_PENDING = "pending or requiring attention"
 EXECUTION_COMPLETED = "completed"
@@ -263,10 +266,6 @@ ADAPTER_BLOCKER_NEEDED = (
     "Use the prompt below in a separate chat with your coding harness, "
     "then return with the adapter and configuration paths and verification results."
 )
-ADAPTER_CAPTURE_NEEDED = (
-    "Resolve whether and where to save local trajectories in its separate check-in after suite approval; "
-    "the adapter prompt will include that choice."
-)
 ADAPTER_HANDOFF = """Open a separate chat with your coding harness in this repository and copy this prompt:
 
 ```text
@@ -283,7 +282,10 @@ returns its responses, ordered actions, errors, and observable state in the form
 the existing verifiers expect. For a selected Gym-Harbor path, preserve that bridge.
 
 Configure local trajectory logging where supported using trajectory_capture in
-the saved context. When enabled, save each actual-agent attempt under the selected
+the saved context. When pending is true, keep capture disabled and expose an
+enable/disable setting and local directory in the configuration. Eval Author will
+collect the saving choice after suite approval before any new agent run.
+When enabled, save each actual-agent attempt under the selected
 directory with stable run/attempt identities and fresh paths that preserve prior
 outputs. Keep required native results and baseline receipts at their existing
 repository-local paths; this directory configures trajectory saving separately.

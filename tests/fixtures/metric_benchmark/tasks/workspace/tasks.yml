@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+tasks:
+- task_id: inspect-files
+  revision: 1
+  path: tasks/workspace/inspect-files
+  sha256: sha256:43a50d7fb576a63244e103ba4e7dc772e5ab0ad7ab8e3877f4d3e0af518174b5
+- task_id: read-config
+  revision: 1
+  path: tasks/workspace/read-config
+  sha256: sha256:43a50d7fb576a63244e103ba4e7dc772e5ab0ad7ab8e3877f4d3e0af518174b5
+- task_id: search-workspace
+  revision: 1
+  path: tasks/workspace/search-workspace
+  sha256: sha256:43a50d7fb576a63244e103ba4e7dc772e5ab0ad7ab8e3877f4d3e0af518174b5

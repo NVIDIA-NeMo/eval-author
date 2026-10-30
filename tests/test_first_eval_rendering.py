@@ -52,6 +52,12 @@ def creation(monkeypatch, tmp_path):
                     "input": "Request | with newline\ncontinued",
                     "behavior": "Respect policy",
                     "expected_result": "Correct disposition",
+                    "verifier_type": "Custom code + LLMaJ" if task_id == "refund" else "Custom code",
+                    "scoring_rule": (
+                        "Pass at 1 when the refund state and reply both match policy, otherwise score 0."
+                        if task_id == "refund"
+                        else "Pass at 1 when the request is rejected and state stays unchanged, otherwise score 0."
+                    ),
                     "grading": (
                         "Code checks verify state; model judge assesses response meaning"
                         if task_id == "refund"
@@ -111,12 +117,37 @@ def observations(record):
 
 
 def payload(creation, stage, **facts):
-    state, record, *_ = creation
+    state, record, helper, *_ = creation
+    observed = observations(record)
+    progress = helper.derive(state, observed) if stage == "resume" else None
+    effective_stage = progress["next_stage"] if progress else stage
+    if effective_stage in {"review_first", "review_suite"}:
+        ids = (
+            [record["first_task"]]
+            if effective_stage == "review_first"
+            else [task["id"] for task in record["plan"]["tasks"]]
+        )
+        tasks = {task["id"]: task for task in record["plan"]["tasks"]}
+        if all(task_id in record["tasks"] for task_id in ids):
+            facts.setdefault(
+                "task_rows",
+                [
+                    {
+                        "task_id": task_id,
+                        "task_sha256": record["tasks"][task_id]["sha256"],
+                        "behavior_tested": tasks[task_id]["behavior"],
+                        "expected_outcome": tasks[task_id]["expected_result"],
+                        "verifier_type": tasks[task_id]["verifier_type"],
+                        "scoring_rule": tasks[task_id]["scoring_rule"],
+                    }
+                    for task_id in ids
+                ],
+            )
     return {
         "stage": "first_eval_" + stage,
         "state": state,
         "revision": state["revision"],
-        "facts": {"observations": observations(record), **facts},
+        "facts": {"observations": observed, **facts},
     }
 
 
@@ -240,7 +271,7 @@ def selected(creation):
     suite_approved(creation)
     derived = helper.derive(state, observations(record))
     record["execution_settings_presented"] = {
-        "digest": derived["settings_digest"],
+        "digest": derived["presentation_digest"],
         "source": "Delivered settings message",
     }
     record["selection"] = {
@@ -256,7 +287,7 @@ def selected(creation):
         record["selection"]["inputs"] = [{"path": ".eval-author/gym/selected.jsonl", "digest": SHA}]
         for index, case in enumerate(record["selection"]["cases"], start=1):
             case["rows"] = [index]
-    digest = helper.derive(state, observations(record))["selection_digest"]
+    digest = helper.derive(state, observations(record))["authorization_digest"]
     record["selection"]["authorization"] = {"digest": digest, "source": "User approved bounded run"}
 
 
@@ -354,9 +385,9 @@ def test_proposal_is_concise_deterministic_and_read_only(creation):
     output = renderer.render(payload(creation, "proposal"))
     assert output == PLANNING_PROGRESS + "\n\n" + (
         "Here are the proposed evaluation tasks.\n\n"
-        "| Task ID | Input | Behavior under test | Expected result | Verifier |\n|---|---|---|---|---|\n"
-        "| refund | Request &#124; with newline<br>continued | Respect policy | Correct disposition | Code checks verify state; model judge assesses response meaning |\n"
-        "| reject | Request &#124; with newline<br>continued | Respect policy | Correct disposition | Code checks verify rejected action and unchanged state |\n\n"
+        "| Task | Expected outcome | Verifier |\n|---|---|---|\n"
+        "| **refund** - Respect policy | Correct disposition | **Custom code + LLMaJ** Pass at 1 when the refund state and reply both match policy, otherwise score 0. |\n"
+        "| **reject** - Respect policy | Correct disposition | **Custom code** Pass at 1 when the request is rejected and state stays unchanged, otherwise score 0. |\n\n"
         "These check refunds and rejection. Other regions remain untested.\n\n"
         "I’ll build **refund** first.\n\n"
         "Proposed tasks: 2; distinct input examples: 2. After you approve the proposal, "
@@ -367,13 +398,250 @@ def test_proposal_is_concise_deterministic_and_read_only(creation):
     )
     assert output == renderer.render(payload(creation, "resume"))
     assert copy.PROPOSAL_TABLE in output
-    assert "Request &#124; with newline<br>continued" in output
+    assert "Request &#124; with newline<br>continued" not in output
     assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
     assert output.index("Other regions remain untested") < output.index("I’ll build **refund** first.")
     assert "- **Agent/model:" not in output and "Blockers" not in output and "SKILL.md" not in output
     assert json.dumps(state, sort_keys=True) == before
     record.pop("execution_settings")
     assert renderer.render(payload(creation, "proposal")) == output
+
+
+def test_authored_table_comes_from_saved_report_and_renders_full_review(creation, tmp_path, monkeypatch):
+    state, record, _, renderer, _ = creation
+    monkeypatch.syspath_prepend(str(SCRIPTS))
+    state_helper = importlib.import_module("journey_state")
+    report = importlib.import_module("report")
+    table_data = importlib.import_module("first_eval_table_data")
+    ids = {"refund": "INV-01-exact-sku-lookup", "reject": "INV-02-zero-is-not-missing"}
+    scenarios = {
+        "refund": (
+            "Ask for BOLT-17 while BOLT-170 and bolt-17 have different counts",
+            "Report only BOLT-17's count and cite its record",
+            "Ask for the exact BOLT-17 count with nearby SKU decoys.",
+            "Return only BOLT-17's count and cite its record.",
+            "Pass at 1 when BOLT-17's exact count is cited without decoy counts, otherwise score 0.",
+        ),
+        "reject": (
+            "Ask for LABEL-0 with zero units while a similar SKU has stock",
+            "Distinguish recorded zero stock from an unknown item",
+            "Audit LABEL-0, a recorded zero-stock SKU beside a stocked lookalike.",
+            "State that LABEL-0 has zero units, not that it is missing.",
+            "Pass at 1 when LABEL-0 is reported as known with zero units, otherwise score 0.",
+        ),
+    }
+    for task in record["plan"]["tasks"]:
+        name = task["id"]
+        task["id"] = ids[name]
+        task["behavior"], task["expected_result"] = scenarios[name][:2]
+        task["scoring_rule"] = scenarios[name][4]
+    record["first_task"] = ids["refund"]
+    record["plan"]["presentation"]["coverage_note"] = (
+        "These check exact SKU matching and recorded zero stock. Other warehouses remain untested."
+    )
+    state_helper.save(tmp_path, state)
+    record = state["scopes"]["create"]["first_eval"]
+    creation = (state, record, *creation[2:])
+    saved_proposal = state_helper.load_state(tmp_path, state_only=True)
+    proposal_request = payload(creation, "proposal")
+    proposal_request["state"] = saved_proposal
+    proposal_message = renderer.render(proposal_request)
+    built(creation, all_tasks=True, reviewed=True)
+    record["tasks"] = {ids[name]: record["tasks"][name] for name in ("refund", "reject")}
+    for name, task_id in ids.items():
+        root = tmp_path / ".eval-author" / "tasks" / name
+        root.mkdir(parents=True)
+        (root / "task.toml").write_text(f'[task]\nname = "org/{name}"\n', encoding="utf-8")
+        (root / "README.md").write_text(
+            f"# {name}\n## Behavior under test\n{scenarios[name][2]}\n## Expected result\n{scenarios[name][3]}\n",
+            encoding="utf-8",
+        )
+        sha = state_helper.task_digest(tmp_path, record["tasks"][task_id]["path"])
+        saved = record["tasks"][task_id]
+        saved["sha256"] = sha
+        saved["review"]["sha256"] = sha
+        saved["environment"]["sha256"] = sha
+        saved["validation"]["sha256"] = sha
+    state_helper.save(tmp_path, state)
+    record = state["scopes"]["create"]["first_eval"]
+    creation = (state, record, *creation[2:])
+    report.refresh(
+        tmp_path,
+        patch={
+            "tasks": {
+                record["tasks"][task_id]["path"]: {
+                    "display_id": task_id,
+                    "grading_kind": "LLM-as-judge" if name == "refund" else "Custom code",
+                    "scoring_rule": scenarios[name][4],
+                }
+                for name, task_id in ids.items()
+            }
+        },
+    )
+    assert all(item["scoring_rule"] for item in report.refresh(tmp_path)["tasks"])
+    first_rows = table_data.authored_rows(tmp_path, state, [ids["refund"]])
+    first = renderer.render(
+        payload(
+            creation,
+            "review_first",
+            links=links(creation),
+            grading_limitation="Other regions untested",
+            task_rows=first_rows,
+        )
+    )
+    assert first.count("| Task | Expected outcome | Verifier |\n|---|---|---|") == 1
+    assert first.count("\n| **INV-01-exact-sku-lookup** -") == 1
+    assert (
+        "| **INV-01-exact-sku-lookup** - Ask for the exact BOLT-17 count with nearby SKU decoys. | Return only BOLT-17's count and cite its record. | **LLMaJ** Pass at 1 when BOLT-17's exact count is cited without decoy counts, otherwise score 0. |"
+        in first
+    )
+    assert "different counts" not in first
+    assert first.endswith(importlib.import_module("conversation_flows.first_eval_templates").FIRST_QUESTION + "\n")
+    remaining_started(creation, active=None, artifacts=True)
+    for ref in record["remaining_build"]["artifacts"]["evidence"]:
+        ref["digest"] = state_helper._file_digest(tmp_path / ref["path"], state_helper.MAX_BYTES)[0]
+    suite_rows = table_data.authored_rows(tmp_path, state, list(ids.values()))
+    cli = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            str(SCRIPTS / "first_eval_table_data.py"),
+            "--repo",
+            str(tmp_path),
+            "--stage",
+            "review_suite",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert cli.returncode == 0, cli.stderr
+    assert json.loads(cli.stdout)["task_rows"] == suite_rows
+    suite = renderer.render(payload(creation, "review_suite", links=links(creation), task_rows=suite_rows))
+    reordered = list(reversed(suite_rows))
+    with pytest.raises(ValueError, match="saved task order"):
+        renderer.render(payload(creation, "review_suite", links=links(creation), task_rows=reordered))
+    assert suite.count("| **INV-01-exact-sku-lookup** -") == 1
+    assert suite.count("| **INV-02-zero-is-not-missing** -") == 1
+    assert (
+        "| **INV-02-zero-is-not-missing** - Audit LABEL-0, a recorded zero-stock SKU beside a stocked lookalike. | State that LABEL-0 has zero units, not that it is missing. | **Custom code** "
+        in suite
+    )
+    assert suite.index("| **INV-01-exact-sku-lookup** -") < suite.index("| **INV-02-zero-is-not-missing** -")
+    (tmp_path / "proposal-conversation.md").write_text(proposal_message, encoding="utf-8")
+    (tmp_path / "first-review-conversation.md").write_text(first, encoding="utf-8")
+    (tmp_path / "suite-review-conversation.md").write_text(suite, encoding="utf-8")
+    snapshot_path = tmp_path / ".eval-author/.working/report/state.json"
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    stale = deepcopy(snapshot)
+    stale["tasks"][0]["display_id"] = "different"
+    snapshot_path.write_text(json.dumps(stale), encoding="utf-8")
+    with pytest.raises(ValueError, match="display ID"):
+        table_data.authored_rows(tmp_path, state, [ids["refund"]])
+    stale = deepcopy(snapshot)
+    stale["tasks"].append(deepcopy(stale["tasks"][0]))
+    snapshot_path.write_text(json.dumps(stale), encoding="utf-8")
+    with pytest.raises(ValueError, match="found 2"):
+        table_data.authored_rows(tmp_path, state, [ids["refund"]])
+    stale = deepcopy(snapshot)
+    stale["tasks"][0]["task_revision"] = "b" * 64
+    snapshot_path.write_text(json.dumps(stale), encoding="utf-8")
+    with pytest.raises(ValueError, match="scoring rule.*stale"):
+        table_data.authored_rows(tmp_path, state, [ids["refund"]])
+    stale["tasks"][0]["task_revision"] = snapshot["tasks"][0]["task_revision"]
+    stale["tasks"][0]["readme_revision"] = "b" * 64
+    snapshot_path.write_text(json.dumps(stale), encoding="utf-8")
+    with pytest.raises(ValueError, match="Report task.*stale"):
+        table_data.authored_rows(tmp_path, state, [ids["refund"]])
+    snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+    (tmp_path / ".eval-author/tasks/refund/README.md").write_text("# changed\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="differs from its saved task revision"):
+        table_data.authored_rows(tmp_path, state, [ids["refund"]])
+
+
+@pytest.mark.parametrize("nested_readmes", [False, True])
+@pytest.mark.parametrize("root_workload", [False, True])
+def test_gym_report_workload_uses_saved_task_id_and_root_metadata(
+    creation, tmp_path, monkeypatch, nested_readmes, root_workload
+):
+    state, record, _, _, _ = creation
+    monkeypatch.syspath_prepend(str(SCRIPTS))
+    state["setup"] = record["provider"] = "gym"
+    built(creation, reviewed=True)
+    root = tmp_path / ".eval-author/tasks/refund"
+    (root / "environments/case").mkdir(parents=True)
+    (root / "environments/case/manifest.yaml").write_text("name: case\n", encoding="utf-8")
+    (root / "environments/case/config.yaml").write_text("name: case\n", encoding="utf-8")
+    (root / "environments/case/data").mkdir()
+    (root / "environments/case/data/example.jsonl").write_text("{}\n", encoding="utf-8")
+    (root / "resources_servers/case/configs").mkdir(parents=True)
+    (root / "resources_servers/case/configs/case.yaml").write_text("name: case\n", encoding="utf-8")
+    (root / "resources_servers/case/app.py").write_text("# Resource server fixture\n", encoding="utf-8")
+    if root_workload:
+        (root / "tasks.jsonl").write_text("{}\n", encoding="utf-8")
+        (root / "instruction.template.md").write_text("Audit {item}\n", encoding="utf-8")
+    if nested_readmes:
+        (root / "environments/case/README.md").write_text(
+            "## Behavior under test\nAudit saved stock.\n## Expected result\nReport the correct total.\n",
+            encoding="utf-8",
+        )
+        (root / "resources_servers/case/README.md").write_text(
+            "## Behavior under test\nConfigure the resource server.\n## Expected result\nThe server starts.\n",
+            encoding="utf-8",
+        )
+    (root / "README.md").write_text(
+        "## Behavior under test\nAudit saved stock.\n## Expected result\nReport the correct total.\n",
+        encoding="utf-8",
+    )
+    state_helper = importlib.import_module("journey_state")
+    report = importlib.import_module("report")
+    table_data = importlib.import_module("first_eval_table_data")
+    workload_path = ".eval-author/tasks/refund/environments/case/manifest.yaml"
+    record["tasks"]["refund"]["workload_path"] = workload_path
+    sha = state_helper.task_digest(tmp_path, record["tasks"]["refund"]["path"])
+    record["tasks"]["refund"]["sha256"] = sha
+    state_helper.save(tmp_path, state)
+    refreshed = report.refresh(
+        tmp_path,
+        patch={
+            "tasks": {
+                ".eval-author/tasks/refund": {
+                    "display_id": "refund",
+                    "grading_kind": "LLM-as-judge",
+                    "scoring_rule": "Pass at 1 when the saved stock total is correct, otherwise score 0.",
+                }
+            }
+        },
+    )
+    gym_rows = [item for item in refreshed["tasks"] if item["provider"] == "gym" and item["status"] == "found"]
+    assert [item["path"] for item in gym_rows] == [workload_path]
+    manifest_row = next(item for item in gym_rows if item["path"] == workload_path)
+    assert manifest_row["task_revision"] == sha
+    assert manifest_row["display_id"] == "refund"
+    assert manifest_row["readme_path"] == (
+        ".eval-author/tasks/refund/environments/case/README.md"
+        if nested_readmes
+        else ".eval-author/tasks/refund/README.md"
+    )
+    assert table_data.authored_rows(tmp_path, state, ["refund"]) == [
+        {
+            "task_id": "refund",
+            "task_sha256": sha,
+            "behavior_tested": "Audit saved stock.",
+            "expected_outcome": "Report the correct total.",
+            "verifier_type": "LLMaJ",
+            "scoring_rule": "Pass at 1 when the saved stock total is correct, otherwise score 0.",
+        }
+    ]
+    without_workload = state_helper.load_state(tmp_path, state_only=True)
+    without_workload["scopes"]["create"]["first_eval"]["tasks"]["refund"].pop("workload_path")
+    with pytest.raises(ValueError, match="needs its saved environment workload path"):
+        table_data.authored_rows(tmp_path, without_workload, ["refund"])
+    invalid_workload = state_helper.load_state(tmp_path, state_only=True)
+    invalid_workload["scopes"]["create"]["first_eval"]["tasks"]["refund"]["workload_path"] = (
+        ".eval-author/tasks/refund/resources_servers/case/configs/case.yaml"
+    )
+    with pytest.raises(ValueError, match="environment manifest"):
+        importlib.import_module("first_eval_state").validate(invalid_workload["scopes"]["create"]["first_eval"])
 
 
 @pytest.mark.parametrize("task_count", [1, 3])
@@ -399,7 +667,9 @@ def test_task_ids_are_literal_in_tables_and_build_labels(creation, stage):
         build_started(creation)
     output = renderer.render(payload(creation, stage))
     escaped = r"refund\_\*\[choice\]&#124;&lt;b&gt;"
-    if stage in {"proposal", "saved_design"}:
+    if stage == "proposal":
+        assert f"| **{escaped}<br>next** - Respect policy |" in output
+    elif stage == "saved_design":
         assert f"| {escaped}<br>next |" in output
     if stage == "proposal":
         assert f"I’ll build **{escaped} next** first." in output
@@ -973,9 +1243,9 @@ def test_suite_review_is_a_linked_deterministic_checkpoint_before_execution_choi
         "It follows your approved design and confirmed `ETHOS.md`.\n\n"
         f"Review your tasks in the [HTML report’s Tasks view](<{root}/.eval-author/report.html#cases>) "
         f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
-        "| Task ID | Behavior under test | Expected result | Verifier |\n|---|---|---|---|\n"
-        "| refund | Respect policy | Correct disposition | Code checks verify state; model judge assesses response meaning |\n"
-        "| reject | Respect policy | Correct disposition | Code checks verify rejected action and unchanged state |\n\n"
+        "| Task | Expected outcome | Verifier |\n|---|---|---|\n"
+        "| **refund** - Respect policy | Correct disposition | **Custom code + LLMaJ** Pass at 1 when the refund state and reply both match policy, otherwise score 0. |\n"
+        "| **reject** - Respect policy | Correct disposition | **Custom code** Pass at 1 when the request is rejected and state stays unchanged, otherwise score 0. |\n\n"
         "**Status:** Environment proof: 2/2 passed. Verifier validation: 2/2 passed. "
         "Agent execution: 0/2 tasks complete.\n\n"
         "Limitations: Other regions untested\n\n"
@@ -1329,7 +1599,7 @@ def test_review_leads_with_grounding_and_action_before_item_summaries(creation, 
         f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
     )
     positions = [
-        output.index(label) for label in ("- **Input:", "- **Expected result:", "- **Verifier:", "- **Status:")
+        output.index(label) for label in ("| Task |", "| **refund** -", "**Status:**", "**Verifier limitation:**")
     ]
     assert positions == sorted(positions)
     assert "Environment proof: passed. Verifier validation: passed" in output
@@ -1420,7 +1690,7 @@ def test_local_trajectory_choice_precedes_other_settings_and_resumes_without_lau
     assert output == (
         "**Would you like to save a record of each evaluation run?**\n\n"
         "These records include your agent’s inputs, responses, and tool calls. "
-        "Eval Author needs them to audit your suite’s coverage against `ETHOS.md` later.\n\n"
+        "Eval Author needs trajectories to audit your suite’s coverage against `ETHOS.md` later.\n\n"
         f"I’ll save them locally in {capture['directory']}, with a new folder for each run. "
         "They’ll use disk space, and you can choose a different location.\n\n"
         "- **Yes, save them**\n"
@@ -1456,7 +1726,7 @@ def test_saving_answer_resumes_without_repeating_the_check_in_or_authorizing_a_r
         assert output.startswith(copy.SETTINGS_INTRO)
         status = copy.TRAJECTORY_SUMMARY_STATUS["enabled" if choice else "declined"]
         assert copy.TRAJECTORY_SUMMARY.format(status=status) in output
-        assert capture["directory"] in output
+        assert (capture["directory"] in output) is choice
     assert copy.TRAJECTORY_INTRO not in output and copy.TRAJECTORY_QUESTION not in output
     assert not helper.derive(state, observations(record))["execution_authorized"]
     assert record["audit_invitation"] is None
@@ -1479,6 +1749,50 @@ def test_native_capture_capability_explains_audit_limits_without_a_redundant_cho
     settings = renderer.render(payload(creation, "execution_settings"))
     assert copy.TRAJECTORY_INTRO not in settings and copy.TRAJECTORY_QUESTION not in settings
     assert copy.RUN_PROGRESS in renderer.render(payload(creation, "ready_to_run", access_ready=True))
+
+
+def test_unsupported_capture_discloses_audit_limits_in_the_normal_resume_path(creation):
+    _, _, _, renderer, copy = creation
+    capture = configure_capture(creation, mode="unsupported")
+    capture.update(
+        contents="scores only, with no supported interaction export",
+        implications="Coverage audits need trajectories from another source",
+    )
+    built(creation, all_tasks=True, reviewed=True, validated=True)
+    suite_approved(creation)
+    resumed = renderer.render(payload(creation, "resume"))
+    assert resumed.startswith(copy.SETTINGS_INTRO)
+    assert (
+        "**Trajectory saving:** Unsupported by this integration. Coverage audits against `ETHOS.md` "
+        "need trajectories from another source or a later authorized run with capture support."
+    ) in resumed
+    assert "Local destination" not in resumed and copy.TRAJECTORY_QUESTION not in resumed
+    disclosure = renderer.render(payload(creation, "trajectory_settings"))
+    assert disclosure == (
+        "The selected integration cannot save audit-usable trajectories through its supported configuration. "
+        "It retains scores only, with no supported interaction export. "
+        "Eval Author needs trajectories to audit your suite’s coverage against `ETHOS.md` later. "
+        "Coverage audits need trajectories from another source.\n"
+    )
+
+
+def test_automatic_capture_offers_a_different_directory_once(creation):
+    _, _, _, renderer, _ = creation
+    configure_capture(creation, mode="automatic")
+    selected(creation)
+    output = renderer.render(payload(creation, "trajectory_settings"))
+    assert output.count("you can choose") == 1
+    assert "another local directory" not in output
+
+
+def test_declined_capture_summary_is_brief_and_omits_the_unused_directory(creation):
+    _, _, _, renderer, copy = creation
+    capture = configure_capture(creation, choice=False, directory="/tmp/unused-capture-destination")
+    selected(creation)
+    output = renderer.render(payload(creation, "execution_settings"))
+    assert "**Trajectory saving:** Off (declined)." in output
+    assert capture["directory"] not in output and "Local destination" not in output
+    assert copy.TRAJECTORY_DECLINED not in output
 
 
 @pytest.mark.parametrize("stage", ["trajectory_settings", "execution_settings", "ready_to_run"])
@@ -1533,14 +1847,14 @@ def test_unsupported_capture_allows_adapter_handoff_with_saving_disabled(creatio
         "limitations": [capture["contents"], capture["implications"]],
     }
     assert copy.ADAPTER_BLOCKER_NEEDED in output
-    assert copy.ADAPTER_CAPTURE_NEEDED not in output and copy.TRAJECTORY_QUESTION not in output
+    assert copy.TRAJECTORY_QUESTION not in output
     assert "When capture is unsupported, keep saving disabled" in output
     assert copy.RUN_PROGRESS not in output and copy.AUDIT_QUESTION not in output
     assert request == before
 
 
 @pytest.mark.parametrize("design", ["missing", "unapproved", "approved"])
-def test_pending_capture_keeps_the_adapter_handoff_out_of_the_saving_check_in(creation, design):
+def test_pending_capture_allows_early_adapter_handoff_without_interrupting_the_saving_check_in(creation, design):
     state, _, _, renderer, copy = creation
     configure_capture(creation, choice=None)
     state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Missing custom adapter"}]
@@ -1555,8 +1869,23 @@ def test_pending_capture_keeps_the_adapter_handoff_out_of_the_saving_check_in(cr
         assert "```text" not in pending and "### Blockers" not in pending
         assert copy.SETTINGS_INTRO not in pending
     output = renderer.render(payload(creation, "blockers"))
-    assert copy.ADAPTER_CAPTURE_NEEDED in output
-    assert copy.TRAJECTORY_QUESTION not in output and "```text" not in output
+    assert copy.ADAPTER_BLOCKER_NEEDED in output
+    assert adapter_context(output)["trajectory_capture"] == {"enabled": False, "pending": True}
+    assert copy.TRAJECTORY_QUESTION not in output
+
+
+def test_adapter_handoff_exists_before_a_task_design_is_saved(creation):
+    state, _, _, renderer, copy = creation
+    state["scopes"]["create"] = {}
+    state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Missing custom adapter"}]
+    request = payload(creation, "blockers")
+    before = deepcopy(request)
+    output = renderer.render(request)
+    context = adapter_context(output)
+    assert not context["design_approved"] and context["tasks"] == []
+    assert context["trajectory_capture"] == {"enabled": False, "pending": True}
+    assert copy.ADAPTER_BLOCKER_NEEDED in output and copy.TRAJECTORY_QUESTION not in output
+    assert request == before
 
 
 @pytest.mark.parametrize("limitation", ["No trajectory file was saved", "Saved trajectory is not valid ATIF"])
@@ -1759,7 +2088,9 @@ def test_run_readiness_checks_only_current_dependencies_and_resolved_settings(cr
     else:
         question = "Which maximum dollar amount should this run use?"
         record["execution_settings"]["open_questions"] = [question]
-        record["execution_settings_presented"]["digest"] = helper.derive(state, observations(record))["settings_digest"]
+        record["execution_settings_presented"]["digest"] = helper.derive(state, observations(record))[
+            "presentation_digest"
+        ]
         output = renderer.render(payload(creation, "ready_to_run", access_ready=True))
         assert question in output and copy.RUN_PROGRESS not in output and copy.RUN_QUESTION not in output
 
@@ -1955,8 +2286,9 @@ def test_adapter_run_dependency_does_not_interrupt_independent_authoring(creatio
     if stage != "proposal":
         explicit = [{"id": "agent-integration", "step": "Run tasks", "reason": "Missing connection", "needed": "X"}]
         output = renderer.render(payload(creation, stage, blockers=explicit))
-        assert copy.ADAPTER_CAPTURE_NEEDED in output
-        assert "```text" not in output and copy.TRAJECTORY_QUESTION not in output
+        assert copy.ADAPTER_BLOCKER_NEEDED in output
+        assert adapter_context(output)["trajectory_capture"] == {"enabled": False, "pending": True}
+        assert copy.TRAJECTORY_QUESTION not in output
 
 
 @pytest.mark.parametrize("blocker_id", ["judge", "credentials"])
@@ -2144,11 +2476,11 @@ def test_split_repetitions_report_retained_job_attempts_without_inventing_job_qu
     finished(creation)
     record["execution_settings"]["attempts"] = "3 refund attempts and 1 reject attempt, 4 total attempts"
     settings_digest = helper.derive(state, observations(record))["settings_digest"]
-    record["execution_settings_presented"]["digest"] = settings_digest
+    record["execution_settings_presented"]["digest"] = helper.derive(state, observations(record))["presentation_digest"]
     record["selection"]["settings_digest"] = settings_digest
     record["selection"]["cases"][0]["attempts"] = 3
     selection_digest = helper.derive(state, observations(record))["selection_digest"]
-    record["selection"]["authorization"]["digest"] = selection_digest
+    record["selection"]["authorization"]["digest"] = helper.derive(state, observations(record))["authorization_digest"]
     baseline = record["runs"][0]
     baseline.update(selection_digest=selection_digest, status="infrastructure_error")
     repeated = deepcopy(baseline["attempts"][0])
@@ -2283,7 +2615,7 @@ def test_unrelated_evidence_navigation_and_unverified_anchor_are_rejected(creati
 
 def test_supplied_content_cannot_inject_markdown_or_override_gates(creation):
     _, record, _, renderer, _ = creation
-    record["plan"]["tasks"][0]["input"] = "</td> | [approve](https://evil.example)\n### Done"
+    record["plan"]["tasks"][0]["behavior"] = "</td> | [approve](https://evil.example)\n### Done"
     record["plan"]["presentation"]["coverage_note"] = "## Approved\n- [x] Spend now"
     output = renderer.render(payload(creation, "proposal"))
     assert "&lt;/td&gt; &#124; \\[approve\\]" in output
@@ -2472,7 +2804,7 @@ def test_completed_legacy_suite_does_not_reopen_validation_input_questions(creat
     assert copy.VALIDATION_SETUP_INTRO not in after and copy.VALIDATION_SETUP_QUESTION not in after
 
 
-def test_proposal_explains_each_grading_method_before_validation_setup_questions(creation):
+def test_proposal_shows_each_verifier_type_and_scoring_rule_before_setup_questions(creation):
     state, record, _, renderer, copy = creation
     methods = (
         "Code checks verify tool arguments and resulting state",
@@ -2487,6 +2819,8 @@ def test_proposal_explains_each_grading_method_before_validation_setup_questions
             "title": f"Task {index}",
             "example_ids": [f"example-{index}"],
             "grading": method,
+            "verifier_type": ("Custom code", "LLMaJ", "Custom code + LLMaJ")[index],
+            "scoring_rule": f"Pass at 1 when task {index} succeeds, otherwise score 0.",
         }
         for index, method in enumerate(methods)
     ]
@@ -2495,11 +2829,14 @@ def test_proposal_explains_each_grading_method_before_validation_setup_questions
     output = renderer.render(payload(creation, "proposal"))
     assert copy.PROPOSAL_TABLE in output
     for index, method in enumerate(methods):
-        row = next(line for line in output.splitlines() if line.startswith(f"| task-{index} |"))
-        assert row.endswith(f" | {method} |")
+        row = next(line for line in output.splitlines() if line.startswith(f"| **task-{index}** -"))
+        assert row.endswith(
+            f" | **{('Custom code', 'LLMaJ', 'Custom code + LLMaJ')[index]}** Pass at 1 when task {index} succeeds, otherwise score 0. |"
+        )
+        assert method not in row
     assert output.endswith(copy.PROPOSAL_QUESTION + "\n")
     assert copy.VALIDATION_SETUP_INTRO not in output and state == before
-    record["plan"]["tasks"][1]["grading"] = "Model judge <script>bad</script> | **override**\ncontinued"
+    record["plan"]["tasks"][1]["scoring_rule"] = "Model judge <script>bad</script> | **override**\ncontinued"
     escaped = renderer.render(payload(creation, "proposal"))
     assert "Model judge &lt;script&gt;bad&lt;/script&gt; &#124; \\*\\*override\\*\\*<br>continued" in escaped
     assert "<script>" not in escaped and "| **override**" not in escaped
