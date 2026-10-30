@@ -517,6 +517,13 @@ the commands. Include:
   logs, and available traces; how to inspect one case's result; the meaning of
   the actual reward fields; and remedies for known setup failures. Link the
   saved run summary for observed results and limitations.
+- **Trajectory saving:** apply the first-eval [saving procedure](conversations/first-eval.md#save-evaluation-trajectories)
+  in full-suite and individual-task commands, including service startup, so
+  independent reruns preserve the choice and directory. Link trajectories and
+  conversion receipts by exact run/attempt identity and retain limitations in the run summary.
+  Keep these links outside generated markers and finalized task directories.
+  Keep the existing Harbor report/viewer entry point; link native Gym and supported
+  separate trajectory locations from this guide.
 - **Open readable evidence:** use the installed Harbor viewer for native tasks
   and jobs. For selected NeMo Gym JSONL records or standalone ATIF, follow
   [Local review](local-review.md) to create and link a private `report.html`.

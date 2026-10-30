@@ -69,10 +69,22 @@ You then review the whole authored suite, with more detail in the HTML report
 or mirrored README. Approve the tasks or request changes. Every task's required
 verifier checks, including model-based checks when used, must pass before this
 review.
-After you approve the suite, Eval Author presents the concrete settings,
-attempt counts, limits, and unresolved execution needs. Approving the design or
-tasks does not authorize paid runs; applicable prior authorization is reused.
-Repeating an input adds attempts rather than new examples.
+After suite approval, Eval Author separately explains trajectory saving for a
+future audit against `ETHOS.md`, including known storage/cost effects and limits.
+When saving is optional, you choose whether to save and can select a local directory;
+automatic capture needs no additional consent. Defaults are fresh directories
+under `.eval-author/jobs/` for Harbor and `.eval-author/runs/` for NeMo Gym.
+Alternative trajectory locations depend on integration support; Eval Author
+explains any limitation, and baseline results stay in the repository. Your choice
+carries forward on resume and authorized reruns, including README commands;
+a new suite gets its own choice.
+Changing that choice or directory preserves completed results. Future runs use
+the updated settings and need applicable execution authorization.
+
+Eval Author then presents concrete run settings, attempts, limits, and unresolved
+needs, with a brief reminder of your saving choice and directory. Design, task,
+or saving approval does not authorize paid runs; applicable prior authorization
+is reused. Repeating an input adds attempts rather than new examples.
 During execution, a standard checklist shows completed attempts, observed run
 status, and execution errors.
 
@@ -81,7 +93,10 @@ A supported runtime is required for full onboarding and authoring; see
 requires a compatible connection, access, and the selected environment backend.
 A combined Gym–Harbor setup needs a configured bridge. If the actual-agent
 adapter or bridge is missing, Eval Author gives you a copyable implementation
-prompt for a separate chat in your chosen coding harness. Your tasks, verifiers,
+prompt for a separate chat in your chosen coding harness. This can happen before
+suite approval so integration work can proceed alongside task authoring.
+The prompt includes the saved capture settings when available. Otherwise, saving
+stays disabled until you answer the later saving check-in. Your tasks, graders,
 and evidence stay saved; independent work can continue. Return with the
 integration changes and check results so Eval Author can recheck the connection.
 Completing that engineering work does not authorize agent runs. Other blocked
@@ -92,6 +107,12 @@ and missing attempts. It links an exact saved attempt and the suite README's
 rerun instructions, so you can inspect or repeat the same selection. Low agent
 scores can still provide a valid baseline; successful task checks alone do not
 measure your agent's performance. See [Read your results](results.md).
+
+The suite README links saved trajectories alongside reports and rerun instructions.
+Eval Author checks audit usability and explains missing or unusable evidence;
+declining or unsupported saving limits future audits, not valid baseline results
+or task creation. Scores cannot replace trajectories. Saving consent does not
+start an audit or trigger extra runs to fill missing evidence.
 
 When the agreed suite is complete, Eval Author asks whether you want to audit
 its coverage and verifier design against `ETHOS.md`. The audit starts only if you accept.

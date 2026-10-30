@@ -123,6 +123,37 @@ SUITE_QUESTION = "Do these tasks look good? Approve the suite or tell me what to
 SETTINGS_INTRO = "Here are the settings for running the approved tasks."
 SETTINGS_LABELS = ("Attempts", "Validation", "Time/cost limits", "Open questions")
 NO_OPEN_QUESTIONS = "None."
+TRAJECTORY_INTRO = "Eval Author needs trajectories to audit your suite’s coverage against `ETHOS.md` later."
+TRAJECTORY_CONTENTS = "These records include {contents}."
+TRAJECTORY_RETAINED = "It retains {contents}."
+TRAJECTORY_DETAILS = (
+    "I’ll save them locally in {directory}, with a new folder for each run. "
+    "{implications}, and you can choose a different location."
+)
+TRAJECTORY_QUESTION = "**Would you like to save a record of each evaluation run?**"
+TRAJECTORY_CHOICES = ("Yes, save them", "No, don’t save them")
+TRAJECTORY_AUTOMATIC = (
+    "The selected integration already saves trajectories automatically. I’ll reuse that behavior and directory."
+)
+TRAJECTORY_ENABLED = "Selected: save trajectories locally for this suite and its reruns."
+TRAJECTORY_DECLINED = (
+    "Optional saving is off. Future audits need other saved trajectories or a later authorized run with saving enabled. "
+    "Native logs are unchanged."
+)
+TRAJECTORY_UNSUPPORTED = (
+    "The selected integration cannot save audit-usable trajectories through its supported configuration."
+)
+TRAJECTORY_SUMMARY = "**Trajectory saving:** {status}"
+TRAJECTORY_SUMMARY_STATUS = {
+    "automatic": "Automatic.",
+    "enabled": "Save locally.",
+    "declined": "Off (declined).",
+    "unsupported": (
+        "Unsupported by this integration. Coverage audits against `ETHOS.md` need trajectories "
+        "from another source or a later authorized run with capture support."
+    ),
+}
+TRAJECTORY_SUMMARY_DIRECTORY = "**Local destination:** {directory}."
 CHECKS_PASSED = (
     "The verifiers have already passed their checks. I’ll reuse those saved results; "
     "the agent run will measure your agent’s performance."
@@ -250,6 +281,29 @@ configuration that invokes the actual agent with the agreed task inputs and
 returns its responses, ordered actions, errors, and observable state in the form
 the existing verifiers expect. For a selected Gym-Harbor path, preserve that bridge.
 
+Configure local trajectory logging where supported using trajectory_capture in
+the saved context. When pending is true, keep capture disabled and expose an
+enable/disable setting and local directory in the configuration. Eval Author will
+collect the saving choice after suite approval before any new agent run.
+When enabled, save each actual-agent attempt under the selected
+directory with stable run/attempt identities and fresh paths that preserve prior
+outputs. Keep required native results and baseline receipts at their existing
+repository-local paths; this directory configures trajectory saving separately.
+Harbor adapters must emit ATIF accepted by Harbor's trajectory parser.
+Native Gym adapters must retain complete rollout records supported by the existing
+Gym-to-ATIF converter; preserve original ATIF for a Gym-Harbor bridge. Scores or
+custom action/reply logs alone are not sufficient for an Eval Author audit.
+Keep this setting and directory in the generated configuration and rerun commands
+so trajectories are saved when the user runs the evaluations independently.
+When optional saving is declined, leave it disabled and explain any native logging
+that cannot be disabled. When capture is unsupported, keep saving disabled and
+carry the saved limitations into the configuration and rerun instructions.
+Continue connecting the agent without requiring capture support.
+When saving is enabled, verify the saved format with the existing parser or
+converter using offline fixtures; do not launch model runs to prove logging
+without separate authorization. Report unsupported capture instead of claiming
+trajectories were saved.
+
 Preserve the agent's behavior, model and tool configuration, ETHOS.md, agreed
 task/example mapping, fixtures, reference solutions, verifiers, and prior evidence.
 Keep verifier-only data away from the agent. Isolate and reset task state between
@@ -264,7 +318,8 @@ baseline from adapter completion or control results. Agent/model evaluation runs
 still require their own applicable authorization and limits.
 
 Return the adapter/configuration paths, actual agent entry point, changed files,
-setup and rerun commands, checks actually performed, and unresolved dependencies.
+setup and rerun commands, trajectory configuration and output locations, checks
+actually performed (including trajectory parser/conversion checks), and unresolved dependencies.
 Distinguish offline checks from any authorized native agent execution, and retain
 fresh native outputs and exact run identities for execution actually performed.
 ```

@@ -982,7 +982,24 @@ def test_first_eval_waits_for_suite_review_before_execution_questions() -> None:
     assert "#validation-setup-before-task-creation" in first_task
     assert "through `first_eval_validation_setup` before creating task files" in first_task
     execution = " ".join(body.split("## 5. Agree on and execute concrete runs", 1)[1].split("\n## ", 1)[0].split())
-    assert "Use `first_eval_execution_settings` only after approval of the authored suite" in execution
+    assert "After approval of the authored suite, resolve" in execution
+    assert "Wait for an optional-saving answer in that separate check-in" in execution
+    assert execution.index("`first_eval_trajectory_settings`") < execution.index("`first_eval_execution_settings`")
+
+
+def test_gym_first_eval_conversion_respects_capture_choice() -> None:
+    text = (_FIRST_EVAL_DIR / "references" / "gym-first-eval.md").read_text(encoding="utf-8")
+    execution = " ".join(text.split("## 9. Evaluate the agent", 1)[1].split())
+    assert execution.index("validate it read-only") < execution.index("before creating conversion artifacts")
+    conversion = execution.split("before creating conversion artifacts", 1)[1]
+    assert "When capture is enabled (`mode: automatic`, or `mode: optional` with `choice: true`)" in conversion
+    assert "Preserve original native outputs" in conversion
+    assert "fresh per-attempt paths in the saved supported trajectory destination" in conversion
+    assert "When optional saving is declined or pending, capture is unsupported, or the setting is absent" in conversion
+    assert "do not invoke the converter or create optional persisted trajectory copies" in conversion
+    assert "Retain required native results" in conversion
+    assert "audit usability remains unverified" in conversion
+    assert "do not rerun the agent or replace its baseline result to repair capture" in conversion
 
 
 def test_first_eval_builds_and_proves_the_kit_before_tests() -> None:

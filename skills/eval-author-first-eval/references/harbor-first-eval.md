@@ -74,7 +74,8 @@ after the external engineering work.
 
 When supported, write `.eval-author/run.yaml` using the installed Harbor
 JobConfig schema. Explicitly select exactly the agreed tasks, actual agent and
-model settings, agreed attempts per task, and jobs under `.eval-author/jobs/`.
+model settings, agreed attempts per task, and repository-local jobs under
+`.eval-author/jobs/` by default.
 Use the parent skill's authorized attempt count and limits; directory membership
 never selects tasks. Do not include unrelated
 drafts merely because they share a parent directory. Resolve paths from the
@@ -82,6 +83,11 @@ repository root and reference credential environment variables rather than
 embedding secrets. Configure request delivery, conversation state, and output
 collection through supported interfaces. Configuration is not proof of a working
 agent connection.
+
+Follow the shared [trajectory-saving procedure](../../eval-author/references/conversations/first-eval.md#save-evaluation-trajectories).
+Harbor has no universal capture switch: inspect the installed adapter's options
+and output contract for automatic ATIF or supported optional capture. A custom
+action/reply JSON file is not ATIF.
 
 ## 8. Validate the evals
 
@@ -128,6 +134,11 @@ harbor job start -c .eval-author/run.yaml
 
 Retain outputs, actions, rewards, exceptions, and exact commands for every
 selected task under fresh job paths. Low agent scores do not invalidate a working
-suite. Return to the parent skill for exact-run review, reconciliation, and
+suite. Match each selected trial's `agent/trajectory.json` or adapter-declared ATIF
+to its retained result and task identity. Validate the bytes read-only with the
+installed Harbor
+`harbor.models.trajectories.Trajectory.model_validate_json` parser used by audit
+measurement, following the shared procedure for originals and limitations.
+Return to the parent skill for exact-run review, reconciliation, and
 linked full-suite and single-task rerun instructions. Label NOP/Oracle commands as task validation and the actual
 agent command as evaluation; use new trial and job names so reruns preserve prior evidence.

@@ -84,7 +84,9 @@ def creation(monkeypatch, tmp_path):
         },
     }
     state["scopes"]["create"] = {"first_eval": record}
-    return state, record, helper, renderer, templates
+    result = state, record, helper, renderer, templates
+    configure_capture(result, mode="automatic")
+    return result
 
 
 def observations(record):
@@ -247,13 +249,29 @@ def suite_approved(creation):
     record["suite_approval"] = {"digest": digest, "source": "User approved the authored suite"}
 
 
+def configure_capture(creation, *, choice=True, mode="optional", directory=None):
+    _, record, *_ = creation
+    capture = {
+        "mode": mode,
+        "directory": directory or (".eval-author/runs" if record["provider"] == "gym" else ".eval-author/jobs"),
+        "contents": "Requests, responses, ordered tool calls and results",
+        "implications": "Local disk use grows per attempt; no additional model calls; storage size unknown",
+        "choice": choice if mode == "optional" else None,
+        "source": ("User selected local saving" if choice is not None else None)
+        if mode == "optional"
+        else "Inspected the selected adapter",
+    }
+    record["execution_settings"]["trajectory_capture"] = capture
+    return capture
+
+
 def selected(creation):
     state, record, helper, *_ = creation
     built(creation, all_tasks=True, reviewed=True, validated=True)
     suite_approved(creation)
     derived = helper.derive(state, observations(record))
     record["execution_settings_presented"] = {
-        "digest": derived["settings_digest"],
+        "digest": derived["presentation_digest"],
         "source": "Delivered settings message",
     }
     record["selection"] = {
@@ -269,7 +287,7 @@ def selected(creation):
         record["selection"]["inputs"] = [{"path": ".eval-author/gym/selected.jsonl", "digest": SHA}]
         for index, case in enumerate(record["selection"]["cases"], start=1):
             case["rows"] = [index]
-    digest = helper.derive(state, observations(record))["selection_digest"]
+    digest = helper.derive(state, observations(record))["authorization_digest"]
     record["selection"]["authorization"] = {"digest": digest, "source": "User approved bounded run"}
 
 
@@ -1638,7 +1656,9 @@ def test_late_settings_and_explicit_execution_authorization(creation):
         "Open questions",
     ]
     assert "Agent/model" not in output and "Tasks and examples" not in output
-    assert output.endswith("- **Open questions:** None.\n")
+    assert "- **Open questions:** None.\n" in output
+    assert copy.TRAJECTORY_SUMMARY.format(status=copy.TRAJECTORY_SUMMARY_STATUS["automatic"]) in output
+    assert copy.TRAJECTORY_INTRO not in output and copy.TRAJECTORY_QUESTION not in output
     assert not helper.derive(creation[0], observations(record))["execution_authorized"]
     with pytest.raises(ValueError, match="Display and save execution settings"):
         renderer.render(payload(creation, "ready_to_run", access_ready=True))
@@ -1654,6 +1674,232 @@ def test_late_settings_and_explicit_execution_authorization(creation):
     assert copy.RUN_PROGRESS not in renderer.render(
         payload(creation, "ready_to_run", missing_execution_question="Which model credential should this run use?")
     )
+
+
+@pytest.mark.parametrize("provider", ["harbor", "gym"])
+def test_local_trajectory_choice_precedes_other_settings_and_resumes_without_launching(creation, provider):
+    state, record, helper, renderer, copy = creation
+    state["setup"] = record["provider"] = provider
+    capture = configure_capture(creation, choice=None)
+    capture.update(contents="your agent’s inputs, responses, and tool calls.", implications="They’ll use disk space.")
+    built(creation, all_tasks=True, reviewed=True)
+    with pytest.raises(ValueError, match="approve the suite"):
+        renderer.render(payload(creation, "trajectory_settings"))
+    suite_approved(creation)
+    output = renderer.render(payload(creation, "trajectory_settings"))
+    assert output == (
+        "**Would you like to save a record of each evaluation run?**\n\n"
+        "These records include your agent’s inputs, responses, and tool calls. "
+        "Eval Author needs trajectories to audit your suite’s coverage against `ETHOS.md` later.\n\n"
+        f"I’ll save them locally in {capture['directory']}, with a new folder for each run. "
+        "They’ll use disk space, and you can choose a different location.\n\n"
+        "- **Yes, save them**\n"
+        "- **No, don’t save them**\n"
+    )
+    assert renderer.render(payload(creation, "resume")) == output
+    for stage in ("execution_settings", "ready_to_run"):
+        with pytest.raises(ValueError, match="Resolve trajectory saving in its separate check-in"):
+            renderer.render(payload(creation, stage))
+    selected(creation)
+    output = renderer.render(payload(creation, "resume", access_ready=True))
+    assert copy.TRAJECTORY_QUESTION in output
+    assert copy.RUN_QUESTION not in output and copy.RUN_PROGRESS not in output
+    assert not helper.derive(state, observations(record))["execution_authorized"]
+
+
+@pytest.mark.parametrize("choice", [True, False])
+@pytest.mark.parametrize("settings_shown", [False, True])
+def test_saving_answer_resumes_without_repeating_the_check_in_or_authorizing_a_run(creation, choice, settings_shown):
+    state, record, helper, renderer, copy = creation
+    capture = configure_capture(creation, choice=None)
+    if settings_shown:
+        selected(creation)
+    else:
+        built(creation, all_tasks=True, reviewed=True, validated=True)
+        suite_approved(creation)
+    assert copy.TRAJECTORY_QUESTION in renderer.render(payload(creation, "resume"))
+    capture.update(choice=choice, source="User answered the dedicated saving check-in")
+    output = renderer.render(payload(creation, "resume", access_ready=True))
+    if settings_shown:
+        assert copy.RUN_QUESTION in output and copy.RUN_PROGRESS not in output
+    else:
+        assert output.startswith(copy.SETTINGS_INTRO)
+        status = copy.TRAJECTORY_SUMMARY_STATUS["enabled" if choice else "declined"]
+        assert copy.TRAJECTORY_SUMMARY.format(status=status) in output
+        assert (capture["directory"] in output) is choice
+    assert copy.TRAJECTORY_INTRO not in output and copy.TRAJECTORY_QUESTION not in output
+    assert not helper.derive(state, observations(record))["execution_authorized"]
+    assert record["audit_invitation"] is None
+
+
+@pytest.mark.parametrize("mode", ["automatic", "unsupported"])
+def test_native_capture_capability_explains_audit_limits_without_a_redundant_choice(creation, mode):
+    _, _, _, renderer, copy = creation
+    capture = configure_capture(creation, mode=mode)
+    selected(creation)
+    output = renderer.render(payload(creation, "trajectory_settings"))
+    assert copy.TRAJECTORY_INTRO in output
+    assert (copy.TRAJECTORY_AUTOMATIC if mode == "automatic" else copy.TRAJECTORY_UNSUPPORTED) in output
+    assert capture["contents"] in output and capture["implications"] in output
+    if mode == "automatic":
+        assert capture["directory"] in output
+    assert copy.TRAJECTORY_QUESTION not in output
+    assert all(choice not in output for choice in copy.TRAJECTORY_CHOICES)
+    assert copy.SETTINGS_INTRO not in output
+    settings = renderer.render(payload(creation, "execution_settings"))
+    assert copy.TRAJECTORY_INTRO not in settings and copy.TRAJECTORY_QUESTION not in settings
+    assert copy.RUN_PROGRESS in renderer.render(payload(creation, "ready_to_run", access_ready=True))
+
+
+def test_unsupported_capture_discloses_audit_limits_in_the_normal_resume_path(creation):
+    _, _, _, renderer, copy = creation
+    capture = configure_capture(creation, mode="unsupported")
+    capture.update(
+        contents="scores only, with no supported interaction export",
+        implications="Coverage audits need trajectories from another source",
+    )
+    built(creation, all_tasks=True, reviewed=True, validated=True)
+    suite_approved(creation)
+    resumed = renderer.render(payload(creation, "resume"))
+    assert resumed.startswith(copy.SETTINGS_INTRO)
+    assert (
+        "**Trajectory saving:** Unsupported by this integration. Coverage audits against `ETHOS.md` "
+        "need trajectories from another source or a later authorized run with capture support."
+    ) in resumed
+    assert "Local destination" not in resumed and copy.TRAJECTORY_QUESTION not in resumed
+    disclosure = renderer.render(payload(creation, "trajectory_settings"))
+    assert disclosure == (
+        "The selected integration cannot save audit-usable trajectories through its supported configuration. "
+        "It retains scores only, with no supported interaction export. "
+        "Eval Author needs trajectories to audit your suite’s coverage against `ETHOS.md` later. "
+        "Coverage audits need trajectories from another source.\n"
+    )
+
+
+def test_automatic_capture_offers_a_different_directory_once(creation):
+    _, _, _, renderer, _ = creation
+    configure_capture(creation, mode="automatic")
+    selected(creation)
+    output = renderer.render(payload(creation, "trajectory_settings"))
+    assert output.count("you can choose") == 1
+    assert "another local directory" not in output
+
+
+def test_declined_capture_summary_is_brief_and_omits_the_unused_directory(creation):
+    _, _, _, renderer, copy = creation
+    capture = configure_capture(creation, choice=False, directory="/tmp/unused-capture-destination")
+    selected(creation)
+    output = renderer.render(payload(creation, "execution_settings"))
+    assert "**Trajectory saving:** Off (declined)." in output
+    assert capture["directory"] not in output and "Local destination" not in output
+    assert copy.TRAJECTORY_DECLINED not in output
+
+
+@pytest.mark.parametrize("stage", ["trajectory_settings", "execution_settings", "ready_to_run"])
+def test_legacy_capture_absence_cannot_announce_a_new_run(creation, stage):
+    _, record, _, renderer, _ = creation
+    record["execution_settings"].pop("trajectory_capture")
+    selected(creation)
+    with pytest.raises(ValueError, match="Inspect and save trajectory capture settings"):
+        renderer.render(payload(creation, stage, access_ready=True))
+
+
+@pytest.mark.parametrize("stage", ["execution_settings", "ready_to_run", "blockers"])
+@pytest.mark.parametrize("choice", [True, False])
+def test_adapter_prompt_carries_the_saving_choice_and_selected_directory(creation, stage, choice):
+    state, _, _, renderer, copy = creation
+    capture = configure_capture(creation, choice=choice, directory="/tmp/my evaluation trajectories")
+    selected(creation)
+    state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Missing custom adapter"}]
+    output = renderer.render(payload(creation, stage))
+    context = adapter_context(output)
+    assert context["trajectory_capture"] == {"enabled": choice, "directory": capture["directory"]}
+    assert copy.TRAJECTORY_QUESTION not in output and copy.RUN_PROGRESS not in output
+    assert "Harbor adapters must emit ATIF" in output
+    assert "complete rollout records" in output
+    assert "runs the evaluations independently" in output
+    assert "repository-local paths" in output
+
+
+@pytest.mark.parametrize("stage", ["execution_settings", "ready_to_run", "blockers"])
+@pytest.mark.parametrize("provider", ["harbor", "gym", "gym_harbor"])
+def test_unsupported_capture_allows_adapter_handoff_with_saving_disabled(creation, stage, provider):
+    state, record, helper, renderer, copy = creation
+    state["setup"] = record["provider"] = "gym" if provider == "gym" else "harbor"
+    if provider == "gym_harbor":
+        record["plan"]["execution_path"] = "gym_harbor"
+    capture = configure_capture(creation, mode="unsupported")
+    capture.update(
+        contents="Scores only, with no supported interaction export",
+        implications="Coverage audits need trajectories from another source",
+    )
+    selected(creation)
+    state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Missing configured connection"}]
+    request = payload(creation, stage)
+    before = deepcopy(request)
+    assert helper.trajectory_capture_resolved(record)
+    output = renderer.render(request)
+    context = adapter_context(output)
+    assert context["provider"] == provider
+    assert context["trajectory_capture"] == {
+        "enabled": False,
+        "directory": str(Path(state["repository"]) / capture["directory"]),
+        "limitations": [capture["contents"], capture["implications"]],
+    }
+    assert copy.ADAPTER_BLOCKER_NEEDED in output
+    assert copy.TRAJECTORY_QUESTION not in output
+    assert "When capture is unsupported, keep saving disabled" in output
+    assert copy.RUN_PROGRESS not in output and copy.AUDIT_QUESTION not in output
+    assert request == before
+
+
+@pytest.mark.parametrize("design", ["missing", "unapproved", "approved"])
+def test_pending_capture_allows_early_adapter_handoff_without_interrupting_the_saving_check_in(creation, design):
+    state, _, _, renderer, copy = creation
+    configure_capture(creation, choice=None)
+    state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Missing custom adapter"}]
+    if design == "missing":
+        state["scopes"]["create"] = {}
+    elif design == "unapproved":
+        built(creation)
+    else:
+        selected(creation)
+        pending = renderer.render(payload(creation, "trajectory_settings"))
+        assert pending.count(copy.TRAJECTORY_QUESTION) == 1
+        assert "```text" not in pending and "### Blockers" not in pending
+        assert copy.SETTINGS_INTRO not in pending
+    output = renderer.render(payload(creation, "blockers"))
+    assert copy.ADAPTER_BLOCKER_NEEDED in output
+    assert adapter_context(output)["trajectory_capture"] == {"enabled": False, "pending": True}
+    assert copy.TRAJECTORY_QUESTION not in output
+
+
+def test_adapter_handoff_exists_before_a_task_design_is_saved(creation):
+    state, _, _, renderer, copy = creation
+    state["scopes"]["create"] = {}
+    state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Missing custom adapter"}]
+    request = payload(creation, "blockers")
+    before = deepcopy(request)
+    output = renderer.render(request)
+    context = adapter_context(output)
+    assert not context["design_approved"] and context["tasks"] == []
+    assert context["trajectory_capture"] == {"enabled": False, "pending": True}
+    assert copy.ADAPTER_BLOCKER_NEEDED in output and copy.TRAJECTORY_QUESTION not in output
+    assert request == before
+
+
+@pytest.mark.parametrize("limitation", ["No trajectory file was saved", "Saved trajectory is not valid ATIF"])
+def test_capture_limitations_do_not_reopen_baseline_completion_or_trigger_runs(creation, limitation):
+    state, record, helper, renderer, copy = creation
+    configure_capture(creation)
+    finished(creation)
+    record["run_review"]["limitations"].append(limitation)
+    record["audit_invitation"] = {"status": "declined", "source": "User declines audit"}
+    before = deepcopy(state)
+    output = renderer.render(payload(creation, "results", **result_facts(creation)))
+    assert limitation in output and helper.derive(state, observations(record))["complete"]
+    assert copy.RUN_PROGRESS not in output and copy.AUDIT_QUESTION not in output
+    assert state == before
 
 
 @pytest.mark.parametrize("status", ["running", "waiting"])
@@ -1842,7 +2088,9 @@ def test_run_readiness_checks_only_current_dependencies_and_resolved_settings(cr
     else:
         question = "Which maximum dollar amount should this run use?"
         record["execution_settings"]["open_questions"] = [question]
-        record["execution_settings_presented"]["digest"] = helper.derive(state, observations(record))["settings_digest"]
+        record["execution_settings_presented"]["digest"] = helper.derive(state, observations(record))[
+            "presentation_digest"
+        ]
         output = renderer.render(payload(creation, "ready_to_run", access_ready=True))
         assert question in output and copy.RUN_PROGRESS not in output and copy.RUN_QUESTION not in output
 
@@ -1920,6 +2168,7 @@ def test_missing_agent_integration_always_offers_the_coding_harness_handoff(crea
 def test_adapter_handoff_uses_saved_agent_provider_ethos_and_only_agreed_task_paths(creation, provider):
     state, record, _, renderer, _ = creation
     state["setup"] = record["provider"] = "gym" if provider == "gym" else "harbor"
+    capture = configure_capture(creation)
     if provider == "gym_harbor":
         record["plan"]["execution_path"] = "gym_harbor"
     state["ethos"]["path"] = "agents/support/ETHOS.md"
@@ -1940,6 +2189,10 @@ def test_adapter_handoff_uses_saved_agent_provider_ethos_and_only_agreed_task_pa
             {"id": "reject", "example_ids": ["reject-example"], "path": None},
         ],
         "missing_connection": "Agent entry point missing",
+        "trajectory_capture": {
+            "enabled": True,
+            "directory": str(Path(state["repository"]) / capture["directory"]),
+        },
     }
     assert "unselected-old-task" not in output
 
@@ -1970,16 +2223,6 @@ def test_adapter_handoff_replaces_scope_override_questions_without_changing_othe
     ordinary_question = "Which existing model credential should this run use?"
     output = renderer.render(payload(creation, "ready_to_run", missing_execution_question=ordinary_question))
     assert ordinary_question in output and copy.ADAPTER_BLOCKER_NEEDED not in output
-
-
-def test_adapter_handoff_exists_before_a_task_design_is_saved(creation):
-    state, _, _, renderer, _ = creation
-    state["scopes"]["create"] = {}
-    state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "No compatible entry point"}]
-    output = renderer.render(payload(creation, "blockers"))
-    context = adapter_context(output)
-    assert context["provider"] == "harbor" and context["tasks"] == []
-    assert context["agent"] == "support" and context["design_approved"] is False
 
 
 def test_adapter_handoff_does_not_copy_stale_selection_rows_or_examples(creation):
@@ -2035,13 +2278,17 @@ def test_adapter_handoff_cannot_be_replaced_with_in_workflow_authorization(creat
 @pytest.mark.parametrize("stage", ["proposal", "prepare_first", "build_progress"])
 def test_adapter_run_dependency_does_not_interrupt_independent_authoring(creation, stage):
     state, _, _, renderer, copy = creation
+    configure_capture(creation, choice=None)
     if stage != "proposal":
         build_started(creation)
     state["blockers"] = [{"id": "agent-integration", "phase": "create", "message": "Missing connection"}]
     assert copy.ADAPTER_BLOCKER_NEEDED not in renderer.render(payload(creation, stage))
     if stage != "proposal":
         explicit = [{"id": "agent-integration", "step": "Run tasks", "reason": "Missing connection", "needed": "X"}]
-        assert copy.ADAPTER_BLOCKER_NEEDED in renderer.render(payload(creation, stage, blockers=explicit))
+        output = renderer.render(payload(creation, stage, blockers=explicit))
+        assert copy.ADAPTER_BLOCKER_NEEDED in output
+        assert adapter_context(output)["trajectory_capture"] == {"enabled": False, "pending": True}
+        assert copy.TRAJECTORY_QUESTION not in output
 
 
 @pytest.mark.parametrize("blocker_id", ["judge", "credentials"])
@@ -2229,11 +2476,11 @@ def test_split_repetitions_report_retained_job_attempts_without_inventing_job_qu
     finished(creation)
     record["execution_settings"]["attempts"] = "3 refund attempts and 1 reject attempt, 4 total attempts"
     settings_digest = helper.derive(state, observations(record))["settings_digest"]
-    record["execution_settings_presented"]["digest"] = settings_digest
+    record["execution_settings_presented"]["digest"] = helper.derive(state, observations(record))["presentation_digest"]
     record["selection"]["settings_digest"] = settings_digest
     record["selection"]["cases"][0]["attempts"] = 3
     selection_digest = helper.derive(state, observations(record))["selection_digest"]
-    record["selection"]["authorization"]["digest"] = selection_digest
+    record["selection"]["authorization"]["digest"] = helper.derive(state, observations(record))["authorization_digest"]
     baseline = record["runs"][0]
     baseline.update(selection_digest=selection_digest, status="infrastructure_error")
     repeated = deepcopy(baseline["attempts"][0])
