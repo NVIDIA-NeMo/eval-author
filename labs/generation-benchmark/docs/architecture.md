@@ -22,11 +22,6 @@ Harbor implementation produces the execution results. Analysis can also consume
 saved results. Execution is a replaceable component whose output is the shared
 results directory.
 
-Subset index **i** names one prepared subset **Bᵢ**. **B** is the full task
-inventory. **M** is coverage. **G** is the generation process. **A** is the eval
-agent that produces Harbor evidence. **C** is the coding agent that drives
-task authoring inside **G**.
-
 ## Experiment flow
 
 The architecture has three phases: **prep**, **execution**, and **analysis**.
@@ -45,6 +40,9 @@ remains future work. Optional validation after the baseline run is not part of
 the reference driver yet.
 
 ## Definitions
+
+**G** is the generation process. **A** is the eval agent that produces Harbor
+evidence. **C** is the coding agent that drives task authoring inside **G**.
 
 For each predefined subset **Bᵢ** (from `eval_subsets`):
 
@@ -73,7 +71,9 @@ does not receive **M(B)**. The reference adapter reads `authored/audit.md` and
 files.
 
 **A** and **G** are separate processes. **G** is driven by coding agent **C**
-(Codex CLI, Cursor agent CLI, or another pinned generator command).
+(Codex CLI, Cursor agent CLI, or another pinned generator command). That
+command comes from the pinned `generator_config` under `generation.yml`
+`inputs`. The example config pins Codex.
 
 ## Coverage and Harbor evidence
 
@@ -92,8 +92,8 @@ the coverage-backed Harbor path.
 
 **A** runs inside Harbor's task environment. **G** and **C** run as host
 subprocesses, the same trust model as coverage measurement in this repository.
-Pinned Codex generator configs use `codex exec -s workspace-write` (writes
-confined to the generation work cell), `approval_policy=never`, and
+The example generator config pins Codex with `codex exec -s workspace-write`
+(writes confined to the generation work cell), `approval_policy=never`, and
 `--ephemeral`. That is a weaker boundary than the Harbor task environment:
 **C** still runs as the invoking user. Running **C** inside a container remains
 future work. Subset-local staging limits which files the generation request
@@ -127,13 +127,13 @@ The orchestrator follows the same request and receipt pattern as
 `metric_benchmark.coverage.invoke_coverage`:
 
 1. Stage a work root per subset. The work root must not be a symlink.
-2. Write `request.json` (`schema_version: 1`) with the subset id, task list, subset coverage score, case description, and generation settings. The request names the staged paths: `input/suite-Bi/`, `input/coverage/`, and `output/suite-Bi-plus/`.
+2. Write `request.json` (`schema_version: 1`) with the subset id, task list, subset coverage score, case description, and generation settings. The request names the staged paths: `input/tasks/`, `input/coverage/`, and `output/tasks-generated/`.
 3. Run `generation.command` with `--request request.json --output response.json`.
 4. The adapter writes the expanded suite to the named output path and returns `response.json` (`new_task_ids` and the suite digest). On success the orchestrator writes `receipt.json` with request, configuration, and output file digests.
 
 `generation.yml` `settings.draft_dir` is a path relative to the generator work
 cell. **G** deposits each new Harbor task directory there. The reference
-adapter copies those directories into `output/suite-Bi-plus/`. The driver then
+adapter copies those directories into `output/tasks-generated/`. The driver then
 runs **A** on the copies. **G** may run Harbor inside the work cell for its own
 checks. Those trials stay outside `draft_dir`. The benchmark does not rerun
 them.
@@ -174,9 +174,9 @@ Per-subset generation work cell:
 ```text
 generate-<eval_subset_id>/
   request.json
-  input/suite-Bi/…
+  input/tasks/…
   input/coverage/…
-  output/suite-Bi-plus/…
+  output/tasks-generated/…
   response.json
   receipt.json
 ```

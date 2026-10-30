@@ -137,14 +137,14 @@ Pin that command under `generation.yml` `command`. `load_generation_benchmark()`
 checks `generation.settings.process_sha256` against the command metadata, and
 checks `eval_author_root` against `source_sha256`.
 
-`request.json` names the staged suite, coverage work cell, and output suite,
-and carries the subset coverage score. `response.json` lists `new_task_ids`
-and the expanded-suite digest. The reference adapter reads `authored/audit.md`
-and `report.json` from the coverage work cell. A different generator can ignore
-those files.
+`request.json` names the staged paths `input/tasks/`, `input/coverage/`, and
+`output/tasks-generated/`, and carries the subset coverage score.
+`response.json` lists `new_task_ids` and the expanded-suite digest. The
+reference adapter reads `authored/audit.md` and `report.json` from the coverage
+work cell. A different generator can ignore those files.
 
 The reference generator config uses `schema: nemo.eval_author.generator.v1`.
-A Codex generator command is a host subprocess, for example `codex exec` with
+The example config pins Codex as a host subprocess: `codex exec` with
 `-s workspace-write`, `-c approval_policy=never`, and `--ephemeral`, and with
 `-C` set to the generation work cell.
 
