@@ -156,11 +156,15 @@ export for pagination and unique trace IDs before passing that record through
 `--input -`; retain its original export and exact ID. Do not fetch remote traces,
 query Intake, or generate runs to fill gaps.
 
-For selected local traces, save the selection manifest under the repository's
-gitignored `.eval-author/` directory, outside every suite or trace source path,
-candidate directory, and exclusion. Do this before check approval and set
-lifecycle `selection_manifest` to its repository-relative path. Leave it null
-when traces are unavailable. Record each original source path and digest,
+For selected local traces, reuse the saved `lifecycle.selection_manifest` on
+resume. For a new manifest, use
+`.eval-author/.working/audit/selection-manifest.json`. Resolve it with
+[`working_paths.working_path(repo, "audit", "selection-manifest.json")`](../../eval-author/scripts/working_paths.py)
+and save it with `working_paths.atomic_write_json`. Keep the manifest outside
+every suite or trace source path, candidate directory, and exclusion. Do this
+before check approval and set lifecycle `selection_manifest` to its
+repository-relative path. Leave it null when traces are unavailable.
+Record each original source path and digest,
 format, exact record selector, explicit suite/task/run mapping with its provenance,
 evidence class, required methods, conversion options, and exclusions with reasons.
 Keep original files in `trace_files`. Never infer mappings from filenames or

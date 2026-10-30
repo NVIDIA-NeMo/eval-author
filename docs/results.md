@@ -160,10 +160,12 @@ a measurement summary and references its evidence; failed inputs and missing
 methods keep measurement partial.
 
 Saved audit evidence links original traces and selected suite runs to prepared
-traces, conversion limits, and measurements. Journey state references a selection
-manifest under the repository's gitignored `.eval-author/` directory, outside the
-source locations. Changing the original source or its selection reopens check
-review even if the prepared trace is unchanged. Changed prepared evidence reopens measurement.
+traces, conversion limits, and measurements. Journey state references the saved
+selection manifest. New manifests use
+`.eval-author/.working/audit/selection-manifest.json`, outside the source
+locations. Resumed audits keep their saved manifest path. Changing the original
+source or its selection reopens check review even if the prepared trace is
+unchanged. Changed prepared evidence reopens measurement.
 
 Without usable traces, coverage is **unmeasured**, not 0%; the specification can
 still be completed and the report prepared while measurement remains
