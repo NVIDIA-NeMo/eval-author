@@ -1,0 +1,118 @@
+{
+  "stage": "resume",
+  "revision": 7,
+  "state": {
+    "schema_version": 1,
+    "revision": 7,
+    "repository": "/workspace/agent",
+    "agent": "Account Support",
+    "journey": "audit",
+    "setup": "gym",
+    "prerequisites": {
+      "code_access": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "command_execution": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "data": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "ethos_skills": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "file_writes": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "python": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "skills": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      }
+    },
+    "ethos": {
+      "path": "ETHOS.md",
+      "stage": "complete",
+      "draft_confirmed": false,
+      "draft_source": null,
+      "draft": null,
+      "source_findings": [],
+      "prior_answers": [],
+      "confirmed_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "confirmation_source": "User confirmed current intent in reply 4",
+      "validation": "ethos-write validation passed",
+      "remaining_questions": []
+    },
+    "scopes": {
+      "create": {
+        "cases": [
+          "refund"
+        ],
+        "confirmed": true
+      }
+    },
+    "tasks": {},
+    "journey_status": {
+      "create": "in_progress",
+      "audit": "in_progress"
+    },
+    "blockers": [
+      {
+        "id": "runtime",
+        "phase": "create",
+        "message": "Authoring runtime needs reassessment before more authoring."
+      }
+    ],
+    "pending_question": "Which selected evaluation should we review first?",
+    "next_handoff": "eval-author-audit",
+    "legacy_imports": [],
+    "updated_at": "2026-10-23T12:00:00+00:00"
+  },
+  "facts": {
+    "rows": {
+      "agent_repository": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "evaluation_framework": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "traces": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "skills": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "access": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "tooling": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      }
+    },
+    "ethos": {
+      "status": "existing",
+      "link": "/workspace/agent/ETHOS.md",
+      "summary": "The agent helps users recover access to their accounts."
+    }
+  }
+}

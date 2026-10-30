@@ -32,7 +32,9 @@ SAVED_DESIGN_CHOICES = (
 )
 SAVED_DESIGN_QUESTION = "Would you like to continue this saved design, revise it, or start a new proposal?"
 PROPOSAL_INTRO = "Here are the proposed evaluation tasks."
-PROPOSAL_TABLE = "| Task ID | Input | Behavior under test | Expected result | Verifier |\n|---|---|---|---|---|"
+TASK_TABLE = "| Task | Expected outcome | Verifier |\n|---|---|---|"
+PROPOSAL_TABLE = TASK_TABLE
+NOT_DOCUMENTED = "Not documented"
 FIRST_CHOICE = "I’ll build **{task_id}** first."
 PROPOSAL_PROCESS = (
     "Proposed tasks: {tasks}; distinct input examples: {examples}. "
@@ -112,7 +114,7 @@ SUITE_REVIEW_INTRO = (
     "It follows your approved design and confirmed `ETHOS.md`."
 )
 SUITE_REVIEW_ACTION = "Review your tasks in the {report} or {readme}."
-SUITE_REVIEW_TABLE = "| Task ID | Behavior under test | Expected result | Verifier |\n|---|---|---|---|"
+SUITE_REVIEW_TABLE = TASK_TABLE
 SUITE_REVIEW_STATUS = (
     "**Status:** Environment proof: {environments}/{tasks} passed. Verifier validation: {validated}/{tasks} passed. "
     "Agent execution: {executed}/{tasks} tasks complete."
@@ -145,12 +147,11 @@ RUN_TASK_UNKNOWN = "The runtime hasn’t reported a current task."
 RUN_EVIDENCE_PENDING = (
     "Some recorded results have missing or outdated evidence; they aren’t included in completed-attempt counts."
 )
-FIRST_REVIEW = (
-    "- **Input:** {input}\n"
-    "- **Expected result:** {expected_result}\n"
-    "- **Verifier:** {grading} Limitation: {grading_limitation}\n"
-    "- **Status:** Environment proof: passed. Verifier validation: {validation}. Agent execution: {execution}."
+FIRST_REVIEW_STATUS = (
+    "**Status:** Environment proof: passed. Verifier validation: {validation}. Agent execution: {execution}."
 )
+VERIFIER_LIMITATION = "**Verifier limitation:** {limitation}"
+NOT_DOCUMENTED_LIMITATION = "**Verifier limitation:** Not documented."
 VALIDATION_PASSED = "passed"
 VALIDATION_PENDING = "pending or requiring attention"
 EXECUTION_COMPLETED = "completed"

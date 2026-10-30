@@ -21,8 +21,8 @@ Execution and score analysis comprise four executable stages, each exposed as a
 Python tool and library API:
 
 1. **Run mutants x eval tasks:** run the baseline and every mutant against the
-   benchmark tasks and save the results. The first execution script will be a
-   basic local Harbor loop; support for **NeMo Helix** will follow.
+   benchmark tasks and save the results. The [local execution script](docs/run-evals.md) uses a
+   basic Harbor loop; support for **NeMo Helix** will follow.
 2. **Compute mutant scores:** measure degradation across the mutants for each
    predefined task subset.
 3. **Compute coverage:** evaluate our metric on those same subsets.
@@ -33,3 +33,5 @@ for how the experiment works.
 
 For preparing bundles, use the [benchmark format specification](docs/benchmark-format.md).
 For execution outputs, use the [results format specification](docs/results-format.md).
+
+See [benchmark tools](docs/tools.md) for the command guides and configuration-loading API.
