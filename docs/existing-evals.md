@@ -62,12 +62,13 @@ evidence cannot establish.
 A full audit starts with the [shared setup and Ethos confirmation](getting-started.md).
 If you have already completed those steps while creating or improving evaluations,
 ask to audit the suite directly, including in a new chat in the same repository.
-Separate audit requests get a welcome and progress checklist, followed by the
+Separate audit requests get a welcome and current audit checklist, followed by the
 first unresolved decision without another readiness question. A direct handoff
 from creation or improvement in the current conversation continues without
 repeating the welcome, as do replies within an active audit.
 Eval Author reuses your saved confirmations, checks only missing or changed
-audit requirements, and continues at the first unfinished audit step. It reviews
+audit requirements, and continues at the first unfinished audit step. The checklist
+can show unchecked audit requirements while keeping earlier setup answers. It reviews
 Ethos again when the agent, intended behavior, or document has changed.
 Previously selected suites and runs do not need another selection; when those
 inputs are settled, the next review is the proposed audit checks. Traces remain
@@ -76,6 +77,13 @@ If saved selections refer to older work, Eval Author explains their source and
 how they differ from current recorded tasks or runs, then asks which set you
 intend to audit. Missing-path findings identify the particular selection that
 was checked, keeping other current work distinct.
+
+A repository with no saved progress starts normal onboarding. If saved progress
+is damaged, unreadable, or belongs to another repository, Eval Author pauses
+audit checks to protect earlier decisions. It explains the error and offers a
+specific recovery step, such as restoring access, restoring a known valid copy,
+or confirming an intentional repository move. After recovery, it reloads saved
+progress and resumes the audit.
 
 If saved trace availability is unresolved or traces are absent, the prerequisite
 response explains the required action and links the audit skill instruction
@@ -88,7 +96,7 @@ delegated reviews. Independent work can finish before a checkpoint or continue
 after you explicitly defer the missing input and agree to that work; asking a
 question while continuing it in the background is not a check-in.
 
-After the Ethos check-in, Eval Author shows the existing evaluations it found,
+After Ethos is confirmed or reused, Eval Author shows the existing evaluations it found,
 links their suite and case locations, and explains what they test. It asks you
 to confirm which suites belong in the audit, including any additions or
 exclusions, and waits before moving to traces. Suites you already explicitly
@@ -113,6 +121,8 @@ trace selections separately, review decisions, measurement status, pending
 questions, and the next action. Returning to an audit, including after another
 workflow, resumes its pending decision or first unfinished step. Requests only
 to validate a specification or measure or aggregate coverage stay within that scope.
+Audit evidence paths are relative to the repository. Each case or run must fall
+within its selected suite or trace location.
 
 Changes to the agent, Ethos, selected scope, specification, cases, verifiers, or
 traces reopen check review and dependent measurement and findings. Changing only

@@ -683,6 +683,22 @@ def initialize(
     with working_lock(working_path(repo, "journey-state.lock")):
         state = load_state(repo, state_only=state_only) if state_path(repo).exists() else new_state(repo)
         previous_agent = state["agent"]
+        previous_journey = state["journey"]
+        if (
+            journey == "audit"
+            and previous_journey in {"create", "expand"}
+            and (state["pending_question"] or state["next_handoff"])
+        ):
+            # Identity and setup changes below may clear the outgoing decision.
+            scope = state["scopes"].setdefault(previous_journey, {})
+            if not isinstance(scope, dict):
+                raise ValueError("Saved authoring scope must be a mapping to retain its audit-entry context")
+            scope["audit_entry"] = {
+                "agent": previous_agent,
+                "revision": state["revision"],
+                "pending_question": state["pending_question"],
+                "next_handoff": state["next_handoff"],
+            }
         agent_changed = agent is not None and previous_agent is not None and agent != previous_agent
         if agent is not None and agent != previous_agent:
             state["agent"] = agent
@@ -925,9 +941,10 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             if patch.get("journey_status", {}).get("create") == "complete" and creation and not creation["complete"]:
                 raise ValueError("Creation completion requires current selected native runs and their exact review")
         if not state_only and state["journey"] == "audit":
-            audit_state.transition(repo, previous, state)
+            audit = audit_state.transition(repo, previous, state)
             if patch.get("journey_status", {}).get("audit") == "complete":
-                audit = audit_state.progress(repo, state)
+                if audit is None:
+                    audit = audit_state.progress(repo, state)
                 if not audit or not audit["complete"]:
                     raise ValueError("Audit completion requires current typed progress and reviewed findings")
         if (
@@ -1083,6 +1100,12 @@ def main() -> int:
         elif args.command == "import-legacy":
             state = import_legacy(repo)
         else:
+            if args.state_only:
+                try:
+                    state_path(repo).stat()
+                except FileNotFoundError:
+                    print(json.dumps({"state": None, "persisted": False}))
+                    return 0
             state = load_state(repo, state_only=args.state_only)
         print(json.dumps(view(state, state_only=args.state_only), indent=2))
         return 0

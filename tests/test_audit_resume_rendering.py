@@ -121,7 +121,7 @@ def test_observations_without_audit_lifecycle_must_be_empty(modules, render_read
         render_read_only(payload)
 
 
-@pytest.mark.parametrize("stage,stale", [("resume", False), ("results", False), ("resume", True)])
+@pytest.mark.parametrize("stage,stale", [(stage, stale) for stage in ("resume", "results") for stale in (False, True)])
 def test_pending_checkpoint_recovery_and_view_authority(modules, monkeypatch, render_read_only, stage, stale):
     state_helper, audit, _ = modules
     payload = presentation(modules, stage=stage)
@@ -132,12 +132,16 @@ def test_pending_checkpoint_recovery_and_view_authority(modules, monkeypatch, re
     if stale:
         state["pending_question"] = question
         lifecycle["suites"]["candidates"].append("suites/policy")
-    output = render_read_only(payload)
-    assert (question in output) is not stale
-    if not stale:
-        assert output.rstrip().endswith(question)
-    assert output.count("- [x]") == 2 and output.count("- [ ]") == 1
-    assert "We're here" in output
+    if stage == "resume":
+        with pytest.raises(ValueError, match="Use audit_resume"):
+            render_read_only(payload)
+    else:
+        output = render_read_only(payload)
+        assert (question in output) is not stale
+        if not stale:
+            assert output.rstrip().endswith(question)
+        assert output.count("- [x]") == 2 and output.count("- [ ]") == 1
+        assert "We're here" in output
     original = copy.deepcopy(state)
     monkeypatch.setattr(audit, "observe", lambda *_: payload["facts"]["audit_observations"])
     viewed = state_helper.view(state)
@@ -149,17 +153,17 @@ def test_pending_checkpoint_recovery_and_view_authority(modules, monkeypatch, re
     assert deferred["audit"] is None and deferred["audit_observations"] is None
     if stale:
         payload["facts"]["question"] = question
-        with pytest.raises(ValueError, match="checkpoint is stale"):
+        expected = "Use audit_resume" if stage == "resume" else r"Clear or replace scopes\.audit\.lifecycle\.pending"
+        with pytest.raises(ValueError, match=expected):
             render_read_only(payload)
 
 
 @pytest.mark.parametrize(
     "stage,observation,completed",
     [
-        ("resume", "current", True),
-        ("results", "current", True),
-        ("resume", "missing", False),
-        ("resume", "stale", False),
+        (stage, observed, observed == "current")
+        for stage in ("resume", "results")
+        for observed in ("current", "missing", "stale")
     ],
 )
 def test_audit_completion_requires_current_observations(modules, render_read_only, stage, observation, completed):
@@ -170,6 +174,10 @@ def test_audit_completion_requires_current_observations(modules, render_read_onl
     elif observation == "stale":
         evidence = audit.record(payload["state"])["measurement"]["evidence"][0]
         payload["facts"]["audit_observations"]["files"][evidence["path"]] = None
+    if stage == "resume":
+        with pytest.raises(ValueError, match="Use audit_resume"):
+            render_read_only(payload)
+        return
     output = render_read_only(payload)
     assert output.count("- [x]") == (3 if completed else 2)
     assert output.count("- [ ]") == (0 if completed else 1)

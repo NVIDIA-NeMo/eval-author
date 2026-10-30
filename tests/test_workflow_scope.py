@@ -60,6 +60,7 @@ def add_call(evidence, raw, *, action, writes=(), turn=0):
     evidence["turns"][turn]["events"].append(
         {"call_id": call_id, "tool": "fixture", "action": action, "write_paths": list(writes)}
     )
+    parsed["tool_calls"].sort(key=lambda call: call["turn"])
     raw = json.dumps(parsed).encode()
     evidence["raw_trace_sha256"] = scope.digest(raw)
     return raw
@@ -178,9 +179,21 @@ def test_separate_audit_request_requires_metadata_and_rendering_actions(action):
     assert report["host_acceptance"] == "not_measured"
 
 
-@pytest.mark.parametrize("action", ["read_repository", "read_trace", "validate", "propose", "write_artifact"])
-def test_returning_audit_cannot_inspect_or_change_artifacts_before_route_classification(action):
-    evidence, raw = capture("audit-returning-new-chat")
+@pytest.mark.parametrize(
+    "case,action",
+    [
+        ("audit-returning-new-chat", "read_repository"),
+        ("audit-returning-new-chat", "read_trace"),
+        ("audit-returning-new-chat", "validate"),
+        ("audit-returning-new-chat", "propose"),
+        ("audit-returning-new-chat", "write_artifact"),
+        ("audit-returning-new-chat", "render_conversation"),
+        ("audit-known-repo-no-state", "render_conversation"),
+        ("audit-invalid-saved-state", "render_conversation"),
+    ],
+)
+def test_audit_cannot_render_or_inspect_before_route_classification(case, action):
+    evidence, raw = capture(case)
     writes = [".eval-author/.working/journey-state.json"] if action == "write_artifact" else []
     raw = add_call(evidence, raw, action=action, writes=writes)
     events = evidence["turns"][0]["events"]
@@ -191,6 +204,13 @@ def test_returning_audit_cannot_inspect_or_change_artifacts_before_route_classif
     evidence["raw_trace_sha256"] = scope.digest(raw)
     report = scope.check(CONTRACTS, evidence, raw)
     assert f"turn[0]: saved-state lookup must precede {action}" in report["violations"]
+
+
+@pytest.mark.parametrize("case", ["audit-known-repo-no-state", "audit-invalid-saved-state"])
+def test_audit_can_render_after_route_classification(case):
+    evidence, raw = capture(case)
+    raw = add_call(evidence, raw, action="render_conversation")
+    assert scope.check(CONTRACTS, evidence, raw)["status"] == "pass"
 
 
 @pytest.mark.parametrize(
@@ -216,6 +236,33 @@ def test_unresolved_audit_traces_cannot_trigger_artifact_or_execution_checks(act
     evidence, raw = capture("audit-returning-traces-unresolved")
     raw = add_call(evidence, raw, action=action)
     assert f"turn[0]: forbidden action {action}" in scope.check(CONTRACTS, evidence, raw)["violations"]
+
+
+@pytest.mark.parametrize(
+    "case,turn",
+    [
+        (name, index)
+        for name, turns in CONTRACTS["cases"].items()
+        for index, turn in enumerate(turns)
+        if turn["handoff"] in {"ask_goal", "shared_opening", "shared_prerequisites", "ethos_complete_pause"}
+    ],
+)
+def test_pure_conversation_rendering_does_not_authorize_other_work(case, turn):
+    evidence, raw = capture(case)
+    raw = add_call(evidence, raw, action="render_conversation", turn=turn)
+    assert scope.check(CONTRACTS, evidence, raw)["status"] == "pass"
+    # Rendering a prompt does not grant continuation, even if the rendered text
+    # asks the user to continue. Action checks retain the preexisting boundary.
+    raw = add_call(evidence, raw, action="scaffold", turn=turn)
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert f"turn[{turn}]: forbidden action scaffold" in report["violations"]
+
+
+def test_orientation_rendering_cannot_write_even_transient_input_files():
+    evidence, raw = capture("first-eval-opening")
+    raw = add_call(evidence, raw, action="render_conversation", writes=[".eval-author/.working/conversation.json"])
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert "turn[0]: forbidden write attempt .eval-author/.working/conversation.json" in report["violations"]
 
 
 @pytest.mark.parametrize("case,turn", [("continue-shared-entry", 1), ("clarify-goal-before-setup", 2)])

@@ -9,10 +9,12 @@ SUITES_QUESTION = "Are these the evaluation suites you want to audit, or should 
 SUITE_LOCATION = "The evaluation suite location is still unresolved."
 SUITE_LOCATION_QUESTION = "Where are the evaluation suites you want to audit?"
 TRACE_INTRO = (
-    "Next, we need **traces** from those suites: records of what the agent actually did during each evaluation run, "
+    "Next, we need **traces**: records of what the agent actually did during each run, "
     "including its tool calls and responses."
 )
-TRACE_PURPOSE = "Test definitions and pass/fail scores alone don’t establish that coverage."
+TRACE_PURPOSE = (
+    "Test definitions and pass/fail scores alone don’t show which tools and behaviors were actually exercised."
+)
 TRACE_LIMIT = "Without usable traces, we can still review the intended checks, but coverage will remain **unmeasured**."
 TRACE_QUESTION = "Which traces should this audit use, and where are they saved?"
 SCOPE_HEADING = "**Selected scope**"
@@ -46,9 +48,8 @@ CHANGES_HEADING = "**Changes since the previous review**"
 CHECKS_NEXT = "Once approved, I’ll perform the audit and bring back the findings."
 CHECKS_LIMITED_NEXT = "Once approved, I’ll continue the agreed work, keeping unavailable measurement explicit."
 CHECKS_QUESTION = "Please review **Intended coverage**. Are these the right checks and evidence requirements, or should anything change?"
-MEASUREMENT_PROGRESS = (
-    "I’m inspecting the selected evaluations and measuring the selected traces against the approved checks."
-)
+MEASUREMENT_PROGRESS = "The selected traces still need measurement against the approved checks."
+MEASUREMENT_UNAVAILABLE = "Coverage cannot be measured until usable traces are selected."
 MEASUREMENT_COMPLETE = "Measurement is complete for the selected scope."
 MEASUREMENT_PARTIAL = "Measurement is partial; the successful subset does not complete the agreed scope."
 MEASUREMENT_DEFERRED = "Measurement is deferred by your decision; the full measured audit remains incomplete."

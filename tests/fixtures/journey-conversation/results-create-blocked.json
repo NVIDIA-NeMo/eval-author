@@ -1,0 +1,145 @@
+{
+  "stage": "results",
+  "revision": 7,
+  "state": {
+    "schema_version": 1,
+    "revision": 7,
+    "repository": "/workspace/agent",
+    "agent": "Account Support",
+    "journey": "create",
+    "setup": "gym",
+    "prerequisites": {
+      "code_access": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "command_execution": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "ethos_skills": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "file_writes": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "python": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "runtime": {
+        "status": "missing",
+        "source": "The selected NeMo Gym runtime is not installed."
+      },
+      "skills": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "environment": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "services": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "data": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "agent_connection": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      },
+      "model_credentials": {
+        "status": "verified",
+        "source": "Retained prerequisite check"
+      }
+    },
+    "ethos": {
+      "path": "ETHOS.md",
+      "stage": "explore",
+      "draft_confirmed": false,
+      "draft_source": null,
+      "draft": null,
+      "source_findings": [],
+      "prior_answers": [],
+      "confirmed_digest": null,
+      "confirmation_source": null,
+      "validation": null,
+      "remaining_questions": []
+    },
+    "scopes": {},
+    "tasks": {},
+    "journey_status": {},
+    "blockers": [
+      {
+        "id": "runtime",
+        "phase": "setup",
+        "message": "The selected NeMo Gym runtime is not installed."
+      }
+    ],
+    "pending_question": "Provide the supported NeMo Gym runtime before we continue.",
+    "next_handoff": "eval-author",
+    "legacy_imports": [],
+    "updated_at": "2026-10-23T12:00:00+00:00"
+  },
+  "facts": {
+    "rows": {
+      "agent_repository": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "evaluation_framework": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "skills": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "access": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "runtime": {
+        "status": "missing",
+        "findings": "The selected NeMo Gym runtime is not installed.",
+        "source": "Current check"
+      },
+      "environment": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "services_data": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      },
+      "agent_access": {
+        "status": "verified",
+        "findings": "Applicable check passed.",
+        "source": "Retained prerequisite check"
+      }
+    },
+    "ethos": {
+      "status": "absent"
+    },
+    "question": "Provide the supported NeMo Gym runtime before we continue.",
+    "blockers": [
+      {
+        "id": "runtime",
+        "step": "Continue shared prerequisites",
+        "reason": "The selected NeMo Gym runtime is not installed.",
+        "needed": "Provide the supported NeMo Gym runtime before we continue."
+      }
+    ]
+  }
+}

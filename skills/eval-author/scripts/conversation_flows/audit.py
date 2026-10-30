@@ -99,7 +99,8 @@ def source_link(state: dict, path: str, label: str | None = None) -> str:
 
 def report_link(state: dict, lifecycle: dict, facts: dict, key: str = "report") -> str:
     report = lifecycle["findings"]
-    if not report or facts["audit_observations"]["files"].get(report["report"]["path"]) != report["report"]["digest"]:
+    files = audit_state.observed_files(state, facts["audit_observations"])
+    if not report or files.get(report["report"]["path"]) != report["report"]["digest"]:
         raise ValueError("Record the current Audit coverage report and its observed digest before linking it")
     item = mapping(facts.get("links", {}).get(key), f"links.{key}", {"target", "fragment"})
     if item.get("target") != local_target(state, report["report"]["path"]):
@@ -161,7 +162,7 @@ def measurement_status(lifecycle: dict, audit: dict) -> str:
         if not audit["checks_approved"] or measurement["checks_digest"] != audit["checks_digest"]:
             return copy.MEASUREMENT_STALE
         if measurement["status"] == "deferred":
-            return copy.MEASUREMENT_DEFERRED + " " + literal(measurement["source"], "deferral reason")
+            return copy.MEASUREMENT_DEFERRED
         if measurement["status"] == "partial":
             return copy.MEASUREMENT_PARTIAL if audit["measurement_evidence_current"] else copy.MEASUREMENT_STALE
         return copy.MEASUREMENT_STALE
@@ -222,21 +223,22 @@ def render_checks(state: dict, lifecycle: dict, audit: dict, facts: dict) -> lis
 
 def recommendation_section(facts: dict) -> str | None:
     items = recommendations(facts)
-    return (
-        copy.RECOMMENDATIONS_HEADING
-        + "\n\n"
-        + "\n".join(
-            f"{index}. **{literal(item['label'], 'recommendation label')}:** {literal(item['reason'], 'recommendation reason')}"
-            for index, item in enumerate(items, 1)
-        )
-        if items
-        else None
-    )
+    if not items:
+        return None
+    lines = []
+    for index, item in enumerate(items, 1):
+        label = text(item["label"], "recommendation label")
+        label = literal(label[:1].upper() + label[1:], "recommendation label")
+        lines.append(f"{index}. **{label}:** {literal(item['reason'], 'recommendation reason')}")
+    return copy.RECOMMENDATIONS_HEADING + "\n\n" + "\n".join(lines)
 
 
 def render_findings(state: dict, lifecycle: dict, audit: dict, facts: dict) -> list[str]:
+    findings = rows(facts.get("findings"), "findings")
+    if not findings:
+        raise ValueError("Supply at least one finding, including an evidence limit when no result is established")
     lines = [copy.FINDINGS_TABLE]
-    for item in rows(facts.get("findings"), "findings"):
+    for item in findings:
         mapping(item, "finding", {"kind", "label", "evidence"})
         kind = item.get("kind")
         if not isinstance(kind, str) or kind not in copy.FINDING_KINDS:
@@ -282,11 +284,16 @@ def render(payload: dict) -> str:
     assert audit is not None
     state = journey_state.audit_presentation_state(state, audit)
     stage = stage.removeprefix("audit_")
-    active = onboarding.active_blockers(state)
+    active = journey_state.active_blockers(state)
     if stage == "resume":
         stage = "blockers" if active else "next_action" if audit["findings_reviewed"] else PHASES[audit["stage"]]
     facts = mapping(facts, "audit stage facts", COMMON_FACTS | STAGE_FACTS[stage])
-    links = mapping(facts.get("links", {}), "audit links", {"report", *copy.SECTION_LABELS})
+    link_keys = {"report"} if stage in {"checks", "findings", "next_action"} or "report_action" in facts else set()
+    if stage == "checks":
+        link_keys.add("intended_coverage")
+    elif stage == "findings":
+        link_keys.add("findings")
+    links = mapping(facts.get("links", {}), "audit links", link_keys)
     for key in links:
         report_link(state, lifecycle, facts, key)
     if stage == "blockers":
@@ -295,7 +302,9 @@ def render(payload: dict) -> str:
         parts = [scope(state, lifecycle)] if not any(item["phase"] in {"setup", "ethos"} for item in active) else []
         if "report_action" in facts:
             parts.append(report_notice(state, lifecycle, facts))
-        parts.append(onboarding.blocker_section(state, facts, confirmed=True) or "")
+        blockers = onboarding.blocker_section(state, facts, confirmed=True)
+        assert blockers is not None
+        parts.append(blockers)
         return "\n\n".join(parts) + "\n"
     if active or facts.get("blockers"):
         raise ValueError("Resolve saved blockers or render audit_blockers before continuing")
@@ -327,7 +336,10 @@ def render(payload: dict) -> str:
     elif stage == "findings":
         parts = render_findings(state, lifecycle, audit, facts)
     elif stage == "measurement":
-        parts = [copy.MEASUREMENT_PROGRESS, scope(state, lifecycle), measurement_status(lifecycle, audit)]
+        message = (
+            copy.MEASUREMENT_PROGRESS if lifecycle["traces"]["status"] == "selected" else copy.MEASUREMENT_UNAVAILABLE
+        )
+        parts = [message, scope(state, lifecycle), measurement_status(lifecycle, audit)]
         if facts.get("progress"):
             parts.append(literal(facts["progress"], "measurement progress"))
     else:

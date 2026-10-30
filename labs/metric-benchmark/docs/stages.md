@@ -15,7 +15,7 @@ fixed subset manifest.
 
 | Stage | Tool |
 | --- | --- |
-| 1. Run mutants x eval tasks | Planned local Harbor loop; future NeMo Helix implementation |
+| 1. Run mutants x eval tasks | `run_evals.py` (local Harbor); future NeMo Helix implementation |
 | 2. Compute mutant scores | `compute_mutant_scores.py` |
 | 3. Compute coverage | `compute_coverage.py` |
 | 4. Correlation | `correlate.py` |
@@ -39,7 +39,7 @@ mutants and produce the results directory consumed by analysis.
 **Inputs:** prepared agent bundles, benchmark tasks, and experiment execution
 settings.
 
-**Implementations:** the first execution script will run Harbor tasks in a
+**Implementations:** the execution script runs Harbor tasks in a
 basic local loop: baseline first, then the configured mutants, with one Harbor job per agent
 covering the full benchmark. Agent jobs run sequentially. Task concurrency within
 a Harbor job is an explicit execution setting; a fully sequential run uses one
@@ -49,8 +49,8 @@ the selected run; repetition aggregation remains future work.
 This phase is expected to be expensive: with `M` mutants and `T` tasks, even a
 single execution per pair requires `(M + 1) × T` task executions before retries.
 The baseline is included because mutant scoring compares its outcomes with each
-mutant's outcomes. The repository currently supplies the analysis tools; the
-local Harbor loop is the first execution implementation to add here.
+mutant's outcomes. The local Harbor loop produces the shared index and native evidence used by
+the analysis tools.
 
 A future NeMo Helix implementation will use an orchestrator to run evaluations at
 scale. Each implementation owns invocation, scheduling, retries, and collection

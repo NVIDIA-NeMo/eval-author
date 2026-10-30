@@ -50,9 +50,10 @@ def remember_question(payload, modules, question=None):
         flow = importlib.import_module("conversation_flows.audit")
         question = flow.decision_question(payload["stage"], domain(payload, modules), payload["facts"])
     current = progress(payload, modules)
+    stage = "findings_review" if payload["stage"] == "audit_findings" else current["stage"]
     domain(payload, modules)["pending"] = {
-        "stage": current["stage"],
-        "digest": current["checkpoint_digests"][current["stage"]],
+        "stage": stage,
+        "digest": current["checkpoint_digests"][stage],
         "question": question,
         "source": "Presented this checkpoint to the user",
     }
@@ -105,6 +106,7 @@ def checkpoint(modules, stage):
         ]
     elif stage == "traces":
         domain(payload, modules)["traces"] = modules[1].new_record()["traces"]
+        domain(payload, modules)["trace_files"] = []
     elif stage == "checks":
         report_links(payload, modules, intended=True)
         facts.update(
@@ -197,6 +199,7 @@ def continuation(modules, scenario):
         "returning_findings": "findings",
         "selected_improvement": "next_action",
         "limited_findings": "findings",
+        "partial_findings": "findings",
     }[scenario]
     payload = checkpoint(modules, base)
     lifecycle = domain(payload, modules)
@@ -263,10 +266,14 @@ def continuation(modules, scenario):
             "findings_digest": progress(payload, modules)["findings_digest"],
             "source": "User accepted the findings and chose to plan both improvements",
         }
-    elif scenario == "limited_findings":
+    elif scenario in {"limited_findings", "partial_findings"}:
         lifecycle["measurement"].update(
-            status="deferred",
-            source="The user explicitly deferred missing capability measurements and requested limited findings.",
+            status="partial" if scenario == "partial_findings" else "deferred",
+            source=(
+                "One selected trace failed capability measurement"
+                if scenario == "partial_findings"
+                else "The user explicitly deferred missing capability measurements and requested limited findings."
+            ),
         )
         facts.update(
             conclusion=(
@@ -286,7 +293,11 @@ def continuation(modules, scenario):
                 },
             ],
             limits=[
-                "Measurement was explicitly deferred for the failed inputs.",
+                (
+                    "One selected trace still lacks usable capability measurements."
+                    if scenario == "partial_findings"
+                    else "Measurement was explicitly deferred for the failed inputs."
+                ),
                 "Unmeasured behavior is unknown, not evidence that a test is missing.",
             ],
             recommendations=[
@@ -332,6 +343,132 @@ def test_resume_replays_the_current_checkpoint(modules, stage):
     expected = modules[2].render(payload)
     payload["stage"] = "audit_resume"
     assert modules[2].render(payload) == expected
+
+
+@pytest.mark.parametrize("stage", ["suites", "traces", "checks", "measurement", "findings", "next_action"])
+@pytest.mark.parametrize("observations", [False, True])
+def test_onboarding_resume_rejects_downstream_audit_checkpoints(modules, stage, observations):
+    payload = checkpoint(modules, stage)
+    facts = {"audit_observations": payload["facts"]["audit_observations"]} if observations else {}
+    with pytest.raises(ValueError, match="Use audit_resume"):
+        modules[2].render({**payload, "stage": "resume", "facts": facts})
+
+
+def test_partial_findings_can_be_reviewed_before_acceptance(modules):
+    payload = continuation(modules, "partial_findings")
+    original = copy.deepcopy(payload)
+    current = progress(payload, modules)
+    assert current["stage"] == "findings_review" and not current["measurement_complete"]
+    assert "measurement" not in current["checkpoint_digests"]
+    assert not current["findings_reviewed"] and not current["complete"]
+    output = modules[2].render(payload)
+    assert "Measurement is partial" in output
+    assert "**Current audit step:** Review findings" in output
+    assert "You’ve accepted the audit findings." not in output
+    assert output.rstrip().endswith(domain(payload, modules)["pending"]["question"])
+    assert payload == original
+    payload["stage"] = "audit_resume"
+    assert modules[2].render(payload) == output
+
+
+@pytest.mark.parametrize("stage", ["audit_measurement", "audit_resume"])
+@pytest.mark.parametrize("unavailable", [False, True])
+def test_measurement_copy_does_not_claim_work_is_running(modules, stage, unavailable):
+    payload = checkpoint(modules, "measurement")
+    payload["stage"] = stage
+    payload["facts"].pop("progress")
+    lifecycle = domain(payload, modules)
+    if unavailable:
+        lifecycle["traces"].update(status="unavailable", paths=[], source="User confirmed traces are unavailable")
+        lifecycle["trace_files"] = []
+        lifecycle["checks_approval"]["digest"] = progress(payload, modules)["checks_digest"]
+    output = modules[2].render(payload)
+    assert "I’m inspecting" not in output and "I’m measuring" not in output
+    if unavailable:
+        assert "Coverage cannot be measured until usable traces are selected." in output
+        assert "selected traces still need measurement" not in output
+    else:
+        assert "The selected traces still need measurement against the approved checks." in output
+
+
+def test_trace_request_does_not_assume_suites_exist(modules):
+    payload = checkpoint(modules, "traces")
+    lifecycle = domain(payload, modules)
+    lifecycle["suites"].update(status="none", paths=[], source="User confirmed no suites exist")
+    lifecycle["suite_files"] = []
+    output = modules[2].render(payload)
+    assert "You confirmed that no evaluation suites exist." in output
+    assert "from those suites" not in output
+    assert "which tools and behaviors were actually exercised" in output
+
+
+def test_deferral_provenance_is_not_rendered_as_a_reason(modules):
+    payload = continuation(modules, "limited_findings")
+    domain(payload, modules)["measurement"]["source"] = "INTERNAL_PROVENANCE: verbatim saved answer"
+    remember_question(payload, modules)
+    output = modules[2].render(payload)
+    assert "INTERNAL_PROVENANCE" not in output and "verbatim saved answer" not in output
+    assert "Measurement was explicitly deferred for the failed inputs." in output
+
+
+@pytest.mark.parametrize("label,heading", [("grader improvement", "Grader improvement"), ("API grader", "API grader")])
+def test_recommendation_headings_capitalize_without_changing_the_question(modules, label, heading):
+    payload = continuation(modules, "single_recommendation")
+    payload["facts"]["recommendations"][0]["label"] = label
+    remember_question(payload, modules)
+    output = modules[2].render(payload)
+    assert f"1. **{heading}:**" in output
+    assert f"plan the {label}?" in output
+
+
+def test_empty_findings_are_rejected(modules):
+    payload = checkpoint(modules, "findings")
+    payload["facts"]["findings"] = []
+    with pytest.raises(ValueError, match="at least one finding"):
+        modules[2].render(payload)
+
+
+@pytest.mark.parametrize("selection", ["suites", "traces"])
+def test_report_links_reject_excluded_observations(modules, selection):
+    payload = checkpoint(modules, "checks")
+    lifecycle = domain(payload, modules)
+    report = lifecycle["findings"]["report"]
+    lifecycle[selection]["exclusions"] = [
+        {"path": report["path"], "reason": "Excluded evidence", "source": "User excluded this path"}
+    ]
+    assert payload["facts"]["audit_observations"]["files"][report["path"]] == report["digest"]
+    with pytest.raises(ValueError, match="observed digest before linking"):
+        modules[2].render(payload)
+
+
+@pytest.mark.parametrize(
+    "stage,key",
+    [
+        ("suites", "findings"),
+        ("traces", "intended_coverage"),
+        ("checks", "findings"),
+        ("measurement", "report"),
+        ("findings", "intended_coverage"),
+        ("next_action", "findings"),
+        ("blockers", "intended_coverage"),
+    ],
+)
+def test_stage_inapplicable_links_are_rejected(modules, stage, key):
+    payload = checkpoint(modules, stage)
+    report_links(payload, modules)
+    report = payload["facts"]["links"]["report"]
+    payload["facts"]["links"][key] = {**report, "fragment": "intended-coverage"}
+    with pytest.raises(ValueError, match="audit links"):
+        modules[2].render(payload)
+
+
+@pytest.mark.parametrize("stage", ["measurement", "blockers"])
+def test_report_announcements_allow_report_links_at_measurement_and_blockers(modules, stage):
+    payload = checkpoint(modules, stage)
+    report_links(payload, modules)
+    payload["facts"]["report_action"] = "unchanged"
+    target = payload["facts"]["links"]["report"]["target"]
+    assert f"Review [Audit coverage report](<{target}>)." in modules[2].render(payload)
 
 
 @pytest.mark.parametrize("stage", ["suites", "traces"])
@@ -484,6 +621,7 @@ def test_accepted_partial_findings_resume_without_a_new_question(modules, change
     payload["facts"]["audit_observations"]["files"][evidence["path"]] = (
         None if change == "missing" else modules[1].fingerprint("Changed evidence")
     )
+    payload["facts"].pop("links")
     resumed = modules[2].render(payload)
     payload["stage"] = "audit_measurement"
     assert resumed == modules[2].render(payload)

@@ -49,7 +49,9 @@ ROW_PREREQUISITES = {
 def checklist(journey: str, state: dict | None = None, *, state_only: bool = False, audit: dict | None = None) -> str:
     rows = (
         journey_state.checklist(
-            {**state, "blockers": active_blockers(state, state_only=state_only)}, state_only=state_only, audit=audit
+            {**state, "blockers": journey_state.active_blockers(state, state_only=state_only)},
+            state_only=state_only,
+            audit=audit,
         )
         if state is not None
         else [
@@ -142,12 +144,8 @@ def recommendations(facts: dict) -> str | None:
     return "\n".join(lines)
 
 
-def active_blockers(state: dict, *, state_only: bool = False) -> list[dict]:
-    return journey_state.active_blockers(state, state_only=state_only)
-
-
 def blocker_section(state: dict, facts: dict, *, confirmed: bool, state_only: bool = False) -> str | None:
-    active = active_blockers(state, state_only=state_only)
+    active = journey_state.active_blockers(state, state_only=state_only)
     explanations = facts.get("blockers", [])
     if not isinstance(explanations, list):
         raise ValueError("Blockers must be a list")
@@ -296,21 +294,24 @@ def next_steps(state: dict, facts: dict, stage: str, *, audit: dict | None = Non
     return "\n\n".join(paragraphs)
 
 
-def state_error(facts: dict) -> str:
-    error = text(facts.get("state_error"), "state_error")
-    if len(error) > MAX_STATE_ERROR_CHARS:
-        raise ValueError(f"state_error exceeds the {MAX_STATE_ERROR_CHARS}-character limit")
-    return error
+def failure_text(facts: dict, field: str) -> str:
+    value = text(facts.get(field), field)
+    if len(value) > MAX_STATE_ERROR_CHARS:
+        raise ValueError(f"{field} exceeds the {MAX_STATE_ERROR_CHARS}-character limit")
+    return value
 
 
 def audit_entry_failure(payload: dict) -> str:
     payload = mapping(payload, "audit entry failure", {"stage", "journey", "facts"})
     if payload.get("journey") != "audit":
         raise ValueError("Audit entry failure requires journey audit")
-    facts = mapping(payload.get("facts"), "audit entry failure facts", {"state_error"})
+    facts = mapping(payload.get("facts"), "audit entry failure facts", {"state_error", "recovery"})
     paragraphs = [
         shared.BLOCKERS,
-        copy.AUDIT_ENTRY_STATE_FAILURE.format(error=literal(state_error(facts), "state_error")),
+        copy.AUDIT_ENTRY_STATE_FAILURE.format(
+            error=literal(failure_text(facts, "state_error"), "state_error"),
+            recovery=literal(failure_text(facts, "recovery"), "recovery"),
+        ),
     ]
     return "\n\n".join(paragraphs) + "\n"
 
@@ -323,7 +324,7 @@ def prerequisite_failure(payload: dict) -> str:
     if payload.get("ready") is not True:
         raise ValueError("Wait for the user's readiness reply before checking prerequisites")
     facts = mapping(payload.get("facts"), "prerequisite failure facts", {"rows", "state_error"})
-    error = state_error(facts)
+    error = failure_text(facts, "state_error")
     paragraphs = [
         copy.PREREQUISITE_RESULTS_INTRO,
         prerequisite_table(journey, facts),
@@ -378,12 +379,10 @@ def render(payload: dict) -> str:
         mapping(payload, "audit welcome", {"stage", "state", "revision"})
         if state["journey"] != "audit":
             raise ValueError("Audit welcome requires saved journey audit")
-        return (
-            "\n\n".join(
-                [copy.WELCOME_WITH_CHECKLIST, checklist("audit", state, state_only=True), copy.AUDIT_REUSE_NOTICE]
-            )
-            + "\n"
-        )
+        notice = copy.AUDIT_REUSE_NOTICE
+        if state["ethos"]["confirmed_digest"] and state["ethos"]["confirmation_source"]:
+            notice += " " + copy.AUDIT_ETHOS_REUSE_NOTICE
+        return "\n\n".join([copy.WELCOME_WITH_CHECKLIST, checklist("audit", state, state_only=True), notice]) + "\n"
     state_only = stage == "prerequisite_results"
     fact_keys = {"rows", "recommendations", "blockers"}
     if not state_only:
@@ -391,6 +390,14 @@ def render(payload: dict) -> str:
     if state["journey"] == "audit" and stage in {"resume", "results", "confirmed"}:
         fact_keys.add("audit_observations")
     facts = mapping(payload.get("facts", {}), "facts", fact_keys)
+    if (
+        stage == "resume"
+        and state["journey"] == "audit"
+        and audit_state.record(state) is not None
+        and all(row["complete"] for row in journey_state.checklist(state)[:2])
+        and not any(item["phase"] in {"setup", "ethos"} for item in journey_state.active_blockers(state))
+    ):
+        raise ValueError("Use audit_resume for saved audit checkpoints after shared onboarding is complete")
     audit = None
     if "audit_observations" in facts:
         observed = facts["audit_observations"]
@@ -409,7 +416,10 @@ def render(payload: dict) -> str:
             and "question" in facts
             and all(row["complete"] for row in journey_state.checklist(state)[:2])
         ):
-            raise ValueError("The saved audit checkpoint is stale; record the current question before rendering")
+            raise ValueError(
+                "The saved audit checkpoint no longer applies. "
+                "Clear or replace scopes.audit.lifecycle.pending before rendering."
+            )
     if not state_only:
         pending_question(state, facts)  # Reject contradictory questions even on blocked turns.
     paragraphs = []

@@ -239,7 +239,7 @@ def check(contracts: dict, evidence: dict, raw: bytes) -> dict:
             if (
                 "read_saved_state" in contract["required_actions"]
                 and "read_saved_state" not in seen
-                and action not in {"read_skill", "render_conversation", "read_saved_state"}
+                and action not in {"read_skill", "read_saved_state"}
             ):
                 violations.append(prefix + ": saved-state lookup must precede " + action)
             seen.add(action)

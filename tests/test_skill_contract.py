@@ -274,12 +274,14 @@ def _run_discover(
     ``with_harbor=False`` passes ``-S``, which drops site-packages from the path
     so Harbor and PyYAML are both unimportable. That reproduces a customer
     repository with no Harbor install without needing a second interpreter.
+    Without a ``gym_stub``, isolate PATH too so installed Gym or uv tools cannot
+    satisfy the missing-runtime case.
     ``gym_stub`` puts a directory holding a fake ``gym`` command on ``PATH``, which
     answers ``--version`` like NeMo Gym 0.6.0, so the probe sees NeMo Gym installed.
     ``gym_script`` replaces that command, to fake NeMo Gym's Judge and Solve as well.
     """
     command = [sys.executable, *([] if with_harbor else ["-S"]), str(_DISCOVER), "--repo", str(repo), *args]
-    env = None
+    env = {**os.environ, "PATH": str(repo / "missing-runtimes")} if not with_harbor else None
     if gym_stub is not None:
         gym = _write_gym_stub(gym_stub, gym_script)
         command.extend(["--gym-cli", str(gym)])
@@ -2086,6 +2088,29 @@ def _markdown_anchors(document: Path) -> set[str]:
     return anchors
 
 
+@pytest.mark.parametrize(
+    "skill_dir,examples",
+    [
+        (
+            _CORE_DIR,
+            (
+                "help me with my evals",
+                "help me onboard to expand my evals",
+                "what's the state of the eval suite here?",
+                "what happened in this trace?",
+            ),
+        ),
+        (_AUDIT_DIR, ("audit my existing evals", "generate audit.md from ETHOS.md")),
+    ],
+)
+def test_entry_descriptions_keep_examples_for_description_only_hosts(skill_dir, examples):
+    frontmatter, _ = _frontmatter_and_body(skill_dir)
+    description = frontmatter["description"]
+    assert len(description) <= 1024
+    for example in examples:
+        assert example in description
+
+
 def test_ethos_confirmation_handoff_resources_resolve() -> None:
     """The shared handoff and canonical orchestrator remain reachable."""
     reference = _CORE_DIR / "references" / "ethos-confirmation.md"
@@ -2104,6 +2129,11 @@ def test_ethos_confirmation_handoff_resources_resolve() -> None:
     [
         "skills/eval-author/SKILL.md",
         "skills/eval-author/references/shared-prerequisites.md",
+        "skills/eval-author/references/conversation-rendering.md",
+        "skills/eval-author/references/conversations/onboarding.md",
+        "skills/eval-author/references/pre-reqs/create.md",
+        "skills/eval-author/references/pre-reqs/audit.md",
+        "skills/eval-author/references/pre-reqs/improve.md",
         "skills/eval-author/references/ethos-confirmation.md",
         "skills/eval-author/references/runtime-prerequisites.md",
         "skills/eval-author-discover/SKILL.md",

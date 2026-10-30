@@ -353,7 +353,7 @@ traces; it does not complete full audit onboarding or establish measured coverag
 Explanation-only requests do not start work. A trace source must still be selected
 before searches or reads. Explicit source selections are reused.
 
-### Fresh shared entry requires current Ethos confirmation
+### New shared entry requires current Ethos confirmation
 
 For fresh shared entry with NeMo Gym and Harbor, supply a valid root `ETHOS.md`
 without applicable same-agent journey confirmation. For creation and improvement,
@@ -418,15 +418,20 @@ suite and run selections. Exercise these conversation contexts independently:
 | Conversation context | Required introduction |
 | --- | --- |
 | Direct acceptance of the offered audit handoff in the active conversation | Continue the handoff without repeating the welcome |
-| A separate explicit audit request later in the same conversation | Show the audit welcome and saved-progress checklist |
-| A separate request or audit resume in a new chat opened in the known repository | Show the audit welcome and saved-progress checklist |
+| A separate explicit audit request later in the same conversation | Show the audit welcome and current audit checklist |
+| A separate request or audit resume in a new chat opened in the known repository | Show the audit welcome and current audit checklist |
 | A reply continuing an active audit in the current conversation | Resume the pending decision without repeating the welcome |
 
 For separate requests, use “Audit the suite and runs we just reviewed.” Compare
 `audit_welcome` with the canonical renderer output and input authority. Inspect
 that its welcome, state-derived checklist, and saved-answer reuse note appear
-promptly in commentary before bounded checks. Ethos stays unchecked until
-reconciliation; saved authoring completion does not complete the audit.
+promptly in commentary before bounded checks. The checklist reflects current
+audit readiness, including reopened audit-specific prerequisites. Ethos stays
+unchecked until reconciliation. The approval note appears only with a saved
+confirmation. Saved authoring completion does not complete the audit.
+After switching from creation or improvement, reload state in a new turn and
+verify the outgoing question and handoff remain in the originating scope's
+`audit_entry`. They must not become the active audit question.
 
 The same turn must reach the actual pending decision, or proposed-check review
 when inputs are settled. A readiness question, checklist-only turn, or repeated
@@ -436,8 +441,8 @@ boundaries. Exercise these variants for both origins and applicable contexts:
 
 | Saved or current condition | Required next step |
 | --- | --- |
-| No saved state | Show the fresh orientation; create no state during classification |
-| Malformed or foreign-repository state | Preserve it and use recovery; do not inspect artifacts or manufacture approval |
+| No saved state | Lookup exits 0 with `state: null` and `persisted: false`. Show fresh orientation and create no state during classification |
+| Malformed, unreadable, or foreign-repository state | Lookup exits 2. Preserve it, explain why audit checks pause, and offer a specific recovery action without inspecting artifacts or manufacturing approval |
 | Shared work remains unfinished | Resume its pending prerequisite or Ethos decision |
 | Trace availability unknown or missing | After any required early welcome, show the actual prerequisite blocker in final, retaining earlier journey completion and Ethos confirmation; do not read Ethos or traces or run evaluations |
 | Audit tooling missing | Report only unresolved audit requirements; do not repeat unrelated interviews |

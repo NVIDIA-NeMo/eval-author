@@ -32,12 +32,25 @@ python3 -B <skill_dir>/scripts/journey_state.py --repo /absolute/repository --st
 
 This pre-orientation exception permits helper dependencies, but no state writes
 or initialization, artifact inspection (including Ethos), trace enumeration,
-prerequisite probes, or other repository searches. Unknown repository, absent
-state, or no saved workflow answers/pending work means fresh entry.
-Malformed, unreadable, or foreign state requires recovery. For this lookup or
-any subsequent state-operation failure, preserve the file, render
+prerequisite probes, or other repository searches. An unknown repository or no
+saved workflow answers/pending work means fresh entry. An absent state file is
+also fresh entry: `--state-only show` exits 0 with `{"state": null, "persisted": false}`.
+Show fresh orientation without initializing state. A successful lookup with
+saved state returns the normal snapshot. Do not infer absence from error text.
+
+A lookup that exits 2 means recovery is needed. For this lookup or any subsequent
+state-operation failure, preserve the file and render
 [`audit_entry_failure`](conversations/onboarding.md#when-state-is-unavailable)
-with the observed error, and stop before further checks or inspection.
+with the observed error and a concrete recovery action. Pause dependent audit
+checks, state writes, and artifact inspection because continuing could overwrite
+saved decisions or reuse approvals that cannot be verified. Recovery help remains
+in scope. For access errors, name the affected path and access needed. For malformed
+state, offer to restore a known valid copy, preserving the damaged file first.
+For foreign state, explain the repository mismatch and offer the
+[relocation recovery](#recover-after-moving-or-copying-a-repository) only if the
+move was intentional. Do not reset or repair state automatically. Ask only for the
+missing information or authorization needed for the proposed fix. After recovery,
+repeat the metadata-only lookup and resume from the valid saved context.
 
 For the same repository and agent, reuse Ethos metadata with a confirmed digest,
 validation, confirmation source, and no unresolved intent review; prior authoring
@@ -55,9 +68,13 @@ Do not search other chats to classify conversational continuity.
 
 For reusable context, continue these steps in the same turn when unblocked:
 
-1. Retain the handoff and original scope before `--state-only init --journey audit`
-   clears the previous journey's pending question/handoff. Preserve agent and
-   provider; for same-journey resumes, preserve the actual pending decision.
+1. Use `--state-only init --journey audit`. Before clearing the active question
+   and handoff, the helper saves the outgoing authoring decision in
+   `scopes.<origin>.audit_entry`, alongside the retained scope. Read that context
+   on recovery instead of relying on conversation memory. It records the prior
+   agent, revision, question, and handoff without approving audit inputs or
+   making the old question active. Preserve agent and provider. Same-journey
+   resumes preserve the actual pending audit decision.
    When a welcome is due, render `audit_welcome` from that fresh state-only audit
    snapshot and publish it in commentary immediately, before prerequisite probes,
    artifact inspection, or recovering additional context. Continue in this same
@@ -586,8 +603,10 @@ setup changes, or when switching between audit and authoring. The examples above
 use prerequisite mode: Ethos and evaluation checklist items remain unchecked
 until normal artifact checks resume after the prerequisite pass is complete and
 saved. `show` derives
-checklist status without writing. Use its state-only `state` and matching revision
-for `prerequisite_results`; use normal reconciled state for later rendering.
+checklist status without writing. The
+[audit-entry result contract](#return-to-an-audit) distinguishes an absent file
+from a failed lookup. When state is present, use its state-only `state` and matching
+revision for `prerequisite_results`; use normal reconciled state for later rendering.
 Never maintain a separate saved checklist. Rendering does not save a readiness
 answer, confirmation, or continuation, and does not replace normal `show`
 reconciliation of changed Ethos or draft content.
@@ -628,8 +647,11 @@ The helper's audit `runtime_requirements` describe audit tooling independently
 of the selected NeMo Gym or Harbor source format.
 
 `scopes` is keyed by journey and holds agreed source bounds, scope tables,
-case inventory, and downstream decisions. Updating a journey's scope replaces
-that entry, so read and preserve unaffected fields first. `journey_status` maps
+case inventory, and downstream decisions. On entry to audit from creation or
+improvement, `audit_entry` in the originating scope retains the latest outgoing
+agent, state revision, pending question, and handoff. This is recovery context,
+not an audit decision or a separate progress record. Updating a journey's scope
+replaces that entry, so read and preserve unaffected fields first. `journey_status` maps
 a journey to `pending`, `in_progress`, or `complete`. Blockers have `id`, `phase`
 (`setup`, `ethos`, or a journey), and `message`. For a prerequisite blocker, use
 its prerequisite key as `id`, or `evaluation_format` for the
@@ -667,7 +689,10 @@ not rewritten. Inspect any absolute references and recheck access in the
 destination before reusing them.
 
 All prerequisite statuses become `unknown` with their sources retained. Ethos
-and draft approval reopen, scopes require review, and journey completion resets.
+and draft approval reopen, and scopes require review. Journey completion resets,
+except that an active audit keeps prior `create` and `expand` completion as history.
+Those authoring scopes need review again, and their completion reopens when
+authoring resumes.
 Accepted tasks become `draft`, keeping task and evidence hashes. Recheck
 applicable prerequisites, review the saved intent and scope, and complete the existing acceptance workflow
 before recording acceptance again. A rebind does not establish that the agent,

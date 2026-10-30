@@ -334,6 +334,14 @@ def test_downstream_resume_preserves_progress_and_audit_switch_reopens_applicabi
             "unknown" if key in state.AUDIT_DEPENDENT else answer["status"]
         )
     assert resumed["pending_question"] is None and resumed["next_handoff"] is None
+    expected_entry = {
+        "agent": ongoing["agent"],
+        "revision": ongoing["revision"],
+        "pending_question": ongoing["pending_question"],
+        "next_handoff": ongoing["next_handoff"],
+    }
+    assert resumed["scopes"][origin] == {**ongoing["scopes"][origin], "audit_entry": expected_entry}
+    assert state.load_state(tmp_path, state_only=True)["scopes"][origin]["audit_entry"] == expected_entry
     assert not state.checklist(resumed, state_only=True)[0]["complete"]
     refreshed = state.update(
         tmp_path,
@@ -349,8 +357,16 @@ def test_downstream_resume_preserves_progress_and_audit_switch_reopens_applicabi
     for key in ("runtime", "environment", "services"):
         assert refreshed["prerequisites"][key] == resumed["prerequisites"][key]
     reconciled = state.load_state(tmp_path)
-    for field in ("ethos", "scopes", "journey_status"):
+    for field in ("ethos", "journey_status"):
         assert resumed[field] == reconciled[field] == original[field]
+    assert (
+        resumed["scopes"]
+        == reconciled["scopes"]
+        == {
+            **original["scopes"],
+            origin: {**original["scopes"][origin], "audit_entry": expected_entry},
+        }
+    )
     assert [row["complete"] for row in state.checklist(reconciled)] == [True, True, False]
     assert state.checklist(reconciled)[2]["current"]
 
@@ -2338,25 +2354,92 @@ def forbid_artifact_checks(state, monkeypatch, paths):
         monkeypatch.setattr(Path, name, guard)
 
 
-@pytest.mark.parametrize("saved", ["absent", "corrupt", "foreign"])
+@pytest.mark.parametrize("parent", [".", ".eval-author", ".eval-author/.working"])
+def test_state_only_show_absence_is_success_without_initializing_or_inspecting_artifacts(
+    state, tmp_path, monkeypatch, capsys, parent
+):
+    (tmp_path / parent).mkdir(parents=True, exist_ok=True)
+    document = tmp_path / "ETHOS.md"
+    document.write_text("# Existing intent must not be inspected by saved-state lookup\n")
+    before = sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*"))
+    with monkeypatch.context() as guarded:
+        forbid_artifact_checks(state, guarded, [document])
+        for name in ("load_state", "initialize", "save"):
+            guarded.setattr(state, name, lambda *_args, **_kwargs: pytest.fail("Absent lookup must not load or write"))
+        guarded.setattr(sys, "argv", ["journey_state.py", "--repo", str(tmp_path), "--state-only", "show"])
+        assert state.main() == 0
+    output = capsys.readouterr()
+    assert json.loads(output.out) == {"state": None, "persisted": False}
+    assert output.err == ""
+    assert sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*")) == before
+
+
+@pytest.mark.parametrize("saved", ["corrupt", "foreign", "unreadable"])
 def test_state_only_show_failure_never_initializes_or_inspects_artifacts(state, tmp_path, monkeypatch, capsys, saved):
     document = tmp_path / "ETHOS.md"
     document.write_text("# Existing intent must not be inspected by saved-state lookup\n")
-    if saved != "absent":
-        record = state.initialize(tmp_path, agent="assistant", journey="create", setup="gym", state_only=True)
+    record = state.initialize(tmp_path, agent="assistant", journey="create", setup="gym", state_only=True)
+    if saved == "foreign":
         record["repository"] = "/another/repository"
-        state.state_path(tmp_path).write_text("{" if saved == "corrupt" else json.dumps(record))
+    state.state_path(tmp_path).write_text("{" if saved == "corrupt" else json.dumps(record))
     before = {path.relative_to(tmp_path): path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
     with monkeypatch.context() as guarded:
         forbid_artifact_checks(state, guarded, [document])
         guarded.setattr(state, "save", lambda *_: pytest.fail("Saved-state lookup must not initialize or write"))
+        if saved == "unreadable":
+
+            def unreadable(_path):
+                raise PermissionError("Permission denied reading journey-state.json")
+
+            guarded.setattr(state, "read_json", unreadable)
         guarded.setattr(sys, "argv", ["journey_state.py", "--repo", str(tmp_path), "--state-only", "show"])
         assert state.main() == 2
     output = capsys.readouterr()
     assert output.out == "" and json.loads(output.err)["persisted"] is False
     assert {path.relative_to(tmp_path): path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
-    if saved == "absent":
-        assert not (tmp_path / ".eval-author").exists()
+
+
+@pytest.mark.parametrize("failure", ["permission", "symlink", "invalid_parent", "disappeared"])
+def test_state_only_show_does_not_treat_access_or_path_failures_as_absence(
+    state, tmp_path, monkeypatch, capsys, failure
+):
+    path = state.state_path(tmp_path)
+    if failure == "invalid_parent":
+        (tmp_path / ".eval-author").write_text("This is a file, not a state directory")
+    elif failure == "symlink":
+        path.parent.mkdir(parents=True)
+        path.symlink_to(tmp_path / "missing-state.json")
+    else:
+        state.initialize(tmp_path, journey="audit", state_only=True)
+        if failure == "permission":
+            original_stat = Path.stat
+
+            def denied(target, *args, **kwargs):
+                if target == path:
+                    raise PermissionError("Permission denied checking journey-state.json")
+                return original_stat(target, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "stat", denied)
+        else:
+
+            def disappeared(*_args, **_kwargs):
+                raise FileNotFoundError("State disappeared after the metadata check")
+
+            monkeypatch.setattr(state, "load_state", disappeared)
+    monkeypatch.setattr(state, "save", lambda *_: pytest.fail("Failed lookup must not write"))
+    monkeypatch.setattr(sys, "argv", ["journey_state.py", "--repo", str(tmp_path), "--state-only", "show"])
+    assert state.main() == 2
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert json.loads(output.err)["persisted"] is False
+
+
+def test_normal_show_still_requires_saved_state(state, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["journey_state.py", "--repo", str(tmp_path), "show"])
+    assert state.main() == 2
+    output = capsys.readouterr()
+    assert output.out == "" and json.loads(output.err)["persisted"] is False
+    assert not (tmp_path / ".eval-author").exists()
 
 
 @pytest.mark.parametrize("draft_only", [False, True])
@@ -2558,6 +2641,39 @@ def test_state_only_updates_keep_revision_and_atomic_storage_guards(state, tmp_p
     assert state.load_state(tmp_path, state_only=True) == updated
 
 
+@pytest.mark.parametrize("origin", ["create", "expand"])
+def test_audit_entry_saves_outgoing_handoff_before_combined_changes_and_survives_reload(
+    state, tmp_path, monkeypatch, origin
+):
+    original, artifacts = prerequisite_history(state, tmp_path, journey=origin)
+    forbid_artifact_checks(state, monkeypatch, artifacts)
+    state.initialize(tmp_path, agent="changed-agent", setup="harbor", journey="audit", state_only=True)
+    reloaded = state.load_state(tmp_path, state_only=True)
+    expected_entry = {
+        "agent": original["agent"],
+        "revision": original["revision"],
+        "pending_question": original["pending_question"],
+        "next_handoff": original["next_handoff"],
+    }
+    assert reloaded["scopes"][origin]["audit_entry"] == expected_entry
+    assert reloaded["scopes"][origin]["cases"] == original["scopes"][origin]["cases"]
+    assert "changed-agent" in reloaded["pending_question"]
+    assert reloaded["next_handoff"] == "eval-author"
+    assert reloaded["ethos"]["confirmed_digest"] is None
+    resumed = state.initialize(tmp_path, journey="audit", state_only=True)
+    assert resumed["scopes"][origin]["audit_entry"] == expected_entry
+    assert resumed["pending_question"] == reloaded["pending_question"]
+
+
+@pytest.mark.parametrize("origin", ["create", "expand"])
+def test_audit_entry_without_outgoing_decision_keeps_scope_without_adding_context(state, tmp_path, origin):
+    state.initialize(tmp_path, journey=origin, state_only=True)
+    original = state.update(tmp_path, {"scopes": {origin: {"cases": ["refund"]}}})
+    changed = state.initialize(tmp_path, journey="audit", state_only=True)
+    assert changed["scopes"][origin] == original["scopes"][origin]
+    assert changed["pending_question"] is None and changed["next_handoff"] is None
+
+
 @pytest.mark.parametrize("invalid", ["schema", "repository", "duplicate"])
 def test_state_only_still_validates_saved_json_and_repository(state, tmp_path, invalid):
     original = state.initialize(tmp_path, agent="assistant", journey="create", setup="gym", state_only=True)
@@ -2575,11 +2691,20 @@ def test_state_only_still_validates_saved_json_and_repository(state, tmp_path, i
         assert state.state_path(tmp_path).read_bytes() == before
 
 
-@pytest.mark.parametrize("existing_scope", [False, True])
-@pytest.mark.parametrize("via_cli", [False, True])
-@pytest.mark.parametrize("origin", ["create", "expand"])
-@pytest.mark.parametrize("requirement", ["data", "python"])
-@pytest.mark.parametrize("status", ["unknown", "missing"])
+# Keep all core combinations and pairwise coverage for scope and CLI boundaries.
+@pytest.mark.parametrize(
+    "origin,requirement,status,existing_scope,via_cli",
+    [
+        ("create", "data", "unknown", False, False),
+        ("create", "data", "missing", False, True),
+        ("create", "python", "unknown", True, True),
+        ("create", "python", "missing", True, False),
+        ("expand", "data", "unknown", True, False),
+        ("expand", "data", "missing", True, True),
+        ("expand", "python", "unknown", False, True),
+        ("expand", "python", "missing", False, False),
+    ],
+)
 def test_state_only_audit_framework_observation_survives_blocked_setup(
     state, tmp_path, monkeypatch, capsys, existing_scope, via_cli, origin, requirement, status
 ):

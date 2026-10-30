@@ -47,10 +47,11 @@ See [Check readiness](existing-evals.md#check-readiness) for the next step.
 
 ## Review generated cases
 
-Review tasks at `.eval-author/report.html` as soon as cases are authored;
-the final handoff links this report. In the report, users may open a task's
-README or use the harbor viewer to review in full. Agents can start at the
-generated suite's root `README.md`.
+Use the **Tasks** tab in `.eval-author/report.html` to review tasks at a high
+level throughout their lifecycle. Once a task has been created, open its README
+or use the Harbor viewer, where available, for a closer look.
+
+**Proposed** tasks have not been created yet.
 
 Standalone drafts use `.eval-author/tasks/<task-slug>/README.md`. Trace candidates use
 `<task-dir>/README.md`, and generated batches also have a collection-root guide.
@@ -83,10 +84,10 @@ item rerun commands, and known execution blockers.
 
 ## First evaluations
 
-The selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json` records the intended behavior, proposed
-cases, and acceptance criteria. Task drafts and run results show which checks
-have actually completed. Use the [generated case review guide](#review-generated-cases)
-to inspect the authored cases and their available evidence.
+The HTML report and Markdown catalog show proposed, authored, validated, and
+executed task totals for your full saved plan. Use the
+[generated case review guide](#review-generated-cases) to inspect cases and their
+available evidence.
 
 Task controls check the task and its verifier: NeMo Gym's known-correct and negative
 verifier fixtures, or Harbor's no-op baseline and reference solution. Results
@@ -128,6 +129,12 @@ internal validation, measurement, and saved progress:
 | **Coverage measurements (internal JSON)** | `.eval-author/audit-coverage-report.json` | Generated measured results aggregated over the selected runs, when available |
 | **Journey state (internal)** | `.eval-author/.working/journey-state.json` | Saved scope and review decisions, partial progress, pending questions, and next action |
 
+When you switch from creating or improving evaluations into an audit, the
+originating journey's `scopes` entry keeps its last question and handoff in
+`audit_entry`, with the agent and state revision. This context survives an
+interrupted turn. The top-level pending question still belongs to the active
+conversation.
+
 Start with the Audit coverage report. It contains the complete proposed checks
 and links available supporting evidence. A mapping to an existing test describes what that test is
 designed to address; it does not establish that a recorded run satisfied the
@@ -152,11 +159,11 @@ The Audit coverage report explains what those results mean. Journey state saves
 a measurement summary and references its evidence; failed inputs and missing
 methods keep measurement partial.
 
-For local ATIF, Gym records, and complete MLflow exports, saved audit evidence
-links original records and selected suite runs to prepared ATIF, conversion
-limits, and measurements. A private selection manifest is referenced by journey
-state. Changing the original source or its selection reopens check review even
-if the prepared ATIF is unchanged; changed prepared evidence reopens measurement.
+Saved audit evidence links original traces and selected suite runs to prepared
+traces, conversion limits, and measurements. Journey state references a selection
+manifest under the repository's gitignored `.eval-author/` directory, outside the
+source locations. Changing the original source or its selection reopens check
+review even if the prepared trace is unchanged. Changed prepared evidence reopens measurement.
 
 Without usable traces, coverage is **unmeasured**, not 0%; the specification can
 still be completed and the report prepared while measurement remains

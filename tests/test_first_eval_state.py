@@ -1205,8 +1205,20 @@ def test_audit_decision_preserves_complete_creation_and_missing_audit_evidence_b
         audit = modules[0].update(
             tmp_path, {"blockers": [{"id": "data", "phase": "audit", "message": "No audit traces selected"}]}
         )
-        for field in ("ethos", "scopes", "journey_status"):
+        for field in ("ethos", "journey_status"):
             assert audit[field] == saved[field]
+        assert audit["scopes"] == {
+            **saved["scopes"],
+            "create": {
+                **saved["scopes"]["create"],
+                "audit_entry": {
+                    "agent": saved["agent"],
+                    "revision": saved["revision"],
+                    "pending_question": saved["pending_question"],
+                    "next_handoff": saved["next_handoff"],
+                },
+            },
+        }
         assert facts(modules, tmp_path)["complete"]
     else:
         assert saved["journey"] == "create"
