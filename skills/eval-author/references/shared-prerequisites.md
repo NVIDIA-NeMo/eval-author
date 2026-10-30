@@ -14,7 +14,102 @@ checklist and readiness question have been shown and the user replies to that
 question. A goal-choice reply triggers `goal_selected`, not this procedure.
 Do not load repository context or save state in preparation for either
 orientation turn. The [onboarding renderer](conversations/onboarding.md#orientation-and-prerequisite-entry) has a
-narrow no-input command exception for those turns; other helpers remain deferred.
+narrow no-input command exception for those turns; other helpers remain deferred,
+apart from the audit entry lookup below.
+
+## Return to an audit
+
+Explicit full-audit requests and accepted first-suite audit invitations can
+continue creation or improvement context, including in a new chat. An offered
+or declined invitation starts no audit; a later explicit request selects that
+goal. Scoped audit commands retain their entry rules.
+
+Before classification, read only the known request/workspace repository's metadata:
+
+```bash
+python3 -B <skill_dir>/scripts/journey_state.py --repo /absolute/repository --state-only show
+```
+
+This pre-orientation exception permits helper dependencies, but no state writes
+or initialization, artifact inspection (including Ethos), trace enumeration,
+prerequisite probes, or other repository searches. An unknown repository or no
+saved workflow answers/pending work means fresh entry. An absent state file is
+also fresh entry: `--state-only show` exits 0 with `{"state": null, "persisted": false}`.
+Show fresh orientation without initializing state. A successful lookup with
+saved state returns the normal snapshot. Do not infer absence from error text.
+
+A lookup that exits 2 means recovery is needed. For this lookup or any subsequent
+state-operation failure, preserve the file and render
+[`audit_entry_failure`](conversations/onboarding.md#when-state-is-unavailable)
+with the observed error and a concrete recovery action. Pause dependent audit
+checks, state writes, and artifact inspection because continuing could overwrite
+saved decisions or reuse approvals that cannot be verified. Recovery help remains
+in scope. For access errors, name the affected path and access needed. For malformed
+state, offer to restore a known valid copy, preserving the damaged file first.
+For foreign state, explain the repository mismatch and offer the
+[relocation recovery](#recover-after-moving-or-copying-a-repository) only if the
+move was intentional. Do not reset or repair state automatically. Ask only for the
+missing information or authorization needed for the proposed fix. After recovery,
+repeat the metadata-only lookup and resume from the valid saved context.
+
+For the same repository and agent, reuse Ethos metadata with a confirmed digest,
+validation, confirmation source, and no unresolved intent review; prior authoring
+need not be complete. Metadata does not prove current content. Resume unfinished
+shared work at its pending decision. Resolve changed or ambiguous identity and
+intent before auditing, retaining prior scope and evidence as history.
+
+Saved context allows reuse of answers; it does not by itself remove the welcome.
+Skip the welcome only for a direct creation/improvement handoff in the current
+conversation (including accepting its audit invitation), or a reply continuing
+an active audit in that conversation. A separate audit request, including every
+new chat with saved context, gets
+[`audit_welcome`](conversations/onboarding.md#returning-audit-welcome).
+Do not search other chats to classify conversational continuity.
+
+For reusable context, continue these steps in the same turn when unblocked:
+
+1. Use `--state-only init --journey audit`. Before clearing the active question
+   and handoff, the helper saves the outgoing authoring decision in
+   `scopes.<origin>.audit_entry`, alongside the retained scope. Read that context
+   on recovery instead of relying on conversation memory. It records the prior
+   agent, revision, question, and handoff without approving audit inputs or
+   making the old question active. Preserve agent and provider. Same-journey
+   resumes preserve the actual pending audit decision.
+   When a welcome is due, render `audit_welcome` from that fresh state-only audit
+   snapshot and publish it in commentary immediately, before prerequisite probes,
+   artifact inspection, or recovering additional context. Continue in this same
+   turn; the welcome asks no readiness question and is not a checkpoint.
+2. Apply [audit prerequisites](pre-reqs/audit.md) with state-only operations,
+   retaining audit/authoring applicability resets. Reuse applicable common access
+   and Ethos-skill confirmations; resolve only missing or changed audit skills,
+   Python tooling, and trace availability from the request and retained evidence.
+   Authoring data access does not prove evaluation-run traces exist. Exempt runner,
+   Docker, live-service, and execution-credential requirements without probing them.
+3. Unknown/missing traces or blocked audit tooling/access require the saved blocker
+   and `prerequisite_results`, using the canonical trace blocker when applicable.
+   Stop before Ethos or audit artifact inspection; do not offer a trace-free full
+   audit or generate runs. Preserve prior scope, completion, evidence, and Ethos.
+4. After saving an unblocked prerequisite pass, use normal `show` to reconcile
+   Ethos. Audit state operations leave authoring artifacts unread; their completion
+   is historical. Unchanged confirmed content needs no review for a new goal/chat.
+   Changed/missing content, changed intent, or an unresolved review follows the
+   [Ethos adapter](ethos-confirmation.md); retain its actual pending review.
+5. With applicable confirmation, enter
+   [guided audit](../../eval-author-audit/references/guided-audit.md). Preserve scope
+   fields through normal revision-checked updates: selected suites, exact run/attempt
+   evidence, trace source/location/bounds, exclusions, limitations, and provenance.
+   Availability and candidate paths do not select sources; an accepted invitation
+   selects only its identified inputs. Continue at the first unresolved step, or
+   proposed-check review when inputs are settled, without another recap approval.
+   Never measure before check approval.
+
+Skip fresh orientation's readiness gate, the `prerequisites` preview, repeated
+Ethos confirmation, and the shared completion pause. Do not fabricate
+`ready: true` or started status, or end the turn with only a welcome/checklist.
+After reconciliation, use `resume` for an actual
+pending decision or continue authorized work. An audit request answers only a
+generic start invitation, not pending source/content decisions. After a required
+Ethos review, resume the requested audit without another invitation to begin.
 
 ## Check the agent and setup
 
@@ -26,7 +121,7 @@ After the user continues, load only the selected goal's prerequisite reference:
 | Audit coverage, gaps, and improvement opportunities | [Audit prerequisites](pre-reqs/audit.md) |
 | Improve existing evaluations | [Improvement prerequisites](pre-reqs/improve.md) |
 
-After the actual readiness reply, render `prerequisites` with its canonical
+For fresh onboarding, after the actual readiness reply, render `prerequisites` with its canonical
 grounding sentence above the initial status table before inspecting the
 repository or saved state. Reuse facts already in
 conversation; do not perform reads or probes to populate the preview. Supply
@@ -47,6 +142,7 @@ Do not publish an intermediate completed report before Ethos inspection.
 Use `--state-only` for every prerequisite `init`, `show`, and `update`, including
 pending-review bookkeeping. On resume, load saved metadata only after the initial
 status table, then continue the remaining checks from applicable records.
+[Returning audits](#return-to-an-audit) use their bounded lookup and skip that preview.
 If a state operation fails, follow [state-failure handling](#when-prerequisite-state-is-unavailable).
 
 Saved Ethos metadata is history, not proof a document exists, validates, or
@@ -181,6 +277,10 @@ dependencies; do not present them as Recommendations.
 
 ## Present results and the next step
 
+For [returning audits](#return-to-an-audit), use that procedure's response and
+Ethos-reuse rules. The full table and review sequence below applies to shared
+onboarding, not an already-confirmed audit handoff.
+
 If state initialization, reading, or saving failed, follow
 [state-failure handling](#when-prerequisite-state-is-unavailable). The normal
 saved-state procedure below applies only when those operations succeed.
@@ -218,6 +318,9 @@ progress. Subsequent actions can use `ethos` or `resume` when no new prerequisit
 pass is needed.
 
 ### When prerequisite state is unavailable
+
+Returning audits use the failure response in [Return to an audit](#return-to-an-audit),
+which requires no readiness reply. For a fresh flow after readiness:
 
 If a prerequisite `init`, `show`, or `update` fails, finish independently
 accessible prerequisite checks and render
@@ -257,7 +360,8 @@ Ethos skills can create it.
 
 For an existing document, first save the pending review described by
 [existing Ethos review](ethos-confirmation.md#review-an-existing-document) using
-state-only metadata. After the prerequisite pass is complete and saved and the document is inspected, supply
+state-only metadata, unless [audit continuation](#return-to-an-audit) reuses its
+confirmation. After the prerequisite pass is complete and saved and the document is inspected, supply
 its real link and a grounded summary as `facts.ethos` with status `existing`. For a missing document, use status `absent` and supply the
 orchestrator's current question. Use `unknown` when presence is unresolved.
 Keep explanations grounded in the supplied findings. The renderer produces the
@@ -266,6 +370,9 @@ establish approval. If blocked, preserve progress without starting dependent
 Ethos work.
 
 ## Confirm Ethos
+
+An eligible [audit continuation](#return-to-an-audit) reconciles and reuses its
+confirmed document instead of entering a new shared Ethos review.
 
 After completing and saving the unblocked prerequisite pass, invoke
 [Ethos confirmation](ethos-confirmation.md) for the selected `ETHOS.md`.
@@ -281,6 +388,9 @@ structural validity, or an implemented behavior. Do not write the canonical
 document before its content is confirmed.
 
 ## Pause after Ethos confirmation
+
+An already-requested [returning audit](#return-to-an-audit) resumes directly;
+the completion pause below is for a new shared flow.
 
 After the saved `ETHOS.md` has been validated and its content reviewed and
 confirmed, persist completion using `confirm-ethos`. A draft approval or file
@@ -375,7 +485,8 @@ imported decisions before applying them; old notes never establish approval
 automatically, even when they describe a prior approval. Preserve conflicts and malformed
 records for resolution; do not replace them with fresh success state.
 
-When prerequisite work must resume, complete and save the state-only pass before
+For [audit continuation](#return-to-an-audit), use the bounded entry lookup and
+reuse procedure above. When other prerequisite work must resume, complete and save the state-only pass before
 reading target artifacts. Include its completed findings in the final `results`
 response. When no new pass is needed, render `resume` from normally reconciled
 state to present the pending question or earliest unfinished,
@@ -441,7 +552,8 @@ bind approval or validation to a file that the scratch context will remove.
 
 ## Hand off
 
-After the user answers the completion pause, pass the selected journey,
+After the user answers the completion pause, or through an authorized
+[audit continuation](#return-to-an-audit), pass the selected journey,
 repository/agent, setup and prerequisite evidence and answers,
 confirmed Ethos result, saved source choice when applicable, and unresolved
 dependencies. First-eval continues with its next unresolved source/design/scope
@@ -477,8 +589,10 @@ setup changes, or when switching between audit and authoring. The examples above
 use prerequisite mode: Ethos and evaluation checklist items remain unchecked
 until normal artifact checks resume after the prerequisite pass is complete and
 saved. `show` derives
-checklist status without writing. Use its state-only `state` and matching revision
-for `prerequisite_results`; use normal reconciled state for later rendering.
+checklist status without writing. The
+[audit-entry result contract](#return-to-an-audit) distinguishes an absent file
+from a failed lookup. When state is present, use its state-only `state` and matching
+revision for `prerequisite_results`; use normal reconciled state for later rendering.
 Never maintain a separate saved checklist. Rendering does not save a readiness
 answer, confirmation, or continuation, and does not replace normal `show`
 reconciliation of changed Ethos or draft content.
@@ -519,8 +633,11 @@ The helper's audit `runtime_requirements` describe audit tooling independently
 of the selected NeMo Gym or Harbor source format.
 
 `scopes` is keyed by journey and holds agreed source bounds, scope tables,
-case inventory, and downstream decisions. Updating a journey's scope replaces
-that entry, so read and preserve unaffected fields first. `journey_status` maps
+case inventory, and downstream decisions. On entry to audit from creation or
+improvement, `audit_entry` in the originating scope retains the latest outgoing
+agent, state revision, pending question, and handoff. This is recovery context,
+not an audit decision or a separate progress record. Updating a journey's scope
+replaces that entry, so read and preserve unaffected fields first. `journey_status` maps
 a journey to `pending`, `in_progress`, or `complete`. Blockers have `id`, `phase`
 (`setup`, `ethos`, or a journey), and `message`. For a prerequisite blocker, use
 its prerequisite key as `id`, or `evaluation_format` for the

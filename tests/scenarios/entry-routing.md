@@ -3,8 +3,8 @@
 
 # Entry routing conversational acceptance scenarios
 
-Use these scenarios to review Eval Author's first response to onboarding and
-expansion requests. This is a manual protocol, not an execution record or a
+Use these scenarios to review Eval Author's first response to onboarding,
+returning audit, and expansion requests. This is a manual protocol, not an execution record or a
 claim of passing model evaluation. Use fresh, isolated synthetic workspaces
 with the sibling skills available and no customer data or provider credentials.
 Retain replies, channels, tool calls, and delegation logs. Judge the selected
@@ -19,12 +19,14 @@ defines the stage inputs and workflow boundaries.
 
 The [offline scope checker](../../docs/determinism-checks.md#workflow-scope) makes a subset
 of these route and effect expectations executable against normalized captures.
-Its synthetic tests are not a record of passing conversational replay.
+Its synthetic tests check action permissions and handoffs, not welcome copy,
+message channels, or observed model routing. They are not a record of passing
+conversational replay.
 
 ## 1. Shared entry for each journey and runtime
 
 Request first evals, an audit, and expansion in separate synthetic NeMo Gym and Harbor
-repositories. For full audits, unless testing unknown or missing traces, include
+repositories without saved decisions. For full audits, unless testing unknown or missing traces, include
 the user's explicit statement that traces from completed evaluation runs exist;
 leave their source and location unselected. The first orientation has the same
 three checklist items: confirm
@@ -39,11 +41,11 @@ through:” for introductions followed by a checklist.
 It ends there, even when repository or Ethos paths are supplied. Inspect the
 tool trace: only the invoked skill, shared core, shared rendering contract,
 onboarding reference, and the renderer's own source dependencies may be loaded
-before this reply. The sole
-command exception is the pure renderer's no-input `orientation` preview; it
+before this reply. The pure renderer's no-input `orientation` preview
 must not receive repository, state, or input-file arguments. Repository/state
 reads, Ethos validation, prerequisite checks or questions, other helper commands,
-writes, and delegation all fail this opening checkpoint.
+writes, and delegation all fail this opening checkpoint, except for the bounded
+saved-state lookup for an explicit audit in a known repository described below.
 Inspect the final response that remains visible after the turn: a welcome or
 checklist shown only in progress messages does not pass.
 
@@ -351,10 +353,11 @@ traces; it does not complete full audit onboarding or establish measured coverag
 Explanation-only requests do not start work. A trace source must still be selected
 before searches or reads. Explicit source selections are reused.
 
-### Existing Ethos requires current confirmation
+### New shared entry requires current Ethos confirmation
 
-For each new shared entry with NeMo Gym and Harbor, supply a valid root `ETHOS.md` and
-saved state with a matching confirmed digest from an earlier flow. Complete the
+For fresh shared entry with NeMo Gym and Harbor, supply a valid root `ETHOS.md`
+without applicable same-agent journey confirmation. For creation and improvement,
+also exercise historical saved confirmation from an earlier flow. Complete the
 opening and prerequisite checks. Under **Next Steps**, Ethos must remain
 unchecked and current when setup is complete. The response links the actual file,
 briefly summarizes its intended behavior, and asks whether it is the right
@@ -377,6 +380,9 @@ approval, mark Ethos complete, or show the evaluation readiness question yet.
 Keep the existing file unchanged when accepted without edits. Retain prior
 answers and source findings instead of restarting the interview. Inspect shared
 state as well as the visible checklist; old `complete` state must not bypass review.
+An explicit audit continuing valid same-repository, same-agent context follows
+the returning-audit scenario below. A new chat requires the audit welcome while
+retaining applicable saved answers; it does not restart fresh onboarding.
 
 ## 4. Resume and switch journeys
 
@@ -384,6 +390,8 @@ Save accepted prerequisites and Ethos, a pending scope question, and evidence
 references in `.eval-author/.working/journey-state.json`. Resume the same goal
 from a fresh chat with its accepted scope, current Ethos confirmation, pending
 question, and handoff; do not restart shared entry or reopen unchanged review.
+For an audit in a new chat, first show the returning-audit welcome described below
+and continue in the same turn to the pending decision.
 Then switch between audit and creation or expansion. Retain shared confirmation,
 saved scopes, and evidence, but select the new goal's question and handoff;
 keep journey-specific source selections separate. A supplied source path does
@@ -399,6 +407,57 @@ tooling and trace availability if they have not been established. Creation's
 data exemptions do not satisfy audit trace availability. Neither direction loses
 the accepted Ethos, saved scope decisions, or evidence references, and a switch does not
 authorize unrelated trace reads or agent execution.
+
+### Returning audit after bootstrap or improvement
+
+Follow the [canonical return-to-audit rules](../../skills/eval-author/references/shared-prerequisites.md#return-to-an-audit).
+Repeat for completed bootstrap and completed improvement. Save confirmed agent
+identity, applicable prerequisites, content-bound Ethos approval, and the accepted
+suite and run selections. Exercise these conversation contexts independently:
+
+| Conversation context | Required introduction |
+| --- | --- |
+| Direct acceptance of the offered audit handoff in the active conversation | Continue the handoff without repeating the welcome |
+| A separate explicit audit request later in the same conversation | Show the audit welcome and current audit checklist |
+| A separate request or audit resume in a new chat opened in the known repository | Show the audit welcome and current audit checklist |
+| A reply continuing an active audit in the current conversation | Resume the pending decision without repeating the welcome |
+
+For separate requests, use “Audit the suite and runs we just reviewed.” Compare
+`audit_welcome` with the canonical renderer output and input authority. Inspect
+that its welcome, state-derived checklist, and saved-answer reuse note appear
+promptly in commentary before bounded checks. The checklist reflects current
+audit readiness, including reopened audit-specific prerequisites. Ethos stays
+unchecked until reconciliation. The approval note appears only with a saved
+confirmation. Saved authoring completion does not complete the audit.
+After switching from creation or improvement, reload state in a new turn and
+verify the outgoing question and handoff remain in the originating scope's
+`audit_entry`. They must not become the active audit question.
+
+The same turn must reach the actual pending decision, or proposed-check review
+when inputs are settled. A readiness question, checklist-only turn, or repeated
+settled question fails. Inspect tool ordering and filesystem effects against the
+canonical procedure, including its metadata-only lookup and selected-source
+boundaries. Exercise these variants for both origins and applicable contexts:
+
+| Saved or current condition | Required next step |
+| --- | --- |
+| No saved state | Lookup exits 0 with `state: null` and `persisted: false`. Show fresh orientation and create no state during classification |
+| Malformed, unreadable, or foreign-repository state | Lookup exits 2. Preserve it, explain why audit checks pause, and offer a specific recovery action without inspecting artifacts or manufacturing approval |
+| Shared work remains unfinished | Resume its pending prerequisite or Ethos decision |
+| Trace availability unknown or missing | After any required early welcome, show the actual prerequisite blocker in final, retaining earlier journey completion and Ethos confirmation; do not read Ethos or traces or run evaluations |
+| Audit tooling missing | Report only unresolved audit requirements; do not repeat unrelated interviews |
+| Trace availability confirmed, run paths only candidates | Ask only for the missing source/location; do not inspect candidates |
+| Ethos content changed, missing, or selected agent changed | Reopen the affected intent review after applicable prerequisites pass |
+| Audit already has a pending question | After any required early welcome, preserve its scope and resume that actual question in the same turn |
+| Bootstrap invitation remains pending or is declined | Do not enter the audit or inspect its inputs |
+
+Retain source decisions and prior completion evidence around each blocker.
+Repeat the trace blocker with both unknown availability and confirmed absence;
+reuse the absence answer without asking it again. An early welcome does not
+authorize Ethos inspection or complete audit prerequisites.
+Synthetic contracts use representative permission policies; retain every origin
+and unknown/missing status variant here for conversational review. Their action
+checks do not establish welcome content, timing, or observed assistant behavior.
 
 ## 5. Legacy state is imported once
 

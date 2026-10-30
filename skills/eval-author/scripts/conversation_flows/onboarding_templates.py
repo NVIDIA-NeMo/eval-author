@@ -8,6 +8,10 @@ WELCOME = (
     "against your agent’s intended behavior."
 )
 WELCOME_WITH_CHECKLIST = WELCOME + " Here’s what we’ll work through:"
+AUDIT_REUSE_NOTICE = "I’ll reuse your saved answers and check only what’s missing or changed."
+AUDIT_ETHOS_REUSE_NOTICE = (
+    "Saved ETHOS.md approval will carry forward if the agent, intent, and document are unchanged."
+)
 GOAL_QUESTION = "What would you like to do?"
 GOAL_CHOICES = (
     "Build your first evaluations",
@@ -37,7 +41,9 @@ PREREQUISITE_PROGRESS_INTRO = "Here’s what I already know about your setup and
 PREREQUISITE_RESULTS_INTRO = "Here’s what the prerequisite checks found, including anything that still needs attention."
 AUDIT_ENTRY_STATE_FAILURE = (
     "- **Saved progress:** {error} "
-    "**Needed:** Resolve the reported problem with saved progress, then retry the audit request."
+    "I’m pausing audit checks because I can’t safely reuse or update saved progress. "
+    "**Next step:** {recovery} "
+    "Once that’s resolved, I’ll reload saved progress and continue the audit."
 )
 PREREQUISITE_STATE_FAILURE = (
     "- **Save prerequisite findings:** {error} "

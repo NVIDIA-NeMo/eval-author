@@ -9,6 +9,8 @@ flow. Afterward keep its audit item current while explaining the present
 milestone: reviewing coverage, identifying gaps, and recommending improvements.
 Use the [onboarding renderer](../../eval-author/references/conversations/onboarding.md)
 for canonical checklist wording and reuse completed shared steps.
+For returning-audit entry, follow
+[Return to an audit](../../eval-author/references/shared-prerequisites.md#return-to-an-audit).
 
 ## Decisions and progress
 
@@ -65,6 +67,16 @@ place to look, a prior discovery inventory, or a saved candidate path does not.
 Apply additions and exclusions before proceeding. On resume, reuse confirmed
 choices and present any still-pending suite selection before continuing.
 
+When selected paths are missing or saved selections conflict with current handoff
+or authoring records, explain the mismatch in the final blocker or source-selection response.
+Name the selected suites/tasks and runs, their selection provenance, and exactly
+which checked paths are missing. Contrast relevant current work already known,
+distinguishing saved records from verified files. Honor a current explicit
+selection even when newer work exists. If scope is unclear, ask which named set
+to audit before requesting its run source. Preserve prior selections until that
+choice is resolved. Reassess trace availability and run mapping for a changed set;
+earlier trace confirmations do not establish evidence for newly selected work.
+
 If the user confirms no evaluations exist, say so without searching to prove it.
 If the location is unknown or inaccessible, report that limit and ask for the
 eval location first; do not claim absence or imply that an inventory succeeded.
@@ -119,7 +131,9 @@ specification” or “test mappings.” Wait for the answer before proceeding.
 Complete this milestone when the user has confirmed the eval suite set (or that
 none exist) and trace selection or confirmed unavailability is understood.
 Explain the selected scope, what its evidence can establish, and any missing
-inputs; check in before defining coverage.
+inputs; check in for unresolved decisions before defining coverage. When the
+request or accepted handoff already settles those decisions, continue to the
+proposed-check review without a separate approval of this recap.
 An inaccessible eval directory or a missing report does not establish no evals.
 Keep an unresolved eval location open and ask for an accessible source; offer
 independent specification work if useful, carrying that limitation forward.

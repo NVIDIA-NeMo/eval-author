@@ -26,7 +26,7 @@ Unless a case tests unknown or missing availability, supply the user's explicit
 statement that traces from completed evaluation runs exist. This confirms
 availability without selecting their source or location.
 
-Every fresh full audit uses the core's three-item shared prerequisite checklist with
+Every fresh full audit without applicable saved journey context uses the core's three-item shared prerequisite checklist with
 **Review evaluation coverage, identify gaps, and recommend improvements** selected. Repeat with NeMo Gym and
 Harbor, missing Ethos, and unchanged confirmed Ethos. User-confirmed prerequisites
 remain distinct from observed checks. On continuation, render `prerequisites`
@@ -41,6 +41,11 @@ material. A blocked final uses `prerequisite_results` once when state was saved,
 or `prerequisite_failure` if state cannot be loaded or saved, before any Ethos
 inspection. There is no intermediate completed report or third table.
 Unselected trace reads and agent execution remain out of scope.
+
+For full audits with reusable saved context, follow the
+[returning audit entry scenarios](entry-routing.md#returning-audit-after-bootstrap-or-improvement).
+Apply their introduction rules without restarting fresh onboarding or repeating
+settled prerequisite, Ethos, or source decisions.
 
 Use the fixed six-row audit table: **Agent and repository**, **Evaluation
 framework**, **Traces from completed evaluation runs**, **Required skills**,
@@ -82,8 +87,11 @@ reopen Ethos or treat this as an onboarding blocker. A missing conversion tool
 similarly blocks only the selected conversion and dependent measurement.
 
 Use `ethos-orchestrate` through the confirmation adapter. Reuse applicable answers
-and content, but show an existing Ethos for confirmation that it is correct and
-current before continuing, even if it was previously accepted. For missing or revised intent, review the draft
+and content. Fresh onboarding shows an existing Ethos for confirmation that it is
+correct and current. A returning audit reuses valid same-agent, content-bound
+confirmation after applicable audit prerequisites and artifact reconciliation;
+follow the [returning audit entry scenarios](entry-routing.md#returning-audit-after-bootstrap-or-improvement).
+For missing or revised intent, review the draft
 before canonical writes. Missing skills are a dependency limitation, not a reason
 to create another fallback interview. Preserve custom sections and creation
 metadata. A substantive format mismatch stays explicit for the canonical workflow.
@@ -203,8 +211,9 @@ explanations, not just the final question.
 **Reply when asked:** “Use only `runs/selected/` for these evaluations.”
 
 **Inspect:** Subsequent trace operations stay within that selection. The agent
-explains what it found and waits at the next milestone check-in before drafting,
-measuring, or aggregating work belonging to a later milestone.
+explains what it found and asks only about unresolved source decisions. When
+inputs are settled, it prepares proposed checks for review without another
+input-recap approval. Measurement waits for check approval.
 
 ## 2. Supplied trace location is reused
 
@@ -217,8 +226,9 @@ confirmation that it is correct and current. Preserve the supplied suite and tra
 **Inspect:** The agent records and uses the explicitly selected evaluation suite
 and supplied trace location without asking the user to select either again. It
 does not add discovered suites to that scope or widen the trace search to
-`runs/other/`. Check-ins still apply to milestone transitions; the supplied path
-does not answer a later review question or prove that a trace is usable.
+`runs/other/`. Settled inputs need no separate input-recap approval before
+proposed-check review; the supplied path does not approve those checks or prove
+that a trace is usable.
 
 ## 3. No traces versus an inaccessible source
 
@@ -320,6 +330,10 @@ or permission to start first-eval creation. If the user later confirms no evals
 exist, the agent offers the appropriate next workflow without silently switching.
 
 ## 5. Resume without replaying settled work
+
+Run each case as an active-conversation continuation and as a new-chat resume,
+using the introduction rules linked above. Both reach the pending review in the
+same turn without repeating settled work or adding a readiness question.
 
 **A — selected source, pending transition:** Supply `.eval-author/.working/journey-state.json`,
 the accepted Ethos, a valid reviewed audit specification, and history showing that
@@ -664,9 +678,11 @@ tools and delegation logs as well as the reply.
 
 **Resume while suite selection is pending:** Start a fresh conversation with
 the saved progress and history and request: “Continue this audit.” The agent
-restores the two candidate suite links and pending include/exclude question,
-retains `runs/selected/` as the supplied trace source, and stops. It neither
-replays the opening nor infers an answer from the presence of saved paths.
+publishes the early `audit_welcome`, then restores the two candidate suite links
+and pending include/exclude question in the same turn. It retains `runs/selected/`
+as the supplied trace source and stops at the suite question. It does not ask for
+readiness or infer an answer from the presence of saved paths. Repeat as a reply
+in the active audit: resume that same suite question without repeating the welcome.
 
 **Suite correction:** “Audit only `evals/account-support/`. Exclude the legacy
 suite; there are no other suites to include.”
@@ -675,15 +691,66 @@ suite; there are no other suites to include.”
 suite as excluded, then proceeds with the already selected trace source without
 another suite or trace confirmation prompt. It completes the input milestone
 only after explaining the confirmed evaluation scope and what the selected
-records can establish, then checks in before specification drafting. After the
-user accepts that transition, verify that test mappings and findings exclude
+records can establish, then prepares proposed checks for review without another
+input-recap approval. Verify that test mappings and findings exclude
 the legacy-only case and that every later scope summary preserves the choice.
 
 **Explicit-selection control:** Repeat with both the current suite and
 `runs/selected/` explicitly selected in the initial request, as in scenario 2.
 The discovery of the linked legacy suite must neither widen the audit nor cause
-an extra include/exclude question. Settled inputs still do not waive milestone
-check-ins.
+an extra include/exclude question. Continue to proposed-check review; settled
+inputs do not approve the checks or authorize measurement.
+
+## 13. Returning audit reaches the first unresolved step
+
+Use the [returning audit entry protocol](entry-routing.md#returning-audit-after-bootstrap-or-improvement)
+and its full origin, conversation-context, and blocker matrix with this
+document's fixture. Check that unknown or missing completed-run traces still
+block before Ethos inspection, `runs/other/` stays unread, and measurement waits for
+proposed-check approval. A welcome and checklist alone do not pass this scenario.
+
+## 14. Missing audit selections and newer recorded work
+
+Follow [selection handling](../../skills/eval-author-audit/references/guided-audit.md#1-confirm-evals-and-traces)
+for selection reconciliation and source boundaries.
+
+**Setup:** Save an audit selection of `evals/bootstrap-old/` and
+`runs/bootstrap-old/` with provenance identifying an older bootstrap chat.
+Both selected paths are absent. The same journey-state file has newer create
+records for `evals/bootstrap-current/` and `runs/bootstrap-current/`, with the
+newer handoff's provenance. Provide the current task definitions and a saved
+control result, but leave their run records unselected. Keep prerequisites and
+Ethos applicable.
+
+**Request:** “Audit the evaluations from our previous work.”
+
+**Inspect:** After the applicable welcome, the agent explains that the missing
+paths are the older audit selection and identifies its provenance. It contrasts
+that selection with the newer work recorded in shared state, linking the relevant
+paths and distinguishing actual bounded checks from saved records. It does not
+claim the newer tasks or runs are verified merely because state lists them,
+treat control results as agent runs, or infer deletion from absent paths. Missing
+claims stay limited to the checked selection. The next question asks which set
+the user intends to audit; it does not offer to proceed as though the stale set
+were the only available work. It retains the old selection until answered and
+does not enumerate or read the newer run directory, search other chats, silently
+switch sources, or draft coverage while the intended scope is unresolved.
+
+**Reply:** “Use the current bootstrap tasks and their runs at those newer paths.”
+The agent records the revised suite and trace selections with this answer's
+provenance, then checks only those inputs. Missing or unusable newer runs remain
+an evidence limitation rather than proof of readiness or permission to search
+elsewhere.
+
+**No known alternative:** Repeat without newer create records or other known
+candidates. The agent names the exact missing selections and their provenance,
+limits absence claims to what it checked, and asks for their current location
+or a replacement suite. It does not invent newer work or scan the
+repository for replacement traces.
+
+**Explicit selection:** Repeat with a request that explicitly chooses the older
+suite. Newer records alone do not trigger reselection; ask only for the missing
+location needed to use the chosen suite.
 
 ## Evidence limits
 

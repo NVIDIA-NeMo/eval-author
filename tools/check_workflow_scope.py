@@ -22,6 +22,9 @@ CONTRACTS = Path(__file__).resolve().parents[1] / "tests/fixtures/workflow-scope
 ACTIONS = {
     "read_skill",
     "render_conversation",
+    # Metadata-only journey_state.py --state-only show for a known repository.
+    # Native adapter review must exclude artifact reconciliation and other reads.
+    "read_saved_state",
     "read_repository",
     "inventory",
     "runtime_probe",
@@ -233,9 +236,17 @@ def check(contracts: dict, evidence: dict, raw: bytes) -> dict:
             if action not in ACTIONS:
                 incomplete.append(prefix + ": unknown action " + str(action))
                 continue
+            if (
+                "read_saved_state" in contract["required_actions"]
+                and "read_saved_state" not in seen
+                and action not in {"read_skill", "read_saved_state"}
+            ):
+                violations.append(prefix + ": saved-state lookup must precede " + action)
             seen.add(action)
             if action not in contract["allowed_actions"]:
                 violations.append(prefix + ": forbidden action " + action)
+            if action == "read_saved_state" and event["write_paths"]:
+                violations.append(prefix + ": saved-state lookup must not write")
             # Every normalized call supplies its complete destination list, including
             # temporary writes and failed attempts. Label correctness needs adapter review.
             for path in event["write_paths"]:
