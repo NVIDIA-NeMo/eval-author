@@ -14,36 +14,8 @@ pass, it produces the report described here.
 
 ## Generating the report
 
-From the repository root, invoke the validation CLI with:
-
-```bash
-uv run python labs/metric-benchmark/validate_results.py \
-  --benchmark experiment.yml \
-  --results-root experiment-results \
-  --output validation.json
-```
-
-Supply these required arguments:
-
-- `--benchmark`: path to the experiment YAML file and its references to prepared inputs.
-- `--results-root`: whole experiment output directory containing `execution.json` and the case results directories.
-- `--output`: path for the validation report, outside the results root; `validation.json` is an example filename.
-
-By default, the tool validates every configured case. Add `--case case-id` to
-validate only that case example, using the same `--results-root` path. The
-experiment’s `execution.json` maps each case ID to its results index.
-
-Optionally, add `--allow-unsigned` when input SHA pins are missing during iteration;
-any supplied pins are still verified.
-
-The CLI checks all selected cases and writes one report only if every selected
-case passes. A filtered invocation uses the same report structure with one case.
-Explicitly unavailable observations do not themselves cause validation to fail. If any constraint fails, the command exits nonzero and
-no new report is written. An existing output file can be reused only if its
-contents are identical; choose a new output path for changed results.
-
-The [Python library](tools.md#validate-a-results-directory) returns the same report
-as a dictionary.
+Use the [`validate_results.py` command guide](validate-results.md) for the CLI
+invocation, arguments, output behavior, and Python API.
 
 ## Report format: `validation.json`
 

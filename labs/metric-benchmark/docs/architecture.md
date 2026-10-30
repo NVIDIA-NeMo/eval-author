@@ -20,8 +20,8 @@ The experiment is a program with supplied inputs, a fixed sequence of operations
 and defined outputs. It executes benchmark tasks against the baseline agent and
 a fixed cohort of mutants. Its analysis consumes predefined task subsets, computes a
 mutant score for each subset, invokes the coverage tool on the same subsets, and
-correlates the two scores. The current implementation starts from saved execution
-results. Execution is a replaceable component whose output is a shared results
+correlates the two scores. The local Harbor implementation produces these execution results; analysis can
+also consume saved results. Execution is a replaceable component whose output is a shared results
 directory consumed by analysis.
 
 Comparisons between coverage tools use the same subsets, mutant cohort, and
@@ -99,7 +99,8 @@ Baseline and mutant bundles are prepared and checked before release.
 Tasks and their environments are ready for execution. At present only Harbor tasks are used.
 
 The configuration supplies the choices that determine execution: the fixed subset manifest,
-selected agent runs, scoring rules, and the coverage-tool command and settings.
+scoring rules, and the coverage-tool command and settings. Analysis derives one
+agent run per configured agent from the results index.
 The program validates these inputs before using them. Missing or inconsistent
 inputs cause an error.
 
@@ -133,8 +134,10 @@ are the **execution implementation** and the **results-directory interface**.
 | Execution implementation | Runs the configured agent-by-task matrix and assembles its outputs. The initial implementation is a simple local Harbor loop, one agent's full benchmark at a time. A future NeMo Helix implementation will orchestrate evaluations at scale. |
 | Results directory | Carries the task inventory, agent/task identities, statuses, measurements, and native evidence into analysis. Both execution implementations produce the same contract. |
 
-The proposed layout is agent-first: `agents/<agent>/<run>/<native-trial>/`, with
-`results.json` at the root indexing those trial results. Each run contains the
+The experiment root contains `execution.json`, mapping each case ID to its
+`results.json`. Within each case, the local layout is agent-first:
+`agents/<agent>/<run>/<native-trial>/`. The case index lists its task inventory
+and execution results as arrays and locates each trial’s native evidence. Each run contains the
 native output of that agent running the benchmark. The
 [results-directory contract](results-format.md) specifies the
 layout. Invocation, scheduling, and collection are internal to the execution
@@ -216,7 +219,7 @@ configuration and coordinates their execution.
 
 | Stage | Python tool / library operation |
 | --- | --- |
-| Execute evals | Local Harbor execution tool, or a future NeMo Helix execution tool; both expose the same results-directory contract |
+| Execute evals | `run_evals.py` / `metric_benchmark.execution.execute_benchmark`; a future NeMo Helix tool will produce the same results-directory contract |
 | Compute mutant scores | `compute_mutant_scores.py` / `metric_benchmark.scoring.compute_mutant_scores` |
 | Compute coverage | `compute_coverage.py` / `metric_benchmark.coverage.invoke_coverage` |
 | Correlation | `correlate.py` / `metric_benchmark.correlation.correlate` |

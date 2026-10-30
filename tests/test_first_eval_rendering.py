@@ -541,7 +541,10 @@ def test_authored_table_comes_from_saved_report_and_renders_full_review(creation
 
 
 @pytest.mark.parametrize("nested_readmes", [False, True])
-def test_gym_report_workload_uses_saved_task_id_and_root_metadata(creation, tmp_path, monkeypatch, nested_readmes):
+@pytest.mark.parametrize("root_workload", [False, True])
+def test_gym_report_workload_uses_saved_task_id_and_root_metadata(
+    creation, tmp_path, monkeypatch, nested_readmes, root_workload
+):
     state, record, _, _, _ = creation
     monkeypatch.syspath_prepend(str(SCRIPTS))
     state["setup"] = record["provider"] = "gym"
@@ -555,6 +558,9 @@ def test_gym_report_workload_uses_saved_task_id_and_root_metadata(creation, tmp_
     (root / "resources_servers/case/configs").mkdir(parents=True)
     (root / "resources_servers/case/configs/case.yaml").write_text("name: case\n", encoding="utf-8")
     (root / "resources_servers/case/app.py").write_text("# Resource server fixture\n", encoding="utf-8")
+    if root_workload:
+        (root / "tasks.jsonl").write_text("{}\n", encoding="utf-8")
+        (root / "instruction.template.md").write_text("Audit {item}\n", encoding="utf-8")
     if nested_readmes:
         (root / "environments/case/README.md").write_text(
             "## Behavior under test\nAudit saved stock.\n## Expected result\nReport the correct total.\n",
@@ -588,11 +594,8 @@ def test_gym_report_workload_uses_saved_task_id_and_root_metadata(creation, tmp_
             }
         },
     )
-    gym_rows = [item for item in refreshed["tasks"] if item["provider"] == "gym"]
-    assert {item["path"] for item in gym_rows} == {
-        workload_path,
-        ".eval-author/tasks/refund/resources_servers/case/configs/case.yaml",
-    }
+    gym_rows = [item for item in refreshed["tasks"] if item["provider"] == "gym" and item["status"] == "found"]
+    assert [item["path"] for item in gym_rows] == [workload_path]
     manifest_row = next(item for item in gym_rows if item["path"] == workload_path)
     assert manifest_row["task_revision"] == sha
     assert manifest_row["display_id"] == "refund"
