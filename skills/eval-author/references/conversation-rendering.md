@@ -92,11 +92,17 @@ with optional traces, design and first-task review, validation, execution
 settings, results, and the optional audit handoff. Its stages require reconciled
 saved state and use the `first_eval_` prefix; they have no stateless preview.
 
+[Audit rendering](conversations/audit.md) continues an audit with unresolved
+source selections, proposed-check approval, measurement progress, findings review,
+and optional next actions. Its `audit_` stages use reconciled audit state and
+observations, with the Audit coverage report as the single review document.
+
 [conversation_renderer.py](../scripts/conversation_renderer.py) dispatches through
 an explicit [journey/stage registry](../scripts/conversation_flows/__init__.py)
 to implemented flow renderers. Duplicate registrations are rejected. Implemented
-flows are [onboarding.py](../scripts/conversation_flows/onboarding.py) and
-[first_eval.py](../scripts/conversation_flows/first_eval.py), with copy in their
+flows are [onboarding.py](../scripts/conversation_flows/onboarding.py),
+[first_eval.py](../scripts/conversation_flows/first_eval.py), and
+[audit.py](../scripts/conversation_flows/audit.py), with copy in their
 respective `_templates.py` modules.
 Shared formatting and escaping live in
 [conversation_formatting.py](../scripts/conversation_formatting.py).

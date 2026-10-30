@@ -49,7 +49,9 @@ ROW_PREREQUISITES = {
 def checklist(journey: str, state: dict | None = None, *, state_only: bool = False, audit: dict | None = None) -> str:
     rows = (
         journey_state.checklist(
-            {**state, "blockers": active_blockers(state, state_only=state_only)}, state_only=state_only, audit=audit
+            {**state, "blockers": journey_state.active_blockers(state, state_only=state_only)},
+            state_only=state_only,
+            audit=audit,
         )
         if state is not None
         else [
@@ -142,21 +144,8 @@ def recommendations(facts: dict) -> str | None:
     return "\n".join(lines)
 
 
-def active_blockers(state: dict, *, state_only: bool = False) -> list[dict]:
-    """Present dependencies at the action they block, retaining all saved evidence."""
-    shared_done = all(row["complete"] for row in journey_state.checklist(state, state_only=state_only)[:2])
-    started = state["journey_status"].get(state["journey"]) in {"in_progress", "complete"}
-    later_requirements = {"environment", "services", "data", *journey_state.DEFERRED}
-    return [
-        item
-        for item in state["blockers"]
-        if item["phase"] in {"setup", "ethos"}
-        or (shared_done and item["phase"] == state["journey"] and (started or item["id"] not in later_requirements))
-    ]
-
-
 def blocker_section(state: dict, facts: dict, *, confirmed: bool, state_only: bool = False) -> str | None:
-    active = active_blockers(state, state_only=state_only)
+    active = journey_state.active_blockers(state, state_only=state_only)
     explanations = facts.get("blockers", [])
     if not isinstance(explanations, list):
         raise ValueError("Blockers must be a list")
@@ -401,6 +390,14 @@ def render(payload: dict) -> str:
     if state["journey"] == "audit" and stage in {"resume", "results", "confirmed"}:
         fact_keys.add("audit_observations")
     facts = mapping(payload.get("facts", {}), "facts", fact_keys)
+    if (
+        stage == "resume"
+        and state["journey"] == "audit"
+        and audit_state.record(state) is not None
+        and all(row["complete"] for row in journey_state.checklist(state)[:2])
+        and not any(item["phase"] in {"setup", "ethos"} for item in journey_state.active_blockers(state))
+    ):
+        raise ValueError("Use audit_resume for saved audit checkpoints after shared onboarding is complete")
     audit = None
     if "audit_observations" in facts:
         observed = facts["audit_observations"]

@@ -23,6 +23,7 @@ def new_record() -> dict:
         "traces": copy.deepcopy(selection),
         "suite_files": [],
         "trace_files": [],
+        "selection_manifest": None,
         "specification": None,
         "checks_approval": None,
         "measurement": None,
@@ -90,6 +91,7 @@ def _decision(value) -> None:
 
 def validate(value: dict) -> None:
     try:
+        value = {"selection_manifest": None, **value}
         _fields(value, " ".join(new_record()))
         if type(value["schema_version"]) is not int or value["schema_version"] != 1:
             raise ValueError("Unsupported audit lifecycle version")
@@ -120,8 +122,9 @@ def validate(value: dict) -> None:
                 raise ValueError(f"{field} requires a selected {key} source")
             if any(not _within(path, value[key]["paths"]) for path in value[field]):
                 raise ValueError(f"{field} must stay within the selected {key} paths")
-        if value["specification"] is not None:
-            _path(value["specification"])
+        for key in ("specification", "selection_manifest"):
+            if value[key] is not None:
+                _path(value[key])
         for key in ("checks_approval", "findings_review"):
             if value[key] is not None:
                 _decision(value[key])
@@ -175,6 +178,12 @@ def _sources(state: dict) -> set[str]:
     for key, field in (("suites", "suite_files"), ("traces", "trace_files")):
         if value[key]["status"] == "selected" and (key == "suites" or value["suites"]["status"] != "pending"):
             files.update(value[field])
+    if (
+        value.get("selection_manifest")
+        and value["suites"]["status"] != "pending"
+        and value["traces"]["status"] == "selected"
+    ):
+        files.add(value["selection_manifest"])
     if value["findings"]:
         files.add(value["findings"]["report"]["path"])
     if value["measurement"] and value["suites"]["status"] != "pending" and value["traces"]["status"] == "selected":
@@ -214,11 +223,7 @@ def observe(repo, state: dict) -> dict:
     return observed
 
 
-def derive(state: dict, observed: dict) -> dict | None:
-    value = record(state)
-    if value is None:
-        return None
-    validate(value)
+def observed_files(state: dict, observed: dict) -> dict:
     _fields(observed, "files")
     if not isinstance(observed["files"], dict):
         raise ValueError("Audit observations require file digests")
@@ -227,9 +232,19 @@ def derive(state: dict, observed: dict) -> dict | None:
         if digest is not None:
             _digest(digest)
     allowed = _sources(state)
-    files = {path: digest for path, digest in observed["files"].items() if path in allowed}
+    return {path: digest for path, digest in observed["files"].items() if path in allowed}
+
+
+def derive(state: dict, observed: dict) -> dict | None:
+    value = record(state)
+    if value is None:
+        return None
+    validate(value)
+    files = observed_files(state, observed)
     sources_ready = all(value[key]["status"] != "pending" for key in ("suites", "traces"))
     inputs = value["suite_files"] + value["trace_files"] + ([value["specification"]] if value["specification"] else [])
+    if value.get("selection_manifest"):
+        inputs.append(value["selection_manifest"])
     checks_digest = None
     if (
         sources_ready
@@ -321,6 +336,7 @@ def derive(state: dict, observed: dict) -> dict | None:
         "checkpoint_digests": checkpoint_digests,
         "checks_digest": checks_digest,
         "checks_approved": approved,
+        "measurement_evidence_current": evidence_current,
         "measurement_complete": measured,
         "findings_digest": findings_digest,
         "findings_reviewed": reviewed,

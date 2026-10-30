@@ -119,13 +119,14 @@ readable in a browser.
 
 ## Coverage audits
 
-The audit uses four artifact names consistently, regardless of review state:
+The Audit coverage report is the only document you review; other outputs support
+internal validation, measurement, and saved progress:
 
 | Artifact | File | Role |
 | --- | --- | --- |
-| **Audit specification** | `.eval-author/audit.md` | Intended checks and evidence requirements |
+| **Audit specification (internal)** | `.eval-author/audit.md` | Intended checks and evidence requirements |
 | **Audit coverage report** | `.eval-author/audit-coverage-report.md` | Readable scope, test mappings, findings, limits, and next actions |
-| **Coverage measurements (JSON)** | `.eval-author/audit-coverage-report.json` | Generated measured results aggregated over the selected runs, when available |
+| **Coverage measurements (internal JSON)** | `.eval-author/audit-coverage-report.json` | Generated measured results aggregated over the selected runs, when available |
 | **Journey state (internal)** | `.eval-author/.working/journey-state.json` | Saved scope and review decisions, partial progress, pending questions, and next action |
 
 When you switch from creating or improving evaluations into an audit, the
@@ -134,8 +135,8 @@ originating journey's `scopes` entry keeps its last question and handoff in
 interrupted turn. The top-level pending question still belongs to the active
 conversation.
 
-Start with the Audit coverage report. It links the specification and available
-supporting evidence. A mapping to an existing test describes what that test is
+Start with the Audit coverage report. It contains the complete proposed checks
+and links available supporting evidence. A mapping to an existing test describes what that test is
 designed to address; it does not establish that a recorded run satisfied the
 audit's coverage criteria.
 
@@ -145,10 +146,9 @@ language, and states the required evidence separately from existing tests,
 observed evidence, and measurement status. Totals and gap findings alone do not
 describe what the audit intends to check.
 
-At the scope check-in, Eval Author explains these roles and states that the Audit
-specification is a draft pending your review and the Audit coverage report is
-preliminary. The reply previews intended checks grouped by tools, capabilities,
-and failure cases, links directly to the full
+At the scope check-in, the proposed checks await your agreement and the report
+is preliminary. The reply previews intended checks grouped by tools, capabilities,
+failure cases, and grading, links directly to the full
 **Intended coverage** section, and asks what is missing or incorrect before
 moving to the named next milestone. Approving this scope is separate from
 reviewing the findings at the final report milestone.
@@ -159,9 +159,18 @@ The Audit coverage report explains what those results mean. Journey state saves
 a measurement summary and references its evidence; failed inputs and missing
 methods keep measurement partial.
 
+Saved audit evidence links original traces and selected suite runs to prepared
+traces, conversion limits, and measurements. Journey state references the saved
+selection manifest. New manifests use
+`.eval-author/.working/audit/selection-manifest.json`, outside the source
+locations. Resumed audits keep their saved manifest path. Changing the original
+source or its selection reopens check review even if the prepared trace is
+unchanged. Changed prepared evidence reopens measurement.
+
 Without usable traces, coverage is **unmeasured**, not 0%; the specification can
 still be completed and the report prepared while measurement remains
-pending. The unchecked **Measure coverage** step states the reason inline,
+pending. Deferral is recorded only after your explicit choice of independent work.
+The unchecked **Measure coverage** step states the reason inline,
 for example “deferred — selected trace
 directory is missing,” so the limitation remains visible in later reviews.
 
@@ -183,21 +192,8 @@ and workflow switches. Accepting findings records the answer without rewriting
 the report to mark it accepted. See [audit resumption](existing-evals.md#audit-coverage)
 for how changed inputs reopen review and measurement.
 
-At the report review, Eval Author names the main supported gaps and offers to
-[propose new or improved evaluation tasks](existing-evals.md#propose-new-evaluations).
-It asks whether to begin, ends the turn, and waits for your answer. Reviewing the
-report alone does not start proposal work.
-Accepting the findings and this offer starts the proposal workflow directly,
-reusing the report, specification, selected sources, and prior answers. Its
-recommendations are ranked with expected behavior, verifier design, and evidence,
-and saved in `.eval-author/proposals/dataset-recommendations.md`. Creating or
-running the proposed tasks remains separately scoped.
-
-The next-step offer adapts to the findings: with no evaluations, Eval Author
-offers first-eval creation; with missing evidence, it recommends the needed
-measurement and labels any candidate proposals unmeasured. If more tasks would
-not address the findings, it explains a useful alternative, such as an agent fix
-or gathering specific evidence.
+For the combined findings review and optional next-action handoff, see
+[Audit coverage](existing-evals.md#audit-coverage).
 
 ## Trace workflows
 

@@ -111,31 +111,10 @@ This also applies to using traces to identify runtime tool names. A source you
 already explicitly selected is reused. If the location is unknown, it helps you
 choose a bounded place to look before searching.
 
-At **Define what the evals should cover**, Eval Author explains the two review
-artifacts: the **Audit specification** (`.eval-author/audit.md`) defines intended
-checks and evidence requirements; the **Audit coverage report**
-(`.eval-author/audit-coverage-report.md`) explains that scope, test mappings,
-findings, limits, and next actions. The specification is a draft pending your
-review; the report is preliminary at this point. These names stay the same as
-their review state changes.
-The review reply opens with what was created, updated, or validated and a brief
-explanation of each document's purpose beside its link, before listing checks
-or findings. This explanation remains in the reply even if the documents were
-introduced earlier.
-For this review, read **Intended coverage** in the Audit coverage report and
-decide whether its checks and required evidence are right. The Audit specification
-is the structured source behind that section; a separate YAML review is not
-required. Later, review the findings, evidence limits, and next actions in the
-same Audit coverage report.
-
-The report's **Intended coverage** section lists every audit item's stable name
-and kind, a plain-language explanation of what should be checked, and the
-evidence required to establish coverage. Existing tests, observed evidence, and
-measurement status stay distinct from those intended checks. At the scope
-check-in, the reply previews the proposed checks grouped by tools, capabilities,
-and failure cases and links directly to the full **Intended coverage** section.
-It asks which intended checks are missing or incorrect and names the next
-milestone. Agreeing to this scope does not approve the final report's findings.
+At **Define what the evals should cover**, review the proposed checks in the
+[Audit coverage report](results.md#coverage-audits). Approval allows measurement
+of the agreed traces without another readiness question. After measurement,
+review the findings in that same report; there is no intermediate approval pause.
 
 **Shared progress** (`.eval-author/.working/journey-state.json`) saves suite and
 trace selections separately, review decisions, measurement status, pending
@@ -157,14 +136,15 @@ under `.eval-author/audit-measurements/`. **Coverage measurements (JSON)**
 aggregated over the selected runs, when available.
 
 Eval Author writes the Audit coverage report using the shared template and links
-the specification and available evidence. This readable Markdown artifact is
+available evidence. This readable Markdown artifact is
 separate from Coverage measurements (JSON).
 Test mappings describe what evaluations are designed to address and do not,
 by themselves, establish measured coverage.
 
 The Audit coverage report can be prepared before measurement and updated as
 evidence becomes available. Without usable traces, you can establish the audit
-specification and report, but coverage is **unmeasured**, not 0%. The unchecked
+proposed checks and report, but coverage is **unmeasured**, not 0%. Measurement
+is deferred only after you choose independent report work. The unchecked
 measurement step includes the reason, such as “deferred — selected trace
 directory is missing,” including in later
 check-ins and the final review. If you have no evaluations yet, Eval Author can define
@@ -183,8 +163,9 @@ before presenting its findings as current.
 The review ends with a concrete offer to help with the next step. For an existing
 suite with supported gaps, Eval Author names the main gaps and offers to propose
 new or improved evaluation tasks, ranked with their expected behavior, verifier,
-and supporting evidence. It explicitly asks whether you want those proposals,
-ends the turn, and waits. Accepting the findings can complete a fully measured
+and supporting evidence. One question offers corrections, acceptance, or the
+next action, then waits. Acceptance alone ends review without another question.
+Accepting the findings can complete a fully measured
 audit while you leave the next action undecided; it does not start proposal
 work. A deferred or partial measurement remains unfinished after findings review.
 Accepting the findings and that offer moves directly

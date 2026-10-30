@@ -488,7 +488,8 @@ For audit state read without `--state-only`, the returned state snapshot include
 Typed audit updates and audit completion require the latest `--expected-revision`.
 Both audit fields are null during state-only inspection or an authoring journey.
 Forward the snapshot's `audit_observations` as `facts.audit_observations` when using the
-[onboarding continuation renderer](conversations/onboarding.md).
+[onboarding continuation renderer](conversations/onboarding.md) for shared steps,
+and the [audit renderer](conversations/audit.md) for downstream checkpoints.
 Put final task behavior in task READMEs and audit checks
 in the audit report. Do not create a separate first-eval or expansion plan file.
 Retire `first-eval.md`, `audit-progress.md`, and intent notes as active writers.
@@ -500,7 +501,8 @@ records for resolution; do not replace them with fresh success state.
 For [audit continuation](#return-to-an-audit), use the bounded entry lookup and
 reuse procedure above. When other prerequisite work must resume, complete and save the state-only pass before
 reading target artifacts. Include its completed findings in the final `results`
-response. When no new pass is needed, render `resume` from normally reconciled
+response. When no new pass is needed, render `resume` for unfinished shared steps
+or `audit_resume` for downstream audit checkpoints, from normally reconciled
 state to present the pending question or earliest unfinished,
 non-deferred step; never regenerate the welcome or readiness question. A goal
 change reuses applicable common decisions. Switching between audit and authoring
