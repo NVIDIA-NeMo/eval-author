@@ -2321,25 +2321,92 @@ def forbid_artifact_checks(state, monkeypatch, paths):
         monkeypatch.setattr(Path, name, guard)
 
 
-@pytest.mark.parametrize("saved", ["absent", "corrupt", "foreign"])
+@pytest.mark.parametrize("parent", [".", ".eval-author", ".eval-author/.working"])
+def test_state_only_show_absence_is_success_without_initializing_or_inspecting_artifacts(
+    state, tmp_path, monkeypatch, capsys, parent
+):
+    (tmp_path / parent).mkdir(parents=True, exist_ok=True)
+    document = tmp_path / "ETHOS.md"
+    document.write_text("# Existing intent must not be inspected by saved-state lookup\n")
+    before = sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*"))
+    with monkeypatch.context() as guarded:
+        forbid_artifact_checks(state, guarded, [document])
+        for name in ("load_state", "initialize", "save"):
+            guarded.setattr(state, name, lambda *_args, **_kwargs: pytest.fail("Absent lookup must not load or write"))
+        guarded.setattr(sys, "argv", ["journey_state.py", "--repo", str(tmp_path), "--state-only", "show"])
+        assert state.main() == 0
+    output = capsys.readouterr()
+    assert json.loads(output.out) == {"state": None, "persisted": False}
+    assert output.err == ""
+    assert sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*")) == before
+
+
+@pytest.mark.parametrize("saved", ["corrupt", "foreign", "unreadable"])
 def test_state_only_show_failure_never_initializes_or_inspects_artifacts(state, tmp_path, monkeypatch, capsys, saved):
     document = tmp_path / "ETHOS.md"
     document.write_text("# Existing intent must not be inspected by saved-state lookup\n")
-    if saved != "absent":
-        record = state.initialize(tmp_path, agent="assistant", journey="create", setup="gym", state_only=True)
+    record = state.initialize(tmp_path, agent="assistant", journey="create", setup="gym", state_only=True)
+    if saved == "foreign":
         record["repository"] = "/another/repository"
-        state.state_path(tmp_path).write_text("{" if saved == "corrupt" else json.dumps(record))
+    state.state_path(tmp_path).write_text("{" if saved == "corrupt" else json.dumps(record))
     before = {path.relative_to(tmp_path): path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
     with monkeypatch.context() as guarded:
         forbid_artifact_checks(state, guarded, [document])
         guarded.setattr(state, "save", lambda *_: pytest.fail("Saved-state lookup must not initialize or write"))
+        if saved == "unreadable":
+
+            def unreadable(_path):
+                raise PermissionError("Permission denied reading journey-state.json")
+
+            guarded.setattr(state, "read_json", unreadable)
         guarded.setattr(sys, "argv", ["journey_state.py", "--repo", str(tmp_path), "--state-only", "show"])
         assert state.main() == 2
     output = capsys.readouterr()
     assert output.out == "" and json.loads(output.err)["persisted"] is False
     assert {path.relative_to(tmp_path): path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
-    if saved == "absent":
-        assert not (tmp_path / ".eval-author").exists()
+
+
+@pytest.mark.parametrize("failure", ["permission", "symlink", "invalid_parent", "disappeared"])
+def test_state_only_show_does_not_treat_access_or_path_failures_as_absence(
+    state, tmp_path, monkeypatch, capsys, failure
+):
+    path = state.state_path(tmp_path)
+    if failure == "invalid_parent":
+        (tmp_path / ".eval-author").write_text("This is a file, not a state directory")
+    elif failure == "symlink":
+        path.parent.mkdir(parents=True)
+        path.symlink_to(tmp_path / "missing-state.json")
+    else:
+        state.initialize(tmp_path, journey="audit", state_only=True)
+        if failure == "permission":
+            original_stat = Path.stat
+
+            def denied(target, *args, **kwargs):
+                if target == path:
+                    raise PermissionError("Permission denied checking journey-state.json")
+                return original_stat(target, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "stat", denied)
+        else:
+
+            def disappeared(*_args, **_kwargs):
+                raise FileNotFoundError("State disappeared after the metadata check")
+
+            monkeypatch.setattr(state, "load_state", disappeared)
+    monkeypatch.setattr(state, "save", lambda *_: pytest.fail("Failed lookup must not write"))
+    monkeypatch.setattr(sys, "argv", ["journey_state.py", "--repo", str(tmp_path), "--state-only", "show"])
+    assert state.main() == 2
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert json.loads(output.err)["persisted"] is False
+
+
+def test_normal_show_still_requires_saved_state(state, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["journey_state.py", "--repo", str(tmp_path), "show"])
+    assert state.main() == 2
+    output = capsys.readouterr()
+    assert output.out == "" and json.loads(output.err)["persisted"] is False
+    assert not (tmp_path / ".eval-author").exists()
 
 
 @pytest.mark.parametrize("draft_only", [False, True])

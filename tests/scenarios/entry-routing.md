@@ -436,8 +436,8 @@ boundaries. Exercise these variants for both origins and applicable contexts:
 
 | Saved or current condition | Required next step |
 | --- | --- |
-| No saved state | Show the fresh orientation; create no state during classification |
-| Malformed or foreign-repository state | Preserve it and use recovery; do not inspect artifacts or manufacture approval |
+| No saved state | Lookup exits 0 with `state: null` and `persisted: false`. Show fresh orientation and create no state during classification |
+| Malformed, unreadable, or foreign-repository state | Lookup exits 2. Preserve it, explain why audit checks pause, and offer a specific recovery action without inspecting artifacts or manufacturing approval |
 | Shared work remains unfinished | Resume its pending prerequisite or Ethos decision |
 | Trace availability unknown or missing | After any required early welcome, show the actual prerequisite blocker in final, retaining earlier journey completion and Ethos confirmation; do not read Ethos or traces or run evaluations |
 | Audit tooling missing | Report only unresolved audit requirements; do not repeat unrelated interviews |

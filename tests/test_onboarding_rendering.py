@@ -415,13 +415,16 @@ def test_audit_welcome_cli_uses_saved_snapshot_without_a_readiness_preview(onboa
     assert "audit_welcome" not in renderer.PREVIEWS
 
 
-def test_audit_entry_failure_renders_only_escaped_saved_progress_error_without_io(onboarding, monkeypatch):
+def test_audit_entry_failure_renders_escaped_error_reason_and_recovery_without_io(onboarding, monkeypatch):
     state_helper, renderer, shared, _, _ = onboarding
     copy = importlib.import_module("conversation_flows.onboarding_templates")
     request = {
         "stage": "audit_entry_failure",
         "journey": "audit",
-        "facts": {"state_error": "Saved **state** is corrupt | <foreign>\n# injected"},
+        "facts": {
+            "state_error": "Saved **state** is corrupt | <foreign>\n# injected",
+            "recovery": "Restore a *known valid copy* | <backup>\n# recovery",
+        },
     }
     before = deepcopy(request)
 
@@ -432,8 +435,13 @@ def test_audit_entry_failure_renders_only_escaped_saved_progress_error_without_i
     for name in ("now", "load_state", "initialize", "update", "save"):
         monkeypatch.setattr(state_helper, name, unexpected_io)
     output = renderer.render(request)
-    escaped = "Saved \\*\\*state\\*\\* is corrupt &#124; &lt;foreign&gt; \\# injected"
-    assert output == shared.BLOCKERS + "\n\n" + copy.AUDIT_ENTRY_STATE_FAILURE.format(error=escaped) + "\n"
+    escaped = r"Saved \*\*state\*\* is corrupt &#124; &lt;foreign&gt; \# injected"
+    recovery = r"Restore a \*known valid copy\* &#124; &lt;backup&gt; \# recovery"
+    assert output == (
+        shared.BLOCKERS + "\n\n" + copy.AUDIT_ENTRY_STATE_FAILURE.format(error=escaped, recovery=recovery) + "\n"
+    )
+    assert "I’m pausing audit checks because" in output
+    assert "reload saved progress and continue" in output
     assert renderer.render(request) == output and request == before
     assert copy.WELCOME not in output and copy.READY not in output
     assert copy.TABLE_HEADER not in output and "- [x]" not in output and "- [ ]" not in output
@@ -451,14 +459,18 @@ def test_audit_entry_failure_renders_only_escaped_saved_progress_error_without_i
         {"journey": "create"},
         {"journey": "expand"},
         {"journey": None},
-        {"facts": {"state_error": "Unreadable state", "rows": {}}},
-        {"facts": {"state_error": "Unreadable state", "question": "Continue?"}},
+        {"facts": {"state_error": "Unreadable state", "recovery": "Restore access", "rows": {}}},
+        {"facts": {"state_error": "Unreadable state", "recovery": "Restore access", "question": "Continue?"}},
         {"facts": {}},
     ],
 )
 def test_audit_entry_failure_rejects_readiness_state_and_unrelated_facts(onboarding, patch):
     _, renderer, _, _, _ = onboarding
-    request = {"stage": "audit_entry_failure", "journey": "audit", "facts": {"state_error": "Unreadable state"}}
+    request = {
+        "stage": "audit_entry_failure",
+        "journey": "audit",
+        "facts": {"state_error": "Unreadable state", "recovery": "Restore read access to journey-state.json"},
+    }
     request.update(patch)
     before = deepcopy(request)
     with pytest.raises(ValueError):
@@ -466,20 +478,35 @@ def test_audit_entry_failure_rejects_readiness_state_and_unrelated_facts(onboard
     assert request == before
 
 
-@pytest.mark.parametrize("error", [None, "", "  ", [], "x" * 2001])
-def test_audit_entry_failure_requires_a_bounded_nonempty_error(onboarding, error):
+@pytest.mark.parametrize("field", ["state_error", "recovery"])
+@pytest.mark.parametrize("value", [None, "", "  ", [], "x" * 2001])
+def test_audit_entry_failure_requires_bounded_nonempty_error_and_recovery(onboarding, field, value):
     _, renderer, _, _, _ = onboarding
-    with pytest.raises(ValueError):
-        renderer.render({"stage": "audit_entry_failure", "journey": "audit", "facts": {"state_error": error}})
-    boundary = renderer.render(
-        {"stage": "audit_entry_failure", "journey": "audit", "facts": {"state_error": "x" * 2000}}
-    )
-    assert "x" * 2000 in boundary
+    request = {
+        "stage": "audit_entry_failure",
+        "journey": "audit",
+        "facts": {"state_error": "Unreadable state", "recovery": "Restore access to the saved state file"},
+    }
+    request["facts"][field] = value
+    with pytest.raises(ValueError, match=field):
+        renderer.render(request)
+    request["facts"][field] = "x" * 2000
+    assert "x" * 2000 in renderer.render(request)
+    del request["facts"][field]
+    with pytest.raises(ValueError, match=field):
+        renderer.render(request)
 
 
 def test_audit_entry_failure_cli_stdin_matches_rendering_and_is_not_a_preview(onboarding, tmp_path):
     _, renderer, _, _, _ = onboarding
-    request = {"stage": "audit_entry_failure", "journey": "audit", "facts": {"state_error": "Foreign saved state"}}
+    request = {
+        "stage": "audit_entry_failure",
+        "journey": "audit",
+        "facts": {
+            "state_error": "Foreign saved state",
+            "recovery": "Confirm the repository move before using rebind with the reported path and revision",
+        },
+    }
     script = str(Path(renderer.__file__))
     expected = renderer.render(request)
     result = subprocess.run(

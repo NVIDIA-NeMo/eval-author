@@ -41,7 +41,9 @@ PREREQUISITE_PROGRESS_INTRO = "Here’s what I already know about your setup and
 PREREQUISITE_RESULTS_INTRO = "Here’s what the prerequisite checks found, including anything that still needs attention."
 AUDIT_ENTRY_STATE_FAILURE = (
     "- **Saved progress:** {error} "
-    "**Needed:** Resolve the reported problem with saved progress, then retry the audit request."
+    "I’m pausing audit checks because I can’t safely reuse or update saved progress. "
+    "**Next step:** {recovery} "
+    "Once that’s resolved, I’ll reload saved progress and continue the audit."
 )
 PREREQUISITE_STATE_FAILURE = (
     "- **Save prerequisite findings:** {error} "

@@ -476,37 +476,39 @@ def test_harbor_registered_mock_is_discoverable_and_callable(tmp_path, agent_nam
 @pytest.mark.parametrize(
     "agent_name", ["codex", "claude-code", "vibe", "harbor.agents.installed.claude_code:ClaudeCode"]
 )
-def test_registration_probe_uses_provider_factory_not_agent_allowlist(agent_name):
+def test_registration_probe_uses_provider_factory_not_agent_allowlist(agent_name, tmp_path):
     servers = TaskConfig.model_validate(tomllib.loads(te._fixture_integration())).environment.mcp_servers
-    result = registration.probe_registration(agent_name, servers)
+    result = registration.probe_registration(agent_name, servers, repo=tmp_path)
     assert result["status"] == "verified", result
     assert result["scope"] == "registration_payload" and not result["execution_verified"]
 
 
 @pytest.mark.parametrize("agent_name", [None, "unknown", "nop"])
-def test_unknown_or_unprobed_registration_is_not_unsupported(agent_name):
+def test_unknown_or_unprobed_registration_is_not_unsupported(agent_name, tmp_path):
     servers = TaskConfig.model_validate(tomllib.loads(te._fixture_integration())).environment.mcp_servers
-    result = registration.probe_registration(agent_name, servers)
+    result = registration.probe_registration(agent_name, servers, repo=tmp_path)
     assert result["status"] == "unverified"
     assert not result["execution_verified"]
 
 
 @pytest.mark.parametrize("command", [None, "unrecognized-writer", "echo not-json >> config"])
-def test_unrecognized_writer_is_unverified(monkeypatch, command):
+def test_unrecognized_writer_is_unverified(monkeypatch, command, tmp_path):
     monkeypatch.setattr(Codex, "_build_register_mcp_servers_command", lambda self: command)
     servers = TaskConfig.model_validate(tomllib.loads(te._fixture_integration())).environment.mcp_servers
-    assert registration.probe_registration("codex", servers)["status"] == "unverified"
+    result = registration.probe_registration("codex", servers, repo=tmp_path)
+    assert result["status"] == "unverified"
+    assert result["reason"] == "registration_encoding_unrecognized"
 
 
 @pytest.mark.parametrize("change", [{"command": "wrong executable"}, {"args": ["--wrong"]}, {"transport": "sse"}])
-def test_demonstrated_registration_mismatch_is_unsupported(monkeypatch, change):
+def test_demonstrated_registration_mismatch_is_unsupported(monkeypatch, change, tmp_path):
     server = {"command": "/opt/tool-call-fixtures/launch-replay.sh", "args": [], **change}
     payload = json.dumps({"mcpServers": {"trace-tool-call-replay": server}})
     monkeypatch.setattr(
         Codex, "_build_register_mcp_servers_command", lambda self: f"echo {shlex.quote(payload)} > config"
     )
     servers = TaskConfig.model_validate(tomllib.loads(te._fixture_integration())).environment.mcp_servers
-    assert registration.probe_registration("codex", servers)["status"] == "unsupported"
+    assert registration.probe_registration("codex", servers, repo=tmp_path)["status"] == "unsupported"
 
 
 @pytest.mark.parametrize(
@@ -549,7 +551,9 @@ def test_probe_never_executes_unrecognized_shell(monkeypatch, tmp_path):
     marker = tmp_path / "must-not-exist"
     monkeypatch.setattr(Codex, "_build_register_mcp_servers_command", lambda self: f"touch {shlex.quote(str(marker))}")
     servers = TaskConfig.model_validate(tomllib.loads(te._fixture_integration())).environment.mcp_servers
-    assert registration.probe_registration("codex", servers)["status"] == "unverified"
+    result = registration.probe_registration("codex", servers, repo=tmp_path)
+    assert result["status"] == "unverified"
+    assert result["reason"] == "registration_encoding_unrecognized"
     assert not marker.exists()
 
 

@@ -97,16 +97,23 @@ during audit entry. Pass the payload through `--input -` on stdin:
 {
   "stage": "audit_entry_failure",
   "journey": "audit",
-  "facts": {"state_error": "Saved progress belongs to a different repository."}
+  "facts": {
+    "state_error": "Saved progress belongs to a different repository.",
+    "recovery": "Confirm whether you intentionally moved this repository so I can use the relocation recovery command."
+  }
 }
 ```
 
-Supply only the observed nonempty error, at most 2,000 characters. This stage
-accepts no readiness, state, revision, or row facts, and is not a no-input
-preview. It emits only the shared Blockers heading and template-owned recovery
-instruction; it cannot establish prerequisites, confirmation, or absence of
-prior work. Rendering does not change entry routing or authorize inspection.
-Preserve the original state and follow the applicable recovery procedure.
+Supply the observed nonempty `state_error` and a nonempty `recovery` action,
+each at most 2,000 characters. Ground the recovery action in the actual error
+under the [audit-entry recovery procedure](../shared-prerequisites.md#return-to-an-audit).
+An absent state file uses fresh orientation, not this stage.
+This stage accepts no readiness, state, revision, or row facts, and is not a
+no-input preview. It emits the shared Blockers heading, observed error,
+template-owned reason for pausing audit checks, and supplied recovery action.
+It cannot establish prerequisites, confirmation, or absence of prior work.
+Rendering does not authorize repairs or inspection. Preserve the original state
+while helping the user resolve the problem.
 
 `prerequisite_failure` is the stateless response selected by the shared
 [state-failure procedure](../shared-prerequisites.md#when-prerequisite-state-is-unavailable).

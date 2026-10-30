@@ -77,6 +77,13 @@ how they differ from current recorded tasks or runs, then asks which set you
 intend to audit. Missing-path findings identify the particular selection that
 was checked, keeping other current work distinct.
 
+A repository with no saved progress starts normal onboarding. If saved progress
+is damaged, unreadable, or belongs to another repository, Eval Author pauses
+audit checks to protect earlier decisions. It explains the error and offers a
+specific recovery step, such as restoring access, restoring a known valid copy,
+or confirming an intentional repository move. After recovery, it reloads saved
+progress and resumes the audit.
+
 If saved trace availability is unresolved or traces are absent, the prerequisite
 response explains the required action and links the audit skill instruction
 that requires the pause. Unknown availability and confirmed absence are shown

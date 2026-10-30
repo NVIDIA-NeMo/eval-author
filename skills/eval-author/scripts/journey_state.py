@@ -993,6 +993,12 @@ def main() -> int:
         elif args.command == "import-legacy":
             state = import_legacy(repo)
         else:
+            if args.state_only:
+                try:
+                    state_path(repo).stat()
+                except FileNotFoundError:
+                    print(json.dumps({"state": None, "persisted": False}))
+                    return 0
             state = load_state(repo, state_only=args.state_only)
         print(json.dumps(view(state, state_only=args.state_only), indent=2))
         return 0

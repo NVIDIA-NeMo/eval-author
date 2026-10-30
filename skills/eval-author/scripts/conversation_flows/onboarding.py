@@ -304,21 +304,24 @@ def next_steps(state: dict, facts: dict, stage: str) -> str:
     return "\n\n".join(paragraphs)
 
 
-def state_error(facts: dict) -> str:
-    error = text(facts.get("state_error"), "state_error")
-    if len(error) > MAX_STATE_ERROR_CHARS:
-        raise ValueError(f"state_error exceeds the {MAX_STATE_ERROR_CHARS}-character limit")
-    return error
+def failure_text(facts: dict, field: str) -> str:
+    value = text(facts.get(field), field)
+    if len(value) > MAX_STATE_ERROR_CHARS:
+        raise ValueError(f"{field} exceeds the {MAX_STATE_ERROR_CHARS}-character limit")
+    return value
 
 
 def audit_entry_failure(payload: dict) -> str:
     payload = mapping(payload, "audit entry failure", {"stage", "journey", "facts"})
     if payload.get("journey") != "audit":
         raise ValueError("Audit entry failure requires journey audit")
-    facts = mapping(payload.get("facts"), "audit entry failure facts", {"state_error"})
+    facts = mapping(payload.get("facts"), "audit entry failure facts", {"state_error", "recovery"})
     paragraphs = [
         shared.BLOCKERS,
-        copy.AUDIT_ENTRY_STATE_FAILURE.format(error=literal(state_error(facts), "state_error")),
+        copy.AUDIT_ENTRY_STATE_FAILURE.format(
+            error=literal(failure_text(facts, "state_error"), "state_error"),
+            recovery=literal(failure_text(facts, "recovery"), "recovery"),
+        ),
     ]
     return "\n\n".join(paragraphs) + "\n"
 
@@ -331,7 +334,7 @@ def prerequisite_failure(payload: dict) -> str:
     if payload.get("ready") is not True:
         raise ValueError("Wait for the user's readiness reply before checking prerequisites")
     facts = mapping(payload.get("facts"), "prerequisite failure facts", {"rows", "state_error"})
-    error = state_error(facts)
+    error = failure_text(facts, "state_error")
     paragraphs = [
         copy.PREREQUISITE_RESULTS_INTRO,
         prerequisite_table(journey, facts),

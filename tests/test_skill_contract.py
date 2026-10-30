@@ -274,12 +274,14 @@ def _run_discover(
     ``with_harbor=False`` passes ``-S``, which drops site-packages from the path
     so Harbor and PyYAML are both unimportable. That reproduces a customer
     repository with no Harbor install without needing a second interpreter.
+    Without a ``gym_stub``, isolate PATH too so installed Gym or uv tools cannot
+    satisfy the missing-runtime case.
     ``gym_stub`` puts a directory holding a fake ``gym`` command on ``PATH``, which
     answers ``--version`` like NeMo Gym 0.6.0, so the probe sees NeMo Gym installed.
     ``gym_script`` replaces that command, to fake NeMo Gym's Judge and Solve as well.
     """
     command = [sys.executable, *([] if with_harbor else ["-S"]), str(_DISCOVER), "--repo", str(repo), *args]
-    env = None
+    env = {**os.environ, "PATH": str(repo / "missing-runtimes")} if not with_harbor else None
     if gym_stub is not None:
         gym = _write_gym_stub(gym_stub, gym_script)
         command.extend(["--gym-cli", str(gym)])

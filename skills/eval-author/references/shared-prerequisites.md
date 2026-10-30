@@ -32,12 +32,25 @@ python3 -B <skill_dir>/scripts/journey_state.py --repo /absolute/repository --st
 
 This pre-orientation exception permits helper dependencies, but no state writes
 or initialization, artifact inspection (including Ethos), trace enumeration,
-prerequisite probes, or other repository searches. Unknown repository, absent
-state, or no saved workflow answers/pending work means fresh entry.
-Malformed, unreadable, or foreign state requires recovery. For this lookup or
-any subsequent state-operation failure, preserve the file, render
+prerequisite probes, or other repository searches. An unknown repository or no
+saved workflow answers/pending work means fresh entry. An absent state file is
+also fresh entry: `--state-only show` exits 0 with `{"state": null, "persisted": false}`.
+Show fresh orientation without initializing state. A successful lookup with
+saved state returns the normal snapshot. Do not infer absence from error text.
+
+A lookup that exits 2 means recovery is needed. For this lookup or any subsequent
+state-operation failure, preserve the file and render
 [`audit_entry_failure`](conversations/onboarding.md#when-state-is-unavailable)
-with the observed error, and stop before further checks or inspection.
+with the observed error and a concrete recovery action. Pause dependent audit
+checks, state writes, and artifact inspection because continuing could overwrite
+saved decisions or reuse approvals that cannot be verified. Recovery help remains
+in scope. For access errors, name the affected path and access needed. For malformed
+state, offer to restore a known valid copy, preserving the damaged file first.
+For foreign state, explain the repository mismatch and offer the
+[relocation recovery](#recover-after-moving-or-copying-a-repository) only if the
+move was intentional. Do not reset or repair state automatically. Ask only for the
+missing information or authorization needed for the proposed fix. After recovery,
+repeat the metadata-only lookup and resume from the valid saved context.
 
 For the same repository and agent, reuse Ethos metadata with a confirmed digest,
 validation, confirmation source, and no unresolved intent review; prior authoring
@@ -572,8 +585,10 @@ setup changes, or when switching between audit and authoring. The examples above
 use prerequisite mode: Ethos and evaluation checklist items remain unchecked
 until normal artifact checks resume after the prerequisite pass is complete and
 saved. `show` derives
-checklist status without writing. Use its state-only `state` and matching revision
-for `prerequisite_results`; use normal reconciled state for later rendering.
+checklist status without writing. The
+[audit-entry result contract](#return-to-an-audit) distinguishes an absent file
+from a failed lookup. When state is present, use its state-only `state` and matching
+revision for `prerequisite_results`; use normal reconciled state for later rendering.
 Never maintain a separate saved checklist. Rendering does not save a readiness
 answer, confirmation, or continuation, and does not replace normal `show`
 reconciliation of changed Ethos or draft content.
