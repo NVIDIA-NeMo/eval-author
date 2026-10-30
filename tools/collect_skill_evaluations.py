@@ -18,7 +18,7 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
-EVALUATOR_REVISION = "7e189c6bdada8910dfa1684f25feedca87f2db85"
+EVALUATOR_REVISION = "3fd2cf57e4a2af01f282e001f7515b6e76f18ec7"
 CHECKS = "schema,version,pii,license,code-integrity,unicode,quality,lint"
 SKIPPED_CHECKS = [{"check": "security", "validator": "Security Scan", "reason": "disabled_by_ci_policy"}]
 VALIDATORS = {
@@ -247,6 +247,8 @@ def collect(repo, output, evaluator, timeout, plan=False):
             "skill",
             "--profile",
             "external",
+            "--tiers",
+            "1",
             "--checks",
             CHECKS,
             "--no-dedup",

@@ -141,7 +141,7 @@ jobs:
           EVALUATOR_EXTRAS: ${{ matrix.check == 'live' && 'tier3' || 'tier2' }}
         run: |
           uv venv --python 3.12 "$RUNNER_TEMP/live-runtime"
-          uv pip install --python "$RUNNER_TEMP/live-runtime/bin/python" "skillevaluator[$EVALUATOR_EXTRAS] @ git+https://github.com/NVIDIA/SkillEvaluator.git@7e189c6bdada8910dfa1684f25feedca87f2db85"
+          uv pip install --python "$RUNNER_TEMP/live-runtime/bin/python" "skillevaluator[$EVALUATOR_EXTRAS] @ git+https://github.com/NVIDIA/SkillEvaluator.git@3fd2cf57e4a2af01f282e001f7515b6e76f18ec7" # v0.7.0
       - name: Run exactly one assigned check
         if: matrix.id != 'none'
         env:
