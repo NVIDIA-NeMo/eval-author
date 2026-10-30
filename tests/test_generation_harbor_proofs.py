@@ -12,7 +12,7 @@ from generation_benchmark.eval_author.ports.errors import ExperimentError
 
 
 def _agent_config(tmp_path: Path) -> AgentConfig:
-    config_path = tmp_path / "agent.yaml"
+    config_path = tmp_path / "agent.yml"
     config_path.write_text(
         """
 schema: nemo.eval_author.agent.v1
