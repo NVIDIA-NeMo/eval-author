@@ -492,6 +492,7 @@ def test_rebind_reopens_audit_approval_after_unchanged_ethos_is_reconfirmed(modu
 )
 def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path, format, scenario):
     state, audit = modules
+    storage = importlib.import_module("working_paths")
     _, lifecycle, _ = selected(audit)
     source = tmp_path / "runs" / ("source.jsonl" if format == "gym" else "source.json")
     source.parent.mkdir()
@@ -570,11 +571,11 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
         {"path": "runs/excluded", "reason": "Unrelated source records", "source": "User excluded these records"}
     ]
     lifecycle["specification"] = specification.relative_to(tmp_path).as_posix()
-    manifest = tmp_path / ".eval-author/selection.json"
+    manifest = storage.working_path(tmp_path, "audit", "selection-manifest.json")
     selections = [selection]
     if failed:
         selections.append({**selection, "selector": 3})
-    manifest.write_text(json.dumps({"selections": selections}))
+    storage.atomic_write_json(manifest, {"selections": selections})
     lifecycle["selection_manifest"] = manifest.relative_to(tmp_path).as_posix()
 
     def save(**extra):
@@ -604,7 +605,7 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
                 {"suite": selection["suite"], "task_id": "other-fixture", "run_id": "other-suite-run"},
             ],
         }
-        manifest.write_text(json.dumps({"selections": [unresolved]}))
+        storage.atomic_write_json(manifest, {"selections": [unresolved]})
         progress = save()
         assert progress["stage"] == "trace_selection" and progress["checks_digest"] is None
         lifecycle["pending"] = {
@@ -629,7 +630,7 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
         lifecycle["traces"] = chosen_traces
         lifecycle["trace_files"] = [selection["path"]]
         lifecycle["pending"] = None
-        manifest.write_text(json.dumps({"selections": selections}))
+        storage.atomic_write_json(manifest, {"selections": selections})
 
     progress = save()
     lifecycle["checks_approval"] = {"digest": progress["checks_digest"], "source": "User approved these checks"}
