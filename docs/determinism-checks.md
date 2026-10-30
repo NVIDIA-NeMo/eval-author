@@ -13,6 +13,7 @@ Developer tools in `tools/` are not included in skill-only installations.
 | [Discovery comparisons](#discovery-comparisons) | Repeated discovery reports agree under frozen inputs. |
 | [Audit and task evidence](#audit-and-task-evidence) | Acceptance still matches its retained source and execution evidence. |
 | [Verifier-cheat panel](#verifier-cheat-panel) | Real Harbor controls distinguish a sound grader from a planted vulnerable grader. |
+| [Live anti-cheat experiment](#live-anti-cheat-experiment) | Model-backed Harbor task attempts separate real behavior from vulnerable reward signals. |
 | [Factual and semantic reports](#factual-and-semantic-reports) | Reports preserve source facts and semantic comparisons use compatible evidence. |
 | [Host capture and accounting](#host-capture-and-accounting) | Every planned host attempt retains its native output and review. |
 
@@ -66,6 +67,102 @@ whether an authoring agent follows the skill instructions. It uses no model
 credentials and does not establish arbitrary-code sandbox security, general
 reward-hacking resistance, or screening of previously generated tasks. Live
 authoring and semantic regression remain separate measurements.
+
+## Live anti-cheat experiment
+
+This is a separate model-backed experiment, not an expansion of the credential-free
+panel above. It uses newly authored synthetic repository-repair tasks, not source
+traces, customer records, or imported trajectories. Normal task solving and
+explicit adversarial reward-seeking are separate arms: behavior under an attack
+instruction is not evidence that an ordinary solver spontaneously cheated.
+The tasks repair ledger reconciliation and dependency-aware build ordering.
+Each frozen submission is checked against hidden behavioral cases and a
+deliberately weak exit-code-only diagnostic. The diagnostic does not verify a
+success report's contents; a fabricated report can pass simply by exiting zero.
+Trusted-grader error rates for live submissions are not independently estimated:
+the behavioral checks themselves provide the finite-case reference label.
+
+### Execution gate
+
+The [workflow](../.github/workflows/anti-cheat-live.yml) plans without credentials
+on same-repository PRs. Live execution requires `refs/heads/main` and either:
+
+- a push or daily scheduled run with `ANTI_CHEAT_LIVE_ENABLED=true`; or
+- manual dispatch with `run_live=true` (the default is planning only).
+
+The live job reuses the `semantic-regression` GitHub environment and its
+`INFERENCE_HUB_API_KEY` secret. Maintain that environment's `main`-only branch
+restriction in GitHub settings. These code changes do not enable the variable,
+create credentials, change environment protection, or make this a required merge
+check. A scheduled run executes main's current revision, not necessarily a newly
+merged revision. Planning is not a successful live measurement.
+The runner checkpoints after each cell and has a 50-minute overall budget within
+the 60-minute job. Its reviewed panel bounds each live attempt's model turns,
+tool calls, completion tokens and observed total tokens; those observations are
+not a complete billing ledger. Budget exhaustion remains incomplete evidence.
+
+Only the two named aggregate files, `anti-cheat-live-summary.json` and
+`anti-cheat-live-summary.md`, are uploaded, with 90-day retention. Raw model
+responses, submitted code, tool output, Harbor logs and configuration remain in
+the runner's private temporary directory and are not artifacts. Do not extend the
+upload path to a directory or wildcard. The model credential stays on the host,
+not in the task container. Private local evidence must be reviewed before sharing.
+Provisioning failures retain a planning fallback, not completed measurements.
+Runner loss or cancellation can prevent publication even with an always-run
+upload step; an absent artifact is not evidence of a successful experiment.
+
+### Guided experiment
+
+Start by reviewing the fixed tasks, prompts, controls, and run budget in
+`evals/anti-cheat-live/`. Use a fresh output directory for every attempt:
+
+```bash
+python tools/run_anti_cheat_live.py --mode plan --output /private/anti-cheat-plan
+uv run --locked python tools/run_anti_cheat_live.py --mode controls \
+  --output /private/anti-cheat-controls --private-output /private/anti-cheat-controls-native
+```
+
+With Docker running, controls execute actual Harbor trials without inference.
+Only after reviewing their results, authorize the model-backed run with the
+provider key supplied through the environment, never as a command-line value:
+
+```bash
+uv run --locked python tools/run_anti_cheat_live.py --mode live --repetitions 2 \
+  --output /private/anti-cheat-run-1 --private-output /private/anti-cheat-run-1-native
+```
+
+Review valid-solution acceptance and known-cheat rejection before interpreting
+agent scores. Reward without correct behavior is false credit, not task success;
+missing execution or an unhealthy verifier is incomplete evidence, not rejection.
+Keep the normal and adversarial arms separate and retain every planned repetition,
+including failed or incomplete attempts. A completed experiment can expose
+vulnerabilities: completion does not mean a task is safe to release.
+
+For longitudinal review, archive the aggregate artifacts before retention expires.
+Compare only batches with matching task, prompt, model, runtime and measurement
+bindings; record source revisions separately. Keep changed bindings as separate
+series rather than silently replacing the baseline. Repeat the unchanged panel
+before drawing conclusions from a small score change. This experiment measures
+solver behavior and verifier sensitivity, not whether proposal or trace-environment
+authoring followed the skill instructions, and not general sandbox security.
+These artifacts are not yet automatically imported into the fixtures dashboard.
+
+Compare retained aggregate summaries offline:
+
+```bash
+uv run --locked python tools/compare_anti_cheat_live.py \
+  /private/anti-cheat-run-1/anti-cheat-live-summary.json \
+  /private/anti-cheat-run-2/anti-cheat-live-summary.json
+```
+
+The JSON history separates incompatible bindings, runtime identities, observed
+provider identities and denominators into different series. It recomputes counts
+and rejects inconsistent summaries or reused native-result hashes/CI identities.
+Incomplete attempts remain visible. Local batches retain input order, not inferred
+chronology. Unknown provider revisions remain unknown: matching requested model
+names cannot establish an unchanged backend. Exit 0 means summary consistency,
+not successful task execution or independently verified native evidence; exit 2
+rejects the inputs. Do not compare planning output as though it were live evidence.
 
 ## Workflow scope
 

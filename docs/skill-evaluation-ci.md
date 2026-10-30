@@ -26,6 +26,9 @@ schedule starts after merge to `main` and does not enable live model evaluations
 The independent [verifier-cheat panel](determinism-checks.md#verifier-cheat-panel)
 also runs real Harbor/Docker evaluation controls without model credentials.
 Its fixed-fixture measurements are not SkillEvaluator or semantic-regression scores.
+The separate [live anti-cheat experiment](determinism-checks.md#live-anti-cheat-experiment)
+uses model calls only on explicitly enabled `main` runs. PRs receive a plan, not
+live execution; the credential-free verifier-cheat panel remains unchanged.
 
 Tier 3 requires a skill-owned `evals/evals.json`; missing datasets are reported
 as skipped rather than treated as successful evaluations.
@@ -46,6 +49,7 @@ artifact configuration:
 
 - [Static checks](../.github/workflows/ci.yml)
 - [Coverage planning and live evaluation](../.github/workflows/skill-evaluation-live.yml)
+- [Live anti-cheat experiment](../.github/workflows/anti-cheat-live.yml)
 
 The standalone SkillSpector **Security Scan is skipped by CI policy**. It is
 excluded from `--checks`, recorded in `policy.skipped_checks`, and represented
