@@ -199,6 +199,7 @@ For example, using actual discovered paths and a documented reward range and bin
       "display_id": "refund-01",
       "grading_kind": "Custom code",
       "grading_rule": "All refund-state assertions pass.",
+      "scoring_rule": "Pass at 1 when all refund-state assertions pass, otherwise score 0.",
       "grading_summary": "Checks saved refund state against policy rules.",
       "source_refs": [".eval-author/tasks/refund-policy/README.md"]
     }
@@ -214,6 +215,11 @@ For example, using actual discovered paths and a documented reward range and bin
   }
 }
 ```
+
+For first_eval authored reviews, match `display_id` to the proposed task ID
+and record the implemented `scoring_rule` in one short sentence. A run's
+`pass_value` describes how to interpret that run. It does not supply a
+missing task scoring rule.
 
 At each run handoff, record its actual role, reward key, and documented reward
 range in this metadata patch before refreshing. Record a pass rule only when

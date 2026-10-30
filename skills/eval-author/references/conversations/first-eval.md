@@ -109,17 +109,16 @@ wait for actual design approval before implementation or further integration
 work. Source selection and readiness to continue do not approve the design.
 No additional planning document or generic approval checkpoint is needed.
 
-### Proposed grading
+### Proposed verifier
 
-Each task's existing `plan.tasks[].grading` supplies the proposal table's
-**Grading** cell. State whether the proposed method uses code checks, an actual
-model judge, or both, and what each part evaluates. For a model-based portion,
-describe the judgment needed and its material limitations; include the proposed
-judge configuration when it is already established, otherwise identify it as
-unresolved. Do not invent a model choice, replace semantic judgment with brittle
-wording checks, or hide model grading until after authoring.
+Use the [first_eval task table contract](first_eval_templates.md) for the saved
+fields and the shared proposal and authored review table. Each proposed task
+needs an explicit verifier type and a short scoring rule that explains what
+counts as a pass. Describe material model judge limitations in the coverage
+note, including unresolved judge configuration. Don't invent a model choice or
+replace semantic judgment with brittle wording checks.
 
-The proposal presents the grading design without requiring a ready judge setup.
+The proposal presents the verifier design without requiring a ready judge setup.
 After design approval, resolve any required judge inputs through
 [validation setup](#validation-setup-before-task-creation) before task creation.
 Reuse answers already established during design review without another pause.
@@ -506,9 +505,10 @@ values):
       "input": "<request and relevant starting state>",
       "behavior": "<behavior under test>",
       "expected_result": "<concise observable success summary>",
-      "grading": "<grading method and limits>"
+      "verifier_type": "Custom code + LLMaJ",
+      "scoring_rule": "Pass at 1 when the exact SKU count is cited and no decoy count is used, otherwise score 0."
     }],
-    "presentation": {"coverage_note": "<usefulness, untested behavior, and grading explanation>"}
+    "presentation": {"coverage_note": "<usefulness, untested behavior, and verifier limitations>"}
   },
   "plan_approval": null,
   "first_task": "<one planned task ID>",
@@ -577,14 +577,14 @@ that reply's source. The existing handoff state controls entering the audit.
 |---|---|
 | `first_eval_saved_design` | A pending saved-design choice on a fresh request; compact saved scope, historical approval, and current progress, then a fixed continue/revise/new-proposal question. End the turn before any dependent work. |
 | `first_eval_traces` | Confirmed `ETHOS.md`; fixed optional-source question and choices unless the source decision is already saved in the creation scope or plan. Inspect only selected traces after resolving their location, runs, and exclusions. |
-| `first_eval_proposal` | Saved proposed task designs; five-column task table, concise coverage and limitations, first-task choice, and fixed design feedback question. The question is the last content. Execution settings and run-only blockers remain deferred. |
+| `first_eval_proposal` | Saved proposed task designs, the shared three-column task table, concise coverage and limitations, first-task choice, and fixed design feedback question. The question is the last content. Execution settings and run-only blockers remain deferred. |
 | `first_eval_validation_setup` | Saved design approval and inspected grading requirements. Show known validation setup and ask only missing judge configuration, access, or bounded validation authorization before any task creation. Ready setup continues without an extra approval pause. |
 | `first_eval_prepare_first` | Previously saved design approval and ready validation setup; initial provider explanation and compact build checklist. Author exactly one task in its permanent directory, prove its environment before writing its grader, and satisfy the pre-review validation gate before returning for review. No target-agent execution checklist is required for local authoring. |
 | `first_eval_build_progress` | Saved approved first-task build activity and fresh observations; the same fixed checklist with short completed, active, pending, or blocked statuses. Use commentary during work, without adding narration or requesting approval. |
-| `first_eval_review_first` | Current first-task files, saved environment proof, complete current grading validation, and refreshed HTML and Markdown artifacts. Lead with the approved task's stable ID and grounding in `ETHOS.md`, then direct the user to review the HTML report's Tasks view or mirrored README. Follow with input, expected result, grading with a meaningful limitation, and separate environment, grading-validation, and execution status. Link the task README and end with the first-task approval question. |
+| `first_eval_review_first` | Current first-task files, saved environment proof, complete current verifier validation, and refreshed HTML and Markdown artifacts. Lead with the approved task's stable ID and grounding in `ETHOS.md`, then link the HTML report's Tasks view or mirrored README. Follow with one authored task row from the saved report, a verifier limitation, and separate environment, verifier-validation, and execution status. Link the task README and end with the first-task approval question. |
 | `first_eval_prepare_remaining` | Saved approval of the current first-task revision and environment proof. Initial explanation and skill-labeled checklist for building the remainder, checking environments, validating all graders, and refreshing artifacts. |
 | `first_eval_remaining_progress` | Current remaining-build activity after first-task approval; compact checklist with evidence-derived task counts, responsible skills, short statuses, and current build blockers. |
-| `first_eval_review_suite` | Every authored task's current environment and complete grading-validation evidence plus current report artifacts. Ground the summary in the approved design and `ETHOS.md`, link the HTML Tasks view or mirrored README, summarize each task and current validation/execution evidence, and end with the explicit suite-approval question. No run settings or run-only blockers. |
+| `first_eval_review_suite` | Every authored task's current environment and complete verifier-validation evidence plus current report artifacts. Ground the summary in the approved design and `ETHOS.md`, link the HTML Tasks view or mirrored README, show one authored row per saved task in proposal order, summarize current validation/execution evidence, and end with the explicit suite-approval question. No run settings or run-only blockers. |
 | `first_eval_execution_settings` | Current authored-suite approval, when actual agent execution is being prepared. Display attempts, validation work, time/cost limits, and open questions, plus relevant run blockers. Do not repeat agent/model or task/example inventory bullets. This display never supplies spending authorization. |
 | `first_eval_ready_to_run` | Current suite approval, validation of every selected task, and a saved applicable settings display. Explain that graders accepted the known correct results and rejected the incorrect results tested; this validates grading rather than measuring agent performance. Announce execution only with applicable explicit authorization, access, and no blocking dependency; otherwise ask one focused question about the missing setting or authorization. |
 | `first_eval_run_progress` | Observed native launch or queued status with current authorized selection and digest-bound current status evidence. Render the standard checklist without skill labels, evidence-derived completed/planned attempts, recorded execution errors, and only actually observed activity. No run-only approval pause or inferred activity. |
@@ -593,8 +593,10 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_blockers` | One or more saved blockers preventing the current action, with specific reasons and needed actions. Preserve independent progress. |
 
 The proposal uses the saved plan's `presentation.coverage_note` for its usefulness,
-untested behavior, and grading explanation. Task rows provide `id`, `input`,
-`behavior`, `expected_result`, and `grading`. Use the saved stable `id` for task
+untested behavior, and verifier limitations. The proposal table uses saved
+`id`, `behavior`, `expected_result`, `verifier_type`, and `scoring_rule`.
+Authored reviews use the same columns with rows read from the refreshed report
+snapshot by `first_eval_table_data.py`. Use the saved stable `id` for task
 labels in proposals, saved designs, build and run progress, and reviews so users
 can locate the same task in the report and filesystem. A descriptive `title`
 does not replace that ID. Follow the shared
@@ -618,9 +620,11 @@ that calibration was performed again.
 
 ## Facts and verified navigation
 
-Prose facts are plain text and escaped as literal content. First-task review
-requires `input`, `expected_result`, `grading`, and `grading_limitation`. Results
-require `input`, `observed`, `grade_explanation`, `quality_failures`,
+Prose facts are plain text and escaped as literal content. First-task and suite
+reviews require `facts.task_rows` read from the saved report snapshot using
+the [first_eval task table contract](first_eval_templates.md). First-task
+review also supplies a meaningful `grading_limitation` when documented.
+Results require `input`, `observed`, `grade_explanation`, `quality_failures`,
 `identity_limitations`, and `reconciliation`; retain unknown model health and
 other material limitations. If no current selected actual-agent review exists,
 the incomplete results response requires only the honest `reconciliation` and

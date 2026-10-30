@@ -38,7 +38,7 @@ from urllib.parse import quote
 # Isolated Python invocations must resolve the bundled sibling, never cwd code.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import first_eval_state  # noqa: E402
-from journey_state import load_state, task_lifecycle  # noqa: E402
+from journey_state import load_state, task_digest, task_lifecycle  # noqa: E402
 from journey_state import state_path as journey_state_path
 from search_tasks import search_tasks, within_task_scope  # noqa: E402
 from working_paths import working_path  # noqa: E402
@@ -85,6 +85,7 @@ TASK_METADATA = obj(
         "expected_outcome": TEXT,
         "grading_kind": {"enum": GRADING_KINDS + list(LEGACY_GRADING_KINDS)},
         "grading_rule": TEXT,
+        "scoring_rule": TEXT,
         "grading_summary": GRADING_SUMMARY,
         "source_refs": array(PATH),
     },
@@ -120,6 +121,7 @@ TASK_SCHEMA = obj(
         "expected_outcome": NULL_TEXT,
         "grading_kind": TEXT,
         "grading_rule": NULL_TEXT,
+        "scoring_rule": NULL_TEXT,
         "readme_revision": NULL_TEXT,
         "readme_path": {"anyOf": [PATH, {"type": "null"}]},
         "readme_html": {"type": ["string", "null"], "maxLength": 2 * 1024 * 1024},
@@ -140,6 +142,7 @@ TASK_SCHEMA["properties"]["title"] = NULL_TEXT
 # Accept the former split-title field when refreshing existing reports.
 TASK_SCHEMA["properties"]["heading_id"] = TEXT
 TASK_SCHEMA["properties"]["grading_summary"] = {"anyOf": [GRADING_SUMMARY, {"type": "null"}]}
+TASK_SCHEMA["properties"]["task_revision"] = NULL_TEXT
 TASK_SCHEMA["allOf"] = [
     {
         "if": {"properties": {"status": {"const": "proposed"}}},
@@ -567,7 +570,6 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
             if nested_checkout(root, directory):
                 excluded.add(path)
                 continue
-            overrides = metadata["tasks"].get(path, {})
             issues = []
             sections: dict[str, str | None] = {}
             revision = None
@@ -586,6 +588,26 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
                         break
                 issues.append("NeMo Gym workload candidate; native validation has not been run.")
             readme_path = readme.relative_to(repo).as_posix()
+            # Native Gym READMEs can sit below the task root, so use the nearest
+            # metadata owner on the workload path to bind the whole saved task.
+            owner = next(
+                (
+                    parent.as_posix()
+                    for parent in (PurePosixPath(path), *PurePosixPath(path).parents)
+                    if parent.as_posix() in metadata["tasks"]
+                ),
+                None,
+            )
+            overrides = metadata["tasks"].get(owner, {})
+            task_revision = None
+            if overrides.get("scoring_rule"):
+                try:
+                    revision_root = (
+                        owner if owner and local(repo, owner).is_dir() else readme.parent.relative_to(repo).as_posix()
+                    )
+                    task_revision = task_digest(repo, revision_root)
+                except (OSError, ValueError):
+                    issues.append("Task content could not be bound to its scoring rule.")
             if readme.exists():
                 try:
                     content = read_bytes(local(repo, readme_path), MAX_README_BYTES)
@@ -637,6 +659,8 @@ def collect_tasks(repo: Path, metadata: dict, max_depth: int, max_entries: int) 
                     else grading_kind or "Not documented"
                 ),
                 "grading_rule": overrides.get("grading_rule"),
+                "scoring_rule": overrides.get("scoring_rule"),
+                "task_revision": task_revision,
                 "grading_summary": grading_summary,
                 "readme_revision": revision,
                 "readme_path": readme_path,
@@ -717,7 +741,7 @@ def project_plan(repo: Path, state: dict, tasks: list[dict], metadata: dict) -> 
                 matches.sort(
                     key=lambda task: (
                         task["status"] != "found",
-                        Path(task["path"]) != root,
+                        task["path"] != authored.get("workload_path", authored["path"]),
                         Path(task["path"]).name != "manifest.yaml",
                         task["path"],
                     )
@@ -739,6 +763,7 @@ def project_plan(repo: Path, state: dict, tasks: list[dict], metadata: dict) -> 
                     "expected_outcome": design_text(planned.get("expected_result")),
                     "grading_kind": "Proposed grading" if proposed else "Not documented",
                     "grading_rule": None,
+                    "scoring_rule": None,
                     "grading_summary": None,
                     "proposed_grading": design_text(planned.get("grading")),
                     "readme_revision": None,
