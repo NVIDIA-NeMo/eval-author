@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from metric_benchmark.config import load_benchmark
 from metric_benchmark.execution import case_root, execute_benchmark
-from metric_benchmark.io import read_json, write_json
+from metric_benchmark.io import json_bytes, read_json, write_json
 from test_metric_benchmark_config import case_definition, prepared_benchmark, write_case
 from test_metric_benchmark_validation import native_trial
 
@@ -123,6 +123,33 @@ def test_failure_between_agents_reuses_completed_job(tmp_path):
 
     execute_benchmark(loaded, "run", output, runner=resume)
     assert calls == ["nop", "nop"]
+
+
+def test_sealed_jobs_are_revalidated_after_validation_failure(tmp_path):
+    path, _ = prepared_benchmark(tmp_path / "inputs")
+    loaded = load_benchmark(path)
+    output = tmp_path / "out"
+
+    def invalid_harbor(config):
+        fake_harbor(config)
+        # Collection accepts this trial, but full validation must reject it after sealing.
+        trial_path = next((config.jobs_dir / config.job_name).glob("*/result.json"))
+        trial = read_json(trial_path)
+        assert isinstance(trial, dict)
+        trial["task_checksum"] = "0" * 64
+        trial_path.write_bytes(json_bytes(trial))
+
+    with pytest.raises(ValueError, match="native task identity or checksum differs from prepared input"):
+        execute_benchmark(loaded, "run", output, runner=invalid_harbor)
+    root = case_root(output, 0)
+    assert len(list(root.glob("agents/*/receipt.json"))) == 3
+    assert not (root / "results.json").exists()
+    assert not (output / "execution.json").exists()
+    before = {p.relative_to(output): p.read_bytes() for p in output.rglob("*") if p.is_file()}
+
+    with pytest.raises(ValueError, match="native task identity or checksum differs from prepared input"):
+        execute_benchmark(loaded, "run", output, runner=lambda _: pytest.fail("sealed jobs must not rerun"))
+    assert {p.relative_to(output): p.read_bytes() for p in output.rglob("*") if p.is_file()} == before
 
 
 def test_partial_native_job_is_not_rerun(tmp_path):
