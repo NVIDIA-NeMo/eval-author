@@ -48,7 +48,7 @@ def execute_generation_baseline(
     prepared = loaded.prepared(case_id)
     case = loaded.case(case_id)
     output = output.resolve()
-    ordinal = next(i for i, entry in enumerate(loaded.execution.inputs.definitions) if entry.case_id == case_id)
+    ordinal = list(loaded.execution.inputs.cases).index(case_id)
     root = case_root(output, ordinal)
     identity = execution_identity(loaded.execution)
     config = job_configuration(loaded.execution, prepared, 0, root, _task_paths(prepared))

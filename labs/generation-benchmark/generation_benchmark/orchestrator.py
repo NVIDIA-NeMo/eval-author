@@ -34,7 +34,7 @@ def run_generation_benchmark(
     work_root.mkdir(parents=True, exist_ok=True)
     execution_root = work_root / "execution-results"
     execute_generation_baseline(loaded, case_id, run_id, execution_root)
-    ordinal = next(i for i, entry in enumerate(loaded.execution.inputs.definitions) if entry.case_id == case_id)
+    ordinal = list(loaded.execution.inputs.cases).index(case_id)
     results_root = execution_root / "cases" / f"case-{ordinal:04d}" / "execution-results"
     run_before_measure_command(loaded.analysis.settings.coverage.settings, results_root)
     baseline_scores = measure_baseline_full(

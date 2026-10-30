@@ -245,7 +245,7 @@ def _load_cases(cases_path: Path, *, allow_unsigned: bool) -> LoadedCases:
         except (OSError, ValueError) as error:
             raise ValueError(f"case {entry.case_id}: {error}") from error
         cases[case.case_id] = LoadedCase(case, root, allow_unsigned=allow_unsigned)
-    return LoadedCases(definitions, cases, root, allow_unsigned)
+    return LoadedCases(cases, root, allow_unsigned)
 
 
 def load_generation_benchmark(path: Path, *, allow_unsigned: bool = False) -> LoadedGenerationBenchmark:
