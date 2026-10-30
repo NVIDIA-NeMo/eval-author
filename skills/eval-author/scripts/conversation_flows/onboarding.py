@@ -419,7 +419,10 @@ def render(payload: dict) -> str:
             and "question" in facts
             and all(row["complete"] for row in journey_state.checklist(state)[:2])
         ):
-            raise ValueError("The saved audit checkpoint is stale; record the current question before rendering")
+            raise ValueError(
+                "The saved audit checkpoint no longer applies. "
+                "Clear or replace scopes.audit.lifecycle.pending before rendering."
+            )
     if not state_only:
         pending_question(state, facts)  # Reject contradictory questions even on blocked turns.
     paragraphs = []

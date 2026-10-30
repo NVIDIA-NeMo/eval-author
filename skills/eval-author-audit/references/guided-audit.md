@@ -29,11 +29,15 @@ without `--state-only`; the command returns a state snapshot. Preserve framework
 metadata and legacy scope fields when updating the lifecycle.
 
 Save suite and trace selections separately, with candidates, exclusions, bounds,
-and decision provenance. Set `specification` to its file path; list the selected
-case and verifier paths in `suite_files` and selected run paths in `trace_files`.
+and decision provenance. Use canonical repository-relative paths throughout the
+lifecycle. Set `specification` to its file path. List the selected case and verifier
+paths in `suite_files` and selected run paths in `trace_files`. Leave each file list
+empty until its source is selected, then keep every file within that selection's paths.
 The same record holds check approval, measurement, findings acceptance, the next
 action, and `pending`. Keep that checkpoint inside the audit lifecycle
-when switching journeys. On return, resume its applicable pending decision or
+when switching journeys. In the update that records a checkpoint's answer, set
+`pending` to `null` or replace it with the next applicable checkpoint.
+On return, resume its applicable pending decision or
 the earliest unfinished, non-deferred milestone. State-only entry reads no
 artifacts; inspection without `--state-only` reads only selected sources and retained references.
 Legacy notes and existing files alone do not establish approval or completion.
@@ -56,8 +60,9 @@ when the user selects it. Findings remain in `audit-coverage-report.md`; link it
 whenever it is created or updated.
 
 Treat changed inputs conservatively: changes to the agent, confirmed Ethos,
-selected scope, specification bytes, or selected case, verifier, or trace bytes
-reopen check review and all dependent measurement and findings. A change only to
+selected scope, specification or selection manifest bytes, or selected case,
+verifier, or trace bytes reopen check review and all dependent measurement and
+findings. A change only to
 the findings report reopens findings review. Record findings acceptance in state
 without rewriting the report merely to mark it accepted. Acceptance can complete
 a fully measured audit while the next action remains undecided; improvement
@@ -141,8 +146,9 @@ first; do not batch a broad inventory alongside loading these instructions.
 If the location is unknown, ask the next focused source question rather than searching the checkout, home
 directory, platform accounts, or unrelated jobs for candidate traces.
 
-Once selected, inspect only that source. Use local ATIF directly, including ATIF
-in Harbor trials. Prepare Gym JSON or explicitly selected JSONL rows with
+Once selected, inspect only that source and prepare its traces with the existing
+loaders and converters. Use local ATIF directly, including ATIF in Harbor trials.
+Prepare Gym JSON or explicitly selected JSONL rows with
 [`gym-to-atif`](../../gym-to-atif/SKILL.md), preserving its original-ATIF preference,
 receipts, and losses. Use [`mlflow-to-atif`](../../mlflow-to-atif/SKILL.md) for complete
 local `Trace.to_dict()` exports. For a selected MLflow record, check the complete
@@ -150,14 +156,17 @@ export for pagination and unique trace IDs before passing that record through
 `--input -`; retain its original export and exact ID. Do not fetch remote traces,
 query Intake, or generate runs to fill gaps.
 
-For selected local trace records, save a private selection manifest before check
-approval and set lifecycle `selection_manifest` to its path; leave it null when
-traces are unavailable. Record each original source path and digest,
+For selected local traces, save the selection manifest under the repository's
+gitignored `.eval-author/` directory, outside every suite or trace source path,
+candidate directory, and exclusion. Do this before check approval and set
+lifecycle `selection_manifest` to its repository-relative path. Leave it null
+when traces are unavailable. Record each original source path and digest,
 format, exact record selector, explicit suite/task/run mapping with its provenance,
 evidence class, required methods, conversion options, and exclusions with reasons.
-Keep original files in `trace_files`; never infer mappings from filenames. Missing
-or ambiguous mappings remain unresolved. Keep this manifest stable during
-execution; changed selections must reopen check review.
+Keep original files in `trace_files`. Never infer mappings from filenames or
+trajectory IDs. When a suite/task/run mapping is missing or ambiguous, retain
+the candidates and leave trace selection pending until the user resolves it.
+Keep this manifest stable during execution. Changed selections must reopen check review.
 
 Retain preparation outcomes separately: for each selection link its source and
 record to prepared ATIF, conversion metadata/losses, and measurement artifacts, or

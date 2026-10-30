@@ -12,7 +12,7 @@ from test_audit_binding import measured as native_measurement
 from test_audit_state import reviewed, selected
 from test_gym_to_atif import rollout
 from test_journey_state import ethos_ready, setup_ready
-from test_skill_contract import _MLFLOW_TO_ATIF, _mlflow_export, _run_json_script, _write_atif_trace
+from test_skill_contract import _AUDIT_REPORT, _MLFLOW_TO_ATIF, _mlflow_export, _run_json_script, _write_atif_trace
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 
@@ -83,6 +83,86 @@ def test_typed_audit_cannot_be_dropped_or_replaced_with_an_incomplete_record(mod
     with pytest.raises(ValueError):
         state.update(tmp_path, {"scopes": {"audit": replacement}}, expected_revision=saved["revision"])
     assert state.state_path(tmp_path).read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    "key,field,unselected", [("suites", "suite_files", "none"), ("traces", "trace_files", "unavailable")]
+)
+@pytest.mark.parametrize("change", ["pending", "unselected", "outside"])
+def test_inconsistent_audit_sources_are_rejected_before_saving(
+    modules, tmp_path, monkeypatch, key, field, unselected, change
+):
+    state, audit = modules
+    saved = start_lifecycle(modules, tmp_path)
+    _, lifecycle, _ = selected(audit)
+    if change == "outside":
+        lifecycle[field] = [lifecycle[key]["paths"][0] + "-other/evidence.json"]
+    else:
+        lifecycle[key]["status"] = "pending" if change == "pending" else unselected
+        lifecycle[key]["paths"] = []
+        lifecycle[key]["source"] = None if change == "pending" else "User ruled out this source"
+    original = state.state_path(tmp_path).read_bytes()
+    monkeypatch.setattr(audit, "observe", forbidden)
+    with pytest.raises(ValueError, match=field):
+        state.update(
+            tmp_path,
+            {"scopes": {"audit": {"lifecycle": lifecycle}}},
+            expected_revision=saved["revision"],
+        )
+    assert state.state_path(tmp_path).read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    "change,stale",
+    [("question", False), ("scope", False), ("unchanged", False)]
+    + [(change, stale) for change in ("completion", "review_and_completion") for stale in (False, True)],
+)
+def test_audit_updates_hash_evidence_only_when_needed(modules, tmp_path, monkeypatch, change, stale):
+    state, audit = modules
+    saved = ready(modules, tmp_path)
+    _, lifecycle, observed = reviewed(audit)
+    saved["scopes"]["audit"] = {"lifecycle": lifecycle}
+    digest = audit.derive(saved, observed)["checks_digest"]
+    lifecycle["checks_approval"]["digest"] = lifecycle["measurement"]["checks_digest"] = digest
+    lifecycle["findings_review"]["digest"] = audit.derive(saved, observed)["findings_digest"]
+    state.save(tmp_path, saved)
+    original = state.state_path(tmp_path).read_bytes()
+    patch = {}
+    if change == "question":
+        patch["pending_question"] = "Which next step would you like?"
+    elif change == "scope":
+        patch["scopes"] = {"audit": {"framework": "Harbor", "framework_source": "User answer"}}
+    elif change == "unchanged":
+        patch["scopes"] = {"audit": {"lifecycle": copy.deepcopy(lifecycle)}}
+    else:
+        patch["journey_status"] = {"audit": "complete"}
+        if change == "review_and_completion":
+            lifecycle = copy.deepcopy(lifecycle)
+            lifecycle["findings_review"]["source"] = "User confirmed the current findings"
+            patch["scopes"] = {"audit": {"lifecycle": lifecycle}}
+    if stale:
+        observed["files"][lifecycle["trace_files"][0]] = audit.fingerprint("changed trace")
+    reads = []
+    file_digest = state._file_digest
+
+    def read(path, remaining):
+        name = path.relative_to(tmp_path).as_posix()
+        if name not in observed["files"]:
+            return file_digest(path, remaining)
+        reads.append(name)
+        return observed["files"][name], 1
+
+    monkeypatch.setattr(state, "_file_digest", read)
+    if stale:
+        with pytest.raises(ValueError, match="current"):
+            state.update(tmp_path, patch, expected_revision=saved["revision"])
+        assert state.state_path(tmp_path).read_bytes() == original
+    else:
+        updated = state.update(tmp_path, patch, expected_revision=saved["revision"])
+        if "completion" in change:
+            assert updated["journey_status"]["audit"] == "complete"
+    expected = sorted(observed["files"]) if "completion" in change else []
+    assert sorted(reads) == expected
 
 
 @pytest.mark.parametrize("journey", ["create", "expand"])
@@ -401,18 +481,31 @@ def test_rebind_reopens_audit_approval_after_unchanged_ethos_is_reconfirmed(modu
     assert all((relocated / name).read_bytes() == contents for name, contents in evidence.items())
 
 
-@pytest.mark.parametrize("format", ["atif", "gym", "mlflow"])
-def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path, format):
+@pytest.mark.parametrize(
+    "format,scenario",
+    [
+        (format, scenario)
+        for format in ("atif", "gym", "mlflow")
+        for scenario in ("mapped", "ambiguous", "shared_output")
+    ]
+    + [("gym", "failed_selection")],
+)
+def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path, format, scenario):
     state, audit = modules
-    source = tmp_path / ("source.jsonl" if format == "gym" else "source.json")
+    _, lifecycle, _ = selected(audit)
+    source = tmp_path / "runs" / ("source.jsonl" if format == "gym" else "source.json")
+    source.parent.mkdir()
     selector = None
     prepared = tmp_path / "prepared"
+    failed = None
     if format == "atif":
         _write_atif_trace(source, tool_calls=["customer.lookup"])
         trace = source
     else:
         if format == "gym":
             source.write_text("invalid unselected row\n" + json.dumps(rollout()) + "\n")
+            if scenario == "failed_selection":
+                source.write_text(source.read_text() + "{}\n")
             selector = 2
             converter = SCRIPTS.parents[1] / "gym-to-atif/scripts/gym_to_atif.py"
             arguments = ["--input", str(source), "--row", str(selector)]
@@ -430,7 +523,32 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
         code, result, stderr = _run_json_script(converter, *arguments, "--output-dir", str(prepared))
         assert code == 0, stderr or result
         trace = prepared / "trace.atif.json" if format == "gym" else Path(result["files"][0])
-    specification, trace, _, aggregate = native_measurement(tmp_path, trace=trace)
+        if scenario == "failed_selection":
+            code, failed, stderr = _run_json_script(
+                converter, "--input", str(source), "--row", "3", "--output-dir", str(prepared / "failed")
+            )
+            assert code == 2 and failed["status"] == "error", stderr or failed
+            assert not (prepared / "failed/trace.atif.json").exists()
+    selection = {
+        "path": source.relative_to(tmp_path).as_posix(),
+        "source_digest": state.digest(source.read_bytes()),
+        "format": format,
+        "selector": selector,
+        "suite": lifecycle["suites"]["paths"][0],
+        "task_id": "fixture",
+        "run_id": "selected-suite-run",
+        "mapping_source": "User explicitly mapped this record to the selected suite task and run",
+        "evidence_class": "agent_under_test",
+    }
+    specification, trace, judgments, aggregate = native_measurement(
+        tmp_path, trace=trace, run_id=selection["run_id"], include_unrelated=scenario == "shared_output"
+    )
+    aggregate_payload = json.loads(aggregate.read_text())
+    coverage_paths = [Path(row["path"]) for row in aggregate_payload["binding"]["inputs"]]
+    assert len(coverage_paths) == len(aggregate_payload["input_reports"]) == 2
+    for path in coverage_paths:
+        subject = json.loads(path.read_text())["subject"]
+        assert all(subject[key] == selection[key] for key in ("task_id", "run_id", "evidence_class"))
     state.initialize(tmp_path, agent="example-agent", journey="audit")
     state.update(
         tmp_path,
@@ -442,29 +560,22 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
         source="User confirmed the native fixture intent",
         validation="Valid fixture",
     )
-    _, lifecycle, _ = selected(audit)
     for name in lifecycle["suite_files"]:
         path = tmp_path / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("fixture evaluation")
-    lifecycle["traces"]["paths"] = lifecycle["trace_files"] = [str(source)]
-    lifecycle["specification"] = str(specification)
-    manifest = tmp_path / "selection.json"
-    trajectory = json.loads(trace.read_text())
-    manifest.write_text(
-        json.dumps(
-            {
-                "path": str(source),
-                "format": format,
-                "selector": selector,
-                "suite": lifecycle["suites"]["paths"][0],
-                "task_id": "fixture",
-                "run_id": trajectory.get("trajectory_id") or trajectory["session_id"],
-                "evidence_class": "agent_under_test",
-            }
-        )
-    )
-    lifecycle["selection_manifest"] = str(manifest)
+    lifecycle["traces"]["paths"] = lifecycle["trace_files"] = [source.relative_to(tmp_path).as_posix()]
+    lifecycle["traces"]["candidates"] = ["runs"]
+    lifecycle["traces"]["exclusions"] = [
+        {"path": "runs/excluded", "reason": "Unrelated source records", "source": "User excluded these records"}
+    ]
+    lifecycle["specification"] = specification.relative_to(tmp_path).as_posix()
+    manifest = tmp_path / ".eval-author/selection.json"
+    selections = [selection]
+    if failed:
+        selections.append({**selection, "selector": 3})
+    manifest.write_text(json.dumps({"selections": selections}))
+    lifecycle["selection_manifest"] = manifest.relative_to(tmp_path).as_posix()
 
     def save(**extra):
         saved = state.update(
@@ -475,33 +586,114 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
         return audit.progress(tmp_path, saved)
 
     def ref(path):
-        return {"path": str(path), "digest": state.digest(path.read_bytes())}
+        return {"path": path.relative_to(tmp_path).as_posix(), "digest": state.digest(path.read_bytes())}
+
+    if scenario == "ambiguous":
+        chosen_traces = copy.deepcopy(lifecycle["traces"])
+        lifecycle["traces"] = audit.new_record()["traces"]
+        lifecycle["traces"]["candidates"] = lifecycle["trace_files"]
+        lifecycle["trace_files"] = []
+        unresolved = {
+            **selection,
+            "suite": None,
+            "task_id": None,
+            "run_id": None,
+            "mapping_source": None,
+            "mapping_candidates": [
+                {key: selection[key] for key in ("suite", "task_id", "run_id")},
+                {"suite": selection["suite"], "task_id": "other-fixture", "run_id": "other-suite-run"},
+            ],
+        }
+        manifest.write_text(json.dumps({"selections": [unresolved]}))
+        progress = save()
+        assert progress["stage"] == "trace_selection" and progress["checks_digest"] is None
+        lifecycle["pending"] = {
+            "stage": "trace_selection",
+            "digest": progress["checkpoint_digests"]["trace_selection"],
+            "question": "Which suite task and run produced this trace?",
+            "source": "The selected record cannot distinguish the two candidate runs",
+        }
+        save()
+        before = state.state_path(tmp_path).read_bytes()
+        unresolved_bytes = manifest.read_bytes()
+        resumed = state.view(state.load_state(tmp_path))
+        assert resumed["audit"]["pending_checkpoint"] == lifecycle["pending"]
+        assert not resumed["audit"]["checks_approved"] and not resumed["audit"]["complete"]
+        assert audit.record(resumed["state"])["trace_files"] == []
+        assert audit.record(resumed["state"])["traces"] == lifecycle["traces"]
+        with pytest.raises(ValueError, match="Audit completion"):
+            state.update(
+                tmp_path, {"journey_status": {"audit": "complete"}}, expected_revision=resumed["state"]["revision"]
+            )
+        assert state.state_path(tmp_path).read_bytes() == before and manifest.read_bytes() == unresolved_bytes
+        lifecycle["traces"] = chosen_traces
+        lifecycle["trace_files"] = [selection["path"]]
+        lifecycle["pending"] = None
+        manifest.write_text(json.dumps({"selections": selections}))
 
     progress = save()
     lifecycle["checks_approval"] = {"digest": progress["checks_digest"], "source": "User approved these checks"}
     assert save()["stage"] == "measurement"
+    outcomes = tmp_path / ".eval-author/preparation-outcomes.json"
+    outcomes.write_text(
+        json.dumps(
+            {
+                "selections": [
+                    {"selector": selector, "status": "complete", "prepared": ref(trace)},
+                    *([{"selector": 3, "status": "failed", "conversion": failed}] if failed else []),
+                ]
+            }
+        )
+    )
     lifecycle["measurement"] = {
         "checks_digest": lifecycle["checks_approval"]["digest"],
-        "status": "complete",
+        "status": "partial" if failed else "complete",
         "evidence": [
             ref(path)
             for path in [
                 *sorted(prepared.glob("*.json")),
-                *sorted((tmp_path / "measurements").rglob("*.json")),
+                *coverage_paths,
+                *(path.with_name("details.json") for path in coverage_paths),
+                judgments,
+                outcomes,
                 aggregate,
             ]
         ],
-        "source": "Native measurement and aggregate verification succeeded",
+        "source": "Selected Gym row 3 failed conversion"
+        if failed
+        else "Native measurement and aggregate verification succeeded",
     }
-    assert save()["measurement_complete"]
+    assert save()["measurement_complete"] is (not failed)
     report = tmp_path / ".eval-author/audit-coverage-report.md"
     report.write_text("# Findings\n\nLookup is exercised; unjudged behavior limits the findings.\n")
     lifecycle["findings"] = {"report": ref(report), "source": "Presented findings and evidence limits"}
     progress = save()
     lifecycle["findings_review"] = {"digest": progress["findings_digest"], "source": "User accepted the findings only"}
+    if failed:
+        progress = save()
+        assert progress["findings_reviewed"] and not progress["complete"]
+        saved = state.load_state(tmp_path)
+        with pytest.raises(ValueError, match="Audit completion"):
+            state.update(tmp_path, {"journey_status": {"audit": "complete"}}, expected_revision=saved["revision"])
+        assert audit.progress(tmp_path, state.load_state(tmp_path))["stage"] == "measurement"
+        assert json.loads(outcomes.read_text())["selections"][1]["conversion"] == failed
+        return
     save(journey_status={"audit": "complete"})
 
-    for changed in [None, source, manifest, *sorted(prepared.glob("*.json")), aggregate]:
+    if scenario == "shared_output":
+        all_coverage = set((tmp_path / "measurements").rglob("coverage.json"))
+        unrelated = all_coverage - set(coverage_paths)
+        assert len(unrelated) == 1
+        unrelated_path = unrelated.pop()
+        assert unrelated_path.relative_to(tmp_path).as_posix() not in {
+            row["path"] for row in lifecycle["measurement"]["evidence"]
+        }
+        unrelated_path.write_text(unrelated_path.read_text() + "\n")
+        code, result, stderr = _run_json_script(_AUDIT_REPORT, "--verify-existing", str(aggregate))
+        assert code == 0, stderr or result
+        assert state.view(state.load_state(tmp_path))["audit"]["complete"]
+
+    for changed in [None, source, manifest, *sorted(prepared.glob("*.json")), outcomes, aggregate]:
         expected_stage = (
             "next_action" if changed is None else "checks_review" if changed in (source, manifest) else "measurement"
         )

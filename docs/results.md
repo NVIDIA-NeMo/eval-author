@@ -159,11 +159,11 @@ The Audit coverage report explains what those results mean. Journey state saves
 a measurement summary and references its evidence; failed inputs and missing
 methods keep measurement partial.
 
-For local ATIF, Gym records, and complete MLflow exports, saved audit evidence
-links original records and selected suite runs to prepared ATIF, conversion
-limits, and measurements. A private selection manifest is referenced by journey
-state. Changing the original source or its selection reopens check review even
-if the prepared ATIF is unchanged; changed prepared evidence reopens measurement.
+Saved audit evidence links original traces and selected suite runs to prepared
+traces, conversion limits, and measurements. Journey state references a selection
+manifest under the repository's gitignored `.eval-author/` directory, outside the
+source locations. Changing the original source or its selection reopens check
+review even if the prepared trace is unchanged. Changed prepared evidence reopens measurement.
 
 Without usable traces, coverage is **unmeasured**, not 0%; the specification can
 still be completed and the report prepared while measurement remains

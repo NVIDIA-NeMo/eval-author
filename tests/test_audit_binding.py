@@ -17,7 +17,7 @@ from test_skill_contract import (
 )
 
 
-def measured(tmp_path, evidence_class="agent_under_test", *, trace=None):
+def measured(tmp_path, evidence_class="agent_under_test", *, trace=None, run_id="fixture-run", include_unrelated=False):
     audit = _write_audit(tmp_path)
     if trace is None:
         trace = tmp_path / "trace.json"
@@ -32,6 +32,8 @@ def measured(tmp_path, evidence_class="agent_under_test", *, trace=None):
         str(trace),
         "--task-id",
         "fixture",
+        "--run-id",
+        run_id,
         "--out-dir",
         str(out),
         "--measure",
@@ -46,13 +48,38 @@ def measured(tmp_path, evidence_class="agent_under_test", *, trace=None):
     for _ in range(2):
         code, result, stderr = _run_json_script(_AUDIT_MEASURE, *command)
         assert code == 0, stderr or result
+        assert result["run_id"] == run_id
         contents = {path.relative_to(out): path.read_bytes() for path in out.rglob("*.json")}
         if _ == 0:
             original = contents
         else:
             assert contents == original
+    measurements = result["measurements"]
+    if include_unrelated:
+        unrelated = tmp_path / "unrelated.json"
+        _write_atif_trace(unrelated, tool_calls=[])
+        code, result, stderr = _run_json_script(
+            _AUDIT_MEASURE,
+            "--audit",
+            str(audit),
+            "--trace",
+            str(unrelated),
+            "--task-id",
+            "unrelated",
+            "--run-id",
+            "unrelated-run",
+            "--evidence-class",
+            "agent_under_test",
+            "--measure",
+            "tool_calls",
+            "--out-dir",
+            str(out),
+        )
+        assert code == 0, stderr or result
     report = tmp_path / "aggregate.json"
-    command = ["--audit", str(audit), "--coverage-dir", str(out), "--out", str(report)]
+    command = ["--audit", str(audit), "--out", str(report)]
+    for measurement in measurements:
+        command.extend(["--coverage", measurement["coverage"]])
     code, result, stderr = _run_json_script(_AUDIT_REPORT, *command)
     assert code == 0, stderr or result
     before = report.read_bytes()

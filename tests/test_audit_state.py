@@ -76,6 +76,38 @@ def reviewed(audit):
     return state, value, observed
 
 
+@pytest.mark.parametrize("path", ["C:/runs/a.json", "/etc/passwd", ".", "../runs/a.json", "runs/./a.json"])
+def test_audit_paths_must_be_canonical_and_repository_relative(audit, path):
+    _, value, _ = selected(audit)
+    value["traces"]["paths"] = value["trace_files"] = [path]
+    with pytest.raises(ValueError, match="canonical"):
+        audit.validate(value)
+
+
+def test_timestamped_trace_names_can_be_hashed_and_approved(audit, tmp_path):
+    state, value, _ = selected(audit)
+    state["repository"] = str(tmp_path)
+    value["trace_files"] = ["runs/2026-10-28T15:31:27.json"]
+    paths = value["suite_files"] + value["trace_files"] + [value["specification"]]
+    for name in paths:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("selected evidence")
+    previous = copy.deepcopy(state)
+    current = audit.progress(tmp_path, state)
+    assert current["checks_digest"] is not None
+    value["checks_approval"] = {"digest": current["checks_digest"], "source": "User approved timestamped traces"}
+    audit.transition(tmp_path, previous, state)
+    assert audit.progress(tmp_path, state)["checks_approved"]
+
+
+@pytest.mark.parametrize("key,field", [("suites", "suite_files"), ("traces", "trace_files")])
+def test_selected_files_can_match_exact_file_bounds(audit, key, field):
+    _, value, _ = selected(audit)
+    value[key]["paths"] = value[field].copy()
+    audit.validate(value)
+
+
 @pytest.mark.parametrize(
     "stage,partial",
     [
@@ -91,8 +123,10 @@ def test_restart_resumes_each_saved_decision(audit, monkeypatch, stage, partial)
         value["findings_review"]["digest"] = audit.derive(state, observed)["findings_digest"]
     if stage == "suite_selection":
         value["suites"] = audit.new_record()["suites"]
+        value["suite_files"] = []
     elif stage == "trace_selection":
         value["traces"] = audit.new_record()["traces"]
+        value["trace_files"] = []
     elif stage == "checks_review":
         value["checks_approval"] = None
     elif stage == "findings_review":

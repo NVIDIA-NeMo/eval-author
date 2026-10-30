@@ -58,11 +58,14 @@ def _path(value) -> None:
     _text(value)
     path = PurePosixPath(value)
     if (
-        path.as_posix() != value
+        path.is_absolute()
+        or value == "."
+        or path.as_posix() != value
         or any(part in path.parts for part in ("..", "~"))
-        or any(char in value for char in ("\\", ":", "\n", "\r"))
+        or ":" in path.parts[0]
+        or any(char in value for char in ("\\", "\n", "\r"))
     ):
-        raise ValueError("Audit evidence requires canonical local paths")
+        raise ValueError("Audit evidence requires canonical repository-relative paths")
 
 
 def _paths(value) -> None:
@@ -113,8 +116,12 @@ def validate(value: dict) -> None:
                     raise ValueError("A pending selection cannot imply a user decision")
             else:
                 _text(selection["source"])
-        for key in ("suite_files", "trace_files"):
-            _paths(value[key])
+        for key, field in (("suites", "suite_files"), ("traces", "trace_files")):
+            _paths(value[field])
+            if value[field] and value[key]["status"] != "selected":
+                raise ValueError(f"{field} requires a selected {key} source")
+            if any(not _within(path, value[key]["paths"]) for path in value[field]):
+                raise ValueError(f"{field} must stay within the selected {key} paths")
         for key in ("specification", "selection_manifest"):
             if value[key] is not None:
                 _path(value[key])
@@ -159,9 +166,8 @@ def validate(value: dict) -> None:
         raise ValueError("Malformed structured audit lifecycle") from exc
 
 
-def _within(path: str, roots: list[str], repo: str) -> bool:
-    target = PurePosixPath(repo) / path
-    return any(target.is_relative_to(PurePosixPath(repo) / root) for root in roots)
+def _within(path: str, roots: list[str]) -> bool:
+    return any(PurePosixPath(path).is_relative_to(PurePosixPath(root)) for root in roots)
 
 
 def _sources(state: dict) -> set[str]:
@@ -189,12 +195,12 @@ def _sources(state: dict) -> set[str]:
         files = {
             path
             for path in files
-            if not _within(path, excluded, state["repository"])
+            if not _within(path, excluded)
             and (
-                not _within(path, bounds, state["repository"])
+                not _within(path, bounds)
                 or selection["status"] == "selected"
                 and (key == "suites" or value["suites"]["status"] != "pending")
-                and _within(path, selection["paths"], state["repository"])
+                and _within(path, selection["paths"])
             )
         }
     return files
@@ -338,13 +344,15 @@ def progress(repo, state: dict) -> dict | None:
     return derive(state, observe(repo, state)) if record(state) is not None else None
 
 
-def transition(repo, previous: dict, updated: dict) -> None:
+def transition(repo, previous: dict, updated: dict) -> dict | None:
     before, after = record(previous), record(updated)
     if before is not None and after is None:
         raise ValueError("Retain structured audit progress")
     if after is None:
         return
     validate(after)
+    if before == after:
+        return
     observed = observe(repo, updated)
     current = derive(updated, observed)
     # Current scope bounds also apply when checking the previously saved approval.
@@ -369,3 +377,4 @@ def transition(repo, previous: dict, updated: dict) -> None:
             raise ValueError("Select a next action explicitly against reviewed current findings")
         if field == "pending" and not current["pending_checkpoint"]:
             raise ValueError("Pending audit checkpoint must match the current unresolved decision")
+    return current

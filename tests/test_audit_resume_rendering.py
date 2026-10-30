@@ -149,7 +149,7 @@ def test_pending_checkpoint_recovery_and_view_authority(modules, monkeypatch, re
     assert deferred["audit"] is None and deferred["audit_observations"] is None
     if stale:
         payload["facts"]["question"] = question
-        with pytest.raises(ValueError, match="checkpoint is stale"):
+        with pytest.raises(ValueError, match=r"Clear or replace scopes\.audit\.lifecycle\.pending"):
             render_read_only(payload)
 
 

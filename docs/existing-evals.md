@@ -142,6 +142,8 @@ trace selections separately, review decisions, measurement status, pending
 questions, and the next action. Returning to an audit, including after another
 workflow, resumes its pending decision or first unfinished step. Requests only
 to validate a specification or measure or aggregate coverage stay within that scope.
+Audit evidence paths are relative to the repository. Each case or run must fall
+within its selected suite or trace location.
 
 Changes to the agent, Ethos, selected scope, specification, cases, verifiers, or
 traces reopen check review and dependent measurement and findings. Changing only

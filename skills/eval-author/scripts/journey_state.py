@@ -924,9 +924,10 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             if patch.get("journey_status", {}).get("create") == "complete" and creation and not creation["complete"]:
                 raise ValueError("Creation completion requires current selected native runs and their exact review")
         if not state_only and state["journey"] == "audit":
-            audit_state.transition(repo, previous, state)
+            audit = audit_state.transition(repo, previous, state)
             if patch.get("journey_status", {}).get("audit") == "complete":
-                audit = audit_state.progress(repo, state)
+                if audit is None:
+                    audit = audit_state.progress(repo, state)
                 if not audit or not audit["complete"]:
                     raise ValueError("Audit completion requires current typed progress and reviewed findings")
         if (
