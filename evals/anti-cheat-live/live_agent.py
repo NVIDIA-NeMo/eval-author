@@ -3,6 +3,7 @@
 
 """Host-side Harbor agent; only the bounded container shell is model-visible."""
 
+import asyncio
 import hashlib
 import json
 import os
@@ -74,16 +75,21 @@ class LiveAgent(BaseAgent):
         self.save()
 
     async def tool(self, environment, arguments):
-        if not isinstance(arguments, dict) or set(arguments) != {"command"}:
-            raise ValueError("invalid tool arguments")
+        if self.receipt["tool_calls"] >= MODEL["max_tool_calls"]:
+            raise RuntimeError("tool budget exhausted")
+        self.receipt["tool_calls"] += 1
+        self.save()
+        if (
+            not isinstance(arguments, dict)
+            or set(arguments) != {"command"}
+            or not isinstance(arguments["command"], str)
+            or not 1 <= len(arguments["command"]) <= 8192
+        ):
+            return "Tool error: expected only a command string of 1 to 8192 characters."
         command = arguments["command"]
-        if not isinstance(command, str) or not 1 <= len(command) <= 8192:
-            raise ValueError("invalid command")
         wrapped = "ulimit -f 128; ulimit -u 32; timeout -k 1 12 sh -c " + shlex.quote(command)
         # Bound the Docker exec payload before it reaches Harbor's in-memory capture.
         wrapped = "(" + wrapped + ") 2>&1 | head -c 12000"
-        self.receipt["tool_calls"] += 1
-        self.save()
         result = await environment.exec(
             command=wrapped, cwd="/work", user="65534", timeout_sec=MODEL["tool_timeout_sec"]
         )
@@ -101,7 +107,7 @@ class LiveAgent(BaseAgent):
             self.receipt["usage_status"] = "not_applicable"
             self.save()
             return
-        from openai import AsyncOpenAI
+        from openai import APIError, APIStatusError, AsyncOpenAI
 
         key = os.environ.get("INFERENCE_HUB_API_KEY")
         if not key:
@@ -125,6 +131,7 @@ class LiveAgent(BaseAgent):
                 },
             }
         ]
+        retries_left, unobserved_tokens = 2, 0
         async with AsyncOpenAI(
             api_key=key, base_url=MODEL["base_url"], timeout=MODEL["request_timeout_sec"], max_retries=0
         ) as client:
@@ -137,14 +144,34 @@ class LiveAgent(BaseAgent):
                     raise RuntimeError("token budget exhausted")
                 self.receipt["usage_status"] = "partial_observed_not_total_billed"
                 self.save()
-                response = await client.chat.completions.create(
-                    model=MODEL["model"],
-                    messages=messages,
-                    tools=tools,
-                    parallel_tool_calls=False,
-                    max_completion_tokens=MODEL["max_completion_tokens"],
-                    store=False,
-                )
+                # Retries share the original request deadline and cell token allowance.
+                async with asyncio.timeout(MODEL["request_timeout_sec"]):
+                    while True:
+                        if (
+                            self.receipt["tokens"] + unobserved_tokens + reserved + MODEL["max_completion_tokens"]
+                            > MODEL["max_total_tokens"]
+                        ):
+                            raise RuntimeError("token budget exhausted")
+                        try:
+                            response = await client.chat.completions.create(
+                                model=MODEL["model"],
+                                messages=messages,
+                                tools=tools,
+                                parallel_tool_calls=False,
+                                max_completion_tokens=MODEL["max_completion_tokens"],
+                                store=False,
+                            )
+                            break
+                        except APIError as exc:
+                            # Failed requests have no usage receipt; reserve their full allowance.
+                            unobserved_tokens += reserved + MODEL["max_completion_tokens"]
+                            transient = isinstance(exc, APIStatusError) and (
+                                exc.status_code == 429 or 500 <= exc.status_code < 600
+                            )
+                            if not transient or retries_left == 0:
+                                raise RuntimeError("provider request failed") from None
+                            retries_left -= 1
+                            await asyncio.sleep(0.5 * (2 - retries_left))
                 self.receipt["turns"] += 1
                 if not isinstance(response.model, str) or not response.model:
                     raise RuntimeError("missing observed model")
@@ -181,7 +208,11 @@ class LiveAgent(BaseAgent):
                         or self.receipt["tool_calls"] >= MODEL["max_tool_calls"]
                     ):
                         raise RuntimeError("tool budget or name invalid")
-                    output = await self.tool(environment, json.loads(call.function.arguments))
+                    try:
+                        arguments = json.loads(call.function.arguments)
+                    except (ValueError, TypeError, RecursionError):
+                        arguments = None
+                    output = await self.tool(environment, arguments)
                     messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
                 self.save()
         raise RuntimeError("turn budget exhausted")

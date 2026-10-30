@@ -431,6 +431,8 @@ def checkpoint(output, report):
     report["completed"] = sum(row["status"] == "completed" for row in rows)
     report["incomplete"] = len(rows) - report["completed"]
     report["metrics"] = metrics(rows)
+    if report["mode"] != "plan" and report["incomplete"] == 0 and report["controls_healthy"]:
+        report["status"], report["reason"] = "completed", "none"
     identities = {canonical(identity) for row in rows for identity in row.get("observed_models", [])}
     report["observed_models"] = [json.loads(value) for value in sorted(identities)]
     report["bindings"] = bindings(runtime=report["runtime"], observed_models=report["observed_models"])
@@ -488,7 +490,7 @@ def run(mode, output, private_output=None, repetitions=2):
         "protocol": "paired-repair-v1",
         "mode": mode,
         "status": "planned" if mode == "plan" else "incomplete",
-        "reason": "none",
+        "reason": "none" if mode == "plan" else "in-progress",
         "expected": expected(mode, repetitions),
         "completed": 0,
         "incomplete": len(rows),
@@ -585,6 +587,17 @@ def run(mode, output, private_output=None, repetitions=2):
                     remaining(1020 if cell["arm"] in ARMS else 150),
                 )
                 rows[index] = native_check(private_output / "jobs" / str(cell["cell_id"]), cell)
+            except (TimeoutError, subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
+                rows[index] = {
+                    **cell,
+                    "status": "incomplete",
+                    **partial_observation(private_output / "jobs" / str(cell["cell_id"]), cell),
+                }
+                if isinstance(exc, KeyboardInterrupt):
+                    raise
+                report["reason"] = "deadline"
+                checkpoint(output, report)
+                break
             except Exception as exc:
                 (private_output / f"{cell['cell_id']}.error").write_text(repr(exc))
                 rows[index] = {
@@ -594,16 +607,11 @@ def run(mode, output, private_output=None, repetitions=2):
                 }
                 report["reason"] = "invalid-native-evidence"
             checkpoint(output, report)
-        report["controls_healthy"] = controls_healthy(rows[:6])
-        report["completed"] = sum(row["status"] == "completed" for row in rows)
-        report["incomplete"] = len(rows) - report["completed"]
-        report["metrics"] = metrics(rows)
-        if report["completed"] == len(rows) and report["controls_healthy"]:
-            report["status"], report["reason"] = "completed", "none"
-        elif report["reason"] == "deadline":
-            pass
-        elif not report["controls_healthy"]:
+        if report["reason"] != "deadline" and not report["controls_healthy"]:
             report["reason"] = "unhealthy-controls"
+    except KeyboardInterrupt:
+        report["reason"] = "interrupted"
+        raise
     except Exception as exc:
         (private_output / "execution.error").write_text(repr(exc))
         report["reason"] = "deadline" if isinstance(exc, TimeoutError) else "infrastructure"

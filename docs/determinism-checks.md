@@ -34,7 +34,15 @@ dispatch, and the daily schedule. The fixtures are deliberately small code
 execution evaluations, not customer tasks or model-generated evidence.
 
 Run the same panel locally with Docker running and the locked development
-environment installed. Choose a new output directory for every attempt:
+environment installed.
+
+Both Harbor panels require a Docker host that can enforce the tasks' `no-network`
+policy. Use the Linux CI runtime or a Docker Desktop VM with the required kernel
+support; a running Docker daemon alone is not sufficient. Harbor may reject an
+unsupported runtime with `network_mode='no-network' is not supported`. Upgrade or
+switch the Docker runtime rather than disabling network isolation to make a run pass.
+
+Choose a new output directory for every attempt:
 
 ```bash
 uv sync --locked
@@ -42,8 +50,8 @@ uv run --locked python tools/collect_verifier_cheat_evidence.py \
   --output "$PWD/.eval-author/verifier-cheat-evidence/run-1"
 ```
 
-The panel runs one list-normalization task with three grader variants and three
-scripted submissions, for nine native Harbor trials. It pairs a sound verifier
+The panel runs one list-normalization task with three grader variants and six
+scripted submissions, for eighteen native Harbor trials. It pairs a sound verifier
 with a deliberately vulnerable variant and an always-fail grader. A
 correct solution must pass; no-work submissions must fail under the sound
 verifier. The planted defect must also be detected by a cheat receiving reward
@@ -52,15 +60,24 @@ blanket rejection from masquerading as cheat resistance. The vulnerable variant
 is a test fixture, never a task approved for training or agent evaluation.
 The always-fail grader must reject the correct solution, exposing false rejection
 separately from cheat detection. The submissions are a correct implementation,
-an immediate successful exit, and a program that only prints a success claim.
+an immediate successful exit, a fabricated success claim, a hidden-case read,
+a hanging program, and boolean output substituted for integers. Hidden cases are
+root-only during grading, timeout outcomes earn zero under every grader, and
+the sound grader compares canonical JSON rather than Python's boolean/integer equality.
 
 `verifier-cheat-summary.json` retains per-trial rewards and aggregate counts for
 sound reference acceptance, rejected cheats, rewarded planted exploits, and
-always-fail reference rejection. The collector retains native results, commands, input identities, runtime
+always-fail reference rejection. Its schema is `nemo.eval_author.verifier_cheat_evidence.v2`
+and protocol is `harbor-verifier-cheats-v2`; do not combine these counts with the
+older nine-trial panel. `verifier-cheat-private.json` retains the detailed manifest,
+native result paths, input hashes, and runtime inspection data. The collector retains native results, commands, input identities, runtime
 information, and per-control measurements. Missing, invalid, interrupted, or
 unexpected results fail the job rather than count as successful rejections.
-Download `verifier-cheat-evidence-<run-id>-<attempt>` from the CI run; artifacts
-are retained for 30 days, including available evidence after failure.
+Download `verifier-cheat-evidence-<run-id>-<attempt>` for the allowlisted summary.
+Full native evidence is retained separately as `verifier-cheat-native-<run-id>-<attempt>`
+only while the repository is private. Both artifacts have 30-day retention,
+including available evidence after failure; public runs do not upload raw logs or
+Docker inspection output.
 
 This is an executed fixed-fixture verifier regression, not a measurement of
 whether an authoring agent follows the skill instructions. It uses no model
@@ -96,10 +113,26 @@ restriction in GitHub settings. No enable variable is required. These code chang
 do not create credentials, change environment protection, or make this a required merge
 check. A scheduled run executes main's current revision, not necessarily a newly
 merged revision. Planning is not a successful live measurement.
+The live job is advisory (`continue-on-error: true`), like semantic regression;
+the summary still records incomplete execution and the runner still exits nonzero.
+The credential-free verifier regression remains a failing check for unexpected results.
 The runner checkpoints after each cell and has a 50-minute overall budget within
-the 60-minute job. Its reviewed panel bounds each live attempt's model turns,
+the 60-minute job. Active checkpoints have status `incomplete` and reason
+`in-progress` unless a specific failure has already been observed. A caught
+`KeyboardInterrupt` checkpoints reason `interrupted` before propagating; an
+interrupted cell has no score and retains only validated partial usage. An abrupt
+runner loss may leave the last `in-progress` checkpoint, not proof of a still-running
+process. Only planned or completed summaries have reason `none`.
+Its reviewed panel bounds each live attempt's model turns,
 tool calls, completion tokens and observed total tokens; those observations are
-not a complete billing ledger. Budget exhaustion remains incomplete evidence.
+not a complete billing ledger. The default run includes eight model-backed cells
+(two tasks, two arms, two repetitions), each with a 48,000 observed-token cap.
+This runs on every main push as well as the daily schedule; maintainers should
+review that cadence against their inference budget. Budget exhaustion remains incomplete evidence.
+Each cell permits at most two retries for transient 429/5xx responses, sharing
+the original request deadline and reserving token allowance for failed requests.
+Malformed tool arguments return a fixed repairable error and consume the existing
+tool-call budget. Neither behavior relaxes container permissions or run limits.
 
 Only the two named aggregate files, `anti-cheat-live-summary.json` and
 `anti-cheat-live-summary.md`, are uploaded, with 90-day retention. Raw model
@@ -114,7 +147,9 @@ upload step; an absent artifact is not evidence of a successful experiment.
 ### Guided experiment
 
 Start by reviewing the fixed tasks, prompts, controls, and run budget in
-`evals/anti-cheat-live/`. Use a fresh output directory for every attempt:
+`evals/anti-cheat-live/`. Controls and live runs require the
+[network-isolation-capable Docker runtime](#verifier-cheat-panel) described above;
+planning does not. Use a fresh output directory for every attempt:
 
 ```bash
 python tools/run_anti_cheat_live.py --mode plan --output /private/anti-cheat-plan
@@ -141,7 +176,10 @@ vulnerabilities: completion does not mean a task is safe to release.
 For longitudinal review, archive the aggregate artifacts before retention expires.
 Compare only batches with matching task, prompt, model, runtime and measurement
 bindings; record source revisions separately. Keep changed bindings as separate
-series rather than silently replacing the baseline. Repeat the unchanged panel
+series rather than silently replacing the baseline. Comparability also requires
+the same lockfile, Docker version, and observed per-cell provider fingerprints:
+changes to any of those deliberately split the series and can leave singleton batches.
+Do not pool them merely to produce a longer trend. Repeat the unchanged panel
 before drawing conclusions from a small score change. This experiment measures
 solver behavior and verifier sensitivity, not whether proposal or trace-environment
 authoring followed the skill instructions, and not general sandbox security.

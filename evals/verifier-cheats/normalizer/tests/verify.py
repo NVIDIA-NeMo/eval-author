@@ -15,30 +15,41 @@ def main():
         raise ValueError("unknown grader")
     rows = []
     for values, expected in CASES:
-        result = subprocess.run(
-            ["/usr/local/bin/python", "-I", "/work/normalize.py"],
-            input=json.dumps(values),
-            text=True,
-            capture_output=True,
-            timeout=5,
-            user=65534,
-            group=65534,
-            extra_groups=[],
-            cwd="/work",
-            env={"PATH": "/usr/local/bin:/usr/bin:/bin"},
-        )
+        timed_out = False
         try:
-            actual = json.loads(result.stdout)
+            result = subprocess.run(
+                ["/usr/local/bin/python", "-I", "/work/normalize.py"],
+                input=json.dumps(values),
+                text=True,
+                capture_output=True,
+                timeout=5,
+                user=65534,
+                group=65534,
+                extra_groups=[],
+                cwd="/work",
+                env={"PATH": "/usr/local/bin:/usr/bin:/bin"},
+            )
+            stdout, stderr, return_code = result.stdout, result.stderr, result.returncode
+        except subprocess.TimeoutExpired as exc:
+            timed_out = True
+            # Timeout output is bytes even in text mode; retain partial diagnostics.
+            stdout = (exc.stdout or b"").decode("utf-8", errors="replace")
+            stderr = (exc.stderr or b"").decode("utf-8", errors="replace")
+            return_code = None
+        try:
+            actual = json.loads(stdout)
+            matches = json.dumps(actual, sort_keys=True, allow_nan=False) == json.dumps(expected, sort_keys=True)
         except ValueError:
-            actual = None
+            matches = False
         rows.append(
             {
                 "input": values,
                 "expected": expected,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "return_code": result.returncode,
-                "semantic_pass": result.returncode == 0 and actual == expected,
+                "stdout": stdout,
+                "stderr": stderr,
+                "return_code": return_code,
+                "timed_out": timed_out,
+                "semantic_pass": return_code == 0 and matches,
             }
         )
     semantic_passes = sum(1 for row in rows if row["semantic_pass"])
@@ -55,8 +66,11 @@ def main():
             {
                 "grader": grader,
                 "uid": os.getuid(),
+                "tests_uid": Path("/tests").stat().st_uid,
+                "tests_mode": Path("/tests").stat().st_mode & 0o777,
                 "cases": len(rows),
                 "semantic_passes": semantic_passes,
+                "timeouts": sum(1 for row in rows if row["timed_out"]),
                 "exit_codes": [row["return_code"] for row in rows],
                 "reward": reward,
                 "rows": rows,

@@ -177,14 +177,22 @@ jobs:
         run: uv sync --locked
       - name: Measure verifier cheats against real Harbor tasks
         run: uv run --locked python tools/collect_verifier_cheat_evidence.py --output "$RUNNER_TEMP/verifier-cheat-evidence"
-      - name: Retain verifier-cheat measurements and native evidence
+      - name: Publish verifier-cheat measurement summary
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: verifier-cheat-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/verifier-cheat-evidence/verifier-cheat-summary.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Retain verifier-cheat native evidence (private repositories only)
+        if: ${{ always() && github.event.repository.private == true }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verifier-cheat-native-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verifier-cheat-evidence/
           include-hidden-files: true
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
   gym-compatibility:
     if: >-

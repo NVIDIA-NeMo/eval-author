@@ -159,6 +159,7 @@ def pending(report):
         incomplete=len(report["cells"]),
         controls_healthy=False,
         status="planned" if report["mode"] == "plan" else "incomplete",
+        reason="none" if report["mode"] == "plan" else "infrastructure",
     )
     report["metrics"] = runner.metrics(report["cells"])
     return report
@@ -191,7 +192,13 @@ def test_nonmatching_inputs_form_separate_series(tmp_path, difference):
 def test_incomplete_and_local_order_visible_without_scores(tmp_path):
     first, second = synthetic(1), synthetic(2)
     second["cells"][-1] = {**runner.cells("live", 1)[-1], "status": "incomplete"}
-    second.update(status="incomplete", completed=9, incomplete=1, metrics=runner.metrics(second["cells"]))
+    second.update(
+        status="incomplete",
+        reason="invalid-native-evidence",
+        completed=9,
+        incomplete=1,
+        metrics=runner.metrics(second["cells"]),
+    )
     code, report = cli(tmp_path, second, first)
     assert code == 0 and report["series_count"] == 1
     series = report["series"][0]
@@ -363,14 +370,34 @@ def test_incomplete_reason_must_match_evidence(tmp_path, contradiction):
 
 
 @pytest.mark.parametrize(
-    "reason", ["none", "missing-key", "unhealthy-controls", "invalid-native-evidence", "infrastructure", "deadline"]
+    "reason",
+    [
+        "none",
+        "in-progress",
+        "interrupted",
+        "missing-key",
+        "unhealthy-controls",
+        "invalid-native-evidence",
+        "infrastructure",
+        "deadline",
+    ],
 )
 def test_native_incomplete_reasons_remain_supported(tmp_path, reason):
     first = pending(synthetic(1, run_id=1))
     first["reason"] = reason
     if reason == "invalid-native-evidence":
         first["cells"][0]["status"] = "incomplete"
-    assert cli(tmp_path, first, synthetic(2))[0] == 0
+    assert cli(tmp_path, first, synthetic(2))[0] == (2 if reason == "none" else 0)
+
+
+@pytest.mark.parametrize("reason", ["in-progress", "interrupted"])
+@pytest.mark.parametrize("mode", ["plan", "controls", "live"])
+def test_active_reasons_rejected_for_planned_or_completed_summaries(tmp_path, reason, mode):
+    first = synthetic(1, mode=mode)
+    if mode == "plan":
+        first = pending(first)
+    first["reason"] = reason
+    assert cli(tmp_path, first, synthetic(2))[0] == 2
 
 
 def observed_usage(report):

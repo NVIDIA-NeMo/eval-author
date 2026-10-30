@@ -30,6 +30,7 @@ def test_live_experiment_automatically_runs_on_main_like_semantic_regression():
     assert "vars." not in live["if"]
     assert "github.event_name == 'workflow_dispatch' && inputs.run_live" in live["if"]
     assert live["environment"] == "semantic-regression"
+    assert live["continue-on-error"] is True
     assert live["timeout-minutes"] <= 60
     assert config["permissions"] == {"contents": "read"}
     assert config["concurrency"]["cancel-in-progress"] is False

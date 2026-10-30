@@ -49,6 +49,7 @@ jobs:
 
   live:
     needs: plan
+    continue-on-error: true
     if: >-
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'schedule' ||

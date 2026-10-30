@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools/run_anti_cheat_live.py"
 PANEL = ROOT / "evals/anti-cheat-live"
@@ -92,7 +94,6 @@ def test_agent_never_exposes_host_or_unbounded_tools(tmp_path, monkeypatch):
     assert (PANEL / "live_agent.py").is_file(), "bounded Harbor agent missing"
     monkeypatch.syspath_prepend(str(PANEL))
     agent_module = load("live_agent", PANEL / "live_agent.py")
-    import pytest
     from harbor.environments.base import ExecResult
 
     class Environment:
@@ -110,9 +111,12 @@ def test_agent_never_exposes_host_or_unbounded_tools(tmp_path, monkeypatch):
     assert environment.calls[0]["timeout_sec"] == 15
     assert environment.calls[0]["cwd"] == "/work"
     for arguments in ({"command": "pwd", "user": "root"}, {"command": "x" * 9000}, {"command": 1}):
-        with pytest.raises(ValueError):
+        assert (
             asyncio.run(agent.tool(environment, arguments))
+            == "Tool error: expected only a command string of 1 to 8192 characters."
+        )
     assert len(environment.calls) == 1
+    assert agent.receipt["tool_calls"] == 4
 
 
 def test_evidence_is_fail_closed_and_public_allowlisted(tmp_path, monkeypatch):
@@ -231,6 +235,167 @@ def test_live_budget_rejects_context_before_request(tmp_path, monkeypatch):
     assert called == []
 
 
+@pytest.fixture
+def model_session(tmp_path, monkeypatch):
+    import httpx
+    import openai
+
+    monkeypatch.syspath_prepend(str(PANEL))
+    module = load("repair_agent", PANEL / "live_agent.py")
+    monkeypatch.setenv("INFERENCE_HUB_API_KEY", "SECRET_SENTINEL")
+    client = openai.AsyncOpenAI
+
+    def start(replies):
+        requests = []
+        options = []
+
+        def respond(request):
+            requests.append(json.loads(request.content))
+            reply = replies[min(len(requests) - 1, len(replies) - 1)]
+            if isinstance(reply, int):
+                return httpx.Response(reply, json={"error": {"message": "PRIVATE_PROVIDER_ERROR"}})
+            message = {"role": "assistant", "content": "done"}
+            if reply is not None:
+                message["tool_calls"] = [
+                    {"id": "call-1", "type": "function", "function": {"name": "container_shell", "arguments": reply}}
+                ]
+            return httpx.Response(
+                200,
+                json={
+                    "id": "mock",
+                    "object": "chat.completion",
+                    "created": 1,
+                    "model": "mock-model",
+                    "usage": {"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3},
+                    "choices": [
+                        {"index": 0, "finish_reason": "stop" if reply is None else "tool_calls", "message": message}
+                    ],
+                },
+            )
+
+        def factory(**kwargs):
+            options.append(kwargs)
+            return client(**kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+
+        monkeypatch.setattr(openai, "AsyncOpenAI", factory)
+        return module.LiveAgent(logs_dir=tmp_path, task="ledger", arm="normal"), requests, options
+
+    return module, start
+
+
+@pytest.mark.parametrize("arguments", ["{PRIVATE", "null", "[]", '{"command": 1}', json.dumps({"command": "x" * 8193})])
+def test_malformed_tool_result_allows_repair(model_session, arguments):
+    from harbor.environments.base import ExecResult
+
+    _, start = model_session
+    agent, requests, _ = start([arguments, '{"command":"pwd"}', None])
+    calls = []
+
+    class Environment:
+        async def exec(self, **kwargs):
+            calls.append(kwargs)
+            return ExecResult(return_code=0, stdout="/work", stderr=None)
+
+    asyncio.run(agent.run("repair", Environment(), None))
+    assert agent.receipt["finish"] == "stop"
+    assert agent.receipt["tool_calls"] == 2 and agent.receipt["turns"] == 3
+    assert len(calls) == 1 and calls[0]["user"] == "65534"
+    assert requests[1]["messages"][-1] == {
+        "role": "tool",
+        "tool_call_id": "call-1",
+        "content": "Tool error: expected only a command string of 1 to 8192 characters.",
+    }
+
+
+@pytest.mark.parametrize("status", [429, 500, 502, 503])
+def test_transient_provider_error_can_recover_with_bounded_attempts(model_session, status):
+    _, start = model_session
+    agent, requests, options = start([status, None])
+    asyncio.run(agent.run("repair", None, None))
+    assert len(requests) == 2
+    assert requests[0] == requests[1]
+    assert options[0]["max_retries"] == 0
+    assert agent.receipt["finish"] == "stop" and agent.receipt["tokens"] == 3
+
+
+@pytest.mark.parametrize("status,attempts", [(429, 3), (503, 3), (400, 1), (401, 1)])
+def test_provider_failures_are_bounded_and_sanitized(model_session, status, attempts):
+    _, start = model_session
+    agent, requests, _ = start([status])
+    with pytest.raises(RuntimeError, match="^provider request failed$") as caught:
+        asyncio.run(agent.run("repair", None, None))
+    assert caught.value.__suppress_context__
+    assert len(requests) == attempts
+    assert agent.receipt["usage_status"] == "partial_observed_not_total_billed"
+    assert "PRIVATE" not in json.dumps(agent.receipt)
+
+
+def test_retry_backoff_cannot_extend_request_deadline(model_session, monkeypatch):
+    from types import SimpleNamespace
+
+    module, start = model_session
+    agent, requests, options = start([503, None])
+    deadlines = []
+    backoff_cancelled = False
+
+    def capture_timeout(delay):
+        assert delay == module.MODEL["request_timeout_sec"] == 60
+        deadline = asyncio.timeout(delay)
+        deadlines.append(deadline)
+        return deadline
+
+    async def controlled_backoff(delay):
+        nonlocal backoff_cancelled
+        assert delay == 0.5
+        assert len(requests) == len(deadlines) == 1
+        # Expire only after the first response, independent of SDK cold-start timing.
+        deadlines[0].reschedule(asyncio.get_running_loop().time())
+        try:
+            await asyncio.sleep(delay)
+        except asyncio.CancelledError:
+            backoff_cancelled = True
+            raise
+
+    monkeypatch.setattr(module, "asyncio", SimpleNamespace(timeout=capture_timeout, sleep=controlled_backoff))
+    with pytest.raises(TimeoutError):
+        asyncio.run(agent.run("repair", None, None))
+    assert backoff_cancelled
+    assert len(deadlines) == 1 and deadlines[0].expired()
+    assert options[0]["timeout"] == 60
+    assert len(requests) == 1
+
+
+def test_failed_request_reservation_prevents_retry_over_token_budget(model_session, monkeypatch):
+    module, start = model_session
+    # One request fits, two conservative reservations do not.
+    monkeypatch.setitem(module.MODEL, "max_total_tokens", 6000)
+    agent, requests, _ = start([503, None])
+    with pytest.raises(RuntimeError, match="token budget exhausted"):
+        asyncio.run(agent.run("repair", None, None))
+    assert len(requests) == 1
+    assert agent.receipt["tokens"] == 0
+
+
+def test_retry_allowance_is_per_cell_not_per_turn(model_session):
+    _, start = model_session
+    agent, requests, _ = start([503, "{PRIVATE", 429, "{PRIVATE", 503])
+    with pytest.raises(RuntimeError, match="provider request failed"):
+        asyncio.run(agent.run("repair", None, None))
+    assert len(requests) == 5 and agent.receipt["turns"] == 2
+    assert agent.receipt["tool_calls"] == 2
+
+
+@pytest.mark.parametrize("budget", ["max_turns", "max_tool_calls"])
+def test_malformed_tool_attempts_remain_budgeted(model_session, monkeypatch, budget):
+    module, start = model_session
+    monkeypatch.setitem(module.MODEL, budget, 2)
+    agent, requests, _ = start(["{PRIVATE"])
+    with pytest.raises(RuntimeError, match="budget"):
+        asyncio.run(agent.run("repair", None, None))
+    assert agent.receipt["tool_calls"] == 2
+    assert len(requests) == (2 if budget == "max_turns" else 3)
+
+
 def test_observed_provider_identity_and_partial_usage(tmp_path, monkeypatch):
     import hashlib
 
@@ -246,7 +411,7 @@ def test_observed_provider_identity_and_partial_usage(tmp_path, monkeypatch):
 
     def response(request):
         requests.append(request)
-        if len(requests) == 2:
+        if len(requests) >= 2:
             return httpx.Response(503, json={"error": {"message": "SECRET_SENTINEL"}})
         return httpx.Response(
             200,
@@ -289,7 +454,7 @@ def test_observed_provider_identity_and_partial_usage(tmp_path, monkeypatch):
             return ExecResult(return_code=0, stdout="/work\n", stderr=None)
 
     agent = agent_module.LiveAgent(logs_dir=tmp_path, task="ledger", arm="normal")
-    with pytest.raises(openai.APIStatusError):
+    with pytest.raises(RuntimeError, match="provider request failed"):
         asyncio.run(agent.run("repair", Environment(), None))
     receipt = json.loads((tmp_path / "receipt.json").read_text())
     assert receipt["tokens"] == 30 and receipt["tool_calls"] == 1
@@ -301,7 +466,7 @@ def test_observed_provider_identity_and_partial_usage(tmp_path, monkeypatch):
         }
     ]
     assert "SECRET_SENTINEL" not in json.dumps(receipt)
-    assert len(requests) == 2
+    assert len(requests) == 4
 
 
 def test_provider_stop_without_revision_uses_real_response_object(tmp_path, monkeypatch):
@@ -557,6 +722,120 @@ def test_command_timeout_is_bounded(tmp_path):
         runner.execute([sys.executable, "-c", "import time; time.sleep(30)"], tmp_path / "log", {}, 0.1)
 
 
+@pytest.fixture
+def checkpoint_run(tmp_path, monkeypatch):
+    runner = load("runner", SCRIPT)
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    comparator = load("checkpoint_comparator", ROOT / "tools/compare_anti_cheat_live.py")
+    output = tmp_path / "public"
+    snapshots = []
+    publish = runner.publish
+    runtime = runner.runtime_identity()
+    monkeypatch.setattr(runner, "runtime_identity", lambda **kwargs: runtime)
+    monkeypatch.setenv("INFERENCE_HUB_API_KEY", "UNIT_ONLY_NOT_A_CREDENTIAL")
+
+    def capture(destination, report):
+        publish(destination, report)
+        snapshots.append(json.loads((destination / "anti-cheat-live-summary.json").read_text()))
+
+    def native_check(job, cell):
+        # Unit-only evidence at the native boundary, never a provider or Docker run.
+        trusted = int(cell["arm"] in ("reference", "normal"))
+        return dict(
+            cell,
+            status="completed",
+            cases=6,
+            semantic_passes=6 * trusted,
+            timeouts=0,
+            trusted=trusted,
+            weak=1,
+            turns=1,
+            tokens=1,
+            tool_calls=0,
+            submission_sha256=runner.sha(b"unit-only submission"),
+            native_result_sha256=runner.sha(f"unit-only cell {cell['cell_id']}".encode()),
+        )
+
+    monkeypatch.setattr(runner, "publish", capture)
+    monkeypatch.setattr(runner, "native_check", native_check)
+    return runner, comparator, output, tmp_path / "private", snapshots
+
+
+@pytest.mark.parametrize("mode,failed_cell", [("controls", 1), ("controls", 2), ("live", 7), ("live", 8)])
+@pytest.mark.parametrize("receipt", [False, True])
+def test_interrupted_checkpoints_remain_valid(checkpoint_run, monkeypatch, mode, failed_cell, receipt):
+    runner, comparator, output, private, snapshots = checkpoint_run
+
+    def execute(command, log, env, timeout):
+        if "--job-name" in command and int(command[command.index("--job-name") + 1]) == failed_cell:
+            if receipt:
+                cell = runner.cells(mode, 2)[failed_cell - 1]
+                path = private / "jobs" / str(failed_cell) / "trial/agent/receipt.json"
+                path.parent.mkdir(parents=True)
+                path.write_text(
+                    json.dumps(
+                        dict(
+                            cell,
+                            turns=1,
+                            tokens=3,
+                            tool_calls=1,
+                            usage_status="partial_observed_not_total_billed",
+                            observed_models=[],
+                            private_detail="PRIVATE_INTERRUPT_DETAIL",
+                        )
+                    )
+                )
+            raise KeyboardInterrupt("PRIVATE_INTERRUPT_DETAIL")
+
+    monkeypatch.setattr(runner, "execute", execute)
+    with pytest.raises(KeyboardInterrupt):
+        runner.run(mode, output, private)
+    summary = json.loads((output / "anti-cheat-live-summary.json").read_text())
+    assert summary["status"] == "incomplete"
+    assert summary["reason"] == "interrupted"
+    assert summary["completed"] == failed_cell - 1
+    assert summary["incomplete"] == summary["expected"]["total"] - summary["completed"]
+    interrupted = summary["cells"][failed_cell - 1]
+    assert interrupted["status"] == "incomplete"
+    assert interrupted["observed_tokens"] == (3 if receipt else None)
+    assert "trusted" not in interrupted and "weak" not in interrupted
+    assert all(row["status"] == "pending" for row in summary["cells"][failed_cell:])
+    assert summary["metrics"] == runner.metrics(summary["cells"])
+    assert all(snapshot["reason"] == "in-progress" for snapshot in snapshots[:-1])
+    for snapshot in snapshots:
+        comparator.validate(snapshot)
+    assert "PRIVATE_INTERRUPT_DETAIL" not in "".join(path.read_text() for path in output.iterdir())
+
+
+def test_startup_interrupt_preserves_valid_pending_checkpoint(checkpoint_run, monkeypatch):
+    runner, comparator, output, private, snapshots = checkpoint_run
+
+    def execute(*args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runner, "execute", execute)
+    with pytest.raises(KeyboardInterrupt):
+        runner.run("controls", output, private)
+    assert snapshots[-1]["reason"] == "interrupted"
+    assert snapshots[-1]["completed"] == 0
+    assert all(row["status"] == "pending" for row in snapshots[-1]["cells"])
+    for snapshot in snapshots:
+        comparator.validate(snapshot)
+
+
+@pytest.mark.parametrize("mode", ["plan", "controls", "live"])
+def test_successful_run_checkpoints_have_consistent_status_reason(checkpoint_run, monkeypatch, mode):
+    runner, comparator, output, private, snapshots = checkpoint_run
+    monkeypatch.setattr(runner, "execute", lambda *args: None)
+    assert runner.run(mode, output, private) == 0
+    summary = json.loads((output / "anti-cheat-live-summary.json").read_text())
+    assert summary["status"] == ("planned" if mode == "plan" else "completed")
+    assert summary["reason"] == "none"
+    for snapshot in snapshots:
+        comparator.validate(snapshot)
+        assert snapshot["reason"] == ("in-progress" if snapshot["status"] == "incomplete" else "none")
+
+
 def test_checkpoints_preserve_partial_results_and_deadline(tmp_path, monkeypatch):
     runner = load("runner", SCRIPT)
     output = tmp_path / "public"
@@ -588,6 +867,49 @@ def test_checkpoints_preserve_partial_results_and_deadline(tmp_path, monkeypatch
     assert summary["completed"] == 1 and summary["incomplete"] == 5
     assert summary["reason"] == "deadline"
     assert next(row for row in summary["metrics"] if row["arm"] == "reference")["completed"] == 1
+
+
+@pytest.mark.parametrize("failure", ["remaining", "subprocess"])
+@pytest.mark.parametrize("mode,failed_cell", [("controls", 1), ("controls", 6), ("live", 14)])
+def test_cell_timeout_is_deadline_even_on_last_cell(tmp_path, monkeypatch, failure, mode, failed_cell):
+    runner = load("runner", SCRIPT)
+    monkeypatch.setenv("INFERENCE_HUB_API_KEY", "SECRET_SENTINEL")
+    now = [0.0]
+    monkeypatch.setattr(runner.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(runner, "runtime_identity", lambda **kwargs: {})
+    calls = []
+
+    def execute(command, log, env, timeout):
+        if "pull" in command:
+            return
+        calls.append(command)
+        if len(calls) == failed_cell:
+            raise subprocess.TimeoutExpired("PRIVATE", timeout)
+
+    original_monotonic = runner.time.monotonic
+    ticks = [0]
+
+    def monotonic():
+        ticks[0] += 1
+        # start, pull, runtime, then loop guard and remaining per cell.
+        if failure == "remaining" and ticks[0] >= 3 + failed_cell * 2:
+            now[0] = 3000.0
+        return original_monotonic()
+
+    monkeypatch.setattr(runner.time, "monotonic", monotonic)
+    monkeypatch.setattr(runner, "execute", execute)
+    monkeypatch.setattr(
+        runner,
+        "native_check",
+        lambda job, cell: dict(cell, status="completed", trusted=int(cell["arm"] == "reference"), weak=1),
+    )
+    assert runner.run(mode, tmp_path / "public", tmp_path / "private") == 2
+    summary = json.loads((tmp_path / "public/anti-cheat-live-summary.json").read_text())
+    assert summary["reason"] == "deadline"
+    assert summary["completed"] == failed_cell - 1
+    assert summary["cells"][failed_cell - 1]["status"] == "incomplete"
+    assert all(cell["status"] == "pending" for cell in summary["cells"][failed_cell:])
+    assert "PRIVATE" not in json.dumps(summary)
 
 
 def test_unexpected_cell_exception_preserves_usage(tmp_path, monkeypatch):

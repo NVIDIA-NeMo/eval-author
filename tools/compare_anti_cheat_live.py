@@ -104,11 +104,20 @@ def validate(report):
     require(report["status"] == status)
     reason = report["reason"]
     require(
-        reason in ("none", "missing-key", "unhealthy-controls", "invalid-native-evidence", "infrastructure", "deadline")
+        reason
+        in (
+            "none",
+            "in-progress",
+            "interrupted",
+            "missing-key",
+            "unhealthy-controls",
+            "invalid-native-evidence",
+            "infrastructure",
+            "deadline",
+        )
     )
-    if status in ("completed", "planned"):
-        require(reason == "none")
-    elif reason == "missing-key":
+    require((reason == "none") == (status in ("completed", "planned")))
+    if reason == "missing-key":
         require(mode == "live" and all(row["status"] == "pending" for row in rows))
     elif reason == "unhealthy-controls":
         require(not healthy)

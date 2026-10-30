@@ -228,9 +228,14 @@ def test_verifier_cheat_ci_runs_independently_without_credentials():
     command = next(s["run"] for s in job["steps"] if "collect_verifier_cheat_evidence.py" in s.get("run", ""))
     assert "uv run --locked python tools/collect_verifier_cheat_evidence.py --output" in command
     uploads = [s for s in job["steps"] if s.get("uses", "").startswith("actions/upload-artifact@")]
-    assert uploads and all(s["if"] == "always()" for s in uploads)
-    assert all(s["with"]["include-hidden-files"] is True for s in uploads)
-    assert all(s["with"]["if-no-files-found"] == "error" for s in uploads)
+    assert len(uploads) == 2
+    summary, native = uploads
+    assert summary["if"] == "always()"
+    assert summary["with"]["path"] == "${{ runner.temp }}/verifier-cheat-evidence/verifier-cheat-summary.json"
+    assert summary["with"]["if-no-files-found"] == "error"
+    assert native["if"] == "${{ always() && github.event.repository.private == true }}"
+    assert native["with"]["include-hidden-files"] is True
+    assert native["with"]["path"] == "${{ runner.temp }}/verifier-cheat-evidence/"
 
 
 def test_daily_ci_includes_static_checks_and_tests_without_cancelling_for_pushes():
