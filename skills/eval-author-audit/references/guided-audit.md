@@ -29,11 +29,15 @@ without `--state-only`; the command returns a state snapshot. Preserve framework
 metadata and legacy scope fields when updating the lifecycle.
 
 Save suite and trace selections separately, with candidates, exclusions, bounds,
-and decision provenance. Set `specification` to its file path; list the selected
-case and verifier paths in `suite_files` and selected run paths in `trace_files`.
+and decision provenance. Use canonical repository-relative paths throughout the
+lifecycle. Set `specification` to its file path. List the selected case and verifier
+paths in `suite_files` and selected run paths in `trace_files`. Leave each file list
+empty until its source is selected, then keep every file within that selection's paths.
 The same record holds check approval, measurement, findings acceptance, the next
 action, and `pending`. Keep that checkpoint inside the audit lifecycle
-when switching journeys. On return, resume its applicable pending decision or
+when switching journeys. In the update that records a checkpoint's answer, set
+`pending` to `null` or replace it with the next applicable checkpoint.
+On return, resume its applicable pending decision or
 the earliest unfinished, non-deferred milestone. State-only entry reads no
 artifacts; inspection without `--state-only` reads only selected sources and retained references.
 Legacy notes and existing files alone do not establish approval or completion.

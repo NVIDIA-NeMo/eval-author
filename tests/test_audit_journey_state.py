@@ -82,6 +82,86 @@ def test_typed_audit_cannot_be_dropped_or_replaced_with_an_incomplete_record(mod
     assert state.state_path(tmp_path).read_bytes() == original
 
 
+@pytest.mark.parametrize(
+    "key,field,unselected", [("suites", "suite_files", "none"), ("traces", "trace_files", "unavailable")]
+)
+@pytest.mark.parametrize("change", ["pending", "unselected", "outside"])
+def test_inconsistent_audit_sources_are_rejected_before_saving(
+    modules, tmp_path, monkeypatch, key, field, unselected, change
+):
+    state, audit = modules
+    saved = start_lifecycle(modules, tmp_path)
+    _, lifecycle, _ = selected(audit)
+    if change == "outside":
+        lifecycle[field] = [lifecycle[key]["paths"][0] + "-other/evidence.json"]
+    else:
+        lifecycle[key]["status"] = "pending" if change == "pending" else unselected
+        lifecycle[key]["paths"] = []
+        lifecycle[key]["source"] = None if change == "pending" else "User ruled out this source"
+    original = state.state_path(tmp_path).read_bytes()
+    monkeypatch.setattr(audit, "observe", forbidden)
+    with pytest.raises(ValueError, match=field):
+        state.update(
+            tmp_path,
+            {"scopes": {"audit": {"lifecycle": lifecycle}}},
+            expected_revision=saved["revision"],
+        )
+    assert state.state_path(tmp_path).read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    "change,stale",
+    [("question", False), ("scope", False), ("unchanged", False)]
+    + [(change, stale) for change in ("completion", "review_and_completion") for stale in (False, True)],
+)
+def test_audit_updates_hash_evidence_only_when_needed(modules, tmp_path, monkeypatch, change, stale):
+    state, audit = modules
+    saved = ready(modules, tmp_path)
+    _, lifecycle, observed = reviewed(audit)
+    saved["scopes"]["audit"] = {"lifecycle": lifecycle}
+    digest = audit.derive(saved, observed)["checks_digest"]
+    lifecycle["checks_approval"]["digest"] = lifecycle["measurement"]["checks_digest"] = digest
+    lifecycle["findings_review"]["digest"] = audit.derive(saved, observed)["findings_digest"]
+    state.save(tmp_path, saved)
+    original = state.state_path(tmp_path).read_bytes()
+    patch = {}
+    if change == "question":
+        patch["pending_question"] = "Which next step would you like?"
+    elif change == "scope":
+        patch["scopes"] = {"audit": {"framework": "Harbor", "framework_source": "User answer"}}
+    elif change == "unchanged":
+        patch["scopes"] = {"audit": {"lifecycle": copy.deepcopy(lifecycle)}}
+    else:
+        patch["journey_status"] = {"audit": "complete"}
+        if change == "review_and_completion":
+            lifecycle = copy.deepcopy(lifecycle)
+            lifecycle["findings_review"]["source"] = "User confirmed the current findings"
+            patch["scopes"] = {"audit": {"lifecycle": lifecycle}}
+    if stale:
+        observed["files"][lifecycle["trace_files"][0]] = audit.fingerprint("changed trace")
+    reads = []
+    file_digest = state._file_digest
+
+    def read(path, remaining):
+        name = path.relative_to(tmp_path).as_posix()
+        if name not in observed["files"]:
+            return file_digest(path, remaining)
+        reads.append(name)
+        return observed["files"][name], 1
+
+    monkeypatch.setattr(state, "_file_digest", read)
+    if stale:
+        with pytest.raises(ValueError, match="current"):
+            state.update(tmp_path, patch, expected_revision=saved["revision"])
+        assert state.state_path(tmp_path).read_bytes() == original
+    else:
+        updated = state.update(tmp_path, patch, expected_revision=saved["revision"])
+        if "completion" in change:
+            assert updated["journey_status"]["audit"] == "complete"
+    expected = sorted(observed["files"]) if "completion" in change else []
+    assert sorted(reads) == expected
+
+
 @pytest.mark.parametrize("journey", ["create", "expand"])
 @pytest.mark.parametrize("existing", [False, True])
 def test_authoring_preserves_audit_without_reading_or_changing_it(modules, tmp_path, monkeypatch, journey, existing):
@@ -417,8 +497,8 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
         path = tmp_path / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("fixture evaluation")
-    lifecycle["traces"]["paths"] = lifecycle["trace_files"] = [str(trace)]
-    lifecycle["specification"] = str(specification)
+    lifecycle["traces"]["paths"] = lifecycle["trace_files"] = [trace.relative_to(tmp_path).as_posix()]
+    lifecycle["specification"] = specification.relative_to(tmp_path).as_posix()
 
     def save(**extra):
         saved = state.update(
@@ -429,7 +509,7 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
         return audit.progress(tmp_path, saved)
 
     def ref(path):
-        return {"path": str(path), "digest": state.digest(path.read_bytes())}
+        return {"path": path.relative_to(tmp_path).as_posix(), "digest": state.digest(path.read_bytes())}
 
     progress = save()
     lifecycle["checks_approval"] = {"digest": progress["checks_digest"], "source": "User approved these checks"}

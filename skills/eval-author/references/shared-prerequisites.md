@@ -687,7 +687,10 @@ not rewritten. Inspect any absolute references and recheck access in the
 destination before reusing them.
 
 All prerequisite statuses become `unknown` with their sources retained. Ethos
-and draft approval reopen, scopes require review, and journey completion resets.
+and draft approval reopen, and scopes require review. Journey completion resets,
+except that an active audit keeps prior `create` and `expand` completion as history.
+Those authoring scopes need review again, and their completion reopens when
+authoring resumes.
 Accepted tasks become `draft`, keeping task and evidence hashes. Recheck
 applicable prerequisites, review the saved intent and scope, and complete the existing acceptance workflow
 before recording acceptance again. A rebind does not establish that the agent,
