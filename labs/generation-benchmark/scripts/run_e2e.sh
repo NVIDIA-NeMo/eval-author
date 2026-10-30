@@ -37,7 +37,7 @@ if command -v direnv >/dev/null 2>&1; then
   eval "$(direnv export bash 2>/dev/null)" || true
 fi
 
-# Closure oracle repeats use configs/agent-oracle.yaml (Codex + inference API) in smoke and live.
+# Closure oracle repeats use configs/agent-oracle.yml (Codex + inference API) in smoke and live.
 export OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://inference-api.nvidia.com/v1}"
 if [[ -z "${OPENAI_API_KEY:-}" && -n "${NVIDIA_API_KEY:-}" ]]; then
   export OPENAI_API_KEY="$NVIDIA_API_KEY"
