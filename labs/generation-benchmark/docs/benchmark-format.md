@@ -53,8 +53,8 @@ benchmark/
     inspect-files/
       ... Harbor task files, environment and verifier
   configs/
-    agent.yaml
-    generator.yaml
+    agent.yml
+    generator.yml
 ```
 
 ## Experiment: `experiment.yml`
@@ -119,10 +119,10 @@ settings:
   process_sha256: sha256:abcd...
 inputs:
   agent_config:
-    path: configs/agent.yaml
+    path: configs/agent.yml
     kind: file
   generator_config:
-    path: configs/generator.yaml
+    path: configs/generator.yml
     kind: file
 ```
 
@@ -142,7 +142,7 @@ optional `settings`, and `timeout_seconds` (default 3600).
 
 Other settings are JSON passed through to the adapter. The reference adapter reads `generation_budget` (`max_new_tasks`, `seed`) and the resolved paths of `agent_config` and `generator_config`.
 
-`generator.yaml` uses `schema: nemo.eval_author.generator.v1` and names the coding-agent command, model, version command, environment, and timeout. `agent.yaml` is the Harbor agent config the reference adapter passes into the generator prompt.
+`generator.yml` uses `schema: nemo.eval_author.generator.v1` and names the coding-agent command, model, version command, environment, and timeout. `agent.yml` is the Harbor agent config the reference adapter passes into the generator prompt.
 
 ## Validation
 
