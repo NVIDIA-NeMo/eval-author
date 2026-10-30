@@ -57,7 +57,9 @@ Path(a.output).write_text(json.dumps({
     assert (suite_plus / "task-b").is_dir()
     assert receipt.response.new_task_ids == ["task-b"]
     request = json.loads((work / "request.json").read_text())
+    assert request["inputs"]["suite"] == "input/tasks"
     assert request["inputs"]["coverage_work"] == "input/coverage"
+    assert request["inputs"]["output_suite"] == "output/tasks-generated"
     assert request["coverage"] == {"value": 0.0, "reason": None}
     assert (work / "input" / "coverage").is_dir()
     assert not (work / "input" / "measurement").exists()
@@ -85,7 +87,7 @@ req = json.loads(Path(a.request).read_text())
 out = Path(req['inputs']['output_suite'])
 out.mkdir(parents=True)
 shutil.copytree(Path(req['inputs']['suite']) / 'task-a', out / 'task-b')
-work = Path('output/.suite-Bi-plus-generation-work-deadbeef')
+work = Path('output/.tasks-generated-generation-work-deadbeef')
 work.mkdir()
 (work / 'link').symlink_to(out / 'task-b')
 expanded = digest_bytes(json_bytes(file_manifest(out)))
@@ -112,7 +114,7 @@ Path(a.output).write_text(json.dumps({
         coverage=Score(value=0.0),
     )
     assert receipt.response.new_task_ids == ["task-b"]
-    assert not (work_root / "output" / ".suite-Bi-plus-generation-work-deadbeef").exists()
+    assert not (work_root / "output" / ".tasks-generated-generation-work-deadbeef").exists()
 
 
 def test_invoke_generation_resumes_from_receipt_without_rerunning_adapter(tmp_path):
@@ -186,7 +188,7 @@ def test_reference_adapter_reads_audit_from_coverage_work(tmp_path, monkeypatch)
     settings = load_generation_benchmark(bench).resolved_generation_settings()
     settings["subset_local_measurement_export"] = True
     workspace = tmp_path / "cell"
-    suite = workspace / "input" / "suite-Bi" / "gen-task-a"
+    suite = workspace / "input" / "tasks" / "gen-task-a"
     suite.mkdir(parents=True)
     (suite / "task.toml").write_text('[task]\nname = "gen-task-a"\n', encoding="utf-8")
     _minimal_coverage_cell(workspace / "input" / "coverage")
@@ -197,9 +199,9 @@ def test_reference_adapter_reads_audit_from_coverage_work(tmp_path, monkeypatch)
         "tasks": [{"task_id": "gen-task-a", "revision": 1}],
         "coverage": {"value": 0.5, "reason": None},
         "inputs": {
-            "suite": "input/suite-Bi",
+            "suite": "input/tasks",
             "coverage_work": "input/coverage",
-            "output_suite": "output/suite-Bi-plus",
+            "output_suite": "output/tasks-generated",
         },
         "settings": settings,
     }
