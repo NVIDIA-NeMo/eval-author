@@ -663,6 +663,90 @@ def test_failure_details_survive_in_artifact_summary_and_console(live, repo, tmp
         assert row["status"] == "incomplete"
 
 
+def test_context_guard_metadata_survives_collection(live, repo, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("INFERENCE_HUB_API_KEY", "fixture-only")
+    metadata = {"pair_count": 130816, "vector_dimension": 2294, "scalar_work": 300091904, "limit": 300000000}
+
+    def execute(argv, cwd, env, log, timeout):
+        assert timeout == 300
+        assert Path(argv[1]).name == "run_pinned_evaluator.py"
+        data = tier2()
+        row = data["results"][0]
+        row.update(status="failed", passed=False)
+        row["summary"].update(errors=1, critical_count=1)
+        row["findings"] = [
+            {
+                "check_name": "scalar_comparison_limit",
+                "severity": "critical",
+                "metadata": {**metadata, "provider_payload": "DO-NOT-EXPORT"},
+            }
+        ]
+        path = Path(argv[-1]) / "result.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(data))
+        return 1, None
+
+    monkeypatch.setattr(live, "execute", execute)
+    output = tmp_path / "guard"
+    report = live.collect(
+        repo, output, run=True, tier="2", skill_name="eval-author", check_name="context", ci_context_budget=True
+    )
+    assert report["policy"]["context_comparison_policy"] == "full-pairwise-300m-v1"
+    assert report["policy"]["context_scalar_limit"] == 300000000
+    assert report["policy"]["tier2_timeout_seconds"] == 300
+    row = next(r for r in report["observations"] if r["status"] != "skipped")
+    assert row["status"] == "incomplete" and row["reason"] == "analysis_incomplete"
+    for text in (
+        (output / "live-skillevaluator-summary.json").read_text(),
+        (output / "live-skillevaluator-summary.md").read_text(),
+        capsys.readouterr().out,
+    ):
+        assert "DO-NOT-EXPORT" not in text
+        for field, value in metadata.items():
+            assert field in text and str(value) in text
+
+
+@pytest.mark.parametrize(
+    "check,metadata,expected",
+    [
+        (
+            "scalar_comparison_limit",
+            {"pair_count": 0, "vector_dimension": 65536, "scalar_work": 0, "limit": 1},
+            {"pair_count": 0, "vector_dimension": 65536, "scalar_work": 0, "limit": 1},
+        ),
+        ("chunk_count_limit", {"actual": 513, "limit": 512, "source": "PRIVATE"}, {"actual": 513, "limit": 512}),
+        ("chunk_count_limit", {"actual": 65537, "limit": 513}, {}),
+        ("scalar_comparison_limit", {"vector_dimension": 0, "limit": 0}, {}),
+        ("scalar_comparison_limit", {"vector_dimension": 2048, "scalar_work": "PRIVATE"}, {"vector_dimension": 2048}),
+        (
+            "scalar_comparison_limit",
+            {"pair_count": 130816, "scalar_work": 130816 * 65536},
+            {"pair_count": 130816, "scalar_work": 130816 * 65536},
+        ),
+        ("duplicate", {"pair_count": 1, "limit": 1}, {}),
+        ("scalar_comparison_limit", None, {}),
+        ("scalar_comparison_limit", [1, 2], {}),
+        (
+            "scalar_comparison_limit",
+            {"pair_count": 130817, "vector_dimension": 65537, "scalar_work": 130816 * 65536 + 1, "limit": 300000001},
+            {},
+        ),
+    ],
+)
+def test_diagnostics_only_export_observed_bounded_guard_metadata(live, check, metadata, expected):
+    text = live.diagnostics({"results": [{"findings": [{"check_name": check, "metadata": metadata}]}]}, None)
+    finding = json.loads(text.split(": ", 1)[1])
+    assert finding == {"check_name": check, **({"metadata": expected} if expected else {})}
+
+
+@pytest.mark.parametrize("value", [True, False, -1, 1.5, "2048", {"secret": 1}, [1], None])
+def test_diagnostics_reject_non_integer_or_negative_guard_metadata(live, value):
+    metadata = dict.fromkeys(("pair_count", "vector_dimension", "scalar_work", "limit", "actual"), value)
+    for check in ("scalar_comparison_limit", "chunk_count_limit"):
+        text = live.diagnostics({"results": [{"findings": [{"check_name": check, "metadata": metadata}]}]}, None)
+        assert json.loads(text.split(": ", 1)[1]) == {"check_name": check}
+
+
 def test_diagnostics_redact_before_truncation_and_ignore_linked_logs(live, tmp_path, monkeypatch):
     import live_evaluation_diagnostics as diagnostic
 

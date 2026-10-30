@@ -10,8 +10,8 @@ from importlib.metadata import distribution
 
 from collect_skill_evaluations import EVALUATOR_REVISION
 
-CONTEXT_SCALAR_LIMIT = 100_000_000
-CONTEXT_POLICY = "full-pairwise-100m-v1"
+CONTEXT_SCALAR_LIMIT = 300_000_000
+CONTEXT_POLICY = "full-pairwise-300m-v1"
 
 
 def main():

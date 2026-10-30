@@ -33,10 +33,12 @@ at once. Each writes a fallback before setup and checkpoints completed work;
 the final aggregate records missing or invalid job reports as incomplete.
 Runner loss or cancellation can still prevent the aggregate job from publishing.
 
-CI permits up to 100 million scalar comparisons per context check using the
+CI permits up to 300 million scalar comparisons per context check using the
 pinned evaluator's unchanged pairwise algorithm, with a five-minute timeout.
-The allowance is recorded in report policy and applies only after verifying the
-installed evaluator commit. Exceeding either bound remains incomplete.
+The allowance is recorded as `full-pairwise-300m-v1` in report policy and applies
+only after verifying the installed evaluator commit. All content and pairs are
+retained; the 512-chunk limit, vector validation, and similarity thresholds are
+unchanged. Exceeding either work or time bounds remains incomplete.
 
 The workflow files are the source of truth for tool versions, limits, and
 artifact configuration:
@@ -94,6 +96,11 @@ results. A high quality score does not imply that all checks passed. Missing
 reports, provider failures, and timeouts are incomplete evidence; skipped or
 unrun work is not a pass. Small synthetic evaluations are smoke tests, not
 proof of broad task performance.
+
+Context guard diagnostics retain only observed, bounded integer metadata:
+`pair_count`, `vector_dimension`, `scalar_work`, and `limit` for scalar-work
+rejection, or `actual` and `limit` for chunk-count rejection. Missing or invalid
+values are omitted, not estimated; raw provider and source metadata is excluded.
 
 Artifacts expire after 30 days. Full native reports are retained separately
 only while the repository is private, under its access controls. They may
