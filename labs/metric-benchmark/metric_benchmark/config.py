@@ -214,7 +214,6 @@ class LoadedCase:
 
 @dataclass(frozen=True)
 class LoadedCases:
-    definitions: list[CaseDefinition]
     cases: dict[str, LoadedCase]
     root: Path
     allow_unsigned: bool = False
@@ -277,17 +276,19 @@ class LoadedAnalysis:
     settings: AnalysisSettings
 
     def load_subsets(self, case_id: str) -> Subsets:
+        prepared = self.inputs.case(case_id)
         try:
             source = self.settings.case_settings[case_id].subsets
             subsets = Subsets.model_validate(
                 read_json(source.resolve(self.inputs.root, allow_unsigned=self.inputs.allow_unsigned))
             )
-            subsets.resolve_tasks(self.inputs.case(case_id).case.task_inventory)
+            subsets.resolve_tasks(prepared.case.task_inventory)
             return subsets
         except (OSError, ValueError) as error:
             raise ValueError(f"case {case_id}, subsets: {error}") from error
 
     def load_description(self, case_id: str) -> dict:
+        self.inputs.case(case_id)
         try:
             source = self.settings.case_settings[case_id].description
             description = read_json(source.resolve(self.inputs.root, allow_unsigned=self.inputs.allow_unsigned))
@@ -340,7 +341,7 @@ def load_cases(path: Path, *, allow_unsigned: bool = False) -> LoadedCases:
         except (OSError, ValueError) as error:
             raise ValueError(f"case {entry.case_id}: {error}") from error
         cases[case.case_id] = LoadedCase(case, root, allow_unsigned=allow_unsigned)
-    return LoadedCases(definitions, cases, root, allow_unsigned)
+    return LoadedCases(cases, root, allow_unsigned)
 
 
 def load_execution(cases: Path, execution: Path, *, allow_unsigned: bool = False) -> LoadedExecution:

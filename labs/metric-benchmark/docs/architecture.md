@@ -73,7 +73,7 @@ consumes them; it does not regenerate or select mutants based on its results.
 
 ### Supplied inputs
 
-A run receives five supplied inputs. Case packages provide the first four;
+A run receives five supplied inputs. Preparation supplies the first four;
 the experiment configuration specifies how to use them. The table describes
 their logical contents.
 
@@ -81,15 +81,15 @@ their logical contents.
 | --- | --- |
 | Baseline agent | An executable bundle with an immutable identity and a documented invocation contract |
 | Mutants | Executable bundles with distinct identities, their baseline relationship, and mutation descriptions |
-| Case description | Stable case identity and intended agent behavior; an Ethos is one possible representation |
+| Case description | Prepared description of intended agent behavior, referenced by case ID through `analysis.case_settings`; an Ethos is one possible representation |
 | Benchmark tasks | Fixed task membership, task identities, environments, correctness verifiers, and a versioned subset manifest |
 | Experiment configuration | `experiment.yml`: references to cases, execution settings, and analysis settings |
 
 Baseline and mutant bundles are prepared and checked before release.
 Tasks and their environments are ready for execution. At present only Harbor tasks are used.
 
-The configuration supplies the choices that determine execution: the fixed subset manifest,
-scoring rules, and the coverage-tool command and settings. Analysis derives one
+Execution settings determine the Harbor loop. Analysis settings supply the fixed
+subset manifest, scoring rules, and coverage-tool command and settings. Analysis derives one
 agent run per configured agent from the results index.
 The program validates these inputs before using them. Missing or inconsistent
 inputs cause an error.

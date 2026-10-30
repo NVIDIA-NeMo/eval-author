@@ -101,9 +101,9 @@ def _collect(path: Path) -> tuple[dict[Path, dict | list], dict[tuple[Path, str]
             documents[target] = data
         return documents[target]
 
-    def reference(owner: Path, label: str, data: dict, source: PinnedInput, *, manifest=False, base=None) -> Path:
+    def reference(owner: Path, label: str, data: dict, source: PinnedInput, *, manifest=False) -> Path:
         try:
-            target = source.resolve(base or root, verify_digest=False)
+            target = source.resolve(root, verify_digest=False)
         except (OSError, ValueError) as error:
             raise ValueError(f"{owner.name}:{label}: {error}") from error
         references[owner, label] = data, target, manifest

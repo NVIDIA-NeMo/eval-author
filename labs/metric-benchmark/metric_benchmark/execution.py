@@ -19,14 +19,10 @@ from metric_benchmark.models import Execution, ExecutionManifest, RawResults, Te
 from metric_benchmark.validation import agent_config, native_measurements, validate_results
 
 
-def execution_identity(loaded: LoadedExecution, *, verify: bool = True) -> str:
-    """Identify execution inputs independently of analysis and experiment metadata.
-
-    Analysis can compare pinned identities without opening executable inputs.
-    Unsigned sources require their contents to establish the same identity.
-    """
+def execution_identity(loaded: LoadedExecution) -> str:
+    """Identify execution inputs independently of analysis and experiment metadata."""
     return digest_bytes(
-        json_bytes({"cases": loaded.inputs.identity_payload(verify=verify), "execution": loaded.settings.model_dump()})
+        json_bytes({"cases": loaded.inputs.identity_payload(verify=True), "execution": loaded.settings.model_dump()})
     )
 
 

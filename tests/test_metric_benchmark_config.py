@@ -254,8 +254,9 @@ def test_analysis_does_not_open_executable_inputs_or_execution_settings(tmp_path
     analysis = load_analysis(tmp_path / "cases.yml", tmp_path / "analysis.yml")
     assert len(analysis.load_subsets("rho-agent").eval_subsets) == 3
     assert analysis.load_description("rho-agent")
-    with pytest.raises(ValueError, match="unknown case: absent"):
-        analysis.inputs.case("absent")
+    for lookup in (analysis.inputs.case, analysis.load_subsets, analysis.load_description):
+        with pytest.raises(ValueError, match="unknown case: absent"):
+            lookup("absent")
 
 
 def test_execution_does_not_open_analysis_inputs_or_settings(tmp_path):
