@@ -76,13 +76,13 @@ def prepared_generation_benchmark(root: Path) -> tuple[Path, dict]:
     analysis_path.write_text(yaml.safe_dump(analysis, sort_keys=False), encoding="utf-8")
     generation["inputs"] = {
         "agent_config": {
-            "path": "configs/agent-oracle.yaml",
-            "sha256": input_digest(root / "configs/agent-oracle.yaml"),
+            "path": "configs/agent-oracle.yml",
+            "sha256": input_digest(root / "configs/agent-oracle.yml"),
             "kind": "file",
         },
         "generator_config": {
-            "path": "configs/generator.yaml",
-            "sha256": input_digest(root / "configs/generator.yaml"),
+            "path": "configs/generator.yml",
+            "sha256": input_digest(root / "configs/generator.yml"),
             "kind": "file",
         },
     }

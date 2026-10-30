@@ -9,8 +9,8 @@ command:
 settings: {}
 inputs:
   agent_config:
-    path: configs/agent-oracle.yaml
+    path: configs/agent-oracle.yml
     kind: file
   generator_config:
-    path: configs/generator.yaml
+    path: configs/generator.yml
     kind: file
