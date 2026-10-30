@@ -18,8 +18,8 @@ from metric_benchmark.scoring import identity
 
 from generation_benchmark.config import GenerationConfig
 
-INPUT_SUITE_DIR = Path("input") / "suite-Bi"
-OUTPUT_SUITE_DIR = Path("output") / "suite-Bi-plus"
+INPUT_TASKS_DIR = Path("input") / "tasks"
+OUTPUT_TASKS_DIR = Path("output") / "tasks-generated"
 
 
 class GenerationResponse(Model):
@@ -141,9 +141,9 @@ def invoke_generation(
             "tasks": subset_tasks,
             "coverage": coverage.model_dump(),
             "inputs": {
-                "suite": INPUT_SUITE_DIR.as_posix(),
+                "suite": INPUT_TASKS_DIR.as_posix(),
                 "coverage_work": "input/coverage",
-                "output_suite": OUTPUT_SUITE_DIR.as_posix(),
+                "output_suite": OUTPUT_TASKS_DIR.as_posix(),
             },
             "settings": configuration.settings,
         }

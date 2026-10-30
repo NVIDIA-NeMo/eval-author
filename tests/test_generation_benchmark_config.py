@@ -165,9 +165,9 @@ def test_generation_request_names_staged_paths():
             "settings": {},
             "coverage": {"value": 0.0, "reason": None},
             "inputs": {
-                "suite": "input/suite-Bi",
+                "suite": "input/tasks",
                 "coverage_work": "input/coverage",
-                "output_suite": "output/suite-Bi-plus",
+                "output_suite": "output/tasks-generated",
             },
         }
     )
@@ -181,9 +181,9 @@ def test_generation_request_names_staged_paths():
                 "settings": {},
                 "coverage": {"value": 0.0, "reason": None},
                 "inputs": {
-                    "suite": "input/suite-Bi",
+                    "suite": "input/tasks",
                     "coverage_work": "/tmp/coverage",
-                    "output_suite": "output/suite-Bi-plus",
+                    "output_suite": "output/tasks-generated",
                 },
             }
         )
