@@ -9,6 +9,8 @@ import os
 import re
 from urllib.parse import quote
 
+from run_pinned_evaluator import CONTEXT_SCALAR_LIMIT
+
 LIMIT = 12000
 FIELDS = {
     "check_name",
@@ -21,6 +23,19 @@ FIELDS = {
     "line_number",
     "details",
     "location",
+}
+
+
+# Bounds cover the pinned evaluator's 512 chunks and 65,536-value vectors,
+# including rejected work above the CI allowance. Never infer missing values.
+GUARD_METADATA_BOUNDS = {
+    "scalar_comparison_limit": {
+        "pair_count": (0, 512 * 511 // 2),
+        "vector_dimension": (1, 65536),
+        "scalar_work": (0, 512 * 511 // 2 * 65536),
+        "limit": (1, CONTEXT_SCALAR_LIMIT),
+    },
+    "chunk_count_limit": {"actual": (0, 65536), "limit": (1, 512)},
 }
 
 
@@ -66,6 +81,16 @@ def diagnostics(report, target):
                     for finding in child[:20]:
                         if isinstance(finding, dict):
                             selected = {k: v for k, v in finding.items() if k in FIELDS}
+                            bounds = GUARD_METADATA_BOUNDS.get(str(finding.get("check_name")), {})
+                            metadata = finding.get("metadata")
+                            if isinstance(metadata, dict):
+                                safe = {
+                                    key: metadata[key]
+                                    for key, (minimum, maximum) in bounds.items()
+                                    if type(metadata.get(key)) is int and minimum <= metadata[key] <= maximum
+                                }
+                                if safe:
+                                    selected["metadata"] = safe
                             entries.append(f"{path}.finding: {json.dumps(selected, ensure_ascii=True)}")
                 elif key in ("agents", "conditions", "results") or path != "report":
                     walk(child, f"{path}.{key}", depth + 1)
