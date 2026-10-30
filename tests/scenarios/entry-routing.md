@@ -353,7 +353,7 @@ traces; it does not complete full audit onboarding or establish measured coverag
 Explanation-only requests do not start work. A trace source must still be selected
 before searches or reads. Explicit source selections are reused.
 
-### Fresh shared entry requires current Ethos confirmation
+### New shared entry requires current Ethos confirmation
 
 For fresh shared entry with NeMo Gym and Harbor, supply a valid root `ETHOS.md`
 without applicable same-agent journey confirmation. For creation and improvement,
