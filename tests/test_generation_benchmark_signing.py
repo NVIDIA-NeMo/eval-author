@@ -59,7 +59,7 @@ def test_generation_signing_refusal_leaves_manifests_unchanged(tmp_path):
 
 def test_generation_inputs_resign_after_config_edit(tmp_path):
     path, _ = prepared_generation_benchmark(tmp_path)
-    generator = tmp_path / "configs/generator.yaml"
+    generator = tmp_path / "configs/generator.yml"
     generator.write_text(generator.read_text() + "# edit\n")
     with pytest.raises(ValueError, match="input digest differs"):
         load_generation_benchmark(path)
