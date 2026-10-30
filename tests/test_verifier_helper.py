@@ -28,6 +28,24 @@ def test_transport_does_not_grade_values(value):
     assert run(f"print({json.dumps(response)!r})") == response
 
 
+@pytest.mark.parametrize(
+    "submission,reward",
+    [("print(7)", 1), ("raise SystemExit(0)", 0), ("raise SystemExit(1)", 0), ("print('ALL TESTS PASSED')", 0)],
+)
+def test_trusted_driver_rejects_no_work_submission_without_infrastructure_error(submission, reward):
+    # Local subprocess contract test, not hostile-code or native-provider isolation proof.
+    source = f"""
+import json, subprocess, sys
+submitted = subprocess.run(
+    [sys.executable, "-I", "-B", "-c", {submission!r}],
+    capture_output=True, text=True, timeout=2,
+)
+correct = submitted.returncode == 0 and submitted.stdout.strip() == "7"
+print(json.dumps({{"status": "result", "value": int(correct)}}))
+"""
+    assert run(source) == {"status": "result", "value": reward}
+
+
 def test_explicit_submission_failure_is_distinct():
     response = {"status": "submission_error", "reason": "submitted program timed out"}
     assert run(f"print({json.dumps(response)!r})") == response
@@ -100,6 +118,10 @@ def test_submission_exception_is_not_reclassified_as_instrumentation_failure():
 @pytest.mark.parametrize(
     "source",
     [
+        "raise SystemExit(0)",
+        "import os; os._exit(0)",
+        "# expected result: 1\nraise SystemExit(0)",
+        "print('ALL TESTS PASSED')",
         "def broken(:",
         "import nonexistent_verifier_dependency_741",
         "print('not-json')",

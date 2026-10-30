@@ -90,6 +90,87 @@ Do not replace the original task with an easier one to obtain passing controls.
 These controls test particular counterexamples; neither their existence nor a
 passing result establishes comprehensive soundness, fairness, or difficulty.
 
+## Screen simple cheats
+
+Apply this screen to every task before acceptance or readiness, including each
+member of a generated batch and each revised task. Proposal-only work records
+the applicable attacks, expected rejection, and unresolved trust boundaries in
+the recommendation; it does not execute them or claim they passed. Use the
+existing private construction cases and result contracts, not a second report
+format. A historical acceptance without this evidence is not a screened task.
+
+Trace the reachable grading path: entry point → guards → invoked checks → reward
+writer. Identify who can modify each script, imported module, test configuration,
+expected value, report, and prerequisite. A test present on disk but bypassed by
+an earlier guard supplies no protection. Assertions and verdict production must
+remain verifier-owned; parsing JUnit, JSON, or a final success marker does not
+authenticate output that submitted code can forge. Keep submitted code outside
+the trusted assertion process using the provider's supported isolation. A
+separate verifier container alone does not isolate a submission imported into
+its own privileged interpreter. Review actual UID, write access, imports and
+artifact transfer, not just directory names.
+
+Select concrete controls against that path:
+
+- **Successful early exit:** a submitted entry point exits zero before doing
+  work, including a package test script replaced with a successful no-op when
+  editable. Preserve required exports/interfaces so the intended bypass actually
+  runs. Exit zero is not evidence that assertions ran or the outcome occurred.
+- **All-failure stub:** a submission rejects every input, exits nonzero, or
+  returns empty results. Pair rejection cases with a valid neighbor that must
+  succeed, so indiscriminate failure cannot earn credit for correct rejection.
+- **Reference-as-comments:** where source text is inspected, put solution-like
+  tokens in inert comments without implementing the behavior. Use only material
+  permitted for the control; never expose private reference text to the agent.
+  Exercise behavior rather than treating source-token presence as correctness.
+- **Forged success:** where writable, try solver-authored success markers,
+  test reports, reward files (including competing native formats), and edits to
+  a runner or expected output. Also test stale success surviving a later failure.
+  Verify the trusted grader ignores or rejects these without granting credit.
+
+Record task-specific applicability and concrete non-applicability reasons in
+the existing case rationales or private review notes. An unsupported runtime or
+an unimplemented control is not non-applicability. Keep a realistic wrong-answer
+control and a valid alternative separately; these simple cheats do not replace
+them. For each attack, map every outcome it omits to the scored checks that must
+reject it. No-work attacks must earn no completion credit; legitimate inaction
+and unrelated graded sub-outcomes retain their public-contract semantics.
+
+For native result contracts, register applicable attacks as additional
+`incorrect` cases (or `side_effect` for preservation tampering). For Harbor trace
+workspaces, use declared `negative` or `copy` controls and their per-check failing
+observations; reserve `bypass` for a real declared dependency. Retain the control
+source, task revision, exact native invocation, and results through the existing
+recorders. Do not modify the task's solution or verifier between arms. Trace
+setup/reach requirements still apply: use a trusted observation of the invoked
+submitted interface that distinguishes the attack from NOP, not an arbitrary
+marker or a solver's claim that it ran. If the recorder cannot represent that
+evidence, keep screening unproven rather than weakening reach checks or counting
+a diagnostic as qualification. NeMo Gym uses native cases and restored session
+state, not Harbor arms.
+
+Run every declared applicable control before declaring the task screened. A
+cheat earning forbidden credit is a verifier defect and blocks acceptance;
+inspect per-check outcomes even when aggregate reward is zero. Missing, skipped,
+malformed or infrastructure-failed evidence leaves screening unproven and blocks
+readiness: it is not a passing negative control. Distinguish an intentionally
+failing submitted program from a broken verifier-owned driver using
+[trusted verifier helpers](verifier-helpers.md). Do not redistribute missing
+check weights, substitute patch similarity, or count ungraded zero as an agent
+failure. Diagnose rejected valid alternatives separately from agent capability.
+
+For repository-edit tasks, compare baseline and reference using the same
+trusted test identities and nonempty collection, with an adjacent regression
+case that should stay valid. If grading captures a Git diff, do not execute
+agent-controlled hooks, filters, external diff/textconv, or trust its index,
+replacement refs or configuration. Use verifier-owned capture configuration and
+a pinned base; a sanitized Git invocation is not hostile-code isolation.
+
+Repair confirmed defects under the existing revision budget and rerun the full
+required control set against the new revision. Keep failed evidence and explicit
+unknowns. Report only the attacks actually tested; this bounded screen is not
+proof against all reward hacking, and generator changes do not repair old tasks.
+
 ## Prepare immutable inputs
 
 ### Distinguish verifier faults from rejected submissions

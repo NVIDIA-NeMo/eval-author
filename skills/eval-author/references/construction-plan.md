@@ -13,7 +13,10 @@ emit a reward for the submission or report an actual verifier execution error.
 
 The same contract serves first-eval, task-create and trace-derived construction.
 Provider adapters interpret native observations; they do not define another
-construction document.
+construction document. Include the applicable
+[simple-cheat controls](task-validation.md#screen-simple-cheats) in the existing
+cases and rationales; proposals retain planned checks, drafts require execution
+evidence before qualification.
 
 | Field | Required contents |
 |---|---|

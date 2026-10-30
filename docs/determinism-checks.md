@@ -12,6 +12,7 @@ Developer tools in `tools/` are not included in skill-only installations.
 | [Workflow scope](#workflow-scope) | Reviewed actions, writes and handoffs match a request contract. |
 | [Discovery comparisons](#discovery-comparisons) | Repeated discovery reports agree under frozen inputs. |
 | [Audit and task evidence](#audit-and-task-evidence) | Acceptance still matches its retained source and execution evidence. |
+| [Verifier-cheat panel](#verifier-cheat-panel) | Real Harbor controls distinguish a sound grader from a planted vulnerable grader. |
 | [Factual and semantic reports](#factual-and-semantic-reports) | Reports preserve source facts and semantic comparisons use compatible evidence. |
 | [Host capture and accounting](#host-capture-and-accounting) | Every planned host attempt retains its native output and review. |
 
@@ -22,6 +23,49 @@ trajectories or free-form prose. The
 [conversation renderer](../skills/eval-author/scripts/conversation_renderer.py)
 separately requires byte-identical messages for identical rendering inputs;
 that presentation guarantee does not establish deterministic workflow execution.
+
+## Verifier-cheat panel
+
+The credential-free `verifier-cheats` CI job runs real Harbor tasks in Docker,
+independently of unit tests, semantic regression, and native NeMo Gym checks.
+It runs on same-repository PRs targeting `main`, pushes to `main`, manual CI
+dispatch, and the daily schedule. The fixtures are deliberately small code
+execution evaluations, not customer tasks or model-generated evidence.
+
+Run the same panel locally with Docker running and the locked development
+environment installed. Choose a new output directory for every attempt:
+
+```bash
+uv sync --locked
+uv run --locked python tools/collect_verifier_cheat_evidence.py \
+  --output "$PWD/.eval-author/verifier-cheat-evidence/run-1"
+```
+
+The panel runs one list-normalization task with three grader variants and three
+scripted submissions, for nine native Harbor trials. It pairs a sound verifier
+with a deliberately vulnerable variant and an always-fail grader. A
+correct solution must pass; no-work submissions must fail under the sound
+verifier. The planted defect must also be detected by a cheat receiving reward
+under the vulnerable verifier. This positive control prevents a broken setup or
+blanket rejection from masquerading as cheat resistance. The vulnerable variant
+is a test fixture, never a task approved for training or agent evaluation.
+The always-fail grader must reject the correct solution, exposing false rejection
+separately from cheat detection. The submissions are a correct implementation,
+an immediate successful exit, and a program that only prints a success claim.
+
+`verifier-cheat-summary.json` retains per-trial rewards and aggregate counts for
+sound reference acceptance, rejected cheats, rewarded planted exploits, and
+always-fail reference rejection. The collector retains native results, commands, input identities, runtime
+information, and per-control measurements. Missing, invalid, interrupted, or
+unexpected results fail the job rather than count as successful rejections.
+Download `verifier-cheat-evidence-<run-id>-<attempt>` from the CI run; artifacts
+are retained for 30 days, including available evidence after failure.
+
+This is an executed fixed-fixture verifier regression, not a measurement of
+whether an authoring agent follows the skill instructions. It uses no model
+credentials and does not establish arbitrary-code sandbox security, general
+reward-hacking resistance, or screening of previously generated tasks. Live
+authoring and semantic regression remain separate measurements.
 
 ## Workflow scope
 

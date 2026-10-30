@@ -23,6 +23,9 @@ Daily CI also runs the Python test matrix and three independent native NeMo Gym
 input routes. NeMo Gym summaries remain separate from SkillEvaluator artifacts; see
 [retained CI measurements](../DEVELOPMENT.md#retained-ci-measurements). The daily
 schedule starts after merge to `main` and does not enable live model evaluations.
+The independent [verifier-cheat panel](determinism-checks.md#verifier-cheat-panel)
+also runs real Harbor/Docker evaluation controls without model credentials.
+Its fixed-fixture measurements are not SkillEvaluator or semantic-regression scores.
 
 Tier 3 requires a skill-owned `evals/evals.json`; missing datasets are reported
 as skipped rather than treated as successful evaluations.
