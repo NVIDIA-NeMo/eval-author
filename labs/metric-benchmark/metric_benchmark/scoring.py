@@ -3,7 +3,6 @@
 
 """Explicit run selection and paired, equally weighted mutant effects."""
 
-import argparse
 import math
 from pathlib import Path
 from typing import Literal
@@ -11,7 +10,7 @@ from typing import Literal
 from pydantic import Field
 
 from metric_benchmark.config import LoadedAnalysis, LoadedCase, ScoringConfig, load_analysis
-from metric_benchmark.io import cli, digest_bytes, json_bytes, read_json, write_json
+from metric_benchmark.io import digest_bytes, json_bytes, read_json
 from metric_benchmark.models import (
     Digest,
     Execution,
@@ -28,6 +27,8 @@ from metric_benchmark.validation import selection_for_results
 
 
 class Context(Model):
+    """Shared input identities used to match coverage and mutant-score artifacts."""
+
     run_id: Text
     case_id: Text
     baseline_bundle_id: Text
@@ -37,10 +38,12 @@ class Context(Model):
 
 
 def identity(value: Model) -> str:
+    """Hash canonical model content so artifact identity is independent of JSON formatting."""
     return digest_bytes(json_bytes(value))
 
 
 def context(raw: RawResults, subsets: Subsets, config: ScoringConfig) -> Context:
+    """Bind a case's scores to the saved observations, fixed subsets, and scoring selection."""
     return Context(
         run_id=raw.run_id,
         case_id=config.case_id,
@@ -82,6 +85,8 @@ class NegativeScoreDiagnostic(Model):
 
 
 class MutantScores(Model):
+    """Validated JSON output containing subset scores, per-mutant effects, and diagnostics."""
+
     artifact_type: Literal["mutant_scores"] = "mutant_scores"
     context: Context
     configuration: ScoringConfig
@@ -92,6 +97,9 @@ class MutantScores(Model):
 
 
 def compute_mutant_scores(raw: RawResults, subsets: Subsets, config: ScoringConfig) -> MutantScores:
+    """Average signed paired task degradation over mutants for each fixed subset.
+    Preserve negative effects; missing required pairs yield unavailable scores.
+    """
     raw = RawResults.model_validate(raw.model_dump())
     subsets = Subsets.model_validate(subsets.model_dump())
     config = ScoringConfig.model_validate(config.model_dump())
@@ -151,7 +159,9 @@ def compute_mutant_scores(raw: RawResults, subsets: Subsets, config: ScoringConf
 def load_score_inputs(
     cases: Path, analysis: Path, case_id: str, results_root: Path, *, allow_unsigned: bool = False
 ) -> tuple[LoadedAnalysis, LoadedCase, RawResults, Subsets, ScoringConfig, Path]:
-    """Load a selected case's analysis inputs without requiring execution sources."""
+    """Load and match one case's saved results, subsets, and scoring selection.
+    Signed case metadata permits loading without executable task or agent sources.
+    """
     loaded = load_analysis(cases, analysis, allow_unsigned=allow_unsigned)
     prepared = loaded.inputs.case(case_id)
     case = prepared.case
@@ -168,23 +178,3 @@ def load_score_inputs(
         raise ValueError(f"case {case_id}: run_id differs from execution.json")
     subsets = loaded.load_subsets(case_id)
     return loaded, prepared, raw, subsets, selection_for_results(case, raw, loaded.settings.scoring), index.parent
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cases", type=Path, required=True)
-    parser.add_argument("--analysis", type=Path, required=True)
-    parser.add_argument(
-        "--allow-unsigned", action="store_true", help="allow missing input pins; still verify supplied SHAs"
-    )
-    parser.add_argument("--case", required=True)
-    parser.add_argument("--results-root", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
-
-    def run(args: argparse.Namespace) -> None:
-        _, _, raw, subsets, selection, _ = load_score_inputs(
-            args.cases, args.analysis, args.case, args.results_root, allow_unsigned=args.allow_unsigned
-        )
-        write_json(args.output, compute_mutant_scores(raw, subsets, selection))
-
-    cli(parser, run)

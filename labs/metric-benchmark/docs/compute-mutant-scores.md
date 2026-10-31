@@ -19,6 +19,11 @@ available to compute their content identity.
 
 ## Inputs and behavior
 
+Each invocation scores one case. `--cases` provides the case collection, while
+`--case` selects the case ID within it. `--analysis` supplies that case's subset
+manifest and the scoring policy. Use a separate output path for each case;
+the experiment coordinator calls the same library once per case.
+
 The CLI derives selection from the configured case and `agent_run_id` values in
 the selected case’s `results.json`, which must contain one run per agent. No selection file needs to be
 authored. Pass the whole experiment directory as `--results-root`; `execution.json`
@@ -46,4 +51,53 @@ is unchanged when the execution run ID changes.
 
 ## Python library
 
-`compute_mutant_scores(raw, subsets, selection)`.
+`compute_mutant_scores(raw, subsets, selection)` returns a `MutantScores` model;
+the CLI serializes that model to the JSON file named by `--output`.
+
+## Output example
+
+For a two-task subset with higher-is-better rewards:
+
+| Agent | Task A | Task B | Mean baseline-minus-mutant difference |
+| --- | --- | --- | --- |
+| Baseline | 0.5 | 1.0 | — |
+| Mutant A | 0.0 | 0.5 | 0.5 |
+| Mutant B | 1.0 | 1.0 | -0.25 |
+
+The subset score is `(0.5 + -0.25) / 2 = 0.125`. This illustrative output excerpt
+shows the score and its contributing effects. The full artifact also includes
+`context` (run/case/baseline IDs and hashes of results, subsets, and selection)
+and `configuration` (agent run selection, mutant IDs, and scoring policy), omitted
+here for readability.
+
+```json
+{
+  "artifact_type": "mutant_scores",
+  "score_definition": "mean_signed_paired_degradation_v1",
+  "scores": {
+    "subset-example": {"value": 0.125, "reason": null}
+  },
+  "mutant_effects": {
+    "subset-example": {
+      "mutant-a": {"value": 0.5, "reason": null},
+      "mutant-b": {"value": -0.25, "reason": null}
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "negative_mutant_score",
+      "eval_subset_id": "subset-example",
+      "mutant_bundle_id": "mutant-b",
+      "value": -0.25
+    }
+  ]
+}
+```
+
+An unavailable score instead has `"value": null` and a nonempty `"reason"`;
+`mutant_effects` identifies the missing pairs. A numeric score must be finite
+and have no unavailability reason.
+
+The correlation stage reads this artifact alongside the independently computed
+coverage artifact. It checks matching `context` values and joins their `scores`
+by subset ID. Coverage does not consume the mutant scores or diagnostics.
