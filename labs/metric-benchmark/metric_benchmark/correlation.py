@@ -51,13 +51,13 @@ def spearman(x: list[float], y: list[float]) -> Score:
     if len(x) != len(y) or any(not math.isfinite(v) for v in [*x, *y]):
         raise ValueError("Spearman requires equal-length finite inputs")
     if len(x) < 2:
-        return Score(value=None, reason="fewer than two paired subsets")
+        return Score(value=None, missing_score_reason="fewer than two paired subsets")
     mean = (len(x) + 1) / 2
     rx = [r - mean for r in ranks(x)]
     ry = [r - mean for r in ranks(y)]
     xx, yy = math.fsum(r * r for r in rx), math.fsum(r * r for r in ry)
     if xx == 0 or yy == 0:
-        return Score(value=None, reason="constant score ranks")
+        return Score(value=None, missing_score_reason="constant score ranks")
     value = math.fsum(a * b for a, b in zip(rx, ry, strict=True)) / math.sqrt(xx * yy)
     return Score(value=max(-1.0, min(1.0, value)))
 
@@ -77,9 +77,9 @@ def correlate(
         if cov.value is None or mutant.value is None:
             reasons = []
             if cov.value is None:
-                reasons.append(f"coverage: {cov.reason}")
+                reasons.append(f"coverage: {cov.missing_score_reason}")
             if mutant.value is None:
-                reasons.append(f"mutant score: {mutant.reason}")
+                reasons.append(f"mutant score: {mutant.missing_score_reason}")
             exclusions[subset_id] = reasons
         else:
             pairs.append(Pair(eval_subset_id=subset_id, coverage=cov.value, mutant_score=mutant.value))

@@ -32,7 +32,7 @@ def test_matched_pairs_missing_policy_and_provenance(tmp_path):
     assert mutants.diagnostics
     assert [(p.eval_subset_id, p.mutant_score) for p in result.pairs if p.mutant_score < 0] == [("subset-000003", -1.0)]
     assert result.exclusions == {}
-    coverage.scores["subset-000001"] = Score(value=None, reason="system abstained")
+    coverage.scores["subset-000001"] = Score(value=None, missing_score_reason="system abstained")
     with pytest.raises(ValueError, match="unavailable"):
         correlate(coverage, mutants)
     result = correlate(coverage, mutants, missing_policy="exclude")
