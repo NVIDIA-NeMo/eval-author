@@ -47,7 +47,7 @@ def test_baseline_only_protocol_and_verified_resume(tmp_path):
     Path(adapter).write_text("raise RuntimeError('must not rerun')")
     assert json_bytes(invoke_coverage(*args)) == json_bytes(first)
     args[-1].joinpath("subset-000001/response.json").write_text('{"value": 99}')
-    with pytest.raises(ValueError, match="evidence changed"):
+    with pytest.raises(ValueError, match="subset-000001: completed coverage evidence changed"):
         invoke_coverage(*args)
 
 
@@ -55,7 +55,7 @@ def test_changed_request_or_configuration_refuses_reuse(tmp_path):
     args = coverage_example(tmp_path)
     invoke_coverage(*args)
     args[4]["required"].append("search-workspace")
-    with pytest.raises(ValueError, match="request differs"):
+    with pytest.raises(ValueError, match="subset-000001: completed coverage request differs"):
         invoke_coverage(*args)
 
 
@@ -100,7 +100,7 @@ def test_missing_or_escaping_baseline_evidence_fails(tmp_path):
 
 def test_cached_only_requires_completed_coverage(tmp_path):
     args = coverage_example(tmp_path)
-    with pytest.raises(ValueError, match="request is missing"):
+    with pytest.raises(ValueError, match="subset-000001: completed coverage request is missing"):
         invoke_coverage(*args, cached_only=True)
 
 

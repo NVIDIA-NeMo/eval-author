@@ -114,16 +114,18 @@ def invoke_coverage(
             if destination.exists() or destination.is_symlink():
                 receipt = Receipt.model_validate(read_json(resolve_evidence(destination, "receipt.json")))
                 if receipt.request_sha256 != request_digest or receipt.configuration_sha256 != config_digest:
-                    raise ValueError("completed coverage request differs; use a new work directory")
+                    raise ValueError(
+                        f"subset {subset.eval_subset_id}: completed coverage request differs; use a new work directory"
+                    )
                 actual = file_manifest(destination)
                 actual.pop("receipt.json")
                 if actual != receipt.files:
-                    raise ValueError("completed coverage evidence changed")
+                    raise ValueError(f"subset {subset.eval_subset_id}: completed coverage evidence changed")
                 if Score.model_validate(read_json(destination / "response.json")) != receipt.score:
-                    raise ValueError("coverage receipt disagrees with saved response")
+                    raise ValueError(f"subset {subset.eval_subset_id}: coverage receipt disagrees with saved response")
             else:
                 if cached_only:
-                    raise ValueError("completed coverage request is missing")
+                    raise ValueError(f"subset {subset.eval_subset_id}: completed coverage request is missing")
                 inputs = file_manifest(workspace)
                 with subprocess.Popen(
                     [*configuration.command, "--request", "request.json", "--output", "response.json"],
