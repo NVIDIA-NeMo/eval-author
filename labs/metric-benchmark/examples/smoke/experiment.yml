@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+benchmark_id: smoke
+revision: 1
+cases:
+  sha256: sha256:5998782c2489839b5be27c026e82e10340d3c00f6ec08c055f4160bbb6ed7945
+  path: cases.yml
+execution:
+  sha256: sha256:3e7868e54726a1816ef6539bc6c7c6f4bdc82e9d31b9f82219b85330ff25e1d0
+  path: execution.yml
+analysis:
+  sha256: sha256:689263d3f2016723750707edb12c32046f7b4b0ced0e4ca0209593c969a376cb
+  path: analysis.yml

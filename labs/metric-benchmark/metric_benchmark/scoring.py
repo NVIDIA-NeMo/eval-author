@@ -23,7 +23,7 @@ from metric_benchmark.models import (
     Text,
     resolve_evidence,
 )
-from metric_benchmark.validation import selection_for_results
+from metric_benchmark.validation import read_case_index, selection_for_results
 
 
 class Context(Model):
@@ -168,13 +168,6 @@ def load_score_inputs(
     manifest = ExecutionManifest.model_validate(read_json(resolve_evidence(results_root, "execution.json")))
     if manifest.cases_sha256 != loaded.inputs.identity:
         raise ValueError("execution case definitions differ from supplied cases")
-    if case_id not in manifest.cases:
-        raise ValueError(f"case {case_id}: missing from execution.json")
-    index = resolve_evidence(results_root, manifest.cases[case_id])
-    if index.name != "results.json":
-        raise ValueError(f"case {case_id}: index must be named results.json")
-    raw = RawResults.model_validate(read_json(index))
-    if raw.run_id != manifest.run_id:
-        raise ValueError(f"case {case_id}: run_id differs from execution.json")
+    index, raw = read_case_index(results_root, manifest, case_id)
     subsets = loaded.load_subsets(case_id)
     return loaded, prepared, raw, subsets, selection_for_results(case, raw, loaded.settings.scoring), index.parent
