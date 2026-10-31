@@ -1009,6 +1009,21 @@ def test_harbor_tasks_build_without_the_session_kit_image() -> None:
     assert "docker image rm" in before_controls, "remove the local kit image before the first control"
 
 
+def test_construction_routes_require_shared_cheat_screening() -> None:
+    reference = "task-validation.md#screen-simple-cheats"
+    routes = [
+        _CORE_DIR / "references" / "construction-plan.md",
+        _CORE_DIR / "references" / "trace-input.md",
+        _CORE_DIR.parent / "eval-author-task-create" / "SKILL.md",
+    ]
+    for skill in ("eval-author-environment", "eval-author-trace-environment"):
+        routes.extend(_CORE_DIR.parent / skill / "references" / name for name in ("task-fidelity.md", "gym-output.md"))
+    for path in routes:
+        assert reference in path.read_text(encoding="utf-8"), path
+    text = (_CORE_DIR / "references" / "task-validation.md").read_text(encoding="utf-8")
+    assert "## Screen simple cheats" in text, "shared screening link must resolve to its heading"
+
+
 def test_task_validation_covers_instructions_preservation_and_names() -> None:
     """Generated tasks leaked causes and answers, checked kept tables by row count, and kept stale names."""
     text = (_CORE_DIR / "references" / "task-validation.md").read_text(encoding="utf-8")

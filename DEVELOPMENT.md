@@ -230,19 +230,26 @@ skipped, malformed, or timed-out evidence cannot pass. The command returns
 nonzero for failed or incomplete measurements and retains a summary after
 runtime setup failures. Existing output directories are rejected.
 
-CI retains separate aggregate artifacts for 90 days:
+CI retains separate aggregate artifacts:
 
-| Input route | Artifact prefix | Protocol |
+| Measurement | Artifact prefix | Retention |
 | --- | --- | --- |
-| Audit | `gym-evidence` | `gym-ledger-controls-v1` |
-| ATIF trace | `gym-trace-evidence` | `gym-trace-ledger-controls-v1` |
-| NeMo Gym rollout attachment | `gym-ng-trajectory-evidence` | `gym-ng-trajectory-ledger-controls-v1` |
+| Audit (`gym-ledger-controls-v1`) | `gym-evidence` | 90 days |
+| ATIF trace (`gym-trace-ledger-controls-v1`) | `gym-trace-evidence` | 90 days |
+| NeMo Gym rollout attachment (`gym-ng-trajectory-ledger-controls-v1`) | `gym-ng-trajectory-evidence` | 90 days |
+| [Scripted verifier-cheat panel](docs/determinism-checks.md#verifier-cheat-panel) | `verifier-cheat-evidence` | 30 days |
+| [Live anti-cheat experiment](docs/determinism-checks.md#live-anti-cheat-experiment) | `anti-cheat-live` | 90 days |
 
 Each name ends with `-<run-id>-<attempt>`. JUnit, native rollouts, and detailed
 logs use the corresponding `*-native` prefix and are retained for 30 days only
 while the repository is private. These include pytest's synthetic `.eval-author`
 workspaces with source rollouts, conversions, and task drafts. Missing summaries
 fail the upload step.
+
+The verifier-cheat panel publishes only its allowlisted summary; its raw native
+evidence uses `verifier-cheat-native` with the same private-repository-only,
+30-day policy. Live anti-cheat uploads only its two aggregate summary files and
+never uploads raw model/native evidence, even for private repositories.
 
 The audit artifact retains the schema, check names, and counters expected by the
 companion fixtures importer. The trace artifacts are separate measurements;

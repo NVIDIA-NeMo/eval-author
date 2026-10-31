@@ -97,6 +97,12 @@ Harbor's `nop` baseline and `oracle` reference solution check whether the task
 is solvable and its verifier distinguishes outcomes. These checks do not
 establish your actual agent's performance. That requires running your agent
 with its configured provider and dependencies. See [Understanding results](results.md).
+Both output providers also require applicable simple-cheat controls before
+readiness, alongside realistic incorrect and valid-alternative solutions. A
+successful cheat blocks acceptance; missing control evidence remains unproven.
+See [proposal and screening expectations](existing-evals.md#propose-new-evaluations).
+Screening covers the tested attacks, not every possible exploit, and does not
+retroactively qualify previously generated tasks.
 
 ### Produce a NeMo Gym task
 

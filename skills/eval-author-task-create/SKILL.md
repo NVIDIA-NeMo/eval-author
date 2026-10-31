@@ -167,7 +167,7 @@ Distinguish the basis for each recommendation:
 
 | Basis | What it supports |
 |---|---|
-| Observed failure | A trace or verifier shows incorrect behavior on an exercised scenario. Preserve the existing failing task as a regression; propose strengthening it only when a specific fixture or verifier change adds value. An agent fix may be the next action without any dataset change. |
+| Observed failure | A trace or verifier shows incorrect behavior on an exercised scenario. Distinguish agent failure from verifier false acceptance/rejection or ungraded execution before recommending an agent fix. Preserve a genuine failing task as a regression; propose verifier repair when the evidence identifies a grading defect. |
 | Coverage gap in inspected inputs | A measured item is not demonstrated and the inspected tasks or traces lack the intended scenario. Propose a concrete new task or extension; state the inspected scope rather than claiming the entire dataset lacks coverage. |
 | Unmeasured or insufficient evidence | The method was not selected or is unsupported, judgments are missing or unclear, or the scenario's trigger is unverified. Recommend measurement or inspection first. Ethos-backed scenarios may still be proposed as candidates, with their unmeasured status explicit. |
 
@@ -189,7 +189,9 @@ For each recommendation, include:
   an existing regression, or gather evidence; describe the concrete request and
   fixture or failure trigger that makes it useful.
 - **Expected behavior and verification:** the outcome to check and how a verifier
-  would distinguish correct from incorrect behavior. For failure cases, identify
+  would distinguish correct from incorrect behavior, including the applicable
+  [simple-cheat controls](../eval-author/references/task-validation.md#screen-simple-cheats)
+  and unresolved verifier trust boundaries. These remain planned until executed. For failure cases, identify
   evidence that the trigger actually occurred as well as the expected response.
 - **Basis and evidence:** the category above, stable audit item names, and task,
   run, trace-step, judgment, or verifier references supporting the recommendation.

@@ -100,6 +100,10 @@ def test_submission_exception_is_not_reclassified_as_instrumentation_failure():
 @pytest.mark.parametrize(
     "source",
     [
+        "raise SystemExit(0)",
+        "import os; os._exit(0)",
+        "# expected result: 1\nraise SystemExit(0)",
+        "print('ALL TESTS PASSED')",
         "def broken(:",
         "import nonexistent_verifier_dependency_741",
         "print('not-json')",
