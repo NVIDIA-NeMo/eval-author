@@ -60,7 +60,7 @@ Path(a.output).write_text(json.dumps({
     assert request["inputs"]["suite"] == "input/tasks"
     assert request["inputs"]["coverage_work"] == "input/coverage"
     assert request["inputs"]["output_suite"] == "output/tasks-generated"
-    assert request["coverage"] == {"value": 0.0, "reason": None}
+    assert request["coverage"] == {"value": 0.0, "missing_score_reason": None}
     assert (work / "input" / "coverage").is_dir()
     assert not (work / "input" / "measurement").exists()
 
@@ -197,7 +197,7 @@ def test_reference_adapter_reads_audit_from_coverage_work(tmp_path, monkeypatch)
         "case_description": {},
         "eval_subset_id": "subset-1",
         "tasks": [{"task_id": "gen-task-a", "revision": 1}],
-        "coverage": {"value": 0.5, "reason": None},
+        "coverage": {"value": 0.5, "missing_score_reason": None},
         "inputs": {
             "suite": "input/tasks",
             "coverage_work": "input/coverage",

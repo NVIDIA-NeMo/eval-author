@@ -163,7 +163,7 @@ def test_generation_request_names_staged_paths():
             "eval_subset_id": "s",
             "tasks": [],
             "settings": {},
-            "coverage": {"value": 0.0, "reason": None},
+            "coverage": {"value": 0.0, "missing_score_reason": None},
             "inputs": {
                 "suite": "input/tasks",
                 "coverage_work": "input/coverage",
@@ -179,7 +179,7 @@ def test_generation_request_names_staged_paths():
                 "eval_subset_id": "s",
                 "tasks": [],
                 "settings": {},
-                "coverage": {"value": 0.0, "reason": None},
+                "coverage": {"value": 0.0, "missing_score_reason": None},
                 "inputs": {
                     "suite": "input/tasks",
                     "coverage_work": "/tmp/coverage",
