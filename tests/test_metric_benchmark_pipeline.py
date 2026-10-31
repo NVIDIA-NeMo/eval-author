@@ -11,6 +11,7 @@ from metric_benchmark.config import load_benchmark
 from metric_benchmark.execution import case_root, execute_benchmark
 from metric_benchmark.io import read_json
 from metric_benchmark.pipeline import run_experiment
+from metric_benchmark.validation import validate_experiment_results
 from test_metric_benchmark_config import LAB, SUBSETS_PATH, prepared_benchmark, write_definition
 from test_metric_benchmark_execution import fake_harbor
 from test_metric_benchmark_signing import remove_pins
@@ -296,6 +297,29 @@ def test_unsigned_opt_in_reaches_execution_and_each_benchmark_cli(tmp_path):
         assert unsigned.returncode == 0, (tool, unsigned.stderr)
     assert read_json(tmp_path / "mutants.json") == read_json(analysis / "mutant-scores.json")
     assert read_json(tmp_path / "coverage.json") == read_json(analysis / "coverage-scores.json")
+
+
+def test_saved_results_analysis_does_not_repeat_native_validation(tmp_path):
+    path, _ = experiment(tmp_path)
+    loaded = load_benchmark(path)
+    native = tmp_path / "native"
+    execute_benchmark(loaded.execution, "run", native, runner=fake_harbor)
+    case = case_root(native, 0)
+    index = json.loads((case / "results.json").read_text())
+    trial_path = case / index["execution_results"][0]["native_results_path"] / "result.json"
+    trial = json.loads(trial_path.read_text())
+    trial["task_checksum"] = "changed"
+    trial_path.write_text(json.dumps(trial))
+
+    with pytest.raises(ValueError, match="native task identity or checksum differs from prepared input"):
+        validate_experiment_results(loaded.analysis.inputs, native)
+
+    output = tmp_path / "analysis"
+    result = run_experiment(path, "run", output, results_root=native)
+    assert set(result["cases"]) == {"rho-agent"}
+    assert read_json(output / "experiment.json") == result
+    assert not (output / "validation.json").exists()
+    assert json.loads(trial_path.read_text())["task_checksum"] == "changed"
 
 
 def test_analysis_changes_reuse_execution_without_executable_inputs(tmp_path):
