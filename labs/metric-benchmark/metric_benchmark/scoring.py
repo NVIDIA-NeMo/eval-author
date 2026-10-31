@@ -123,7 +123,7 @@ def compute_mutant_scores(raw: RawResults, subsets: Subsets, config: ScoringConf
                     elif row.status not in config.completed_statuses:
                         missing.append(f"{agent}/{task.task_id}: execution status {row.status}")
                     elif metric is None or metric.value is None:
-                        reason = metric.reason if metric else "metric absent"
+                        reason = metric.missing_score_reason if metric else "metric absent"
                         missing.append(f"{agent}/{task.task_id}: {reason}")
                     else:
                         values.append(metric.value)
@@ -131,7 +131,7 @@ def compute_mutant_scores(raw: RawResults, subsets: Subsets, config: ScoringConf
                     sign = 1 if config.direction == "higher_is_better" else -1
                     differences.append(sign * (values[0] - values[1]))
             per_mutant[mutant] = (
-                Score(value=None, reason="; ".join(missing))
+                Score(value=None, missing_score_reason="; ".join(missing))
                 if missing
                 else Score(value=math.fsum(differences) / len(differences))
             )
@@ -140,7 +140,7 @@ def compute_mutant_scores(raw: RawResults, subsets: Subsets, config: ScoringConf
         scores[subset.eval_subset_id] = (
             Score(value=math.fsum(available) / len(available))
             if len(available) == len(per_mutant)
-            else Score(value=None, reason="required mutant effects unavailable; see mutant_effects")
+            else Score(value=None, missing_score_reason="required mutant effects unavailable; see mutant_effects")
         )
     diagnostics = []
     for subset_id, score in scores.items():

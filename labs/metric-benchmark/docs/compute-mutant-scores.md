@@ -75,12 +75,12 @@ here for readability.
   "artifact_type": "mutant_scores",
   "score_definition": "mean_signed_paired_degradation_v1",
   "scores": {
-    "subset-example": {"value": 0.125, "reason": null}
+    "subset-example": {"value": 0.125, "missing_score_reason": null}
   },
   "mutant_effects": {
     "subset-example": {
-      "mutant-a": {"value": 0.5, "reason": null},
-      "mutant-b": {"value": -0.25, "reason": null}
+      "mutant-a": {"value": 0.5, "missing_score_reason": null},
+      "mutant-b": {"value": -0.25, "missing_score_reason": null}
     }
   },
   "diagnostics": [
@@ -94,7 +94,7 @@ here for readability.
 }
 ```
 
-An unavailable score instead has `"value": null` and a nonempty `"reason"`;
+An unavailable score instead has `"value": null` and a nonempty `"missing_score_reason"`;
 `mutant_effects` identifies the missing pairs. A numeric score must be finite
 and have no unavailability reason.
 

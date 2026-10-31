@@ -154,10 +154,10 @@ case’s results index; consumers do not need to parse their components.
 #### Measurements and unavailable observations
 
 Each execution result’s `metrics` field is an object keyed by metric name (such
-as `reward`), where each entry contains a required `value` and optional `reason`:
+as `reward`), where each entry contains a required `value` and optional `missing_score_reason`:
 
 ```json
-{"metrics": {"reward": {"value": 0.0, "reason": null}}}
+{"metrics": {"reward": {"value": 0.0, "missing_score_reason": null}}}
 ```
 
 A numeric value must be finite and have no non-null reason. An unavailable value

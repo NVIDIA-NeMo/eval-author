@@ -73,7 +73,7 @@ def test_incomplete_pairs_are_not_zero_or_dropped(failure):
         raw.execution_results[3].metrics.clear()
     scores = compute_mutant_scores(raw, subsets, config)
     assert scores.scores["subset-000001"].value is None
-    assert scores.mutant_effects["subset-000001"]["mutant"].reason
+    assert scores.mutant_effects["subset-000001"]["mutant"].missing_score_reason
     assert scores.scores["subset-000002"].value == 0
 
 
@@ -126,7 +126,7 @@ def test_negative_diagnostics_preserve_scores_and_follow_metric_direction():
             (subset_id, "mutant", -1.0),
         ]
         assert result.scores[subset_id].value == -1.0
-        assert result.scores[subset_id].reason is None
+        assert result.scores[subset_id].missing_score_reason is None
 
 
 def test_negative_effect_flag_survives_positive_or_unavailable_aggregate():

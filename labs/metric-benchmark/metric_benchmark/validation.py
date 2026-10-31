@@ -61,12 +61,14 @@ def native_observation(trial: TrialResult, metric: str) -> tuple[str, Score]:
     if trial.finished_at is None:
         raise ValueError("native trial has not finished")
     if trial.exception_info is not None:
-        return "error", Score(value=None, reason=f"execution error: {trial.exception_info.exception_type}")
+        return "error", Score(
+            value=None, missing_score_reason=f"execution error: {trial.exception_info.exception_type}"
+        )
     if trial.step_results:
         raise ValueError("multi-step Harbor observations need an explicit aggregation policy")
     rewards = trial.verifier_result.rewards if trial.verifier_result else None
     if not rewards or metric not in rewards or rewards[metric] is None:
-        return "succeeded", Score(value=None, reason=f"native verifier metric absent: {metric}")
+        return "succeeded", Score(value=None, missing_score_reason=f"native verifier metric absent: {metric}")
     return "succeeded", Score(value=rewards[metric])
 
 
@@ -179,7 +181,7 @@ def validate_results(
                             "task": key[1],
                             "attempt": row.evaluation.execution,
                             "metric": metric,
-                            "reason": score.reason,
+                            "missing_score_reason": score.missing_score_reason,
                         }
                     )
         except (OSError, ValueError) as error:
