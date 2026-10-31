@@ -223,7 +223,7 @@ def test_mutable_scoring_inputs_are_validated_before_computation(change, message
         compute_mutant_scores(raw, subsets, config)
 
 
-@pytest.mark.parametrize("change", ["missing-case", "run-id", "traversal", "wrong-name"])
+@pytest.mark.parametrize("change", ["cases-sha", "missing-case", "run-id", "traversal", "wrong-name"])
 def test_analysis_index_rejects_mismatched_or_unsafe_case_paths(tmp_path, change):
     from metric_benchmark.io import write_json
     from metric_benchmark.scoring import load_score_inputs
@@ -236,7 +236,9 @@ def test_analysis_index_rejects_mismatched_or_unsafe_case_paths(tmp_path, change
         "run_id": raw.run_id,
         "cases": {case.case_id: (root.relative_to(tmp_path) / "results.json").as_posix()},
     }
-    if change == "missing-case":
+    if change == "cases-sha":
+        manifest["cases_sha256"] = "sha256:" + "0" * 64
+    elif change == "missing-case":
         manifest["cases"] = {"another-case": "results/results.json"}
     elif change == "run-id":
         manifest["run_id"] = "another-run"
@@ -246,5 +248,6 @@ def test_analysis_index_rejects_mismatched_or_unsafe_case_paths(tmp_path, change
         (root / "results.json").rename(root / "other.json")
         manifest["cases"][case.case_id] = "results/other.json"
     write_json(tmp_path / "execution.json", manifest)
-    with pytest.raises(ValueError):
+    message = "execution case definitions differ from supplied cases" if change == "cases-sha" else None
+    with pytest.raises(ValueError, match=message):
         load_score_inputs(path.parent / "cases.yml", path.parent / "analysis.yml", case.case_id, tmp_path)

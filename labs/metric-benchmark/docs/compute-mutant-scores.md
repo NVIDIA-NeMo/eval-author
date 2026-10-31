@@ -13,6 +13,10 @@ uv run python labs/metric-benchmark/compute_mutant_scores.py \
   --results-root experiment-results --output mutant-scores.json
 ```
 
+Optionally, add `--allow-unsigned` when input SHA pins are missing during iteration;
+any supplied pins are still verified. Unpinned task and agent sources must remain
+available to compute their content identity.
+
 ## Inputs and behavior
 
 The CLI derives selection from the configured case and `agent_run_id` values in
@@ -21,8 +25,10 @@ authored. Pass the whole experiment directory as `--results-root`; `execution.js
 locates the case selected by `--case`, regardless of its directory name.
 Only cases.yml and analysis.yml, referenced agent and task
 manifests, the selected subset manifest, `execution.json`, and the selected
-case’s `results.json` are required. Task directories, agent bundles, case descriptions,
-and native trial evidence are not needed for this arithmetic stage. The command
+case’s `results.json` are required when case inputs are signed. Task directories
+and agent bundles can then be absent; sign the bundle before removing those sources
+for analysis elsewhere. See [stage boundaries and reuse](benchmark-format.md#stage-boundaries-and-reuse).
+Case descriptions and native trial evidence are not needed for this arithmetic stage. The command
 checks the index and subset consistency; use `validate_results.py` separately for
 native-evidence validation. Programmatic callers pass models to the library.
 The score is the equally weighted mean over mutants of the signed mean paired
