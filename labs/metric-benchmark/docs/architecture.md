@@ -210,7 +210,7 @@ configuration and coordinates their execution.
 | Stage | Python tool / library operation |
 | --- | --- |
 | Execute evals | `run_evals.py` / `metric_benchmark.execution.execute_benchmark`; a future NeMo Helix tool will produce the same results-directory contract |
-| Compute mutant scores | `compute_mutant_scores.py` / `metric_benchmark.scoring.compute_mutant_scores` |
+| Compute mutant scores | [`compute_mutant_scores.py`](compute-mutant-scores.md) / `metric_benchmark.scoring.compute_mutant_scores` |
 | Compute coverage | `compute_coverage.py` / `metric_benchmark.coverage.invoke_coverage` |
 | Correlation | `correlate.py` / `metric_benchmark.correlation.correlate` |
 

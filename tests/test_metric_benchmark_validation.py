@@ -182,7 +182,7 @@ def test_explicit_missing_observation_is_not_zero(tmp_path, empty_metrics):
     row.native_results_path = "unavailable/inspect-files"
     row.status = "missing"
     row.metrics["reward"].value = None
-    row.metrics["reward"].reason = "worker never started"
+    row.metrics["reward"].missing_score_reason = "worker never started"
     row.unavailable_evidence = {"native_results": "worker never started"}
     if empty_metrics:
         row.metrics = {}
@@ -190,7 +190,7 @@ def test_explicit_missing_observation_is_not_zero(tmp_path, empty_metrics):
             validate_results(raw, case, root, loaded.case(case.case_id).root)
         return
     report = validate_results(raw, case, root, loaded.case(case.case_id).root)
-    assert report["unavailable"][0]["reason"] == "worker never started"
+    assert report["unavailable"][0]["missing_score_reason"] == "worker never started"
 
 
 def test_relocated_bundle_and_native_evidence_validate_without_original_paths(tmp_path):

@@ -59,3 +59,8 @@ defines the output format.
 
 See the [`run_evals.py` command guide](run-evals.md) for arguments, the output
 layout, completed-job reuse, interrupted-job recovery, and the Python API.
+
+## Compute mutant scores
+
+See the [`compute_mutant_scores.py` command guide](compute-mutant-scores.md) for
+arguments, required inputs, score semantics, and the Python API.

@@ -23,12 +23,12 @@ def unique(values: list, label: str) -> None:
 
 class Score(Model):
     value: float | None
-    reason: Text | None = None
+    missing_score_reason: Text | None = None
 
     @model_validator(mode="after")
     def available_or_reason(self) -> Self:
-        if (self.value is None) != (self.reason is not None):
-            raise ValueError("a null score requires a reason; a numeric score must not have one")
+        if (self.value is None) != (self.missing_score_reason is not None):
+            raise ValueError("a null score requires missing_score_reason; a numeric score must not have one")
         return self
 
 
