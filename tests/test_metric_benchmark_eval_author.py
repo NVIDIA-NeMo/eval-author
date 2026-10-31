@@ -117,7 +117,10 @@ def test_real_measurement_adapter_replay_and_cold_repeat(tmp_path):
 def test_missing_semantic_judgments_are_unavailable(tmp_path):
     args = eval_author_example(tmp_path, non_tool=True)
     scores = invoke_coverage(*args)
-    assert all(s.value is None and s.reason is not None and "judgments" in s.reason for s in scores.scores.values())
+    assert all(
+        s.value is None and s.missing_score_reason is not None and "judgments" in s.missing_score_reason
+        for s in scores.scores.values()
+    )
 
 
 def test_bad_runtime_pin_fails_without_measurement(tmp_path):

@@ -123,7 +123,8 @@ def compute_eval_author(request_path: Path) -> Score:
     for details in sorted(Path("measurements").glob("task=*/run=*/*/details.json")):
         if _unjudged(read_json(details)):
             return Score(
-                value=None, reason=f"Eval Author evidence requires missing or unsupported judgments: {details}"
+                value=None,
+                missing_score_reason=f"Eval Author evidence requires missing or unsupported judgments: {details}",
             )
     coverage = report["coverage"]
     scope = settings.score_scope
@@ -134,12 +135,12 @@ def compute_eval_author(request_path: Path) -> Score:
     if set(required_kinds) - set(report["measured_kinds"]):
         return Score(
             value=None,
-            reason="coverage denominator includes unmeasured item kinds: "
+            missing_score_reason="coverage denominator includes unmeasured item kinds: "
             + ", ".join(sorted(set(required_kinds) - set(report["measured_kinds"]))),
         )
     total = counts["item_count"]
     if not total:
-        return Score(value=None, reason="empty coverage denominator")
+        return Score(value=None, missing_score_reason="empty coverage denominator")
     return Score(value=counts["covered_count"] / total)
 
 
