@@ -1,0 +1,133 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Editable SVG: labels are text; no external fonts, scripts, or assets. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1180" viewBox="0 0 1280 1180" role="img" aria-labelledby="title description">
+  <title id="title">Generation benchmark: from a prepared case to coverage recovery</title>
+  <desc id="description">Three phases: prepare a baseline agent, tasks, subsets, and generation configuration; execute the eval agent and generation on each subset; analyze coverage change and gap recovery. Prep is external. The eval agent runs in Harbor. Generation runs as a host subprocess. Analysis reads saved results.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M1 1 L9 5 L1 9 Z" fill="#64748b"/>
+    </marker>
+    <marker id="purple-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M1 1 L9 5 L1 9 Z" fill="#7c62b3"/>
+    </marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #1e293b; }
+      .title { font-size: 32px; font-weight: 700; letter-spacing: -.5px; }
+      .subtitle { font-size: 19px; fill: #64748b; }
+      .phase { font-size: 25px; font-weight: 700; }
+      .number { font-size: 19px; font-weight: 700; fill: #fff; text-anchor: middle; }
+      .label { font-size: 21px; font-weight: 700; }
+      .detail { font-size: 18px; fill: #475569; }
+      .small { font-size: 16px; fill: #64748b; }
+      .sub { font-size: 12px; }
+      .sup { font-size: 12px; }
+      .mono { font-family: 'DejaVu Sans Mono', Consolas, monospace; font-size: 16px; fill: #334155; }
+      .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: 1.4px; }
+      .flow { fill: none; stroke: #64748b; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow); }
+      .analysis-flow { fill: none; stroke: #7c62b3; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#purple-arrow); }
+      .card { fill: #fff; stroke-width: 1.5; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="1180" rx="20" fill="#fff"/>
+  <text x="48" y="54" class="title">Generation benchmark</text>
+  <text x="48" y="85" class="subtitle">Can new tasks bring subset coverage toward full-benchmark coverage?</text>
+
+  <rect x="32" y="116" width="1216" height="300" rx="20" fill="#eff9f6" stroke="#cce9e0"/>
+  <circle cx="72" cy="156" r="19" fill="#16856b"/>
+  <text x="72" y="163" class="number">1</text>
+  <text x="107" y="165" class="phase">Prep</text>
+  <text x="190" y="165" class="detail">Prepare case examples for the experiment</text>
+  <rect x="1004" y="140" width="214" height="30" rx="15" fill="#d9eee6"/>
+  <text x="1111" y="160" text-anchor="middle" class="small" style="fill:#246653">Prepared externally</text>
+
+  <g class="card" stroke="#b9dcd0">
+    <rect x="64" y="194" width="220" height="82" rx="12"/>
+    <rect x="297" y="194" width="220" height="82" rx="12"/>
+    <rect x="530" y="194" width="220" height="82" rx="12"/>
+    <rect x="763" y="194" width="220" height="82" rx="12"/>
+    <rect x="996" y="194" width="220" height="82" rx="12"/>
+  </g>
+  <text x="82" y="226" class="label">Eval agent</text>
+  <text x="82" y="254" class="detail">Baseline bundle</text>
+  <text x="315" y="226" class="label">Case description</text>
+  <text x="315" y="254" class="detail">Intended behavior</text>
+  <text x="548" y="226" class="label">Benchmark tasks</text>
+  <text x="548" y="254" class="detail">Tasks + verifiers</text>
+  <text x="781" y="226" class="label">Subsets</text>
+  <text x="781" y="254" class="detail">Fixed memberships</text>
+  <text x="1014" y="226" class="label">experiment.yml</text>
+  <text x="1014" y="254" class="detail">Coverage + generation</text>
+  <text x="64" y="318" class="small">Subset manifest freezes task ids before the run. Generation inputs pin the coding-agent command.</text>
+  <text x="64" y="348" class="small">The agent manifest names the baseline.</text>
+  <text x="64" y="388" class="small">Experiment YAML defines cases; each selects agent, tasks, and subset manifests.</text>
+
+  <path d="M640 416 V444" class="flow"/>
+
+  <rect x="32" y="448" width="1216" height="360" rx="20" fill="#f0f6fe" stroke="#d0e0f7"/>
+  <circle cx="72" cy="488" r="19" fill="#3578c4"/>
+  <text x="72" y="495" class="number">2</text>
+  <text x="107" y="497" class="phase">Execution</text>
+  <text x="1216" y="495" text-anchor="end" class="small">Harbor for the eval agent &#183; host process for generation</text>
+
+  <rect x="64" y="524" width="360" height="110" rx="12" class="card" stroke="#b8d0ed"/>
+  <text x="84" y="558" class="label">Execute baseline</text>
+  <text x="84" y="588" class="detail">Eval agent on the full inventory</text>
+  <text x="84" y="614" class="small">Local Harbor.</text>
+  <path d="M424 579 H470" class="flow"/>
+  <rect x="474" y="524" width="300" height="110" rx="12" fill="#e0edfc" stroke="#9ebfe6" stroke-width="1.5"/>
+  <text x="494" y="558" class="label">Results directory</text>
+  <text x="494" y="588" class="detail">Shared index + native task results</text>
+  <text x="494" y="614" class="mono">results.json</text>
+  <path d="M774 579 H820" class="flow"/>
+  <rect x="824" y="524" width="392" height="110" rx="12" class="card" stroke="#b8d0ed"/>
+  <text x="844" y="558" class="label">Measure M(B)</text>
+  <text x="844" y="588" class="detail">Coverage on all tasks</text>
+  <text x="844" y="614" class="mono">eval_author_coverage.py</text>
+  <text x="64" y="668" class="small">For each subset, in order. One subset at a time in the reference driver.</text>
+
+  <rect x="64" y="684" width="270" height="112" rx="12" class="card" stroke="#b8d0ed"/>
+  <text x="82" y="718" class="label">Measure subset</text>
+  <text x="82" y="748" class="detail">Coverage on B<tspan class="sub" dy="4">i</tspan></text>
+  <text x="82" y="774" class="small">Subset-local export</text>
+  <path d="M334 740 H370" class="flow"/>
+  <rect x="374" y="684" width="270" height="112" rx="12" fill="#ede5f8" stroke="#cbb9e2" stroke-width="1.5"/>
+  <text x="392" y="704" class="eyebrow" style="fill:#74549f">METHOD BEING EVALUATED</text>
+  <text x="392" y="728" class="label">Generate</text>
+  <text x="392" y="754" class="detail">Coding agent writes B<tspan class="sub" dy="4">i</tspan><tspan class="sup" dy="-10">+</tspan></text>
+  <text x="392" y="780" class="mono">eval_author_generate.py</text>
+  <path d="M644 740 H680" class="flow"/>
+  <rect x="684" y="684" width="270" height="112" rx="12" class="card" stroke="#b8d0ed"/>
+  <text x="702" y="718" class="label">Execute new tasks</text>
+  <text x="702" y="748" class="detail">Eval agent in Harbor</text>
+  <text x="702" y="774" class="small">Merge into results.json</text>
+  <path d="M954 740 H990" class="flow"/>
+  <rect x="994" y="684" width="222" height="112" rx="12" class="card" stroke="#b8d0ed"/>
+  <text x="1012" y="718" class="label">Measure again</text>
+  <text x="1012" y="748" class="detail">Coverage on B<tspan class="sub" dy="4">i</tspan><tspan class="sup" dy="-10">+</tspan></text>
+  <text x="1012" y="774" class="small">Then the next subset</text>
+
+  <path d="M640 808 V836" class="flow"/>
+
+  <rect x="32" y="840" width="1216" height="300" rx="20" fill="#f7f4fc" stroke="#e1d7f0"/>
+  <circle cx="72" cy="880" r="19" fill="#8060b0"/>
+  <text x="72" y="887" class="number">3</text>
+  <text x="107" y="889" class="phase">Analysis</text>
+  <text x="64" y="930" class="detail">Read the saved coverage scores. Subset membership stays fixed.</text>
+
+  <rect x="64" y="956" width="340" height="140" rx="12" class="card" stroke="#cbb9e2"/>
+  <text x="84" y="996" class="label">Full benchmark</text>
+  <text x="84" y="1028" class="detail">M(B)</text>
+  <text x="84" y="1058" class="mono">coverage-baseline/</text>
+  <path d="M404 1026 H470" class="analysis-flow"/>
+  <rect x="474" y="956" width="340" height="140" rx="12" class="card" stroke="#cbb9e2"/>
+  <text x="494" y="996" class="label">Each subset</text>
+  <text x="494" y="1028" class="detail">M(B<tspan class="sub" dy="4">i</tspan><tspan dy="-4">) and M(B</tspan><tspan class="sub" dy="4">i</tspan><tspan class="sup" dy="-10">+</tspan><tspan dy="6">)</tspan></text>
+  <text x="494" y="1058" class="mono">generation-results.json</text>
+  <path d="M814 1026 H880" class="analysis-flow"/>
+  <rect x="884" y="956" width="332" height="140" rx="14" fill="#73549f"/>
+  <text x="1050" y="1010" text-anchor="middle" class="label" style="fill:#fff">&#916;M<tspan dy="5" font-size="14">i</tspan><tspan dy="-5" font-size="21"> and R</tspan><tspan dy="5" font-size="14">i</tspan></text>
+  <text x="1050" y="1044" text-anchor="middle" class="mono" style="fill:#f0e9fa">generation-analysis.json</text>
+  <text x="1050" y="1072" text-anchor="middle" class="small" style="fill:#e4d8f4">R<tspan dy="4" font-size="11">i</tspan><tspan dy="-4" font-size="16"> is null when the gap is zero</tspan></text>
+</svg>
