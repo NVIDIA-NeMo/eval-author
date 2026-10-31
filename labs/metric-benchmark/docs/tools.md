@@ -64,3 +64,11 @@ layout, completed-job reuse, interrupted-job recovery, and the Python API.
 
 See the [`compute_mutant_scores.py` command guide](compute-mutant-scores.md) for
 arguments, required inputs, score semantics, and the Python API.
+
+## Compute coverage
+
+See the [`compute_coverage.py` command guide](compute-coverage.md) for
+arguments, evidence staging, cached replay, and the Python API.
+
+The [`eval_author_coverage.py` adapter guide](eval-author-coverage.md) covers
+the Eval Author integration.
