@@ -26,7 +26,7 @@ the library API for explicit model inputs.
 Each invocation stages the subset's baseline evidence and case description,
 then calls the configured command with `--request request.json --output
 response.json`. Responses contain `value` (finite number), or `value: null` and
-`reason`. The request does not include mutant evidence or outcomes. The command
+`missing_score_reason`. The request does not include mutant evidence or outcomes. The command
 is trusted and runs on the host; staging is not a sandbox.
 
 Completed subset requests have file-digest receipts. Resume verifies those files
