@@ -208,6 +208,21 @@ def validate_results(
     }
 
 
+def read_case_index(root: Path, manifest: ExecutionManifest, case_id: str) -> tuple[Path, RawResults]:
+    try:
+        if case_id not in manifest.cases:
+            raise ValueError("missing from execution.json")
+        index = resolve_evidence(root, manifest.cases[case_id])
+        if index.name != "results.json":
+            raise ValueError("index must be named results.json")
+        raw = RawResults.model_validate(read_json(index))
+        if raw.run_id != manifest.run_id:
+            raise ValueError("run_id differs from execution.json")
+        return index, raw
+    except (OSError, ValueError) as error:
+        raise ValueError(f"case {case_id}: {error}") from error
+
+
 def validate_experiment_results(loaded: LoadedCases, root: Path, *, case_id: str | None = None) -> dict:
     manifest = ExecutionManifest.model_validate(read_json(resolve_evidence(root, "execution.json")))
     if manifest.cases_sha256 != loaded.identity:
@@ -222,16 +237,11 @@ def validate_experiment_results(loaded: LoadedCases, root: Path, *, case_id: str
     reports = {}
     directories = set()
     for selected_id, prepared in selected.items():
+        index, raw = read_case_index(root, manifest, selected_id)
         try:
-            index = resolve_evidence(root, manifest.cases[selected_id])
-            if index.name != "results.json":
-                raise ValueError("case index must be named results.json")
             if index.parent in directories:
                 raise ValueError("results directory reused by multiple cases")
             directories.add(index.parent)
-            raw = RawResults.model_validate(read_json(index))
-            if raw.run_id != manifest.run_id:
-                raise ValueError("case run_id differs from execution.json")
             reports[selected_id] = validate_results(
                 raw,
                 prepared.case,

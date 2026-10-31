@@ -15,9 +15,9 @@ from metric_benchmark.correlation import correlate
 from metric_benchmark.coverage import invoke_coverage
 from metric_benchmark.execution import execute_benchmark, run_harbor
 from metric_benchmark.io import cli, digest_file, file_manifest, read_json, write_json
-from metric_benchmark.models import ExecutionManifest, RawResults, resolve_evidence
+from metric_benchmark.models import ExecutionManifest, resolve_evidence
 from metric_benchmark.scoring import compute_mutant_scores, identity
-from metric_benchmark.validation import selection_for_results, validate_experiment_results
+from metric_benchmark.validation import read_case_index, selection_for_results, validate_experiment_results
 
 
 def implementation() -> dict:
@@ -82,15 +82,10 @@ def run_experiment(
     # Freeze and validate every case before invoking any coverage system.
     for ordinal, prepared_case in enumerate(analysis.inputs.cases.values()):
         case = prepared_case.case
-        index = resolve_evidence(results_root, manifest.cases[case.case_id])
-        if index.name != "results.json":
-            raise ValueError(f"case {case.case_id}: index must be named results.json")
+        index, raw = read_case_index(results_root, manifest, case.case_id)
         if index.parent in directories:
             raise ValueError("results directory reused by multiple cases")
         directories.add(index.parent)
-        raw = RawResults.model_validate(read_json(index))
-        if raw.run_id != manifest.run_id:
-            raise ValueError(f"case {case.case_id}: run_id differs from execution.json")
         destination = output / "analysis" / f"case-{ordinal:04d}"
         write_json(destination / "selection.json", selection_for_results(case, raw, analysis.settings.scoring))
         write_json(destination / "coverage-config.json", analysis.settings.coverage)
