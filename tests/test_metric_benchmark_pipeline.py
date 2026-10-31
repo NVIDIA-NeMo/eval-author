@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 import subprocess
 import sys
 
@@ -147,7 +148,7 @@ def test_changed_evidence_and_config_refuse_resume(tmp_path):
     path, _ = experiment(tmp_path)
     out = tmp_path / "out"
     run_experiment(path, "run", out, runner=fake_harbor)
-    with pytest.raises(ValueError, match="different contents"):
+    with pytest.raises(ValueError, match="execution manifest does not match cases/run identity"):
         run_experiment(path, "different-run", out, results_root=out / "execution")
     (case_root(out / "execution", 0) / "new-file").write_text("changed")
     with pytest.raises(ValueError, match="different contents"):
@@ -196,12 +197,53 @@ def test_post_analysis_evidence_change_prevents_completion(tmp_path):
     assert not (output / "experiment.json").exists()
 
 
-def test_saved_execution_manifest_rejects_another_run(tmp_path):
+@pytest.mark.parametrize("invalid", ["run_id", "cases_sha256", "inventory"])
+def test_invalid_saved_manifest_does_not_reserve_analysis_output(tmp_path, invalid):
     path, _ = experiment(tmp_path)
     native = tmp_path / "native"
     execute_benchmark(load_benchmark(path).execution, "run", native, runner=fake_harbor)
-    with pytest.raises(ValueError, match="execution manifest does not match cases/run identity"):
-        run_experiment(path, "another-run", tmp_path / "analysis", results_root=native)
+    manifest_path = native / "execution.json"
+    original = manifest_path.read_bytes()
+    manifest = json.loads(original)
+    if invalid == "cases_sha256":
+        manifest["cases_sha256"] = "sha256:" + "0" * 64
+    elif invalid == "inventory":
+        manifest["cases"]["unexpected"] = next(iter(manifest["cases"].values()))
+    manifest_path.write_text(json.dumps(manifest))
+    output = tmp_path / "analysis"
+    run_id = "another-run" if invalid == "run_id" else "run"
+    message = "results case inventory differs" if invalid == "inventory" else "cases/run identity"
+    with pytest.raises(ValueError, match=message):
+        run_experiment(path, run_id, output, results_root=native)
+    assert not output.exists()
+    manifest_path.write_bytes(original)
+    assert run_experiment(path, "run", output, results_root=native)["cases"]
+
+
+def test_interrupted_execution_resumes_after_package_change(tmp_path, monkeypatch):
+    import metric_benchmark.pipeline as pipeline
+
+    path, _ = experiment(tmp_path)
+    output = tmp_path / "out"
+
+    def failing(config):
+        if config.agents[0].name == "nop":
+            raise ValueError("worker unavailable")
+        fake_harbor(config)
+
+    with pytest.raises(ValueError, match="worker unavailable"):
+        run_experiment(path, "run", output, runner=failing)
+    assert not (output / "experiment-inputs.json").exists()
+    assert not (output / "execution/execution.json").exists()
+    monkeypatch.setattr(pipeline, "implementation", lambda: {"sources": {"test": "changed"}})
+    resumed = []
+
+    def resume(config):
+        resumed.append(config.agents[0].name)
+        fake_harbor(config)
+
+    assert run_experiment(path, "run", output, runner=resume)["cases"]
+    assert resumed == ["nop", "nop"]
 
 
 def test_unsigned_opt_in_reaches_execution_and_each_benchmark_cli(tmp_path):

@@ -22,8 +22,8 @@ agent bundle files are not required in this mode. Add `--cached-only` to also
 prohibit new coverage invocations.
 
 Resume into an existing analysis directory requires the same experiment settings,
-run ID, evidence, and analysis implementation. After changing analysis hypotheses
-or code, use a new `--output` with `--results` pointing at saved executions. The
+run ID, evidence, package implementation, and recorded dependency versions. After
+changing analysis hypotheses or code, use a new `--output` with `--results` pointing at saved executions. The
 output records separate `analysis_sha256` and `execution_sha256` identities.
 
 Fresh execution invokes native validation and writes its report to `validation.json`.
@@ -42,6 +42,29 @@ It writes mutant-score, coverage-score and correlation artifacts in
 that same directory. `experiment.json` indexes per-case correlations only after
 all stages succeed and input/evidence digests are rechecked. Cases are not pooled.
 There is no separate record-experiment stage or runtime preparation stage.
+
+## Recovering interrupted execution
+
+The analysis input record is written only after execution completes and its
+manifest passes the case/run checks. If execution stops between agent jobs,
+rerun the original command; execution verifies and reuses completed jobs even
+if the package implementation changed before analysis began. An incomplete
+native job first needs [Harbor recovery](run-evals.md#interrupted-jobs).
+
+For an older partial run that already has `experiment-inputs.json`, a package
+change can block the coordinator before execution resumes. Finish execution with
+the standalone tool, using the original cases, execution settings, and run ID:
+
+```bash
+uv run python labs/metric-benchmark/run_evals.py \
+  --cases cases.yml --execution execution.yml --run-id trial-1 \
+  --output private-run/execution
+```
+
+Once `private-run/execution/execution.json` exists, run analysis in a new output
+directory with `run_experiment.py --benchmark experiment.yml --run-id trial-1
+--results private-run/execution --output new-analysis`. Add `--allow-unsigned`
+to these commands if the prepared inputs have missing pins.
 
 ## Small, prepared smoke benchmark
 
