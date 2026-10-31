@@ -26,7 +26,7 @@ Python tool and library API:
 2. **[Compute mutant scores](docs/compute-mutant-scores.md):** measure degradation across the mutants for each
    predefined task subset.
 3. **[Compute coverage](docs/compute-coverage.md):** evaluate our metric on those same subsets.
-4. **Correlation:** compare the paired coverage and mutant scores across subsets.
+4. **[Correlation](docs/correlate.md):** compare the paired coverage and mutant scores across subsets.
 
 See the [architecture](docs/architecture.md) and [stage descriptions](docs/stages.md)
 for how the experiment works.

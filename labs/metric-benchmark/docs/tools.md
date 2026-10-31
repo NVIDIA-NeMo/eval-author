@@ -72,3 +72,8 @@ arguments, evidence staging, cached replay, and the Python API.
 
 The [`eval_author_coverage.py` adapter guide](eval-author-coverage.md) covers
 the Eval Author integration.
+
+## Correlate the subset scores
+
+See the [`correlate.py` command guide](correlate.md) for
+arguments, unavailable pairs, interpretation, and the Python API.
