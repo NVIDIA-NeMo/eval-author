@@ -14,5 +14,6 @@ coverage:
   system_id: synthetic
   system_revision: '1'
   command:
-  - python
+  - /usr/bin/env
+  - python3
   - /adapter.py

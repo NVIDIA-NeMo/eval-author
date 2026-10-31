@@ -3,7 +3,6 @@
 
 """Invoke a supplied coverage system using a fixed, baseline-only file contract."""
 
-import argparse
 import os
 import shutil
 import signal
@@ -13,9 +12,9 @@ from pathlib import Path
 from typing import Literal
 
 from metric_benchmark.config import CoverageConfig, file_manifest
-from metric_benchmark.io import cli, digest_bytes, digest_file, json_bytes, read_json, write_json
+from metric_benchmark.io import digest_bytes, digest_file, json_bytes, read_json, write_json
 from metric_benchmark.models import Digest, Model, RawResults, Score, Subsets, Tasks, Text, resolve_evidence
-from metric_benchmark.scoring import Context, ScoringConfig, context, identity, load_score_inputs, select_executions
+from metric_benchmark.scoring import Context, ScoringConfig, context, identity, select_executions
 
 
 class CoverageScores(Model):
@@ -49,6 +48,14 @@ class Receipt(Model):
     configuration_sha256: Digest
     files: dict[Text, Digest]
     score: Score
+
+
+def _preserve_failure(workspace: Path, stdout: bytes, stderr: bytes) -> Path:
+    (workspace / "stdout.log").write_bytes(stdout)
+    (workspace / "stderr.log").write_bytes(stderr)
+    failed = workspace.with_name("failed-" + workspace.name.removeprefix(".pending-"))
+    workspace.rename(failed)
+    return failed
 
 
 def invoke_coverage(
@@ -133,21 +140,19 @@ def invoke_coverage(
                         else:
                             process.kill()
                         stdout, stderr = process.communicate()
-                        (workspace / "stdout.log").write_bytes(stdout)
-                        (workspace / "stderr.log").write_bytes(stderr)
-                        failed = work_root / ("failed-" + workspace.name.removeprefix(".pending-"))
-                        workspace.rename(failed)
+                        failed = _preserve_failure(workspace, stdout, stderr)
                         raise ValueError(f"coverage system interrupted or timed out; evidence: {failed}") from None
                 if process.returncode:
-                    (workspace / "stdout.log").write_bytes(stdout)
-                    (workspace / "stderr.log").write_bytes(stderr)
-                    failed = work_root / ("failed-" + workspace.name.removeprefix(".pending-"))
-                    workspace.rename(failed)
+                    failed = _preserve_failure(workspace, stdout, stderr)
                     raise ValueError(f"coverage system exited {process.returncode}; evidence: {failed}")
-                files = file_manifest(workspace)
-                score = Score.model_validate(read_json(workspace / "response.json"))
-                if any(files.get(name) != digest for name, digest in inputs.items()):
-                    raise ValueError("coverage system modified its supplied evidence")
+                try:
+                    files = file_manifest(workspace)
+                    score = Score.model_validate(read_json(workspace / "response.json"))
+                    if any(files.get(name) != digest for name, digest in inputs.items()):
+                        raise ValueError("coverage system modified its supplied evidence")
+                except (OSError, ValueError) as exc:
+                    failed = _preserve_failure(workspace, stdout, stderr)
+                    raise ValueError(f"invalid coverage output: {exc}; evidence: {failed}") from exc
                 receipt = Receipt(
                     request_sha256=request_digest,
                     configuration_sha256=config_digest,
@@ -166,38 +171,3 @@ def invoke_coverage(
         scores=scores,
         receipts=receipts,
     )
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cases", type=Path, required=True)
-    parser.add_argument("--analysis", type=Path, required=True)
-    parser.add_argument(
-        "--allow-unsigned", action="store_true", help="allow missing input pins; still verify supplied SHAs"
-    )
-    parser.add_argument("--case", required=True)
-    parser.add_argument("--results-root", type=Path, required=True)
-    parser.add_argument("--work-root", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--cached-only", action="store_true")
-
-    def run(args: argparse.Namespace) -> None:
-        loaded, _, raw, subsets, selection, record_root = load_score_inputs(
-            args.cases, args.analysis, args.case, args.results_root, allow_unsigned=args.allow_unsigned
-        )
-        description = loaded.load_description(args.case)
-        write_json(
-            args.output,
-            invoke_coverage(
-                raw,
-                subsets,
-                selection,
-                loaded.settings.coverage,
-                description,
-                record_root,
-                args.work_root,
-                cached_only=args.cached_only,
-            ),
-        )
-
-    cli(parser, run)

@@ -13,6 +13,10 @@ uv run python labs/metric-benchmark/compute_coverage.py \
   --work-root coverage-evidence --output coverage-scores.json
 ```
 
+The first argument of `coverage.command` must be an absolute executable path,
+for example `/path/to/venv/bin/python`. See the
+[analysis format](benchmark-format.md#analysis-analysisyml) for its configuration.
+
 ## Inputs and behavior
 
 As with validation and mutant scoring, `--results-root` is the whole experiment
@@ -31,9 +35,12 @@ is trusted and runs on the host; staging is not a sandbox.
 
 Completed subset requests have file-digest receipts. Resume verifies those files
 and inputs before reuse. `--cached-only` prohibits new invocations. A command
-failure preserves its private diagnostic workspace without a completion receipt.
+failure, including a missing or invalid response or modified input evidence,
+preserves its private diagnostic workspace and logs without a completion receipt.
 On POSIX, timeout cancellation kills the command's process group, including its
-children. Keep all run directories private and outside Git.
+children. This workflow is tested on Linux; use WSL on Windows. Native Windows
+process-tree cleanup is not supported. Keep all run directories private and
+outside Git.
 
 
 ## Eval Author adapter

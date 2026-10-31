@@ -59,21 +59,35 @@ def test_changed_request_or_configuration_refuses_reuse(tmp_path):
         invoke_coverage(*args)
 
 
-@pytest.mark.parametrize("mode", ["failure", "nonfinite", "modified", "symlink"])
+@pytest.mark.parametrize("mode", ["failure", "missing", "invalid", "nonfinite", "modified", "symlink"])
 def test_bad_system_outputs_cannot_complete_stage(tmp_path, mode):
     args = coverage_example(tmp_path)
     from pathlib import Path
 
     program = {
         "failure": "raise SystemExit(4)",
+        "missing": "pass",
+        "invalid": "Path('response.json').write_text('{\"value\": \"oops\"}')",
         "nonfinite": "from pathlib import Path; Path('response.json').write_text('{\"value\": NaN}')",
         "modified": "from pathlib import Path; Path('request.json').write_text('{}'); Path('response.json').write_text('{\"value\": 1}')",
         "symlink": "from pathlib import Path; Path('response.json').symlink_to('/etc/hosts')",
     }[mode]
-    Path(args[3].command[1]).write_text(program)
+    Path(args[3].command[1]).write_text(
+        "from pathlib import Path\nimport sys\n"
+        "Path('authored.txt').write_text('authored observation')\n"
+        "print('stdout diagnostic')\nprint('stderr diagnostic', file=sys.stderr)\n" + program
+    )
     with pytest.raises(ValueError):
         invoke_coverage(*args)
     assert not (args[-1] / "subset-000001").exists()
+    (failed,) = args[-1].glob("failed-*")
+    assert (failed / "request.json").is_file()
+    assert (failed / "authored.txt").read_text() == "authored observation"
+    assert "stdout diagnostic" in (failed / "stdout.log").read_text()
+    assert "stderr diagnostic" in (failed / "stderr.log").read_text()
+    assert not (failed / "receipt.json").exists()
+    if mode == "invalid":
+        assert json.loads((failed / "response.json").read_text()) == {"value": "oops"}
 
 
 def test_missing_or_escaping_baseline_evidence_fails(tmp_path):

@@ -114,13 +114,26 @@ def test_real_measurement_adapter_replay_and_cold_repeat(tmp_path):
     assert invoke_coverage(*args, cached_only=True) == first
 
 
-def test_missing_semantic_judgments_are_unavailable(tmp_path):
+@pytest.mark.parametrize("scope", ["overall", "capability"])
+def test_missing_semantic_judgments_are_unavailable(tmp_path, scope):
     args = eval_author_example(tmp_path, non_tool=True)
+    args[3].settings["score_scope"] = scope
     scores = invoke_coverage(*args)
     assert all(
         s.value is None and s.missing_score_reason is not None and "judgments" in s.missing_score_reason
         for s in scores.scores.values()
     )
+
+
+@pytest.mark.parametrize("methods", [None, ["tool_calls"]])
+def test_tool_scope_ignores_unjudged_capabilities(tmp_path, methods):
+    args = eval_author_example(tmp_path, non_tool=True)
+    args[3].settings["score_scope"] = "tool"
+    if methods is not None:
+        args[3].settings["methods"] = methods
+    scores = invoke_coverage(*args)
+    assert [score.value for score in scores.scores.values()] == [0.5, 0.5, 0.0]
+    assert all(score.missing_score_reason is None for score in scores.scores.values())
 
 
 def test_bad_runtime_pin_fails_without_measurement(tmp_path):

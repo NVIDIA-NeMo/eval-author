@@ -3,7 +3,6 @@
 
 """Translate a coverage request into Eval Author audit measurement and reporting."""
 
-import argparse
 import subprocess
 import sys
 from pathlib import Path
@@ -12,7 +11,7 @@ from typing import Literal
 from pydantic import Field
 
 from metric_benchmark.config import file_manifest
-from metric_benchmark.io import cli, digest_bytes, json_bytes, read_json, write_json
+from metric_benchmark.io import digest_bytes, json_bytes, read_json
 from metric_benchmark.models import Digest, Model, Score, Text, resolve_evidence
 
 
@@ -48,7 +47,7 @@ def _unjudged(value: object) -> bool:
     return False
 
 
-def compute_eval_author(request_path: Path) -> Score:
+def compute_audit_coverage(request_path: Path) -> Score:
     """Author an audit for this subset, measure its traces, and aggregate coverage.
 
     The supplied author command is the system under evaluation's invocation. It
@@ -120,14 +119,17 @@ def compute_eval_author(request_path: Path) -> Score:
     report = read_json(Path("report.json"))
     if not isinstance(report, dict):
         raise ValueError("invalid Eval Author report")
-    for details in sorted(Path("measurements").glob("task=*/run=*/*/details.json")):
+    scope = settings.score_scope
+    for measurement in report["input_reports"]:
+        if scope != "overall" and measurement["item_kind"] != scope:
+            continue
+        details = Path(measurement["path"]).relative_to(Path.cwd()).with_name("details.json")
         if _unjudged(read_json(details)):
             return Score(
                 value=None,
                 missing_score_reason=f"Eval Author evidence requires missing or unsupported judgments: {details}",
             )
     coverage = report["coverage"]
-    scope = settings.score_scope
     counts = coverage["overall"] if scope == "overall" else coverage["by_kind"][scope]
     required_kinds = [
         kind for kind, v in coverage["by_kind"].items() if v["item_count"] and (scope == "overall" or scope == kind)
@@ -142,23 +144,3 @@ def compute_eval_author(request_path: Path) -> Score:
     if not total:
         return Score(value=None, missing_score_reason="empty coverage denominator")
     return Score(value=counts["covered_count"] / total)
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--request", type=Path)
-    mode.add_argument("--print-source-digest", type=Path, metavar="EVAL_AUTHOR_ROOT")
-    parser.add_argument("--output", type=Path)
-
-    def run(args):
-        if args.print_source_digest:
-            if args.output:
-                parser.error("--output is only valid with --request")
-            print(source_digest(args.print_source_digest.resolve()))
-        else:
-            if not args.output:
-                parser.error("--request requires --output")
-            write_json(args.output, compute_eval_author(args.request))
-
-    cli(parser, run)
