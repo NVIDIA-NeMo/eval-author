@@ -13,6 +13,14 @@ uv run python labs/metric-benchmark/compute_mutant_scores.py \
   --results-root experiment-results --output mutant-scores.json
 ```
 
+Supply these required arguments:
+
+- `--cases`: path to the case collection and its agent/task manifest references.
+- `--analysis`: path to the analysis settings, including subset references and scoring policy.
+- `--case`: ID of the case to score from the case collection.
+- `--results-root`: whole execution output directory containing `execution.json`.
+- `--output`: path for this case's mutant-score JSON artifact.
+
 Optionally, add `--allow-unsigned` when input SHA pins are missing during iteration;
 any supplied pins are still verified. Unpinned task and agent sources must remain
 available to compute their content identity.

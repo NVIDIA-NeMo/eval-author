@@ -62,6 +62,29 @@ def test_equal_weight_paired_mean():
     assert next(iter(compute_mutant_scores(raw, subsets, config).scores.values())).value == pytest.approx(2 / 3)
 
 
+def test_equal_weight_mean_over_multiple_mutants_and_tasks():
+    raw, subsets, config = example()
+    subsets.eval_subsets = [Subset(eval_subset_id="all", task_ids=[t.task_id for t in raw.task_inventory])]
+    for row in raw.execution_results[3:]:
+        row.metrics["reward"].value = 0.0
+    other = copy.deepcopy(raw.execution_results[3:])
+    for row, reward in zip(other, [0.5, 1.0, 1.0], strict=True):
+        row.agent_bundle_id = "other"
+        row.agent_run_id = "run-other"
+        row.evaluation.evaluation_id = f"other-{row.evaluation.task.task_id}"
+        row.metrics["reward"].value = reward
+    raw.execution_results.extend(other)
+    config.mutant_bundle_ids.append("other")
+    config.run_ids["other"] = "run-other"
+
+    result = compute_mutant_scores(raw, subsets, config)
+
+    # Three task means: baseline = 1/2, mutant = 0, other = 5/6.
+    assert result.mutant_effects["all"]["mutant"].value == pytest.approx(1 / 2)
+    assert result.mutant_effects["all"]["other"].value == pytest.approx(-1 / 3)
+    assert result.scores["all"].value == pytest.approx(1 / 12)
+
+
 @pytest.mark.parametrize("failure", ["missing", "failed", "metric"])
 def test_incomplete_pairs_are_not_zero_or_dropped(failure):
     raw, subsets, config = example()
