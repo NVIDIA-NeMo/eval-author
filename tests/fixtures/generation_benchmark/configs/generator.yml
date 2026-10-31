@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+schema: nemo.eval_author.generator.v1
+name: ci-generator
+model: fake
+command: [echo, generate]
+version_command: [echo, v1]
+timeout_seconds: 60
