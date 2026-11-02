@@ -7,8 +7,8 @@ description: >-
   For fresh full workflows, read this skill, show its rendered orientation,
   and end the turn before repository work. Scoped utilities keep their scope.
   Explicit audits first check bounded saved context. Returning audits reuse
-  applicable prerequisites and confirmed Ethos. Separate requests show a welcome
-  and current audit checklist without another readiness pause.
+  applicable prerequisites and confirmed Ethos. Separate returning requests get
+  a brief acknowledgment, then continue without another readiness pause.
   Build first evals from ETHOS.md, work on existing suites, inspect a NeMo Intake
   run, or derive a trace environment (experimental). Owns the evidence standard
   for every Eval Author flow. Creating, auditing, and improving evals require
@@ -79,7 +79,7 @@ below for NeMo Gym and Harbor, including direct invocations of their skills.
 
 For an explicit full-audit request in a known repository, first follow
 [Return to an audit](references/shared-prerequisites.md#return-to-an-audit).
-It owns saved-context reuse and welcome versus direct continuation. Fresh
+It owns saved-context reuse and acknowledgment versus direct continuation. Fresh
 requests retain the opening below.
 
 The first response to a new shared flow is orientation only. Determine the goal
@@ -376,6 +376,9 @@ user, not to you.
   changes a remote resource.
 
 ## Communicating with the user
+
+For full-audit entry and resumption, follow the shared
+[communication rule](references/conversation-rendering.md#audit-entry-and-resumption).
 
 Omit trailing periods from user-facing list items.
 

@@ -5,8 +5,8 @@ description: >-
   Use for "audit my existing evals", "generate audit.md from ETHOS.md", schema
   validation, measuring an ATIF trace, or aggregating coverage reports.
   Full audits first read ../eval-author/SKILL.md and follow its bounded audit-entry
-  lookup. Reuse applicable saved context. Separate returning requests show a welcome
-  and current audit checklist, then continue without another readiness pause.
+  lookup. Reuse applicable saved context. Separate returning requests get a brief
+  acknowledgment, then continue without another readiness pause.
   Fresh full audits use the core's rendered orientation and end the turn before
   repository inspection or prerequisites. Scoped commands keep their scope.
   Use milestone check-ins and user-confirmed eval and trace sources. Generate a
@@ -62,6 +62,8 @@ and task creation remain in the separate improvement handoff.
 
 Before classifying a full-audit request as fresh, follow the core's
 [Return to an audit](../eval-author/references/shared-prerequisites.md#return-to-an-audit).
+Apply the shared [communication rule](../eval-author/references/conversation-rendering.md#audit-entry-and-resumption)
+throughout full-audit entry and resumption.
 
 A full audit enters the core's shared prerequisite flow, including direct
 invocation. For a fresh audit, use the core's

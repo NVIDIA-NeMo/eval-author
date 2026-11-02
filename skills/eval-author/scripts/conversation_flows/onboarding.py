@@ -379,10 +379,7 @@ def render(payload: dict) -> str:
         mapping(payload, "audit welcome", {"stage", "state", "revision"})
         if state["journey"] != "audit":
             raise ValueError("Audit welcome requires saved journey audit")
-        notice = copy.AUDIT_REUSE_NOTICE
-        if state["ethos"]["confirmed_digest"] and state["ethos"]["confirmation_source"]:
-            notice += " " + copy.AUDIT_ETHOS_REUSE_NOTICE
-        return "\n\n".join([copy.WELCOME_WITH_CHECKLIST, checklist("audit", state, state_only=True), notice]) + "\n"
+        return copy.AUDIT_RESUME_NOTICE + "\n"
     state_only = stage == "prerequisite_results"
     fact_keys = {"rows", "recommendations", "blockers"}
     if not state_only:

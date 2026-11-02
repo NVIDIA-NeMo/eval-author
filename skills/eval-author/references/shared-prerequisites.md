@@ -19,6 +19,9 @@ apart from the audit entry lookup below.
 
 ## Return to an audit
 
+Follow the shared [communication rule](conversation-rendering.md#audit-entry-and-resumption)
+throughout this procedure, including the initial lookup.
+
 Explicit full-audit requests and accepted first-suite audit invitations can
 continue creation or improvement context, including in a new chat. An offered
 or declined invitation starts no audit; a later explicit request selects that
@@ -58,12 +61,15 @@ need not be complete. Metadata does not prove current content. Resume unfinished
 shared work at its pending decision. Resolve changed or ambiguous identity and
 intent before auditing, retaining prior scope and evidence as history.
 
-Saved context allows reuse of answers; it does not by itself remove the welcome.
-Skip the welcome only for a direct creation/improvement handoff in the current
-conversation (including accepting its audit invitation), or a reply continuing
-an active audit in that conversation. A separate audit request, including every
+Saved context allows reuse of answers without repeating the full welcome or
+checklist. Skip the acknowledgment for a direct creation/improvement handoff in
+the current conversation (including accepting its audit invitation), or a reply
+continuing an active audit in that conversation. A separate audit request, including every
 new chat with saved context, gets
-[`audit_welcome`](conversations/onboarding.md#returning-audit-welcome).
+the brief [`audit_welcome`](conversations/onboarding.md#returning-audit-welcome)
+acknowledgment. Saved metadata alone does not establish that a report exists or
+that its content is current. Link and describe a report only after permitted
+artifact inspection verifies it.
 Do not search other chats to classify conversational continuity.
 
 For reusable context, continue these steps in the same turn when unblocked:
@@ -75,10 +81,10 @@ For reusable context, continue these steps in the same turn when unblocked:
    agent, revision, question, and handoff without approving audit inputs or
    making the old question active. Preserve agent and provider. Same-journey
    resumes preserve the actual pending audit decision.
-   When a welcome is due, render `audit_welcome` from that fresh state-only audit
-   snapshot and publish it in commentary immediately, before prerequisite probes,
-   artifact inspection, or recovering additional context. Continue in this same
-   turn; the welcome asks no readiness question and is not a checkpoint.
+   When an acknowledgment is due, render `audit_welcome` from that fresh
+   state-only audit snapshot and publish it in commentary immediately, before
+   prerequisite probes, artifact inspection, or recovering additional context. Continue in this same
+   turn; the acknowledgment asks no readiness question and is not a checkpoint.
 2. Apply [audit prerequisites](pre-reqs/audit.md) with state-only operations,
    retaining audit/authoring applicability resets. Reuse applicable common access
    and Ethos-skill confirmations; resolve only missing or changed audit skills,
@@ -106,7 +112,7 @@ For reusable context, continue these steps in the same turn when unblocked:
 
 Skip fresh orientation's readiness gate, the `prerequisites` preview, repeated
 Ethos confirmation, and the shared completion pause. Do not fabricate
-`ready: true` or started status, or end the turn with only a welcome/checklist.
+`ready: true` or started status, or end the turn with only the acknowledgment.
 After reconciliation, use `resume` for an actual
 pending decision or continue authorized work. An audit request answers only a
 generic start invitation, not pending source/content decisions. After a required

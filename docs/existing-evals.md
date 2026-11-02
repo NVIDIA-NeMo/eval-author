@@ -62,13 +62,13 @@ evidence cannot establish.
 A full audit starts with the [shared setup and Ethos confirmation](getting-started.md).
 If you have already completed those steps while creating or improving evaluations,
 ask to audit the suite directly, including in a new chat in the same repository.
-Separate audit requests get a welcome and current audit checklist, followed by the
-first unresolved decision without another readiness question. A direct handoff
-from creation or improvement in the current conversation continues without
-repeating the welcome, as do replies within an active audit.
+Separate audit requests get a brief acknowledgment of saved progress, followed by
+the next result or unresolved decision without another readiness question. Routine
+setup checks run without step-by-step narration. Ask for execution details when
+you want them. A direct handoff from creation or improvement in the current
+conversation continues without repeating the welcome, as do replies within an active audit.
 Eval Author reuses your saved confirmations, checks only missing or changed
-audit requirements, and continues at the first unfinished audit step. The checklist
-can show unchecked audit requirements while keeping earlier setup answers. It reviews
+audit requirements, and continues at the first unfinished audit step. It reviews
 Ethos again when the agent, intended behavior, or document has changed.
 Previously selected suites and runs do not need another selection; when those
 inputs are settled, the next review is the proposed audit checks. Traces remain

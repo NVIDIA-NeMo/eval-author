@@ -633,11 +633,14 @@ tools and delegation logs as well as the reply.
 
 **Resume while suite selection is pending:** Start a fresh conversation with
 the saved progress and history and request: “Continue this audit.” The agent
-publishes the early `audit_welcome`, then restores the two candidate suite links
+publishes the brief `audit_welcome` acknowledgment, then restores the two candidate suite links
 and pending include/exclude question in the same turn. It retains `runs/selected/`
 as the supplied trace source and stops at the suite question. It does not ask for
 readiness or infer an answer from the presence of saved paths. Repeat as a reply
 in the active audit: resume that same suite question without repeating the welcome.
+Inspect the full transcript against the shared
+[communication rule](../../skills/eval-author/references/conversation-rendering.md#audit-entry-and-resumption),
+including any routine reads or successful tooling retries before the checkpoint.
 
 **Suite correction:** “Audit only `evals/account-support/`. Exclude the legacy
 suite; there are no other suites to include.”
