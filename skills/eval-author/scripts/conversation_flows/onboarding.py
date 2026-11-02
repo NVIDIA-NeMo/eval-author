@@ -22,7 +22,7 @@ from . import first_eval, first_eval_templates
 from . import onboarding_templates as copy
 
 JOURNEYS = (None, *shared.JOURNEYS)
-PREVIEWS = {"orientation", "goal_selected", "prerequisites"}
+PREVIEWS = {"audit_entry", "orientation", "goal_selected", "prerequisites"}
 STAGES = PREVIEWS | {
     "audit_welcome",
     "audit_entry_failure",
@@ -347,6 +347,12 @@ def render(payload: dict) -> str:
         if set(payload) - allowed:
             raise ValueError("Only prerequisite previews accept row facts; previews never accept saved state")
         journey = payload.get("journey")
+        if stage == "audit_entry":
+            if journey != "audit":
+                raise ValueError("Audit entry requires journey audit")
+            if payload.get("ready", False) is not False:
+                raise ValueError("Audit entry does not establish readiness")
+            return copy.AUDIT_ENTRY_NOTICE + "\n"
         if journey not in shared.JOURNEYS and not (stage == "orientation" and journey is None):
             raise ValueError("Select create, audit, or expand")
         if stage == "prerequisites":

@@ -15,7 +15,7 @@ question. A goal-choice reply triggers `goal_selected`, not this procedure.
 Do not load repository context or save state in preparation for either
 orientation turn. The [onboarding renderer](conversations/onboarding.md#orientation-and-prerequisite-entry) has a
 narrow no-input command exception for those turns; other helpers remain deferred,
-apart from the audit entry lookup below.
+apart from the audit opening and entry lookup below.
 
 ## Return to an audit
 
@@ -26,6 +26,15 @@ Explicit full-audit requests and accepted first-suite audit invitations can
 continue creation or improvement context, including in a new chat. An offered
 or declined invitation starts no audit; a later explicit request selects that
 goal. Scoped audit commands retain their entry rules.
+
+For a separate explicit full-audit request, first render
+[`audit_entry`](conversations/onboarding.md#audit-entry-acknowledgment) and publish
+it in commentary before the saved-state lookup or repository inspection. Use only
+the request and current conversation to identify a separate request. Direct
+creation/improvement handoffs and replies continuing an active audit skip this
+opening. The renderer may load its own source dependencies, but this no-input
+exception permits no repository reads or state operations. Continue in the same
+turn. An unknown repository still gets the opening, followed by fresh orientation.
 
 Before classification, read only the known request/workspace repository's metadata:
 

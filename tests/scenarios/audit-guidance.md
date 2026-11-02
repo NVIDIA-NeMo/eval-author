@@ -26,7 +26,10 @@ Unless a case tests unknown or missing availability, supply the user's explicit
 statement that traces from completed evaluation runs exist. This confirms
 availability without selecting their source or location.
 
-Every fresh full audit without applicable saved journey context uses the core's three-item shared prerequisite checklist with
+Separate full-audit requests first publish the canonical `audit_entry` opening
+before the saved-state lookup, following the
+[entry procedure](../../skills/eval-author/references/shared-prerequisites.md#return-to-an-audit).
+Then every fresh full audit without applicable saved journey context uses the core's three-item shared prerequisite checklist with
 **Review evaluation coverage, identify gaps, and recommend improvements** selected. Repeat with NeMo Gym and
 Harbor, missing Ethos, and unchanged confirmed Ethos. User-confirmed prerequisites
 remain distinct from observed checks. On continuation, render `prerequisites`

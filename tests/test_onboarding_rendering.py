@@ -335,6 +335,25 @@ def test_audit_resume_asks_only_the_unresolved_decision_after_prior_journey(onbo
     assert "confirmed and validated" not in output and copy.TABLE_HEADER not in output
 
 
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"state": {}},
+        {"revision": 7},
+        {"facts": {}},
+        {"ready": True},
+        {"ready": None},
+        {"journey": "create"},
+        {"journey": "expand"},
+        {"journey": None},
+    ],
+)
+def test_audit_entry_rejects_context_and_readiness_claims(onboarding, patch):
+    renderer = onboarding[1]
+    with pytest.raises(ValueError):
+        renderer.render({"stage": "audit_entry", "journey": "audit", **patch})
+
+
 @pytest.mark.parametrize("trace_status", ["confirmed", "unknown", "missing"])
 def test_audit_welcome_preserves_saved_progress_without_claiming_artifact_confirmation(
     onboarding, monkeypatch, trace_status

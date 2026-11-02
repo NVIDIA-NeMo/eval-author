@@ -59,10 +59,11 @@ available traces. Explain what is covered, what is missing, and what the
 evidence cannot establish.
 ```
 
-A full audit starts with the [shared setup and Ethos confirmation](getting-started.md).
+A full audit opens with a brief acknowledgment before any saved-progress lookup
+or repository checks, then follows the [shared setup and Ethos confirmation](getting-started.md).
 If you have already completed those steps while creating or improving evaluations,
 ask to audit the suite directly, including in a new chat in the same repository.
-Separate audit requests get a brief acknowledgment of saved progress, followed by
+When saved progress exists, separate audit requests acknowledge it, followed by
 the next result or unresolved decision without another readiness question. Routine
 setup checks run without step-by-step narration. Ask for execution details when
 you want them. A direct handoff from creation or improvement in the current

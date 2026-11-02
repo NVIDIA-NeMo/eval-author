@@ -36,6 +36,12 @@ through the existing state helper before rendering stateful responses.
 
 ## Audit entry and resumption
 
+Start a separate full-audit request with the canonical
+[`audit_entry` acknowledgment](conversations/onboarding.md#audit-entry-acknowledgment)
+before saved-state lookup or repository inspection. Publish it as a progress
+message and continue in the same turn. Do not replace or precede it with an
+announcement of internal steps.
+
 Keep full-audit entry and resumption quiet between checkpoint responses. Perform
 routine skill and file reads, saved-state lookups, prerequisite checks, state
 updates, renderer calls, and successful retries without assistant narration.
@@ -44,7 +50,7 @@ summarize the commands, findings, and recovery steps without exposing hidden
 reasoning. Successful fallback diagnostics belong in prerequisite findings only
 when they affect the user's next action or the audit's reliability.
 
-For reusable saved context, publish only the acknowledgment selected by the
+For reusable saved context, follow the opening with the acknowledgment selected by the
 [returning-audit procedure](shared-prerequisites.md#return-to-an-audit), then
 continue to the next rendered checkpoint in the same turn. Keep blockers,
 unresolved errors, changes that invalidate prior approval, and required decisions

@@ -33,7 +33,7 @@ three checklist items: confirm
 the agent/setup, confirm Ethos, then the selected build/audit/improve item. If the
 goal is unknown, ask whether to create, audit, or improve; explicit inventory
 remains a scoped option.
-The first turn contains only the fixed welcome, exact checklist, and “Ready to
+The first final response contains only the fixed welcome, exact checklist, and “Ready to
 get started?” for a known goal. For an unknown goal, use the shorter welcome
 “Welcome to Eval Author! This skill helps you build, audit, and improve evaluations against your agent’s intended behavior.”
 followed by the goal question and three choices. Reserve “Here’s what we’ll work
@@ -45,7 +45,10 @@ before this reply. The pure renderer's no-input `orientation` preview
 must not receive repository, state, or input-file arguments. Repository/state
 reads, Ethos validation, prerequisite checks or questions, other helper commands,
 writes, and delegation all fail this opening checkpoint, except for the bounded
-saved-state lookup for an explicit audit in a known repository described below.
+opening and saved-state lookup for an explicit audit described below. Before
+that lookup, a separate full-audit request publishes the canonical `audit_entry`
+opening in commentary. It does not announce the metadata lookup or other
+internal steps. The opening makes no claim that saved work exists.
 Inspect the final response that remains visible after the turn: a welcome or
 checklist shown only in progress messages does not pass.
 
@@ -418,11 +421,13 @@ suite and run selections. Exercise these conversation contexts independently:
 | Conversation context | Required introduction |
 | --- | --- |
 | Direct acceptance of the offered audit handoff in the active conversation | Continue the handoff without repeating the welcome |
-| A separate explicit audit request later in the same conversation | Show the brief saved-progress acknowledgment |
-| A separate request or audit resume in a new chat opened in the known repository | Show the brief saved-progress acknowledgment |
+| A separate explicit audit request later in the same conversation | Show `audit_entry` before lookup, then the saved-progress acknowledgment |
+| A separate request or audit resume in a new chat opened in the known repository | Show `audit_entry` before lookup, then the saved-progress acknowledgment |
 | A reply continuing an active audit in the current conversation | Resume the pending decision without repeating the welcome |
 
-For separate requests, use “Audit the suite and runs we just reviewed.” Compare
+For separate requests, use “Audit the suite and runs we just reviewed.” Verify
+that the canonical `audit_entry` opening is the first skill-generated message,
+before the saved-state lookup. Compare
 `audit_welcome` with the canonical renderer output and input authority. Inspect
 that only the saved-progress acknowledgment appears promptly in commentary
 before bounded checks. It must not include a welcome, checklist, approval recap,

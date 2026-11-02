@@ -141,8 +141,9 @@ def test_golden_inputs_replay_through_cli(fixture):
     assert result.stderr == ""
 
 
-def test_render_neither_reads_files_nor_executes_nor_mutates(conversation, state_module, monkeypatch):
-    payload = payload_for(state_module)
+@pytest.mark.parametrize("stage", ["results", "audit_entry"])
+def test_render_neither_reads_files_nor_executes_nor_mutates(conversation, state_module, monkeypatch, stage):
+    payload = {"stage": stage, "journey": "audit"} if stage == "audit_entry" else payload_for(state_module)
     before = copy.deepcopy(payload)
 
     def forbidden(*args, **kwargs):
@@ -393,11 +394,12 @@ def test_render_preserves_saved_digest_revision_and_readiness(conversation, stat
     assert state_module.checklist(saved) == readiness
 
 
-def test_cli_accepts_stateless_arguments_and_stdin(conversation):
-    payload = {"stage": "orientation", "journey": "audit"}
+@pytest.mark.parametrize("stage", ["orientation", "audit_entry"])
+def test_cli_accepts_stateless_arguments_and_stdin(conversation, stage):
+    payload = {"stage": stage, "journey": "audit"}
     expected = conversation.render(payload)
     arguments = subprocess.run(
-        [sys.executable, str(SCRIPTS / "conversation_renderer.py"), "--stage", "orientation", "--journey", "audit"],
+        [sys.executable, str(SCRIPTS / "conversation_renderer.py"), "--stage", stage, "--journey", "audit"],
         capture_output=True,
         text=True,
         check=False,
@@ -1516,7 +1518,7 @@ def test_checking_status_is_only_valid_in_the_live_prerequisites_table(conversat
         conversation.render(payload)
 
 
-@pytest.mark.parametrize("stage", ["orientation", "goal_selected"])
+@pytest.mark.parametrize("stage", ["orientation", "goal_selected", "audit_entry"])
 def test_opening_stages_still_reject_prerequisite_findings(conversation, stage):
     with pytest.raises(ValueError):
         conversation.render({"stage": stage, "journey": "audit", "facts": {"rows": {}}})
