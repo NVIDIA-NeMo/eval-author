@@ -183,14 +183,24 @@ def validated_row(candidate, base, expected):
                 raise ValueError("changed Tier 3 denominator")
             if abs(number(arm["pass_rate"]) - passed / total) > 1e-9:
                 raise ValueError("invalid pass rate")
+            if not isinstance(arm["dimensions"], dict) or set(arm["dimensions"]) != set(DIMENSIONS):
+                raise ValueError("invalid dimension map")
             for dimension in DIMENSIONS:
-                number(arm["dimensions"][dimension])
+                if arm["dimensions"][dimension] is not None:
+                    number(arm["dimensions"][dimension])
         expected_lift = arms["with_skill"]["pass_rate"] - arms["without_skill"]["pass_rate"]
         if abs(number(row["pass_rate_lift"], -1, 1) - expected_lift) > 1e-9:
             raise ValueError("invalid pass rate lift")
+        if not isinstance(row["dimension_lift"], dict) or set(row["dimension_lift"]) != set(DIMENSIONS):
+            raise ValueError("invalid dimension lift map")
         for dimension in DIMENSIONS:
-            lift = arms["with_skill"]["dimensions"][dimension] - arms["without_skill"]["dimensions"][dimension]
-            if abs(number(row["dimension_lift"][dimension], -1, 1) - lift) > 1e-9:
+            with_score = arms["with_skill"]["dimensions"][dimension]
+            without_score = arms["without_skill"]["dimensions"][dimension]
+            observed_lift = row["dimension_lift"][dimension]
+            if with_score is None or without_score is None:
+                if observed_lift is not None:
+                    raise ValueError("unmeasured dimension lift")
+            elif abs(number(observed_lift, -1, 1) - (with_score - without_score)) > 1e-9:
                 raise ValueError("invalid dimension lift")
     return row
 

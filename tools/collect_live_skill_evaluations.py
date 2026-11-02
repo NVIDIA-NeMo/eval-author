@@ -34,7 +34,7 @@ FINDINGS = {"duplicate", "EXACT_DUPLICATE", "HIGH_SIMILARITY", "SIMILAR", "LOOSE
 
 
 class ArmMetrics(TypedDict):
-    dimensions: dict[str, float]
+    dimensions: dict[str, float | None]
     passed_cases: int
     total_cases: int
     pass_rate: float
@@ -47,7 +47,7 @@ class EvaluationSummary(TypedDict):
     raw_severity_counts: NotRequired[dict[str, int]]
     excluded_license_findings: NotRequired[int]
     arms: NotRequired[dict[str, ArmMetrics]]
-    dimension_lift: NotRequired[dict[str, float]]
+    dimension_lift: NotRequired[dict[str, float | None]]
     pass_rate_lift: NotRequired[float]
 
 
@@ -197,19 +197,27 @@ def summarize_tier3(report, code, cases) -> EvaluationSummary:
             or count(execution["scored_attempts"]) != cases
         ):
             raise ValueError("incomplete arm")
-        scores = {key: number(agent["dimensions_" + arm][key]["score"]) for key in DIMENSIONS}
+        dimensions = agent["dimensions_" + arm]
+        if not isinstance(dimensions, dict):
+            raise ValueError("invalid dimension map")
+        # The pinned dimension_scores() omits unavailable dimensions; a present
+        # entry still requires a numeric score, including measured zero.
+        scores = {key: number(dimensions[key]["score"]) if key in dimensions else None for key in DIMENSIONS}
         passes = agent["pass_at_k"][arm]
         passed, total = count(passes["passed_cases"]), count(passes["total_cases"])
         if total != cases or passed > total or count(passes["k"]) != 1:
             raise ValueError("incompatible denominator")
         arms[arm] = {"dimensions": scores, "passed_cases": passed, "total_cases": total, "pass_rate": passed / total}
+    lifts: dict[str, float | None] = {}
+    for key in DIMENSIONS:
+        with_score = arms["with_skill"]["dimensions"][key]
+        without_score = arms["without_skill"]["dimensions"][key]
+        lifts[key] = with_score - without_score if with_score is not None and without_score is not None else None
     return {
         "status": "completed",
         "reason": None,
         "arms": arms,
-        "dimension_lift": {
-            key: arms["with_skill"]["dimensions"][key] - arms["without_skill"]["dimensions"][key] for key in DIMENSIONS
-        },
+        "dimension_lift": lifts,
         "pass_rate_lift": arms["with_skill"]["pass_rate"] - arms["without_skill"]["pass_rate"],
     }
 
@@ -309,10 +317,15 @@ def persist_report(report, output):
                 f"{arms['without_skill']['pass_rate']:.3f} | {row['pass_rate_lift']:+.3f} |"
             )
             for key in DIMENSIONS:
-                lines.append(
-                    f"| {key} | {arms['with_skill']['dimensions'][key]:.3f} | "
-                    f"{arms['without_skill']['dimensions'][key]:.3f} | {row['dimension_lift'][key]:+.3f} |"
-                )
+                values = [
+                    "unmeasured" if value is None else format(value, spec)
+                    for value, spec in (
+                        (arms["with_skill"]["dimensions"][key], ".3f"),
+                        (arms["without_skill"]["dimensions"][key], ".3f"),
+                        (row["dimension_lift"][key], "+.3f"),
+                    )
+                ]
+                lines.append(f"| {key} | " + " | ".join(values) + " |")
     lines.extend(["", "Completed Tier 3 means both arms were scored; it does not mean the skill improved results."])
     (output / "live-skillevaluator-summary.md").write_text("\n".join(lines) + "\n")
 

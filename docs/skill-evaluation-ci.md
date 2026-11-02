@@ -97,6 +97,16 @@ reports, provider failures, and timeouts are incomplete evidence; skipped or
 unrun work is not a pass. Small synthetic evaluations are smoke tests, not
 proof of broad task performance.
 
+Completed Tier 3 summaries retain all five dimension keys in each arm's
+`dimensions` map and in `dimension_lift`. A dimension omitted by the native
+evaluator is JSON `null` and appears as `unmeasured` in Markdown, not zero.
+A lift is numeric only when both arms measured that dimension; otherwise it
+is also `null`. Zero scores remain measured, and negative lifts remain valid
+completed results. Both arm maps are required: malformed entries, including
+explicit null native scores, are incomplete evidence rather than unmeasured
+dimensions. Completion still requires successful execution and every expected
+attempt scored in both arms; missing dimensions do not relax those checks.
+
 Context guard diagnostics retain only observed, bounded integer metadata:
 `pair_count`, `vector_dimension`, `scalar_work`, and `limit` for scalar-work
 rejection, or `actual` and `limit` for chunk-count rejection. Missing or invalid

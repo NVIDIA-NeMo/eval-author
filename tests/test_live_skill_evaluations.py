@@ -9,6 +9,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -295,6 +296,103 @@ def test_collector_retains_excluded_findings_and_invalidates_changed_source(
         assert json.loads(native.read_text()) == raw
 
 
+@pytest.mark.parametrize("failure", [None, "missing_map", "null_score", "scored_attempts"])
+def test_cli_publishes_unmeasured_dimensions_without_losing_completed_attempts(
+    live, repo, tmp_path, monkeypatch, failure
+):
+    monkeypatch.setenv("INFERENCE_HUB_API_KEY", "test-credential")
+    monkeypatch.setenv("SKILL_EVAL_AGENT_MODEL", "fixture/chat")
+    monkeypatch.setenv("GITHUB_RUN_ID", "123")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    raw = tier3()
+    for dimension in ("discoverability", "efficiency"):
+        del raw["agents"]["opencode"]["dimensions_without_skill"][dimension]
+    agent = raw["agents"]["opencode"]
+    if failure == "missing_map":
+        del agent["dimensions_without_skill"]
+    elif failure == "null_score":
+        agent["dimensions_without_skill"]["security"]["score"] = None
+    elif failure == "scored_attempts":
+        agent["conditions"]["without_skill"]["scored_attempts"] = 0
+
+    def execute(argv, cwd, env, log, timeout):
+        if "evaluate" in argv:
+            path = Path(argv[argv.index("--results-dir") + 1]) / "eval-author/run/result.json"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps(raw))
+        return 0, None
+
+    monkeypatch.setattr(live, "execute", execute)
+    output = tmp_path / "collected"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "collector",
+            "--repo",
+            str(repo),
+            "--output",
+            str(output),
+            "--tier",
+            "3",
+            "--skill",
+            "eval-author",
+            "--check",
+            "live",
+            "--ci-context-budget",
+            "--run",
+        ],
+    )
+    assert live.main() == int(failure is not None)
+    published = (output / "live-skillevaluator-summary.json").read_text()
+    report = json.loads(published)
+    row = next(r for r in report["observations"] if r["status"] != "skipped")
+    if failure:
+        assert row["status"] == "incomplete" and row["reason"] == "tool_or_report_error"
+        assert not {"arms", "dimension_lift", "pass_rate_lift"}.intersection(row)
+        assert "PRIVATE-SENTINEL" not in published
+        return
+    assert row["status"] == "completed" and row["reason"] is None
+    assert row["exit_code"] == 0
+    assert row["pass_rate_lift"] == -1
+    markdown = (output / "live-skillevaluator-summary.md").read_text()
+    for dimension in live.DIMENSIONS:
+        assert row["arms"]["with_skill"]["dimensions"][dimension] == 0.8
+        if dimension in ("discoverability", "efficiency"):
+            assert row["arms"]["without_skill"]["dimensions"][dimension] is None
+            assert row["dimension_lift"][dimension] is None
+            assert f"| {dimension} | 0.800 | unmeasured | unmeasured |" in markdown
+        else:
+            assert row["arms"]["without_skill"]["dimensions"][dimension] == 0.9
+            assert row["dimension_lift"][dimension] == pytest.approx(-0.1)
+            assert f"| {dimension} | 0.800 | 0.900 | -0.100 |" in markdown
+    assert "null" in published
+    assert "PRIVATE-SENTINEL" not in published + markdown
+
+    ci = importlib.import_module("live_ci")
+    shards = tmp_path / "shards"
+    args = SimpleNamespace(
+        command="initialize",
+        repo=repo,
+        tier="3",
+        skill="eval-author",
+        check="live",
+        models_resolved=True,
+        output=shards / "skill-shard-123-1-live-eval-author",
+        source=output,
+    )
+    ci.initialize(args)
+    args.command = "stage"
+    staged = ci.merge(args)
+    assert next(r for r in staged["observations"] if r["tier"] == 3 and r["skill"] == "eval-author") == row
+    args.command, args.check, args.output, args.source = "initialize", "all", tmp_path / "aggregate", shards
+    ci.initialize(args)
+    args.command = "aggregate"
+    aggregated = ci.merge(args)
+    assert next(r for r in aggregated["observations"] if r["tier"] == 3 and r["skill"] == "eval-author") == row
+    assert "unmeasured" in (args.output / "live-skillevaluator-summary.md").read_text()
+
+
 def test_negative_lift_is_a_completed_experiment_not_an_execution_failure(live):
     result = live.summarize_tier3(tier3(), 0, 1)
     assert result["status"] == "completed"
@@ -329,10 +427,164 @@ def test_failed_execution_exports_only_fixed_diagnostic_categories(live, message
     assert result == {"status": "incomplete", "reason": reason}
 
 
-@pytest.mark.parametrize("value", [float("nan"), float("inf"), -1, 2, True, "secret"])
-def test_invalid_live_scores_cannot_be_published(live, value):
+@pytest.mark.parametrize("arm", ["with_skill", "without_skill"])
+@pytest.mark.parametrize("value", [None, [], "", 0, False])
+def test_native_dimension_maps_must_be_objects(live, arm, value):
     report = tier3()
-    report["agents"]["opencode"]["dimensions_with_skill"]["security"]["score"] = value
+    report["agents"]["opencode"]["dimensions_" + arm] = value
+    with pytest.raises(ValueError):
+        live.summarize_tier3(report, 0, 1)
+
+
+@pytest.mark.parametrize("arm", ["with_skill", "without_skill"])
+def test_missing_native_dimension_map_is_not_an_unmeasured_arm(live, arm):
+    report = tier3()
+    del report["agents"]["opencode"]["dimensions_" + arm]
+    with pytest.raises((KeyError, ValueError)):
+        live.summarize_tier3(report, 0, 1)
+
+
+@pytest.mark.parametrize("arm", ["with_skill", "without_skill"])
+@pytest.mark.parametrize("value", [None, {}, [], 0, "score", {"sources": {}}, {"score": None, "not_applicable": True}])
+def test_present_native_dimension_entries_cannot_be_malformed(live, arm, value):
+    report = tier3()
+    report["agents"]["opencode"]["dimensions_" + arm]["security"] = value
+    with pytest.raises((KeyError, TypeError, ValueError)):
+        live.summarize_tier3(report, 0, 1)
+
+
+@pytest.mark.parametrize("arm", ["with_skill", "without_skill"])
+@pytest.mark.parametrize("value", [None, float("nan"), float("inf"), float("-inf"), -1, 2, True, False, "0.8", [], {}])
+def test_invalid_live_scores_cannot_be_published(live, arm, value):
+    report = tier3()
+    report["agents"]["opencode"]["dimensions_" + arm]["security"]["score"] = value
+    with pytest.raises(ValueError):
+        live.summarize_tier3(report, 0, 1)
+
+
+@pytest.mark.parametrize("unmeasured_arms", [("with_skill",), ("without_skill",), ("with_skill", "without_skill")])
+def test_empty_native_dimension_maps_preserve_zero_scores_and_attempts(live, unmeasured_arms):
+    report = tier3()
+    for arm in ("with_skill", "without_skill"):
+        dimensions = report["agents"]["opencode"]["dimensions_" + arm]
+        if arm in unmeasured_arms:
+            dimensions.clear()
+        else:
+            for entry in dimensions.values():
+                entry["score"] = 0
+    result = live.summarize_tier3(report, 0, 1)
+    assert result["status"] == "completed"
+    assert result["dimension_lift"] == dict.fromkeys(live.DIMENSIONS)
+    for arm in ("with_skill", "without_skill"):
+        assert result["arms"][arm]["dimensions"] == dict.fromkeys(
+            live.DIMENSIONS, None if arm in unmeasured_arms else 0
+        )
+        assert result["arms"][arm]["total_cases"] == 1
+
+
+@pytest.fixture
+def tier3_candidate(live):
+    summary = live.summarize_tier3(tier3(), 0, 1)
+    row = {
+        **summary,
+        "tier": 3,
+        "skill": "eval-author",
+        "check": "live",
+        "tree_digest": "fixture",
+        "cases": 1,
+        "exit_code": 0,
+        "report_digest": "sha256:" + "a" * 64,
+    }
+    ci = importlib.import_module("live_ci")
+    report = {
+        **dict.fromkeys(ci.BINDINGS, "fixture"),
+        "inputs_clean": True,
+        "mode": "run",
+        "observations": [row],
+        "policy": {"requested_tier": "3", "requested_skill": "eval-author", "requested_check": "live"},
+    }
+    return ci, report, copy.deepcopy(report), copy.deepcopy(row)
+
+
+@pytest.mark.parametrize(
+    "with_score,without_score,lift",
+    [(0, 0, 0), (0, 1, -1), (1, 0, 1), (None, 0, None), (0, None, None), (None, None, None)],
+)
+def test_aggregate_validates_measured_and_unmeasured_lifts(tier3_candidate, with_score, without_score, lift):
+    ci, report, base, expected = tier3_candidate
+    row = report["observations"][0]
+    row["arms"]["with_skill"]["dimensions"]["security"] = with_score
+    row["arms"]["without_skill"]["dimensions"]["security"] = without_score
+    row["dimension_lift"]["security"] = lift
+    assert ci.validated_row(report, base, expected) == row
+
+
+@pytest.mark.parametrize("field", ["with_skill", "without_skill", "lift"])
+@pytest.mark.parametrize("mutation", ["missing", "extra", "list", "null", "bool", "string", "nonfinite", "range"])
+def test_aggregate_rejects_malformed_dimension_maps_and_values(tier3_candidate, field, mutation):
+    ci, report, base, expected = tier3_candidate
+    row = report["observations"][0]
+    container, key = (row, "dimension_lift") if field == "lift" else (row["arms"][field], "dimensions")
+    if mutation == "missing":
+        del container[key]["security"]
+    elif mutation == "extra":
+        container[key]["unknown"] = 0
+    elif mutation == "list":
+        container[key] = list(container[key])
+    elif mutation == "null":
+        container[key] = None
+    else:
+        container[key]["security"] = {"bool": False, "string": "0", "nonfinite": float("nan"), "range": 2}[mutation]
+    with pytest.raises((ValueError, KeyError, TypeError)):
+        ci.validated_row(report, base, expected)
+
+
+@pytest.mark.parametrize(
+    "with_score,without_score,lift", [(None, 0, 0), (0, None, 0), (None, None, 0), (0, 0, None), (0, 1, 1)]
+)
+def test_aggregate_rejects_inconsistent_dimension_lift(tier3_candidate, with_score, without_score, lift):
+    ci, report, base, expected = tier3_candidate
+    row = report["observations"][0]
+    row["arms"]["with_skill"]["dimensions"]["security"] = with_score
+    row["arms"]["without_skill"]["dimensions"]["security"] = without_score
+    row["dimension_lift"]["security"] = lift
+    with pytest.raises(ValueError):
+        ci.validated_row(report, base, expected)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "report_error",
+        "agent_error",
+        "agent_status",
+        "arm_error",
+        "arm_status",
+        "expected_attempts",
+        "scored_attempts",
+        "passed_cases",
+        "total_cases",
+        "k",
+    ],
+)
+def test_unmeasured_dimensions_do_not_hide_incomplete_execution(live, mutation):
+    report = tier3()
+    agent = report["agents"]["opencode"]
+    agent["dimensions_without_skill"] = {}
+    if mutation == "report_error":
+        report["execution_errors"] = ["synthetic error"]
+    elif mutation == "agent_error":
+        agent["execution_errors"] = ["synthetic error"]
+    elif mutation == "agent_status":
+        agent["execution_status"] = "failed"
+    elif mutation == "arm_error":
+        agent["conditions"]["without_skill"]["execution_errors"] = ["synthetic error"]
+    elif mutation == "arm_status":
+        agent["conditions"]["without_skill"]["execution_status"] = "failed"
+    elif mutation in ("expected_attempts", "scored_attempts"):
+        agent["conditions"]["without_skill"][mutation] = 0
+    else:
+        agent["pass_at_k"]["without_skill"][mutation] = 2
     with pytest.raises(ValueError):
         live.summarize_tier3(report, 0, 1)
 
