@@ -77,7 +77,8 @@ closure evidence. Proposal-only requests stop before construction.
 
 Use the [shared construction contract](construction-plan.md). Preserve starting
 state, reversals and reconstructed inputs, and declare negative, valid-alternative
-and dependency-bypass controls. Read
+and dependency-bypass controls. Apply the shared
+[simple-cheat screen](task-validation.md#screen-simple-cheats) before qualification. Read
 [task fidelity](../../eval-author-environment/references/task-fidelity.md)
 and [task layout](../../eval-author-environment/references/task-contract.md)
 for Harbor trace tasks. Environment owns `validate-task`, `record-reproducibility`

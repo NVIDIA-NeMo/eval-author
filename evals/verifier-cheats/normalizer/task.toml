@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+schema_version = "1.3"
+
+[environment]
+docker_image = "python@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159"
+network_mode = "no-network"
+build_timeout_sec = 120
+cpus = 1
+memory_mb = 256
+
+[agent]
+user = "65534"
+timeout_sec = 30
+network_mode = "no-network"
+
+[verifier]
+user = "root"
+timeout_sec = 30
+network_mode = "no-network"
+
+[verifier.env]
+GRADER = "sound"

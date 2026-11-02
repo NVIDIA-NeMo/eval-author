@@ -88,6 +88,10 @@ result. Use trusted runtime events for behavior checks; an agent-written log is
 not independent execution evidence. Keep prerequisite and preservation checks
 with their scored outcome so the untouched task still fails every scored check.
 
+Apply the shared [simple-cheat screen](../../eval-author/references/task-validation.md#screen-simple-cheats)
+to the reachable grading path before qualification, retaining task-specific
+controls and unresolved trust boundaries alongside this review.
+
 ## Try both incorrect and equivalent solutions
 
 The required no-action, reference, and negative controls remain unchanged.

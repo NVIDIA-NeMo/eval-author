@@ -232,10 +232,29 @@ def test_cancellation_keeps_complete_denominator_and_completed_scores(tmp_path, 
     assert not (output / "skillevaluator-summary.json.tmp").exists()
 
 
+def test_verifier_cheat_ci_runs_independently_without_credentials():
+    workflow = yaml.safe_load((Path(__file__).resolve().parents[1] / ".github/workflows/ci.yml").read_text())
+    job = workflow["jobs"]["verifier-cheats"]
+    assert "needs" not in job and not job.get("continue-on-error", False)
+    assert job["runs-on"] == "ubuntu-24.04" and job["timeout-minutes"] <= 20
+    assert "secrets." not in json.dumps(job)
+    command = next(s["run"] for s in job["steps"] if "collect_verifier_cheat_evidence.py" in s.get("run", ""))
+    assert "uv run --locked python tools/collect_verifier_cheat_evidence.py --output" in command
+    uploads = [s for s in job["steps"] if s.get("uses", "").startswith("actions/upload-artifact@")]
+    assert len(uploads) == 2
+    summary, native = uploads
+    assert summary["if"] == "always()"
+    assert summary["with"]["path"] == "${{ runner.temp }}/verifier-cheat-evidence/verifier-cheat-summary.json"
+    assert summary["with"]["if-no-files-found"] == "error"
+    assert native["if"] == "${{ always() && github.event.repository.private == true }}"
+    assert native["with"]["include-hidden-files"] is True
+    assert native["with"]["path"] == "${{ runner.temp }}/verifier-cheat-evidence/"
+
+
 def test_daily_ci_includes_static_checks_and_tests_without_cancelling_for_pushes():
     workflow = yaml.safe_load((Path(__file__).resolve().parents[1] / ".github/workflows/ci.yml").read_text())
     assert workflow[True]["schedule"] == [{"cron": "5 7 * * *"}]
-    for name in ("skill-evaluator", "test", "gym-compatibility"):
+    for name in ("skill-evaluator", "test", "gym-compatibility", "verifier-cheats"):
         condition = workflow["jobs"][name]["if"]
         assert "github.event_name == 'schedule'" in condition
         assert "github.event_name == 'workflow_dispatch'" in condition

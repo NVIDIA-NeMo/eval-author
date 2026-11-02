@@ -216,6 +216,38 @@ def test_failed_behavior_is_distinct_from_missing_or_broken_evidence(tmp_path, p
         evidence.verify_receipts([receipt], "cover-read")
 
 
+@pytest.mark.parametrize(
+    "kwargs,status",
+    [
+        ({"reward": 0}, "passed"),
+        ({"reward": 1}, "behavior_failed"),
+        ({"reward": 0, "error": "verifier failed"}, "infrastructure_error"),
+        ({"missing": True}, "infrastructure_error"),
+    ],
+)
+def test_declared_cheat_case_is_required_and_fail_closed(tmp_path, prepared, kwargs, status):
+    # Synthetic native results test bookkeeping, not real provider cheat resistance.
+    task, contract_path, _ = prepared
+    contract = evidence.read(contract_path)
+    contract["cases"]["early-exit"] = {
+        **contract["cases"]["incorrect"],
+        "requirement": "Successful exit without the required work earns no credit.",
+    }
+    write(contract_path, contract)
+    manifest = tmp_path / "screened-manifest.json"
+    evidence.prepare(task, contract_path, manifest)
+    receipts = complete(tmp_path, manifest)
+    with pytest.raises(evidence.EvidenceError, match="every declared control"):
+        evidence.verify_receipts(receipts, "cover-read")
+    attack = execute(tmp_path, manifest, "early-exit", "attack-1", **kwargs)
+    assert evidence.read(attack)["status"] == status
+    if status == "passed":
+        evidence.verify_receipts([*receipts, attack], "cover-read")
+    else:
+        with pytest.raises(evidence.EvidenceError, match="not passed"):
+            evidence.verify_receipts([*receipts, attack], "cover-read")
+
+
 def test_preexisting_results_cannot_be_adopted_as_fresh_execution(tmp_path, prepared):
     (tmp_path / "old-native.json").write_text("{}")
     with pytest.raises(evidence.EvidenceError, match="must be new"):

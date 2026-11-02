@@ -145,6 +145,10 @@ missing-trace or execution blockers.
 
 ## Validate and retain native evidence
 
+Apply the shared [simple-cheat screen](../../eval-author/references/task-validation.md#screen-simple-cheats)
+with native verifier cases and runtime controls. Keep missing or failed screening
+explicit in `gym-report.md`; do not describe an unscreened task as ready.
+
 Write `gym/reproducibility.md` using the **Version and rerun plan** in the
 [NeMo Gym authoring guide](../../eval-author-task-create/references/gym-tasks.md).
 Use candidate and trace provenance instead of an audit recommendation. Follow
