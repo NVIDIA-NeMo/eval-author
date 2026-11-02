@@ -792,7 +792,7 @@ def test_live_collection_is_bounded_and_retains_every_skill(live, repo, tmp_path
     calls = []
 
     def execute(argv, cwd, env, log, timeout):
-        calls.append(argv)
+        calls.append((argv, timeout))
         child_home = Path(env["HOME"])
         assert child_home.is_dir() and not child_home.is_relative_to(repo)
         assert child_home != ambient_home and child_home.stat().st_mode & 0o777 == 0o700
@@ -825,6 +825,15 @@ def test_live_collection_is_bounded_and_retains_every_skill(live, repo, tmp_path
     report = live.collect(repo, tmp_path / "live", run=True)
     assert report["counts"] == {"passed": 3, "skipped": 1, "completed": 1}
     assert len(calls) == 5
+    policy = json.loads((tmp_path / "live/live-skillevaluator-summary.json").read_text())["policy"]
+    assert policy["tier3_timeout_seconds"] == 2700
+    assert policy["tier2_timeout_seconds"] == 300
+    assert [timeout for argv, timeout in calls if argv[1:3] == ["tier3", "evaluate"]] == [
+        policy["tier3_timeout_seconds"]
+    ]
+    assert [timeout for argv, timeout in calls if argv[1:3] == ["tier3", "validate"]] == [60]
+    assert [timeout for argv, timeout in calls if argv[1] == "context-optimization-check"] == [300, 300]
+    assert [timeout for argv, timeout in calls if argv[1] == "similarity-check"] == [300]
     assert "PRIVATE-SENTINEL" not in (tmp_path / "live/live-skillevaluator-summary.json").read_text()
     assert "correctness" in (tmp_path / "live/live-skillevaluator-summary.md").read_text()
     with pytest.raises(FileExistsError):
@@ -913,6 +922,12 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
     assert "environment" not in plan and "secrets." not in json.dumps(plan)
     authorization = workflow["jobs"]["authorize"]
     job = workflow["jobs"]["evaluate"]
+    assert {name: config["timeout-minutes"] for name, config in workflow["jobs"].items()} == {
+        "plan": 5,
+        "authorize": 5,
+        "evaluate": 60,
+        "aggregate": 10,
+    }
     assert all(
         guard in authorization["if"]
         for guard in ("refs/heads/main", "SKILL_EVALUATION_LIVE_ENABLED", "inputs.run_live", "workflow_dispatch")

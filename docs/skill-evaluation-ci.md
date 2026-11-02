@@ -33,6 +33,18 @@ at once. Each writes a fallback before setup and checkpoints completed work;
 the final aggregate records missing or invalid job reports as incomplete.
 Runner loss or cancellation can still prevent the aggregate job from publishing.
 
+Tier 3 evaluation has a 45-minute timeout; its separate dataset validation
+keeps a 60-second timeout. The outer live CI shard job allows 60 minutes for
+dependency setup, evaluation, and report retention. These limits are a candidate
+based on local measurements, not a guarantee of completion: runtime preflight
+took 6.7 minutes, the with-skill arm took 12.7 minutes, and the last baseline
+trial finished 34.6 minutes after evaluation started, with no final native
+aggregate available. The former 30-minute evaluation limit had already expired,
+so late trial results did not establish a completed evaluation. The 45-minute
+limit bounds the collector's wait; cancellation does not guarantee that all
+child processes or container work stop. Case counts,
+metrics, attempts, concurrency, models, and strict completeness checks are unchanged.
+
 CI permits up to 300 million scalar comparisons per context check using the
 pinned evaluator's unchanged pairwise algorithm, with a five-minute timeout.
 The allowance is recorded as `full-pairwise-300m-v1` in report policy and applies

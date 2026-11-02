@@ -29,6 +29,7 @@ HUB_BASE_URL = "https://inference-api.nvidia.com/v1"
 HUB_KEY = "INFERENCE_HUB_API_KEY"
 DEFAULT_CHAT_MODEL = "azure/openai/gpt-5.6-luna"
 DEFAULT_EMBEDDING_MODEL = "azure/openai/text-embedding-3-small"
+TIER3_TIMEOUT_SECONDS = 2700
 DIMENSIONS = ("security", "correctness", "discoverability", "effectiveness", "efficiency")
 FINDINGS = {"duplicate", "EXACT_DUPLICATE", "HIGH_SIMILARITY", "SIMILAR", "LOOSELY_RELATED", "DISTINCT"}
 
@@ -425,7 +426,7 @@ def collect(
             "baseline": True,
             "max_cases_per_skill": 4,
             "tier2_timeout_seconds": 300,
-            "tier3_timeout_seconds": 1800,
+            "tier3_timeout_seconds": TIER3_TIMEOUT_SECONDS,
             "monetary_budget_enforced": False,
             "context_duplication_exception": POLICY,
             "requested_check": check_name,
@@ -541,7 +542,7 @@ def collect(
                     "--progress",
                     "off",
                 ]
-                code, error = execute_with_progress(argv, repo, env, target / "console.log", 1800)
+                code, error = execute_with_progress(argv, repo, env, target / "console.log", TIER3_TIMEOUT_SECONDS)
                 # Native runs also publish a latest -> run symlink. Read only
                 # physical run directories so this alias cannot duplicate a report.
                 paths = [

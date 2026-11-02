@@ -102,7 +102,7 @@ jobs:
     name: ${{ matrix.check }} / ${{ matrix.skill }}
     environment: skill-evaluator
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       SHARD_TIER: ${{ matrix.tier }}
       SHARD_CHECK: ${{ matrix.check }}
