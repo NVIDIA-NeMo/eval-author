@@ -67,6 +67,7 @@ def tier2(validator="Context Deduplication"):
 
 def tier3():
     arm = {"execution_status": "succeeded", "execution_errors": [], "expected_attempts": 1, "scored_attempts": 1}
+    metrics = ["security", "skill_execution", "skill_efficiency", "accuracy", "goal_accuracy", "behavior_check"]
     return {
         "execution_status": "succeeded",
         "execution_errors": [],
@@ -74,6 +75,11 @@ def tier3():
             "opencode": {
                 "execution_status": "succeeded",
                 "conditions": {"with_skill": arm.copy(), "without_skill": arm.copy()},
+                "metrics_with_skill": metrics.copy(),
+                "metrics_without_skill": metrics.copy(),
+                "with_skill": dict.fromkeys(metrics, 0.8),
+                "without_skill": dict.fromkeys(metrics, 0.9),
+                "not_applicable_metrics": {"with_skill": [], "without_skill": []},
                 # Native dimension_scores() returns score/source objects, not scalars.
                 "dimensions_with_skill": {
                     dimension: {"score": 0.8, "sources": {"PRIVATE-SENTINEL": 1}}
@@ -296,7 +302,7 @@ def test_collector_retains_excluded_findings_and_invalidates_changed_source(
         assert json.loads(native.read_text()) == raw
 
 
-@pytest.mark.parametrize("failure", [None, "missing_map", "null_score", "scored_attempts"])
+@pytest.mark.parametrize("failure", [None, "missing_na", "missing_map", "null_score", "scored_attempts"])
 def test_cli_publishes_unmeasured_dimensions_without_losing_completed_attempts(
     live, repo, tmp_path, monkeypatch, failure
 ):
@@ -308,6 +314,10 @@ def test_cli_publishes_unmeasured_dimensions_without_losing_completed_attempts(
     for dimension in ("discoverability", "efficiency"):
         del raw["agents"]["opencode"]["dimensions_without_skill"][dimension]
     agent = raw["agents"]["opencode"]
+    for metric in ("skill_execution", "skill_efficiency"):
+        del agent["without_skill"][metric]
+        if failure != "missing_na":
+            agent["not_applicable_metrics"]["without_skill"].append(metric)
     if failure == "missing_map":
         del agent["dimensions_without_skill"]
     elif failure == "null_score":
@@ -366,7 +376,6 @@ def test_cli_publishes_unmeasured_dimensions_without_losing_completed_attempts(
             assert row["arms"]["without_skill"]["dimensions"][dimension] == 0.9
             assert row["dimension_lift"][dimension] == pytest.approx(-0.1)
             assert f"| {dimension} | 0.800 | 0.900 | -0.100 |" in markdown
-    assert "null" in published
     assert "PRIVATE-SENTINEL" not in published + markdown
 
     ci = importlib.import_module("live_ci")
@@ -428,6 +437,99 @@ def test_failed_execution_exports_only_fixed_diagnostic_categories(live, message
 
 
 @pytest.mark.parametrize("arm", ["with_skill", "without_skill"])
+@pytest.mark.parametrize("field", ["requested", "scores", "na_map", "na_arm"])
+@pytest.mark.parametrize("value", [None, False, 0, "security", ["security"]])
+def test_native_metric_evidence_requires_typed_containers(live, arm, field, value):
+    report = tier3()
+    agent = report["agents"]["opencode"]
+    if field == "requested":
+        agent["metrics_" + arm] = {} if isinstance(value, list) else value
+    elif field == "scores":
+        agent[arm] = value
+    elif field == "na_map":
+        agent["not_applicable_metrics"] = value
+    else:
+        agent["not_applicable_metrics"][arm] = {} if isinstance(value, list) else value
+    with pytest.raises(ValueError):
+        live.summarize_tier3(report, 0, 1)
+
+
+@pytest.mark.parametrize("arm", ["with_skill", "without_skill"])
+@pytest.mark.parametrize("field", ["requested", "scores", "na_map", "na_arm"])
+def test_missing_native_metric_evidence_is_rejected(live, arm, field):
+    report = tier3()
+    agent = report["agents"]["opencode"]
+    if field == "na_arm":
+        del agent["not_applicable_metrics"][arm]
+    else:
+        del agent[{"requested": "metrics_" + arm, "scores": arm, "na_map": "not_applicable_metrics"}[field]]
+    with pytest.raises(ValueError):
+        live.summarize_tier3(report, 0, 1)
+
+
+@pytest.mark.parametrize("arm", ["with_skill", "without_skill"])
+@pytest.mark.parametrize("field", ["requested", "na_arm"])
+@pytest.mark.parametrize("entry", [None, 1, False, [], {}, "", " ", " accuracy", "accuracy ", "accuracy"])
+def test_native_metric_name_lists_reject_malformed_or_duplicate_entries(live, arm, field, entry):
+    report = tier3()
+    agent = report["agents"]["opencode"]
+    agent["not_applicable_metrics"][arm] = ["accuracy"]
+    del agent[arm]["accuracy"]
+    names = agent["metrics_" + arm] if field == "requested" else agent["not_applicable_metrics"][arm]
+    names.append(entry)
+    with pytest.raises(ValueError):
+        live.summarize_tier3(report, 0, 1)
+
+
+@pytest.mark.parametrize("arm", ["with_skill", "without_skill"])
+@pytest.mark.parametrize("marked_na", [False, True])
+@pytest.mark.parametrize("value", [None, float("nan"), float("inf"), -1, 2, True, "0.8", [], {}])
+def test_native_source_scores_must_be_numeric_even_when_marked_na(live, arm, marked_na, value):
+    report = tier3()
+    agent = report["agents"]["opencode"]
+    agent[arm]["skill_execution"] = value
+    agent["not_applicable_metrics"][arm] = ["skill_execution"] if marked_na else []
+    del agent["dimensions_" + arm]["discoverability"]
+    with pytest.raises(ValueError):
+        live.summarize_tier3(report, 0, 1)
+
+
+@pytest.mark.parametrize("arm", ["with_skill", "without_skill"])
+@pytest.mark.parametrize("metric", [None, 0, "", " accuracy"])
+def test_native_source_score_maps_require_metric_names(live, arm, metric):
+    report = tier3()
+    report["agents"]["opencode"][arm][metric] = 0.8
+    with pytest.raises(ValueError):
+        live.summarize_tier3(report, 0, 1)
+
+
+@pytest.mark.parametrize("arm", ["with_skill", "without_skill"])
+@pytest.mark.parametrize("metric", ["unrequested", "accuracy"])
+def test_native_na_metrics_cannot_be_unrequested_or_scored(live, arm, metric):
+    report = tier3()
+    report["agents"]["opencode"]["not_applicable_metrics"][arm] = [metric]
+    with pytest.raises(ValueError):
+        live.summarize_tier3(report, 0, 1)
+
+
+@pytest.mark.parametrize("arm", ["with_skill", "without_skill"])
+@pytest.mark.parametrize("justified", [False, True])
+def test_omitted_native_dimensions_require_explicit_na_for_missing_metrics(live, arm, justified):
+    report = tier3()
+    agent = report["agents"]["opencode"]
+    del agent["dimensions_" + arm]["discoverability"]
+    del agent[arm]["skill_execution"]
+    if justified:
+        agent["not_applicable_metrics"][arm] = ["skill_execution"]
+        result = live.summarize_tier3(report, 0, 1)
+        assert result["status"] == "completed"
+        assert result["arms"][arm]["dimensions"]["discoverability"] is None
+    else:
+        with pytest.raises(ValueError, match="missing required metric"):
+            live.summarize_tier3(report, 0, 1)
+
+
+@pytest.mark.parametrize("arm", ["with_skill", "without_skill"])
 @pytest.mark.parametrize("value", [None, [], "", 0, False])
 def test_native_dimension_maps_must_be_objects(live, arm, value):
     report = tier3()
@@ -440,7 +542,7 @@ def test_native_dimension_maps_must_be_objects(live, arm, value):
 def test_missing_native_dimension_map_is_not_an_unmeasured_arm(live, arm):
     report = tier3()
     del report["agents"]["opencode"]["dimensions_" + arm]
-    with pytest.raises((KeyError, ValueError)):
+    with pytest.raises(ValueError):
         live.summarize_tier3(report, 0, 1)
 
 
@@ -449,7 +551,7 @@ def test_missing_native_dimension_map_is_not_an_unmeasured_arm(live, arm):
 def test_present_native_dimension_entries_cannot_be_malformed(live, arm, value):
     report = tier3()
     report["agents"]["opencode"]["dimensions_" + arm]["security"] = value
-    with pytest.raises((KeyError, TypeError, ValueError)):
+    with pytest.raises(ValueError):
         live.summarize_tier3(report, 0, 1)
 
 
@@ -465,16 +567,25 @@ def test_invalid_live_scores_cannot_be_published(live, arm, value):
 @pytest.mark.parametrize("unmeasured_arms", [("with_skill",), ("without_skill",), ("with_skill", "without_skill")])
 def test_empty_native_dimension_maps_preserve_zero_scores_and_attempts(live, unmeasured_arms):
     report = tier3()
+    agent = report["agents"]["opencode"]
     for arm in ("with_skill", "without_skill"):
-        dimensions = report["agents"]["opencode"]["dimensions_" + arm]
+        dimensions = agent["dimensions_" + arm]
         if arm in unmeasured_arms:
             dimensions.clear()
+            # Synthetic legacy-set boundary: default native security is never N/A.
+            agent["metrics_" + arm].remove("security")
+            agent["not_applicable_metrics"][arm] = agent["metrics_" + arm].copy()
+            agent[arm].clear()
         else:
+            agent[arm] = dict.fromkeys(agent["metrics_" + arm], 0)
             for entry in dimensions.values():
                 entry["score"] = 0
     result = live.summarize_tier3(report, 0, 1)
     assert result["status"] == "completed"
     assert result["dimension_lift"] == dict.fromkeys(live.DIMENSIONS)
+    assert result["pass_rate_lift"] == -1
+    assert result["arms"]["with_skill"]["pass_rate"] == 0
+    assert result["arms"]["without_skill"]["pass_rate"] == 1
     for arm in ("with_skill", "without_skill"):
         assert result["arms"][arm]["dimensions"] == dict.fromkeys(
             live.DIMENSIONS, None if arm in unmeasured_arms else 0
@@ -571,6 +682,9 @@ def test_unmeasured_dimensions_do_not_hide_incomplete_execution(live, mutation):
     report = tier3()
     agent = report["agents"]["opencode"]
     agent["dimensions_without_skill"] = {}
+    agent["metrics_without_skill"].remove("security")
+    agent["without_skill"] = {}
+    agent["not_applicable_metrics"]["without_skill"] = agent["metrics_without_skill"].copy()
     if mutation == "report_error":
         report["execution_errors"] = ["synthetic error"]
     elif mutation == "agent_error":
@@ -597,6 +711,23 @@ def test_missing_baseline_and_changed_denominator_do_not_produce_lift(live):
     with pytest.raises(ValueError):
         live.summarize_tier3(report, 0, 1)
     assert live.summarize_tier3(tier3(), 1, 1)["status"] == "incomplete"
+
+
+def test_live_schema_v2_rejects_v1_shards_through_provenance_bindings(live, repo, tmp_path, monkeypatch):
+    monkeypatch.delenv("INFERENCE_HUB_API_KEY", raising=False)
+    base = live.collect(repo, tmp_path / "schema", tier="3", skill_name="eval-author", check_name="live")
+    assert base["schema"] == "nemo.eval_author.live_skill_evaluations.v2"
+    ci = importlib.import_module("live_ci")
+    expected = next(row for row in base["observations"] if row["status"] == "not_run")
+    candidate = copy.deepcopy(base)
+    candidate["mode"] = "run"
+    candidate["policy"] = ci.expected_policy(base, expected)
+    row = next(row for row in candidate["observations"] if ci.key(row) == ci.key(expected))
+    row.update(status="incomplete", reason="fixture")
+    assert ci.validated_row(candidate, base, expected)["status"] == "incomplete"
+    candidate["schema"] = "nemo.eval_author.live_skill_evaluations.v1"
+    with pytest.raises(ValueError, match="report provenance mismatch"):
+        ci.validated_row(candidate, base, expected)
 
 
 def test_plan_and_missing_key_never_execute(live, repo, tmp_path, monkeypatch):

@@ -158,6 +158,33 @@ def summarize_tier2(report, code, validator, skill: Path | None = None) -> Evalu
     return {"status": row["status"], "reason": None, "severity_counts": counts}
 
 
+def metric_names(value) -> set[str]:
+    if not isinstance(value, list) or any(
+        not isinstance(name, str) or not name or name != name.strip() for name in value
+    ):
+        raise ValueError("invalid metric names")
+    names = set(value)
+    if len(names) != len(value):
+        raise ValueError("duplicate metric names")
+    return names
+
+
+def validate_metric_coverage(agent, arm):
+    requested = metric_names(agent.get("metrics_" + arm))
+    scores = agent.get(arm)
+    not_applicable = agent.get("not_applicable_metrics")
+    if not isinstance(scores, dict) or not isinstance(not_applicable, dict):
+        raise ValueError("invalid metric evidence map")
+    scored = metric_names(list(scores))
+    skipped = metric_names(not_applicable.get(arm))
+    for value in scores.values():
+        number(value)
+    if skipped - requested or skipped & scored:
+        raise ValueError("inconsistent not-applicable metrics")
+    if requested - scored - skipped:
+        raise ValueError("missing required metric")
+
+
 def summarize_tier3(report, code, cases) -> EvaluationSummary:
     """A completed A/B experiment may have poor scores; completion is not quality."""
     if code != 0 or report.get("execution_status") != "succeeded":
@@ -197,12 +224,21 @@ def summarize_tier3(report, code, cases) -> EvaluationSummary:
             or count(execution["scored_attempts"]) != cases
         ):
             raise ValueError("incomplete arm")
-        dimensions = agent["dimensions_" + arm]
+        validate_metric_coverage(agent, arm)
+        dimensions = agent.get("dimensions_" + arm)
         if not isinstance(dimensions, dict):
             raise ValueError("invalid dimension map")
-        # The pinned dimension_scores() omits unavailable dimensions; a present
-        # entry still requires a numeric score, including measured zero.
-        scores = {key: number(dimensions[key]["score"]) if key in dimensions else None for key in DIMENSIONS}
+        # Native dimension_scores() omits both N/A and missing-source dimensions.
+        # Validate requested metric coverage before treating omissions as unmeasured.
+        scores: dict[str, float | None] = {}
+        for key in DIMENSIONS:
+            if key not in dimensions:
+                scores[key] = None
+            else:
+                entry = dimensions[key]
+                if not isinstance(entry, dict):
+                    raise ValueError("invalid dimension entry")
+                scores[key] = number(entry.get("score"))
         passes = agent["pass_at_k"][arm]
         passed, total = count(passes["passed_cases"]), count(passes["total_cases"])
         if total != cases or passed > total or count(passes["k"]) != 1:
@@ -367,7 +403,7 @@ def collect(
     runtime_home.mkdir(mode=0o700)
     env["HOME"] = str(runtime_home)
     report: LiveReport = {
-        "schema": "nemo.eval_author.live_skill_evaluations.v1",
+        "schema": "nemo.eval_author.live_skill_evaluations.v2",
         "repository": "NVIDIA-NeMo/eval-author",
         "source_revision": revision,
         "inputs_clean": not bool(dirty),

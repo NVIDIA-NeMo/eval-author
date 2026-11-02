@@ -39,6 +39,10 @@ The allowance is recorded as `full-pairwise-300m-v1` in report policy and applie
 only after verifying the installed evaluator commit. All content and pairs are
 retained; the 512-chunk limit, vector validation, and similarity thresholds are
 unchanged. Exceeding either work or time bounds remains incomplete.
+The allowance accommodates the maximum 512 chunks at 2048 embedding dimensions:
+`512 × 511 / 2 × 2048 = 267,911,168` scalar comparisons. Switching
+`SKILL_EVAL_EMBEDDING_MODEL` to a higher-dimensional model requires revisiting
+the allowance; the actual vector dimension in the original incident was not retained.
 
 The workflow files are the source of truth for tool versions, limits, and
 artifact configuration:
@@ -97,15 +101,30 @@ reports, provider failures, and timeouts are incomplete evidence; skipped or
 unrun work is not a pass. Small synthetic evaluations are smoke tests, not
 proof of broad task performance.
 
+Live summaries use schema `nemo.eval_author.live_skill_evaluations.v2` to
+distinguish nullable dimension scores and lifts from the earlier v1 contract.
+Shards and aggregates must use the same schema; v1 shards are not accepted into
+a v2 aggregate. Historical v1 artifacts are not rewritten.
+
 Completed Tier 3 summaries retain all five dimension keys in each arm's
-`dimensions` map and in `dimension_lift`. A dimension omitted by the native
-evaluator is JSON `null` and appears as `unmeasured` in Markdown, not zero.
+`dimensions` map and in `dimension_lift`. Before accepting omitted dimensions,
+the collector checks the native requested metric lists, score maps, and per-arm
+`not_applicable_metrics`: every requested metric missing a score must be
+explicitly declared N/A. Unexplained missing metrics are incomplete evidence,
+even if every execution attempt was scored. An accepted omitted dimension is
+JSON `null` and appears as `unmeasured` in Markdown, not zero.
 A lift is numeric only when both arms measured that dimension; otherwise it
 is also `null`. Zero scores remain measured, and negative lifts remain valid
 completed results. Both arm maps are required: malformed entries, including
 explicit null native scores, are incomplete evidence rather than unmeasured
 dimensions. Completion still requires successful execution and every expected
 attempt scored in both arms; missing dimensions do not relax those checks.
+Both arms may have all dimensions unmeasured when the native N/A evidence
+justifies it. Their pass rates and pass-rate lift remain separately measured;
+completion does not imply that any dimension was measured.
+The all-dimensions-unmeasured case is a synthetic summary-contract boundary,
+not a demonstrated completed default-native run: v0.7.0 never marks its default
+security metric N/A.
 
 Context guard diagnostics retain only observed, bounded integer metadata:
 `pair_count`, `vector_dimension`, `scalar_work`, and `limit` for scalar-work

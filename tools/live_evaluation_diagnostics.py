@@ -35,6 +35,7 @@ GUARD_METADATA_BOUNDS = {
         "scalar_work": (0, 512 * 511 // 2 * 65536),
         "limit": (1, CONTEXT_SCALAR_LIMIT),
     },
+    # 65,536 is a diagnostic sanity cap, not a supported chunk count; omit larger actuals.
     "chunk_count_limit": {"actual": (0, 65536), "limit": (1, 512)},
 }
 
@@ -85,9 +86,9 @@ def diagnostics(report, target):
                             metadata = finding.get("metadata")
                             if isinstance(metadata, dict):
                                 safe = {
-                                    key: metadata[key]
-                                    for key, (minimum, maximum) in bounds.items()
-                                    if type(metadata.get(key)) is int and minimum <= metadata[key] <= maximum
+                                    field: metadata[field]
+                                    for field, (minimum, maximum) in bounds.items()
+                                    if type(metadata.get(field)) is int and minimum <= metadata[field] <= maximum
                                 }
                                 if safe:
                                     selected["metadata"] = safe

@@ -10,6 +10,8 @@ from importlib.metadata import distribution
 
 from collect_skill_evaluations import EVALUATOR_REVISION
 
+# 512 * 511 / 2 pairs at 2048 dimensions require 267,911,168 scalar comparisons.
+# Revisit this allowance when switching to higher-dimensional embeddings.
 CONTEXT_SCALAR_LIMIT = 300_000_000
 CONTEXT_POLICY = "full-pairwise-300m-v1"
 
