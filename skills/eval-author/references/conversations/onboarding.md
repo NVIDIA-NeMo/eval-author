@@ -17,6 +17,25 @@ journey and checklist labels, status labels, and generic headings.
 owns onboarding copy and prerequisite rows. Use these canonical templates through
 the renderer; do not copy them into instructions or reconstruct their output.
 
+## Audit opening
+
+`audit_opening` renders the canonical opening from
+[onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py)
+after the metadata lookup finds reusable saved context and before state writes
+or repository inspection. It requires journey `audit`
+and accepts no state, revision, facts, or readiness claim. It makes no claim that
+prior work exists and grants no inspection, approval, or execution permission.
+
+```bash
+python3 -B <skill_dir>/scripts/conversation_renderer.py --stage audit_opening --journey audit
+```
+
+Publish the output unchanged in commentary, then follow the
+[entry procedure](../shared-prerequisites.md#return-to-an-audit) in the same turn.
+That procedure selects this opening for separate full-audit requests with reusable
+saved context. Fresh audits, direct handoffs, and replies within an active audit
+omit it. The opening is not a checkpoint and asks no question.
+
 ## Orientation and prerequisite entry
 
 `orientation` and `goal_selected` use the no-input preview mode under the
@@ -79,16 +98,14 @@ state-only audit snapshot, and its exact `revision`. Use `--input -`; this stage
 is not a no-input preview. The saved journey must be `audit`; no `ready`,
 `journey`, or `facts` overrides are accepted.
 
-It renders the canonical welcome, state-derived checklist, and saved-answer
-reuse notice from [onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py).
-The checklist shows current audit readiness. A goal switch reopens audit-specific
-checks, so every item may be unchecked while earlier answers remain available.
-Ethos and downstream steps remain unchecked until artifact reconciliation,
-without discarding saved approval. The approval note appears only when the
-snapshot records an Ethos confirmation with provenance.
+It renders only the canonical saved-progress acknowledgment from
+[onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py).
+It emits no welcome, checklist, approval recap, or report-existence claim.
+Saved answers and approvals remain in state for the existing checks and artifact
+reconciliation. The next checkpoint shows any applicable checklist or blockers.
 
 The [entry procedure](../shared-prerequisites.md#return-to-an-audit) owns when to
-publish or omit this welcome. The stage emits no question, preserves saved state,
+publish or omit this acknowledgment. The stage emits no question, preserves saved state,
 and grants no inspection or execution permission.
 
 ## When state is unavailable

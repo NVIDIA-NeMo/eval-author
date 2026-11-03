@@ -33,7 +33,7 @@ three checklist items: confirm
 the agent/setup, confirm Ethos, then the selected build/audit/improve item. If the
 goal is unknown, ask whether to create, audit, or improve; explicit inventory
 remains a scoped option.
-The first turn contains only the fixed welcome, exact checklist, and “Ready to
+The first final response contains only the fixed welcome, exact checklist, and “Ready to
 get started?” for a known goal. For an unknown goal, use the shorter welcome
 “Welcome to Eval Author! This skill helps you build, audit, and improve evaluations against your agent’s intended behavior.”
 followed by the goal question and three choices. Reserve “Here’s what we’ll work
@@ -45,7 +45,8 @@ before this reply. The pure renderer's no-input `orientation` preview
 must not receive repository, state, or input-file arguments. Repository/state
 reads, Ethos validation, prerequisite checks or questions, other helper commands,
 writes, and delegation all fail this opening checkpoint, except for the bounded
-saved-state lookup for an explicit audit in a known repository described below.
+saved-state lookup for an explicit audit described below. That lookup runs
+without assistant narration. Fresh audits show no separate opening acknowledgment.
 Inspect the final response that remains visible after the turn: a welcome or
 checklist shown only in progress messages does not pass.
 
@@ -381,7 +382,7 @@ Keep the existing file unchanged when accepted without edits. Retain prior
 answers and source findings instead of restarting the interview. Inspect shared
 state as well as the visible checklist; old `complete` state must not bypass review.
 An explicit audit continuing valid same-repository, same-agent context follows
-the returning-audit scenario below. A new chat requires the audit welcome while
+the returning-audit scenario below. A new chat requires the brief acknowledgment while
 retaining applicable saved answers; it does not restart fresh onboarding.
 
 ## 4. Resume and switch journeys
@@ -390,7 +391,7 @@ Save accepted prerequisites and Ethos, a pending scope question, and evidence
 references in `.eval-author/.working/journey-state.json`. Resume the same goal
 from a fresh chat with its accepted scope, current Ethos confirmation, pending
 question, and handoff; do not restart shared entry or reopen unchanged review.
-For an audit in a new chat, first show the returning-audit welcome described below
+For an audit in a new chat, first show the returning-audit acknowledgment described below
 and continue in the same turn to the pending decision.
 Then switch between audit and creation or expansion. Retain shared confirmation,
 saved scopes, and evidence, but select the new goal's question and handoff;
@@ -418,42 +419,54 @@ suite and run selections. Exercise these conversation contexts independently:
 | Conversation context | Required introduction |
 | --- | --- |
 | Direct acceptance of the offered audit handoff in the active conversation | Continue the handoff without repeating the welcome |
-| A separate explicit audit request later in the same conversation | Show the audit welcome and current audit checklist |
-| A separate request or audit resume in a new chat opened in the known repository | Show the audit welcome and current audit checklist |
+| A separate explicit audit request later in the same conversation | Look up metadata quietly, then show `audit_opening` and the saved-context acknowledgment when context is reusable |
+| A separate request or audit resume in a new chat opened in the known repository | Look up metadata quietly, then show `audit_opening` and the saved-context acknowledgment when context is reusable |
 | A reply continuing an active audit in the current conversation | Resume the pending decision without repeating the welcome |
 
-For separate requests, use “Audit the suite and runs we just reviewed.” Compare
+For separate requests, use “Audit the suite and runs we just reviewed.” Verify
+that the metadata-only lookup happens without assistant narration. When it finds
+reusable saved context, the canonical `audit_opening` is the first skill-generated
+message, before state writes, prerequisite probes, or artifact inspection. Compare
 `audit_welcome` with the canonical renderer output and input authority. Inspect
-that its welcome, state-derived checklist, and saved-answer reuse note appear
-promptly in commentary before bounded checks. The checklist reflects current
-audit readiness, including reopened audit-specific prerequisites. Ethos stays
-unchecked until reconciliation. The approval note appears only with a saved
-confirmation. Saved authoring completion does not complete the audit.
+that only the saved-progress acknowledgment appears promptly in commentary
+before bounded checks. It must not include a welcome, checklist, approval recap,
+or report-existence claim. Check the full transcript against the shared
+[communication rule](../../skills/eval-author/references/conversation-rendering.md#audit-entry-and-resumption),
+including messages between tool calls. Ask for execution details and verify a
+factual summary is available.
+Inspect the full transcript for exact message and tool ordering. The pinned live
+evaluator's behavior judge receives compacted assistant messages and tool history,
+which can omit or shorten steps. Its final-output judges use selective evidence.
+Those advisory scores do not prove exact ordering from the final response.
+The quiet-entry boundary ends at the first substantive rendered checkpoint,
+excluding the opening and saved-context acknowledgment. Later long-running
+measurement or aggregation may include meaningful progress updates.
+Saved authoring completion does not complete the audit.
 After switching from creation or improvement, reload state in a new turn and
 verify the outgoing question and handoff remain in the originating scope's
 `audit_entry`. They must not become the active audit question.
 
 The same turn must reach the actual pending decision, or proposed-check review
-when inputs are settled. A readiness question, checklist-only turn, or repeated
+when inputs are settled. A readiness question, acknowledgment-only turn, or repeated
 settled question fails. Inspect tool ordering and filesystem effects against the
 canonical procedure, including its metadata-only lookup and selected-source
 boundaries. Exercise these variants for both origins and applicable contexts:
 
 | Saved or current condition | Required next step |
 | --- | --- |
-| No saved state | Lookup exits 0 with `state: null` and `persisted: false`. Show fresh orientation and create no state during classification |
+| No saved state | Lookup exits 0 with `state: null` and `persisted: false`. Show only fresh orientation, with no opening acknowledgment or state initialization |
 | Malformed, unreadable, or foreign-repository state | Lookup exits 2. Preserve it, explain why audit checks pause, and offer a specific recovery action without inspecting artifacts or manufacturing approval |
 | Shared work remains unfinished | Resume its pending prerequisite or Ethos decision |
-| Trace availability unknown or missing | After any required early welcome, show the actual prerequisite blocker in final, retaining earlier journey completion and Ethos confirmation; do not read Ethos or traces or run evaluations |
+| Trace availability unknown or missing | After any required acknowledgment, show the actual prerequisite blocker in final, retaining earlier journey completion and Ethos confirmation; do not read Ethos or traces or run evaluations |
 | Audit tooling missing | Report only unresolved audit requirements; do not repeat unrelated interviews |
 | Trace availability confirmed, run paths only candidates | Ask only for the missing source/location; do not inspect candidates |
 | Ethos content changed, missing, or selected agent changed | Reopen the affected intent review after applicable prerequisites pass |
-| Audit already has a pending question | After any required early welcome, preserve its scope and resume that actual question in the same turn |
+| Audit already has a pending question | After any required acknowledgment, preserve its scope and resume that actual question in the same turn |
 | Bootstrap invitation remains pending or is declined | Do not enter the audit or inspect its inputs |
 
 Retain source decisions and prior completion evidence around each blocker.
 Repeat the trace blocker with both unknown availability and confirmed absence;
-reuse the absence answer without asking it again. An early welcome does not
+reuse the absence answer without asking it again. An early acknowledgment does not
 authorize Ethos inspection or complete audit prerequisites.
 Synthetic contracts use representative permission policies; retain every origin
 and unknown/missing status variant here for conversational review. Their action

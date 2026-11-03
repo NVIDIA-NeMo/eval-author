@@ -6,9 +6,9 @@ description: >-
   or requests to create, discover, audit, or improve evaluations.
   For fresh full workflows, read this skill, show its rendered orientation,
   and end the turn before repository work. Scoped utilities keep their scope.
-  Explicit audits first check bounded saved context. Returning audits reuse
-  applicable prerequisites and confirmed Ethos. Separate requests show a welcome
-  and current audit checklist without another readiness pause.
+  Explicit full audits quietly check bounded saved context before choosing an
+  introduction. Returning audits reuse applicable prerequisites and confirmed Ethos. Separate returning requests get
+  a brief acknowledgment, then continue without another readiness pause.
   Build first evals from ETHOS.md, work on existing suites, inspect a NeMo Intake
   run, or derive a trace environment (experimental). Owns the evidence standard
   for every Eval Author flow. Creating, auditing, and improving evals require
@@ -77,13 +77,13 @@ Use the requested outcome and prior answers before asking a question. Creating,
 auditing, and improving evals use the **Shared prerequisites and Ethos** flow
 below for NeMo Gym and Harbor, including direct invocations of their skills.
 
-For an explicit full-audit request in a known repository, first follow
+For an explicit full-audit request, first follow
 [Return to an audit](references/shared-prerequisites.md#return-to-an-audit).
-It owns saved-context reuse and welcome versus direct continuation. Fresh
+It owns saved-context classification, returning openings, and direct continuation. Fresh
 requests retain the opening below.
 
-The first response to a new shared flow is orientation only. Determine the goal
-from the user's request and conversation already available, without inspecting the
+The first final response to a new shared flow is orientation only. Determine the
+goal from the user's request and conversation already available, without inspecting the
 repository. Render `orientation` using the pure conversation renderer, with the
 known journey or no journey for goal selection, and use its Markdown as the
 entire final visible response. The unknown-goal opening uses the shorter welcome
@@ -94,9 +94,11 @@ the turn again. Selecting a goal does not establish readiness or start checks.
 Before either orientation response, read only the entry skill, this core skill,
 the [conversation rendering contract](references/conversation-rendering.md), and
 the [onboarding reference](references/conversations/onboarding.md) as needed.
-An explicit audit may also load the linked audit-entry procedure and perform
-its metadata-only lookup. Apart from that exception, the only permitted command
-is this renderer's no-input preview mode:
+An explicit full audit may also load the linked audit-entry procedure and perform
+its metadata-only lookup without narration. Only reusable saved context allows
+its no-input `audit_opening` before continuation. Fresh audits omit that opening.
+Apart from those exceptions, the only permitted command is this renderer's
+no-input preview mode:
 
 ```bash
 python3 -B <skill_dir>/scripts/conversation_renderer.py --stage orientation --journey create
@@ -106,7 +108,7 @@ Replace the journey with `audit` or `expand`, or omit it for an undecided reques
 Use `--stage goal_selected --journey <selected-journey>` after goal selection.
 The renderer may load its own source dependencies, but must not inspect repository
 files or saved state, validate Ethos, check prerequisites, write files, or delegate
-work. Apart from the audit-entry lookup, no other helper commands are allowed before readiness. This also applies
+work. Apart from the audit opening and entry lookup, no other helper commands are allowed before readiness. This also applies
 to direct first-eval and full-audit invocations.
 
 After the actual readiness reply, follow the
@@ -376,6 +378,9 @@ user, not to you.
   changes a remote resource.
 
 ## Communicating with the user
+
+For full-audit entry and resumption, follow the shared
+[communication rule](references/conversation-rendering.md#audit-entry-and-resumption).
 
 Omit trailing periods from user-facing list items.
 

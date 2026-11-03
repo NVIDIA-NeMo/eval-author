@@ -15,16 +15,24 @@ question. A goal-choice reply triggers `goal_selected`, not this procedure.
 Do not load repository context or save state in preparation for either
 orientation turn. The [onboarding renderer](conversations/onboarding.md#orientation-and-prerequisite-entry) has a
 narrow no-input command exception for those turns; other helpers remain deferred,
-apart from the audit entry lookup below.
+apart from the audit opening and entry lookup below.
 
 ## Return to an audit
+
+Follow the shared [communication rule](conversation-rendering.md#audit-entry-and-resumption)
+throughout this procedure, including the initial lookup.
 
 Explicit full-audit requests and accepted first-suite audit invitations can
 continue creation or improvement context, including in a new chat. An offered
 or declined invitation starts no audit; a later explicit request selects that
 goal. Scoped audit commands retain their entry rules.
 
-Before classification, read only the known request/workspace repository's metadata:
+Use only the request and current conversation to identify a separate explicit
+full-audit request. Direct creation/improvement handoffs and replies continuing
+an active audit skip the opening below. Classify the request without assistant
+narration before choosing an introduction.
+
+For a known request/workspace repository, read only its saved metadata:
 
 ```bash
 python3 -B <skill_dir>/scripts/journey_state.py --repo /absolute/repository --state-only show
@@ -35,8 +43,9 @@ or initialization, artifact inspection (including Ethos), trace enumeration,
 prerequisite probes, or other repository searches. An unknown repository or no
 saved workflow answers/pending work means fresh entry. An absent state file is
 also fresh entry: `--state-only show` exits 0 with `{"state": null, "persisted": false}`.
-Show fresh orientation without initializing state. A successful lookup with
-saved state returns the normal snapshot. Do not infer absence from error text.
+Show fresh orientation without an opening acknowledgment or state initialization.
+A successful lookup with saved state returns the normal snapshot. Do not infer
+absence from error text.
 
 A lookup that exits 2 means recovery is needed. For this lookup or any subsequent
 state-operation failure, preserve the file and render
@@ -58,15 +67,24 @@ need not be complete. Metadata does not prove current content. Resume unfinished
 shared work at its pending decision. Resolve changed or ambiguous identity and
 intent before auditing, retaining prior scope and evidence as history.
 
-Saved context allows reuse of answers; it does not by itself remove the welcome.
-Skip the welcome only for a direct creation/improvement handoff in the current
-conversation (including accepting its audit invitation), or a reply continuing
-an active audit in that conversation. A separate audit request, including every
+Saved context allows reuse of answers without repeating the full welcome or
+checklist. Skip the acknowledgment for a direct creation/improvement handoff in
+the current conversation (including accepting its audit invitation), or a reply
+continuing an active audit in that conversation. A separate audit request, including every
 new chat with saved context, gets
-[`audit_welcome`](conversations/onboarding.md#returning-audit-welcome).
+the brief [`audit_welcome`](conversations/onboarding.md#returning-audit-welcome)
+acknowledgment. Saved metadata alone does not establish that a report exists or
+that its content is current. Link and describe a report only after permitted
+artifact inspection verifies it.
 Do not search other chats to classify conversational continuity.
 
-For reusable context, continue these steps in the same turn when unblocked:
+For reusable context on a separate request, first render
+[`audit_opening`](conversations/onboarding.md#audit-opening) and publish it in
+commentary before state writes, prerequisite probes, or artifact inspection.
+The renderer may load its own source dependencies, but this no-input exception
+permits no repository reads or state operations. Continue in the same turn.
+
+Then continue these steps in the same turn when unblocked:
 
 1. Use `--state-only init --journey audit`. Before clearing the active question
    and handoff, the helper saves the outgoing authoring decision in
@@ -75,10 +93,10 @@ For reusable context, continue these steps in the same turn when unblocked:
    agent, revision, question, and handoff without approving audit inputs or
    making the old question active. Preserve agent and provider. Same-journey
    resumes preserve the actual pending audit decision.
-   When a welcome is due, render `audit_welcome` from that fresh state-only audit
-   snapshot and publish it in commentary immediately, before prerequisite probes,
-   artifact inspection, or recovering additional context. Continue in this same
-   turn; the welcome asks no readiness question and is not a checkpoint.
+   When an acknowledgment is due, render `audit_welcome` from that fresh
+   state-only audit snapshot and publish it in commentary immediately, before
+   prerequisite probes, artifact inspection, or recovering additional context. Continue in this same
+   turn; the acknowledgment asks no readiness question and is not a checkpoint.
 2. Apply [audit prerequisites](pre-reqs/audit.md) with state-only operations,
    retaining audit/authoring applicability resets. Reuse applicable common access
    and Ethos-skill confirmations; resolve only missing or changed audit skills,
@@ -106,7 +124,7 @@ For reusable context, continue these steps in the same turn when unblocked:
 
 Skip fresh orientation's readiness gate, the `prerequisites` preview, repeated
 Ethos confirmation, and the shared completion pause. Do not fabricate
-`ready: true` or started status, or end the turn with only a welcome/checklist.
+`ready: true` or started status, or end the turn with only the acknowledgment.
 After reconciliation, use `resume` for an actual
 pending decision or continue authorized work. An audit request answers only a
 generic start invitation, not pending source/content decisions. After a required

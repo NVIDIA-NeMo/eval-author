@@ -335,6 +335,25 @@ def test_audit_resume_asks_only_the_unresolved_decision_after_prior_journey(onbo
     assert "confirmed and validated" not in output and copy.TABLE_HEADER not in output
 
 
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"state": {}},
+        {"revision": 7},
+        {"facts": {}},
+        {"ready": True},
+        {"ready": None},
+        {"journey": "create"},
+        {"journey": "expand"},
+        {"journey": None},
+    ],
+)
+def test_audit_opening_rejects_context_and_readiness_claims(onboarding, patch):
+    renderer = onboarding[1]
+    with pytest.raises(ValueError):
+        renderer.render({"stage": "audit_opening", "journey": "audit", **patch})
+
+
 @pytest.mark.parametrize("trace_status", ["confirmed", "unknown", "missing"])
 def test_audit_welcome_preserves_saved_progress_without_claiming_artifact_confirmation(
     onboarding, monkeypatch, trace_status
@@ -361,21 +380,30 @@ def test_audit_welcome_preserves_saved_progress_without_claiming_artifact_confir
     monkeypatch.setattr(state_helper.first_eval_state, "observe", unexpected_io)
     output = renderer.render(request)
 
-    assert output.startswith(copy.WELCOME_WITH_CHECKLIST + "\n\n")
-    assert output.endswith(copy.AUDIT_REUSE_NOTICE + " " + copy.AUDIT_ETHOS_REUSE_NOTICE + "\n")
-    assert len(re.findall(r"^- \[[ x]\] ", output, re.MULTILINE)) == 3
-    assert output.count("- [x]") == (1 if trace_status == "confirmed" else 0)
-    assert f"- [ ] **{shared.CHECKLIST_LABELS[1]}**" in output
-    assert f"- [ ] **{shared.JOURNEYS['audit']}**" in output
+    assert output == copy.AUDIT_RESUME_NOTICE + "\n"
+    assert "- [" not in output and copy.WELCOME not in output
     assert copy.READY not in output and state["pending_question"] not in output
     assert all(pause not in output for pause in copy.CONTINUATION.values())
     assert "confirmed and validated" not in output and copy.TABLE_HEADER not in output
     assert renderer.render(request) == output and request == before
 
+    if trace_status != "confirmed":
+        blocked = renderer.render(
+            {
+                "stage": "prerequisite_results",
+                "state": state,
+                "revision": state["revision"],
+                "facts": {"blockers": [{"id": "data", "skill_link": "/skills/eval-author-audit/SKILL.md"}]},
+            }
+        )
+        assert shared.BLOCKERS in blocked and "Saved evaluation traces" in blocked
+        assert copy.AUDIT_RESUME_NOTICE not in blocked and copy.WELCOME not in blocked
+        assert request == before
+
 
 @pytest.mark.parametrize("origin", ["create", "expand"])
 @pytest.mark.parametrize("confirmed", [False, True])
-def test_audit_welcome_after_initialize_shows_current_readiness_and_actual_approval(
+def test_audit_welcome_after_initialize_keeps_saved_answers_without_an_approval_recap(
     onboarding, monkeypatch, origin, confirmed
 ):
     helper, renderer, _, state, _ = onboarding
@@ -401,9 +429,8 @@ def test_audit_welcome_after_initialize_shows_current_readiness_and_actual_appro
     saved_bytes = helper.state_path(repo).read_bytes()
     output = renderer.render({"stage": "audit_welcome", "state": audit, "revision": audit["revision"]})
 
-    assert "- [x]" not in output and output.count("- [ ]") == 3
-    assert copy.AUDIT_REUSE_NOTICE in output
-    assert (copy.AUDIT_ETHOS_REUSE_NOTICE in output) is confirmed
+    assert output == copy.AUDIT_RESUME_NOTICE + "\n"
+    assert "- [" not in output and "ETHOS.md" not in output
     assert copy.READY not in output
     assert audit["ethos"] == original["ethos"]
     for key, answer in original["prerequisites"].items():

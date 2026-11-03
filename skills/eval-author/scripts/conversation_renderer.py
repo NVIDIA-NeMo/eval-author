@@ -47,7 +47,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--input", help="Presentation JSON file, or - for stdin; never a repository path")
-    mode.add_argument("--stage", choices=sorted(PREVIEWS), help="Render a stateless orientation or table preview")
+    mode.add_argument("--stage", choices=sorted(PREVIEWS), help="Render a stateless opening or table preview")
     parser.add_argument("--journey", choices=tuple(shared.JOURNEYS))
     parser.add_argument("--ready", action="store_true", help="The user has actually answered the readiness prompt")
     args = parser.parse_args()

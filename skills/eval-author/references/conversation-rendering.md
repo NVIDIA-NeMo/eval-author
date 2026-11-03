@@ -34,6 +34,38 @@ output cannot establish readiness, Ethos confirmation, permission to continue,
 or authorization to spend. Persist actual user replies and observed findings
 through the existing state helper before rendering stateful responses.
 
+## Audit entry and resumption
+
+Classify a full-audit request using the bounded metadata lookup in the
+[entry procedure](shared-prerequisites.md#return-to-an-audit), without assistant
+narration. Fresh entry goes directly to orientation. For a separate request with
+reusable saved context, publish the canonical
+[`audit_opening`](conversations/onboarding.md#audit-opening) in commentary before
+state writes or repository inspection, then continue in the same turn.
+
+Keep full-audit entry and resumption quiet until the first substantive rendered
+checkpoint. The opening and saved-context acknowledgment are not checkpoints.
+After that checkpoint, later measurement or aggregation can include brief updates
+about meaningful progress. During entry and resumption, perform
+routine skill and file reads, saved-state lookups, prerequisite checks, state
+updates, renderer calls, and successful retries without assistant narration.
+Keep execution details in the normal tool history. If the user asks for them,
+summarize the commands, findings, and recovery steps without exposing hidden
+reasoning. Successful fallback diagnostics belong in prerequisite findings only
+when they affect the user's next action or the audit's reliability.
+
+For reusable saved context, follow the opening with the acknowledgment selected by the
+[returning-audit procedure](shared-prerequisites.md#return-to-an-audit), then
+continue to the next rendered checkpoint in the same turn. Keep blockers,
+unresolved errors, changes that invalidate prior approval, and required decisions
+visible at their existing checkpoints. Preserve fresh orientation and all
+inspection, confirmation, and execution gates.
+
+Mandatory host messages and tool displays remain outside this contract. When
+the host requires progress updates, give a brief update about meaningful progress
+without narrating each call. Do not add a progress message just to announce the
+next internal step or promise to hide host-controlled tool or thinking displays.
+
 ## Input envelope
 
 Every payload selects a supported `stage`. Stateless inputs supply the journey
