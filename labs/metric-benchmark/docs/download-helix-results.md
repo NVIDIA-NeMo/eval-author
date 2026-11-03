@@ -57,3 +57,36 @@ resolved agent configuration against the prepared case identities, then emit the
 Harbor 0.20.0; inspected Helix uses 0.24.0. No compatibility bypass or native JSON
 rewriting is included. Until that boundary is qualified with deployed evidence,
 these collections cannot be passed directly to score analysis.
+
+## Live collection checks
+
+After following the [submit handoff](submit-helix-evals.md#live-test-handoff), use
+its client interpreter, context and external test directory:
+
+```bash
+"$HELIX_PYTHON" "$EVAL_AUTHOR_REPO/labs/metric-benchmark/download_helix_results.py" \
+  --submission "$HELIX_TEST_DIR/submitted" --output "$HELIX_TEST_DIR/collected" \
+  --context "$HELIX_CONTEXT"
+```
+
+Run once while jobs are active if possible: expect exit 2 and no published output
+directory. Run again after completion: expect exit 0, one observation per task and
+agent, and intact native result files and traces. A very short run may complete
+before the first check; record that rather than claiming the live pending path was tested.
+Repeat the completed download and confirm that the collection is unchanged.
+Failures or incomplete terminal matrices must not produce a successful collection.
+The mocked suite exercises these failure cases; a successful live smoke alone does not.
+
+For the one-task Oracle/NOP control, inspect the native verifier rewards and compare
+them with the prepared task's expected results. Keep full bundles, submission records,
+run/job IDs and client/server versions privately for diagnosis. Report only sanitized
+outcomes publicly. The expected collection still has `analysis_ready: false` and no
+`execution.json`; this is a smoke-test success, not completed analysis integration.
+
+To finish that integration, inspect the public Jobs API's task-job `spec`: the source
+version used here stores the effective task/agent configuration, prepared images and
+sandbox policy there. Verify those against the prepared inputs and the downloaded
+native trial. This is a candidate source of identity evidence, not yet a validated
+importer. Do not change recorded checksums or bypass native validation to make the
+collection appear analysis-ready. Once the mapping is established, implement and test
+the shared results-contract importer against these saved bundles before scaling up.
