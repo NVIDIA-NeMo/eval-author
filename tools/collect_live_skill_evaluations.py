@@ -29,12 +29,13 @@ HUB_BASE_URL = "https://inference-api.nvidia.com/v1"
 HUB_KEY = "INFERENCE_HUB_API_KEY"
 DEFAULT_CHAT_MODEL = "azure/openai/gpt-5.6-luna"
 DEFAULT_EMBEDDING_MODEL = "azure/openai/text-embedding-3-small"
+TIER3_TIMEOUT_SECONDS = 2700
 DIMENSIONS = ("security", "correctness", "discoverability", "effectiveness", "efficiency")
 FINDINGS = {"duplicate", "EXACT_DUPLICATE", "HIGH_SIMILARITY", "SIMILAR", "LOOSELY_RELATED", "DISTINCT"}
 
 
 class ArmMetrics(TypedDict):
-    dimensions: dict[str, float]
+    dimensions: dict[str, float | None]
     passed_cases: int
     total_cases: int
     pass_rate: float
@@ -47,7 +48,7 @@ class EvaluationSummary(TypedDict):
     raw_severity_counts: NotRequired[dict[str, int]]
     excluded_license_findings: NotRequired[int]
     arms: NotRequired[dict[str, ArmMetrics]]
-    dimension_lift: NotRequired[dict[str, float]]
+    dimension_lift: NotRequired[dict[str, float | None]]
     pass_rate_lift: NotRequired[float]
 
 
@@ -158,6 +159,33 @@ def summarize_tier2(report, code, validator, skill: Path | None = None) -> Evalu
     return {"status": row["status"], "reason": None, "severity_counts": counts}
 
 
+def metric_names(value) -> set[str]:
+    if not isinstance(value, list) or any(
+        not isinstance(name, str) or not name or name != name.strip() for name in value
+    ):
+        raise ValueError("invalid metric names")
+    names = set(value)
+    if len(names) != len(value):
+        raise ValueError("duplicate metric names")
+    return names
+
+
+def validate_metric_coverage(agent, arm):
+    requested = metric_names(agent.get("metrics_" + arm))
+    scores = agent.get(arm)
+    not_applicable = agent.get("not_applicable_metrics")
+    if not isinstance(scores, dict) or not isinstance(not_applicable, dict):
+        raise ValueError("invalid metric evidence map")
+    scored = metric_names(list(scores))
+    skipped = metric_names(not_applicable.get(arm))
+    for value in scores.values():
+        number(value)
+    if skipped - requested or skipped & scored:
+        raise ValueError("inconsistent not-applicable metrics")
+    if requested - scored - skipped:
+        raise ValueError("missing required metric")
+
+
 def summarize_tier3(report, code, cases) -> EvaluationSummary:
     """A completed A/B experiment may have poor scores; completion is not quality."""
     if code != 0 or report.get("execution_status") != "succeeded":
@@ -197,19 +225,36 @@ def summarize_tier3(report, code, cases) -> EvaluationSummary:
             or count(execution["scored_attempts"]) != cases
         ):
             raise ValueError("incomplete arm")
-        scores = {key: number(agent["dimensions_" + arm][key]["score"]) for key in DIMENSIONS}
+        validate_metric_coverage(agent, arm)
+        dimensions = agent.get("dimensions_" + arm)
+        if not isinstance(dimensions, dict):
+            raise ValueError("invalid dimension map")
+        # Native dimension_scores() omits both N/A and missing-source dimensions.
+        # Validate requested metric coverage before treating omissions as unmeasured.
+        scores: dict[str, float | None] = {}
+        for key in DIMENSIONS:
+            if key not in dimensions:
+                scores[key] = None
+            else:
+                entry = dimensions[key]
+                if not isinstance(entry, dict):
+                    raise ValueError("invalid dimension entry")
+                scores[key] = number(entry.get("score"))
         passes = agent["pass_at_k"][arm]
         passed, total = count(passes["passed_cases"]), count(passes["total_cases"])
         if total != cases or passed > total or count(passes["k"]) != 1:
             raise ValueError("incompatible denominator")
         arms[arm] = {"dimensions": scores, "passed_cases": passed, "total_cases": total, "pass_rate": passed / total}
+    lifts: dict[str, float | None] = {}
+    for key in DIMENSIONS:
+        with_score = arms["with_skill"]["dimensions"][key]
+        without_score = arms["without_skill"]["dimensions"][key]
+        lifts[key] = with_score - without_score if with_score is not None and without_score is not None else None
     return {
         "status": "completed",
         "reason": None,
         "arms": arms,
-        "dimension_lift": {
-            key: arms["with_skill"]["dimensions"][key] - arms["without_skill"]["dimensions"][key] for key in DIMENSIONS
-        },
+        "dimension_lift": lifts,
         "pass_rate_lift": arms["with_skill"]["pass_rate"] - arms["without_skill"]["pass_rate"],
     }
 
@@ -309,10 +354,15 @@ def persist_report(report, output):
                 f"{arms['without_skill']['pass_rate']:.3f} | {row['pass_rate_lift']:+.3f} |"
             )
             for key in DIMENSIONS:
-                lines.append(
-                    f"| {key} | {arms['with_skill']['dimensions'][key]:.3f} | "
-                    f"{arms['without_skill']['dimensions'][key]:.3f} | {row['dimension_lift'][key]:+.3f} |"
-                )
+                values = [
+                    "unmeasured" if value is None else format(value, spec)
+                    for value, spec in (
+                        (arms["with_skill"]["dimensions"][key], ".3f"),
+                        (arms["without_skill"]["dimensions"][key], ".3f"),
+                        (row["dimension_lift"][key], "+.3f"),
+                    )
+                ]
+                lines.append(f"| {key} | " + " | ".join(values) + " |")
     lines.extend(["", "Completed Tier 3 means both arms were scored; it does not mean the skill improved results."])
     (output / "live-skillevaluator-summary.md").write_text("\n".join(lines) + "\n")
 
@@ -354,7 +404,7 @@ def collect(
     runtime_home.mkdir(mode=0o700)
     env["HOME"] = str(runtime_home)
     report: LiveReport = {
-        "schema": "nemo.eval_author.live_skill_evaluations.v1",
+        "schema": "nemo.eval_author.live_skill_evaluations.v2",
         "repository": "NVIDIA-NeMo/eval-author",
         "source_revision": revision,
         "inputs_clean": not bool(dirty),
@@ -376,7 +426,7 @@ def collect(
             "baseline": True,
             "max_cases_per_skill": 4,
             "tier2_timeout_seconds": 300,
-            "tier3_timeout_seconds": 1800,
+            "tier3_timeout_seconds": TIER3_TIMEOUT_SECONDS,
             "monetary_budget_enforced": False,
             "context_duplication_exception": POLICY,
             "requested_check": check_name,
@@ -492,7 +542,7 @@ def collect(
                     "--progress",
                     "off",
                 ]
-                code, error = execute_with_progress(argv, repo, env, target / "console.log", 1800)
+                code, error = execute_with_progress(argv, repo, env, target / "console.log", TIER3_TIMEOUT_SECONDS)
                 # Native runs also publish a latest -> run symlink. Read only
                 # physical run directories so this alias cannot duplicate a report.
                 paths = [

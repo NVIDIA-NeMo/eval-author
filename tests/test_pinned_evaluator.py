@@ -58,8 +58,8 @@ def test_upstream_contract_drift_fails_without_partial_mutation(wrapper, upstrea
 
 def test_both_allowances_are_applied_before_cli_dispatch(wrapper, upstream):
     def cli():
-        assert wrapper.CONTEXT_SCALAR_LIMIT == 100_000_000
-        assert wrapper.CONTEXT_POLICY == "full-pairwise-100m-v1"
+        assert wrapper.CONTEXT_SCALAR_LIMIT == 300_000_000
+        assert wrapper.CONTEXT_POLICY == "full-pairwise-300m-v1"
         for name in ("intra_skill_validator", "semantic_clustering"):
             assert getattr(upstream[MODULE_PREFIX + name], SCALAR_CONSTANT) == wrapper.CONTEXT_SCALAR_LIMIT
 
@@ -105,13 +105,12 @@ def native(wrapper, monkeypatch):
     return validator, clustering
 
 
-@pytest.mark.parametrize("count", [200, 361, 362])
-def test_native_pairwise_budget_reaches_clustering_and_stays_bounded(native, tmp_path, monkeypatch, count):
+@pytest.mark.parametrize("count,dimension", [(200, 1536), (417, 2048), (512, 2048), (512, 2293), (512, 2294)])
+def test_native_pairwise_budget_reaches_clustering_and_stays_bounded(native, tmp_path, monkeypatch, count, dimension):
     validator, clustering = native
-    dimension = 1536
+
     scalar_work = count * (count - 1) // 2 * dimension
     assert scalar_work > 25_000_000
-    assert validator.IntraSkillValidator()._max_scalar_comparisons == 100_000_000
 
     # Real chunking and vector validation; bounded one-hot provider controls need no models.
     skill = tmp_path / "skill"
@@ -129,13 +128,13 @@ def test_native_pairwise_budget_reaches_clustering_and_stays_bounded(native, tmp
     assert len(chunks) == count
     for chunk, vector in zip(chunks, vectors, strict=True):
         chunk.embedding = vector
-    if scalar_work > 100_000_000:
+    if scalar_work > 300_000_000:
         finding = next(f for f in result.findings if f.check_name == "scalar_comparison_limit")
         assert finding.metadata == {
             "pair_count": count * (count - 1) // 2,
             "vector_dimension": dimension,
             "scalar_work": scalar_work,
-            "limit": 100_000_000,
+            "limit": 300_000_000,
         }
         assert embed.call_count == 1
         with pytest.raises(ValueError, match="Content scalar comparison work exceeds"):
@@ -153,7 +152,9 @@ def test_native_pairwise_budget_reaches_clustering_and_stays_bounded(native, tmp
         assert clusters[0].max_similarity == 1.0
 
 
-@pytest.mark.parametrize("bad_vector", [[float("nan"), 1.0], [1.0], []])
+@pytest.mark.parametrize(
+    "bad_vector", [[float("nan"), 1.0], [float("inf"), 1.0], [0.0, 0.0], [True, 1.0], [1.0], [], [1.0] * 65537]
+)
 def test_native_vector_validation_is_not_bypassed(native, tmp_path, monkeypatch, bad_vector):
     validator, clustering = native
     skill = tmp_path / "skill"
@@ -167,8 +168,12 @@ def test_native_vector_validation_is_not_bypassed(native, tmp_path, monkeypatch,
     chunks = [chunk for file in validator.collect_files(skill) for chunk in validator.chunk_file(file)]
     for chunk, vector in zip(chunks, vectors, strict=True):
         chunk.embedding = vector
-    with pytest.raises(validator.SimilarityConfigError):
-        clustering.build_clusters(chunks)
+    if bad_vector == [0.0, 0.0]:
+        # Native clustering allows zero vectors, but provider admission rejects them.
+        assert clustering.build_clusters(chunks) == []
+    else:
+        with pytest.raises(validator.SimilarityConfigError):
+            clustering.build_clusters(chunks)
 
 
 def test_native_chunk_limit_is_not_bypassed(native, tmp_path, monkeypatch):
@@ -176,6 +181,7 @@ def test_native_chunk_limit_is_not_bypassed(native, tmp_path, monkeypatch):
     skill = tmp_path / "skill"
     skill.mkdir()
     count = validator.CONTENT_DEDUP_MAX_CHUNKS + 1
+    assert count == 513
     (skill / "SKILL.md").write_text("\n\n".join(f"## Section {i}\n" + "Content. " * 12 for i in range(count)))
     embed = Mock(side_effect=AssertionError("chunk limit must precede provider construction"))
     monkeypatch.setattr(validator, "EmbeddingClient", embed)

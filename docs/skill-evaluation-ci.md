@@ -39,10 +39,28 @@ at once. Each writes a fallback before setup and checkpoints completed work;
 the final aggregate records missing or invalid job reports as incomplete.
 Runner loss or cancellation can still prevent the aggregate job from publishing.
 
-CI permits up to 100 million scalar comparisons per context check using the
+Tier 3 evaluation has a 45-minute timeout; its separate dataset validation
+keeps a 60-second timeout. The outer live CI shard job allows 60 minutes for
+dependency setup, evaluation, and report retention. These limits are a candidate
+based on local measurements, not a guarantee of completion: runtime preflight
+took 6.7 minutes, the with-skill arm took 12.7 minutes, and the last baseline
+trial finished 34.6 minutes after evaluation started, with no final native
+aggregate available. The former 30-minute evaluation limit had already expired,
+so late trial results did not establish a completed evaluation. The 45-minute
+limit bounds the collector's wait; cancellation does not guarantee that all
+child processes or container work stop. Case counts,
+metrics, attempts, concurrency, models, and strict completeness checks are unchanged.
+
+CI permits up to 300 million scalar comparisons per context check using the
 pinned evaluator's unchanged pairwise algorithm, with a five-minute timeout.
-The allowance is recorded in report policy and applies only after verifying the
-installed evaluator commit. Exceeding either bound remains incomplete.
+The allowance is recorded as `full-pairwise-300m-v1` in report policy and applies
+only after verifying the installed evaluator commit. All content and pairs are
+retained; the 512-chunk limit, vector validation, and similarity thresholds are
+unchanged. Exceeding either work or time bounds remains incomplete.
+The allowance accommodates the maximum 512 chunks at 2048 embedding dimensions:
+`512 × 511 / 2 × 2048 = 267,911,168` scalar comparisons. Switching
+`SKILL_EVAL_EMBEDDING_MODEL` to a higher-dimensional model requires revisiting
+the allowance; the actual vector dimension in the original incident was not retained.
 
 The workflow files are the source of truth for tool versions, limits, and
 artifact configuration:
@@ -101,6 +119,36 @@ results. A high quality score does not imply that all checks passed. Missing
 reports, provider failures, and timeouts are incomplete evidence; skipped or
 unrun work is not a pass. Small synthetic evaluations are smoke tests, not
 proof of broad task performance.
+
+Live summaries use schema `nemo.eval_author.live_skill_evaluations.v2` to
+distinguish nullable dimension scores and lifts from the earlier v1 contract.
+Shards and aggregates must use the same schema; v1 shards are not accepted into
+a v2 aggregate. Historical v1 artifacts are not rewritten.
+
+Completed Tier 3 summaries retain all five dimension keys in each arm's
+`dimensions` map and in `dimension_lift`. Before accepting omitted dimensions,
+the collector checks the native requested metric lists, score maps, and per-arm
+`not_applicable_metrics`: every requested metric missing a score must be
+explicitly declared N/A. Unexplained missing metrics are incomplete evidence,
+even if every execution attempt was scored. An accepted omitted dimension is
+JSON `null` and appears as `unmeasured` in Markdown, not zero.
+A lift is numeric only when both arms measured that dimension; otherwise it
+is also `null`. Zero scores remain measured, and negative lifts remain valid
+completed results. Both arm maps are required: malformed entries, including
+explicit null native scores, are incomplete evidence rather than unmeasured
+dimensions. Completion still requires successful execution and every expected
+attempt scored in both arms; missing dimensions do not relax those checks.
+Both arms may have all dimensions unmeasured when the native N/A evidence
+justifies it. Their pass rates and pass-rate lift remain separately measured;
+completion does not imply that any dimension was measured.
+The all-dimensions-unmeasured case is a synthetic summary-contract boundary,
+not a demonstrated completed default-native run: v0.7.0 never marks its default
+security metric N/A.
+
+Context guard diagnostics retain only observed, bounded integer metadata:
+`pair_count`, `vector_dimension`, `scalar_work`, and `limit` for scalar-work
+rejection, or `actual` and `limit` for chunk-count rejection. Missing or invalid
+values are omitted, not estimated; raw provider and source metadata is excluded.
 
 Artifacts expire after 30 days. Full native reports are retained separately
 only while the repository is private, under its access controls. They may
