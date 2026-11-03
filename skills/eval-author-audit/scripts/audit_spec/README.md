@@ -10,23 +10,24 @@ writes one coverage report.
 
 Current assumptions:
 
-- Measurement input is an ATIF trajectory JSON file. `measure.py` accepts either
-  `--trace <trajectory.json>` or a Harbor trial directory containing
-  `agent/trajectory.json`.
-- ATIF parsing is delegated to Harbor via
-  `harbor.models.trajectories.Trajectory.model_validate_json`. The scripts do not
-  maintain a separate ATIF parser or schema mirror.
-- Harbor is a required dependency for measurement. Use `requirements.txt` when
-  running `measure.py` outside a repository environment that already provides
-  Harbor.
+- Measurement input is one trace file. `measure.py` accepts either
+  `--trace <file>` with `--source-kind atif|mlflow|gym|trace` (default `atif`)
+  or a Harbor trial directory containing `agent/trajectory.json` (read as ATIF).
+  The file must hold exactly one trace.
+- Loading is delegated to NeMo Compass through the sibling eval-author skill's
+  `scripts/trace_loading.py`; methods read the resulting `trace_ingest.Trace`.
+  The scripts do not maintain a separate trace parser or schema mirror.
+- `nemo-compass` is a required dependency for measurement. Use
+  `requirements.txt` (Python 3.12–3.13) when running `measure.py` outside a
+  repository environment that already provides it.
 - Capability measurement may also consume a local skill-authored judgment
   sidecar with `--capability-judgments`. That sidecar is for non-tool evidence
-  only; deterministic tool requirements still come from the ATIF trace. The
-  sidecar's required `trace_sha256` binds its judgments to the exact ATIF bytes
+  only; deterministic tool requirements still come from the trace. The
+  sidecar's required `trace_sha256` binds its judgments to the exact trace bytes
   that were inspected, and measurement rejects a digest mismatch.
 - Failure-case measurement follows the capability pattern with
   `--failure-case-judgments`. It also deterministically requires every
-  `prohibited_tools` value to be absent from the ATIF trace.
+  `prohibited_tools` value to be absent from the trace.
 - Measurement does not infer that a failure-case `trigger` occurred from its
   prose field. Authors must represent the trigger in `evidence_required` and
   judge that evidence from the trace; otherwise unrelated traces, especially a
@@ -35,8 +36,8 @@ Current assumptions:
   `<out-dir>/task=<task-id>/run=<run-id>/<method>/coverage.json` and
   `details.json`. The raw `task_id` and `run_id` remain in the JSON payloads.
   If no run id is provided by the CLI or Harbor result metadata, measurement
-  derives one from the ATIF trajectory identity, then from the trace content
-  digest.
+  uses the loaded trace's id (for ATIF, `trajectory_id` or `session_id`, else a
+  content digest assigned by the loader).
 - Aggregation input is one or more per-trace `coverage.json` files. `report.py`
   validates those files against `schemas/audit_coverage.schema.json`, rejects
   hard denominator mismatches against the current `audit.md`, and writes the
@@ -45,7 +46,7 @@ Current assumptions:
   Status-only mismatches, such as measuring while an audit is `draft` and
   reporting after it becomes `approved`, are emitted in `warnings` without
   rejecting the input coverage file.
-- Aggregation does not read ATIF traces, Harbor result files, or method-specific
+- Aggregation does not read traces, Harbor result files, or method-specific
   `details.json` files. It combines stable audit item names from each input
   `coverage.json` according to the rules below.
 - When `subject.evidence_class` is present on an input, `report.py` also emits
@@ -65,12 +66,6 @@ Current assumptions:
   An uncovered item whose kind is absent from `measured_kinds` uses
   `reason: not_measured_by_any_method`; an uncovered item whose kind was measured
   uses `reason: not_covered_by_any_input_report`.
-- Harbor's current `Trajectory` model is treated as the reader for now, but it
-  may prove too strict for measurement if valid evaluator traces include producer
-  extensions, omit fields that coverage does not consume, or move to a newer ATIF
-  version before Harbor models are updated. If that happens, prefer contributing
-  or adopting a permissive Harbor consumer reader before maintaining a local ATIF
-  parser here.
 - Richer deterministic predicates such as argument, output, state, verifier,
   and ordering checks remain out of scope. Keep additional gates inside each
   composite item method unless aggregation learns prerequisite-aware merging.
@@ -80,7 +75,7 @@ Current assumptions:
 | Script | Use it to |
 |---|---|
 | `scripts/audit_spec/generate.py` | Create, reconcile, replace, or preview `.eval-author/audit.md` from `ETHOS.md` and reviewed item proposals |
-| `scripts/audit_spec/measure.py` | Measure one ATIF trace or Harbor trial directory against `audit.md` and write coverage/details files for each selected method |
+| `scripts/audit_spec/measure.py` | Measure one ATIF/MLflow/Gym/normalized trace or Harbor trial directory against `audit.md` and write coverage/details files for each selected method |
 | `scripts/audit_spec/report.py` | Aggregate per-trace `coverage.json` files into one coverage report with uncovered audit items |
 | `scripts/audit_spec/validate.py` | Validate the marked audit-spec block in `audit.md` |
 
@@ -119,7 +114,7 @@ Private shared helpers live in `scripts/audit_spec/_schema.py`,
 
 | Method | Covers | Evidence |
 |---|---|---|
-| `tool_calls` | `tool` items | Matches each tool item's `name` against ATIF `steps[].tool_calls[].function_name`, including embedded subagent trajectories |
+| `tool_calls` | `tool` items | Matches each tool item's `name` against every TOOL span's `tool_name` in the trace (depth-first, including nested agent spans); each match records `span_id` |
 | `capabilities` | `capability` items | Requires every declared `required_tools` value and every `tool_call` evidence predicate to appear in the trace; non-tool evidence can be satisfied by a structured skill-authored judgment sidecar |
 | `failure_cases` | `failure_case` items | Requires prohibited tools to be absent and every evidence predicate to be satisfied; `tool_call` evidence is deterministic and non-tool evidence uses a structured skill-authored judgment sidecar |
 

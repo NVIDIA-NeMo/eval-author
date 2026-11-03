@@ -872,12 +872,9 @@ dependencies = [
 
 [package.optional-dependencies]
 audit = [
-    { name = "harbor" },
+    { name = "nemo-compass", extra = ["mlflow"] },
     { name = "pydantic" },
     { name = "pyyaml" },
-]
-mlflow = [
-    { name = "mlflow-skinny" },
 ]
 trace-loaders = [
     { name = "nemo-compass", extra = ["mlflow"] },
@@ -898,22 +895,21 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "harbor", marker = "extra == 'audit'", specifier = ">=0.16.1" },
     { name = "jsonschema", specifier = ">=4.23" },
     { name = "markdown-it-py", specifier = ">=4,<5" },
-    { name = "mlflow-skinny", marker = "extra == 'mlflow'", specifier = ">=3.6,<4" },
-    { name = "nemo-compass", extras = ["mlflow"], marker = "extra == 'trace-loaders'", specifier = "==0.1.0" },
+    { name = "nemo-compass", extras = ["mlflow"], marker = "extra == 'audit'", git = "https://github.com/NVIDIA-NeMo/nemo-compass.git?rev=a78dc416da247a9f4bcff17881c5fd20e90a7256" },
+    { name = "nemo-compass", extras = ["mlflow"], marker = "extra == 'trace-loaders'", git = "https://github.com/NVIDIA-NeMo/nemo-compass.git?rev=a78dc416da247a9f4bcff17881c5fd20e90a7256" },
     { name = "pydantic", marker = "extra == 'audit'", specifier = ">=2" },
     { name = "pyyaml", marker = "extra == 'audit'", specifier = ">=6.0" },
     { name = "referencing", specifier = ">=0.28.4" },
 ]
-provides-extras = ["audit", "mlflow", "trace-loaders"]
+provides-extras = ["audit", "trace-loaders"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "harbor", specifier = "==0.20.0" },
     { name = "mcp", specifier = ">=1.29,<2" },
-    { name = "nemo-compass", extras = ["mlflow"], specifier = "==0.1.0" },
+    { name = "nemo-compass", extras = ["mlflow"], git = "https://github.com/NVIDIA-NeMo/nemo-compass.git?rev=a78dc416da247a9f4bcff17881c5fd20e90a7256" },
     { name = "pre-commit", specifier = ">=4,<5" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pytest", specifier = ">=9.0.3" },
@@ -1135,8 +1131,8 @@ wheels = [
 
 [[package]]
 name = "nemo-compass"
-version = "0.1.0"
-source = { registry = "https://pypi.org/simple" }
+version = "0.2.0"
+source = { git = "https://github.com/NVIDIA-NeMo/nemo-compass.git?rev=a78dc416da247a9f4bcff17881c5fd20e90a7256#a78dc416da247a9f4bcff17881c5fd20e90a7256" }
 dependencies = [
     { name = "httpx" },
     { name = "jsonschema" },
@@ -1152,9 +1148,6 @@ dependencies = [
     { name = "rich" },
     { name = "scikit-learn" },
     { name = "tokenizers" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/fe/ee/76faf85ebcabc83d4234f135aeab6730e4c369b0e423697ec479596e12e4/nemo_compass-0.1.0-py3-none-any.whl", hash = "sha256:6b50a6cc8b13991af5dce5469f5eb8e97103e77f3d59e6f2b90d8a9b4762a0a4", size = 4597979, upload-time = "2026-10-19T23:44:39.516Z" },
 ]
 
 [package.optional-dependencies]

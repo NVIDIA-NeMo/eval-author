@@ -518,7 +518,7 @@ the commands. Include:
   the actual reward fields; and remedies for known setup failures. Link the
   saved run summary for observed results and limitations.
 - **Open readable evidence:** use the installed Harbor viewer for native tasks
-  and jobs. For selected NeMo Gym JSONL records or standalone ATIF, follow
+  and jobs. For selected NeMo Gym JSONL records or ATIF, MLflow, or NeMo Gym traces, follow
   [Local review](local-review.md) to create and link a private `report.html`.
   Save its exact regeneration command, selected source and rows, evidence role,
   and any missing or unsupported content. Introduce that review path in the
@@ -612,8 +612,8 @@ An adapter that records custom action/reply JSON without ATIF can still supply
 case files, trial results, and grading evidence. Explain that its native
 trajectory is unavailable, and link the actual capture by name and path. Do not
 promise that the Trajectory tab contains those actions or send unsupported
-custom JSON through the NeMo Gym/ATIF reader. For supported standalone ATIF or NeMo Gym
-JSONL, link the local reader's HTML report directly and explain its evidence role.
+custom JSON through the local reader. For supported ATIF, MLflow, or NeMo Gym traces
+or NeMo Gym JSONL, link the local reader's HTML report directly and explain its evidence role.
 
 ## Verify the handoff
 

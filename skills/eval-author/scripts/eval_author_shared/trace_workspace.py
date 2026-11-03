@@ -294,6 +294,9 @@ EXPORT_SCHEMA = "nemo.eval_author.trace_environment_product.v4"
 BATCH_SCHEMA = "nemo.eval_author.trace_environment_batch.v1"
 TOOL_CALL_AUDIT_LOG = "/tmp/tool-call-fixture-audit.jsonl"  # nosec B108 - isolated task-container scratch data
 MAX_RAW_SOURCE_BYTES = 128 * 1024 * 1024
+# Until trace-environment reads Compass Traces, prepare accepts ATIF only. Summaries
+# recorded before that limit keep loading with the kind they recorded.
+_PREPARE_SOURCE_KINDS = ("atif",)
 
 _EMAIL = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
 _SSN = re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")
@@ -735,7 +738,15 @@ def _privacy_audit(payload: dict[str, Any], safe_sha256: str) -> dict[str, Any]:
     }
 
 
+def _check_prepare_source_kind(kind: object, label: str) -> None:
+    if kind not in _PREPARE_SOURCE_KINDS:
+        raise ContractError(
+            f"{label} must be 'atif'; other source kinds return when trace-environment reads Compass Traces"
+        )
+
+
 def _prepare(args: argparse.Namespace) -> dict[str, Any]:
+    _check_prepare_source_kind(args.source_kind, "--source-kind")
     task_dir = _ensure_task_dir(args.task_dir)
     summary = _load_summary(task_dir)
     if summary["source"] is not None:
@@ -2016,8 +2027,7 @@ def _load_batch_manifest(path: Path) -> list[dict[str, Any]]:
         atif = member.get("atif")
         if not isinstance(atif, str) or not atif.strip():
             raise ContractError(f"batch manifest member {index}.atif must be nonempty text")
-        if member.get("source_kind") not in {"atif", "intake", "mlflow", "otel", "gym"}:
-            raise ContractError(f"batch manifest member {index}.source_kind is not recognized")
+        _check_prepare_source_kind(member.get("source_kind"), f"batch manifest member {index}.source_kind")
     return members
 
 
@@ -2389,7 +2399,7 @@ def _parser() -> argparse.ArgumentParser:
     prepare = subparsers.add_parser("prepare", help="validate and scrub one canonical ATIF trajectory")
     prepare.add_argument("--task-dir", required=True, type=Path)
     prepare.add_argument("--atif", required=True, type=Path)
-    prepare.add_argument("--source-kind", choices=("atif", "intake", "mlflow", "otel", "gym"), required=True)
+    prepare.add_argument("--source-kind", required=True, help="Source format; only 'atif' until Trace input lands")
     prepare.set_defaults(run=_prepare)
 
     audit = subparsers.add_parser("audit-evidence", help="report observation coverage without inferring correctness")

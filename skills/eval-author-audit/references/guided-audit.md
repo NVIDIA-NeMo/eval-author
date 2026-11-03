@@ -134,7 +134,7 @@ ask which to use before reading them.
 
 This rule also applies to tracing runtime tool names while drafting audit items,
 opening traces referenced by a report, and implicit trace scans inside discovery
-or conversion tools. Before presenting a missing-source question, inspect named
+or trace-loading tools. Before presenting a missing-source question, inspect named
 agent docs, selected eval definitions, or a tool registry within the current
 milestone as useful, excluding run logs, trajectories, and trace directories
 until source selection is settled. After asking the source question, end the
@@ -147,15 +147,12 @@ first; do not batch a broad inventory alongside loading these instructions.
 If the location is unknown, ask the next focused source question rather than searching the checkout, home
 directory, platform accounts, or unrelated jobs for candidate traces.
 
-Once selected, inspect only that source and prepare its traces with the existing
-loaders and converters. Use local ATIF directly, including ATIF in Harbor trials.
-Prepare Gym JSON or explicitly selected JSONL rows with
-[`gym-to-atif`](../../gym-to-atif/SKILL.md), preserving its original-ATIF preference,
-receipts, and losses. Use [`mlflow-to-atif`](../../mlflow-to-atif/SKILL.md) for complete
-local `Trace.to_dict()` exports. For a selected MLflow record, check the complete
-export for pagination and unique trace IDs before passing that record through
-`--input -`; retain its original export and exact ID. Do not fetch remote traces,
-query Intake, or generate runs to fill gaps.
+Once selected, inspect only that source and load its traces through the shared
+[trace loader](../../eval-author/references/trace-loading.md); never convert
+them to ATIF. Measure local ATIF directly, including ATIF in Harbor trials. Pass
+a complete local MLflow `Trace.to_dict()` export with `--source-kind mlflow`
+and one selected NeMo Gym JSON record with `--source-kind gym`. Do not fetch
+remote traces, query Intake, or generate runs to fill gaps.
 
 For selected local traces, reuse the saved `lifecycle.selection_manifest` on
 resume. For a new manifest, use
@@ -167,19 +164,19 @@ before check approval and set lifecycle `selection_manifest` to its
 repository-relative path. Leave it null when traces are unavailable.
 Record each original source path and digest,
 format, exact record selector, explicit suite/task/run mapping with its provenance,
-evidence class, required methods, conversion options, and exclusions with reasons.
+evidence class, required methods, loading options, and exclusions with reasons.
 Keep original files in `trace_files`. Never infer mappings from filenames or
 trajectory IDs. When a suite/task/run mapping is missing or ambiguous, retain
 the candidates and leave trace selection pending until the user resolves it.
 Keep this manifest stable during execution. Changed selections must reopen check review.
 
 Retain preparation outcomes separately: for each selection link its source and
-record to prepared ATIF, conversion metadata/losses, and measurement artifacts, or
+record to its loaded trace and `loading.json` receipt and measurement artifacts, or
 record the missing, failed, or excluded outcome and reason. Include this outcome
 record and the prepared files, receipts, and native results as `{path, digest}`
 references in `measurement.evidence`. Before measurement or reuse, verify the
 original bytes and selected record, mapping, and retained references. Changed
-originals require preparation again even when prepared ATIF is unchanged.
+originals require preparation again even when loaded traces are unchanged.
 
 When the selected run folder is missing, render the concrete limitation and
 replacement-source or independent-work choice through `audit_blockers`. Preserve
@@ -260,7 +257,7 @@ Only mapped agent-under-test runs from selected suites can establish suite
 coverage; production runs and task controls cannot substitute for them. Retain
 their evidence roles and unresolved selections in the report. Use only applicable
 coverage files from the retained outcomes and verify the aggregate before saving
-measurement; conversion success alone does not complete measurement.
+measurement; loading success alone does not complete measurement.
 
 Complete when the agreed measurement scope has been processed and aggregated
 successfully, even when coverage is low. If some inputs fail, report only the

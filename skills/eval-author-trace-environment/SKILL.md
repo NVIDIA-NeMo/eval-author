@@ -5,20 +5,18 @@ description: >-
   Experimental compatibility workflow for an explicit trace-environment request
   or continuation of an existing trace-environment workspace. New requests to
   derive tasks from recorded interactions go to task-create ATIF source mode or
-  first-eval. Supports NeMo Gym, MLflow, Intake, OpenTelemetry and ATIF evidence.
+  first-eval. Accepts ATIF evidence only until it reads NeMo Compass Traces.
 triggers:
   - explicitly use trace-environment
   - resume the trace-environment workflow by name
   - continue an existing trace-environment workspace
 not-for:
   - eval-author (use for the shared standard and routing)
-  - mlflow-to-atif (use only to normalize MLflow traces into ATIF)
-  - gym-to-atif (use only to normalize NeMo Gym Responses traces into ATIF)
   - eval-author-task-create (use for new ATIF-source tasks or an actionable audit coverage gap)
   - eval-author-inspect-trace (use to explain an Intake trace without creating an environment)
   - eval-author-environment (use when first-eval or task-create needs a reusable environment for its agreed cases)
 compatibility: >-
-  Python 3.11+, jsonschema 4.23+, referencing 0.28.4+; mlflow-to-atif for MLflow; gym-to-atif for NeMo Gym; nemo CLI for Intake; Harbor and
+  Python 3.11+, jsonschema 4.23+, referencing 0.28.4+; Harbor and
   Docker for Harbor proof. NeMo Gym output uses the sibling eval-author-task-create
   scaffolder. Verify authoring runtimes using eval-author’s shared locator
   and runtime-policy.json.
@@ -111,15 +109,15 @@ value in it. Run `init --task-id <task-id>`, then keep every source export and
 intermediate conversion under the returned task directory, using `umask 077`
 before redirecting provider output there.
 
-## Step 2: normalize exactly one source to ATIF
+## Step 2: select exactly one ATIF source
 
 Read and follow `references/sources.md`. One task per trace; never merge
 unrelated traces, and never invent an instruction, tool result, file, or final
-answer. Existing ATIF is used as-is; MLflow goes through `mlflow-to-atif`;
-Intake reads one exact trace plus every detailed span; bounded JSON OTLP
-exports map spans directly. For NeMo Gym, read and follow the `gym-to-atif` skill:
-prefer a retained Harbor ATIF, otherwise use its offline adapter.
-Record every missing or lossy field under
+answer. `prepare` reads ATIF only until trace-environment reads NeMo Compass
+Traces: existing ATIF, including a NeMo Gym run's retained Harbor ATIF, is used
+as-is. MLflow, Gym-native, Intake and OpenTelemetry traces cannot enter
+`prepare` yet; record no_candidate with that reason rather than hand-writing
+ATIF. Record every missing or lossy field under
 `extra.normalization.uncertainties` or `extra.normalization.losses`. If no
 complete human instruction exists, record no_candidate instead of guessing.
 
@@ -129,7 +127,7 @@ complete human instruction exists, record no_candidate instead of guessing.
 python <skill_dir>/scripts/trace_environment.py prepare \
   --task-dir <task-dir> \
   --atif <canonical-atif-file> \
-  --source-kind <atif|mlflow|intake|otel|gym>
+  --source-kind atif
 ```
 
 The helper retains an exact owner-private original, writes the bounded canonical
@@ -331,25 +329,24 @@ for transcription controls, use
 
 Invoke the helper as `python <skill_dir>/scripts/trace_environment.py
 <command>`; there is no `run_script()` wrapper. Every command prints one JSON
-object and exits nonzero on contract errors. NeMo Gym's standalone adapter lives in
-the sibling `gym-to-atif` skill; put its owner-private output under
-`<task-dir>/private/gym` before `prepare`.
+object and exits nonzero on contract errors. `prepare` and `batch-prepare`
+accept `source_kind` `atif` only; other kinds return when trace-environment
+reads NeMo Compass Traces.
 
 See the [command reference](references/commands.md) for workspace preparation,
 privacy and candidate review, proof and repair recording, and publication commands.
 
 ## Prerequisites
 
-Python 3.11+ with jsonschema 4.23+ and referencing 0.28.4+ for the helper; the
-sibling `mlflow-to-atif` skill for MLflow sources; the sibling `gym-to-atif`
-skill for NeMo Gym sources; the `nemo` CLI for Intake
-sources; an existing Harbor installation plus Docker for Harbor probes and proof.
+Python 3.11+ with jsonschema 4.23+ and referencing 0.28.4+ for the helper; an
+existing Harbor installation plus Docker for Harbor probes and proof.
 For NeMo Gym output, use the existing separate NeMo Gym runtime and sibling
 `eval-author-task-create` resources described in the NeMo Gym extension; Harbor and
 Docker are not required unless the selected NeMo Gym components need them.
 
 ## Limitations
 
+- `prepare` reads ATIF only; MLflow, Gym-native, Intake and OpenTelemetry traces wait until trace-environment reads NeMo Compass Traces.
 - Text-only evidence; image-only instructions block candidacy.
 - Execution verification with binary rewards only: no model judge, rubric, or graded scoring.
 - One bounded trace per task; no merging, deduplication, or corpus triage.

@@ -1,0 +1,1 @@
+nemo-compass[mlflow] @ git+https://github.com/NVIDIA-NeMo/nemo-compass.git@a78dc416da247a9f4bcff17881c5fd20e90a7256

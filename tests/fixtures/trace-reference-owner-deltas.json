@@ -1,9 +1,7 @@
 {
   "sources.md": [
     "-[trace-to-environment workflow](../SKILL.md).\n",
-    "+[trace input workflow](../../eval-author/references/trace-input.md).\n",
-    "-enter this workflow. See the [NeMo Gym output example](gym-output.md#start-from-a-rollout-with-ng_trajectory).\n",
-    "+enter this workflow. See the [NeMo Gym output example](../../eval-author-environment/references/gym-output.md#start-from-a-rollout-with-ng_trajectory).\n"
+    "+[trace input workflow](../../eval-author/references/trace-input.md).\n"
   ],
   "evidence-audit.md": [
     "+\n",
@@ -114,12 +112,17 @@
   "gym-output.md": [
     "+`<skill_dir>` is the installed `eval-author-environment` directory.\n",
     "+\n",
-    "-Any supported trace source can produce a NeMo Gym task. Follow shared Steps 1-5 in\n",
+    "-Any source that `prepare` accepts can produce a NeMo Gym task; until trace-environment\n",
+    "-reads NeMo Compass Traces that means ATIF only (see [sources](sources.md)). Follow shared Steps 1-5 in\n",
     "-[the skill](../SKILL.md), including privacy review, tool-access decisions,\n",
     "-ground-truth and software inventories, and `check-candidate`. A proposal may\n",
-    "+Any supported trace source can produce a NeMo Gym task. Follow [Prepare and review](../../eval-author/references/trace-input.md#prepare-and-review)\n",
+    "+Any source that `prepare` accepts can produce a NeMo Gym task; until the trace\n",
+    "+workspace reads NeMo Compass Traces that means ATIF only (see\n",
+    "+[sources](../../eval-author-inspect-trace/references/sources.md)). Follow [Prepare and review](../../eval-author/references/trace-input.md#prepare-and-review)\n",
     "+and [Decide admission and prepare tools](../../eval-author/references/trace-input.md#decide-admission-and-prepare-tools), including privacy review, tool-access decisions,\n",
     "+ground-truth and software inventories, and task-create's `candidate_admission.py --task-dir <task-dir>`. A proposal may\n",
+    "-`prepare` reads ATIF only until trace-environment reads NeMo Compass Traces.\n",
+    "+`prepare` reads ATIF only until the trace workspace reads NeMo Compass Traces.\n",
     "-python <skill_dir>/scripts/trace_environment.py prepare \\\n",
     "+python <skill_dir>/../eval-author-inspect-trace/scripts/trace_privacy.py prepare \\\n",
     "-After `check-candidate` accepts `status: candidate` and contextual privacy\n",

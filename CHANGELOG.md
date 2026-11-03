@@ -6,6 +6,42 @@
 Notable changes to NeMo Eval Author are recorded here. Eval Author is a research
 preview: workflows, skills, and saved artifacts may change between releases.
 
+## Unreleased
+
+### Removed
+
+- **Breaking: ATIF converters.** The `gym-to-atif` and `mlflow-to-atif` skills,
+  their `nemo.eval_author.gym_to_atif.v1` receipts, `--emit-atif`, and the NeMo
+  Gym `ng-trajectory` CI route are gone. Eval Author never converts traces to
+  ATIF; ATIF is only an input format.
+
+### Changed
+
+- **One trace loader.** `skills/eval-author/scripts/trace_loading.py` loads
+  `atif`, `mlflow`, `gym`, `intake`, and `trace` sources into NeMo Compass
+  `Trace` objects (trace contract v3) and writes a
+  `nemo.eval_author.trace_load.v2` receipt. Intake is a live selection from the
+  Intake service by workspace and time window, authenticated with
+  `NMP_ACCESS_TOKEN`; it no longer reads `nemo intake` CLI exports. See
+  [Load local traces](docs/traces.md#load-local-traces).
+- **Temporary NeMo Compass Git pin.** Trace loading requires `nemo-compass` from
+  Git revision `a78dc41` because trace contract v3 is not in a PyPI release yet.
+  The loader rejects any other install. A PyPI pin returns with the next Compass
+  release.
+- **Audit measurement reads Compass traces.** `measure.py` loads ATIF, MLflow,
+  NeMo Gym, or normalized traces through the trace loader, so Harbor is no
+  longer an audit dependency. Coverage reports are now
+  `nemo.eval_author.audit_coverage_report.v2` with `trace_format:
+  nemo-compass-trace` and `source_kind`, and tool-call evidence cites trace and
+  span IDs.
+- **NeMo Gym closure evidence** binds the selected rollout through the
+  `trace_load.v2` receipt and its normalized trace instead of a conversion
+  receipt. See
+  [Native NeMo Gym evidence](skills/eval-author-task-create/references/gym-evidence.md).
+- **Trace workspaces read ATIF only for now.** `prepare` accepts
+  `--source-kind atif` until the trace workspace reads Compass Traces;
+  workspaces already prepared from another source kind keep loading.
+
 ## 0.1.0
 
 Initial research-preview release, tested with Harbor 0.20.0 and NeMo Gym v0.6.0.

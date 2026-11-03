@@ -63,7 +63,7 @@ for audit tooling. The **Audit tooling** row reports those checks.
 Do not probe Harbor or NeMo Gym runners, Docker, live agent services, or agent
 credentials. **Evaluation environment**, **Required services and data**, and
 **Agent connection and credentials** are absent from the completed audit table. Trace selection remains in the audit flow; only after selection check its
-applicable conversion and parser dependencies.
+trace-loader dependencies.
 
 Repeat with unknown availability and with the user confirming no evaluation
 traces exist. Show **Unknown** or **Missing** in the trace row and **Blockers**
@@ -82,12 +82,11 @@ authorizing trace enumeration or selecting sources.
 Repeat the shared entry with neither evaluation runner, Docker, nor agent
 credentials available but with confirmed trace availability. Ethos confirmation
 and specification work must remain available. For selected local ATIF,
-measurement uses Harbor's trajectory parser,
-including for converted NeMo Gym evidence, without running Harbor jobs or requiring a
-NeMo Gym runner. Repeat with that parser unavailable: record measurement as blocked,
-preserve selected evidence and agreed independent specification work, and do not
-reopen Ethos or treat this as an onboarding blocker. A missing conversion tool
-similarly blocks only the selected conversion and dependent measurement.
+MLflow, or NeMo Gym evidence, measurement loads it through NeMo Compass without
+Harbor, Harbor jobs, a NeMo Gym runner, or any conversion to ATIF. Repeat with the
+NeMo Compass trace loader unavailable: record measurement as blocked, preserve
+selected evidence and agreed independent specification work, and do not reopen
+Ethos or treat this as an onboarding blocker.
 
 Use `ethos-orchestrate` through the confirmation adapter. Reuse applicable answers
 and content. Fresh onboarding shows an existing Ethos for confirmation that it is
