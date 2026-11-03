@@ -15,7 +15,7 @@ The same contract serves first-eval, task-create and trace-derived construction.
 Provider adapters interpret native observations; they do not define another
 construction document. Include the applicable
 [simple-cheat controls](task-validation.md#screen-simple-cheats) in the existing
-cases and rationales; proposals retain planned checks, drafts require execution
+cases and rationales; proposals identify verifier risks, drafts require execution
 evidence before qualification.
 
 | Field | Required contents |

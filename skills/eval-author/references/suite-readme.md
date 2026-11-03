@@ -273,7 +273,7 @@ metadata and task rows to the clearer names, including retained unverified rows.
 These are reporting descriptions, not runtime verifier settings. Refresh uses the
 task's `grading_kind` from reporting metadata first. When none is recorded, it reads
 `Type: Custom code`, `Type: LLM-as-judge`, or `Type: Custom code + LLM-as-judge`
-from the task README's unique Grading section. Missing declarations display
+from the task README's unique Verifier section (legacy Grading and Grader also work). Missing declarations display
 `Not documented`, as do invalid or ambiguous README declarations; refresh does not
 guess from prose. Recording the type in metadata does not change the task revision.
 The type line is excluded from the short verifier description.
@@ -282,11 +282,11 @@ The verifier description comes from a unique `## Grader summary` or
 `## Grading summary` section when present. Otherwise, an imported `grading_summary`
 may supply a 5–10 word summary derived from the task README, with that README
 listed in `source_refs`. Without either, refresh takes up to ten words from the
-first suitable prose sentence of a unique `## Grading` section, omitting fenced
+first suitable prose sentence of a unique `## Verifier`, `## Grading`, or `## Grader` section, omitting fenced
 code, tables, and verifier-link-only paragraphs. Legacy linked Grading headings
 and `## Expected outcome and grading` sections are also readable. Refresh never
 calls a model to paraphrase the README. Put a concise 5–10 word sentence immediately after the type line in
-Grading for the best automatic description, or supply a sourced summary. Missing,
+Verifier for the best automatic description, or supply a sourced summary. Missing,
 unreadable, empty, ambiguous, or insufficient grading text shows
 "No verifier description documented in README." Imported summaries are not displayed
 when the README is unavailable. Refresh after editing the task documentation.
@@ -344,7 +344,7 @@ A concise description of the capability or boundary this case exercises.
 
 The observable result that constitutes success for this case.
 
-## Grading
+## Verifier
 
 Type: Custom code
 
@@ -356,13 +356,13 @@ the criteria, expected-data, or judge/rubric files actually used by this task.
 ```
 
 Put `Input` first after the title and optional case/source identification, then
-`Behavior under test`, `Expected result`, and `Grading`. Keep these as separate,
+`Behavior under test`, `Expected result`, and `Verifier`. Keep these as separate,
 nonempty H2 sections. Quote a short request verbatim; for long or structured
 inputs, describe the input shape and link the complete source. Link `instruction.md`
 and the actual fixtures with relative Markdown links, not bare code paths. Keep
-expected answers in Expected result and verifier-only data, outside Input.
+expected behavior in Expected result, outside Input.
 
-Keep the `Grading` heading plain. Record the grading type as `grading_kind` in the
+Keep the `Verifier` heading plain. Existing `Grading` and `Grader` headings remain readable. Record the grading type as `grading_kind` in the
 reporting metadata patch using `Custom code`, `LLM-as-judge`, or
 `Custom code + LLM-as-judge`, based on the actual verifier implementation. A
 standalone `Type:` paragraph with the same values is read only as a fallback when
@@ -375,6 +375,26 @@ For example, link `tests/test.sh`, `tests/verify.py`, and `tests/expected.json`
 only when those files exist and are used. For model or hybrid grading, also link
 the judge implementation and rubric/configuration actually used. A deterministic
 verifier still needs code and criteria links; it does not need an invented judge.
+The Verifier section is the sole home for planned cheat controls and their
+expected rejection. Document them during task authoring, before validation.
+Explain:
+
+- What determines success and which observations or independent sources establish it.
+- Which incorrect or incomplete behaviors must fail each check.
+- Applicable [shortcut controls](task-validation.md#screen-simple-cheats) and their
+  expected rejection. Keep realistic wrong answers and valid alternatives distinct.
+- Concrete reasons for controls that don't apply. Unsupported runtimes and
+  unimplemented controls remain unproven.
+- Unresolved authority or isolation boundaries and links to supporting records.
+
+Keep private reference values, hidden data, and raw attack payloads out of the
+README. Link the private supporting records without copying their contents.
+Audit recommendations and plans retain the rationale and link here once the
+task README exists. They do not duplicate control definitions. Proposal-only
+work does not create a task just to document controls.
+Execution results and status belong in saved state and
+outer reports, so recording them doesn't change the validated task digest.
+
 Finish the task README and its setup/run instructions, checking its links, before
 [preparing validation evidence](task-validation.md#prepare-immutable-inputs).
 Maintain later run results and evidence links in the outer suite README so
@@ -382,7 +402,7 @@ reporting does not change the validated task revision.
 
 Do not combine expected results
 and grading under `Expected outcome and grading`, or replace an existing
-`Grading` heading with that combined heading. Expected result describes success;
+`Verifier`, `Grading`, or `Grader` heading with that combined heading. Expected result describes success;
 Grading explains how it is measured. During task authoring, split a combined
 section into these headings while preserving its substantive content.
 
@@ -464,7 +484,7 @@ For each case, give a short readable description and links to the details:
   task's separate `Expected result` section; keep expected answers distinct
   from the agent's input.
 - **Grading:** what the verifier actually checks, the reward metrics and pass
-  rules, and any known limitation. Link the separate `Grading` section and
+  rules, and any known limitation. Link the separate `Verifier` section and
   verifier. Reuse existing task documentation for detailed explanations.
 - **Source evidence:** when a case was derived from a trace, link the reviewed
   source evidence and derivation notes as provenance. State when no source trace

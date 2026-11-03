@@ -55,12 +55,19 @@ The complete readable criteria belong here; audit.md remains internal. -->
 
 <Explain the material gaps and observed failures with evidence links. Distinguish
 missing scenarios from missing evidence or methods. Include fixture/verifier
-limitations and unresolved causes. Do not infer overall quality from coverage.>
+limitations and unresolved causes. Include observed shortcut acceptance, valid
+solutions wrongly rejected, or unusable verifier evidence, with task revision
+and native record links. Keep control results separate from agent coverage.
+Do not infer overall quality from coverage.>
 
 ## Next actions and open questions
 
 <Recommend the next useful action and explain why. For an existing suite, lead
 with proposing new or improved eval tasks for the main gaps, naming the behaviors
 to target. Explain when evidence collection, an agent fix, or first-eval creation
-should come first. Identify decisions to review with the user. Detailed ranked
-task proposals belong to the subsequent proposal workflow.>
+should come first. Identify decisions to review with the user. If proposal work
+is selected, expand the relevant actions here using the task-create workflow.
+Reuse existing findings and checks by linking to them. Add only missing design
+details, unresolved trust boundaries, and decisions. Planned cheat controls and
+expected rejection belong only in the task README's Verifier section. Link that
+section once it exists, along with later evidence from the action.>

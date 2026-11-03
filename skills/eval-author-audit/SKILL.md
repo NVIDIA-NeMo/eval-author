@@ -56,7 +56,9 @@ reviewed audit items, then can measure ATIF traces and aggregate coverage report
 against it. It identifies coverage gaps and recommends improvements grounded in
 the findings and evidence limits, then writes a human-readable
 `audit-coverage-report.md` and reviews it with the user. Detailed task proposals
-and task creation remain in the separate improvement handoff.
+expand in this same report through the
+[improvement handoff](references/coverage-report.md#findings-limitations-and-next-actions). Task
+construction and execution keep their existing scope and approval boundaries.
 
 ## Start a guided audit
 
@@ -470,6 +472,8 @@ gaps to [`eval-author-task-create`](../eval-author-task-create/SKILL.md) using
 
 ## Next Steps
 
+- Before findings review, complete [verifier inspection and evidence reconciliation](references/coverage-report.md#inspect-verifier-behavior-and-retained-controls).
+  Coverage aggregation alone does not establish verifier screening.
 - For audit-generation inputs and reconciliation modes, return to
   [Step 2: Generate Or Reconcile Audit.md](#step-2-generate-or-reconcile-auditmd).
 - Follow the [combined findings review and handoff](references/guided-audit.md#after-review-offer-the-next-step)

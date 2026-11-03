@@ -156,9 +156,10 @@ def test_task_heading_preserves_complete_readme_title(tmp_path, heading, display
 
 @pytest.mark.parametrize("kind", ["Custom code", "LLM-as-judge", "Custom code + LLM-as-judge"])
 @pytest.mark.parametrize("separator", ["\n", "\n\n"])
-def test_metadata_grader_type_wins_and_readme_type_is_fallback(tmp_path, kind, separator):
+@pytest.mark.parametrize("heading", ["Verifier", "Grading", "Grader"])
+def test_metadata_grader_type_wins_and_readme_type_is_fallback(tmp_path, kind, separator, heading):
     summary = "Checks saved sources, catalog, chat history and tool requests."
-    path = task(tmp_path, readme=f"# Import task\n\n## Grading\n\nType: {kind}{separator}{summary}")
+    path = task(tmp_path, readme=f"# Import task\n\n## {heading}\n\nType: {kind}{separator}{summary}")
     item = report.refresh(tmp_path)["tasks"][0]
     assert item["grading_kind"] == kind
     assert item["grading_summary"] == summary
@@ -188,6 +189,7 @@ def test_metadata_grader_type_overrides_readme_type(tmp_path):
         ("## Grading\nType: hybrid", "Custom code + LLM-as-judge"),
         ("## Grading\n**Type:** LLM-as-judge", "LLM-as-judge"),
         ("## Grading\nType: unsupported", "Not documented"),
+        ("## Verifier\nType: Custom code\n## Grading\nType: Custom code", "Not documented"),
         ("## Grading\nType: Custom code\nType: LLM-as-judge", "Not documented"),
         ("## Grading\nType: Custom code\n## Grading\nType: Custom code", "Not documented"),
         ("## Input\nType: LLM-as-judge\n## Grading\nChecks state.", None),
@@ -1874,3 +1876,29 @@ def test_legacy_import_retains_unfinished_task_and_directs_explicit_resume(tmp_p
     assert any("--task-root .eval-author/task-drafts" in warning for warning in refreshed["warnings"])
     assert not state.with_name("legacy-import.json").exists()
     assert report.refresh(tmp_path, task_roots=[path])["tasks"][0]["path"] == path
+
+
+def test_suite_refresh_keeps_audit_recommendations_in_audit_report(tmp_path):
+    path = task(tmp_path, readme="## Verifier\nChecks saved refund state against policy rules.\n")
+    audit = write(
+        tmp_path,
+        ".eval-author/audit-coverage-report.md",
+        "# Audit coverage report\n\n## Findings and limitations\n"
+        "A forged success artifact received credit in the selected control.\n\n"
+        "## Next actions and open questions\n"
+        "1. R1: Fix trusted-ledger verification. Selected, screening remains unproven.\n",
+    )
+    original_audit = audit.read_bytes()
+    original_task = (tmp_path / path / "README.md").read_bytes()
+    first = report.refresh(tmp_path)
+    trial(tmp_path, ".eval-author/jobs/screen/forged", reward=0)
+    second = report.refresh(tmp_path)
+    assert second["standalone_trials"] != first["standalone_trials"]
+    assert audit.read_bytes() == original_audit
+    assert (tmp_path / path / "README.md").read_bytes() == original_task
+    for filename in ("README.md", "report.html"):
+        rendered = (tmp_path / ".eval-author" / filename).read_text()
+        assert "Audit recommendations" not in rendered
+        assert "Fix trusted-ledger verification" not in rendered
+    assert "audit_recommendations" not in second
+    assert not (tmp_path / ".eval-author/proposals/dataset-recommendations.md").exists()

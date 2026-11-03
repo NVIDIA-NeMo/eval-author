@@ -203,6 +203,12 @@ or their findings as findings about the user's confirmed evaluation scope.
 
 ## 2. Define what the evals should cover
 
+After suite selection, complete the report guidance's
+[verifier inspection](coverage-report.md#inspect-verifier-behavior-and-retained-controls)
+before checks review. Include applicable verifier checks and required evidence
+in Intended coverage. Do not mark grading not applicable merely because no
+agent trajectory exists or the inventory read only task documentation.
+
 Inputs: checked Ethos and authoritative tool names from the registry, agent
 configuration, or confirmed traces. Group the audit skill's **Steps 1–3** here:
 draft items, generate or reconcile `audit.md`, and validate it. These items
@@ -284,6 +290,11 @@ dependencies without the core's required authorization.
 
 ## 4. Generate and review coverage report
 
+Complete [verifier evidence reconciliation](coverage-report.md#inspect-verifier-behavior-and-retained-controls)
+before presenting findings. Account for failed controls, false rejection, and
+unproven screening even when agent coverage measurement is complete. Use the
+same findings and limits in the rendered conversation and saved report.
+
 Generate or update the **Audit coverage report**
 (`.eval-author/audit-coverage-report.md`) following the
 [report guidance](coverage-report.md), even for a specification-only outcome.
@@ -326,9 +337,10 @@ Once proposals are selected, enter `eval-author-task-create` at **Step 1: propos
 improvements**. Carry the Audit coverage report, reviewed Audit specification,
 available Coverage measurements (JSON) and evidence, selected source scope, user
 corrections, and agreed priorities.
-Do not restart the audit or repeat settled questions. Explain that proposals
-will be saved in `.eval-author/proposals/dataset-recommendations.md`; creating
-and running tasks is a later step with its own scope. If the user declines,
+Do not restart the audit or repeat settled questions. Expand the existing
+next actions in the same Audit coverage report using its
+[report guidance](coverage-report.md#findings-limitations-and-next-actions).
+Creating and running tasks stays separately scoped. If the user declines,
 finish with the reviewed report and derived checklist, retaining incomplete measurement.
 
 Adapt the recommendation to the findings. Without usable run evidence, explain

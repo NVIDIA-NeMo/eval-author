@@ -177,22 +177,22 @@ measurement limitation, not proof of a dataset deficiency. Failure-case coverage
 skill's `failure_cases` measurement; manual observations alone do not change
 measurement status. Failure cases remain ineligible for automatic tool-gap generation.
 
-Write recommendations to `.eval-author/proposals/dataset-recommendations.md` as
-skill-authored analysis; keep the generated coverage JSON unchanged. Rank by
+Expand **Next actions and open questions** in the existing Audit coverage
+report, following its [report guidance](../eval-author-audit/references/coverage-report.md#findings-limitations-and-next-actions).
+Keep the generated coverage JSON unchanged. Rank by
 expected value and strength of evidence, explaining why the first action comes
 first. Apply established user priorities, including cost when relevant, and
 distinguish them from suggested priorities still awaiting review. Prefer a short,
 useful list over one suggestion per uncovered item.
-For each recommendation, include:
+For each recommendation, link what the report already covers and add only
+missing details:
 
 - **Change and scenario:** add a task, strengthen a named existing task, retain
   an existing regression, or gather evidence; describe the concrete request and
   fixture or failure trigger that makes it useful.
 - **Expected behavior and verification:** the outcome to check and how a verifier
-  would distinguish correct from incorrect behavior, including the applicable
-  [simple-cheat controls](../eval-author/references/task-validation.md#screen-simple-cheats)
-  and unresolved verifier trust boundaries. These remain planned until executed. For failure cases, identify
-  evidence that the trigger actually occurred as well as the expected response.
+  would distinguish correct from incorrect behavior, plus unresolved verifier trust
+  boundaries. For failure cases, identify evidence of the trigger and expected response.
 - **Basis and evidence:** the category above, stable audit item names, and task,
   run, trace-step, judgment, or verifier references supporting the recommendation.
   Mark proposed fixture details as proposals, not observed facts.
@@ -204,6 +204,12 @@ For each recommendation, include:
   task creation, needs manual task design, or needs more measurement. A written
   recommendation is not a generated, validated, or accepted NeMo Gym or Harbor task.
 
+When authoring the task, document applicable
+[simple-cheat controls](../eval-author/references/task-validation.md#screen-simple-cheats)
+and expected rejection only in its README's
+[Verifier section](../eval-author/references/suite-readme.md#task-documentation).
+Link that section from the recommendation once it exists.
+
 For NeMo Gym recommendations, include a [version and rerun plan](references/gym-tasks.md#version-and-rerun-plan)
 in the recommendation: exact pins supported by the available evidence, unresolved
 versions, and the settings and reset procedure needed to repeat the evaluation.
@@ -211,7 +217,7 @@ Carry the selected plan into task creation; a proposed pin is not a verified loc
 
 Lead the proposal response with the highest-value recommendations and enough
 scenario and expected-behavior detail to act on them. Follow with supporting
-coverage counts, measurement limits, and links to the proposals and Audit coverage report.
+coverage counts, measurement limits, and links to the recommendation entries in the Audit coverage report.
 Full tool coverage or an unsupported task-generation path must not suppress
 useful capability or failure-case suggestions. Do not relabel those suggestions
 as tool gaps to pass the selector. If evidence supports no dataset change, say why
@@ -257,7 +263,7 @@ asking again. Save the agreement in
 priorities and cost constraints, distinct input-example counts per behavior,
 variations and difficulty, positive and negative scenarios, expected outcomes,
 and pilot or expansion status. Reflect the agreed scope in
-`.eval-author/proposals/dataset-recommendations.md`. Keep this planning record out of the agent-facing
+the selected recommendation in the Audit coverage report. Keep this planning record out of the agent-facing
 instruction file. Answer questions or complete scoped detours, then resume this
 checkpoint with the existing decisions intact.
 
@@ -329,7 +335,9 @@ Then complete Harbor's generated files:
 For either provider, refresh `.eval-author/report.html` and the marked report
 section of `.eval-author/README.md` after authoring and after controls or
 actual-agent runs using [Report generation](../eval-author/references/suite-readme.md#report-generation).
-Finish task README setup/run instructions before preparing validation evidence.
+Finish the task README, including its
+[Verifier section](../eval-author/references/suite-readme.md#task-documentation)
+and setup/run instructions, before preparing validation evidence.
 Maintain later results and rerun summaries in the suite README outside generated
 markers. Reporting failure does not change
 acceptance or execution evidence.
@@ -494,7 +502,7 @@ execution is blocked. Preserve the actual agent settings in the full-suite and s
 commands; link measured coverage reports separately from run instructions.
 
 At the handoff, reconcile agreed scope with delivered examples in
-`.eval-author/proposals/dataset-recommendations.md`, including partial or blocked
+the selected recommendation in the Audit coverage report, including partial or blocked
 work. Show planned and delivered distinct input counts per behavior, links to
 their tasks, and generated, validated, and actually executed examples separately.
 Include completed checks and run evidence, remaining variations or outcomes,
