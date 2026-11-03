@@ -8,8 +8,8 @@ WELCOME = (
     "against your agent’s intended behavior."
 )
 WELCOME_WITH_CHECKLIST = WELCOME + " Here’s what we’ll work through:"
-AUDIT_ENTRY_NOTICE = "Okay, I’ll review what exists and plan the audit."
-AUDIT_RESUME_NOTICE = "I found saved progress and will pick up where we left off."
+AUDIT_OPENING_NOTICE = "Okay, let’s get the audit started."
+AUDIT_RESUME_NOTICE = "I found saved context and will reuse what still applies."
 GOAL_QUESTION = "What would you like to do?"
 GOAL_CHOICES = (
     "Build your first evaluations",

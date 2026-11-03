@@ -17,23 +17,24 @@ journey and checklist labels, status labels, and generic headings.
 owns onboarding copy and prerequisite rows. Use these canonical templates through
 the renderer; do not copy them into instructions or reconstruct their output.
 
-## Audit entry acknowledgment
+## Audit opening
 
-`audit_entry` renders the canonical opening from
+`audit_opening` renders the canonical opening from
 [onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py)
-before saved-state lookup or repository inspection. It requires journey `audit`
+after the metadata lookup finds reusable saved context and before state writes
+or repository inspection. It requires journey `audit`
 and accepts no state, revision, facts, or readiness claim. It makes no claim that
 prior work exists and grants no inspection, approval, or execution permission.
 
 ```bash
-python3 -B <skill_dir>/scripts/conversation_renderer.py --stage audit_entry --journey audit
+python3 -B <skill_dir>/scripts/conversation_renderer.py --stage audit_opening --journey audit
 ```
 
 Publish the output unchanged in commentary, then follow the
 [entry procedure](../shared-prerequisites.md#return-to-an-audit) in the same turn.
-That procedure selects this opening for separate full-audit requests and omits it
-for direct handoffs and replies within an active audit. The opening is not a
-checkpoint and asks no question.
+That procedure selects this opening for separate full-audit requests with reusable
+saved context. Fresh audits, direct handoffs, and replies within an active audit
+omit it. The opening is not a checkpoint and asks no question.
 
 ## Orientation and prerequisite entry
 

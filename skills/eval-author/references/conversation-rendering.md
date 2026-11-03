@@ -36,13 +36,17 @@ through the existing state helper before rendering stateful responses.
 
 ## Audit entry and resumption
 
-Start a separate full-audit request with the canonical
-[`audit_entry` acknowledgment](conversations/onboarding.md#audit-entry-acknowledgment)
-before saved-state lookup or repository inspection. Publish it as a progress
-message and continue in the same turn. Do not replace or precede it with an
-announcement of internal steps.
+Classify a full-audit request using the bounded metadata lookup in the
+[entry procedure](shared-prerequisites.md#return-to-an-audit), without assistant
+narration. Fresh entry goes directly to orientation. For a separate request with
+reusable saved context, publish the canonical
+[`audit_opening`](conversations/onboarding.md#audit-opening) in commentary before
+state writes or repository inspection, then continue in the same turn.
 
-Keep full-audit entry and resumption quiet between checkpoint responses. Perform
+Keep full-audit entry and resumption quiet until the first substantive rendered
+checkpoint. The opening and saved-context acknowledgment are not checkpoints.
+After that checkpoint, later measurement or aggregation can include brief updates
+about meaningful progress. During entry and resumption, perform
 routine skill and file reads, saved-state lookups, prerequisite checks, state
 updates, renderer calls, and successful retries without assistant narration.
 Keep execution details in the normal tool history. If the user asks for them,

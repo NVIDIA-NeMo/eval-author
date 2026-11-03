@@ -27,16 +27,12 @@ continue creation or improvement context, including in a new chat. An offered
 or declined invitation starts no audit; a later explicit request selects that
 goal. Scoped audit commands retain their entry rules.
 
-For a separate explicit full-audit request, first render
-[`audit_entry`](conversations/onboarding.md#audit-entry-acknowledgment) and publish
-it in commentary before the saved-state lookup or repository inspection. Use only
-the request and current conversation to identify a separate request. Direct
-creation/improvement handoffs and replies continuing an active audit skip this
-opening. The renderer may load its own source dependencies, but this no-input
-exception permits no repository reads or state operations. Continue in the same
-turn. An unknown repository still gets the opening, followed by fresh orientation.
+Use only the request and current conversation to identify a separate explicit
+full-audit request. Direct creation/improvement handoffs and replies continuing
+an active audit skip the opening below. Classify the request without assistant
+narration before choosing an introduction.
 
-Before classification, read only the known request/workspace repository's metadata:
+For a known request/workspace repository, read only its saved metadata:
 
 ```bash
 python3 -B <skill_dir>/scripts/journey_state.py --repo /absolute/repository --state-only show
@@ -47,8 +43,9 @@ or initialization, artifact inspection (including Ethos), trace enumeration,
 prerequisite probes, or other repository searches. An unknown repository or no
 saved workflow answers/pending work means fresh entry. An absent state file is
 also fresh entry: `--state-only show` exits 0 with `{"state": null, "persisted": false}`.
-Show fresh orientation without initializing state. A successful lookup with
-saved state returns the normal snapshot. Do not infer absence from error text.
+Show fresh orientation without an opening acknowledgment or state initialization.
+A successful lookup with saved state returns the normal snapshot. Do not infer
+absence from error text.
 
 A lookup that exits 2 means recovery is needed. For this lookup or any subsequent
 state-operation failure, preserve the file and render
@@ -81,7 +78,13 @@ that its content is current. Link and describe a report only after permitted
 artifact inspection verifies it.
 Do not search other chats to classify conversational continuity.
 
-For reusable context, continue these steps in the same turn when unblocked:
+For reusable context on a separate request, first render
+[`audit_opening`](conversations/onboarding.md#audit-opening) and publish it in
+commentary before state writes, prerequisite probes, or artifact inspection.
+The renderer may load its own source dependencies, but this no-input exception
+permits no repository reads or state operations. Continue in the same turn.
+
+Then continue these steps in the same turn when unblocked:
 
 1. Use `--state-only init --journey audit`. Before clearing the active question
    and handoff, the helper saves the outgoing authoring decision in

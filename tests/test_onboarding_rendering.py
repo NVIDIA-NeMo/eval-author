@@ -348,10 +348,10 @@ def test_audit_resume_asks_only_the_unresolved_decision_after_prior_journey(onbo
         {"journey": None},
     ],
 )
-def test_audit_entry_rejects_context_and_readiness_claims(onboarding, patch):
+def test_audit_opening_rejects_context_and_readiness_claims(onboarding, patch):
     renderer = onboarding[1]
     with pytest.raises(ValueError):
-        renderer.render({"stage": "audit_entry", "journey": "audit", **patch})
+        renderer.render({"stage": "audit_opening", "journey": "audit", **patch})
 
 
 @pytest.mark.parametrize("trace_status", ["confirmed", "unknown", "missing"])

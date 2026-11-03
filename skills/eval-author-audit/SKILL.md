@@ -4,8 +4,8 @@ description: >-
   Audit evaluation coverage, find gaps, and recommend improvements against ETHOS.md.
   Use for "audit my existing evals", "generate audit.md from ETHOS.md", schema
   validation, measuring an ATIF trace, or aggregating coverage reports.
-  Full audits first read ../eval-author/SKILL.md and follow its immediate audit
-  opening and bounded saved-context lookup. Reuse applicable saved context.
+  Full audits first read ../eval-author/SKILL.md and quietly perform its bounded
+  saved-context lookup before choosing an introduction. Reuse applicable saved context.
   Separate returning requests get a brief acknowledgment, then continue without another readiness pause.
   Fresh full audits use the core's rendered orientation and end the turn before
   repository inspection or prerequisites. Scoped commands keep their scope.
@@ -70,7 +70,8 @@ invocation. For a fresh audit, use the core's
 [onboarding renderer](../eval-author/references/conversations/onboarding.md) for
 `orientation` with journey `audit`, then end the turn. Read only this skill,
 the core, the shared rendering contract, and that onboarding reference as needed before the response; the core's
-narrow renderer, audit opening, and audit-entry lookup exceptions apply.
+narrow renderer and audit-entry lookup exceptions apply. Fresh audits omit the
+returning audit opening.
 Repository inspection, Ethos validation, prerequisite questions, and state writes wait for the actual readiness
 reply. Complete and save the core's state-only prerequisite pass before
 any target Ethos inspection, then reconcile artifacts and include the completed

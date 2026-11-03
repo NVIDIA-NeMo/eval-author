@@ -6,8 +6,8 @@ description: >-
   or requests to create, discover, audit, or improve evaluations.
   For fresh full workflows, read this skill, show its rendered orientation,
   and end the turn before repository work. Scoped utilities keep their scope.
-  Explicit full audits open with a brief acknowledgment, then check bounded saved
-  context. Returning audits reuse applicable prerequisites and confirmed Ethos. Separate returning requests get
+  Explicit full audits quietly check bounded saved context before choosing an
+  introduction. Returning audits reuse applicable prerequisites and confirmed Ethos. Separate returning requests get
   a brief acknowledgment, then continue without another readiness pause.
   Build first evals from ETHOS.md, work on existing suites, inspect a NeMo Intake
   run, or derive a trace environment (experimental). Owns the evidence standard
@@ -79,7 +79,7 @@ below for NeMo Gym and Harbor, including direct invocations of their skills.
 
 For an explicit full-audit request, first follow
 [Return to an audit](references/shared-prerequisites.md#return-to-an-audit).
-It owns the immediate opening, saved-context reuse, and direct continuation. Fresh
+It owns saved-context classification, returning openings, and direct continuation. Fresh
 requests retain the opening below.
 
 The first final response to a new shared flow is orientation only. Determine the
@@ -94,9 +94,10 @@ the turn again. Selecting a goal does not establish readiness or start checks.
 Before either orientation response, read only the entry skill, this core skill,
 the [conversation rendering contract](references/conversation-rendering.md), and
 the [onboarding reference](references/conversations/onboarding.md) as needed.
-An explicit full audit may also load the linked audit-entry procedure, render
-its no-input `audit_entry` opening, and perform its metadata-only lookup in that
-order. Apart from those exceptions, the only permitted command is this renderer's
+An explicit full audit may also load the linked audit-entry procedure and perform
+its metadata-only lookup without narration. Only reusable saved context allows
+its no-input `audit_opening` before continuation. Fresh audits omit that opening.
+Apart from those exceptions, the only permitted command is this renderer's
 no-input preview mode:
 
 ```bash

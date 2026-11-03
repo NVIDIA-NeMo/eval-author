@@ -45,10 +45,8 @@ before this reply. The pure renderer's no-input `orientation` preview
 must not receive repository, state, or input-file arguments. Repository/state
 reads, Ethos validation, prerequisite checks or questions, other helper commands,
 writes, and delegation all fail this opening checkpoint, except for the bounded
-opening and saved-state lookup for an explicit audit described below. Before
-that lookup, a separate full-audit request publishes the canonical `audit_entry`
-opening in commentary. It does not announce the metadata lookup or other
-internal steps. The opening makes no claim that saved work exists.
+saved-state lookup for an explicit audit described below. That lookup runs
+without assistant narration. Fresh audits show no separate opening acknowledgment.
 Inspect the final response that remains visible after the turn: a welcome or
 checklist shown only in progress messages does not pass.
 
@@ -421,13 +419,14 @@ suite and run selections. Exercise these conversation contexts independently:
 | Conversation context | Required introduction |
 | --- | --- |
 | Direct acceptance of the offered audit handoff in the active conversation | Continue the handoff without repeating the welcome |
-| A separate explicit audit request later in the same conversation | Show `audit_entry` before lookup, then the saved-progress acknowledgment |
-| A separate request or audit resume in a new chat opened in the known repository | Show `audit_entry` before lookup, then the saved-progress acknowledgment |
+| A separate explicit audit request later in the same conversation | Look up metadata quietly, then show `audit_opening` and the saved-context acknowledgment when context is reusable |
+| A separate request or audit resume in a new chat opened in the known repository | Look up metadata quietly, then show `audit_opening` and the saved-context acknowledgment when context is reusable |
 | A reply continuing an active audit in the current conversation | Resume the pending decision without repeating the welcome |
 
 For separate requests, use “Audit the suite and runs we just reviewed.” Verify
-that the canonical `audit_entry` opening is the first skill-generated message,
-before the saved-state lookup. Compare
+that the metadata-only lookup happens without assistant narration. When it finds
+reusable saved context, the canonical `audit_opening` is the first skill-generated
+message, before state writes, prerequisite probes, or artifact inspection. Compare
 `audit_welcome` with the canonical renderer output and input authority. Inspect
 that only the saved-progress acknowledgment appears promptly in commentary
 before bounded checks. It must not include a welcome, checklist, approval recap,
@@ -435,6 +434,13 @@ or report-existence claim. Check the full transcript against the shared
 [communication rule](../../skills/eval-author/references/conversation-rendering.md#audit-entry-and-resumption),
 including messages between tool calls. Ask for execution details and verify a
 factual summary is available.
+Inspect the full transcript for exact message and tool ordering. The pinned live
+evaluator's behavior judge receives compacted assistant messages and tool history,
+which can omit or shorten steps. Its final-output judges use selective evidence.
+Those advisory scores do not prove exact ordering from the final response.
+The quiet-entry boundary ends at the first substantive rendered checkpoint,
+excluding the opening and saved-context acknowledgment. Later long-running
+measurement or aggregation may include meaningful progress updates.
 Saved authoring completion does not complete the audit.
 After switching from creation or improvement, reload state in a new turn and
 verify the outgoing question and handoff remain in the originating scope's
@@ -448,7 +454,7 @@ boundaries. Exercise these variants for both origins and applicable contexts:
 
 | Saved or current condition | Required next step |
 | --- | --- |
-| No saved state | Lookup exits 0 with `state: null` and `persisted: false`. Show fresh orientation and create no state during classification |
+| No saved state | Lookup exits 0 with `state: null` and `persisted: false`. Show only fresh orientation, with no opening acknowledgment or state initialization |
 | Malformed, unreadable, or foreign-repository state | Lookup exits 2. Preserve it, explain why audit checks pause, and offer a specific recovery action without inspecting artifacts or manufacturing approval |
 | Shared work remains unfinished | Resume its pending prerequisite or Ethos decision |
 | Trace availability unknown or missing | After any required acknowledgment, show the actual prerequisite blocker in final, retaining earlier journey completion and Ethos confirmation; do not read Ethos or traces or run evaluations |

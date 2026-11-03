@@ -22,7 +22,7 @@ from . import first_eval, first_eval_templates
 from . import onboarding_templates as copy
 
 JOURNEYS = (None, *shared.JOURNEYS)
-PREVIEWS = {"audit_entry", "orientation", "goal_selected", "prerequisites"}
+PREVIEWS = {"audit_opening", "orientation", "goal_selected", "prerequisites"}
 STAGES = PREVIEWS | {
     "audit_welcome",
     "audit_entry_failure",
@@ -46,11 +46,10 @@ ROW_PREREQUISITES = {
 }
 
 
-def checklist(journey: str, state: dict | None = None, *, state_only: bool = False, audit: dict | None = None) -> str:
+def checklist(journey: str, state: dict | None = None, *, audit: dict | None = None) -> str:
     rows = (
         journey_state.checklist(
-            {**state, "blockers": journey_state.active_blockers(state, state_only=state_only)},
-            state_only=state_only,
+            {**state, "blockers": journey_state.active_blockers(state)},
             audit=audit,
         )
         if state is not None
@@ -347,12 +346,12 @@ def render(payload: dict) -> str:
         if set(payload) - allowed:
             raise ValueError("Only prerequisite previews accept row facts; previews never accept saved state")
         journey = payload.get("journey")
-        if stage == "audit_entry":
+        if stage == "audit_opening":
             if journey != "audit":
-                raise ValueError("Audit entry requires journey audit")
+                raise ValueError("Audit opening requires journey audit")
             if payload.get("ready", False) is not False:
-                raise ValueError("Audit entry does not establish readiness")
-            return copy.AUDIT_ENTRY_NOTICE + "\n"
+                raise ValueError("Audit opening does not establish readiness")
+            return copy.AUDIT_OPENING_NOTICE + "\n"
         if journey not in shared.JOURNEYS and not (stage == "orientation" and journey is None):
             raise ValueError("Select create, audit, or expand")
         if stage == "prerequisites":
