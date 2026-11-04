@@ -5,7 +5,7 @@
 
 Submit one native Helix taskset run per case and agent version. This prototype
 uses an existing authenticated Helix client context and already-published inputs.
-Use the [publication stage](tools.md#publish_helix_inputspy) to upload prepared bundles and tasks and request image builds first.
+Use the [publication stage](tools.md#publish-inputs-to-helix) to upload prepared bundles and tasks and request image builds first.
 
 It is based on the current [case format](benchmark-format.md). The case and agent/task
 manifests remain unchanged; a companion file maps their identities to remote inputs.
