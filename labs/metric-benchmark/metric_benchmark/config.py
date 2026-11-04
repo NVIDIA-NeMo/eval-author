@@ -6,6 +6,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Self
+from urllib.parse import urlsplit
 
 import yaml
 from pydantic import Field, JsonValue, TypeAdapter, model_validator
@@ -173,6 +174,36 @@ class LocalExecution(Model):
     environment: dict[str, JsonValue] = Field(default_factory=lambda: dict[str, JsonValue](type="docker"))
 
 
+class HelixExecution(Model):
+    backend: Literal["helix"] = "helix"
+    base_url: Text
+    workspace: Text
+    dispatcher_profile: Text
+    max_concurrent_task_jobs: int = Field(default=1, ge=1)
+    sandbox: dict[str, JsonValue] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def destination(self) -> Self:
+        url = urlsplit(self.base_url)
+        if (
+            url.scheme not in ("http", "https")
+            or not url.hostname
+            or url.username
+            or url.password
+            or url.query
+            or url.fragment
+        ):
+            raise ValueError("Helix base_url must be an HTTP(S) endpoint without credentials")
+        self.base_url = self.base_url.rstrip("/")
+        return self
+
+
+def execution_settings(value: object) -> LocalExecution | HelixExecution:
+    if isinstance(value, dict) and value.get("backend") == "helix":
+        return HelixExecution.model_validate(value)
+    return LocalExecution.model_validate(value)
+
+
 class CaseAnalysis(Model):
     subsets: PinnedInput
     description: PinnedInput
@@ -267,7 +298,7 @@ class LoadedCases:
 @dataclass(frozen=True)
 class LoadedExecution:
     inputs: LoadedCases
-    settings: LocalExecution
+    settings: LocalExecution | HelixExecution
 
 
 @dataclass(frozen=True)
@@ -346,7 +377,7 @@ def load_cases(path: Path, *, allow_unsigned: bool = False) -> LoadedCases:
 
 def load_execution(cases: Path, execution: Path, *, allow_unsigned: bool = False) -> LoadedExecution:
     inputs = load_cases(cases, allow_unsigned=allow_unsigned)
-    settings = LocalExecution.model_validate(read_yaml(execution))
+    settings = execution_settings(read_yaml(execution))
     inputs.verify_execution_inputs()
     return LoadedExecution(inputs, settings)
 
@@ -367,5 +398,5 @@ def load_benchmark(path: Path, *, allow_unsigned: bool = False) -> LoadedBenchma
     execution_path = definition.execution.resolve(root, allow_unsigned=allow_unsigned)
     analysis_path = definition.analysis.resolve(root, allow_unsigned=allow_unsigned)
     analysis = load_analysis(cases_path, analysis_path, allow_unsigned=allow_unsigned)
-    execution = LoadedExecution(analysis.inputs, LocalExecution.model_validate(read_yaml(execution_path)))
+    execution = LoadedExecution(analysis.inputs, execution_settings(read_yaml(execution_path)))
     return LoadedBenchmark(definition, execution, analysis)

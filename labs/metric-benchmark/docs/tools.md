@@ -60,6 +60,106 @@ defines the output format.
 See the [`run_evals.py` command guide](run-evals.md) for arguments, the output
 layout, completed-job reuse, interrupted-job recovery, and the Python API.
 
+## Publish inputs to Helix
+
+`publish_helix_inputs.py` consumes signed cases and `backend: helix`
+[execution settings](benchmark-format.md#execution-executionyml). It uploads task
+archives, publishes digest-pinned tasksets, and requests native task-image builds.
+It does not submit evaluations or wait for builds. The execution stage must check
+that the images are ready before submitting the run matrix.
+
+Run publication in an authenticated Helix client environment containing the
+`nemo-helix-plugin` and `nemo-evals-plugin` packages. Keep that environment separate
+from this repository's benchmark environment: the two can require different
+Harbor versions. Use a client checkout/version supplied by your platform operator;
+record both its revision and the deployed server version. For a Helix source
+checkout with the supported package layout, installation is:
+
+```bash
+uv sync --frozen --no-default-groups --package nemo-helix-ext
+uv sync --frozen --no-default-groups --package nemo-evals-plugin --inexact
+```
+
+The selected context must match the execution endpoint and workspace exactly.
+Credentials belong in normal Helix authentication or secret references, never in
+prepared cases. Keep deployment YAML, publication outputs, and downloaded evidence
+outside the checkout.
+
+The publication YAML maps every prepared case and agent exactly once:
+
+```yaml
+agents:
+  example:
+    baseline:
+      bundle_input: runtime
+      config_path: agent.yaml
+    mutant:
+      bundle_input: runtime
+      config_path: agent.yaml
+```
+
+`bundle_input` names a signed directory in that agent's existing `inputs` map.
+The default `registered` transport requires a root-level `nemo-agents-spec-v1`
+configuration. Every bundle file must be UTF-8; publication rejects binary files
+instead of silently omitting them. The tool registers a content-derived agent
+name, uploads its fileset, and downloads it again to verify the complete manifest.
+Your deployed runtime must support the selected harness and stage any files that
+it needs. Successful registration alone does not establish execution support.
+
+Custom installed runtimes can instead use `transport: task_image`. Preparation
+must place the exact bundle in **every** task's environment build context and
+configure the Dockerfile to copy it into the image. For example:
+
+```yaml
+agents:
+  example:
+    baseline:
+      bundle_input: runtime
+      transport: task_image
+      image_bundle_path: environment/agents/baseline
+      target:
+        source: {import_path: installed_module:Agent}
+        agent_kwargs: {runtime_path: /opt/agents/baseline}
+    mutant:
+      bundle_input: runtime
+      transport: task_image
+      image_bundle_path: environment/agents/mutant
+      target:
+        source: {import_path: installed_module:Agent}
+        agent_kwargs: {runtime_path: /opt/agents/mutant}
+```
+
+The imported Harbor adapter must already exist on the dispatcher; its runtime
+and dependencies can live in the task image. Those illustrative module names
+are not installed by this tool. Publication checks every image-context copy
+against its signed bundle. Preparation owns the Dockerfile, runtime installation,
+and adapter configuration; execution evidence must establish which image and
+target actually ran. This transport supports binary bundle files.
+
+The optional `target` mapping carries native Harbor target settings, such as
+`agent_kwargs` and `env_secrets`. Registered transport supplies `source` itself.
+For deterministic controls only, omit `bundle_input` and supply
+`target: {source: {name: oracle}}` or `nop`.
+
+```bash
+/path/to/helix/.venv/bin/python labs/metric-benchmark/publish_helix_inputs.py \
+  --cases /private/experiment/cases.yml \
+  --execution /private/experiment/execution.yml \
+  --publication /private/experiment/publication.yml \
+  --context evaluation --output /private/publication --plan-only
+```
+
+Inspect `publication.json`, then repeat without `--plan-only`. The output also
+contains source snapshots, receipts, and `bindings.json` for execution. Repeating
+the same command reuses content-derived resource identities; changing the plan
+requires a new output directory. A partial upload can be resumed. Failures exit
+nonzero and retain the private receipts already written. Published resources are
+not deleted automatically.
+
+Library entrypoints are `plan_publication` and `publish_helix_inputs` in
+`metric_benchmark.helix_publication`; the optional SDK adapter is `HelixPublisher`
+in `metric_benchmark.helix_publisher`.
+
 ## Compute mutant scores
 
 See the [`compute_mutant_scores.py` command guide](compute-mutant-scores.md) for
