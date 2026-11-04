@@ -121,6 +121,8 @@ class Server:
         self.fail_download = False
         self.failed_run = None
         self.page_size = 2
+        self.images_ready = True
+        self.wrong_job = False
         self.client = HelixClient(
             SimpleNamespace(
                 base_url=plan.execution.base_url,
@@ -134,6 +136,10 @@ class Server:
         self.calls.append((request.method, request.url.path))
         path = request.url.path
         bound = next(iter(self.plan.bindings.cases.values()))
+        if path.endswith("/image-builds"):
+            return httpx.Response(
+                200, json={"data": [{"status": "ready" if self.images_ready else "running", "platform": None}]}
+            )
         if "/tasksets/" in path:
             tasks = [t.ref for t in bound.tasks.values()]
             return httpx.Response(200, json={"tasks": tasks[:-1] if self.bad_taskset else list(reversed(tasks))})
@@ -168,6 +174,17 @@ class Server:
             )
         if "/results/agent-eval-results" in path:
             return httpx.Response(200, json={"name": "agent-eval-results"})
+        if "/apis/jobs/" in path:
+            job = path.rsplit("/jobs/", 1)[1]
+            remote, index = job.split("-task-")
+            return httpx.Response(
+                200,
+                json={
+                    "name": job,
+                    "workspace": "example",
+                    "spec": {"run_id": "wrong" if self.wrong_job else remote, "task_index": int(index)},
+                },
+            )
         remote = path.split("/runs/")[1].split("/")[0]
         status = next(value for value in self.accepted.values() if value["run_id"] == remote)
         if path.endswith("/tasks"):
@@ -251,6 +268,14 @@ def test_ambiguous_submit_is_replayed_without_new_runs(plan, tmp_path):
     assert len([call for call in server.calls if call[0] == "POST"]) == before
 
 
+def test_unbuilt_images_prevent_all_submissions(plan, tmp_path):
+    server = Server(plan)
+    server.images_ready = False
+    with pytest.raises(NotReady):
+        submit_helix_evals(plan, tmp_path, server.client)
+    assert not any(method == "POST" for method, _ in server.calls)
+
+
 @pytest.mark.parametrize(
     ("phase", "result_state"), [("accepted", "pending"), ("running", "pending"), ("completed", "pending")]
 )
@@ -301,6 +326,11 @@ def test_paginated_collection_preserves_every_native_file_and_is_not_analysis_re
         assert isinstance(native_result, dict)
         assert native_result["verifier_result"]["rewards"] == {"reward": 0.0, "other": -1.0}
         assert (native / "agent/trajectory.json").read_text() == '{"trace": "retained"}'
+        job_path = output / row["job_spec_path"]
+        job = read_json(job_path)
+        assert isinstance(job, dict)
+        assert job["spec"]["run_id"].startswith("remote-")
+        assert (job_path.parent / "bundle.tar.gz").is_file()
     downloads = sum(path.endswith("/download") for _, path in server.calls)
     assert download_helix_results(submission, output, server.client) == result
     assert sum(path.endswith("/download") for _, path in server.calls) == downloads
@@ -309,7 +339,7 @@ def test_paginated_collection_preserves_every_native_file_and_is_not_analysis_re
         download_helix_results(submission, output, server.client)
 
 
-@pytest.mark.parametrize("failure", ["malicious", "duplicate", "duplicate_task", "fail_download"])
+@pytest.mark.parametrize("failure", ["malicious", "duplicate", "duplicate_task", "fail_download", "wrong_job"])
 def test_bad_or_interrupted_download_never_publishes_output(plan, tmp_path, failure):
     server = Server(plan)
     submit_helix_evals(plan, tmp_path / "submitted", server.client)

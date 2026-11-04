@@ -1,15 +1,15 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# submit_helix_evals.py — exploratory prototype
+# submit_helix_evals.py — execute published inputs
 
 Submit one native Helix taskset run per case and agent version. This prototype
 uses an existing authenticated Helix client context and already-published inputs.
-It does not upload tasks, build images, or register agents.
+Use the [publication stage](tools.md#publish_helix_inputspy) to upload prepared bundles and tasks and request image builds first.
 
 It is based on the current [case format](benchmark-format.md). The case and agent/task
 manifests remain unchanged; a companion file maps their identities to remote inputs.
-Separating executable locations out of the case metadata is a subsequent design change.
+The publisher produces the bindings used by this stage.
 
 ## Usage
 
@@ -34,6 +34,7 @@ Do not put credentials in experiment files.
 
 ```yaml
 # helix-execution.yml
+backend: helix
 base_url: https://helix.example.com
 workspace: benchmark
 dispatcher_profile: workers
@@ -69,7 +70,8 @@ resolved by Helix at acceptance; proving their resolved identity against prepare
 mutant bundles remains part of the validation work before release.
 
 Before the first submission, the library checks every case's uploaded taskset
-membership and native task identities. It forces one attempt and zero trial
+membership, native task identities and ready default-platform image builds.
+Pending image builds return exit 2 before any run is submitted. It forces one attempt and zero trial
 retries. Concurrency is per remote run, subject to Helix's operator limits.
 
 `submission.json` records requests and stable idempotency keys before network
@@ -86,7 +88,7 @@ functions. `HelixClient.from_context(workspace, context=...)` uses the official
 `nemo-helix-plugin` client, installed separately for this exploration; planning
 and the normal local runner do not require it. No dependency lock changes are
 included yet. The prototype was checked against Helix source commit
-`1cb0b0c4701e9757b57db2c4c27955febba7aafb`.
+`df376600748eb576146dfb2d1b8770414545a487`.
 
 Next use the [download tool](download-helix-results.md). Its current output is
 an evidence collection, **not yet the benchmark's validated results directory**.
@@ -127,7 +129,7 @@ export EVAL_AUTHOR_REPO="$PWD"
 
 git clone https://github.com/NVIDIA-NeMo/nemo-helix.git ../nemo-helix-client
 cd ../nemo-helix-client
-git checkout --detach 1cb0b0c4701e9757b57db2c4c27955febba7aafb
+git checkout --detach df376600748eb576146dfb2d1b8770414545a487
 uv tool run --from uv==0.13.4 uv sync --python 3.13 --frozen --no-default-groups --package nemo-helix-ext
 uv tool run --from uv==0.13.4 uv sync --frozen --no-default-groups --package nemo-evals-plugin --inexact
 export HELIX_PYTHON="$PWD/.venv/bin/python"

@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# download_helix_results.py — exploratory prototype
+# download_helix_results.py — collect native evidence
 
 Check every submitted Helix run and collect the complete set of task bundles.
 The current output is an evidence collection with `analysis_ready: false`.
@@ -27,16 +27,24 @@ must first be resumed with the submit tool.
 Once all runs are complete, it reads every page of task membership and checks that
 every expected task job succeeded and has an artifact. It then downloads each
 `agent-eval-results` task bundle, including native Harbor files and agent traces.
-It matches evidence through native task IDs, not taskset ordering or directory guesses.
+It retains the original compressed bundle, task membership, artifact metadata and full
+Jobs API response, including the resolved `job.spec`. Each job must match its
+expected run and task index. Evidence is matched through native task IDs.
 The combined summary alone is insufficient for offline analysis.
 
 ```text
 collected-evidence/
   collection.json
   submission.json
-  runs/run-0000/task-0000/agent-eval-results/
-    trials.jsonl
-    ... complete original bundle, including native Harbor evidence ...
+  runs/run-0000/status.json
+  runs/run-0000/task-0000/
+    job.json
+    member.json
+    artifact.json
+    bundle.tar.gz
+    agent-eval-results/
+      trials.jsonl
+      ... complete original bundle, including native Harbor evidence ...
 ```
 
 An incomplete transfer never publishes the destination. Rerun to download again;

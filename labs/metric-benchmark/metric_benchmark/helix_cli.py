@@ -50,6 +50,8 @@ def submit_main():
         finally:
             client.client.close()
         print(json.dumps({"submitted_runs": [row["run_id"] for row in accepted]}))
+    except NotReady as error:
+        parser.exit(2, f"{error}\n")
     except (ValueError, OSError) as error:
         parser.exit(1, f"{parser.prog}: {error}\n")
 

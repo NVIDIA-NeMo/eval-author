@@ -6,40 +6,16 @@
 import tarfile
 import tempfile
 from pathlib import Path, PurePosixPath
-from typing import Annotated, Literal
+from typing import Literal
 
 import yaml
-from pydantic import Field, JsonValue, StringConstraints, model_validator
+from pydantic import Field, JsonValue, model_validator
 
-from metric_benchmark.config import Case, LoadedCases, StrictLoader
+from metric_benchmark.config import Case, HelixExecution, LoadedCases, StrictLoader
+from metric_benchmark.helix_publication import CaseBinding, HelixBindings
+from metric_benchmark.helix_publication import TaskBinding as TaskBinding
 from metric_benchmark.io import digest_bytes, file_manifest, json_bytes, read_json, write_json
 from metric_benchmark.models import Digest, Model, Text, relative_path, resolve_evidence, unique
-
-PinnedRef = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*#[0-9a-f]{64}$")]
-
-
-class HelixExecution(Model):
-    base_url: Text
-    workspace: Text
-    dispatcher_profile: Text
-    max_concurrent_task_jobs: int = Field(ge=1)
-    sandbox: dict[str, JsonValue] = Field(default_factory=dict)
-
-
-class TaskBinding(Model):
-    ref: PinnedRef
-    native_task_id: Text
-
-
-class CaseBinding(Model):
-    taskset: PinnedRef
-    tasks: dict[Text, TaskBinding]
-    targets: dict[Text, dict[str, JsonValue]]
-
-
-class HelixBindings(Model):
-    cases_sha256: Digest
-    cases: dict[Text, CaseBinding]
 
 
 class SubmissionRun(Model):
@@ -118,7 +94,10 @@ def plan_submission(loaded: LoadedCases, settings: HelixExecution, bindings: Hel
                 raise ValueError("a Helix Harbor target requires an explicit agent source")
             request = {
                 "spec": {"tasks": bound.taskset, "target": target},
-                "execution": {"kind": "harbor-task-jobs", **settings.model_dump(exclude={"base_url", "workspace"})},
+                "execution": {
+                    "kind": "harbor-task-jobs",
+                    **settings.model_dump(exclude={"base_url", "workspace", "backend"}),
+                },
             }
             key = digest_bytes(
                 json_bytes(
@@ -157,6 +136,10 @@ def _verify_uploaded_inputs(plan: Submission, client):
             definition = client.revision("tasks", task.ref)["spec"]
             if definition["kind"] != "harbor" or definition["native_task_id"] != task.native_task_id:
                 raise ValueError(f"case {case_id}, task {task_id}: published native task identity differs")
+            builds = client.image_builds(task.ref)["data"]
+            latest = next((build for build in builds if build.get("platform") is None), None)
+            if latest is None or latest.get("status") != "ready":
+                raise NotReady(f"case {case_id}, task {task_id}: published task image is not ready")
 
 
 def _response_path(root: Path, index: int) -> Path:
@@ -280,9 +263,10 @@ def download_helix_results(submission: Path, output: Path, client) -> dict:
             raise ValueError("collected evidence changed")
         return record
     # Confirm every task artifact exists before transferring the first one.
+    artifacts = {}
     for _, _, members in statuses:
         for member in members:
-            client.artifact(member["job"])
+            artifacts[member["job"]] = client.artifact(member["job"])
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".helix-collect-", dir=output.parent) as temporary:
         staged = Path(temporary) / "results"
@@ -290,11 +274,24 @@ def download_helix_results(submission: Path, output: Path, client) -> dict:
         observations = []
         for index, status, members in statuses:
             run = plan.runs[index]
+            write_json(staged / f"runs/run-{index:04d}/status.json", status)
             observed = set()
             for member in members:
                 destination = staged / f"runs/run-{index:04d}/task-{member['task_index']:04d}"
                 destination.mkdir(parents=True)
-                archive = Path(temporary) / "bundle.tar.gz"
+                job = client.job(member["job"])
+                spec = job.get("spec", {})
+                if (
+                    job.get("name") != member["job"]
+                    or job.get("workspace") != plan.execution.workspace
+                    or spec.get("run_id") != status["run_id"]
+                    or spec.get("task_index") != member["task_index"]
+                ):
+                    raise ValueError("downloaded job specification differs from the run member")
+                write_json(destination / "job.json", job)
+                write_json(destination / "member.json", member)
+                write_json(destination / "artifact.json", artifacts[member["job"]])
+                archive = destination / "bundle.tar.gz"
                 client.download(member["job"], archive)
                 bundle = _unpack(archive, destination)
                 task_id, native = _trial(bundle, plan.bindings.cases[run.case_id])
@@ -308,6 +305,7 @@ def download_helix_results(submission: Path, output: Path, client) -> dict:
                         "task_id": task_id,
                         "remote_run_id": status["run_id"],
                         "job": member["job"],
+                        "job_spec_path": (destination / "job.json").relative_to(staged).as_posix(),
                         "native_results_path": (bundle / native).relative_to(staged).as_posix(),
                     }
                 )
