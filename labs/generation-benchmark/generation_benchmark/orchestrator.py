@@ -10,7 +10,7 @@ from metric_benchmark.io import cli, write_json
 from metric_benchmark.models import Score
 
 from generation_benchmark.analysis import analyze_generation, write_analysis
-from generation_benchmark.config import load_generation_benchmark
+from generation_benchmark.config import load_generation_benchmark, reject_prior_generation
 from generation_benchmark.execution import execute_generation_baseline, execute_new_tasks
 from generation_benchmark.generation import invoke_generation
 from generation_benchmark.inputs import load_score_inputs
@@ -31,6 +31,7 @@ def run_generation_benchmark(
     loaded = load_generation_benchmark(benchmark)
     case = loaded.case(case_id)
     prepared = loaded.prepared(case_id)
+    reject_prior_generation(prepared.root)
     work_root.mkdir(parents=True, exist_ok=True)
     execution_root = work_root / "execution-results"
     execute_generation_baseline(loaded, case_id, run_id, execution_root)
@@ -81,9 +82,7 @@ def run_generation_benchmark(
         )
         new_ids = list(receipt.response.new_task_ids)
         if new_ids:
-            case = merge_tasks_into_case(
-                case, suite_plus, new_ids, prepared.root, runtime_namespace=eval_subset_id
-            )
+            case = merge_tasks_into_case(case, suite_plus, new_ids, prepared.root, runtime_namespace=eval_subset_id)
             execute_new_tasks(loaded, case, set(new_ids), results_root, run_id)
             run_before_measure_command(loaded.analysis.settings.coverage.settings, results_root)
             _, raw, subsets, _ = load_score_inputs(benchmark, case_id, results_root)

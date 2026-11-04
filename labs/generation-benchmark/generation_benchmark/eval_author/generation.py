@@ -48,9 +48,7 @@ def generate_suite(
     agent = load_agent_config(agent_path)
     assert agent is not None
     generator = load_generator_config(generator_path)
-    measurement, coverage_report, audit = _load_measurement(
-        measurement_path, suite=resolved_suite, agent=agent
-    )
+    measurement, coverage_report, audit = _load_measurement(measurement_path, suite=resolved_suite, agent=agent)
     identity = {
         "worker": file_digest(Path(__file__)),
         "draft_dir": draft_dir.as_posix(),
@@ -81,9 +79,7 @@ def generate_suite(
         seed=seed,
     )
     input_digest = identity["suite"]
-    work_dir = (
-        resolved_output.parent / f".{resolved_output.name}-generation-work-{input_digest[-12:]}"
-    )
+    work_dir = resolved_output.parent / f".{resolved_output.name}-generation-work-{input_digest[-12:]}"
     if partial is None:
         if work_dir.exists():
             raise ExperimentError(f"generation work directory already exists: {work_dir}")
@@ -217,15 +213,11 @@ def _skill_paths(eval_author_root: Path) -> tuple[Path, Path]:
     )
     missing = [str(path) for path in required if not path.is_file()]
     if missing:
-        raise ExperimentError(
-            "Eval Author generation skills are incomplete: " + ", ".join(missing)
-        )
+        raise ExperimentError("Eval Author generation skills are incomplete: " + ", ".join(missing))
     return task_skill, audit_skill
 
 
-def _stage_coverage_binding(
-    measurement_path: Path, eval_author_dir: Path, coverage_report: Path
-) -> None:
+def _stage_coverage_binding(measurement_path: Path, eval_author_dir: Path, coverage_report: Path) -> None:
     """Copy bundled coverage binding artifacts into the generation work cell."""
     measurement_root = (
         measurement_path.expanduser().resolve()
@@ -269,9 +261,7 @@ def _stage_coverage_binding(
     write_json(eval_author_dir / "audit-coverage-report.json", report)
 
 
-def _load_measurement(
-    path: Path, *, suite: Path, agent: AgentConfig
-) -> tuple[dict[str, Any], Path, Path]:
+def _load_measurement(path: Path, *, suite: Path, agent: AgentConfig) -> tuple[dict[str, Any], Path, Path]:
     measurement_file = _measurement_file(path)
     try:
         payload = json.loads(measurement_file.read_text(encoding="utf-8"))
@@ -300,9 +290,7 @@ def _measurement_file(path: Path) -> Path:
     return resolved / "measurement.json" if resolved.is_dir() else resolved
 
 
-def _select_targets(
-    task_pipeline: Path, coverage_report: Path, *, tasks: int, seed: int
-) -> list[dict[str, Any]]:
+def _select_targets(task_pipeline: Path, coverage_report: Path, *, tasks: int, seed: int) -> list[dict[str, Any]]:
     completed = subprocess.run(
         [sys.executable, str(task_pipeline), "select", "--report", str(coverage_report)],
         check=False,
@@ -351,7 +339,9 @@ def _generation_prompt(
     return f"""Complete one real Eval Author task-generation attempt. Do not merely explain it.
 
 The user authorized local Docker, Harbor, provider calls, and their cost for this run. Do not
-delegate or spawn another coding agent. Work only under `{workspace}`. Treat
+delegate or spawn another coding agent. Do not call launchctl or otherwise install a job
+that continues after you exit. Wait for child processes to finish, or stop them, before
+exiting. Work only under `{workspace}`. Treat
 `{workspace}/source-suite` as read-only reference material and never edit it.
 
 Read these instructions completely before acting:
@@ -408,8 +398,7 @@ def _inspect_attempt(
         attempt["errors"].append("generator did not create the expected draft")
     elif run_returncode != 0:
         attempt["errors"].append(
-            f"generator exited with {run_returncode}"
-            + (" after timing out" if run_timed_out else "")
+            f"generator exited with {run_returncode}" + (" after timing out" if run_timed_out else "")
         )
     return attempt
 
@@ -460,20 +449,14 @@ def _write_generation_checkpoint(
     write_json(manifest_path, result)
 
 
-def _adopt_generation(
-    manifest_path: Path, output: Path, identity: dict[str, Any]
-) -> dict[str, Any] | None:
+def _adopt_generation(manifest_path: Path, output: Path, identity: dict[str, Any]) -> dict[str, Any] | None:
     if not manifest_path.is_file() or not output.is_dir():
         return None
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
-    if (
-        not isinstance(payload, dict)
-        or payload.get("status") != "complete"
-        or payload.get("identity") != identity
-    ):
+    if not isinstance(payload, dict) or payload.get("status") != "complete" or payload.get("identity") != identity:
         return None
     if tree_digest(output) != payload.get("expanded_suite_digest"):
         return None
@@ -482,9 +465,7 @@ def _adopt_generation(
     return adopted
 
 
-def _partial_checkpoint(
-    manifest_path: Path, output: Path, identity: dict[str, Any]
-) -> dict[str, Any] | None:
+def _partial_checkpoint(manifest_path: Path, output: Path, identity: dict[str, Any]) -> dict[str, Any] | None:
     """Load an exact in-progress checkpoint whose immutable output is still intact."""
     if not manifest_path.is_file() or not output.is_dir():
         return None
@@ -534,9 +515,7 @@ def _export_attempt(attempt: dict[str, Any], output: Path) -> None:
     destination = output / "_generated" / attempt["task_slug"]
     if destination.exists():
         if tree_digest(destination) != tree_digest(draft):
-            raise ExperimentError(
-                f"checkpoint generated task differs from draft: {destination}"
-            )
+            raise ExperimentError(f"checkpoint generated task differs from draft: {destination}")
     else:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(draft, destination, symlinks=True)

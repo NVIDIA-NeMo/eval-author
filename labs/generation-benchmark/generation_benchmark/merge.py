@@ -10,6 +10,7 @@ from metric_benchmark.config import PinnedInput, input_digest
 from metric_benchmark.models import Subset, Subsets, Task, Tasks
 
 from generation_benchmark.config import (
+    GENERATED_RUNTIME_DIRNAME,
     GenerationCase,
     append_generated_task_manifest,
 )
@@ -32,7 +33,7 @@ def merge_tasks_into_case(
         src = suite_plus / task_id
         if not src.is_dir():
             raise ValueError(f"generated task directory missing: {src}")
-        dest = input_root / "generated-runtime" / runtime_namespace / task_id
+        dest = input_root / GENERATED_RUNTIME_DIRNAME / runtime_namespace / task_id
         if dest.exists():
             shutil.rmtree(dest)
         shutil.copytree(src, dest, symlinks=True)

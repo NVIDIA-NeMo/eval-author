@@ -4,10 +4,7 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from generation_benchmark.eval_author.proof import _closure_evidence_paths, _revision_manifests_with_ledgers
-from generation_benchmark.eval_author.ports.errors import ExperimentError
 
 
 def test_revision_manifests_with_ledgers_skips_orphan_manifests(tmp_path: Path) -> None:

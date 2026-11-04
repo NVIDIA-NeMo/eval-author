@@ -32,6 +32,7 @@ from pydantic import Field, TypeAdapter, model_validator
 
 GENERATION_INPUT_KEYS = frozenset({"agent_config", "generator_config"})
 GENERATED_TASKS_FILENAME = "tasks.generated.yml"
+GENERATED_RUNTIME_DIRNAME = "generated-runtime"
 
 
 class GenerationConfig(CoverageConfig):
@@ -61,9 +62,7 @@ class GenerationCase(Case):
     mutants: list[Agent] = Field(default_factory=list)
 
     @classmethod
-    def from_manifests(
-        cls, definition: CaseDefinition, agent: GenerationAgentManifest, tasks: TaskManifest
-    ) -> Self:
+    def from_manifests(cls, definition: CaseDefinition, agent: GenerationAgentManifest, tasks: TaskManifest) -> Self:
         return cls(
             case_id=definition.case_id,
             baseline=agent.baseline,
@@ -174,9 +173,7 @@ def draft_dir_from_settings(settings: dict) -> Path:
         raise ValueError("generation.settings.draft_dir is required")
     path = Path(value)
     if path.is_absolute() or any(part == ".." for part in path.parts):
-        raise ValueError(
-            "generation.settings.draft_dir must be a relative path inside the generator work cell"
-        )
+        raise ValueError("generation.settings.draft_dir must be a relative path inside the generator work cell")
     return path
 
 
@@ -272,7 +269,9 @@ def load_generation_benchmark(path: Path, *, allow_unsigned: bool = False) -> Lo
         inputs = _generation_inputs(generation_raw["inputs"])
     except KeyError as error:
         raise ValueError("generation settings require inputs") from error
-    generation = GenerationConfig.model_validate({key: value for key, value in generation_raw.items() if key != "inputs"})
+    generation = GenerationConfig.model_validate(
+        {key: value for key, value in generation_raw.items() if key != "inputs"}
+    )
     _verify_generation_policy(generation, inputs, loaded_cases.root, allow_unsigned)
     return LoadedGenerationBenchmark(
         definition=definition,
@@ -280,6 +279,27 @@ def load_generation_benchmark(path: Path, *, allow_unsigned: bool = False) -> Lo
         analysis=analysis,
         generation=generation,
         generation_inputs=inputs,
+    )
+
+
+def reject_prior_generation(case_root: Path) -> None:
+    """Refuse an experiment that would score tasks saved by an earlier run.
+
+    Call this once before the driver writes a new manifest. A later reload in the
+    same run sees the file this run just wrote.
+    """
+    artifacts: list[Path] = []
+    manifest = case_root / GENERATED_TASKS_FILENAME
+    if manifest.exists():
+        artifacts.append(manifest)
+    runtime = case_root / GENERATED_RUNTIME_DIRNAME
+    if runtime.exists() and any(runtime.iterdir()):
+        artifacts.append(runtime)
+    if not artifacts:
+        return
+    listed = "\n".join(f"- {path}" for path in artifacts)
+    raise ValueError(
+        "previously generated tasks are present. Delete these artifacts before running the experiment:\n" + listed
     )
 
 
@@ -320,7 +340,9 @@ def append_generated_task_manifest(
 
 __all__ = [
     "GENERATION_INPUT_KEYS",
+    "GENERATED_RUNTIME_DIRNAME",
     "GENERATED_TASKS_FILENAME",
+    "reject_prior_generation",
     "GenerationBenchmarkDefinition",
     "GenerationCase",
     "GenerationConfig",

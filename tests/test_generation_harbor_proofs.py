@@ -6,7 +6,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from generation_benchmark.eval_author.harbor import AgentConfig, run_named_harbor_trial
 from generation_benchmark.eval_author.ports.errors import ExperimentError
 

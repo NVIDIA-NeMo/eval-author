@@ -17,7 +17,6 @@ from pathlib import Path
 from generation_benchmark.eval_author.ports.errors import ExperimentError
 
 from .harbor import AgentConfig, harbor_trial_command
-from .proof import _revision_manifests_with_ledgers
 
 _RECEIPT_SCHEMA = "nemo.eval_author.task_evidence.v1"
 

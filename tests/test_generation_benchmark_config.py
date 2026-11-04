@@ -13,6 +13,7 @@ from generation_benchmark.config import (
     draft_dir_from_settings,
     generation_process_sha256,
     load_generation_benchmark,
+    reject_prior_generation,
 )
 from generation_benchmark.eval_author.identity import tree_digest
 from generation_benchmark.generation import validate_generation_request
@@ -63,12 +64,8 @@ def prepared_generation_benchmark(root: Path) -> tuple[Path, dict]:
             "draft_dir": ".eval-author/task-drafts",
         },
     }
-    generation["settings"]["process_sha256"] = generation_process_sha256(
-        GenerationConfig.model_validate(generation)
-    )
-    generation["settings"]["task_create_skill_sha256"] = tree_digest(
-        eval_root / "skills/eval-author-task-create"
-    )
+    generation["settings"]["process_sha256"] = generation_process_sha256(GenerationConfig.model_validate(generation))
+    generation["settings"]["task_create_skill_sha256"] = tree_digest(eval_root / "skills/eval-author-task-create")
     definition = yaml.safe_load(path.read_text(encoding="utf-8"))
     analysis_path = root / definition["analysis"]["path"]
     analysis = yaml.safe_load(analysis_path.read_text(encoding="utf-8"))
@@ -112,9 +109,7 @@ def test_generation_agent_rejects_mutants_key():
 
 
 def test_draft_dir_must_be_relative():
-    assert draft_dir_from_settings({"draft_dir": ".eval-author/task-drafts"}) == Path(
-        ".eval-author/task-drafts"
-    )
+    assert draft_dir_from_settings({"draft_dir": ".eval-author/task-drafts"}) == Path(".eval-author/task-drafts")
     with pytest.raises(ValueError, match="draft_dir is required"):
         draft_dir_from_settings({})
     with pytest.raises(ValueError, match="relative path"):
@@ -209,6 +204,26 @@ def test_prepared_generation_fixture_loads_twice(tmp_path):
     second = load_generation_benchmark(path)
     assert first.identity == second.identity
     assert len(first.analysis.load_subsets("gen-agent").eval_subsets) == 2
+
+
+def test_reject_prior_generation_names_saved_artifacts(tmp_path):
+    manifest = tmp_path / "tasks.generated.yml"
+    manifest.write_text("tasks: []\n", encoding="utf-8")
+    runtime = tmp_path / "generated-runtime" / "eval-subset-000001" / "cover-tool-1"
+    runtime.mkdir(parents=True)
+    (runtime / "task.toml").write_text("name = 'cover-tool-1'\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="previously generated tasks") as exc_info:
+        reject_prior_generation(tmp_path)
+
+    message = str(exc_info.value)
+    assert str(manifest) in message
+    assert str(tmp_path / "generated-runtime") in message
+
+
+def test_reject_prior_generation_allows_a_clean_case(tmp_path):
+    (tmp_path / "generated-runtime").mkdir()
+    reject_prior_generation(tmp_path)
 
 
 def test_prepared_generation_task_tamper_rejected(tmp_path):

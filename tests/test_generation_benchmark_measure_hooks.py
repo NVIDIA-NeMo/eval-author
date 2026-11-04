@@ -4,7 +4,6 @@
 import sys
 
 import pytest
-
 from generation_benchmark.measure_hooks import run_before_measure_command
 
 
