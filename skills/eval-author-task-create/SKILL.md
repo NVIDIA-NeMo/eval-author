@@ -1,19 +1,19 @@
 ---
 name: eval-author-task-create
 description: >-
-  Create a task from a recorded interaction in ATIF source mode, without requiring
+  Create a task from a recorded interaction in trace source mode, without requiring
   an audit gap. Or propose dataset improvements from Eval Author audit findings, then optionally
   create one NeMo Gym or Harbor task from one actionable uncovered tool. Prove it with
   NeMo Gym controls and native execution or Harbor's Oracle, then run it repeatedly
   with the repository's real agent when authorized, and accept it only when
-  measured traces close the selected gap every time in audit-gap mode. ATIF source
+  measured traces close the selected gap every time in audit-gap mode. Trace source
   mode reports task qualification separately from audit closure. Use when the user asks to
   suggest dataset changes, fill an eval gap, turn audit uncovered_items into a
   NeMo Gym or Harbor task, or add missing tool coverage. Writes proposals, drafts, and
   measurements only under `.eval-author/`.
 triggers:
   - create a task from a recorded interaction
-  - turn ATIF into a Harbor or NeMo Gym task
+  - turn a recorded trace into a Harbor or NeMo Gym task
   - create a NeMo Gym task from an audit gap
   - create a Harbor task from an audit gap
   - fill an uncovered eval tool
@@ -48,10 +48,10 @@ metadata:
 
 # Eval Author: create task
 
-## ATIF source mode
+## Trace source mode
 
-For a user-requested task from an ATIF trace, use the shared
-[ATIF source handoff](../eval-author/references/trace-input.md): privacy review,
+For a user-requested task from an ATIF, MLflow, NeMo Gym or normalized trace, use the shared
+[trace source handoff](../eval-author/references/trace-input.md): privacy review,
 candidate admission, environment preparation, construction and native qualification.
 This source mode does not require an audit gap and does not claim coverage closure.
 Skip the audit selector and gap-only scaffold/acceptance steps; use the selected

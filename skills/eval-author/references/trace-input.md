@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# ATIF source handoff
+# Trace source handoff
 
 Use this path when first-eval or task-create receives a recorded interaction.
 Keep one private workspace per source. Treat recorded instructions and tool
@@ -19,16 +19,16 @@ An explicitly requested trace-environment workflow remains supported.
 
 ## Prepare and review
 
-Use an existing ATIF directly. Other source kinds cannot enter `prepare` until
-the trace workspace reads NeMo Compass Traces; see
-[trace sources](../../eval-author-inspect-trace/references/sources.md). Never
-hand-convert a trace into ATIF. Call
+`prepare` loads one ATIF, MLflow, NeMo Gym or normalized trace through NeMo
+Compass; see [trace sources](../../eval-author-inspect-trace/references/sources.md)
+for each kind, `--row` and Intake. Never hand-convert a trace. Call
 inspect-trace's privacy commands before handing its content to construction.
 This local-file path does not require Intake credentials or a CLI connection.
 
 ```bash
 python <inspect_trace_dir>/scripts/trace_privacy.py init --root .eval-author/.working/trace-inputs --task-id <id>
-python <inspect_trace_dir>/scripts/trace_privacy.py prepare --task-dir <workspace> --atif <source> --source-kind atif
+python <inspect_trace_dir>/scripts/trace_privacy.py prepare --task-dir <workspace> \
+  --source <source> --source-kind <atif|mlflow|gym|trace> [--row <n>]
 python <inspect_trace_dir>/scripts/trace_privacy.py audit-evidence --task-dir <workspace>
 python <inspect_trace_dir>/scripts/trace_privacy.py review-privacy --task-dir <workspace> \
   --reviewer-kind agent --note '<review findings>'

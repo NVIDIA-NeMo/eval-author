@@ -35,6 +35,11 @@ def fresh_workspace(tmp_path):
     return helpers, fresh, manifest
 
 
+def canonical(root):
+    """The canonical construction.v3 document the workspace helper wrote."""
+    return json.loads((root / construction.PATH).read_text())
+
+
 def test_incomplete_proposal_migrates_without_inventing_checks(tmp_path):
     root = tmp_path / ".eval-author"
     root.mkdir()
@@ -71,43 +76,18 @@ def test_incomplete_proposal_migrates_without_inventing_checks(tmp_path):
         construction.assess(migrated)
 
 
-def test_trace_import_retains_all_controls_and_requires_authority_review(tmp_path):
-    helpers, root, original = fresh_workspace(tmp_path)
-    source = root / "private/construction.json"
-    before = source.read_bytes()
-    destination = root / "private/construction-v2.json"
-    construction.migrate(source, destination, workspace=root)
-    migrated, _ = construction.load(destination)
-    assert construction._trace_projection(migrated) == original
-    assert source.read_bytes() == before
-    with pytest.raises(construction.PlanError, match="resolve grading authority"):
-        construction.activate(root, destination)
-    for requirement in migrated["requirements"]:
-        requirement["authority"] = {"basis": "specification", "reference": "Synthetic fixture requirement"}
-    destination.write_text(json.dumps(migrated))
-    construction.activate(root, destination)
-    context = construction.validate(root)
-    assert context["canonical_path"] == "private/construction-v2.json"
-    assert context["sha256"] == task_evidence.digest(destination)
-    assert source.read_bytes() == before
-
-
-def test_legacy_control_names_do_not_collide_with_builtin_cases(tmp_path):
-    helpers, root, original = fresh_workspace(tmp_path)
-    negative = next(c for c in original["controls"] if c["arm"] == "negative")
-    negative["id"] = "builtin-nop"
-    helpers.save(root / "private/construction.json", original)
-    migrated = construction.from_trace(root)
-    names = [case["case"] for case in migrated["cases"]]
-    assert len(names) == len(set(names))
-    assert construction._trace_projection(migrated) == original
+def test_retired_construction_schema_is_refused(tmp_path):
+    path = tmp_path / "construction.json"
+    path.write_text(json.dumps({"schema": "nemo.eval_author.construction.v2", "task_id": "example"}))
+    with pytest.raises(construction.PlanError, match="construction.v1 and v2 predate Compass Trace citations"):
+        construction.load(path)
 
 
 def test_stale_active_contract_does_not_move_reports_during_repair(tmp_path):
     import argparse
 
     helpers, root, _ = fresh_workspace(tmp_path)
-    migrated = construction.from_trace(root)
+    migrated = canonical(root)
     for requirement in migrated["requirements"]:
         requirement["authority"] = {"basis": "specification", "reference": "Synthetic fixture requirement"}
     destination = root / "private/construction-v2.json"
@@ -130,7 +110,7 @@ def test_canonical_repair_preserves_sources_and_requires_fresh_selection(tmp_pat
     helpers, root, _ = fresh_workspace(tmp_path)
     original = root / "private/construction.json"
     original_bytes = original.read_bytes()
-    value = construction.from_trace(root)
+    value = canonical(root)
     for requirement in value["requirements"]:
         requirement["authority"] = {"basis": "specification", "reference": "Synthetic fixture requirement"}
     first = root / "private/construction-v2.json"
@@ -149,7 +129,7 @@ def test_canonical_repair_preserves_sources_and_requires_fresh_selection(tmp_pat
     )
     registration = task_evidence._record_run_inputs(args)
     inputs = json.loads(Path(registration["run_inputs"]).read_text())
-    assert inputs["schema"] == helpers.driver.CANONICAL_RUN_INPUT_SCHEMA
+    assert inputs["schema"] == helpers.driver.RUN_INPUT_SCHEMA
     assert inputs["construction_path"] == "private/construction-v2.json"
     assert inputs["construction_sha256"] == task_evidence.digest(first)
     task_evidence._record_repair(
@@ -176,7 +156,7 @@ def test_interrupted_repair_resumes_without_copies_or_another_budget_entry(tmp_p
     import argparse
 
     helpers, root, _ = fresh_workspace(tmp_path)
-    value = construction.from_trace(root)
+    value = canonical(root)
     for requirement in value["requirements"]:
         requirement["authority"] = {"basis": "specification", "reference": "Synthetic fixture requirement"}
     contract = root / "private/construction-v2.json"
@@ -312,7 +292,7 @@ def test_repair_reports_pending_activation_and_recovers_without_manual_deletion(
     from eval_author_shared import commands, trace_workspace
 
     helpers, root, _ = fresh_workspace(tmp_path)
-    value = construction.from_trace(root)
+    value = canonical(root)
     for requirement in value["requirements"]:
         requirement["authority"] = {"basis": "specification", "reference": "Synthetic public requirement"}
     first = root / "private/first.json"
@@ -336,8 +316,8 @@ def test_repair_reports_pending_activation_and_recovers_without_manual_deletion(
         {
             "schema": trace_workspace.BATCH_SCHEMA,
             "members": [
-                {"task_id": root.name, "atif": "unused.json", "source_kind": "atif"},
-                {"task_id": "missing-member", "atif": "unused.json", "source_kind": "atif"},
+                {"task_id": root.name, "source": "unused.json", "source_kind": "atif"},
+                {"task_id": "missing-member", "source": "unused.json", "source_kind": "atif"},
             ],
         },
     )
@@ -360,7 +340,7 @@ def test_activation_recovers_previously_recorded_post_repair_reproducibility(tmp
     from eval_author_shared import trace_workspace
 
     helpers, root, _ = fresh_workspace(tmp_path)
-    value = construction.from_trace(root)
+    value = canonical(root)
     for requirement in value["requirements"]:
         requirement["authority"] = {"basis": "specification", "reference": "Synthetic public requirement"}
     first = root / "private/first.json"
@@ -379,24 +359,22 @@ def test_activation_recovers_previously_recorded_post_repair_reproducibility(tmp
 
 def test_canonical_authority_error_survives_workspace_boundary(tmp_path):
     helpers, root, _ = fresh_workspace(tmp_path)
-    value = construction.from_trace(root)
+    value = canonical(root)
+    value["requirements"][0]["authority"] = {"basis": "unresolved", "reference": "Need the grading rule"}
     helpers.save(root / "private/construction.json", value)
     with pytest.raises(ValueError, match="resolve grading authority before construction"):
         task_evidence._construction_context(root)
 
 
-def test_historical_trace_size_bound_and_cli_validation(tmp_path):
+def test_canonical_size_bound_and_cli_validation(tmp_path):
     import subprocess
 
     from eval_author_shared import legacy_construction
 
-    helpers, root, value = fresh_workspace(tmp_path)
-    value["review"] = {"reviewer_kind": "agent", "note": "Reviewed source. " * 80000}
-    path = root / "private/construction.json"
-    helpers.save(path, value)
-    assert legacy_plan.MAX_BYTES < path.stat().st_size < legacy_construction.MAX_BYTES
-    expected = legacy_construction.validate(root)
-    assert construction.validate(root)["sha256"] == expected["sha256"]
+    helpers, root, projection = fresh_workspace(tmp_path)
+    path = root / construction.PATH
+    expected = legacy_construction.validate(root, manifest=projection)
+    assert construction.validate(root)["provenance"] == expected["provenance"]
     result = subprocess.run(
         [
             sys.executable,
@@ -412,9 +390,10 @@ def test_historical_trace_size_bound_and_cli_validation(tmp_path):
         text=True,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    value["schema"] = construction.SCHEMA
-    helpers.save(path, value)
-    with pytest.raises(construction.PlanError, match="size limit"):
+    projection["review"] = {"reviewer_kind": "agent", "note": "Reviewed source. " * 80000}
+    helpers.write_contract(root, projection)
+    assert path.stat().st_size > legacy_plan.MAX_BYTES
+    with pytest.raises(construction.PlanError, match="bounded regular file"):
         construction.load(path)
 
 
@@ -425,7 +404,7 @@ def test_malformed_active_marker_keeps_check_and_batch_structured(tmp_path, mark
     from eval_author_shared import trace_workspace
 
     helpers, root, _ = fresh_workspace(tmp_path)
-    value = construction.from_trace(root)
+    value = canonical(root)
     for requirement in value["requirements"]:
         requirement["authority"] = {"basis": "specification", "reference": "Synthetic public requirement"}
     contract = root / "private/active.json"
@@ -445,7 +424,7 @@ def test_malformed_active_marker_keeps_check_and_batch_structured(tmp_path, mark
         {
             "schema": trace_workspace.BATCH_SCHEMA,
             "members": [
-                {"task_id": name, "atif": "unused.json", "source_kind": "atif"}
+                {"task_id": name, "source": "unused.json", "source_kind": "atif"}
                 for name in [root.name, "other-member", "missing-member"]
             ],
         },

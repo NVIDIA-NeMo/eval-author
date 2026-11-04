@@ -16,14 +16,15 @@ preview: workflows, skills, and saved artifacts may change between releases.
   ATIF; ATIF is only an input format.
 - **Breaking: live MLflow queries.** Traces are no longer read from an MLflow
   tracking server; export them and load the complete local export.
-- **Breaking: non-ATIF trace workspaces, for now.** The trace workspace's
-  `prepare` accepts only `--source-kind atif` until it reads Compass Traces, so
-  MLflow, NeMo Gym-native, Intake, and OpenTelemetry traces cannot start a
-  trace-derived task. Workspaces already prepared from another source kind keep
-  loading.
 - **Breaking: v1 audit coverage files.** `report.py` accepts only
   `nemo.eval_author.audit_coverage.v2` inputs; measure existing traces again to
   aggregate them.
+- **Breaking: legacy trace workspace paths.** `record-validation
+  --allow-aggregate-only` is gone; every proof job needs per-check rows.
+  Summary v2/v3, run-input v1/v2 and validation v6 workspaces, the
+  `private/workspace.json` creation marker, `construction.v1` and
+  `construction.v2`, and the historical trace construction import are no longer
+  read. Older workspaces are refused; re-run `prepare` in a new task directory.
 
 ### Changed
 
@@ -52,6 +53,33 @@ preview: workflows, skills, and saved artifacts may change between releases.
   `trace_load.v2` receipt and its normalized trace instead of a conversion
   receipt. See
   [Native NeMo Gym evidence](skills/eval-author-task-create/references/gym-evidence.md).
+- **Breaking: trace workspaces read Compass Traces.** `prepare --source <file>
+  --source-kind {atif,mlflow,gym,trace} [--row N]` loads one trace through the
+  trace loader and writes `private/canonical.trace.json` and a scrubbed
+  `safe/trace.json` that still validates as a Compass `Trace`. Load Intake with
+  `trace_loading.py` first, then prepare its `traces.normalized.jsonl` with
+  `--source-kind trace`. The safe copy omits media, drops source attributes and
+  pseudonymizes identifiers consistently. Candidates, construction, tool-call
+  fixtures and the evidence audit cite safe-trace turn and span ids instead of
+  ATIF step ids: `evidence_turns`, provenance `trace_turn`, `cutoff_turn_id`,
+  and `{span_id, call_id}` call evidence. See
+  [trace sources](skills/eval-author-inspect-trace/references/sources.md).
+  Schema changes:
+
+  | Artifact | Old | New |
+  | --- | --- | --- |
+  | summary | v2, v3 | v4 |
+  | candidate | v2 | v3 |
+  | privacy audit | v1 | v2 |
+  | tool-call generation | v1 | v2 |
+  | product | v4 | v5 |
+  | batch (members `{task_id, source, source_kind, row?}`) | v1 | v2 |
+  | tool calls, tool-call plan, tool access, call fixtures | v2 | v3 |
+  | MCP scenario, schema overrides, evidence audit | v1 | v2 |
+  | construction | v2 | v3 |
+
+  Run-input v3, validation v7, tool-access decisions v1 and publication review
+  v1 are unchanged.
 
 ## 0.1.0
 
