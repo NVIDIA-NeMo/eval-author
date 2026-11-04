@@ -30,8 +30,10 @@ def collection_record(directory):
     files.pop("collection.json", None)
     if files != record["files"]:
         raise ValueError("collected evidence changed")
-    plan = Submission.model_validate(_object(resolve_evidence(directory, "submission.json")))
-    if record["submission_sha256"] != digest_bytes(json_bytes(plan)):
+    saved_plan = _object(resolve_evidence(directory, "submission.json"))
+    plan = Submission.model_validate(saved_plan)
+    # New model defaults must not change the identity of a preserved submission.
+    if record["submission_sha256"] != digest_bytes(json_bytes(saved_plan)):
         raise ValueError("collection submission identity differs")
     if record["cases_sha256"] != plan.cases_sha256 or record["run_id"] != plan.run_id:
         raise ValueError("collection case or run identity differs")
@@ -89,6 +91,9 @@ def normalized_target(target):
         raise ValueError("unsupported Helix target fields")
     result = {**defaults, **target}
     result["source"] = {"model_name": None, **result["source"]}
+    # Earlier deployed built-in sources serialized an unused null `model` field.
+    if "model" in result["source"] and result["source"]["model"] is None:
+        result["source"].pop("model")
     return result
 
 

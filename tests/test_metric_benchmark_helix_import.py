@@ -197,3 +197,21 @@ def test_effective_task_is_verified_again_on_offline_validation(experiment):
         validate_experiment_results(loaded, output)
     with pytest.raises(ValueError, match="changed"):
         import_helix_results(*experiment)
+
+
+def test_saved_submission_hash_survives_added_model_defaults(experiment):
+    loaded, publication, collection, output = experiment
+    path = collection / "submission.json"
+    plan = json.loads(path.read_text())
+    plan["execution"].pop("backend")
+    save(path, plan)
+    record = json.loads((collection / "collection.json").read_text())
+    record["submission_sha256"] = digest_bytes(json_bytes(plan))
+    job_path = collection / record["observations"][0]["job_spec_path"]
+    job = json.loads(job_path.read_text())
+    job["spec"]["spec"]["target"]["source"]["model"] = None
+    save(job_path, job)
+    save(collection / "collection.json", record)
+    reseal(collection)
+    import_helix_results(*experiment)
+    validate_experiment_results(loaded, output)
