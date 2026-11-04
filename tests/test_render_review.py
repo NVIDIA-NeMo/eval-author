@@ -272,28 +272,29 @@ def test_caller_selected_evidence_role_is_visible(tmp_path, role, label):
     assert summary["status"] == ("attention" if role in {"agent", "control"} else "ok")
 
 
-def test_atif_trace_renders_spans_depth_first_with_tool_results_and_error_flags(tmp_path):
+def test_atif_trace_renders_turns_in_conversation_order_with_tool_results_and_error_flags(tmp_path):
     source = write_json(tmp_path / "source.atif.json", atif_record())
     output = tmp_path / "review"
     summary, report = read_report(invoke(source, output, format="atif", rows=None, role="source"), output)
     spans = report.section("spans")
+    # Each turn is followed by the spans it names, so the tool call sits between the agent
+    # message that made it and the final answer.
     order = [
+        "SYNTHETIC_ATIF_PROMPT",
+        "SYNTHETIC_RECORDED_MESSAGE",
         "TOOL · read_fixture",
         "SYNTHETIC_TOOL_ARGUMENT",
-        "<script>SYNTHETIC_TOOL_OBSERVATION</script>",
         "Tool result 1 · is_error: True",
+        "<script>SYNTHETIC_TOOL_OBSERVATION</script>",
+        "SYNTHETIC_FINAL_OUTPUT",
     ]
     positions = [spans.index(value) for value in order]
     assert positions == sorted(positions)
+    # The tool span's output is its result; it renders once, not again as output or call metadata.
+    assert spans.count("SYNTHETIC_TOOL_OBSERVATION") == 1
     assert "synthetic-model" in spans
     assert "ATIF tool result reported is_error" in spans
     assert summary["status"] == "attention"
-    # Each AGENT span renders its turns, in turn order, before its child spans.
-    turns = [
-        spans.index(text) for text in ("SYNTHETIC_ATIF_PROMPT", "SYNTHETIC_RECORDED_MESSAGE", "SYNTHETIC_FINAL_OUTPUT")
-    ]
-    assert turns == sorted(turns)
-    assert turns[-1] < spans.index("TOOL · read_fixture")
     assert not any(tag in {"script", "img"} for tag, _attrs in report.elements)
 
 

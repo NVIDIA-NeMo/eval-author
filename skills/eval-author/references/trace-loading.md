@@ -47,12 +47,15 @@ release with the next Compass release.
 | `trace` | `--input` canonical `Trace` JSONL, such as a previous `traces.normalized.jsonl` | — |
 
 `--max-traces` (default 1000) rejects larger sources instead of truncating them.
-A session that could not be loaded completely (a `merge_incomplete` loss) and
-ATIF that repeats a JSON object key are rejected too, so no record or value is
-dropped silently.
-A NeMo Gym `--row` normalizes only the selected line, but the output keeps an
-exact copy of the whole source file, other episodes included, so treat it as
-restricted as the source itself.
+`--trace-id ID`, for any kind, keeps only the trace with that `id` (an MLflow
+trace ID, an ATIF `trajectory_id` or, without one, the loader's `atif-` digest
+ID, a merged `session:<id>`, or a NeMo Gym rollout ID) and fails unless exactly
+one trace matches. A session that could not be loaded completely (a
+`merge_incomplete` loss) and any input that repeats a JSON object key are
+rejected too, so no record or value is dropped silently.
+A NeMo Gym `--row` or a `--trace-id` normalizes only the selected trace, but the
+output keeps an exact copy of the whole source file, other traces included, so
+treat it as restricted as the source itself.
 
 Direct OpenTelemetry input is not supported; ingest OpenTelemetry data into
 Intake and load it with `--source-kind intake`.
@@ -70,14 +73,16 @@ once with mode `0600`, and an existing path is refused.
   `loader` (`distribution` `nemo-compass`, `version` `0.2.0`, and `revision`
   `a78dc416da247a9f4bcff17881c5fd20e90a7256`); `trace_schema_version` `"3"`;
   `source_sha256` digests of each source copy; `normalized_sha256`;
-  `trace_count`; `max_traces`; the NeMo Gym `row`; and `intake`, the Intake
-  selection (each `null` for other kinds).
+  `trace_count`; `max_traces`; the NeMo Gym `row`; the selected `trace_id`; and
+  `intake`, the Intake selection (each `null` when not used).
 
 ## Evidence handling and failures
 
 Outputs contain restricted trace data; do not publish them or treat them as a
 sanitized report. Success prints `{"status": "loaded", "traces": N}`. Any
-failure exits 2 with a content-free message, removes only the newly created
-output directory, and leaves existing paths untouched. Check the installed
-pinned revision, source shape, and completeness privately. Missing values stay
-missing: the loader never invents a user instruction, tool result, or reward.
+failure exits 2, removes only the newly created output directory, and leaves
+existing paths untouched. Its content-free message names the failed check, such
+as a missing `--row`, an unpinned install, or an incomplete source; other parser
+failures report only the source kind, so check the source shape privately.
+Missing values stay missing: the loader never invents a user instruction, tool
+result, or reward.

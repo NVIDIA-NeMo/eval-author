@@ -31,6 +31,10 @@ JsonObject: TypeAlias = dict[str, Any]
 COVERAGE_SCHEMA = "nemo.eval_author.audit_coverage.v2"
 TRACE_FORMAT = "nemo-compass-trace"
 SOURCE_KINDS = ("atif", "mlflow", "gym", "trace")
+SELECT_ONE = (
+    "measure one trace: select it with eval-author's trace_loading.py --row or --trace-id, "
+    "then pass its traces.normalized.jsonl with --source-kind trace"
+)
 SCHEMAS_DIR = Path(__file__).resolve().parents[2] / "schemas"
 COVERAGE_SCHEMA_PATH = SCHEMAS_DIR / "audit_coverage.schema.json"
 CAPABILITY_JUDGMENTS_SCHEMA_PATH = SCHEMAS_DIR / "audit_capability_judgments.schema.json"
@@ -183,8 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--source-kind",
         choices=SOURCE_KINDS,
-        default="atif",
-        help="format of --trace; --trial-dir always reads agent/trajectory.json as atif (default: atif)",
+        help="format of --trace (default: atif); --trial-dir always reads agent/trajectory.json as atif",
     )
     parser.add_argument("--task-id", help="task id to stamp on the measurement report")
     parser.add_argument("--run-id", help="run id to stamp on the measurement report")
@@ -228,11 +231,12 @@ def main(argv: list[str] | None = None) -> int:
         inputs = _measurement_inputs(args, method_names)
         audit = load_audit_spec(args.audit)
         pending_subject = _subject(args)
-        loaded_trace = _load_trace(pending_subject.trace_path, _source_kind(args))
+        source_kind = _source_kind(args)
+        loaded_trace = _load_trace(pending_subject.trace_path, source_kind)
         _validate_judgment_trace(inputs.capability_judgments, loaded_trace, label="capability judgments")
         _validate_judgment_trace(inputs.failure_case_judgments, loaded_trace, label="failure-case judgments")
         subject_info = _finalize_subject(
-            pending_subject, loaded_trace, source_kind=_source_kind(args), evidence_class=_resolve_evidence_class(args)
+            pending_subject, loaded_trace, source_kind=source_kind, evidence_class=_resolve_evidence_class(args)
         )
         reports = _measure_all(
             audit=audit,
@@ -355,15 +359,16 @@ def _load_harbor_result(path: Path) -> JsonObject:
     return payload
 
 
-def _trace_run_id(loaded_trace: LoadedTrace, source_kind: str) -> str:
+def _trace_run_id(loaded_trace: LoadedTrace) -> str:
     """Prefer recorded run identity, then fall back to a short trace-content digest.
 
-    Compass names an ATIF trace without ``trajectory_id`` by a digest of its bytes, so ATIF
-    reads the recorded ``trajectory_id`` and then ``session_id``, as before the move to Compass.
+    Compass names an ATIF trace without ``trajectory_id`` by a digest of its bytes, so an ATIF
+    run, read directly or from normalized output, uses the recorded ``trajectory_id`` and then
+    ``session_id``, as before the move to Compass.
     """
     trace = loaded_trace.trace
-    if source_kind == "atif":
-        run = trace.root_spans[0].run if len(trace.root_spans) == 1 else None
+    run = trace.root_spans[0].run if len(trace.root_spans) == 1 else None
+    if str(getattr(run, "schema_version", None) or "").startswith("ATIF-"):
         identities = [getattr(run, "trajectory_id", None), trace.session_id]
     else:
         identities = [trace.id]
@@ -372,7 +377,11 @@ def _trace_run_id(loaded_trace: LoadedTrace, source_kind: str) -> str:
 
 def _source_kind(args: argparse.Namespace) -> str:
     """Harbor trial directories always hold ATIF; direct traces use the declared kind."""
-    return "atif" if args.trial_dir is not None else args.source_kind
+    if args.trial_dir is None:
+        return args.source_kind or "atif"
+    if args.source_kind not in (None, "atif"):
+        raise AuditMeasurementError("--trial-dir reads agent/trajectory.json as atif; omit --source-kind")
+    return "atif"
 
 
 def _load_trace(path: Path, source_kind: str) -> LoadedTrace:
@@ -383,7 +392,7 @@ def _load_trace(path: Path, source_kind: str) -> LoadedTrace:
     except ModuleNotFoundError as exc:
         if exc.name != "trace_loading":
             raise
-        raise SystemExit(
+        raise AuditEnvironmentError(
             "Incomplete skill installation: install the sibling eval-author skill alongside eval-author-audit."
         ) from None
     try:
@@ -394,9 +403,11 @@ def _load_trace(path: Path, source_kind: str) -> LoadedTrace:
             f"audit measurement reads traces with NeMo Compass: {exc} "
             "(install requirements.txt or run with uv --with-requirements)"
         ) from exc
+    if source_kind == "gym" and path.suffix.lower() != ".json":
+        raise AuditTraceError(f"{path} is NeMo Gym JSONL; {SELECT_ONE}")
     try:
         raw = path.read_bytes()
-        traces = trace_loading.load_traces(path, source_kind, max_traces=1)
+        traces = trace_loading.load_traces(path, source_kind)
         # The loader reads the file itself; a matching reread binds the digest to what it loaded.
         unchanged = path.read_bytes() == raw
     except OSError as exc:
@@ -406,7 +417,7 @@ def _load_trace(path: Path, source_kind: str) -> LoadedTrace:
     if not unchanged:
         raise AuditTraceError(f"{path} changed while it was being loaded")
     if len(traces) != 1:
-        raise AuditTraceError("trace file must contain exactly one trace")
+        raise AuditTraceError(f"{path} holds {len(traces)} traces; {SELECT_ONE}")
     return LoadedTrace(trace=traces[0], content_sha256=hashlib.sha256(raw).hexdigest())
 
 
@@ -417,7 +428,7 @@ def _finalize_subject(
     return Subject(
         trace_path=subject.trace_path,
         task_id=subject.task_id,
-        run_id=subject.run_id or _trace_run_id(loaded_trace, source_kind),
+        run_id=subject.run_id or _trace_run_id(loaded_trace),
         source_kind=source_kind,
         trace_sha256=loaded_trace.content_sha256,
         evidence_class=evidence_class,

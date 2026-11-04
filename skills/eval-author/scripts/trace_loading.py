@@ -84,8 +84,9 @@ def load_traces(
     max_traces: int = 1000,
     row: int | None = None,
     intake: dict[str, Any] | None = None,
+    trace_id: str | None = None,
 ) -> list[Trace]:
-    """Load every trace in ``source`` (or the Intake selection); never truncate."""
+    """Load every trace in ``source`` (or the Intake selection), or only ``trace_id``; never truncate."""
 
     if source_kind not in SOURCE_KINDS:
         raise TraceLoadError(f"unsupported source kind {source_kind!r}")
@@ -108,9 +109,7 @@ def load_traces(
         elif source_kind == "gym":
             traces = _load_gym(source, row)
         else:
-            from trace_ingest.loaders.fs import FSDataLoader
-
-            traces = list(FSDataLoader(path=source).load())
+            traces = _load_trace_file(source)
     if len(traces) > max_traces:
         raise TraceLoadError("source contains more than max_traces traces")
     if not traces:
@@ -118,6 +117,10 @@ def load_traces(
     # Compass still returns a merged session when it could not load every record of it.
     if any(loss.code == "merge_incomplete" for trace in traces for loss in trace.losses):
         raise TraceLoadError("source holds a session that could not be loaded completely")
+    if trace_id is not None:
+        traces = [trace for trace in traces if trace.id == trace_id]
+        if len(traces) != 1:
+            raise TraceLoadError("--trace-id must match exactly one trace in the source")
     return traces
 
 
@@ -126,11 +129,7 @@ def _load_atif(source: Path) -> list[Trace]:
     from trace_ingest.source_links import file_source_url
 
     if source.suffix.lower() != ".json":
-        # Compass keeps the last of repeated JSON keys; refuse them instead of dropping values.
-        with source.open("rb") as lines:
-            for raw in lines:
-                if raw.strip():
-                    _strict_json(raw)
+        _check_jsonl_keys(source)
         return list(ATIFTraceLoader(ATIFTraceConfig(path=source)).load())
     # Compass reads ATIF as JSONL. A ``.json`` file, such as Harbor's pretty-printed
     # agent/trajectory.json, holds one trajectory: load it as a single compact line.
@@ -151,9 +150,20 @@ def _load_atif(source: Path) -> list[Trace]:
     return traces
 
 
-def _strict_json(raw: bytes) -> Any:
+def _strict_json(raw: bytes | str) -> Any:
     """Parse JSON, refusing non-finite numbers and repeated object keys."""
     return json.loads(raw, parse_constant=_reject_constant, object_pairs_hook=_unique_keys)
+
+
+def _check_jsonl_keys(source: Path) -> None:
+    """Refuse repeated keys on any non-blank line, split as the Compass JSONL loaders split it.
+
+    Compass keeps the last of repeated JSON keys, which would drop the earlier values silently.
+    """
+    with source.open("rb") as lines:
+        for raw in lines:
+            if raw.strip():
+                _strict_json(raw)
 
 
 def _reject_constant(value: str) -> Any:
@@ -168,8 +178,18 @@ def _unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def _load_mlflow(source: Path, max_traces: int) -> list[Trace]:
+    # MLflow logs an instruction to coding agents on import; keep it out of callers' output.
+    os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
     from trace_ingest.loaders.mlflow import MLflowFileTraceConfig, MLflowFileTraceLoader
 
+    # Mirror Compass's parse: one JSON document, else one record per line.
+    text = source.read_bytes().decode("utf-8")
+    try:
+        _strict_json(text)
+    except json.JSONDecodeError:
+        for line in text.splitlines():
+            if line.strip():
+                _strict_json(line)
     loader = MLflowFileTraceLoader(MLflowFileTraceConfig(path=source, max_traces=max_traces))
     traces = list(loader.load())
     description = loader.describe()
@@ -199,6 +219,13 @@ def _load_gym(source: Path, row: int | None) -> list[Trace]:
     for trace in traces:
         trace.source_url = file_source_url(source, row)
     return traces
+
+
+def _load_trace_file(source: Path) -> list[Trace]:
+    from trace_ingest.loaders.fs import FSDataLoader
+
+    _check_jsonl_keys(source)
+    return list(FSDataLoader(path=source).load())
 
 
 def _load_intake(selection: dict[str, Any], max_traces: int) -> list[Trace]:
@@ -248,6 +275,17 @@ def _write_private(path: Path, data: bytes) -> None:
         stream.write(data)
 
 
+def _copy_private(source: Path, path: Path) -> str:
+    """Copy ``source`` to a new private file in chunks and return the digest of the bytes copied."""
+    digest = hashlib.sha256()
+    with source.open("rb") as reader, path.open("xb") as writer:
+        os.chmod(writer.name, 0o600)
+        while chunk := reader.read(1024 * 1024):
+            digest.update(chunk)
+            writer.write(chunk)
+    return "sha256:" + digest.hexdigest()
+
+
 def _json_bytes(value: Any) -> bytes:
     return (json.dumps(value, ensure_ascii=False, allow_nan=False, indent=2) + "\n").encode()
 
@@ -279,24 +317,24 @@ def write_load(args: argparse.Namespace) -> dict[str, Any]:
     intake = _intake_selection(args)
     if intake is None and args.input is None:
         raise TraceLoadError("--input is required")
-    sources: list[tuple[str, Path]] = []
+    copy: Path | None = None
     if args.input is not None:
         # ATIF and Gym loaders choose whole-file JSON (".json") or JSONL by suffix; the copy keeps it.
         suffix = ".json" if args.input.suffix.lower() == ".json" else ".jsonl"
-        sources = [(f"source.{kind}{suffix}", args.input)]
-    copies = [(name, path.read_bytes()) for name, path in sources]
+        copy = Path(f"source.{kind}{suffix}")
     output: Path = args.output_dir
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
     try:
         output.chmod(0o700)
-        for name, data in copies:
-            _write_private(output / name, data)
+        # Load the private copy, so the recorded digest covers exactly the bytes loaded.
+        source_sha256 = {copy.name: _copy_private(args.input, output / copy)} if copy is not None else {}
         traces = load_traces(
-            output / copies[0][0] if copies else None,
+            output / copy if copy is not None else None,
             kind,
             max_traces=args.max_traces,
             row=args.row,
             intake=intake,
+            trace_id=args.trace_id,
         )
         normalized = "".join(trace.model_dump_json() + "\n" for trace in traces).encode()
         _write_private(output / "traces.normalized.jsonl", normalized)
@@ -305,11 +343,12 @@ def write_load(args: argparse.Namespace) -> dict[str, Any]:
             "source_kind": kind,
             "loader": LOADER,
             "trace_schema_version": traces[0].schema_version,
-            "source_sha256": {name: _sha256(data) for name, data in copies},
+            "source_sha256": source_sha256,
             "normalized_sha256": _sha256(normalized),
             "trace_count": len(traces),
             "max_traces": args.max_traces,
             "row": args.row,
+            "trace_id": args.trace_id,
             "intake": None
             if intake is None
             else {
@@ -337,6 +376,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-kind", required=True, choices=SOURCE_KINDS)
     parser.add_argument("--input", type=Path, help="Source file; every kind except intake")
     parser.add_argument("--row", type=int, help="One-based physical JSONL line, required for Gym JSONL")
+    parser.add_argument("--trace-id", help="Keep only the trace with this id; it must match exactly one trace")
     parser.add_argument("--intake-base-url", help="Intake service URL, without credentials")
     parser.add_argument("--workspace", help="Intake workspace")
     parser.add_argument("--started-after", type=_aware, help="Intake window start, ISO 8601 with timezone")
@@ -353,6 +393,10 @@ def main(argv: list[str] | None = None) -> int:
         # Third-party diagnostics may contain source values; keep CLI output content-free.
         with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
             receipt = write_load(args)
+    except TraceLoadError as error:
+        # These messages name the failed check, never source content.
+        print(json.dumps({"status": "error", "message": f"{args.source_kind} loading failed: {error}"}))
+        return 2
     except Exception:
         message = f"{args.source_kind} loading failed; check input and pinned dependencies"
         print(json.dumps({"status": "error", "message": message}))

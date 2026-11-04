@@ -13,7 +13,9 @@ Current assumptions:
 - Measurement input is one trace file. `measure.py` accepts either
   `--trace <file>` with `--source-kind atif|mlflow|gym|trace` (default `atif`)
   or a Harbor trial directory containing `agent/trajectory.json` (read as ATIF).
-  The file must hold exactly one trace.
+  The file must hold exactly one trace; select one trace of a larger source with
+  eval-author's `trace_loading.py --trace-id` (or `--row` for NeMo Gym JSONL) and
+  measure its `traces.normalized.jsonl` with `--source-kind trace`.
 - Loading is delegated to NeMo Compass through the sibling eval-author skill's
   `scripts/trace_loading.py`; methods read the resulting `trace_ingest.Trace`.
   The scripts do not maintain a separate trace parser or schema mirror.

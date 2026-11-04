@@ -149,10 +149,15 @@ directory, platform accounts, or unrelated jobs for candidate traces.
 
 Once selected, inspect only that source and load its traces through the shared
 [trace loader](../../eval-author/references/trace-loading.md); never convert
-them to ATIF. Measure local ATIF directly, including ATIF in Harbor trials. Pass
-a complete local MLflow `Trace.to_dict()` export with `--source-kind mlflow`
-and one selected NeMo Gym JSON record with `--source-kind gym`. Do not fetch
-remote traces, query Intake, or generate runs to fill gaps.
+them to ATIF. `measure.py` measures exactly one trace per file. Measure a local
+ATIF trajectory directly, including ATIF in Harbor trials, and a source file that
+holds exactly one trace with its own `--source-kind`. For a complete local MLflow
+`Trace.to_dict()` export, an ATIF JSONL file, or a NeMo Gym rollouts JSONL file
+that holds several traces, load each selected trace with the loader's
+`--trace-id ID` (or `--row N` for a NeMo Gym row) into its own output directory,
+then measure its `traces.normalized.jsonl` with `--source-kind trace`. Record
+that selector as the record's exact selector. Do not fetch remote traces, query
+Intake, or generate runs to fill gaps.
 
 For selected local traces, reuse the saved `lifecycle.selection_manifest` on
 resume. For a new manifest, use

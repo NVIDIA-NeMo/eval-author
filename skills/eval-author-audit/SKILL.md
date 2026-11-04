@@ -315,7 +315,9 @@ complete or correct.
 After validation and the guided audit's specification review (when applicable),
 measure one completed trial directory or one trace file from the
 user-confirmed source. `--source-kind atif|mlflow|gym|trace` (default `atif`)
-selects the one-trace `--trace` format; `trace` is eval-author `trace_loading.py` output. If that input is missing or unusable, follow the guided
+selects the `--trace` format; `trace` is eval-author `trace_loading.py` output. The file must hold exactly one trace:
+select one trace of a larger source with `trace_loading.py --trace-id` (or `--row` for NeMo Gym JSONL) as the
+[guided audit](references/guided-audit.md) describes, then measure its output with `--source-kind trace`. If that input is missing or unusable, follow the guided
 audit's unavailable-evidence guidance; do not search elsewhere without the
 user selecting another location. Use `--measure` to select one or more
 comma-separated measurement methods; the default is `tool_calls`.

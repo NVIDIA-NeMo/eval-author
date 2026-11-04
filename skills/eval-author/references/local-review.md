@@ -81,10 +81,12 @@ unknown data for inspection; it cannot infer hidden grader behavior from fields
 alone. Missing capture remains missing, and a reward is not relabeled as a
 successful run.
 
-For trace formats, the reader shows the loaded NeMo Compass trace: every span
-depth-first, indented by depth, with its kind, tool or span name, model, start
-and end times, input and output, recorded error, and each tool result with its
-`is_error` flag (`None` when the source recorded no usable flag). Span
+For trace formats, the reader shows the loaded NeMo Compass trace: spans
+depth-first, indented by depth, with each agent's turns in conversation order and
+each turn followed by the spans it names. Each span shows its kind, tool or span
+name, model, start and end times, input and output, recorded error, and each tool
+result with its `is_error` flag (`None` when the source recorded no usable flag);
+a tool span's output that repeats its result is shown once, as the result. Span
 attributes, tool definitions, and token counts stay under expandable fields. It
 is not a provider schema validator: a file the pinned loader rejects is reported
 as a malformed or unsupported record without its content. Images and external

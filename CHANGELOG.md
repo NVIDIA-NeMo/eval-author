@@ -14,13 +14,24 @@ preview: workflows, skills, and saved artifacts may change between releases.
   their `nemo.eval_author.gym_to_atif.v1` receipts, `--emit-atif`, and the NeMo
   Gym `ng-trajectory` CI route are gone. Eval Author never converts traces to
   ATIF; ATIF is only an input format.
+- **Breaking: live MLflow queries.** Traces are no longer read from an MLflow
+  tracking server; export them and load the complete local export.
+- **Breaking: non-ATIF trace workspaces, for now.** The trace workspace's
+  `prepare` accepts only `--source-kind atif` until it reads Compass Traces, so
+  MLflow, NeMo Gym-native, Intake, and OpenTelemetry traces cannot start a
+  trace-derived task. Workspaces already prepared from another source kind keep
+  loading.
+- **Breaking: v1 audit coverage files.** `report.py` accepts only
+  `nemo.eval_author.audit_coverage.v2` inputs; measure existing traces again to
+  aggregate them.
 
 ### Changed
 
 - **One trace loader.** `skills/eval-author/scripts/trace_loading.py` loads
   `atif`, `mlflow`, `gym`, `intake`, and `trace` sources into NeMo Compass
   `Trace` objects (trace contract v3) and writes a
-  `nemo.eval_author.trace_load.v2` receipt. Intake is a live selection from the
+  `nemo.eval_author.trace_load.v2` receipt. `--trace-id` (or `--row` for NeMo Gym
+  JSONL) selects one trace of a larger source. Intake is a live selection from the
   Intake service by workspace and time window, authenticated with
   `NMP_ACCESS_TOKEN`; it no longer reads `nemo intake` CLI exports. See
   [Load local traces](docs/traces.md#load-local-traces).
@@ -28,9 +39,10 @@ preview: workflows, skills, and saved artifacts may change between releases.
   Git revision `a78dc41` because trace contract v3 is not in a PyPI release yet.
   The loader rejects any other install. A PyPI pin returns with the next Compass
   release.
-- **Audit measurement reads Compass traces.** `measure.py` loads ATIF, MLflow,
-  NeMo Gym, or normalized traces through the trace loader, so Harbor is no
-  longer an audit dependency. Coverage reports are now
+- **Audit measurement reads Compass traces.** `measure.py` loads one ATIF,
+  MLflow, NeMo Gym, or normalized trace per file through the trace loader, so
+  Harbor is no longer an audit dependency. Coverage files and reports are now
+  `nemo.eval_author.audit_coverage.v2` and
   `nemo.eval_author.audit_coverage_report.v2` with `trace_format:
   nemo-compass-trace` and `source_kind`, and tool-call evidence cites trace and
   span IDs.
@@ -38,9 +50,6 @@ preview: workflows, skills, and saved artifacts may change between releases.
   `trace_load.v2` receipt and its normalized trace instead of a conversion
   receipt. See
   [Native NeMo Gym evidence](skills/eval-author-task-create/references/gym-evidence.md).
-- **Trace workspaces read ATIF only for now.** `prepare` accepts
-  `--source-kind atif` until the trace workspace reads Compass Traces;
-  workspaces already prepared from another source kind keep loading.
 
 ## 0.1.0
 

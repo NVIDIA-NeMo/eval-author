@@ -115,6 +115,40 @@ def section(name: str, title: str, body: str) -> str:
     return f'<section data-section="{name}"><h3>{escape(title)}</h3>{body}</section>'
 
 
+def indented(depth: int, label: str, body: str) -> str:
+    return f'<div class="message" style="margin-left: {min(depth, 12) * 24}px"><h3>{escape(label)}</h3>{body}</div>'
+
+
+def conversation_order(span: dict, depth: int) -> list[tuple[str, dict, int]]:
+    """A span's turns and children in conversation order: each turn, then the child spans it names.
+
+    A child no turn names follows the turn of the nearest earlier named child (or the first turn),
+    so every child renders exactly once and source order is kept within each turn.
+    """
+    children = span.get("children") or []
+    turns = span.get("turns") or []
+    if not turns:
+        return [("span", child, depth) for child in children]
+    owners: dict[str, int] = {}
+    for index, turn in enumerate(turns):
+        named = [
+            *(turn.get("llm_span_ids") or []),
+            turn.get("dispatch_span_id"),
+            *(turn.get("tool_call_span_ids") or []),
+        ]
+        owners.update((span_id, index) for span_id in named if span_id is not None and span_id not in owners)
+    grouped: list[list[dict]] = [[] for _ in turns]
+    owner = 0
+    for child in children:
+        owner = owners.get(child.get("id"), owner)
+        grouped[owner].append(child)
+    order: list[tuple[str, dict, int]] = []
+    for turn, owned in zip(turns, grouped, strict=True):
+        order.append(("turn", turn, depth))
+        order.extend(("span", child, depth) for child in owned)
+    return order
+
+
 class Renderer:
     def __init__(self) -> None:
         self.issues = 0
@@ -223,61 +257,68 @@ class Renderer:
     def trace(self, trace: Trace) -> str:
         dump = trace.model_dump(mode="json")
         body = fields({k: dump.get(k) for k in ("id", "schema_version", "source_url")})
-        pending = [(span, 0) for span in reversed(dump.get("root_spans") or [])]
+        pending: list[tuple[str, dict, int]] = [("span", span, 0) for span in reversed(dump.get("root_spans") or [])]
         if not pending:
             body += self.problem("Trace has no spans.")
-        spans = ""
+        blocks = ""
         while pending:
-            span, depth = pending.pop()
-            pending.extend((child, depth + 1) for child in reversed(span.get("children") or []))
-            attributes = span.get("attributes") or {}
-            name = span.get("tool_name") or attributes.get("name") or ""
-            label = f"{span.get('kind', 'UNKNOWN')} · {name}" if name else str(span.get("kind", "UNKNOWN"))
-            rendered = fields(
-                {k: span[k] for k in ("id", "model", "start_time", "end_time") if span.get(k) is not None}
-            )
-            for key, title in (("input", "Input"), ("output", "Output")):
-                if key in span:
-                    value = span[key]
-                    rendered += f"<h4>{title}</h4>" + (text(value) if isinstance(value, str) else fields(value))
-            if span.get("error") is not None:
-                rendered += self.problem("Recorded span error follows.") + text(span["error"])
-            # Conversation text lives on AGENT turns; user and system messages have no span.
-            for turn in span.get("turns") or []:
-                rendered += f"<h4>Turn {escape(turn.get('index'))} · {escape(turn.get('role'))}</h4>"
-                content = turn.get("content")
-                if content is not None:
-                    rendered += text(content) if isinstance(content, str) else fields(content)
-                if turn.get("reasoning") is not None:
-                    rendered += "<h4>Recorded reasoning</h4>" + text(turn["reasoning"])
-                for ordinal, result in enumerate(turn.get("unlinked_results") or [], 1):
-                    rendered += f"<h4>Unlinked tool result {ordinal} · is_error: {escape(result.get('is_error'))}</h4>"
-                    if "content" in result:
-                        value = result["content"]
-                        rendered += text(value) if isinstance(value, str) else fields(value)
-            call = span.get("tool_call") or {}
-            for ordinal, result in enumerate(call.get("results") or [], 1):
-                rendered += f"<h4>Tool result {ordinal} · is_error: {escape(result.get('is_error'))}</h4>"
-                if "content" in result:
-                    content = result["content"]
-                    rendered += text(content) if isinstance(content, str) else fields(content)
-                if result.get("attributes"):
-                    rendered += details("Result attributes", fields(result["attributes"]))
-            rest = {k: v for k, v in span.items() if k in {"tool_call", "token_counts", "cost_usd"} and v is not None}
-            if attributes:
-                rest["attributes"] = attributes
-            if span.get("tool_definitions"):
-                rest["tool_definitions"] = span["tool_definitions"]
-            if rest:
-                rendered += details("Additional recorded fields", fields(rest))
-            spans += (
-                f'<div class="message" style="margin-left: {min(depth, 12) * 24}px">'
-                f"<h3>{escape(label)}</h3>{rendered}</div>"
-            )
-        body += section("spans", "Spans (depth-first)", spans)
+            item, value, depth = pending.pop()
+            if item == "turn":
+                blocks += self.turn(value, depth)
+                continue
+            blocks += self.span(value, depth)
+            pending.extend(reversed(conversation_order(value, depth + 1)))
+        body += section("spans", "Spans (depth-first, turns in conversation order)", blocks)
         if dump.get("attributes"):
             body += section("metadata", "Trace attributes", fields(dump["attributes"]))
         return body
+
+    def turn(self, turn: dict, depth: int) -> str:
+        rendered = ""
+        content = turn.get("content")
+        if content is not None:
+            rendered += text(content) if isinstance(content, str) else fields(content)
+        if turn.get("reasoning") is not None:
+            rendered += "<h4>Recorded reasoning</h4>" + text(turn["reasoning"])
+        for ordinal, result in enumerate(turn.get("unlinked_results") or [], 1):
+            rendered += f"<h4>Unlinked tool result {ordinal} · is_error: {escape(result.get('is_error'))}</h4>"
+            if "content" in result:
+                value = result["content"]
+                rendered += text(value) if isinstance(value, str) else fields(value)
+        label = f"Turn {turn.get('index')} · {turn.get('role')}"
+        return indented(depth, label, rendered)
+
+    def span(self, span: dict, depth: int) -> str:
+        attributes = span.get("attributes") or {}
+        name = span.get("tool_name") or attributes.get("name") or ""
+        label = f"{span.get('kind', 'UNKNOWN')} · {name}" if name else str(span.get("kind", "UNKNOWN"))
+        rendered = fields({k: span[k] for k in ("id", "model", "start_time", "end_time") if span.get(k) is not None})
+        call = span.get("tool_call") or {}
+        results = call.get("results") or []
+        for key, title in (("input", "Input"), ("output", "Output")):
+            # A tool span's output repeats one of its results, which are rendered below.
+            if key in span and not (key == "output" and any(r.get("content") == span[key] for r in results)):
+                value = span[key]
+                rendered += f"<h4>{title}</h4>" + (text(value) if isinstance(value, str) else fields(value))
+        if span.get("error") is not None:
+            rendered += self.problem("Recorded span error follows.") + text(span["error"])
+        for ordinal, result in enumerate(results, 1):
+            rendered += f"<h4>Tool result {ordinal} · is_error: {escape(result.get('is_error'))}</h4>"
+            if "content" in result:
+                content = result["content"]
+                rendered += text(content) if isinstance(content, str) else fields(content)
+            if result.get("attributes"):
+                rendered += details("Result attributes", fields(result["attributes"]))
+        rest = {k: v for k, v in span.items() if k in {"token_counts", "cost_usd"} and v is not None}
+        if call:
+            rest["tool_call"] = {k: v for k, v in call.items() if k != "results"}
+        if attributes:
+            rest["attributes"] = attributes
+        if span.get("tool_definitions"):
+            rest["tool_definitions"] = span["tool_definitions"]
+        if rest:
+            rendered += details("Additional recorded fields", fields(rest))
+        return indented(depth, label, rendered)
 
     def trace_record(self, trace: Trace | None, number: int, role: str, problem: str | None = None) -> str:
         body = f'<article id="record-{number}" data-record="{number}"><a class="top" href="#top">Back to index</a>'
@@ -482,6 +523,8 @@ def main() -> int:
     args = parser.parse_args()
     if (args.format == "gym-jsonl") != (args.rows is not None):
         parser.error("--rows is required for gym-jsonl and cannot be used with other formats")
+    if args.format == "gym" and args.input.suffix.lower() != ".json":
+        parser.error("--format gym reads one .json rollout record; use --format gym-jsonl --rows for JSONL rows")
     try:
         path = args.input.expanduser().absolute()
         page, issues, count = document(path, args.rows, args.format, args.evidence_role)

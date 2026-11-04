@@ -200,6 +200,7 @@ def build(
             or loading.get("source_kind") != "gym"
             or loading.get("loader") != pinned_loader()
             or loading.get("trace_count") != 1
+            or loading.get("row") != index
             or not isinstance(source_digests, dict)
             or list(source_digests.values()) != ["sha256:" + digest(Path(source["rollouts"]))]
             or loading.get("normalized_sha256") != "sha256:" + digest(trace)

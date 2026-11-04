@@ -112,6 +112,7 @@ def inputs(tmp_path):
             },
             "normalized_sha256": "sha256:" + evidence.digest(trace),
             "trace_count": 1,
+            "row": 1,
         },
     )
     source["loading"] = str(loading)
@@ -138,6 +139,7 @@ def test_native_rollout_binds_input_health_and_trace_loading(inputs):
         ("disabled", "disabled"),
         ("loading_source", "does not bind"),
         ("loading_version", "does not bind"),
+        ("loading_row", "does not bind"),
         ("loading_schema_v1", "does not bind"),
         ("trace", "does not bind"),
         ("trace_identity", "does not identify the selected rollout"),
@@ -158,13 +160,15 @@ def test_rejects_wrong_native_evidence(inputs, mutation, message):
     elif mutation == "null_trajectory":
         native = gym.jsonl(Path(source["rollouts"]))[0][1]
         line(Path(source["rollouts"]), {**native, "ng_trajectory": None})
-    elif mutation in ("loading_source", "loading_version", "loading_schema_v1"):
+    elif mutation in ("loading_source", "loading_version", "loading_row", "loading_schema_v1"):
         path = Path(source["loading"])
         value = evidence.read(path)
         if mutation == "loading_schema_v1":
             value["schema"] = "nemo.eval_author.trace_load.v1"
         elif mutation == "loading_version":
             value["loader"] = {**value["loader"], "revision": "0" * 40}
+        elif mutation == "loading_row":
+            value["row"] = 2
         else:
             value["source_sha256"] = {"source.gym.jsonl": "sha256:" + "0" * 64}
         dump(path, value)

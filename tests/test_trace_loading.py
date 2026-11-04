@@ -82,6 +82,16 @@ def mlflow_record():
     return json.loads(MLFLOW_FIXTURE.read_text())
 
 
+def second_mlflow_record():
+    """The fixture trace under another trace id, so an export can hold two distinct traces."""
+    second = mlflow_record()
+    second["info"]["trace_id"] = "tr-second"
+    for span in second["data"]["spans"]:
+        span["trace_id"] = "AQEBAQEBAQEBAQEBAQEBAQ=="
+        span["attributes"]["mlflow.traceRequestId"] = json.dumps("tr-second")
+    return second
+
+
 def intake_page(records: list[dict]) -> dict:
     count = len(records)
     pagination = {"page": 1, "page_size": 100, "current_page_size": count, "total_pages": 1, "total_results": count}
@@ -193,6 +203,7 @@ def expected_receipt(output: Path, kind: str, **values) -> dict:
         "trace_count": 1,
         "max_traces": 1000,
         "row": None,
+        "trace_id": None,
         "intake": None,
         **values,
     }
@@ -320,7 +331,7 @@ def test_intake_failure_is_content_free(loading, monkeypatch, tmp_path, capsys):
     captured = capsys.readouterr()
     assert json.loads(captured.out) == {
         "status": "error",
-        "message": "intake loading failed; check input and pinned dependencies",
+        "message": "intake loading failed: Intake selection could not be loaded",
     }
     assert "private-fixture-value" not in captured.out + captured.err
     assert not output.exists()
@@ -384,8 +395,34 @@ def test_gym_jsonl_requires_explicit_row(tmp_path):
     rollouts = tmp_path / "rollouts.jsonl"
     rollouts.write_text(json.dumps(gym_record()) + "\n")
     output = tmp_path / "loaded"
-    assert invoke("--source-kind", "gym", "--input", rollouts, "--output-dir", output).returncode == 2
+    result = invoke("--source-kind", "gym", "--input", rollouts, "--output-dir", output)
+    assert result.returncode == 2
+    assert json.loads(result.stdout) == {
+        "status": "error",
+        "message": "gym loading failed: JSONL gym sources require a positive one-based row",
+    }
     assert not output.exists()
+
+
+def test_trace_id_keeps_one_trace_of_a_larger_source(tmp_path):
+    export = tmp_path / "two.json"
+    export.write_text(json.dumps({"traces": [mlflow_record(), second_mlflow_record()]}))
+    output = tmp_path / "loaded"
+    result = invoke("--source-kind", "mlflow", "--input", export, "--trace-id", "tr-second", "--output-dir", output)
+    assert result.returncode == 0, result.stdout
+    assert [trace["id"] for trace in normalized(output)] == ["tr-second"]
+    receipt = json.loads((output / "loading.json").read_text())
+    assert receipt["trace_id"] == "tr-second" and receipt["trace_count"] == 1
+    # The retained copy and its digest still cover the whole source, both traces included.
+    assert (output / "source.mlflow.json").read_bytes() == export.read_bytes()
+
+    missing = tmp_path / "missing"
+    result = invoke("--source-kind", "mlflow", "--input", export, "--trace-id", "tr-absent", "--output-dir", missing)
+    assert result.returncode == 2
+    assert json.loads(result.stdout)["message"] == (
+        "mlflow loading failed: --trace-id must match exactly one trace in the source"
+    )
+    assert not missing.exists()
 
 
 @pytest.mark.parametrize("mutation", ["continuation", "parent", "duplicate"])
@@ -408,13 +445,8 @@ def test_mlflow_rejects_incomplete_or_ambiguous_exports(mutation, tmp_path):
 
 
 def test_more_than_max_traces_is_rejected_not_truncated(loading, tmp_path):
-    second = mlflow_record()
-    second["info"]["trace_id"] = "tr-second"
-    for span in second["data"]["spans"]:
-        span["trace_id"] = "AQEBAQEBAQEBAQEBAQEBAQ=="
-        span["attributes"]["mlflow.traceRequestId"] = json.dumps("tr-second")
     mlflow = tmp_path / "two.json"
-    mlflow.write_text(json.dumps({"traces": [mlflow_record(), second]}))
+    mlflow.write_text(json.dumps({"traces": [mlflow_record(), second_mlflow_record()]}))
     assert {trace.id for trace in loading.load_traces(mlflow, "mlflow", max_traces=2)} == {
         "tr-synthetic-ci",
         "tr-second",
@@ -480,14 +512,30 @@ def test_unpinned_or_shadowing_install_is_rejected_before_writing(loading, insta
     assert not output.exists()
 
 
-@pytest.mark.parametrize("suffix", [".json", ".jsonl"])
-def test_atif_with_a_repeated_key_is_refused_not_collapsed(loading, suffix, tmp_path):
-    record = json.dumps(json.loads(ATIF_FIXTURE.read_text()))
-    # Repeat the session id: a parser that keeps the last value would silently drop the first.
-    source = tmp_path / f"trajectory{suffix}"
-    source.write_text(record[:-1] + ', "session_id": "shadowing-value"}\n')
+def _repeated_key_source(loading, kind: str, suffix: str, directory: Path) -> Path:
+    """A source Compass alone would load, keeping only the last value of a repeated key."""
+    if kind == "atif":
+        record = json.dumps(json.loads(ATIF_FIXTURE.read_text()))
+        text = record[:-1] + ', "session_id": "shadowing-value"}\n'
+    elif kind == "mlflow":
+        record = mlflow_record() if suffix == ".jsonl" else {"traces": [mlflow_record()]}
+        text = json.dumps(record).replace('"info": {', '"info": {"trace_id": "shadowed-first", ', 1) + "\n"
+    else:
+        [trace] = loading.load_traces(MLFLOW_FIXTURE, "mlflow")
+        text = trace.model_dump_json()[:-1] + ', "id": "shadowing-value"}\n'
+    source = directory / f"source{suffix}"
+    source.write_text(text)
+    return source
+
+
+@pytest.mark.parametrize(
+    ("kind", "suffix"),
+    [("atif", ".json"), ("atif", ".jsonl"), ("mlflow", ".json"), ("mlflow", ".jsonl"), ("trace", ".jsonl")],
+)
+def test_repeated_json_key_is_refused_not_collapsed(loading, kind, suffix, tmp_path):
+    source = _repeated_key_source(loading, kind, suffix, tmp_path)
     with pytest.raises(loading.TraceLoadError, match="repeats a key"):
-        loading.load_traces(source, "atif")
+        loading.load_traces(source, kind)
 
 
 def test_partially_loaded_session_is_refused(loading, tmp_path):
