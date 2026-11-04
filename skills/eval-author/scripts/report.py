@@ -479,7 +479,7 @@ def readme_grading_sections(source: str) -> dict[str, list[list[str]]]:
                 heading = re.sub(r"\s*\(.*\)\s*$", "", plain(tokens[index + 1])).casefold()
                 if heading in {"grader summary", "grading summary"}:
                     key = "summary"
-                elif heading in {"grading", "grader", "expected outcome and grading"}:
+                elif heading in {"verifier", "grading", "grader", "expected outcome and grading"}:
                     key = "grading"
                 else:
                     continue

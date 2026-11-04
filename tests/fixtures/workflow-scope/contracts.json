@@ -148,7 +148,8 @@
           "propose"
         ],
         "write_paths": [
-          ".eval-author/proposals/dataset-recommendations.md"
+          ".eval-author/audit-coverage-report.md",
+          ".eval-author/.working/"
         ],
         "handoff": "review_proposals"
       }
@@ -266,7 +267,8 @@
           "propose"
         ],
         "write_paths": [
-          ".eval-author/proposals/dataset-recommendations.md"
+          ".eval-author/audit-coverage-report.md",
+          ".eval-author/.working/"
         ],
         "handoff": "review_proposals"
       }

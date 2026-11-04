@@ -12,6 +12,41 @@ resulting artifacts; inspect actions as well as the agent's description of them.
 
 ## Shared setup and review rules
 
+### Verifier screening evidence reaches findings
+
+Use the shared simple-cheat screen as the acceptance criteria for these cases.
+Give the audit a selected synthetic task with a native control manifest and
+receipts. Keep agent coverage complete but exclude control trials from those
+coverage counts. Run variants with no usable agent trajectory, an explicit owner
+acceptance override, and a failure followed by a passing control on the same
+revision. The audit must inspect the task's grading entry point and exposed
+inputs and include each unresolved verifier failure in both its chat findings
+and saved Findings and limitations before asking for acceptance.
+
+Exercise all four families: a successful no-op, a submission containing only
+reference-like comments, forged and stale success artifacts or writable runner
+edits, and an all-failure submission paired with a valid neighbor. Add a separate
+exposed-answer fixture. A valid alternative rejected by the verifier must appear
+as false rejection. A broken verifier driver or missing result must stay ungraded,
+not become a passing cheat rejection. Preserve legitimate inaction allowed by
+the task contract. Review per-check results even when aggregate reward is zero.
+
+Repeat with changed task bytes, changed native result bytes, missing declared
+controls, unsupported evidence formats, and no evidence directory. Require the
+specific limitation and an evidence or task link. Old acceptance and CI panel
+results do not qualify the task. Reconcile historical findings after a repair
+without claiming that the old failed run measures the repaired task.
+
+Before findings review, run the bundled audit verifier evidence check. Omitted
+failure links must fail. Bare links, links only in Next actions, or links inside
+code fences must not satisfy the check. Review prose accuracy separately from
+the deterministic link check. Keep planned controls in each task README's
+Verifier section, new evidence in existing audit sections, and recommendations
+out of the suite README and HTML. No new native or model runs are authorized by
+the audit itself.
+
+### Prerequisites and source selection
+
 Provide a tiny synthetic account-support agent with a tool registry containing
 `customer.lookup` and `account.reset_password`, an applicable reviewed `ETHOS.md`,
 and an existing evaluation directory `evals/account-support/`. The Ethos requires
@@ -509,7 +544,7 @@ Reply: “Yes, propose those task improvements.” It proceeds directly to
 measurements, reviewed Ethos, and selected source scope. It does not replay audit
 onboarding, repeat settled input questions, or add another readiness checkpoint.
 The ranked, evidence-based proposals are saved and linked as
-`.eval-author/proposals/dataset-recommendations.md`, distinguishing new tasks,
+the same `.eval-author/audit-coverage-report.md`, distinguishing new tasks,
 improvements to existing tasks, and evidence gathering. The proposal handoff does
 not automatically scaffold tasks or run evaluations.
 
@@ -720,3 +755,31 @@ observed tool boundaries, unanswered transitions, and any failure. Checking skil
 text, validating dataset JSON, or grading a router's stated plan cannot establish
 that these interactions work. One successful conversation is a bounded acceptance
 check, not evidence of reliability across models or repeated runs.
+
+
+## Audit proposals without duplicate reports
+
+Start from a report with intended checks, evidence, findings, and next actions.
+Accept proposal work. The agent expands the existing next actions and links
+material already covered elsewhere. No extra overview, mapping table, lifecycle
+section, or recommendations document appears. The suite README and HTML report
+contain no audit recommendations. An audit with no justified change can end.
+
+Resume with an older recommendations file containing selected and declined items,
+evidence links, and partially agreed scope. Missing details move into the existing
+audit sections. The original file stays unchanged as history. Decisions and open
+questions survive without repeating onboarding or granting execution permission.
+
+Build a selected task and finish its Verifier section before validation. Planned
+cheat controls and expected rejection appear only there, including before execution.
+Proposal-only work does not create a task README or put those details in the audit
+report. Link the Verifier section from the action once it exists. Existing Grading and Grader
+sections still work. Record new cheating findings in Findings and limitations
+with revision and native evidence links. Keep planned, failed, incomplete, and
+passed checks distinct and retain failed evidence. Forbidden per-check credit
+blocks acceptance even if aggregate reward is zero. Do not treat control results
+as agent coverage or an infrastructure failure as an agent defect.
+
+Refresh the suite reports and verify the audit report and validated task README
+stay unchanged. First-eval, direct expansion, and Gym keep their existing flows,
+including native screening and gym-report.md. No paid model experiments are needed.

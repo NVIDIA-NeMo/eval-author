@@ -197,17 +197,16 @@ Eval Author considers the Audit coverage report, underlying measurements,
 traces, and existing cases. Recommendations may include a new scenario, a
 stronger check, retaining a failing case as a regression test, or gathering more
 evidence. Each recommendation explains its priority, expected behavior, how a
-verifier would check it, planned shortcut/cheat controls, and supporting evidence.
+verifier would check it, and supporting evidence.
 Recommendations distinguish agent failures from verifier defects and ungraded
-runs. Cheat controls remain planned during proposal-only work; when a task is
-built, applicable controls must be executed before it is described as screened.
-Missing evidence leaves screening unproven. They are saved in
-`.eval-author/proposals/dataset-recommendations.md`. You can request this directly
+runs. Applicable controls must be executed before a task is described as screened.
+Missing evidence leaves screening unproven. Proposals expand the existing
+next actions in the Audit coverage report. You can request this directly
 or accept Eval Author's offer during the audit review; the handoff reuses the
 audit inputs and settled answers.
 
-The report's next steps provide context for this separate proposal
-workflow; they do not replace its recommendations artifact.
+See [audit results](results.md#coverage-audits) for where protections and later
+findings belong.
 Accepting the proposal offer produces recommendations. Creating, validating,
 or running tasks remains separately scoped: ask for the selected proposal to be
 implemented and validated when you are ready. The current automatic creation

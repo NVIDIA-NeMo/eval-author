@@ -6,7 +6,7 @@
 Read this when planning first evals or proposing and creating additional coverage.
 Keep the current agreement in [shared workflow state](shared-prerequisites.md#save-and-resume),
 with links to any source manifest and case inventory. Audit-based proposals
-remain in `.eval-author/proposals/dataset-recommendations.md`.
+use the [Audit coverage report](../../eval-author-audit/references/coverage-report.md#findings-limitations-and-next-actions).
 A proposal is provisional until the user settles its open choices; it is not
 permission to generate or run evaluations.
 

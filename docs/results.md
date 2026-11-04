@@ -59,8 +59,8 @@ The guide is refreshed after runs and linked in the handoff, including when
 execution is blocked.
 
 Task README files allow users to inspect its Input, Behavior under test,
-Expected result, and Grading sections. Input links the instruction and fixtures;
-Grading links the actual verifier code and criteria or judge files. The report's
+Expected result, and Verifier sections. Input links the instruction and fixtures.
+Verifier links the actual verifier code and criteria or judge files. The report's
 Expected outcome column shows the opening summary paragraph from Expected result;
 open the task README for its detailed assertions and expected values. Existing
 sections that begin with a list or table continue to display their full text.
@@ -140,6 +140,19 @@ and links available supporting evidence. A mapping to an existing test describes
 designed to address; it does not establish that a recorded run satisfied the
 audit's coverage criteria.
 
+If you ask for proposals, Eval Author expands **Next actions and open questions**
+in the same report, reusing its existing findings and checks. Planned cheat
+controls and their expected rejection live only in the task README's **Verifier**
+section, written during task authoring. The audit report links to that section.
+Legacy **Grading** and **Grader**
+headings remain supported.
+
+Cheating discoveries and evidence limits belong in **Findings and limitations**,
+with task revision and native evidence links. Control results describe verifier
+behavior and do not establish agent coverage. Recommendations appear only in
+the audit report. Existing `dataset-recommendations.md` files remain historical
+after their decisions and missing details are reconciled into it.
+
 Use the report's **Intended coverage** section to review the proposed audit scope.
 It lists every item's stable name and kind, explains the intended check in plain
 language, and states the required evidence separately from existing tests,
@@ -186,6 +199,16 @@ stays pending until you respond to the check-in. Whenever a session creates or
 updates the report, its final response explicitly says so and links it, even if the
 audit stops at an intermediate checkpoint. When an audit resumes, changed
 inputs are reconciled with the report before its findings are treated as current.
+
+The audit also inspects selected tasks' grading paths and reconciles retained
+cheat-control results before findings review. Findings distinguish verifier
+defects, agent failures, rejected valid solutions, and ungraded execution.
+Failed controls remain relevant even when a task has no usable agent trajectory.
+Missing or stale evidence leaves screening unproven. These results appear in
+**Findings and limitations** with evidence links and do not increase agent
+coverage. The report check detects omitted evidence links, while the auditing
+agent reviews the explanation and task logic. Planned control definitions and
+expected rejection stay in the task README's **Verifier** section.
 
 Journey state saves audit decisions and the pending checkpoint across chats
 and workflow switches. Accepting findings records the answer without rewriting
