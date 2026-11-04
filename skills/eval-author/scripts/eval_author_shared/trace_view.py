@@ -20,16 +20,19 @@ ERROR_STATUSES = ("error", "not_error", "invalid", "conflicting", "unrecorded")
 
 # How the safe copy treats every field of every public Compass model. Roles:
 #   keep         structural value, copied verbatim
-#   text         free text; deterministic redaction applies
+#   text         free text; deterministic redaction applies, and source identifiers that
+#                recur in it are pseudonymized
 #   json         free-form source JSON; identifier-like keys (``id`` included) are
-#                pseudonymized and other strings redacted
-#   replay_json  tool arguments, results and schemas; values are replayed or compared
-#                verbatim, so only explicit identifier keys are pseudonymized
+#                pseudonymized and other strings handled as text
+#   replay_json  tool arguments, results and schemas; a generic ``id`` key stays, explicit
+#                identifier keys are pseudonymized and other strings handled as text. Values
+#                that lost source content are not offered for exact replay.
 #   span_io      span input or output: replay_json on a TOOL span, json elsewhere
 #   identifier   pseudonymized consistently
 #   span_ref     span or turn id; loader positions stay, anything else is pseudonymized
 #   url          source link; replaced with an opaque file URL
 #   drop         source-specific attributes; removed
+#   null         token ids, which decode back to unredacted text; set to null
 #   omitted      media part; replaced with a text placeholder
 #   content      turn content: text, or ordered parts
 #   loss_detail  structured ``Loss.detail``
@@ -148,8 +151,8 @@ FIELD_ROLES: dict[str, dict[str, str]] = {
     },
     "LLMCallInfo": {
         "call_count": "keep",
-        "prompt_token_ids": "keep",
-        "completion_token_ids": "keep",
+        "prompt_token_ids": "null",
+        "completion_token_ids": "null",
         "logprobs": "keep",
         "metrics_extra": "json",
     },
@@ -339,7 +342,7 @@ def tool_definitions_in_scope(trace: Trace) -> dict[str, list[ToolDefinition] | 
         turn = issuing.get(span.id)
         if turn is not None:
             declaring = [spans[span_id] for span_id in turn.llm_span_ids if _declared(spans[span_id]) is not None]
-        else:
+        if not declaring:
             current = parents[span.id]
             while current is not None and current != owner:
                 candidate = spans[current]

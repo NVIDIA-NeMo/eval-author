@@ -79,7 +79,7 @@ For each observed scoped tool, the inventory records:
 - explicit read-only metadata when present, as context rather than a replay
   requirement; and
 - uncertainties such as missing or ambiguous definitions, missing results,
-  non-object arguments, and redacted values; and
+  non-object arguments, and redacted or pseudonymized values; and
 - `unresolved_calls` entries `{span_id, call_id, reason: "tool_name_missing"}`
   for TOOL spans without a function name.
 
@@ -91,7 +91,8 @@ represented by a stable `tool_id`. Definitions come from the LLM span that
 declared tools for the issuing turn, else the owning AGENT span; they are never
 borrowed across an AGENT boundary. Only an explicitly recorded server scopes a
 tool; missing server identity stays null, and no server is inferred from a
-function name. Conflicting definitions within a scope stay ambiguous. When a
+function name. Each call's own scope must declare the tool: conflicting
+definitions, or a definition only some calls' scopes declare, stay ambiguous. When a
 subagent declared no tools, the inventory offers its parent agent's matching
 definition as `suggested_definition`; it is never applied automatically.
 
@@ -105,7 +106,7 @@ scoped call references. Identical schemas alone never justify merging scopes.
 
 The plan reports whether each observed function supports exact replay. A function
 is supported when it has a usable definition, object inputs, exactly one textual
-output for each call, no redacted values, and no conflicting outputs for the same
+output for each call, no redacted or pseudonymized values, and no conflicting outputs for the same
 canonical input.
 
 Explicit result error status (`error`, `not_error`, `invalid`, `conflicting` or

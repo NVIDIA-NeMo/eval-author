@@ -76,10 +76,12 @@ instead of repairing it heuristically.
 ## Safe copy
 
 The safe Trace replaces images with an `[image omitted]` text part and audio
-with `[audio omitted]`, drops Trace and Span attributes, and keeps only
-`is_error_status`/`is_error_flags` on tool results. Identifiers become
-consistent `anon-<sha256[:16]>` pseudonyms, including identifier-like keys in
-tool payloads and raw identifier values repeated in free text. Loader-positional
+with `[audio omitted]`, drops Trace and Span attributes, sets model token ids to
+null, and keeps only `is_error_status`/`is_error_flags` on tool results.
+Identifiers become consistent `anon-<sha256[:16]>` pseudonyms, including
+identifier-like keys in tool payloads and raw identifier values repeated in free
+text, unless the safe copy keeps that value in clear elsewhere, such as an agent
+name. Loader-positional
 span and turn ids such as `trajectory/turn/2` or `gym/response/...` are kept;
 other span and turn ids keep only their positional suffix (`anon-…/turn/2`).
 Secret-named keys become `<redacted:secret>`; text is redacted for emails, SSNs,

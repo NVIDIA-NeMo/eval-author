@@ -56,6 +56,10 @@ class TraceLoadError(ValueError):
     """A source cannot be loaded into Compass traces under eval-author's bounds."""
 
 
+class TraceLimitError(TraceLoadError):
+    """A source holds more traces than ``max_traces``."""
+
+
 def pinned_requirement() -> str:
     return f"{LOADER['distribution']}[mlflow] @ git+{COMPASS_REPOSITORY}@{LOADER['revision']}"
 
@@ -122,7 +126,7 @@ def load_traces(
         else:
             traces = _load_trace_file(source)
     if len(traces) > max_traces:
-        raise TraceLoadError("source contains more than max_traces traces")
+        raise TraceLimitError("source contains more than max_traces traces")
     if not traces:
         raise TraceLoadError("source contains no traces")
     if trace_id is not None:
@@ -212,7 +216,7 @@ def _load_mlflow(source: Path, max_traces: int) -> list[Trace]:
     traces = list(loader.load())
     description = loader.describe()
     if description["truncated"]:
-        raise TraceLoadError("source contains more than max_traces traces")
+        raise TraceLimitError("source contains more than max_traces traces")
     if description["continuation_token_present"] or description["unresolved_parent_count"]:
         raise TraceLoadError("MLflow export is incomplete")
     return traces

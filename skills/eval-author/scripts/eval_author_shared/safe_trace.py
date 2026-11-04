@@ -120,9 +120,9 @@ def load_trace(path: Path, kind: str, *, row: int | None = None) -> Trace:
         # Loader diagnostics may echo source values; keep command output content-free.
         with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
             traces = trace_loading.load_traces(path, kind, max_traces=1, row=row)
+    except trace_loading.TraceLimitError as error:
+        raise SafeTraceError("prepare requires a source that holds exactly one trace") from error
     except trace_loading.TraceLoadError as error:
-        if "more than max_traces" in str(error):
-            raise SafeTraceError("prepare requires a source that holds exactly one trace") from error
         raise SafeTraceError(f"could not load the source as {kind}: {error}") from error
     except (ValueError, OSError) as error:
         raise SafeTraceError(f"could not load the source as {kind}: {_describe(error)}") from error
@@ -344,6 +344,18 @@ def pseudonym(value: str) -> str:
     return f"anon-{_digest16(value)}"
 
 
+_LOST_CONTENT = re.compile(
+    "|".join(
+        (re.escape("<redacted:"), re.escape(IMAGE_MARKER), re.escape(AUDIO_MARKER), r"(?<![\w-])anon-[0-9a-f]{16}\b")
+    )
+)
+
+
+def lost_source_content(value: str) -> bool:
+    """Whether a safe-copy string was rewritten: a redaction, a media placeholder or a pseudonym."""
+    return _LOST_CONTENT.search(value) is not None
+
+
 def safe_id(value: str) -> str:
     """The safe-copy id of a span or turn id: loader positions stay, anything else is pseudonymized.
 
@@ -373,7 +385,11 @@ class _Scrubber:
         check_field_roles()
         self.counts: dict[str, int] = {}
         self.raw_ids: set[str] = set()
+        self.kept: set[str] = set()
         self._collect("Trace", payload)
+        # A value the safe copy keeps in clear elsewhere (an agent name reused as a trajectory id)
+        # hides nothing when replaced in text; replacing it would only corrupt instructions and replay values.
+        self.raw_ids -= self.kept
         embedded = sorted((item for item in self.raw_ids if len(item) >= _MIN_EMBEDDED_IDENTIFIER), key=len)
         self.embedded = (
             re.compile("(?<![\\w-])(?:" + "|".join(re.escape(item) for item in reversed(embedded)) + ")(?![\\w-])")
@@ -384,7 +400,8 @@ class _Scrubber:
     def _count(self, kind: str, amount: int = 1) -> None:
         self.counts[kind] = self.counts.get(kind, 0) + amount
 
-    # Collection: every identifier the typed fields hold, so free text can be scrubbed of it.
+    # Collection: every identifier the typed fields hold, so free text can be scrubbed of it,
+    # and every string the safe copy keeps verbatim.
     def _collect(self, model: str, value: Any) -> None:
         if isinstance(value, list):
             for item in value:
@@ -401,6 +418,10 @@ class _Scrubber:
                 for one in item if isinstance(item, list) else [item]:
                     if isinstance(one, str):
                         self.raw_ids.update(_source_ids(one))
+            elif role == "keep":
+                for one in item if isinstance(item, list) else [item]:
+                    if isinstance(one, str):
+                        self.kept.add(one)
             elif role in FIELD_ROLES:
                 self._collect(role, item)
 
@@ -530,6 +551,10 @@ class _Scrubber:
             return value
         if role == "drop":
             return {}
+        if role == "null":
+            if value is not None:
+                self._count("token_ids")
+            return None
         if role == "text":
             return self.text(value)
         if role in {"json", "replay_json"}:

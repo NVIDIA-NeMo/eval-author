@@ -369,11 +369,11 @@ def test_canonical_authority_error_survives_workspace_boundary(tmp_path):
 def test_canonical_size_bound_and_cli_validation(tmp_path):
     import subprocess
 
-    from eval_author_shared import legacy_construction
+    from eval_author_shared import trace_construction
 
     helpers, root, projection = fresh_workspace(tmp_path)
     path = root / construction.PATH
-    expected = legacy_construction.validate(root, manifest=projection)
+    expected = trace_construction.validate(root, manifest=projection)
     assert construction.validate(root)["provenance"] == expected["provenance"]
     result = subprocess.run(
         [

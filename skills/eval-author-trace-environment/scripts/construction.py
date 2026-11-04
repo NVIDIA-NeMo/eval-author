@@ -9,8 +9,8 @@ from pathlib import Path
 _shared = Path(__file__).resolve().parents[2] / "eval-author" / "scripts"
 if str(_shared) not in sys.path:
     sys.path.insert(0, str(_shared))
-from eval_author_shared import legacy_construction as _implementation  # noqa: E402
-from eval_author_shared.legacy_construction import *  # noqa: E402,F401,F403
+from eval_author_shared import trace_construction as _implementation  # noqa: E402
+from eval_author_shared.trace_construction import *  # noqa: E402,F401,F403
 
 # Preserve private helpers as well as public imports used by existing callers.
 globals().update({key: value for key, value in vars(_implementation).items() if not key.startswith("__")})

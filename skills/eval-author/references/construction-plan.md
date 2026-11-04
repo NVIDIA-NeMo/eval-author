@@ -59,9 +59,11 @@ changed task content; source control owns prior revisions.
 
 ## Import existing artifacts without rewriting evidence
 
-`construction.v1` and `construction.v2` cite ATIF steps and are refused. A
-native v2 contract becomes v3 by changing only its schema id; author trace
-contracts as v3 in a workspace prepared by the current `prepare`.
+`construction.v1` and `construction.v2` are refused. Trace contracts cited ATIF
+steps and have no import: author them as v3 in a workspace prepared by the
+current `prepare`. A native v2 contract becomes v3 by changing only its schema
+id. That changes its SHA-256, so evidence manifests bound to the v2 file no
+longer verify; run `task_evidence.py prepare` again with the v3 file.
 `construction_plan.v1` was an earlier experimental native format; retained
 experiment artifacts already use it, so its explicit import and receipt readers
 remain supported. Migration writes a new private file and records the exact

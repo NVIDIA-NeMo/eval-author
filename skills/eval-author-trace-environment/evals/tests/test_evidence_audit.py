@@ -194,6 +194,24 @@ def test_pairing_is_scoped_to_turn_and_agent_not_reused_call_id(tmp_path):
     ]
 
 
+def test_agents_without_recorded_turns_are_still_counted():
+    # Other source kinds can record a subagent's calls without its conversation turns.
+    from trace_ingest import Span, SpanKind, ToolCall, ToolResult, Trace, TraceAggregate, Turn, TurnRole
+
+    def tool(span_id, children=()):
+        call = ToolCall(call_id=span_id, results=[ToolResult(content="ok")])
+        return Span(id=span_id, kind=SpanKind.TOOL, tool_name="read", tool_call=call, children=list(children))
+
+    child = Span(id="child", kind=SpanKind.AGENT, children=[tool("child/tool")])
+    turns = [
+        Turn(id="root/turn/1", index=1, role=TurnRole.USER, content="Delegate."),
+        Turn(id="root/turn/2", index=2, role=TurnRole.AGENT, tool_call_span_ids=["root/tool"]),
+    ]
+    root = Span(id="root", kind=SpanKind.AGENT, turns=turns, children=[tool("root/tool", [child])])
+    report = audit(Trace(id="trace", root_spans=[root], aggregate=TraceAggregate()))
+    assert (report["counts"]["agents"], report["counts"]["turns"], report["counts"]["calls"]) == (2, 2, 2)
+
+
 def test_parallel_results_pair_by_id_and_unlinked_results_stay_unlinked(tmp_path):
     calls = [atif_call(), atif_call("other", "other")]
     results = [

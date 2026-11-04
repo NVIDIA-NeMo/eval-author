@@ -25,6 +25,9 @@ preview: workflows, skills, and saved artifacts may change between releases.
   `private/workspace.json` creation marker, `construction.v1` and
   `construction.v2`, and the historical trace construction import are no longer
   read. Older workspaces are refused; re-run `prepare` in a new task directory.
+  A native first-eval or task-create `construction.v2` contract becomes v3 by
+  changing its schema id; prepare its task evidence again. See
+  [importing existing artifacts](skills/eval-author/references/construction-plan.md#import-existing-artifacts-without-rewriting-evidence).
 
 ### Changed
 
@@ -58,8 +61,10 @@ preview: workflows, skills, and saved artifacts may change between releases.
   trace loader and writes `private/canonical.trace.json` and a scrubbed
   `safe/trace.json` that still validates as a Compass `Trace`. Load Intake with
   `trace_loading.py` first, then prepare its `traces.normalized.jsonl` with
-  `--source-kind trace`. The safe copy omits media, drops source attributes and
-  pseudonymizes identifiers consistently. Candidates, construction, tool-call
+  `--source-kind trace`. The safe copy omits media and model token ids, drops
+  source attributes and pseudonymizes identifiers consistently. Tool calls whose
+  arguments, results or definitions hold a redacted or pseudonymized value are
+  not offered for exact replay. Candidates, construction, tool-call
   fixtures and the evidence audit cite safe-trace turn and span ids instead of
   ATIF step ids: `evidence_turns`, provenance `trace_turn`, `cutoff_turn_id`,
   and `{span_id, call_id}` call evidence. See

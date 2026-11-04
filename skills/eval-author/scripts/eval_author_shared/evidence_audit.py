@@ -9,7 +9,7 @@ from collections import Counter
 from typing import TYPE_CHECKING, Any
 
 from .fixture_compiler import canonical_json, result_entry, result_signature
-from .trace_view import error_status, iter_turns, tool_results, tool_spans
+from .trace_view import agent_spans, error_status, iter_turns, tool_results, tool_spans
 
 if TYPE_CHECKING:
     from trace_ingest import Trace
@@ -50,9 +50,8 @@ def audit_evidence(trace: Trace, *, safe_trace_sha256: str) -> dict[str, Any]:
             findings.append({"code": f"result_status_{status}", **location})
 
     results_by_span = {span.id: len(tool_results(span)) for _, span in tool_spans(trace)}
-    agents: set[str] = set()
-    for agent, turn in iter_turns(trace):
-        agents.add(agent.id)
+    counts["agents"] = len(agent_spans(trace))
+    for _, turn in iter_turns(trace):
         counts["turns"] += 1
         result_count = len(turn.unlinked_results) + sum(results_by_span[span_id] for span_id in turn.tool_call_span_ids)
         if turn.role is TurnRole.AGENT and not result_count:
@@ -64,7 +63,6 @@ def audit_evidence(trace: Trace, *, safe_trace_sha256: str) -> dict[str, Any]:
             location = {"turn_id": turn.id, "unlinked_result": index}
             findings.append({"code": "unlinked_result", **location})
             record_status(error_status(result), location)
-    counts["agents"] = len(agents)
 
     # Scope is the owning AGENT span AND the explicit tool server. Reused call ids in
     # other turns or agents never join results; Compass pairs them per call.
