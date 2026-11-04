@@ -478,3 +478,24 @@ def test_unpinned_or_shadowing_install_is_rejected_before_writing(loading, insta
     output = tmp_path / "loaded"
     assert loading.main(["--source-kind", "atif", "--input", str(ATIF_FIXTURE), "--output-dir", str(output)]) == 2
     assert not output.exists()
+
+
+@pytest.mark.parametrize("suffix", [".json", ".jsonl"])
+def test_atif_with_a_repeated_key_is_refused_not_collapsed(loading, suffix, tmp_path):
+    record = json.dumps(json.loads(ATIF_FIXTURE.read_text()))
+    # Repeat the session id: a parser that keeps the last value would silently drop the first.
+    source = tmp_path / f"trajectory{suffix}"
+    source.write_text(record[:-1] + ', "session_id": "shadowing-value"}\n')
+    with pytest.raises(loading.TraceLoadError, match="repeats a key"):
+        loading.load_traces(source, "atif")
+
+
+def test_partially_loaded_session_is_refused(loading, tmp_path):
+    first = tmp_path / "first"
+    assert invoke("--source-kind", "mlflow", "--input", MLFLOW_FIXTURE, "--output-dir", first).returncode == 0
+    [trace] = normalized(first)
+    trace["losses"].append({"code": "merge_incomplete", "detail": {"reason": "max_traces", "loaded_record_count": 1}})
+    partial = tmp_path / "partial.jsonl"
+    partial.write_text(json.dumps(trace) + "\n")
+    with pytest.raises(loading.TraceLoadError, match="could not be loaded completely"):
+        loading.load_traces(partial, "trace")

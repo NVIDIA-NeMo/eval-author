@@ -115,6 +115,9 @@ def load_traces(
         raise TraceLoadError("source contains more than max_traces traces")
     if not traces:
         raise TraceLoadError("source contains no traces")
+    # Compass still returns a merged session when it could not load every record of it.
+    if any(loss.code == "merge_incomplete" for trace in traces for loss in trace.losses):
+        raise TraceLoadError("source holds a session that could not be loaded completely")
     return traces
 
 
@@ -123,13 +126,18 @@ def _load_atif(source: Path) -> list[Trace]:
     from trace_ingest.source_links import file_source_url
 
     if source.suffix.lower() != ".json":
+        # Compass keeps the last of repeated JSON keys; refuse them instead of dropping values.
+        with source.open("rb") as lines:
+            for raw in lines:
+                if raw.strip():
+                    _strict_json(raw)
         return list(ATIFTraceLoader(ATIFTraceConfig(path=source)).load())
     # Compass reads ATIF as JSONL. A ``.json`` file, such as Harbor's pretty-printed
     # agent/trajectory.json, holds one trajectory: load it as a single compact line.
     raw = source.read_bytes()
     if len(raw) > MAX_RECORD_BYTES:
         raise TraceLoadError("ATIF trajectory exceeds the raw-byte limit")
-    trajectory = json.loads(raw, parse_constant=_reject_constant)
+    trajectory = _strict_json(raw)
     if not isinstance(trajectory, dict):
         raise TraceLoadError("an ATIF .json file must hold one trajectory object")
     line = json.dumps(trajectory, ensure_ascii=False, separators=(",", ":"))
@@ -143,8 +151,20 @@ def _load_atif(source: Path) -> list[Trace]:
     return traces
 
 
+def _strict_json(raw: bytes) -> Any:
+    """Parse JSON, refusing non-finite numbers and repeated object keys."""
+    return json.loads(raw, parse_constant=_reject_constant, object_pairs_hook=_unique_keys)
+
+
 def _reject_constant(value: str) -> Any:
     raise TraceLoadError(f"non-finite JSON number {value}")
+
+
+def _unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value = dict(pairs)
+    if len(value) != len(pairs):
+        raise TraceLoadError("JSON object repeats a key")
+    return value
 
 
 def _load_mlflow(source: Path, max_traces: int) -> list[Trace]:

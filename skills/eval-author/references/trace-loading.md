@@ -47,6 +47,9 @@ release with the next Compass release.
 | `trace` | `--input` canonical `Trace` JSONL, such as a previous `traces.normalized.jsonl` | — |
 
 `--max-traces` (default 1000) rejects larger sources instead of truncating them.
+A session that could not be loaded completely (a `merge_incomplete` loss) and
+ATIF that repeats a JSON object key are rejected too, so no record or value is
+dropped silently.
 A NeMo Gym `--row` normalizes only the selected line, but the output keeps an
 exact copy of the whole source file, other episodes included, so treat it as
 restricted as the source itself.
