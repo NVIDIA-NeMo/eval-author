@@ -13,7 +13,7 @@ import shlex
 import stat
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from working_paths import scratch_directory
 
@@ -23,21 +23,23 @@ from .fixture_compiler import (  # noqa: E402
     derive_tool_call_plan,
     resolve_tool_access,
 )
+from .safe_trace import SafeTraceError, parse_trace
+from .trace_view import iter_turns
 from .verifier_lint import uses_submission_capture  # noqa: E402
 
-SCHEMA = "nemo.eval_author.trace_environment_summary.v2"
+if TYPE_CHECKING:
+    from trace_ingest import Trace
 
-QUALIFIED_SUMMARY_SCHEMA = "nemo.eval_author.trace_environment_summary.v3"
+# Workspaces recorded under an older summary schema are refused, never migrated.
+SUMMARY_SCHEMA = "nemo.eval_author.trace_environment_summary.v4"
 
-VALIDATION_SCHEMA = "nemo.eval_author.trace_environment_validation.v6"
+_SUMMARY_SCHEMA_PREFIX = "nemo.eval_author.trace_environment_summary."
 
-RUN_INPUT_SCHEMA = "nemo.eval_author.trace_environment_run_input.v1"
+OLD_WORKSPACE = "workspace was prepared by an older trace workspace version; re-run prepare in a new task directory"
 
-QUALIFIED_RUN_INPUT_SCHEMA = "nemo.eval_author.trace_environment_run_input.v2"
+RUN_INPUT_SCHEMA = "nemo.eval_author.trace_environment_run_input.v3"
 
-CANONICAL_RUN_INPUT_SCHEMA = "nemo.eval_author.trace_environment_run_input.v3"
-
-QUALIFIED_VALIDATION_SCHEMA = "nemo.eval_author.trace_environment_validation.v7"
+VALIDATION_SCHEMA = "nemo.eval_author.trace_environment_validation.v7"
 
 PROBE_SCHEMA = "nemo.eval_author.trace_environment_probes.v1"
 
@@ -49,7 +51,13 @@ MAX_CANONICAL_BYTES = 25 * 1024 * 1024
 
 TASK_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
-ATIF_VERSION = re.compile(r"ATIF-v1\.[0-7]")
+# Kinds whose loaded traces record conversation turns. Intake loads a live selection:
+# load it with trace_loading.py, then prepare the normalized file as ``trace``.
+PREPARE_SOURCE_KINDS = ("atif", "mlflow", "gym", "trace")
+
+CANONICAL_TRACE_PATH = "private/canonical.trace.json"
+
+SAFE_TRACE_PATH = "safe/trace.json"
 
 _CHECK_ROW = re.compile(r"([a-z0-9]+(?:-[a-z0-9]+)*)\t(PASS|FAIL)")
 
@@ -89,6 +97,9 @@ _SUMMARY_KEYS = frozenset(
 _SOURCE_KEYS = frozenset(
     {
         "kind",
+        "loader",
+        "trace_schema_version",
+        "row",
         "original_path",
         "original_sha256",
         "original_size_bytes",
@@ -124,6 +135,7 @@ _ENVIRONMENT_KEYS = frozenset(
         "validation",
         "verifier_environment_mode",
         "isolation_status",
+        "qualification",
     }
 )
 
@@ -148,7 +160,7 @@ _BEARER_BYTES = re.compile(rb"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}")
 
 _CREDENTIALED_URL_BYTES = re.compile(rb"(?i)https?://[^\s/:@]+:[^\s/@]+@")
 
-_MIN_VALIDATION_RUNS = {"nop": 2, "oracle": 2, "negative": 1, "copy": 0}
+_MIN_VALIDATION_RUNS = {"nop": 2, "oracle": 2, "negative": 1, "copy": 0, "alternative": 1, "bypass": 0}
 
 
 class ContractError(ValueError):
@@ -226,21 +238,43 @@ def _summary_path(task_dir: Path) -> Path:
     return task_dir / "summary.json"
 
 
+def _valid_source(source: Any) -> bool:
+    if not isinstance(source, dict) or set(source) != _SOURCE_KEYS:
+        return False
+    kind = source.get("kind")
+    loader = source.get("loader")
+    return (
+        kind in PREPARE_SOURCE_KINDS
+        and source.get("original_path") in (f"private/source.{kind}.json", f"private/source.{kind}.jsonl")
+        and source.get("canonical_path") == CANONICAL_TRACE_PATH
+        and source.get("safe_path") == SAFE_TRACE_PATH
+        and isinstance(loader, dict)
+        and set(loader) == {"distribution", "version", "revision"}
+        and all(isinstance(value, str) for value in loader.values())
+        and isinstance(source.get("trace_schema_version"), str)
+        and (source.get("row") is None or (type(source["row"]) is int and source["row"] >= 1))
+        and all(
+            isinstance(source.get(name), str) and _DIGEST.fullmatch(source[name]) is not None
+            for name in ("original_sha256", "canonical_sha256", "safe_sha256")
+        )
+        and all(
+            type(source.get(name)) is int and source[name] >= 0
+            for name in ("original_size_bytes", "canonical_size_bytes", "safe_size_bytes")
+        )
+        and isinstance(source.get("normalizations"), list)
+        and all(isinstance(item, dict) for item in source["normalizations"])
+    )
+
+
 def _load_summary(task_dir: Path) -> dict[str, Any]:
     summary = _load_object(_summary_path(task_dir), label="summary")
-    marker = task_dir / "private/workspace.json"
-    if marker.exists() or marker.is_symlink():
-        if marker.is_symlink() or _load_object(marker, label="workspace marker") != {
-            "schema": "nemo.eval_author.workspace.v1",
-            "summary_schema": QUALIFIED_SUMMARY_SCHEMA,
-        }:
-            raise ContractError("invalid workspace creation marker")
-        if summary.get("schema") != QUALIFIED_SUMMARY_SCHEMA:
-            raise ContractError("workspace creation marker forbids summary schema downgrade")
+    schema = summary.get("schema")
+    if schema != SUMMARY_SCHEMA:
+        if isinstance(schema, str) and schema.startswith(_SUMMARY_SCHEMA_PREFIX):
+            raise ContractError(OLD_WORKSPACE)
+        raise ContractError(f"summary.schema must be {SUMMARY_SCHEMA!r}")
     if set(summary) != _SUMMARY_KEYS:
         raise ContractError("summary fields do not match the versioned contract")
-    if summary.get("schema") not in (SCHEMA, QUALIFIED_SUMMARY_SCHEMA):
-        raise ContractError(f"summary.schema must be {SCHEMA!r}")
     if summary.get("task_id") != task_dir.name:
         raise ContractError("summary task_id does not match its directory")
     if summary.get("status") not in ("pending", "candidate", "no_candidate"):
@@ -250,24 +284,7 @@ def _load_summary(task_dir: Path) -> dict[str, Any]:
         if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
             raise ContractError(f"summary.{name} must be a list of strings")
     source = summary.get("source")
-    if source is not None and (
-        not isinstance(source, dict)
-        or set(source) != _SOURCE_KEYS
-        or source.get("kind") not in ("atif", "intake", "mlflow", "otel", "gym")
-        or source.get("original_path") != "private/source.atif.json"
-        or source.get("canonical_path") != "private/canonical.atif.json"
-        or source.get("safe_path") != "safe/trace.atif.json"
-        or any(
-            not isinstance(source.get(name), str) or _DIGEST.fullmatch(source[name]) is None
-            for name in ("original_sha256", "canonical_sha256", "safe_sha256")
-        )
-        or any(
-            type(source.get(name)) is not int or source[name] < 0
-            for name in ("original_size_bytes", "canonical_size_bytes", "safe_size_bytes")
-        )
-        or not isinstance(source.get("normalizations"), list)
-        or any(not isinstance(item, dict) for item in source["normalizations"])
-    ):
+    if source is not None and not _valid_source(source):
         raise ContractError("summary source does not match the versioned task workspace contract")
     privacy = summary.get("privacy")
     if privacy is not None and (
@@ -286,12 +303,7 @@ def _load_summary(task_dir: Path) -> dict[str, Any]:
     environment = summary.get("environment")
     if (
         not isinstance(environment, dict)
-        or set(environment)
-        != (
-            _ENVIRONMENT_KEYS | {"qualification"}
-            if summary["schema"] == QUALIFIED_SUMMARY_SCHEMA
-            else _ENVIRONMENT_KEYS
-        )
+        or set(environment) != _ENVIRONMENT_KEYS
         or environment.get("path") != "task"
         or environment.get("status") not in ("ready", "failed", "unproven", "not_attempted")
         or environment.get("technical_status") not in ("passed", "failed", "not_run")
@@ -301,12 +313,7 @@ def _load_summary(task_dir: Path) -> dict[str, Any]:
         or environment.get("isolation_status") not in ("isolated", "not_run")
     ):
         raise ContractError("summary environment does not match the versioned task workspace contract")
-    if summary["schema"] == QUALIFIED_SUMMARY_SCHEMA and environment["qualification"] not in (
-        "not_run",
-        "not_applicable",
-        "passed",
-        "failed",
-    ):
+    if environment["qualification"] not in ("not_run", "not_applicable", "passed", "failed"):
         raise ContractError("invalid construction qualification status")
     if privacy is not None and source is None:
         raise ContractError("summary privacy data requires prepared source evidence")
@@ -321,136 +328,48 @@ def _ensure_task_dir(path: Path) -> Path:
     return path.resolve()
 
 
-def _validate_message(message: Any, *, location: str) -> tuple[int, bool]:
-    if isinstance(message, str):
-        return 0, bool(message.strip())
-    if not isinstance(message, list):
-        raise ContractError(f"{location} must be text or a list of ATIF content parts")
-    image_count = 0
-    has_text = False
-    for index, part in enumerate(message):
-        if not isinstance(part, dict):
-            raise ContractError(f"{location}[{index}] must be an object")
-        part_type = part.get("type")
-        text = part.get("text")
-        if part_type == "text" and isinstance(text, str):
-            has_text = has_text or bool(text.strip())
-        elif part_type == "image" and isinstance(part.get("source"), dict):
-            image_count += 1
-        else:
-            raise ContractError(f"{location}[{index}] is not a supported text or image content part")
-    return image_count, has_text
-
-
-def _validate_trajectory(payload: Any, *, location: str = "trajectory", depth: int = 0) -> dict[str, Any]:
-    if depth > 8:
-        raise ContractError("embedded ATIF trajectories exceed the depth limit of 8")
-    if not isinstance(payload, dict):
-        raise ContractError(f"{location} must be an object")
-    version = payload.get("schema_version")
-    if not isinstance(version, str) or ATIF_VERSION.fullmatch(version) is None:
-        raise ContractError(f"{location}.schema_version must identify ATIF v1.x")
-    agent = payload.get("agent")
-    if not isinstance(agent, dict) or not isinstance(agent.get("name"), str) or not agent["name"].strip():
-        raise ContractError(f"{location}.agent.name must be nonempty text")
-    steps = payload.get("steps")
-    if not isinstance(steps, list) or not steps:
-        raise ContractError(f"{location}.steps must be a nonempty list")
-
-    image_count = 0
-    image_only_user_steps: list[int] = []
-    user_step_count = 0
-    for index, step in enumerate(steps, start=1):
-        step_location = f"{location}.steps[{index - 1}]"
-        if not isinstance(step, dict):
-            raise ContractError(f"{step_location} must be an object")
-        if step.get("step_id") != index:
-            raise ContractError(f"{step_location}.step_id must be sequential from 1")
-        source = step.get("source")
-        if source not in {"user", "agent", "system"}:
-            raise ContractError(f"{step_location}.source must be user, agent, or system")
-        if source == "user":
-            user_step_count += 1
-        step_images, has_text = _validate_message(step.get("message", ""), location=f"{step_location}.message")
-        image_count += step_images
-        if source == "user" and step_images and not has_text:
-            image_only_user_steps.append(index)
-
-        calls = step.get("tool_calls") or []
-        if not isinstance(calls, list):
-            raise ContractError(f"{step_location}.tool_calls must be a list")
-        call_ids: set[str] = set()
-        for call_index, call in enumerate(calls):
-            if not isinstance(call, dict):
-                raise ContractError(f"{step_location}.tool_calls[{call_index}] must be an object")
-            call_id = call.get("tool_call_id")
-            if not isinstance(call_id, str) or not call_id or call_id in call_ids:
-                raise ContractError(f"{step_location} has a missing or duplicate tool_call_id")
-            call_ids.add(call_id)
-        observation = step.get("observation")
-        if observation is not None:
-            if not isinstance(observation, dict):
-                raise ContractError(f"{step_location}.observation must be an object")
-            results = observation.get("results", [])
-            if not isinstance(results, list):
-                raise ContractError(f"{step_location}.observation.results must be a list")
-            for result in results:
-                if not isinstance(result, dict):
-                    raise ContractError(f"{step_location}.observation results must be objects")
-                source_call_id = result.get("source_call_id")
-                if source_call_id is not None and source_call_id not in call_ids:
-                    raise ContractError(f"{step_location} observation references unknown tool call {source_call_id!r}")
-                result_images, _ = _validate_message(result.get("content", ""), location="observation content")
-                image_count += result_images
-
-    subagents = payload.get("subagent_trajectories") or []
-    if not isinstance(subagents, list):
-        raise ContractError(f"{location}.subagent_trajectories must be a list")
-    for index, subagent in enumerate(subagents):
-        child = _validate_trajectory(subagent, location=f"{location}.subagent_trajectories[{index}]", depth=depth + 1)
-        image_count += child["image_count"]
-        image_only_user_steps.extend(child["image_only_user_steps"])
-    if depth == 0 and user_step_count == 0:
-        raise ContractError("trajectory must contain at least one root user step")
-    return {"image_count": image_count, "image_only_user_steps": image_only_user_steps}
-
-
-def _tool_call_source(task_dir: Path) -> tuple[dict[str, Any], dict[str, Any], str]:
-    summary = _load_summary(task_dir)
-    source = summary.get("source")
-    if not isinstance(source, dict):
-        raise ContractError("prepare safe ATIF evidence before inventorying interactions")
+def _safe_trace(task_dir: Path, source: dict[str, Any]) -> tuple[Trace, str]:
+    """Load the retained safe Trace after binding it to the digest and size the summary recorded."""
     safe_path = task_dir / source["safe_path"]
     if safe_path.is_symlink() or not safe_path.is_file():
-        raise ContractError("safe ATIF must be a retained regular file")
+        raise ContractError("safe trace must be a retained regular file")
     if safe_path.stat().st_size > MAX_CANONICAL_BYTES:
-        raise ContractError(f"safe ATIF exceeds the {MAX_CANONICAL_BYTES}-byte limit")
+        raise ContractError(f"safe trace exceeds the {MAX_CANONICAL_BYTES}-byte limit")
     with safe_path.open("rb") as stream:
         safe_bytes = stream.read(MAX_CANONICAL_BYTES + 1)
     if len(safe_bytes) > MAX_CANONICAL_BYTES:
-        raise ContractError(f"safe ATIF exceeds the {MAX_CANONICAL_BYTES}-byte limit")
+        raise ContractError(f"safe trace exceeds the {MAX_CANONICAL_BYTES}-byte limit")
     safe_sha256 = _sha256(safe_bytes)
-    if safe_sha256 != source["safe_sha256"]:
-        raise ContractError("safe ATIF digest does not match the task summary")
+    if safe_sha256 != source["safe_sha256"] or len(safe_bytes) != source["safe_size_bytes"]:
+        raise ContractError("safe trace digest or size changed")
     try:
-        safe = json.loads(safe_bytes.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise ContractError("could not read safe ATIF as UTF-8 JSON") from error
-    if not isinstance(safe, dict):
-        raise ContractError("safe ATIF must contain one JSON object")
-    _validate_trajectory(safe)
+        return parse_trace(safe_bytes), safe_sha256
+    except SafeTraceError as error:
+        raise ContractError(str(error)) from error
+
+
+def _turn_ids(trace: Trace) -> set[str]:
+    return {turn.id for _, turn in iter_turns(trace)}
+
+
+def _tool_call_source(task_dir: Path) -> tuple[dict[str, Any], Trace, str]:
+    summary = _load_summary(task_dir)
+    source = summary.get("source")
+    if not isinstance(source, dict):
+        raise ContractError("prepare safe trace evidence before inventorying interactions")
+    safe, safe_sha256 = _safe_trace(task_dir, source)
     return summary, safe, safe_sha256
 
 
 def _current_tool_call_inventory(task_dir: Path) -> dict[str, Any]:
     _, safe, safe_sha256 = _tool_call_source(task_dir)
-    return derive_tool_call_inventory(safe, safe_atif_sha256=safe_sha256)
+    return derive_tool_call_inventory(safe, safe_trace_sha256=safe_sha256)
 
 
 def _current_tool_call_inventory_file(task_dir: Path) -> dict[str, Any]:
     inventory = _load_object(task_dir / "private/tool-call-inventory.json", label="tool-call inventory")
     if inventory != _current_tool_call_inventory(task_dir):
-        raise ContractError("tool-call-inventory.json differs from the current safe ATIF")
+        raise ContractError("tool-call-inventory.json differs from the current safe trace")
     return inventory
 
 

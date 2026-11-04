@@ -8,9 +8,10 @@
 
 ## Prerequisites
 
-- One bounded ATIF v1.0-v1.7 trace, normalized through the trace-environment
-  author workflow when needed.
-- Python 3.11 or later, `jsonschema>=4.23`, and `referencing>=0.28.4`; Harbor and Docker when proving a
+- One trace prepared and scrubbed into a safe NeMo Compass Trace (see
+  [trace sources](../../eval-author-inspect-trace/references/sources.md)).
+- Python 3.12–3.13 with eval-author's `requirements.txt`, which pins NeMo Compass,
+  plus `jsonschema>=4.23` and `referencing>=0.28.4`; Harbor and Docker when proving a
   candidate task. Use the existing supported environment; do not install providers
   automatically. The environment must provide these runtime dependencies.
 - A completed contextual privacy review before materializing mock calls.
@@ -21,8 +22,8 @@ directory containing `SKILL.md` and `scripts/`.
 ## Purpose
 
 A tool is a software dependency such as a CAD application, CLI, database, or
-service. A tool call is an invocation recorded by ATIF: a function name, input,
-and paired output. They are related but have different environment decisions.
+service. A tool call is an invocation recorded as a TOOL span in the safe Trace: a
+function name, input, and paired result. They are related but have different environment decisions.
 
 The evaluation may receive the real tool through its normal environment, receive
 a deterministic mock of recorded tool calls, or receive no access. The trace can
@@ -48,7 +49,7 @@ the author's machine. Software availability and licensing remain in
 
 ```text
 canonical source
-  -> safe ATIF
+  -> safe Trace (safe/trace.json)
   -> private/tool-call-inventory.json
   -> private/tool-call-plan.json
   -> author decisions: real | mock | none
@@ -72,23 +73,27 @@ gates.
 For each observed scoped tool, the inventory records:
 
 - the original definition and a normalized name and input schema;
-- every argument object, call ID, paired observation, trajectory path, and ATIF
-  step ID;
+- every call as `{span_id, turn_id, call_id, initiator, arguments,
+  arguments_status, results}`, where each result keeps its `content` and
+  `error_status`;
 - explicit read-only metadata when present, as context rather than a replay
   requirement; and
-- uncertainties such as missing or ambiguous definitions, missing observations,
-  non-object arguments, and redacted values.
+- uncertainties such as missing or ambiguous definitions, missing results,
+  non-object arguments, and redacted values; and
+- `unresolved_calls` entries `{span_id, call_id, reason: "tool_name_missing"}`
+  for TOOL spans without a function name.
 
-The compiler accepts MCP-shaped definitions (`name` and `inputSchema`) and
-OpenAI-shaped definitions (`function.name` and `function.parameters`). This is
-an input normalization rule. It does not make MCP the fixture model.
+Definitions come from the Compass tool definitions in scope and are normalized
+to a `name` and `inputSchema`. This does not make MCP the fixture model.
 
-Identity is the tuple `(trajectory_path, server, function_name)`, represented by a
-stable `tool_id`. Definitions are resolved only inside that scope, never borrowed
-from a parent, child, or sibling. Source normalization may preserve an explicitly
-recorded server identity in `extra.tool_scope.server` on both the call and its
-definition. Missing server identity stays null; do not invent a server from a
-function name. Conflicting definitions within a scope stay ambiguous.
+Identity is the tool's `scope {agent_span_id, server}` plus its function name,
+represented by a stable `tool_id`. Definitions come from the LLM span that
+declared tools for the issuing turn, else the owning AGENT span; they are never
+borrowed across an AGENT boundary. Only an explicitly recorded server scopes a
+tool; missing server identity stays null, and no server is inferred from a
+function name. Conflicting definitions within a scope stay ambiguous. When a
+subagent declared no tools, the inventory offers its parent agent's matching
+definition as `suggested_definition`; it is never applied automatically.
 
 Access decisions should copy `tool_id` and `name` from the inventory. Name-only
 decisions are accepted only when exactly one scoped tool has that name. Duplicate
@@ -103,8 +108,9 @@ is supported when it has a usable definition, object inputs, exactly one textual
 output for each call, no redacted values, and no conflicting outputs for the same
 canonical input.
 
-Explicit result error flags are preserved through replay. Malformed or
-contradictory flags block replay; conflict detection includes status as well as
+Explicit result error status (`error`, `not_error`, `invalid`, `conflicting` or
+`unrecorded`) is preserved through replay. Invalid or conflicting status blocks
+replay; conflict detection includes status as well as
 text. Run the [recorded evidence audit](evidence-audit.md) to inspect source
 coverage and the distinction between unrecorded status and explicit not-error.
 
@@ -127,8 +133,11 @@ decision.
 ### Missing schemas: reviewed overrides
 
 Recorded inputs and outputs can support a mock even when the source did not
-capture a tool definition. Author a minimal **replay interface**, review it
-against every recorded input, and supply it when creating the plan:
+capture a tool definition. When the plan offers a `suggested_override
+{tool_id, input_schema, evidence}`, review it before copying it into the
+overrides file with a note; it is never applied automatically. Otherwise author
+a minimal **replay interface**. Review it against every recorded input and
+supply it when creating the plan:
 
 ```bash
 python <skill_dir>/scripts/trace_environment.py plan-tool-call-access \
@@ -139,7 +148,7 @@ The JSON contract is:
 
 ```json
 {
-  "schema": "nemo.eval_author.trace_environment_schema_overrides.v1",
+  "schema": "nemo.eval_author.trace_environment_schema_overrides.v2",
   "inventory_sha256": "sha256:<digest-of-private/tool-call-inventory.json>",
   "reviewer_kind": "human",
   "entries": [
@@ -152,7 +161,7 @@ The JSON contract is:
       },
       "note": "Reviewed all recorded arguments; this schema describes bounded replay only.",
       "evidence": [
-        {"trajectory_path": "$", "step_id": 2, "tool_call_id": "<copy-from-inventory>"}
+        {"span_id": "<copy-from-inventory>", "call_id": "<copy-from-inventory>"}
       ]
     }
   ]
@@ -168,7 +177,7 @@ The override is a scoped replay contract only.
 
 The helper validates the schema and evidence, retains an owner-private copy as
 `private/tool-schema-overrides.json`, binds its digest into the plan, and carries
-its provenance through access and fixtures. Source ATIF and inventory remain
+its provenance through access and fixtures. The safe Trace and inventory remain
 unchanged. Review override contents along with the generated publication; do not
 include private notes in a distributable mock. An existing plan is immutable:
 retain that workspace and create a fresh one when the reviewed contract changes.
@@ -210,14 +219,15 @@ adapter. `real` and `none` do not select an adapter. The normalized decision is
 immutable and bound to the inventory and plan digests.
 
 Candidate finalization and subsequent `check` require this complete pipeline
-whenever safe ATIF contains calls. Missing function names block candidacy rather
+whenever the safe Trace contains calls. Missing function names block candidacy rather
 than disappearing from the denominator. Pending and `no_candidate` workspaces may
 retain partial inventories/plans without claiming access.
 
 ## Neutral call fixtures and adapters
 
 `call-fixtures.json` is transport-neutral. It contains selected function names,
-definitions, exact inputs, recorded outputs, and evidence steps. An adapter makes
+definitions, exact inputs, recorded outputs, and evidence: the cited
+`evidence_turns` and `{span_id, call_id}` references. An adapter makes
 that logical callable surface available to an evaluation agent.
 
 The initial adapter is MCP because Harbor can pass task-owned MCP servers to many
@@ -352,11 +362,12 @@ path, not a Docker image, Harbor trial lifecycle, or verifier isolation.
 
 ## Next steps
 
-Scoped inventory, plan, access, and neutral fixtures use v2 contracts. Preserve
+Scoped inventory, plan, access, and neutral fixtures use v3 contracts; the MCP
+scenario uses v2. Preserve
 older evidence; regenerate in a new workspace from the retained source rather
 than editing version strings or attaching old proof to changed artifacts.
 
 - Follow the [trace-environment author workflow](../SKILL.md).
 - Apply the [environment-integrity proof requirements](environment-integrity.md).
 
-Call-fixture v2 cases may include optional boolean `is_error`. Preserve `true` as an error outcome and `false` as an explicitly successful outcome; absence means unrecorded, not success.
+Call-fixture v3 cases may include optional boolean `is_error`. Preserve `true` as an error outcome and `false` as an explicitly successful outcome; absence means unrecorded, not success.

@@ -32,7 +32,7 @@ def reviewed_source(root: Path) -> dict:
     ):
         raise workspace.ContractError("privacy review is incomplete, stale or inconsistent")
     # Recompute its denominator and findings against the exact reviewed safe copy.
-    expected = workspace._privacy_audit(safe, safe_sha)
+    expected = workspace._privacy_audit(safe.model_dump(mode="json"), safe_sha)
     if {k: v for k, v in audit.items() if k != "review"} != {k: v for k, v in expected.items() if k != "review"}:
         raise workspace.ContractError("privacy audit no longer matches the reviewed source")
     return privacy
@@ -41,7 +41,7 @@ def reviewed_source(root: Path) -> dict:
 def assess(root: Path) -> dict:
     root = workspace._ensure_task_dir(root)
     metadata = workspace._check_candidate(argparse.Namespace(task_dir=root))
-    summary, safe, safe_sha = workspace._tool_call_source(root)
+    _, _, safe_sha = workspace._tool_call_source(root)
     candidate = workspace._load_object(root / "candidate.json", label="candidate")
     # A reasoned rejection is an admissible outcome without a task or proof.
     if candidate["status"] == "no_candidate":

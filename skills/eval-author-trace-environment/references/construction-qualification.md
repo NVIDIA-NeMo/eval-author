@@ -9,34 +9,28 @@ dependencies. It does not measure difficulty, establish all possible valid
 solutions, or reconstruct missing historical truth. NeMo Gym uses native evidence;
 the helper's qualification receipts apply only to Harbor.
 
-## Author the private contract
+## Field definitions
 
-Write `private/construction.json` with these exact top-level fields:
+Trace workspaces author [construction.v3](construction-plan.md) at
+`private/construction.json`; this reference defines its trace probe, control
+and provenance semantics. `construction.v1` and `construction.v2` cite ATIF
+steps and are refused with a message naming construction.v3; there is no trace
+import. A native v2 contract changes only its schema id.
 
-| Field | Content |
+| Field | Trace content |
 | --- | --- |
-| `schema` | `nemo.eval_author.construction.v1` |
-| `candidate_sha256` | SHA-256 of the exact `candidate.json` bytes |
-| `trace_sha256` | SHA-256 of the exact `safe/trace.atif.json` bytes |
-| `requirements` | Stable IDs joined to candidate requirement indices and scored check IDs |
+| `bindings.candidate_sha256` | SHA-256 of the exact `candidate.json` bytes |
+| `bindings.trace_sha256` | Hex SHA-256 of the exact `safe/trace.json` bytes |
+| `requirements`, `checks` | Stable IDs joined to candidate requirement indices and scored check IDs |
 | `probes` | Executable setup and behavior-reach observations described below |
-| `controls` | Declared negative, alternative, optional copy, and dependency bypass controls |
-| `dependencies` | Directed requirement edges, each with its own bypass control; `[]` if none |
-| `starting_state` | Declared input inventory and provenance described below |
+| `cases`, `prerequisites` | Declared negative, alternative, optional copy, and dependency bypass controls |
+| `starting_state`, `inputs` | Declared input inventory and provenance described below |
 | `review` | `{"reviewer_kind":"agent","note":"<concrete review findings>"}`; human review is also supported |
 
 Use stable kebab-case IDs. Each candidate requirement index must appear exactly
 once. A check may cover more than one requirement, but the union of declared
-checks must exactly match every proof run's scored check IDs. For example:
-
-```json
-[
-  {"id":"repair","candidate_index":0,"checks":["repair-and-preserve"]},
-  {"id":"preserve","candidate_index":1,"checks":["repair-and-preserve"]}
-]
-```
-
-The digest prevents indices silently changing meaning. Review the mapping
+checks must exactly match every proof run's scored check IDs. The candidate
+digest prevents indices silently changing meaning. Review the mapping
 against the visible instruction and actual assertions: schema validation cannot
 make an unstated requirement public. Keep preservation and prerequisite checks
 inside their scored outcome so an untouched environment fails every scored check.
@@ -48,17 +42,19 @@ invalidate existing proof inputs; retain the old evidence and run fresh jobs.
 
 ## Record starting-file provenance
 
-`starting_state` has exactly `cutoff_step_id`, `roots`, `artifacts`,
-`external_inputs`, `no_files_reason` and `review`.
+`starting_state` has exactly `cutoff_turn_id`, `roots`, `external_inputs`,
+`no_files_reason` and `review`; each input artifact lives in `inputs`.
 
-- `cutoff_step_id` identifies the chosen starting point in the trace's list
-  order, not numeric step-ID order. Explain why that point represents the task
+- `cutoff_turn_id` is the safe-trace turn id of the chosen starting point.
+  Turns are ordered by execution across agents: a subagent's turns follow the
+  parent turn that issued the call it runs under, so cutoff and reversal
+  comparisons hold across agents. Explain why that point represents the task
   start in `review.note`.
 - `roots` lists directories under `task/environment/` containing starting inputs.
   Every file beneath these roots must have exactly one artifact entry. Symlinks
   and nonregular files are rejected. Do not include reference solutions or graders.
-- Each artifact has exactly `path`, `sha256`, `basis`, `source`, `edits`, `review`.
-  `path` is workspace-relative; `sha256` identifies the actual file bytes.
+- Each input artifact has `path`, `sha256`, `basis`, `source`, `edits` and
+  `review`; `sha256` identifies the actual file bytes.
 - `external_inputs` lists objects with exactly `description`, `identity`,
   `review` for relevant base-image, downloaded or runtime-created state not in
   the input roots. Identity is recorded text requiring review, not automatic
@@ -71,11 +67,12 @@ The supported bases are:
 
 | Basis | Required evidence |
 | --- | --- |
-| `observed` | `source` is `{"step_id":N,"pointer":"/observation/results/0/content"}` addressing exact text within that step at/before cutoff; UTF-8 bytes must equal the starting file; `edits: []`. |
-| `reversed_edit` | `source` addresses a recorded later full-text snapshot. `edits` is a nonempty list of `{before: <source-reference>, after: <source-reference>}`. Each pair addresses text in the same later mutation step. Apply pairs in strictly descending trace order; each `after` must match exactly once and is replaced by `before`. The resulting bytes must equal the starting file. |
+| `observed` | `source` is `{"turn_id":"<turn id>","pointer":"/content"}` or `{"span_id":"<TOOL span id>","pointer":"/tool_call/results/0/content"}` addressing exact text at/before cutoff; UTF-8 bytes must equal the starting file; `edits: []`. |
+| `reversed_edit` | `source` addresses a recorded later full-text snapshot. `edits` is a nonempty list of `{before: <source-reference>, after: <source-reference>}`. Each pair addresses text in the same later mutation turn or span. Apply pairs in strictly descending trace order; each `after` must match exactly once and is replaced by `before`. The resulting bytes must equal the starting file. |
 | `authored` | `source: null`, `edits: []`, concrete review, and candidate `state_basis: "reconstructed"`. Preserve this classification even if later execution validates the fixture. |
 
-JSON pointers are relative to the selected step. Exact reversal validates only
+Pointers are RFC 6901 JSON pointers into the cited Turn's JSON, or into the
+cited Span's JSON without its `children`. Exact reversal validates only
 the declared edits: review that all intervening relevant changes are accounted
 for and the cited fields actually represent file content and edits. Ambiguous,
 binary or unsupported transformations cannot claim this exact-reversal proof;
@@ -222,15 +219,14 @@ Run the custom agent through Harbor with the same task, isolation and job path
 as the integrity reference. Repeat for each declared negative, copy or bypass
 control using its matching arm and ID. Pass `--alternative-job-dir` and, for each
 bypass, `--bypass-job-dir` to `record-validation`, alongside its existing proof
-arguments. These flags repeat for multiple jobs. Aggregate-only proof cannot
-qualify construction. No additional CLI or authoring agent is introduced.
+arguments. These flags repeat for multiple jobs. Every proof job needs per-check
+rows. No additional CLI or authoring agent is introduced.
 
 ## Status and compatibility
 
-New `init` workspaces use summary v3, run-input v2 and validation v7. Summary v3
-requires the manifest; deleting it fails validation. The creation marker also
-rejects a summary-only downgrade to historical proof. These are edit-detection
-tripwires, not tamper-proof storage. `finalize`, `check` and publication rederive
+New `init` workspaces use summary v4, run-input v3 and validation v7. Summary v4
+requires the manifest; deleting it fails validation. This is an edit-detection
+tripwire, not tamper-proof storage. `finalize`, `check` and publication rederive
 proof from retained results and execution receipts. Changed/missing evidence
 fails validation; fixing a task uses the existing bounded repair protocol.
 
@@ -242,13 +238,11 @@ aggregate both runtime outcomes and construction qualification; consistent
 rewards alone cannot make them pass. Individual rewards and setup/reach outcomes
 remain available in the retained private run evidence for diagnosis.
 
-Retained summary-v2/run-input-v1/validation-v6 workspaces remain readable and
-report construction qualification as `unmeasured` in command/publication output.
-Do not add a new construction manifest to a historical workspace in place;
-initialize a fresh workspace and rerun proof. Historical summaries and receipts
-remain unchanged. Publication includes aggregate counts/status, not the private
-manifest, source pointers, control rationales or raw observations. Review the
-entire existing publication preview as usual; task verifier files are included.
+Workspaces prepared by an older trace workspace version are refused: re-run
+`prepare` in a new task directory and rerun proof. Publication includes
+aggregate counts/status, not the private manifest, source pointers, control
+rationales or raw observations. Review the entire existing publication preview
+as usual; task verifier files are included.
 
 ## Maintainer verification
 
@@ -266,16 +260,14 @@ live provider qualification of a generated task.
 ### Evidence limitations and repair history
 
 Review identities, including `reviewer_kind: human`, are unverified self-declarations,
-not authenticated approvals. New workspaces carry a write-once creation marker;
-changing only the summary schema cannot select the historical qualification path.
-This is a tripwire, not protection against an author deleting or forging evidence.
-Historical `unmeasured` qualification is not qualified.
+not authenticated approvals.
 
 Record a repair before editing the candidate or construction contract. Repairs
 retain both files alongside prior proof reports; `check.contract_changes` lists
 changes against those snapshots for review, without asserting that changes are valid.
-Reverse edits currently require strictly decreasing trace steps: multiple edits to
-the same file within one step must be represented by a single before/after reversal.
+Reverse edits currently require strictly decreasing turn positions in execution
+order: multiple edits to the same file within one turn or span must be
+represented by a single before/after reversal.
 Receipts bind retained files consistently; they do not authenticate execution time
 or prove that Harbor actually ran.
 

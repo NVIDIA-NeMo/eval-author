@@ -96,9 +96,10 @@ source paths. This makes the denominator explicit and reruns idempotent:
 
 ```json
 {
-  "schema": "nemo.eval_author.trace_environment_batch.v1",
+  "schema": "nemo.eval_author.trace_environment_batch.v2",
   "members": [
-    {"task_id": "stable-id", "atif": "private-source.atif.json", "source_kind": "atif"}
+    {"task_id": "stable-id", "source": "private-source.atif.json", "source_kind": "atif"},
+    {"task_id": "gym-id", "source": "private-rollouts.jsonl", "source_kind": "gym", "row": 3}
   ]
 }
 ```

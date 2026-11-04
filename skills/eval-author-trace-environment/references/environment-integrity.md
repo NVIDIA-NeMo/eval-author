@@ -333,7 +333,7 @@ report means the retained rewards and evidence are consistent, not that containe
 freshness has been verified. Failed rewards remain technical evidence: retain
 them and report the candidate as failed.
 
-Validation v6, reproducibility v3, and public product v3 replace the previous
+Validation v7, reproducibility v3, and public product v5 replace the previous
 contracts and their broader claim names. Preserve previous reports privately
 before regenerating them from the unchanged task and retained evidence; do not
 edit schema strings or claims in place. Jobs with genuine matching pre-run
@@ -341,7 +341,7 @@ receipts can be rechecked without claiming a new execution. Historical proof
 without those receipts must be rerun; do not fabricate receipts for completed
 jobs. Keep historical fixture results labeled with their original contract.
 Run receipts and control source/rationale stay private and are never exported.
-Validation v6 adds an optional `copy` arm (minimum zero); follow
+Validation v7 includes an optional `copy` arm (minimum zero); follow
 `check-grammar.md` to select applicable copy probes and review partial passes.
 The exported `copy_probes` summary reports `not_run` when none were supplied,
 or rewards, exception flags and passing check IDs when they were recorded.
