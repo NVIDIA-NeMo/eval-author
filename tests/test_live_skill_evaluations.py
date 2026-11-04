@@ -745,6 +745,46 @@ def test_plan_and_missing_key_never_execute(live, repo, tmp_path, monkeypatch):
     assert "PRIVATE-SENTINEL" not in (tmp_path / "plan/live-skillevaluator-summary.json").read_text()
 
 
+@pytest.mark.parametrize("manifest", [None, "/private/runtime/binary-manifest.json"])
+@pytest.mark.parametrize("required", [None, "1"])
+def test_patched_runtime_manifest_reaches_only_live_evaluation(live, repo, tmp_path, monkeypatch, manifest, required):
+    monkeypatch.setenv("INFERENCE_HUB_API_KEY", "fixture-key")
+    if manifest is None:
+        monkeypatch.delenv("EA_PATCHED_OPENCODE_MANIFEST", raising=False)
+    else:
+        monkeypatch.setenv("EA_PATCHED_OPENCODE_MANIFEST", manifest)
+    if required is None:
+        monkeypatch.delenv("EA_REQUIRE_PATCHED_OPENCODE", raising=False)
+    else:
+        monkeypatch.setenv("EA_REQUIRE_PATCHED_OPENCODE", required)
+    calls = []
+
+    def execute(argv, cwd, env, log, timeout):
+        is_live = "evaluate" in argv
+        calls.append(is_live)
+        assert env.get("EA_PATCHED_OPENCODE_MANIFEST") == (manifest if is_live else None)
+        assert env.get("EA_REQUIRE_PATCHED_OPENCODE") == (required if is_live else None)
+        assert "PYTHONPATH" not in env
+        if "validate" in argv:
+            return 0, None
+        if is_live:
+            path = Path(argv[argv.index("--results-dir") + 1]) / "eval-author/run/result.json"
+            data = tier3()
+        else:
+            path = Path(argv[-1]) / "result.json"
+            data = tier2("Skill Similarity" if "similarity-check" in argv else "Context Deduplication")
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(data))
+        return 0, None
+
+    monkeypatch.setattr(live, "execute_with_progress", execute)
+    output = tmp_path / "patched-collection"
+    live.collect(repo, output, run=True)
+    assert calls.count(True) == 1 and calls.count(False) >= 2
+    if manifest is not None:
+        assert manifest not in (output / "live-skillevaluator-summary.json").read_text()
+
+
 def test_hub_configuration_ignores_ambient_providers_and_preserves_model_namespaces(live, monkeypatch):
     monkeypatch.setenv("INFERENCE_HUB_API_KEY", "hub-fixture-key")
     for key in ("OPENAI_API_KEY", "NVIDIA_API_KEY", "HUB_METADATA_API_KEY", "SKILL_EVAL_LLM_API_KEY"):
@@ -972,6 +1012,23 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
     assert compose["if"] == "matrix.check == 'live' && matrix.id != 'none'"
     assert workflow["env"]["EVALUATION_SKILL"] == "${{ inputs.skill || 'all' }}"
     assert not {"OPENAI_API_KEY", "NVIDIA_API_KEY", "HUB_METADATA_API_KEY"}.intersection(evaluation["env"])
+
+
+def test_ci_builds_patched_runtime_only_for_live_before_credentials():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/skill-evaluation-live.yml").read_text())
+    steps = workflow["jobs"]["evaluate"]["steps"]
+    build = next(step for step in steps if step.get("name") == "Build patched OpenCode runtime")
+    evaluation = next(step for step in steps if step.get("name") == "Run exactly one assigned check")
+    assert build["if"] == "matrix.check == 'live' && matrix.id != 'none'"
+    assert "tools/build_patched_opencode.py" in build["run"]
+    assert '--output "$RUNNER_TEMP/patched-opencode"' in build["run"]
+    assert "secrets." not in json.dumps(build)
+    assert steps.index(build) < steps.index(evaluation)
+    assert 'if test "$SHARD_CHECK" = live; then' in evaluation["run"]
+    assert "export EA_REQUIRE_PATCHED_OPENCODE=1" in evaluation["run"]
+    assert (
+        'export EA_PATCHED_OPENCODE_MANIFEST="$RUNNER_TEMP/patched-opencode/binary-manifest.json"' in evaluation["run"]
+    )
 
 
 def test_seed_datasets_are_bounded_and_have_negative_cases(live):

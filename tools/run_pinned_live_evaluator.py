@@ -1,22 +1,27 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Run pinned Tier 3 evaluation with a version-only OpenCode adapter."""
+"""Run pinned Tier 3 evaluation, optionally substituting a verified OpenCode binary."""
 
 import json
+import os
 import sys
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError, distribution
 from types import MappingProxyType
 
-from collect_skill_evaluations import EVALUATOR_REVISION
-
-OPENCODE_VERSION = "1.19.5"
+from patched_opencode_runtime import CONFIGURED_VERSION as OPENCODE_VERSION
+from patched_opencode_runtime import EVALUATOR_REVISION
 
 
 def main():
     if sys.argv[1:3] != ["tier3", "evaluate"]:
         raise ValueError("OpenCode version adapter is restricted to tier3 evaluate")
+    required = os.environ.get("EA_REQUIRE_PATCHED_OPENCODE", "0")
+    if required not in ("0", "1"):
+        raise ValueError("EA_REQUIRE_PATCHED_OPENCODE must be 0 or 1")
+    if required == "1" and not os.environ.get("EA_PATCHED_OPENCODE_MANIFEST"):
+        raise ValueError("patched OpenCode requires EA_PATCHED_OPENCODE_MANIFEST")
     message = "OpenCode version adapter requires pinned SkillEvaluator 0.7.0 commit and Harbor 0.24.0"
     try:
         evaluator = distribution("skillevaluator")
@@ -48,6 +53,10 @@ def main():
         or any(not isinstance(options, MappingProxyType) for options in table.values())
     ):
         raise ValueError("upstream agent-kwargs contract changed; review the OpenCode version adapter")
+    if "EA_PATCHED_OPENCODE_MANIFEST" in os.environ:
+        from patched_opencode_runtime import activate
+
+        activate(os.environ["EA_PATCHED_OPENCODE_MANIFEST"])
     setattr(
         runner,
         "_HARBOR_AGENT_KWARGS",

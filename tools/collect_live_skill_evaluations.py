@@ -548,7 +548,11 @@ def collect(
                     "--progress",
                     "off",
                 ]
-                code, error = execute_with_progress(argv, repo, env, target / "console.log", TIER3_TIMEOUT_SECONDS)
+                live_env = dict(env)
+                for key in ("EA_PATCHED_OPENCODE_MANIFEST", "EA_REQUIRE_PATCHED_OPENCODE"):
+                    if key in os.environ:
+                        live_env[key] = os.environ[key]
+                code, error = execute_with_progress(argv, repo, live_env, target / "console.log", TIER3_TIMEOUT_SECONDS)
                 # Native runs also publish a latest -> run symlink. Read only
                 # physical run directories so this alias cannot duplicate a report.
                 try:

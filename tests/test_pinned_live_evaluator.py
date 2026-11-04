@@ -210,3 +210,49 @@ def test_native_preflight_and_both_trial_arms_launch_with_pin(wrapper, monkeypat
     assert "--disable-verification" in commands[0]
     assert all("--disable-verification" not in command for command in commands[1:])
     assert dict(runner._HARBOR_AGENT_KWARGS) == {**original, "opencode": {"version": wrapper.OPENCODE_VERSION}}
+
+
+def test_required_patch_without_manifest_fails_before_dispatch(wrapper, upstream, monkeypatch):
+    monkeypatch.delenv("EA_PATCHED_OPENCODE_MANIFEST", raising=False)
+    monkeypatch.setenv("EA_REQUIRE_PATCHED_OPENCODE", "1")
+    with pytest.raises(ValueError, match="requires EA_PATCHED_OPENCODE_MANIFEST"):
+        wrapper.main()
+    assert upstream.modules[RUNNER]._HARBOR_AGENT_KWARGS is upstream.table
+    upstream.modules["skillevaluator.cli"].cli.assert_not_called()
+
+
+@pytest.mark.parametrize("value", ["", "yes", "false"])
+def test_invalid_required_patch_setting_fails_closed(wrapper, upstream, monkeypatch, value):
+    monkeypatch.setenv("EA_REQUIRE_PATCHED_OPENCODE", value)
+    with pytest.raises(ValueError, match="EA_REQUIRE_PATCHED_OPENCODE"):
+        wrapper.main()
+    upstream.modules["skillevaluator.cli"].cli.assert_not_called()
+
+
+def test_manifest_activation_precedes_pin_and_cli_dispatch(wrapper, upstream, monkeypatch, tmp_path):
+    activated = []
+    manifest = tmp_path / "binary-manifest.json"
+    monkeypatch.setenv("EA_PATCHED_OPENCODE_MANIFEST", str(manifest))
+    monkeypatch.setenv("EA_REQUIRE_PATCHED_OPENCODE", "1")
+
+    def activate(path):
+        assert upstream.modules[RUNNER]._HARBOR_AGENT_KWARGS is upstream.table
+        activated.append(path)
+
+    monkeypatch.setitem(sys.modules, "patched_opencode_runtime", SimpleNamespace(activate=activate))
+    upstream.modules["skillevaluator.cli"].cli.side_effect = lambda: activated.append("cli")
+    wrapper.main()
+    assert activated == [str(manifest), "cli"]
+
+
+def test_broken_patch_never_falls_back_to_pin_only(wrapper, upstream, monkeypatch):
+    monkeypatch.setenv("EA_PATCHED_OPENCODE_MANIFEST", "/missing-manifest")
+
+    def activate(path):
+        raise ValueError("synthetic activation failure")
+
+    monkeypatch.setitem(sys.modules, "patched_opencode_runtime", SimpleNamespace(activate=activate))
+    with pytest.raises(ValueError, match="activation failure"):
+        wrapper.main()
+    assert upstream.modules[RUNNER]._HARBOR_AGENT_KWARGS is upstream.table
+    upstream.modules["skillevaluator.cli"].cli.assert_not_called()

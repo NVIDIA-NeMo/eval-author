@@ -74,7 +74,8 @@ artifact configuration:
 The evaluator and Harbor versions do not by themselves pin the agent installed
 inside each trial. The live collector pins OpenCode through
 [`tools/run_pinned_live_evaluator.py`](../tools/run_pinned_live_evaluator.py),
-the source of truth for `OPENCODE_VERSION`. Its
+using the configured release in
+[`tools/patched_opencode_runtime.py`](../tools/patched_opencode_runtime.py). Its
 `policy.configured_opencode_version` records the intended release, including in
 planning reports; it is not an installation or runtime observation.
 
@@ -98,10 +99,48 @@ Keep an intended version separate from an observed runtime version. Harbor's
 `agent_info.version` and trajectory agent version may echo the configured pin:
 when a version is configured, Harbor skips its normal version-detection command.
 The collector exposes these only as `agent_diagnostics.opencode_reported_versions`.
-It does not collect independent binary-version evidence or claim an observed
-version. An observed version needs trusted runtime version-command output;
-missing evidence remains unobserved. Pinning removes one source of drift; it does
+These public fields are not independent binary-version evidence. The patched
+runtime separately records trusted version-command output and binary checksums
+in private trial receipts; missing evidence remains unobserved.
+Pinning removes one source of drift; it does
 not freeze provider models, network dependencies, task images, or evaluation results.
+
+### Patched live runtime
+
+Live CI builds a patched OpenCode binary before the credential-bearing evaluation
+step, using [`tools/build_patched_opencode.py`](../tools/build_patched_opencode.py).
+The build retains the configured 1.19.5 release and applies a narrow stream-listener
+lifetime fix; it is not an official release binary or a migration to OpenCode v2.
+The patch keeps error handling active through writable-stream finalization rather
+than suppressing broken-pipe errors or retrying failed evaluations.
+
+For local reproduction, build outside the checkout and pass the resulting manifest
+to the existing collector:
+
+```bash
+python tools/build_patched_opencode.py --output /absolute/path/patched-opencode
+export EA_PATCHED_OPENCODE_MANIFEST=/absolute/path/patched-opencode/binary-manifest.json
+export EA_REQUIRE_PATCHED_OPENCODE=1
+```
+
+Then use the normal live-collection command and pinned evaluator environment.
+Only Tier 3 evaluation receives these settings; dataset validation and context
+checks remain unchanged. Without either setting, local collection retains the
+pin-only behavior. CI sets the requirement explicitly and refuses a missing or
+invalid manifest instead of falling back to the unpatched binary.
+
+The runtime preserves Harbor's base setup, gateway, Docker backend, arguments,
+and scoring. For the explicitly activated patched path, it replaces the redundant
+NVM/npm OpenCode bootstrap with verified standalone-binary provisioning. The
+original system dependency checks for curl, bash, coreutils, nodejs, and npm remain;
+this path does not install an additional NVM-managed Node 22. The unactivated
+installer is unchanged. The patched CLI embeds its own runtime.
+
+It uploads the built binary into each trial, checks its host/container hash and
+patched version, and substitutes only the agent executable. The private
+`.ea-patched-binary.json` receipt distinguishes the configured release from the
+observed patched build. Nonzero exits and missing scores remain failures. Build
+or runtime-contract mismatches prevent execution; they do not become passing scores.
 
 The standalone SkillSpector **Security Scan is skipped by CI policy**. It is
 excluded from `--checks`, recorded in `policy.skipped_checks`, and represented

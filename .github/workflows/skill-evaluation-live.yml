@@ -142,11 +142,18 @@ jobs:
         run: |
           uv venv --python 3.12 "$RUNNER_TEMP/live-runtime"
           uv pip install --python "$RUNNER_TEMP/live-runtime/bin/python" "skillevaluator[$EVALUATOR_EXTRAS] @ git+https://github.com/NVIDIA/SkillEvaluator.git@3fd2cf57e4a2af01f282e001f7515b6e76f18ec7" # v0.7.0
+      - name: Build patched OpenCode runtime
+        if: matrix.check == 'live' && matrix.id != 'none'
+        run: python tools/build_patched_opencode.py --output "$RUNNER_TEMP/patched-opencode"
       - name: Run exactly one assigned check
         if: matrix.id != 'none'
         env:
           INFERENCE_HUB_API_KEY: ${{ secrets.INFERENCE_HUB_API_KEY }}
         run: |
+          if test "$SHARD_CHECK" = live; then
+            export EA_REQUIRE_PATCHED_OPENCODE=1
+            export EA_PATCHED_OPENCODE_MANIFEST="$RUNNER_TEMP/patched-opencode/binary-manifest.json"
+          fi
           python tools/collect_live_skill_evaluations.py --run --ci-context-budget --tier "$SHARD_TIER" --skill "$SHARD_SKILL" --check "$SHARD_CHECK" --evaluator "$RUNNER_TEMP/live-runtime/bin/skillevaluator" --evaluator-python "$RUNNER_TEMP/live-runtime/bin/python" --output "$RUNNER_TEMP/skill-live"
       - name: Preserve valid checkpoint or fallback
         if: always() && matrix.id != 'none'
