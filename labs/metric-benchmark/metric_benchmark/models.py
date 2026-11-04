@@ -88,10 +88,13 @@ class Execution(Model):
     native_results_path: Text
     native_results_format: Literal["tar.gz", "directory"]
     unavailable_evidence: dict[Text, Text] = Field(default_factory=dict)
+    helix_identity_path: Text | None = None
 
     @model_validator(mode="after")
     def safe_path(self) -> Self:
         relative_path(self.native_results_path)
+        if self.helix_identity_path is not None:
+            relative_path(self.helix_identity_path)
         return self
 
 

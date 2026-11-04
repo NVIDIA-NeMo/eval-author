@@ -73,12 +73,10 @@ Use one writer per destination.
 `download_helix_results(submission, output, client)` implements the CLI operation.
 Neither requires the original executable task or agent directories.
 
-The remaining importer must validate Helix's image-bound task configuration and
-resolved agent configuration against the prepared case identities, then emit the
-[shared results contract](results-format.md). Current local validation targets
-Harbor 0.20.0; inspected Helix uses 0.24.0. No compatibility bypass or native JSON
-rewriting is included. Until that boundary is qualified with deployed evidence,
-these collections cannot be passed directly to score analysis.
+Pass a completed collection and its publication records to the separate
+[import stage](tools.md#execute-collect-and-import-helix-results). That stage
+validates the resolved configuration and produces the shared results contract.
+Collection itself remains an immutable native-evidence artifact.
 
 ## Live collection checks
 
@@ -106,10 +104,6 @@ run/job IDs and client/server versions privately for diagnosis. Report only sani
 outcomes publicly. The expected collection still has `analysis_ready: false` and no
 `execution.json`; this is a smoke-test success, not completed analysis integration.
 
-To finish that integration, inspect the public Jobs API's task-job `spec`: the source
-version used here stores the effective task/agent configuration, prepared images and
-sandbox policy there. Verify those against the prepared inputs and the downloaded
-native trial. This is a candidate source of identity evidence, not yet a validated
-importer. Do not change recorded checksums or bypass native validation to make the
-collection appear analysis-ready. Once the mapping is established, implement and test
-the shared results-contract importer against these saved bundles before scaling up.
+The full Jobs API response is preserved as `job.json` for each task. Its `spec`
+records the resolved task, target, prepared image and sandbox policy used by the
+importer. Do not change recorded checksums or native files to satisfy validation.

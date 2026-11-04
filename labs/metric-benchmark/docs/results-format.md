@@ -282,3 +282,25 @@ native fields with default values are omitted. Recorded `/mock/metric-benchmark/
 paths illustrate the producer's original location; validation does not open them.
 See the separate [example validation output](validation-report.md#example-validation-output)
 for the report produced by checking these results.
+
+## Helix identity evidence
+
+A Helix-imported execution adds `helix_identity_path`, a relative path to a proof
+record under the case results directory. Local results omit it or use `null`.
+The proof references the preserved collection and publication plan, the original
+compressed task source archive, and a separate effective task snapshot.
+
+The validator checks the archive against the signed prepared source, its digest
+against `job.spec`, and the job's pinned task revision and image. All effective
+task files must match the prepared task, except `task.toml`, whose only permitted
+change is the resolved `environment.docker_image`. Harbor's checksum of that
+snapshot must match the unchanged native result. The resolved and native agent
+configurations must match the publication target and its signed bundle. The
+recorded setup-egress wrapper and secret environment templates are checked too.
+
+These checks establish consistency of downloaded evidence, not cryptographic
+attestation of the remote service. Preserve the original collection privately.
+The importer retains native archives and extracted files byte-for-byte and emits
+the usual `execution.json` and per-case `results.json`. Its `import.json` seals
+all output files for replay. Native execution exceptions remain error observations
+with unavailable scores; import never turns a failed execution into a success.
