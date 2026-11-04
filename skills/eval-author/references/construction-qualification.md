@@ -16,9 +16,8 @@ the helper's qualification receipts apply only to Harbor.
 
 Trace workspaces author [construction.v3](construction-plan.md) at
 `private/construction.json`; this reference defines its trace probe, control
-and provenance semantics. `construction.v1` and `construction.v2` cite ATIF
-steps and are refused with a message naming construction.v3; there is no trace
-import. A native v2 contract changes only its schema id.
+and provenance semantics. Earlier construction schemas are refused; see
+[importing existing artifacts](construction-plan.md#import-existing-artifacts-without-rewriting-evidence).
 
 | Field | Trace content |
 | --- | --- |

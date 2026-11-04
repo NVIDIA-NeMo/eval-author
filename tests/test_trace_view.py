@@ -13,7 +13,10 @@ import pytest
 import trace_ingest
 from trace_ingest import (
     UNSET,
+    AgentInfo,
     ImagePart,
+    LLMCallInfo,
+    RunInfo,
     Span,
     SpanKind,
     SubagentRef,
@@ -165,6 +168,57 @@ def test_tool_definitions_use_strict_scope_and_only_suggest_across_agents():
     assert {span_id: [item.description for item in items] for span_id, items in suggested.items()} == {
         "silent/tool": ["agent-declared"]
     }
+
+
+def test_tool_scope_falls_back_to_a_declaring_llm_ancestor_when_turn_spans_declare_none():
+    inner = Span(id="root/inner", kind=SpanKind.LLM)
+    outer = Span(
+        id="root/outer",
+        kind=SpanKind.LLM,
+        tool_definitions=[_definition("lookup", "ancestor-declared")],
+        children=[inner, _tool("root/tool")],
+    )
+    root = _agent(
+        "root",
+        [
+            _turn("root", 1, TurnRole.USER, content="Go."),
+            _turn("root", 2, llm_span_ids=["root/inner"], tool_call_span_ids=["root/tool"]),
+        ],
+        [outer],
+        tool_definitions=[_definition("lookup", "agent-declared")],
+    )
+    trace = Trace(id="trace", root_spans=[root], aggregate=TraceAggregate())
+    [definition] = trace_view.tool_definitions_in_scope(trace)["root/tool"] or []
+    assert definition.description == "ancestor-declared"
+
+
+def test_scrubber_keeps_values_shown_in_clear_and_drops_token_ids():
+    session = "acme-billing-2026"
+    llm = Span(
+        id="root/llm",
+        kind=SpanKind.LLM,
+        llm_call=LLMCallInfo(prompt_token_ids=[101, 102], completion_token_ids=[7], logprobs=[-0.5]),
+    )
+    root = _agent(
+        "root",
+        [
+            _turn("root", 1, TurnRole.USER, content=f"Ask support-agent about {session}."),
+            _turn("root", 2, content="On it.", llm_span_ids=["root/llm"]),
+        ],
+        [llm],
+        agent=AgentInfo(name="support-agent"),
+        run=RunInfo(trajectory_id="support-agent", session_id=session),
+    )
+    trace = Trace(id="trace", root_spans=[root], aggregate=TraceAggregate())
+    safe, counts = safe_trace.scrub(trace)
+    [agent] = safe.model_dump(mode="json")["root_spans"]
+    # The agent name stays in clear, so the identical trajectory id hides nothing in text.
+    assert agent["turns"][0]["content"] == f"Ask support-agent about {safe_trace.pseudonym(session)}."
+    assert agent["run"]["trajectory_id"] == safe_trace.pseudonym("support-agent")
+    # Token ids decode back to the unredacted prompt and completion.
+    call = agent["children"][0]["llm_call"]
+    assert (call["prompt_token_ids"], call["completion_token_ids"], call["logprobs"]) == (None, None, [-0.5])
+    assert counts["token_ids"] == 2
 
 
 def test_identifier_table_classifies_every_installed_compass_field(monkeypatch):

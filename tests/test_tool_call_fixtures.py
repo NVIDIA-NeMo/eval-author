@@ -31,7 +31,7 @@ from harbor.models.trial.paths import EnvironmentPaths
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.types import TextContent
-from trace_ingest import Trace
+from trace_ingest import Span, SpanKind, ToolCall, ToolDefinition, ToolResult, Trace, TraceAggregate, Turn, TurnRole
 
 # Importlib-mode collection does not add the tests directory to sys.path.
 # Load this standalone test helper module by path, as it loads the skill scripts.
@@ -313,6 +313,7 @@ def test_local_schema_references_are_validated(tmp_path):
 
 
 _IMAGE = {"type": "image", "source": {"media_type": "image/png", "path": "screen.png"}}
+_AUDIO = {"type": "audio", "source": {"media_type": "audio/wav", "path": "clip.wav"}}
 
 
 @pytest.mark.parametrize(
@@ -331,6 +332,7 @@ _IMAGE = {"type": "image", "source": {"media_type": "image/png", "path": "screen
         ("conflicting_error_status", "result_error_status_conflicting"),
         ("redacted_description", "redacted_value_required"),
         ("redacted_schema", "redacted_value_required"),
+        ("pseudonymized_argument", "redacted_value_required"),
     ],
 )
 def test_each_replay_rejection_reason_blocks_mock_access(tmp_path, case, reason):
@@ -380,6 +382,9 @@ def test_each_replay_rejection_reason_blocks_mock_access(tmp_path, case, reason)
         definition["description"] = "<redacted:secret>"
     elif case == "redacted_schema":
         definition["inputSchema"]["description"] = "<redacted:secret>"
+    elif case == "pseudonymized_argument":
+        # A source identifier recurring in tool arguments is pseudonymized and can no longer replay.
+        call["arguments"]["account_id"] = trace["session_id"]
     inventory = _inventory(tmp_path, trace, edit)
     plan = fc.derive_tool_call_plan(inventory)
     assert plan["tools"][0]["reason_codes"] == [reason]
@@ -396,21 +401,75 @@ def test_each_replay_rejection_reason_blocks_mock_access(tmp_path, case, reason)
         fc.resolve_tool_access(inventory, plan, requested, reviewer_kind="human")
 
 
+@pytest.mark.parametrize(
+    "media,marker,path", [(_IMAGE, "[image omitted]", "screen.png"), (_AUDIO, "[audio omitted]", "clip.wav")]
+)
 @pytest.mark.parametrize("location", ["arguments", "result"])
-def test_omitted_images_require_redacted_values(tmp_path, location):
+def test_omitted_media_require_redacted_values(tmp_path, location, media, marker, path):
     trace = _fixture_atif()
     agent_step = trace["steps"][1]
     if location == "arguments":
-        agent_step["tool_calls"][0]["arguments"]["attachment"] = deepcopy(_IMAGE)
+        agent_step["tool_calls"][0]["arguments"]["attachment"] = deepcopy(media)
     else:
-        agent_step["observation"]["results"][0]["content"] = [deepcopy(_IMAGE)]
+        agent_step["observation"]["results"][0]["content"] = [deepcopy(media)]
     inventory = _inventory(tmp_path, trace)
     lookup = inventory["tools"][0]
     recorded = lookup["calls"][0]["arguments"] if location == "arguments" else lookup["calls"][0]["results"][0]
-    assert "[image omitted]" in json.dumps(recorded)
-    assert "screen.png" not in json.dumps(inventory)
+    assert marker in json.dumps(recorded)
+    assert path not in json.dumps(inventory)
     assert "redacted_value_required" in lookup["uncertainties"]
     assert "redacted_value_required" in fc.derive_tool_call_plan(inventory)["tools"][0]["reason_codes"]
+
+
+def _two_call_trace(first, second):
+    """One agent calls ``lookup`` in two turns; each turn's LLM span declares its own tool list."""
+
+    def declared(properties):
+        if properties is None:
+            return []
+        schema = {"type": "object", "properties": {name: {"type": "string"} for name in properties}}
+        return [ToolDefinition(name="lookup", input_schema=schema, raw={"name": "lookup", "inputSchema": schema})]
+
+    children, turns = [], [Turn(id="root/turn/1", index=1, role=TurnRole.USER, content="Look it up.")]
+    for index, properties in enumerate((first, second), start=1):
+        children.append(Span(id=f"root/llm/{index}", kind=SpanKind.LLM, tool_definitions=declared(properties)))
+        children.append(
+            Span(
+                id=f"root/tool/{index}",
+                kind=SpanKind.TOOL,
+                tool_name="lookup",
+                input={"sku": "A-1"},
+                tool_call=ToolCall(call_id=f"call-{index}", results=[ToolResult(content="in stock")]),
+            )
+        )
+        turns.append(
+            Turn(
+                id=f"root/turn/{index + 1}",
+                index=index + 1,
+                role=TurnRole.AGENT,
+                llm_span_ids=[f"root/llm/{index}"],
+                tool_call_span_ids=[f"root/tool/{index}"],
+            )
+        )
+    root = Span(id="root", kind=SpanKind.AGENT, turns=turns, children=children)
+    return Trace(id="trace", root_spans=[root], aggregate=TraceAggregate())
+
+
+@pytest.mark.parametrize(
+    "first,second,status",
+    [
+        (["sku"], ["sku"], "complete"),
+        (["sku"], ["sku", "warehouse"], "ambiguous"),
+        (["sku"], None, "ambiguous"),
+        (None, ["sku"], "ambiguous"),
+        (None, None, "missing"),
+    ],
+)
+def test_tool_definition_comes_from_every_call_scope(first, second, status):
+    inventory = fc.derive_tool_call_inventory(_two_call_trace(first, second), safe_trace_sha256="sha256:synthetic")
+    [tool] = inventory["tools"]
+    assert tool["definition_status"] == status
+    assert len(tool["calls"]) == 2
 
 
 def test_error_status_comes_from_recorded_result_flags(tmp_path):

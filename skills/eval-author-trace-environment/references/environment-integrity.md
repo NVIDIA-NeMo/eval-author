@@ -317,8 +317,9 @@ python <skill_dir>/scripts/trace_environment.py record-validation \
 
 Use the actual manifest control ID rather than the illustrative `incomplete`.
 Include `--bypass-job-dir` for each dependency control and `--copy-job-dir` for
-declared copy controls. For retained historical workspaces only, omit the new
-control ID and additional arms; construction qualification remains unmeasured.
+declared copy controls. Every run needs the control ID and additional arms;
+workspaces from earlier contracts are refused, so re-run `prepare` in a new task
+directory.
 
 The helper requires unique Harbor job IDs, each result's task checksum matching
 the current task and its pre-run receipt, separate verifier mode in every

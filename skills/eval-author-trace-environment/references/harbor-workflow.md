@@ -126,7 +126,7 @@ Report the task ID, `candidate` or `no_candidate`, state basis, ground-truth
 availability and artifact count, required software and licensing constraints,
 environment status, technical status, check evidence mode, repair count,
 review status, verifier isolation, privacy review status, NOP and Oracle
-rewards when run, construction qualification (historical proof is `unmeasured`),
+rewards when run, construction qualification,
 and paths to `summary.md` and the generated task. A
 `valid: true` check proves the recorded files are internally consistent;
 Harbor is the authority for whether the task actually runs.

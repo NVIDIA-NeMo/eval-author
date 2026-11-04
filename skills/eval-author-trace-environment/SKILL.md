@@ -78,7 +78,7 @@ bundled skill files.
 .eval-author/.working/trace-environments/
   .gitignore
   <task-id>/
-    private/source.<kind>.json
+    private/source.<kind>.{json,jsonl}
     private/canonical.trace.json
     private/privacy-audit.json
     private/{tool-call-inventory,tool-call-plan,tool-access,tool-call-generation}.json

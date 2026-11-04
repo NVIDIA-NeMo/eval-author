@@ -13,6 +13,7 @@ from collections import Counter
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
+from .safe_trace import lost_source_content
 from .trace_view import (
     TraceIndex,
     error_status,
@@ -31,7 +32,6 @@ DECISIONS_SCHEMA = "nemo.eval_author.trace_environment_tool_access_decisions.v1"
 ACCESS_SCHEMA = "nemo.eval_author.trace_environment_tool_access.v3"
 CALL_FIXTURES_SCHEMA = "nemo.eval_author.trace_environment_call_fixtures.v3"
 MCP_SCENARIO_SCHEMA = "nemo.eval_author.trace_environment_mcp_scenario.v2"
-_UNUSABLE_MARKERS = ("<redacted:", "[image omitted]")
 _ACCESS_STATES = frozenset({"real", "mock", "none"})
 _MOCK_ADAPTERS = frozenset({"mcp"})
 OVERRIDES_SCHEMA = "nemo.eval_author.trace_environment_schema_overrides.v2"
@@ -114,7 +114,7 @@ def json_sha256(value: Any) -> str:
 
 def _contains_unusable_marker(value: Any) -> bool:
     if isinstance(value, str):
-        return any(marker in value for marker in _UNUSABLE_MARKERS)
+        return lost_source_content(value)
     if isinstance(value, list):
         return any(_contains_unusable_marker(item) for item in value)
     if isinstance(value, dict):
@@ -179,6 +179,9 @@ def derive_tool_call_inventory(trace: Trace, *, safe_trace_sha256: str) -> dict[
     suggested = suggested_tool_definitions(trace)
     span_turn = TraceIndex(trace).span_turn
     tools: dict[str, dict[str, Any]] = {}
+    # Per tool: the matching definitions in each call's own scope, and outside the agent boundary.
+    in_scope: dict[str, list[list[ToolDefinition]]] = {}
+    beyond: dict[str, list[ToolDefinition]] = {}
     unresolved_calls: list[dict[str, Any]] = []
     for agent_span_id, span in tool_spans(trace):
         call = span.tool_call
@@ -191,33 +194,15 @@ def derive_tool_call_inventory(trace: Trace, *, safe_trace_sha256: str) -> dict[
         server = call.server if call is not None and call.server else None
         tool_id = _tool_id(agent_span_id, server, name)
         if tool_id not in tools:
-            matches = _matching(scoped.get(span.id) or [], server, name)
-            complete = [item for item in map(_normalized_definition, matches) if item is not None]
-            if not matches:
-                definition_status = "missing"
-            elif len(matches) == 1:
-                definition_status = "complete" if complete else "incomplete"
-            else:
-                definition_status = "ambiguous"
-            normalized_definition = complete[0] if definition_status == "complete" else None
-            # A definition declared beyond the agent boundary is only ever a suggestion.
-            outer = _matching(suggested.get(span.id, []), server, name) if not matches else []
-            suggestion = _normalized_definition(outer[0]) if len(outer) == 1 else None
-            annotations = normalized_definition.get("annotations", {}) if normalized_definition else {}
-            read_only = annotations.get("readOnlyHint")
             tools[tool_id] = {
                 "tool_id": tool_id,
                 "scope": {"agent_span_id": agent_span_id, "server": server},
                 "name": name,
-                "definition_status": definition_status,
-                "definition": matches[0].model_dump(mode="json") if len(matches) == 1 else None,
-                "normalized_definition": normalized_definition,
-                "suggested_definition": suggestion,
-                "read_only": read_only if type(read_only) is bool else None,
-                "read_only_evidence": "mcp_annotation" if type(read_only) is bool else None,
                 "calls": [],
-                "uncertainties": [],
             }
+            in_scope[tool_id], beyond[tool_id] = [], []
+        in_scope[tool_id].append(_matching(scoped.get(span.id) or [], server, name))
+        beyond[tool_id].extend(_matching(suggested.get(span.id, []), server, name))
         arguments = None if span.input is UNSET else span.input
         tools[tool_id]["calls"].append(
             {
@@ -232,7 +217,15 @@ def derive_tool_call_inventory(trace: Trace, *, safe_trace_sha256: str) -> dict[
         )
 
     inventory_tools: list[dict[str, Any]] = []
-    for tool in tools.values():
+    for tool_id, found in tools.items():
+        tool = {
+            "tool_id": found["tool_id"],
+            "scope": found["scope"],
+            "name": found["name"],
+            **_definition(in_scope[tool_id], beyond[tool_id]),
+            "calls": found["calls"],
+            "uncertainties": [],
+        }
         uncertainties = tool["uncertainties"]
         if tool["definition_status"] != "complete":
             uncertainties.append(f"tool_definition_{tool['definition_status']}")
@@ -252,6 +245,32 @@ def derive_tool_call_inventory(trace: Trace, *, safe_trace_sha256: str) -> dict[
         "unresolved_call_count": len(unresolved_calls),
         "unresolved_calls": unresolved_calls,
         "tools": inventory_tools,
+    }
+
+
+def _definition(in_scope: list[list[ToolDefinition]], beyond: list[ToolDefinition]) -> dict[str, Any]:
+    """A tool's definition fields from every call's own scope; one definition must cover every call."""
+    matches = _distinct([definition for call_matches in in_scope for definition in call_matches])
+    complete = [item for item in map(_normalized_definition, matches) if item is not None]
+    if not matches:
+        definition_status = "missing"
+    elif len(matches) > 1 or not all(in_scope):
+        # Different declarations, or a call whose own scope declared none: no one definition is evidenced.
+        definition_status = "ambiguous"
+    else:
+        definition_status = "complete" if complete else "incomplete"
+    normalized_definition = complete[0] if definition_status == "complete" else None
+    # A definition declared beyond the agent boundary is only ever a suggestion.
+    outer = _distinct(beyond) if not matches else []
+    annotations = normalized_definition.get("annotations", {}) if normalized_definition else {}
+    read_only = annotations.get("readOnlyHint")
+    return {
+        "definition_status": definition_status,
+        "definition": matches[0].model_dump(mode="json") if len(matches) == 1 else None,
+        "normalized_definition": normalized_definition,
+        "suggested_definition": _normalized_definition(outer[0]) if len(outer) == 1 else None,
+        "read_only": read_only if type(read_only) is bool else None,
+        "read_only_evidence": "mcp_annotation" if type(read_only) is bool else None,
     }
 
 
@@ -345,7 +364,8 @@ def derive_tool_call_plan(inventory: dict[str, Any], overrides: dict[str, Any] |
             ):
                 raise ValueError("schema override requires a review note and every scoped call reference")
             schema = entry["input_schema"]
-            if not isinstance(schema, dict) or _contains_unusable_marker(entry):
+            # Evidence cites safe-copy ids, which are pseudonyms by design; only authored fields are checked.
+            if not isinstance(schema, dict) or _contains_unusable_marker([schema, entry["note"]]):
                 raise ValueError("schema override requires an unredacted input schema")
             if problem := _schema_problem(schema, tool["calls"]):
                 raise ValueError(f"schema override is unusable: {problem}")

@@ -15,7 +15,7 @@ python <skill_dir>/scripts/trace_environment.py check-candidate --task-dir <task
 ```
 
 This read-only check validates the existing record, prepared safe-trace digest,
-evidence step references and retained ground-truth artifacts. It does not edit
+evidence turn references and retained ground-truth artifacts. It does not edit
 values, finalize the workspace, attest privacy review or prove the environment.
 Finalization still enforces its full contract.
 

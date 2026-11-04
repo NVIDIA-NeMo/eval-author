@@ -10,8 +10,8 @@ import copy
 import json
 from pathlib import Path
 
-from . import legacy_construction as trace_format
 from . import legacy_plan as plan_format
+from . import trace_construction as trace_format
 
 SCHEMA = "nemo.eval_author.construction.v3"
 # Earlier construction schemas cite ATIF steps; they are refused, never migrated in place.
