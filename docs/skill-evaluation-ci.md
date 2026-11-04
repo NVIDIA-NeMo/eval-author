@@ -69,6 +69,40 @@ artifact configuration:
 - [Coverage planning and live evaluation](../.github/workflows/skill-evaluation-live.yml)
 - [Live anti-cheat experiment](../.github/workflows/anti-cheat-live.yml)
 
+### Agent version reproducibility
+
+The evaluator and Harbor versions do not by themselves pin the agent installed
+inside each trial. The live collector pins OpenCode through
+[`tools/run_pinned_live_evaluator.py`](../tools/run_pinned_live_evaluator.py),
+the source of truth for `OPENCODE_VERSION`. Its
+`policy.configured_opencode_version` records the intended release, including in
+planning reports; it is not an installation or runtime observation.
+
+Harbor supports `--agent-kwarg version=<release>`, but SkillEvaluator 0.7.0 does
+not expose that option; its per-agent configuration accepts only a model.
+Passing the Harbor flag to `skillevaluator evaluate` is not a supported pin.
+The adapter instead checks the installed evaluator's exact Git revision from
+`direct_url.json`, its release version, Harbor 0.24.0, and the unchanged private
+agent-kwargs table before adding OpenCode's version. Contract drift or an existing
+OpenCode override fails closed before evaluator dispatch. Existing agent entries
+are preserved. The native Harbor command builder forwards the pin to runtime
+preflight and both A/B trial arms without changing Docker backends or grading.
+
+Only Tier 3 `evaluate` uses the wrapper, under `--evaluator-python` (defaulting
+to the collector's Python). When using a separate evaluator environment, provide
+that environment's Python as well as its `--evaluator` executable; the wrapper
+requires the pinned packages in that interpreter. Dataset `tier3 validate`
+still invokes the evaluator directly; Tier 2 behavior is unchanged.
+
+Keep an intended version separate from an observed runtime version. Harbor's
+`agent_info.version` and trajectory agent version may echo the configured pin:
+when a version is configured, Harbor skips its normal version-detection command.
+The collector exposes these only as `agent_diagnostics.opencode_reported_versions`.
+It does not collect independent binary-version evidence or claim an observed
+version. An observed version needs trusted runtime version-command output;
+missing evidence remains unobserved. Pinning removes one source of drift; it does
+not freeze provider models, network dependencies, task images, or evaluation results.
+
 The standalone SkillSpector **Security Scan is skipped by CI policy**. It is
 excluded from `--checks`, recorded in `policy.skipped_checks`, and represented
 as `skipped` in each skill's validator summary. A passing aggregate means the
@@ -150,11 +184,31 @@ Context guard diagnostics retain only observed, bounded integer metadata:
 rejection, or `actual` and `limit` for chunk-count rejection. Missing or invalid
 values are omitted, not estimated; raw provider and source metadata is excluded.
 
+Public diagnostics must be an allowlisted projection, not redacted copies of
+raw logs: retain bounded counters, fixed failure categories, and version metadata
+explicitly distinguished as configured, reported, or independently observed.
+Raw exception messages, command arguments,
+paths, URLs, prompts, environment values, provider response bodies, and agent
+output can contain private data. Do not publish them to explain a failure.
+An incomplete diagnostic is preferable to guessing a provider error from an
+exit code or from the presence of `--format=json` in a failed command. A native
+`NonZeroAgentExitCodeError` may retain `observed_signature: bun_node_epipe` when
+a bounded, non-JSON block in the same trial's `opencode.txt` matches the Bun/Node
+stream-error signature. This is an observation, not a provider/authentication
+category or causal attribution: identical spoofed raw output is indistinguishable.
+JSON payloads and ordinary EPIPE mentions do not qualify. Capture remains partial;
+stdout and runtime stderr are covered only when retained in that native file,
+without identifying the originating stream, process, or pipeline stage. Other
+signatures and unretained stderr remain unclassified. The observation survives
+sanitized aggregation without changing `agent_command_failed`, incomplete status,
+scoring, or retry behavior.
+
 Artifacts expire after 30 days. Full native reports are retained separately
 only while the repository is private, under its access controls. They may
-contain task text and unredacted findings; summaries and full reports should
-be reviewed before sharing. Logs, credentials, and full execution trajectories
-are not intended as published report artifacts.
+contain task text and unredacted findings; review them before sharing. Private
+native retention is not permission to include raw evidence in public summaries.
+Logs, credentials, and full execution trajectories are not intended as published
+report artifacts.
 
 ## Local checks without credentials
 

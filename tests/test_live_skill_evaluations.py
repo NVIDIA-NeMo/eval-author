@@ -780,7 +780,10 @@ def test_hub_defaults_apply_to_unset_or_blank_model_variables(live, monkeypatch,
 
 
 @pytest.mark.parametrize("latest_alias", [False, True])
-def test_live_collection_is_bounded_and_retains_every_skill(live, repo, tmp_path, monkeypatch, latest_alias):
+@pytest.mark.parametrize("evaluator_python", [None, "/isolated/runtime/bin/python"])
+def test_live_collection_is_bounded_and_retains_every_skill(
+    live, repo, tmp_path, monkeypatch, latest_alias, evaluator_python
+):
     monkeypatch.setenv("INFERENCE_HUB_API_KEY", "test-credential")
     monkeypatch.setenv("OPENAI_API_KEY", "UNRELATED-SECRET")
     monkeypatch.setenv("SKILL_EVAL_LLM_BASE_URL", "https://unintended.example")
@@ -822,13 +825,25 @@ def test_live_collection_is_bounded_and_retains_every_skill(live, repo, tmp_path
         return 0, None
 
     monkeypatch.setattr(live, "execute", execute)
-    report = live.collect(repo, tmp_path / "live", run=True)
+    report = live.collect(repo, tmp_path / "live", run=True, evaluator_python=evaluator_python)
     assert report["counts"] == {"passed": 3, "skipped": 1, "completed": 1}
     assert len(calls) == 5
     policy = json.loads((tmp_path / "live/live-skillevaluator-summary.json").read_text())["policy"]
     assert policy["tier3_timeout_seconds"] == 2700
     assert policy["tier2_timeout_seconds"] == 300
-    assert [timeout for argv, timeout in calls if argv[1:3] == ["tier3", "evaluate"]] == [
+    from run_pinned_live_evaluator import OPENCODE_VERSION
+
+    assert policy["configured_opencode_version"] == OPENCODE_VERSION
+    assert "observed_opencode_version" not in policy
+    evaluations = [(argv, timeout) for argv, timeout in calls if "evaluate" in argv]
+    assert len(evaluations) == 1
+    assert evaluations[0][0][:4] == [
+        evaluator_python or sys.executable,
+        str(ROOT / "tools/run_pinned_live_evaluator.py"),
+        "tier3",
+        "evaluate",
+    ]
+    assert [timeout for argv, timeout in calls if argv[2:4] == ["tier3", "evaluate"]] == [
         policy["tier3_timeout_seconds"]
     ]
     assert [timeout for argv, timeout in calls if argv[1:3] == ["tier3", "validate"]] == [60]
@@ -1054,11 +1069,96 @@ def test_failure_details_survive_in_artifact_summary_and_console(live, repo, tmp
         assert "<script>" not in markdown
         assert row["status"] == "failed"
     elif failure == "nested_execution":
-        assert "GraderTimeoutError" in published and "without_skill" in published
-        assert "scored_attempts: 0" in published
+        assert "GraderTimeoutError" not in published and "without_skill" in published
+        assert row["agent_diagnostics"]["execution"]["without_skill"] == {
+            "execution_status": "failed",
+            "expected_attempts": 1,
+            "scored_attempts": 0,
+        }
     else:
-        assert "connection reset" in published
+        assert "connection reset" not in published
         assert row["status"] == "incomplete"
+
+
+@pytest.mark.parametrize("preflight", [False, True])
+def test_native_error_events_survive_nonzero_exit_safely(live, repo, tmp_path, monkeypatch, capsys, preflight):
+    monkeypatch.setenv("INFERENCE_HUB_API_KEY", "fixture-only")
+    calls = []
+
+    def execute(argv, cwd, env, log, timeout):
+        calls.append(argv)
+        log.write_text("PRIVATE COMMAND PROMPT PROVIDER MESSAGE STACKTRACE")
+        if "validate" in argv:
+            return 0, None
+        run = Path(argv[argv.index("--results-dir") + 1]) / "eval-author/run"
+        job = "runtime-preflight-opencode" if preflight else "eval-author-opencode-with"
+        trial = run / "_harbor-jobs" / job / "task__native"
+        (trial / "agent").mkdir(parents=True)
+        # Harbor 0.24.0 OpenCode._parse_stdout/_error_messages consume this JSONL shape.
+        event = {
+            "type": "error",
+            "error": {
+                "name": "APIError",
+                "data": {
+                    "statusCode": 401,
+                    "isRetryable": False,
+                    "message": "PRIVATE PROVIDER MESSAGE",
+                    "responseBody": "PRIVATE RESPONSE",
+                    "requestHeaders": {"Authorization": "PRIVATE TOKEN"},
+                },
+            },
+        }
+        (trial / "agent/opencode.txt").write_text(json.dumps(event) + "\n")
+        (trial / "result.json").write_text(
+            json.dumps(
+                {
+                    "exception_info": {
+                        "exception_type": "NonZeroAgentExitCodeError",
+                        "exception_message": "PRIVATE COMMAND",
+                    },
+                    "agent_info": {"name": "opencode", "version": "1.2.3"},
+                }
+            )
+        )
+        data = tier3()
+        data.update(execution_status="failed", execution_errors=["NonZeroAgentExitCodeError: " + "PRIVATE " * 100])
+        (run / "result.json").write_text(json.dumps(data))
+        return 1, None
+
+    monkeypatch.setattr(live, "execute", execute)
+    output = tmp_path / "native-errors"
+    report = live.collect(repo, output, run=True, tier="3", skill_name="eval-author")
+    row = next(r for r in report["observations"] if r["status"] != "skipped")
+    assert row["status"] == "incomplete" and row["reason"] == "agent_command_failed"
+    assert row["exit_code"] == 1 and "arms" not in row and len(calls) == 2
+    evidence = row.get("agent_diagnostics", {})
+    assert evidence.get("events") == [
+        {
+            "source": "harbor_trial",
+            "phase": "preflight" if preflight else "with_skill",
+            "trial": 0,
+            "category": "agent_command_failed",
+            "exception_type": "NonZeroAgentExitCodeError",
+        },
+        {
+            "source": "opencode_error_event",
+            "phase": "preflight" if preflight else "with_skill",
+            "trial": 0,
+            "category": "authentication_failed",
+            "name": "APIError",
+            "status_code": 401,
+            "retryable": False,
+        },
+    ]
+    assert "--harbor-keep-jobs" in calls[-1]
+    assert evidence["opencode_reported_versions"] == ["1.2.3"]
+    for text in (
+        (output / "live-skillevaluator-summary.json").read_text(),
+        (output / "live-skillevaluator-summary.md").read_text(),
+        capsys.readouterr().out,
+    ):
+        assert "PRIVATE" not in text
+        assert "authentication_failed" in text
 
 
 def test_context_guard_metadata_survives_collection(live, repo, tmp_path, monkeypatch, capsys):
