@@ -31,7 +31,11 @@ def main():
         from metric_benchmark.helix_publisher import HelixPublisher
 
         client = HelixPublisher.from_context(loaded.settings.workspace, context=args.context)
-        publish_helix_inputs(plan, args.output, client)
+        try:
+            plan.execution = client.resolve_execution(plan.execution)
+            publish_helix_inputs(plan, args.output, client)
+        finally:
+            client.client.close()
 
     cli(parser, run)
 

@@ -1,67 +1,101 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Publish prepared, content-pinned inputs without launching evaluations."""
+"""Publish derived execution artifacts without changing prepared experiment inputs."""
 
+import json
+import os
 import shutil
-from pathlib import Path
-from typing import Annotated, Literal
+import tempfile
+import tomllib
+from pathlib import Path, PurePosixPath
+from typing import Annotated, Literal, Protocol
 
 import yaml
 from pydantic import Field, JsonValue, StringConstraints, model_validator
 
-from metric_benchmark.config import HelixExecution, LoadedCases, StrictLoader
-from metric_benchmark.io import digest_bytes, file_manifest, input_digest, json_bytes, write_json
+from metric_benchmark.agent_configuration import resolved_agent_values
+from metric_benchmark.config import Agent, HelixExecution, LoadedCases, StrictLoader
+from metric_benchmark.io import digest_bytes, input_digest, json_bytes, write_json
 from metric_benchmark.models import Digest, Model, Text, relative_path, resolve_evidence, unique
 
 PinnedRef = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*#[0-9a-f]{64}$")]
-
-
-class TaskBinding(Model):
-    ref: PinnedRef
-    native_task_id: Text
-
-
-class CaseBinding(Model):
-    taskset: PinnedRef
-    tasks: dict[Text, TaskBinding]
-    targets: dict[Text, dict[str, JsonValue]]
-
-
-class HelixBindings(Model):
-    cases_sha256: Digest
-    cases: dict[Text, CaseBinding]
+FABRIC_INSTALLED_AGENT = "nhx_evals_sdk.agent_eval.runtimes.harbor.fabric_installed_agent:FabricInstalledAgent"
 
 
 class PublishAgent(Model):
+    transport: Literal["builtin", "task_image", "registered"] = "builtin"
     bundle_input: Text | None = None
-    transport: Literal["registered", "task_image"] = "registered"
     image_bundle_path: Text | None = None
+    image_mount_path: Text | None = None
     config_path: Text = "agent.yaml"
-    target: dict[str, JsonValue] = Field(default_factory=dict)
+    env_secrets: dict[Text, Text] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def source(self):
+    def packaging(self):
         relative_path(self.config_path)
         if Path(self.config_path).name != self.config_path:
             raise ValueError("agent config must be at the bundle root")
-        source = self.target.get("source")
+        if self.transport == "registered":
+            raise ValueError("registered-agent execution mapping is not qualified; use a supported task_image adapter")
         if self.transport == "task_image":
-            if self.bundle_input is None or self.image_bundle_path is None:
-                raise ValueError("task_image requires bundle_input and image_bundle_path")
+            if self.bundle_input is None or self.image_bundle_path is None or self.image_mount_path is None:
+                raise ValueError("task_image requires bundle_input, image_bundle_path and image_mount_path")
             relative_path(self.image_bundle_path)
             if not self.image_bundle_path.startswith("environment/"):
                 raise ValueError("image_bundle_path must be inside the task environment build context")
-            if not isinstance(source, dict) or not source.get("import_path"):
-                raise ValueError("task_image requires an explicit installed Harbor agent import_path")
-        elif self.image_bundle_path is not None:
-            raise ValueError("image_bundle_path requires task_image transport")
-        elif self.bundle_input is not None:
-            if source is not None:
-                raise ValueError("a published bundle supplies the target source")
-        elif not isinstance(source, dict) or set(source) != {"name"} or source["name"] not in ("oracle", "nop"):
-            raise ValueError("provide a pinned bundle_input, or an explicit oracle/nop control source")
+            mount = PurePosixPath(self.image_mount_path)
+            if (
+                not mount.is_absolute()
+                or ".." in mount.parts
+                or str(mount) != self.image_mount_path
+                or len(mount.parts) < 3
+            ):
+                raise ValueError("image_mount_path must be a normalized absolute path below a named directory")
+        elif any(value is not None for value in (self.bundle_input, self.image_bundle_path, self.image_mount_path)):
+            raise ValueError("bundle packaging requires task_image transport")
         return self
+
+
+def agent_target(agent: Agent, packaging: PublishAgent) -> dict[str, JsonValue]:
+    def resolve_input(name: str) -> str:
+        if name != packaging.bundle_input or packaging.image_mount_path is None:
+            raise ValueError(f"agent {agent.agent_bundle_id}: input {name} has no declared image transport")
+        return packaging.image_mount_path
+
+    values = resolved_agent_values(agent, resolve_input)
+    unsupported = set(values) - {"name", "import_path", "model_name", "kwargs", "env"}
+    if unsupported:
+        raise ValueError(f"Helix agent mapping does not support prepared fields: {sorted(unsupported)}")
+    source = {key: values[key] for key in ("name", "import_path", "model_name") if key in values}
+    if packaging.transport == "builtin" and source.get("name") not in ("oracle", "nop"):
+        raise ValueError("custom agents require a declared task_image transport")
+    prepared_kwargs = agent.harbor.get("kwargs", {})
+    resolved_kwargs = values.get("kwargs", {})
+    environment = values.get("env", {})
+    if (
+        not isinstance(prepared_kwargs, dict)
+        or not isinstance(resolved_kwargs, dict)
+        or not isinstance(environment, dict)
+    ):
+        raise ValueError("prepared agent kwargs and env must be mappings")
+    kwargs = dict(resolved_kwargs)
+    if source.get("import_path") == FABRIC_INSTALLED_AGENT:
+        # The same adapter uploads the bundle locally; Helix preloads those exact bytes into its image.
+        if prepared_kwargs.get("fabric_config_bundle") != "{input:" + str(packaging.bundle_input) + "}":
+            raise ValueError("Fabric requires fabric_config_bundle to reference its declared prepared input")
+        if kwargs.get("fabric_config_target") != packaging.image_mount_path:
+            raise ValueError("Fabric image mount differs from its prepared upload destination")
+        kwargs.pop("fabric_config_bundle")
+    env = dict(environment)
+    for name in packaging.env_secrets:
+        if env.get(name) != "${" + name + "}":
+            raise ValueError(f"secret {name} must reference the same environment variable in the prepared agent")
+        del env[name]
+    if any(isinstance(value, str) and value.startswith("${") for value in env.values()):
+        raise ValueError("prepared secret environment reference has no execution binding")
+    secrets: dict[str, JsonValue] = {key: value for key, value in packaging.env_secrets.items()}
+    return {"source": source, "agent_kwargs": kwargs, "env_vars": env, "env_secrets": secrets}
 
 
 class PublicationSettings(Model):
@@ -73,6 +107,7 @@ class PublishTask(Model):
     name: Text
     path: Text
     sha256: Digest
+    context_sha256: Digest
 
 
 class PublishBundle(Model):
@@ -80,31 +115,105 @@ class PublishBundle(Model):
     name: Text | None = None
     path: Text | None = None
     sha256: Digest | None = None
-    config_path: Text
-    transport: Literal["registered", "task_image"]
-    image_bundle_path: Text | None = None
+    packaging: PublishAgent
     target: dict[str, JsonValue]
 
 
 class PublishCase(Model):
     case_id: Text
-    tasks: list[PublishTask]
-    agents: list[PublishBundle]
+    tasks: list[PublishTask] = Field(min_length=1)
+    agents: list[PublishBundle] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def membership(self):
+        unique([task.task_id for task in self.tasks], "publication task IDs")
+        unique([agent.agent_bundle_id for agent in self.agents], "publication agent IDs")
+        return self
 
 
 class PublicationPlan(Model):
     artifact_type: Literal["helix_publication"] = "helix_publication"
+    derivation: Literal["task-image-overlay-v1"] = "task-image-overlay-v1"
     cases_sha256: Digest
     execution: HelixExecution
-    cases: list[PublishCase]
+    cases: list[PublishCase] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def membership(self):
+        unique([case.case_id for case in self.cases], "publication case IDs")
+        return self
+
+    @property
+    def identity(self) -> str:
+        return digest_bytes(json_bytes(self))
+
+
+class TaskBinding(Model):
+    ref: PinnedRef
+    native_task_id: Text
+
+
+class CaseBinding(Model):
+    taskset: PinnedRef
+    tasks: dict[Text, TaskBinding]
+    agents: dict[Text, PublishAgent]
+    targets: dict[Text, dict[str, JsonValue]]
+
+
+class HelixBindings(Model):
+    cases_sha256: Digest
+    publication_sha256: Digest
+    cases: dict[Text, CaseBinding]
+
+
+class Publisher(Protocol):
+    def require_destination(self, base_url: str | None, workspace: str | None, /) -> None: ...
+    def validate_task(self, directory: Path, /): ...
+    def publish_task(self, name: str, directory: Path, archive_path: Path, /) -> dict: ...
+    def publish_taskset(self, name: str, refs: list[str], /) -> str: ...
+    def request_builds(self, refs: list[str], /) -> dict: ...
+    def provenance(self) -> dict: ...
 
 
 def load_publication_settings(path: Path) -> PublicationSettings:
     return PublicationSettings.model_validate(yaml.load(path.read_text(), Loader=StrictLoader))
 
 
+def overlay_task(source: Path, agents: list[PublishBundle], destination: Path) -> Path:
+    shutil.copytree(source, destination)
+    overlays = [agent for agent in agents if agent.packaging.transport == "task_image"]
+    if not overlays:
+        return destination
+    config = tomllib.loads((source / "task.toml").read_text())
+    environment = config.get("environment", {})
+    if environment.get("docker_image") or (source / "environment/docker-compose.yaml").exists():
+        raise ValueError("agent overlays require a task built from its Dockerfile, without a prebuilt or compose image")
+    dockerfile = resolve_evidence(destination, "environment/Dockerfile")
+    ignore = destination / "environment/.dockerignore"
+    if ignore.exists() and any(
+        line.strip() and not line.lstrip().startswith("#") for line in ignore.read_text().splitlines()
+    ):
+        raise ValueError("task-image overlays do not support .dockerignore rules")
+    commands = []
+    for agent in overlays:
+        spec = agent.packaging
+        assert agent.path is not None and spec.image_bundle_path is not None and spec.image_mount_path is not None
+        target = destination / spec.image_bundle_path
+        if target.exists():
+            raise ValueError("generated agent overlay would replace prepared task content")
+        shutil.copytree(agent.path, target)
+        if input_digest(target) != agent.sha256:
+            raise ValueError("prepared agent changed while constructing its overlay")
+        commands.append(
+            "COPY "
+            + json.dumps([str(PurePosixPath(spec.image_bundle_path).relative_to("environment")), spec.image_mount_path])
+        )
+    with dockerfile.open("a") as stream:
+        stream.write("\n" + "\n".join(commands) + "\n")
+    return destination
+
+
 def plan_publication(loaded: LoadedCases, execution: HelixExecution, settings: PublicationSettings) -> PublicationPlan:
-    # Validate every local input before the first upload, including unused dependencies.
     loaded.identity_payload(verify=True)
     if set(settings.agents) != set(loaded.cases):
         raise ValueError("publication settings must cover exactly the prepared cases")
@@ -112,59 +221,54 @@ def plan_publication(loaded: LoadedCases, execution: HelixExecution, settings: P
     for case_id, prepared in loaded.cases.items():
         case = prepared.case
         if set(settings.agents[case_id]) != {agent.agent_bundle_id for agent in case.agents()}:
-            raise ValueError(f"case {case_id}: publication settings must cover exactly the prepared agents")
-        tasks = []
-        for task_id, source in case.task_sources.items():
-            path = source.resolve(prepared.root, allow_unsigned=prepared.allow_unsigned)
-            digest = input_digest(path)
-            # The directory name participates in Harbor's native task identity.
-            name_hash = digest_bytes(json_bytes({"sha256": digest, "directory": path.name}))
-            tasks.append(PublishTask(task_id=task_id, name="mb-task-" + name_hash[7:39], path=str(path), sha256=digest))
+            raise ValueError("publication settings must cover exactly the prepared agents")
         agents = []
-        unique([task.name for task in tasks], "published task identities")
-        unique([Path(task.path).name.casefold() for task in tasks], "native task directory names")
+        mounts = []
         for agent in case.agents():
             spec = settings.agents[case_id][agent.agent_bundle_id]
             path, digest, name = None, None, None
             if spec.bundle_input is not None:
                 if spec.bundle_input not in agent.inputs:
                     raise ValueError(f"agent {agent.agent_bundle_id}: unknown bundle_input")
-                source = agent.inputs[spec.bundle_input]
-                path = source.resolve(prepared.root, allow_unsigned=prepared.allow_unsigned)
+                path = agent.inputs[spec.bundle_input].resolve(prepared.root)
                 if not path.is_dir():
                     raise ValueError("agent bundle_input must be a directory")
-                if spec.transport == "registered":
-                    config_path = resolve_evidence(path, spec.config_path)
-                    config = yaml.load(config_path.read_text(), Loader=StrictLoader)
-                    if not isinstance(config, dict) or config.get("config_format") != "nemo-agents-spec-v1":
-                        raise ValueError("agent bundle requires a nemo-agents-spec-v1 config")
-                for relative in file_manifest(path) if spec.transport == "registered" else []:
-                    # Registered agent snapshots are text artifacts. Never silently omit binaries.
-                    try:
-                        (path / relative).read_text(encoding="utf-8")
-                    except UnicodeDecodeError:
-                        raise ValueError(f"agent bundle contains a non-text artifact: {relative}") from None
                 digest = input_digest(path)
-                if spec.transport == "task_image":
-                    assert spec.image_bundle_path is not None
-                    for task in tasks:
-                        staged = resolve_evidence(Path(task.path), spec.image_bundle_path)
-                        if input_digest(staged) != digest:
-                            raise ValueError("task image bundle differs from the prepared agent input")
-                name_hash = digest_bytes(json_bytes({"sha256": digest, "config_path": spec.config_path}))
-                name = "mb-agent-" + name_hash[7:39]
+                name = "mb-agent-" + digest[7:39]
+                assert spec.image_mount_path is not None
+                mount = PurePosixPath(spec.image_mount_path)
+                if any(mount == other or mount in other.parents or other in mount.parents for other in mounts):
+                    raise ValueError("agent image mount paths must not overlap")
+                mounts.append(mount)
             agents.append(
                 PublishBundle(
                     agent_bundle_id=agent.agent_bundle_id,
                     name=name,
                     path=str(path) if path else None,
                     sha256=digest,
-                    config_path=spec.config_path,
-                    transport=spec.transport,
-                    image_bundle_path=spec.image_bundle_path,
-                    target=spec.target,
+                    packaging=spec,
+                    target=agent_target(agent, spec),
                 )
             )
+        tasks = []
+        for task_id, source in case.task_sources.items():
+            path = source.resolve(prepared.root)
+            digest = input_digest(path)
+            with tempfile.TemporaryDirectory(prefix="metric-benchmark-overlay-") as temporary:
+                context = overlay_task(path, agents, Path(temporary) / path.name)
+                context_digest = input_digest(context)
+            name_hash = digest_bytes(json_bytes({"sha256": context_digest, "directory": path.name}))
+            tasks.append(
+                PublishTask(
+                    task_id=task_id,
+                    name="mb-task-" + name_hash[7:39],
+                    path=str(path),
+                    sha256=digest,
+                    context_sha256=context_digest,
+                )
+            )
+        unique([task.name for task in tasks], "published task identities")
+        unique([Path(task.path).name.casefold() for task in tasks], "native task directory names")
         cases.append(PublishCase(case_id=case_id, tasks=tasks, agents=agents))
     return PublicationPlan(cases_sha256=loaded.identity, execution=execution, cases=cases)
 
@@ -173,61 +277,79 @@ def _snapshot(source: str, digest: str, destination: Path) -> Path:
     if input_digest(Path(source)) != digest:
         raise ValueError("prepared input changed after publication planning")
     if not destination.exists():
-        shutil.copytree(source, destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=".snapshot-", dir=destination.parent) as temporary:
+            staged = Path(temporary) / "snapshot"
+            shutil.copytree(source, staged)
+            if input_digest(staged) != digest:
+                raise ValueError("prepared input changed while copying its snapshot")
+            try:
+                os.rename(staged, destination)
+            except OSError:
+                if not destination.exists():
+                    raise
     if input_digest(destination) != digest:
-        raise ValueError("publication snapshot differs from its prepared input")
+        raise ValueError("saved publication snapshot is corrupt; recover it before resuming")
     return destination
 
 
-def publish_helix_inputs(plan: PublicationPlan, output: Path, client) -> HelixBindings:
+def publish_helix_inputs(plan: PublicationPlan, output: Path, client: Publisher) -> HelixBindings:
     client.require_destination(plan.execution.base_url, plan.execution.workspace)
+    if plan.execution.base_url is None or plan.execution.workspace is None:
+        raise ValueError("resolve the execution destination before publishing")
     write_json(output / "publication.json", plan)
-    # Stage and validate the full matrix before contacting mutating endpoints.
+    provenance = output / "provenance.json"
+    if not provenance.exists():
+        write_json(provenance, client.provenance())
+    contexts = {}
     for case in plan.cases:
-        for task in case.tasks:
-            _snapshot(task.path, task.sha256, output / "sources" / task.name / Path(task.path).name)
+        agents = []
         for agent in case.agents:
             if agent.path is not None:
                 assert agent.name is not None and agent.sha256 is not None
                 bundle = _snapshot(agent.path, agent.sha256, output / "sources" / agent.name)
-                if agent.transport == "registered":
-                    client.validate_agent(bundle, agent.config_path)
+                agent = agent.model_copy(update={"path": str(bundle)})
+            agents.append(agent)
+        for task in case.tasks:
+            source = _snapshot(task.path, task.sha256, output / "sources" / task.name / Path(task.path).name)
+            destination = output / "contexts" / task.name / source.name
+            if not destination.exists():
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with tempfile.TemporaryDirectory(prefix=".overlay-", dir=destination.parent) as temporary:
+                    staged = overlay_task(source, agents, Path(temporary) / source.name)
+                    if input_digest(staged) != task.context_sha256:
+                        raise ValueError("derived task context differs from the publication plan")
+                    staged.rename(destination)
+            if input_digest(destination) != task.context_sha256:
+                raise ValueError("saved derived task context is corrupt")
+            client.validate_task(destination)
+            contexts[task.name] = destination
     bindings = {}
     for case in plan.cases:
+        tasks = {}
         for task in case.tasks:
-            client.validate_task(output / "sources" / task.name / Path(task.path).name)
-    for case in plan.cases:
-        tasks, targets = {}, {}
-        for task in case.tasks:
-            source = output / "sources" / task.name / Path(task.path).name
-            receipt = client.publish_task(task.name, source, output / "archives" / f"{task.name}.tar.gz")
-            write_json(output / "receipts" / f"{task.name}.json", receipt)
+            receipt = client.publish_task(task.name, contexts[task.name], output / "archives" / f"{task.name}.tar.gz")
+            write_json(
+                output / "receipts" / f"{task.name}.json",
+                {**receipt, "source_sha256": task.sha256, "image_context_sha256": task.context_sha256},
+            )
             tasks[task.task_id] = TaskBinding(ref=receipt["ref"], native_task_id=receipt["native_task_id"])
+        unique([task.native_task_id.casefold() for task in tasks.values()], "remote native task IDs")
         refs = [task.ref for task in tasks.values()]
         taskset_name = "mb-tasks-" + digest_bytes(json_bytes(refs))[7:39]
         taskset = client.publish_taskset(taskset_name, refs)
         write_json(output / "receipts" / f"{taskset_name}.json", {"ref": taskset, "tasks": refs})
-        for agent in case.agents:
-            target = dict(agent.target)
-            if agent.path is not None and agent.transport == "registered":
-                assert agent.name is not None
-                receipt = client.publish_agent(agent.name, output / "sources" / agent.name, agent.config_path)
-                write_json(output / "receipts" / f"{agent.name}.json", receipt)
-                target["source"] = {"agent": receipt["ref"]}
-            elif agent.transport == "task_image":
-                assert agent.name is not None
-                write_json(
-                    output / "receipts" / f"{agent.name}.json",
-                    {
-                        "transport": "task_image",
-                        "sha256": agent.sha256,
-                        "image_bundle_path": agent.image_bundle_path,
-                        "files": file_manifest(output / "sources" / agent.name),
-                    },
-                )
-            targets[agent.agent_bundle_id] = target
-        bindings[case.case_id] = CaseBinding(taskset=taskset, tasks=tasks, targets=targets)
-        client.request_builds(refs)
-    result = HelixBindings(cases_sha256=plan.cases_sha256, cases=bindings)
+        builds = client.request_builds(refs)
+        for ref, observation in builds.items():
+            # Status and images evolve even when POST reuses the same build attempt.
+            key = digest_bytes(json_bytes({"ref": ref, "observation": observation}))[7:]
+            write_json(output / "receipts/builds" / f"{key}.json", {"ref": ref, "build": observation})
+        bindings[case.case_id] = CaseBinding(
+            taskset=taskset,
+            tasks=tasks,
+            agents={agent.agent_bundle_id: agent.packaging for agent in case.agents},
+            targets={agent.agent_bundle_id: agent.target for agent in case.agents},
+        )
+    result = HelixBindings(cases_sha256=plan.cases_sha256, publication_sha256=plan.identity, cases=bindings)
     write_json(output / "bindings.json", result)
     return result

@@ -4,21 +4,23 @@
 """Small authenticated client for native Helix taskset runs and task artifacts."""
 
 from importlib import import_module
-from pathlib import Path
-from urllib.parse import quote, urlsplit
+from importlib.metadata import PackageNotFoundError, version
+from urllib.parse import quote
 
 from httpx import HTTPError
 
+from metric_benchmark.config import HelixExecution, check_base_url
+
 
 class HelixClient:
-    def __init__(self, client, workspace: str):
+    def __init__(self, client, workspace: str | None):
         self.client = client
-        self.workspace = workspace
-        self.base_url = str(client.base_url).rstrip("/")
-        self.prefix = f"/apis/evals/v2/workspaces/{quote(workspace, safe='')}/"
+        self.workspace = workspace if workspace is not None else client.require_workspace()
+        self.base_url = check_base_url(str(client.base_url))
+        self.prefix = f"/apis/evals/v2/workspaces/{quote(self.workspace, safe='')}/"
 
     @classmethod
-    def from_context(cls, workspace: str, *, context: str | None = None):
+    def from_context(cls, workspace: str | None = None, *, context: str | None = None):
         try:
             nemo_client = import_module("nemo_helix_plugin.client.client").NemoClient
         except ImportError:
@@ -59,58 +61,25 @@ class HelixClient:
             f"{quote(name, safe='')}/revisions/{quote(fragment, safe='')}",
         )
 
-    def submit(self, body):
-        return self.request("POST", self.prefix + "agent-evaluate/runs", body)
-
-    def status(self, run_id):
-        return self.request("GET", self.prefix + f"agent-evaluate/runs/{quote(run_id, safe='')}")
-
-    def members(self, run_id):
-        rows = []
-        page = 1
-        while True:
-            result = self.request(
-                "GET", self.prefix + f"agent-evaluate/runs/{quote(run_id, safe='')}/tasks?page={page}&page_size=1000"
-            )
-            pagination = result["pagination"]
-            if pagination["page"] != page or (page > 1 and not result["data"]):
-                raise ValueError("invalid Helix task pagination")
-            rows.extend(result["data"])
-            if page >= pagination["total_pages"]:
-                if len(rows) != pagination["total_results"]:
-                    raise ValueError("Helix task pagination changed; retry collection")
-                return rows
-            page += 1
-
-    def artifact(self, job: str):
-        path = f"/apis/jobs/v2/workspaces/{quote(self.workspace, safe='')}/jobs/{quote(job, safe='')}/results/agent-eval-results"
-        return self.request("GET", path)
-
-    def download(self, job: str, output: Path):
-        path = f"/apis/jobs/v2/workspaces/{quote(self.workspace, safe='')}/jobs/{quote(job, safe='')}/results/agent-eval-results/download"
-        url = self.base_url + path
-        try:
-            with self.client.http_client.stream(
-                "GET", url, headers=self.client.request_headers(None, url=url), timeout=120, follow_redirects=False
-            ) as response:
-                if response.status_code != 200:
-                    raise ValueError(f"Helix artifact download: HTTP {response.status_code}")
-                with output.open("wb") as stream:
-                    for chunk in response.iter_bytes():
-                        stream.write(chunk)
-        except HTTPError as error:
-            raise ValueError(f"Helix artifact download: {type(error).__name__}; rerun collection") from None
-
-    def require_destination(self, base_url: str, workspace: str):
-        expected = urlsplit(base_url)
-        if (
-            expected.scheme not in ("http", "https")
-            or not expected.hostname
-            or expected.username
-            or expected.password
-            or expected.query
-            or expected.fragment
-        ):
-            raise ValueError("Helix base URL must be an HTTP(S) endpoint without credentials")
-        if self.base_url != base_url.rstrip("/") or self.workspace != workspace:
+    def require_destination(self, base_url: str | None, workspace: str | None):
+        if base_url is not None and self.base_url != check_base_url(base_url):
             raise ValueError("Helix context differs from the recorded endpoint/workspace; select the matching context")
+        if workspace is not None and self.workspace != workspace:
+            raise ValueError("Helix context differs from the recorded endpoint/workspace; select the matching context")
+
+    def resolve_execution(self, execution: HelixExecution) -> HelixExecution:
+        self.require_destination(execution.base_url, execution.workspace)
+        return HelixExecution.model_validate(
+            {**execution.model_dump(), "base_url": self.base_url, "workspace": self.workspace}
+        )
+
+    def provenance(self) -> dict:
+        packages = {}
+        for name in ("nemo-helix-plugin", "nemo-evals-plugin", "nhx-evals-sdk", "harbor"):
+            try:
+                packages[name] = version(name)
+            except PackageNotFoundError:
+                packages[name] = None
+        if packages["harbor"] != "0.24.0":
+            raise ValueError("Helix publication/execution requires the qualified Harbor 0.24.0 client environment")
+        return {"client_versions": packages, "server": self.request("GET", "/cluster-info")}

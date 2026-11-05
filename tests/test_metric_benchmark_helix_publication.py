@@ -5,7 +5,6 @@ import shutil
 from pathlib import Path
 
 import pytest
-import yaml
 from metric_benchmark.config import HelixExecution, PinnedInput, load_cases
 from metric_benchmark.helix_publication import PublicationSettings, PublishAgent, plan_publication, publish_helix_inputs
 from metric_benchmark.io import file_manifest, input_digest, read_json
@@ -13,14 +12,14 @@ from test_metric_benchmark_config import prepared_benchmark
 
 
 def prepared(tmp_path):
-    prepared_benchmark(tmp_path)
-    loaded = load_cases(tmp_path / "cases.yml", allow_unsigned=True)
+    experiment, _ = prepared_benchmark(tmp_path)
+    from metric_benchmark.signing import sign_benchmark
+
+    sign_benchmark(experiment, resign=True)
+    loaded = load_cases(tmp_path / "cases.yml")
     settings = PublicationSettings(
         agents={
-            case_id: {
-                agent.agent_bundle_id: PublishAgent(target={"source": {"name": agent.harbor["name"]}})
-                for agent in case.case.agents()
-            }
+            case_id: {agent.agent_bundle_id: PublishAgent() for agent in case.case.agents()}
             for case_id, case in loaded.cases.items()
         }
     )
@@ -50,6 +49,10 @@ class Publisher:
 
     def request_builds(self, refs):
         self.calls.append(("builds", refs))
+        return {ref: {"id": "1", "status": "running"} for ref in refs}
+
+    def provenance(self):
+        return {"client_versions": {"harbor": "0.24.0"}, "server": {"revision": "mock"}}
 
     def validate_agent(self, bundle, config_path):
         self.calls.append(("validate", config_path))
@@ -88,33 +91,6 @@ def test_entire_matrix_preflight_before_upload(tmp_path):
     assert client.calls == []
 
 
-def test_registered_bundle_is_a_prepared_input(tmp_path):
-    loaded, execution, settings = prepared(tmp_path / "input")
-    case_id, case = next(iter(loaded.cases.items()))
-    agent = case.case.baseline
-    bundle = loaded.root / "bundle"
-    bundle.mkdir()
-    (bundle / "agent.yaml").write_text(yaml.safe_dump({"config_format": "nemo-agents-spec-v1", "name": "test"}))
-    (bundle / "runtime.py").write_text("print('real prepared runtime')\n")
-    agent.inputs["runtime"] = PinnedInput(path="bundle", kind="directory", sha256=input_digest(bundle))
-    from metric_benchmark.helix_publication import PublishAgent
-
-    settings.agents[case_id][agent.agent_bundle_id] = PublishAgent(bundle_input="runtime")
-    plan = plan_publication(loaded, execution, settings)
-    client = Publisher()
-    bindings = publish_helix_inputs(plan, tmp_path / "output", client)
-    target = bindings.cases[case_id].targets[agent.agent_bundle_id]
-    source = target["source"]
-    assert isinstance(source, dict)
-    ref = source["agent"]
-    assert isinstance(ref, str) and ref.startswith("default/mb-agent-")
-    assert client.calls[0] == ("validate", "agent.yaml")
-    assert file_manifest(tmp_path / "output/sources" / plan.cases[0].agents[0].name) == file_manifest(bundle)
-    (bundle / "runtime.py").write_text("changed runtime")
-    with pytest.raises(ValueError, match="input digest differs"):
-        plan_publication(loaded, execution, settings)
-
-
 def test_publication_requires_exact_agent_membership(tmp_path):
     loaded, execution, settings = prepared(tmp_path)
     case_id = next(iter(settings.agents))
@@ -123,41 +99,123 @@ def test_publication_requires_exact_agent_membership(tmp_path):
         plan_publication(loaded, execution, settings)
 
 
-def test_published_bundle_cannot_override_source():
-    from metric_benchmark.helix_publication import PublishAgent
-
-    with pytest.raises(ValueError, match="supplies the target source"):
-        PublishAgent(bundle_input="runtime", target={"source": {"name": "nop"}})
-    with pytest.raises(ValueError, match="provide a pinned bundle"):
-        PublishAgent(target={"source": {"import_path": "not_installed:Agent"}})
+def test_publication_cannot_override_prepared_agent():
+    with pytest.raises(ValueError, match="Extra inputs"):
+        PublishAgent.model_validate({"target": {"source": {"name": "nop"}}})
+    with pytest.raises(ValueError, match="not qualified"):
+        PublishAgent(transport="registered", bundle_input="runtime")
 
 
-def test_task_image_transport_checks_every_copy(tmp_path):
-    from metric_benchmark.helix_publication import PublishAgent
-
+def task_image_inputs(tmp_path):
     loaded, execution, settings = prepared(tmp_path / "input")
-    case_id, prepared_case = next(iter(loaded.cases.items()))
-    agent = prepared_case.case.baseline
+    case_id, case = next(iter(loaded.cases.items()))
+    agent = case.case.baseline
     bundle = loaded.root / "runtime"
     bundle.mkdir()
     (bundle / "agent.py").write_text("print('prepared runtime')\n")
     agent.inputs["runtime"] = PinnedInput(path="runtime", kind="directory", sha256=input_digest(bundle))
+    agent.harbor = {"import_path": "installed.module:Agent", "kwargs": {"runtime_path": "{input:runtime}"}}
     settings.agents[case_id][agent.agent_bundle_id] = PublishAgent(
         bundle_input="runtime",
         transport="task_image",
         image_bundle_path="environment/runtime",
-        target={"source": {"import_path": "installed.module:Agent"}},
+        image_mount_path="/opt/agents/baseline",
     )
-    for task in prepared_case.case.task_sources.values():
-        shutil.copytree(bundle, loaded.root / task.path / "environment/runtime")
-        task.sha256 = input_digest(loaded.root / task.path)
+    return loaded, execution, settings
+
+
+def test_task_image_overlay_preserves_signed_task_identity(tmp_path):
+    loaded, execution, settings = task_image_inputs(tmp_path)
+    original = file_manifest(loaded.root)
+    identity = loaded.identity
+    plan = plan_publication(loaded, execution, settings)
+    result = publish_helix_inputs(plan, tmp_path / "output", Publisher())
+    assert loaded.identity == identity == result.cases_sha256
+    assert file_manifest(loaded.root) == original
+    assert result.publication_sha256 == plan.identity
+    case = plan.cases[0]
+    for task in case.tasks:
+        context = tmp_path / "output/contexts" / task.name / Path(task.path).name
+        assert input_digest(context) == task.context_sha256 != task.sha256
+        assert (context / "environment/runtime/agent.py").is_file()
+        assert (context / "instruction.md").read_bytes() == (Path(task.path) / "instruction.md").read_bytes()
+    target = result.cases[case.case_id].targets[case.agents[0].agent_bundle_id]
+    assert target["agent_kwargs"] == {"runtime_path": "/opt/agents/baseline"}
+
+
+def test_snapshot_interruption_does_not_publish_partial_copy(tmp_path, monkeypatch):
+    from metric_benchmark.helix_publication import _snapshot
+
+    source = tmp_path / "input"
+    source.mkdir()
+    (source / "complete").write_text("content")
+
+    def interrupt(src, dst, *args, **kwargs):
+        Path(dst).mkdir()
+        (Path(dst) / "partial").write_text("incomplete")
+        raise OSError("interrupted")
+
+    destination = tmp_path / "snapshots/kept"
+    with monkeypatch.context() as patch:
+        patch.setattr(shutil, "copytree", interrupt)
+        with pytest.raises(OSError, match="interrupted"):
+            _snapshot(str(source), input_digest(source), destination)
+    assert not destination.exists()
+    assert _snapshot(str(source), input_digest(source), destination) == destination
+    assert file_manifest(source) == file_manifest(destination)
+
+
+def test_build_observations_can_evolve_without_changing_bindings(tmp_path, monkeypatch):
+    loaded, execution, settings = prepared(tmp_path / "input")
     plan = plan_publication(loaded, execution, settings)
     client = Publisher()
-    result = publish_helix_inputs(plan, tmp_path / "output", client)
-    assert result.cases[case_id].targets[agent.agent_bundle_id]["source"] == {"import_path": "installed.module:Agent"}
-    assert not any(call[0] == "agent" for call in client.calls)
-    task = next(iter(prepared_case.case.task_sources.values()))
-    (loaded.root / task.path / "environment/runtime/agent.py").write_text("changed")
-    task.sha256 = input_digest(loaded.root / task.path)
-    with pytest.raises(ValueError, match="task image bundle differs"):
-        plan_publication(loaded, execution, settings)
+    first = publish_helix_inputs(plan, tmp_path / "output", client)
+    monkeypatch.setattr(
+        client,
+        "request_builds",
+        lambda refs: {ref: {"id": "1", "status": "ready", "images": ["image"]} for ref in refs},
+    )
+    assert publish_helix_inputs(plan, tmp_path / "output", client) == first
+    assert len(list((tmp_path / "output/receipts/builds").glob("*.json"))) == 6
+
+
+@pytest.mark.parametrize("workspace", ["Default", "My_Workspace"])
+def test_workspace_rejected_before_publication(workspace):
+    with pytest.raises(ValueError):
+        HelixExecution(base_url="https://helix.example.com", workspace=workspace, dispatcher_profile="default")
+
+
+def test_duplicate_remote_ids_rejected_before_taskset_or_build(tmp_path, monkeypatch):
+    loaded, execution, settings = prepared(tmp_path / "input")
+    plan = plan_publication(loaded, execution, settings)
+    client = Publisher()
+    publish = client.publish_task
+    monkeypatch.setattr(client, "publish_task", lambda *args: {**publish(*args), "native_task_id": "duplicate"})
+    with pytest.raises(ValueError, match="native task IDs"):
+        publish_helix_inputs(plan, tmp_path / "output", client)
+    assert not any(call[0] in ("taskset", "builds") for call in client.calls)
+
+
+def test_fabric_transport_only_replaces_bundle_upload(tmp_path):
+    from metric_benchmark.helix_publication import FABRIC_INSTALLED_AGENT, agent_target
+
+    loaded, _, settings = task_image_inputs(tmp_path)
+    case_id, case = next(iter(loaded.cases.items()))
+    agent = case.case.baseline
+    spec = settings.agents[case_id][agent.agent_bundle_id]
+    agent.harbor = {
+        "import_path": FABRIC_INSTALLED_AGENT,
+        "kwargs": {
+            "fabric_config_bundle": "{input:runtime}",
+            "fabric_config_target": "/opt/agents/baseline",
+            "fabric_config": {"temperature": 0.0},
+            "fabric_package": "fixed==1.0",
+        },
+    }
+    target = agent_target(agent, spec)
+    assert target["agent_kwargs"] == {
+        key: value for key, value in agent.harbor["kwargs"].items() if key != "fabric_config_bundle"
+    }
+    spec.image_mount_path = "/opt/agents/mutant"
+    with pytest.raises(ValueError, match="upload destination"):
+        agent_target(agent, spec)

@@ -11,6 +11,7 @@ from harbor.models.task.task import Task as HarborTask
 from harbor.models.trial.config import AgentConfig
 from harbor.models.trial.result import TrialResult
 
+from metric_benchmark.agent_configuration import resolved_agent_values
 from metric_benchmark.config import (
     Agent,
     Case,
@@ -27,26 +28,12 @@ from metric_benchmark.models import ExecutionManifest, RawResults, Score, resolv
 def agent_config(
     agent: Agent, root: Path, *, recorded_root: Path | None = None, allow_unsigned: bool = False
 ) -> AgentConfig:
-    def resolve(value):
-        if isinstance(value, str) and value.startswith("{input:") and value.endswith("}"):
-            name = value[7:-1]
-            if name not in agent.inputs:
-                raise ValueError(f"unknown agent input: {name}")
-            source = agent.inputs[name]
-            local = source.resolve(root, allow_unsigned=allow_unsigned)
-            return str(recorded_root / source.path) if recorded_root is not None else str(local)
-        if isinstance(value, dict):
-            return {k: resolve(v) for k, v in value.items()}
-        if isinstance(value, list):
-            return [resolve(v) for v in value]
-        return value
+    def resolve_input(name):
+        source = agent.inputs[name]
+        local = source.resolve(root, allow_unsigned=allow_unsigned)
+        return str(recorded_root / source.path) if recorded_root is not None else str(local)
 
-    values = resolve(agent.harbor)
-    if set(values) - AgentConfig.model_fields.keys():
-        raise ValueError("unknown Harbor agent configuration field")
-    if bool(values.get("name")) == bool(values.get("import_path")):
-        raise ValueError("agent must select exactly one Harbor name or import_path")
-    return AgentConfig.model_validate(values)
+    return AgentConfig.model_validate(resolved_agent_values(agent, resolve_input))
 
 
 def task_checksum(task: HarborTask) -> str:
