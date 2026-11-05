@@ -78,7 +78,9 @@ def findings_links(report: Path, text: str) -> set[Path]:
     return links
 
 
-def inspect_receipt(review: Review, path: Path, receipt: dict, tasks: set[Path]) -> dict:
+def inspect_receipt(
+    review: Review, path: Path, receipt: dict, tasks: set[Path], *, verify_historical: bool = False
+) -> dict:
     row = {"path": path.relative_to(review.repo).as_posix(), "classification": "unproven"}
     try:
         manifest_path = review.path(receipt["manifest"])
@@ -102,7 +104,9 @@ def inspect_receipt(review: Review, path: Path, receipt: dict, tasks: set[Path])
             row.update(classification="agent_run", reason="Agent runs are reviewed through the selected trace evidence")
             return row
         row["kind"] = case["kind"]
-        if review.task_digest(task) != manifest.get("task_sha256"):
+        row["task_revision"] = manifest.get("task_sha256")
+        historical = review.task_digest(task) != manifest.get("task_sha256")
+        if historical and not verify_historical:
             row.update(classification="stale", reason="Task changed since this control ran")
             return row
         if receipt.get("status") == "infrastructure_error" or receipt.get("returncode") != 0:
@@ -129,6 +133,12 @@ def inspect_receipt(review: Review, path: Path, receipt: dict, tasks: set[Path])
         else:
             classification = "failed_control"
         row.update(classification=classification, reason="Native assertions " + ("passed" if passed else "failed"))
+        if historical:
+            row.update(
+                classification="stale",
+                historical_classification=classification,
+                reason="Native assertions belong to an earlier task revision",
+            )
         row["result"] = result_path.relative_to(review.repo).as_posix()
         row["checks"] = case["checks"]
     except EvidenceScopeError:
@@ -166,7 +176,78 @@ def inspect_manifest(review: Review, path: Path, manifest: dict, tasks: set[Path
     return []
 
 
-def check(repo: Path, report: Path, tasks: list[Path], evidence_dirs: list[Path], source_roots: list[Path]) -> dict:
+def content_model(repo: Path, path: Path):
+    import importlib.util
+    import sys
+
+    scripts = Path(__file__).resolve().parents[2] / "eval-author-audit/scripts/audit_spec"
+    sys.path.insert(0, str(scripts))
+    name = "report_content"
+    module = sys.modules.get(name)
+    if module is None or module.__file__ is None or Path(module.__file__).resolve() != scripts / "report_content.py":
+        spec = importlib.util.spec_from_file_location(name, scripts / "report_content.py")
+        if spec is None or spec.loader is None:
+            raise ValueError("Install the sibling eval-author-audit skill for structured report review")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return module.load(path, repo)
+
+
+def _account(repo: Path, selected: set[Path], rows: list[dict], links: set[Path], evidence: list[dict]) -> dict:
+    required = []
+    accounted = {"passed", "agent_run", "out_of_scope"}
+    for row in rows:
+        if row["classification"] not in accounted:
+            row["reported"] = repo / row["path"] in links
+            if row["classification"] in {"stale", "unproven"} and row.get("manifest"):
+                row["reported"] |= repo / row["manifest"] in links
+            if not row["reported"]:
+                required.append(row["path"])
+    for task in sorted(selected):
+        if not any(
+            row.get("task") == task.relative_to(repo).as_posix() and row["classification"] != "agent_run"
+            for row in rows
+        ):
+            relative = task.relative_to(repo).as_posix()
+            reported = task in links
+            rows.append(
+                {
+                    "task": relative,
+                    "classification": "unproven",
+                    "reason": "No supported control receipts found for this task",
+                    "reported": reported,
+                }
+            )
+            if not reported:
+                required.append(relative)
+    return {
+        "valid": not required,
+        "missing_findings": required,
+        "controls": rows,
+        "evidence": evidence,
+        "limits": "Checks retained native assertions and explained findings. An agent must review applicability, grading logic, and the accuracy of each explanation. This is not task qualification.",
+    }
+
+
+def check(
+    repo: Path,
+    report: Path,
+    tasks: list[Path],
+    evidence_dirs: list[Path],
+    source_roots: list[Path],
+    *,
+    content: Path | None = None,
+) -> dict:
+    if content is not None:
+        model = content_model(repo.resolve(), content)
+        selected = {model.source(task["source"]) for task in model.tasks.values()}
+        requested = {(repo / task).resolve() for task in tasks}
+        if tasks and requested != selected:
+            raise ValueError("Selected tasks differ from the validated report content")
+        links = {model.source(identifier) for finding in model.data["findings"] for identifier in finding["evidence"]}
+        evidence = model.evidence
+        return {**_account(model.repo, selected, model.controls, links, evidence), "mode": "content"}
     review = Review(repo, [*tasks, *evidence_dirs, *source_roots])
     selected = {review.path(path) for path in tasks}
     if not selected or any(not path.is_dir() for path in selected):
@@ -214,52 +295,31 @@ def check(repo: Path, report: Path, tasks: list[Path], evidence_dirs: list[Path]
                 )
     for path, manifest in review.manifests.items():
         rows.extend(inspect_manifest(review, path, manifest, selected, rows))
-    required = []
-    accounted = {"passed", "agent_run", "out_of_scope"}
-    for row in rows:
-        if row["classification"] not in accounted:
-            row["reported"] = review.path(row["path"]) in links
-            if row["classification"] in {"stale", "unproven"} and row.get("manifest"):
-                row["reported"] |= review.path(row["manifest"]) in links
-            if not row["reported"]:
-                required.append(row["path"])
-    for task in sorted(selected):
-        if not any(
-            row.get("task") == task.relative_to(review.repo).as_posix() and row["classification"] != "agent_run"
-            for row in rows
-        ):
-            relative = task.relative_to(review.repo).as_posix()
-            reported = task in links
-            rows.append(
-                {
-                    "task": relative,
-                    "classification": "unproven",
-                    "reason": "No supported control receipts found for this task",
-                    "reported": reported,
-                }
-            )
-            if not reported:
-                required.append(relative)
     return {
-        "valid": not required,
-        "missing_findings": required,
-        "controls": rows,
-        "evidence": [{"path": path, "digest": digest} for path, digest in sorted(review.evidence.items())],
-        "limits": "Checks retained native assertions and finding links. An agent must review applicability, grading logic, and the accuracy of each explanation. This is not task qualification.",
+        **_account(
+            review.repo,
+            selected,
+            rows,
+            links,
+            [{"path": path, "digest": digest} for path, digest in sorted(review.evidence.items())],
+        ),
+        "mode": "legacy",
     }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path.cwd())
-    parser.add_argument("--report", type=Path, required=True)
-    parser.add_argument("--task", type=Path, action="append", required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--content", type=Path)
+    mode.add_argument("--report", type=Path, help="Explicit legacy Markdown report")
+    parser.add_argument("--task", type=Path, action="append", default=[])
     parser.add_argument("--evidence-dir", type=Path, action="append", default=[])
     parser.add_argument("--source-root", type=Path, action="append", default=[])
     args = parser.parse_args()
     try:
-        result = check(args.repo, args.report, args.task, args.evidence_dir, args.source_root)
-    except (OSError, ValueError, KeyError, TypeError) as exc:
+        result = check(args.repo, args.report, args.task, args.evidence_dir, args.source_root, content=args.content)
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError, ImportError) as exc:
         result = {"valid": False, "error": str(exc)}
     print(json.dumps(result, indent=2))
     return 0 if result["valid"] else 1

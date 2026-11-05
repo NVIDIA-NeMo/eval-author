@@ -144,9 +144,19 @@ def validate(value: dict) -> None:
                 raise ValueError("Completed measurement requires verified artifact references")
         findings = value["findings"]
         if findings is not None:
-            _fields(findings, "report source")
+            _fields(findings, "report source" + (" content inputs" if "content" in findings else ""))
             _ref(findings["report"])
             _text(findings["source"])
+            if "content" in findings:
+                _ref(findings["content"])
+                if not isinstance(findings["inputs"], list):
+                    raise ValueError("Structured findings require bound inputs")
+                for ref in findings["inputs"]:
+                    _fields(ref, "path digest kind")
+                    _ref({key: ref[key] for key in ("path", "digest")})
+                    if ref["kind"] not in {"file", "task"}:
+                        raise ValueError("Findings inputs require file or task bindings")
+                _paths([ref["path"] for ref in findings["inputs"]])
         action = value["next_action"]
         if action is not None:
             _fields(action, "kind findings_digest source")
@@ -186,6 +196,9 @@ def _sources(state: dict) -> set[str]:
         files.add(value["selection_manifest"])
     if value["findings"]:
         files.add(value["findings"]["report"]["path"])
+        if "content" in value["findings"]:
+            files.add(value["findings"]["content"]["path"])
+            files.update(ref["path"] for ref in value["findings"]["inputs"])
     if value["measurement"] and value["suites"]["status"] != "pending" and value["traces"]["status"] == "selected":
         files.update(ref["path"] for ref in value["measurement"]["evidence"])
     for key, field in (("suites", "suite_files"), ("traces", "trace_files")):
@@ -217,7 +230,13 @@ def observe(repo, state: dict) -> dict:
         try:
             if any(part.is_symlink() for part in (path, *path.parents)):
                 raise ValueError("Audit files must not traverse symlinks")
-            observed["files"][name] = _file_digest(path, None)[0]
+            bindings = ((record(state) or {}).get("findings") or {}).get("inputs", [])
+            if any(ref["path"] == name and ref["kind"] == "task" for ref in bindings):
+                from eval_author_shared.task_evidence import task_digest
+
+                observed["files"][name] = task_digest(path)
+            else:
+                observed["files"][name] = _file_digest(path, None)[0]
         except (OSError, ValueError):
             observed["files"][name] = None
     return observed
@@ -243,6 +262,7 @@ def derive(state: dict, observed: dict) -> dict | None:
     files = observed_files(state, observed)
     sources_ready = all(value[key]["status"] != "pending" for key in ("suites", "traces"))
     inputs = value["suite_files"] + value["trace_files"] + ([value["specification"]] if value["specification"] else [])
+    inputs += [ref["path"] for ref in (value["findings"] or {}).get("inputs", []) if ref["kind"] == "task"]
     if value.get("selection_manifest"):
         inputs.append(value["selection_manifest"])
     checks_digest = None
@@ -281,12 +301,19 @@ def derive(state: dict, observed: dict) -> dict | None:
     deferred = bool(current and measurement["status"] == "deferred")
     findings = value["findings"]
     findings_digest = None
-    if approved and findings and files.get(findings["report"]["path"]) == findings["report"]["digest"]:
+    findings_inputs = [findings["content"], *findings["inputs"]] if findings and "content" in findings else []
+    if (
+        approved
+        and findings
+        and files.get(findings["report"]["path"]) == findings["report"]["digest"]
+        and all(files.get(ref["path"]) == ref["digest"] for ref in findings_inputs)
+    ):
         findings_digest = fingerprint(
             {
                 "checks": checks_digest,
                 "report": findings["report"],
                 "measurement": measurement,
+                **({"content": findings["content"], "inputs": findings["inputs"]} if "content" in findings else {}),
                 "evidence": {ref["path"]: files.get(ref["path"]) for ref in (measurement or {}).get("evidence", [])},
             }
         )

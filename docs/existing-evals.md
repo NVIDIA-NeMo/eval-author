@@ -130,9 +130,9 @@ Audit evidence paths are relative to the repository. Each case or run must fall
 within its selected suite or trace location.
 
 Changes to the agent, Ethos, selected scope, specification, cases, verifiers, or
-traces reopen check review and dependent measurement and findings. Changing only
-the findings report requires findings review again. Saved progress therefore
-reflects the current inputs when you resume.
+traces reopen check review and dependent measurement and findings. Changes to
+report content or its supporting evidence also reopen findings review. Saved
+progress therefore reflects the current inputs when you resume.
 
 Coverage measurement compares that specification with recorded ATIF traces.
 ATIF is a structured record of an agent's interaction. Measurements are saved
@@ -140,11 +140,7 @@ under `.eval-author/audit-measurements/`. **Coverage measurements (JSON)**
 (`.eval-author/audit-coverage-report.json`) is the file of generated results
 aggregated over the selected runs, when available.
 
-Eval Author writes the Audit coverage report using the shared template and links
-available evidence. This readable Markdown artifact is
-separate from Coverage measurements (JSON).
-Test mappings describe what evaluations are designed to address and do not,
-by themselves, establish measured coverage.
+Eval Author generates the Audit coverage report and links available evidence.
 
 The Audit coverage report can be prepared before measurement and updated as
 evidence becomes available. Without usable traces, you can establish the audit
@@ -184,7 +180,8 @@ unmeasured. If the findings do not support more tasks, it explains the useful
 alternative, such as addressing an observed agent failure or gathering specific
 evidence.
 
-See [Read your results](results.md) for the saved artifacts and their limits.
+See [audit results](results.md#coverage-audits) for report editing, saved artifacts,
+and coverage limits.
 
 ## Propose new evaluations
 

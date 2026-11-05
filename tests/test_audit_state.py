@@ -422,3 +422,57 @@ def test_legacy_lifecycle_without_selection_manifest_validates(audit):
     value = audit.new_record()
     value.pop("selection_manifest", None)
     audit.validate(value)
+
+
+@pytest.mark.parametrize("changed", ["content", "source"])
+def test_structured_findings_bind_content_and_sources_without_reopening_measurement(audit, changed):
+    state, value, observed = measured(audit)
+    content = {"path": ".eval-author/.working/audit/report-content.json", "digest": audit.fingerprint("content")}
+    source = {"path": "selected/record.json", "digest": audit.fingerprint("source"), "kind": "file"}
+    value["findings"].update(content=content, inputs=[source])
+    observed["files"].update({content["path"]: content["digest"], source["path"]: source["digest"]})
+    current = audit.derive(state, observed)
+    value["findings_review"] = {"digest": current["findings_digest"], "source": "User accepted the generated report"}
+    assert audit.derive(state, observed)["findings_reviewed"]
+    observed["files"][content["path"] if changed == "content" else source["path"]] = audit.fingerprint("changed")
+    current = audit.derive(state, observed)
+    assert current["measurement_complete"]
+    assert not current["findings_reviewed"]
+    assert current["findings_digest"] is None
+
+
+def test_structured_task_inputs_reopen_scope_when_the_task_tree_changes(audit, tmp_path):
+    state, value, _ = measured(audit)
+    state["repository"] = str(tmp_path)
+    for name in (
+        value["suite_files"]
+        + value["trace_files"]
+        + [value["specification"], value["findings"]["report"]["path"], value["measurement"]["evidence"][0]["path"]]
+    ):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("Selected source bytes.\n")
+    content_path = tmp_path / ".eval-author/.working/audit/report-content.json"
+    content_path.parent.mkdir(parents=True)
+    content_path.write_text("{}\n")
+    from eval_author_shared.task_evidence import task_digest
+
+    value["findings"].update(
+        content={
+            "path": content_path.relative_to(tmp_path).as_posix(),
+            "digest": hashlib.sha256(content_path.read_bytes()).hexdigest(),
+        },
+        inputs=[{"path": "suites/refund", "digest": task_digest(tmp_path / "suites/refund"), "kind": "task"}],
+    )
+    value["checks_approval"]["digest"] = audit.derive(state, audit.observe(tmp_path, state))["checks_digest"]
+    value["measurement"]["checks_digest"] = value["checks_approval"]["digest"]
+    for ref in [value["findings"]["report"], *value["measurement"]["evidence"]]:
+        ref["digest"] = hashlib.sha256((tmp_path / ref["path"]).read_bytes()).hexdigest()
+    current = audit.derive(state, audit.observe(tmp_path, state))
+    value["findings_review"] = {"digest": current["findings_digest"], "source": "User accepted current report"}
+    assert audit.derive(state, audit.observe(tmp_path, state))["findings_reviewed"]
+    (tmp_path / "suites/refund/extra.txt").write_text("Task changed.\n")
+    current = audit.derive(state, audit.observe(tmp_path, state))
+    assert not current["checks_approved"]
+    assert not current["measurement_complete"]
+    assert not current["findings_reviewed"]

@@ -28,26 +28,31 @@ EXCLUSIONS = "**Exclusions**"
 NO_EXCLUSIONS = "No exclusions."
 EXCLUSION = "- {path}: {reason}"
 CHECKS_INTRO = (
-    "I’ve added the proposed checks to **Intended coverage** in the **Audit coverage report**, "
+    "I’ve added the proposed checks to **coverage tables** in the **Audit coverage report**, "
     "including the evidence each check needs and any limitations."
 )
 CHECKS_SAVED = (
-    "The proposed checks and evidence requirements are in **Intended coverage** in the **Audit coverage report**."
+    "The proposed checks and evidence requirements are in **coverage tables** in the **Audit coverage report**."
 )
 REPORT_ACTIONS = {"created": "I created {report}.", "updated": "I updated {report}.", "unchanged": "Review {report}."}
 REPORT_LABEL = "Audit coverage report"
 SECTION_LABELS = {
-    "intended_coverage": "Audit coverage report — Intended coverage",
-    "findings": "Audit coverage report — Findings",
+    "intended_coverage": "Audit coverage report: Coverage tables",
+    "findings": "Audit coverage report: Findings",
 }
 CHECKS_TABLE = "| Area | What we’ll check | Evidence needed |\n|---|---|---|"
-CHECK_KINDS = {"tools": "Tools", "capabilities": "Capabilities", "failure_cases": "Failure cases", "grading": "Grading"}
+CHECK_KINDS = {
+    "tools": "Tools",
+    "capabilities": "Capabilities",
+    "failure_cases": "Failure cases",
+    "grading": "Verifier",
+}
 NO_CHECKS = "No checks proposed in this area."
 NO_CHECK_EVIDENCE = "Not applicable."
 CHANGES_HEADING = "**Changes since the previous review**"
 CHECKS_NEXT = "Once approved, I’ll perform the audit and bring back the findings."
 CHECKS_LIMITED_NEXT = "Once approved, I’ll continue the agreed work, keeping unavailable measurement explicit."
-CHECKS_QUESTION = "Please review **Intended coverage**. Are these the right checks and evidence requirements, or should anything change?"
+CHECKS_QUESTION = "Please review **coverage tables**. Are these the right checks and evidence requirements, or should anything change?"
 MEASUREMENT_PROGRESS = "The selected traces still need measurement against the approved checks."
 MEASUREMENT_UNAVAILABLE = "Coverage cannot be measured until usable traces are selected."
 MEASUREMENT_COMPLETE = "Measurement is complete for the selected scope."
@@ -61,7 +66,7 @@ FINDINGS_TABLE = "| Finding | Evidence and significance |\n|---|---|"
 FINDING_KINDS = {
     "strength": "Strength",
     "missing_scenario": "Missing scenario",
-    "grading_weakness": "Grading weakness",
+    "grading_weakness": "Verifier weakness",
     "agent_failure": "Observed agent failure",
     "insufficient_evidence": "Insufficient evidence",
 }

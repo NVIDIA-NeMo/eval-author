@@ -1,0 +1,807 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://developer.nvidia.com/nemo/eval-author/report_content.schema.json",
+  "title": "Audit report authored content and bound sources",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "identity",
+    "sources",
+    "inputs",
+    "summary",
+    "tasks",
+    "runs",
+    "task_mappings",
+    "findings",
+    "recommendations",
+    "verifier_review",
+    "scope_notes"
+  ],
+  "properties": {
+    "schema": {
+      "const": "nemo.eval_author.audit_report_content.v1",
+      "x-authored": false
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit",
+        "dirty",
+        "date"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000,
+          "pattern": "\\S",
+          "x-authored": false
+        },
+        "commit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000,
+          "pattern": "^[0-9a-f]{7,64}$",
+          "x-authored": false
+        },
+        "dirty": {
+          "type": "boolean",
+          "x-authored": false
+        },
+        "date": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000,
+          "pattern": "\\S",
+          "x-authored": false,
+          "format": "date"
+        }
+      },
+      "x-authored": false
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source",
+        "x-authored": false
+      },
+      "minItems": 1,
+      "maxItems": 1000,
+      "x-authored": false
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audit",
+        "ethos",
+        "measurement"
+      ],
+      "properties": {
+        "audit": {
+          "$ref": "#/$defs/source_id",
+          "x-authored": false
+        },
+        "ethos": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/source_id",
+              "x-authored": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-authored": false
+        },
+        "measurement": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/source_id",
+              "x-authored": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-authored": false
+        }
+      },
+      "x-authored": false
+    },
+    "summary": {
+      "type": "array",
+      "description": "Exactly two entries. [0] what the audit found, which completes the renderer's first paragraph. [1] what the audit could not establish and what the findings rest on, which completes its second. Name no tasks and don't restate the counts, coverage ratio, verifier conclusion, or coverage measurement statement. See references/report-sections.md#summary.",
+      "items": {
+        "$ref": "#/$defs/prose",
+        "x-authored": true
+      },
+      "minItems": 2,
+      "maxItems": 2,
+      "x-authored": false
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/task",
+        "x-authored": false
+      },
+      "minItems": 0,
+      "maxItems": 1000,
+      "x-authored": false
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/run",
+        "x-authored": false
+      },
+      "minItems": 0,
+      "maxItems": 1000,
+      "x-authored": false
+    },
+    "task_mappings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/mapping",
+        "x-authored": false
+      },
+      "minItems": 0,
+      "maxItems": 1000,
+      "x-authored": false
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding",
+        "x-authored": false
+      },
+      "minItems": 0,
+      "maxItems": 1000,
+      "x-authored": false
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/recommendation",
+        "x-authored": false
+      },
+      "minItems": 0,
+      "maxItems": 1000,
+      "x-authored": false
+    },
+    "verifier_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "notes",
+        "checks"
+      ],
+      "properties": {
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/prose",
+            "x-authored": true
+          },
+          "minItems": 0,
+          "maxItems": 1000,
+          "x-authored": false
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/review_check",
+            "x-authored": false
+          },
+          "minItems": 0,
+          "maxItems": 1000,
+          "x-authored": false
+        }
+      },
+      "x-authored": false
+    },
+    "scope_notes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/scope_note",
+        "x-authored": false
+      },
+      "minItems": 0,
+      "maxItems": 1000,
+      "x-authored": false
+    }
+  },
+  "x-authored": false,
+  "$defs": {
+    "source_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^S[A-Za-z0-9_.-]+$",
+      "x-authored": false
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^T[A-Za-z0-9_.-]+$",
+      "x-authored": false
+    },
+    "finding_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^F[1-9][0-9]*$",
+      "x-authored": false
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[0-9a-f]{64}$",
+      "x-authored": false
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "pattern": "\\S",
+      "x-authored": false
+    },
+    "prose": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "pattern": "\\S",
+      "x-authored": true,
+      "x-prose": true
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/source_id",
+          "x-authored": false
+        },
+        "kind": {
+          "enum": [
+            "audit",
+            "ethos",
+            "measurement",
+            "task",
+            "run",
+            "receipt",
+            "manifest",
+            "document"
+          ],
+          "x-authored": false
+        },
+        "path": {
+          "$ref": "#/$defs/path",
+          "x-authored": false
+        },
+        "sha256": {
+          "$ref": "#/$defs/digest",
+          "x-authored": false
+        }
+      },
+      "x-authored": false
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source",
+        "revision",
+        "title",
+        "behavior",
+        "notes",
+        "run_ids"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/task_id",
+          "x-authored": false
+        },
+        "source": {
+          "$ref": "#/$defs/source_id",
+          "x-authored": false
+        },
+        "revision": {
+          "$ref": "#/$defs/digest",
+          "x-authored": false
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000,
+          "pattern": "\\S",
+          "x-authored": true,
+          "x-prose": true
+        },
+        "behavior": {
+          "$ref": "#/$defs/prose",
+          "x-authored": true,
+          "description": "One sentence starting with a verb: what the task asks the agent to do and what passing requires. See references/report-sections.md#task-catalog."
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/prose",
+            "x-authored": true
+          },
+          "minItems": 0,
+          "maxItems": 1000,
+          "x-authored": false
+        },
+        "run_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/run_id",
+            "x-authored": false
+          },
+          "minItems": 0,
+          "maxItems": 1000,
+          "x-authored": false,
+          "uniqueItems": true
+        }
+      },
+      "x-authored": false
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]*$",
+      "x-authored": false
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "task_id",
+        "source"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/run_id",
+          "x-authored": false
+        },
+        "task_id": {
+          "$ref": "#/$defs/task_id",
+          "x-authored": false
+        },
+        "source": {
+          "$ref": "#/$defs/source_id",
+          "x-authored": false
+        }
+      },
+      "x-authored": false
+    },
+    "mapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "item",
+        "tasks",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^M[1-9][0-9]*$",
+          "x-authored": false
+        },
+        "item": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "\\S",
+          "x-authored": false
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "task_id",
+              "relationship"
+            ],
+            "properties": {
+              "task_id": {
+                "$ref": "#/$defs/task_id",
+                "x-authored": false
+              },
+              "relationship": {
+                "enum": [
+                  "target",
+                  "boundary"
+                ],
+                "x-authored": false
+              }
+            },
+            "x-authored": false
+          },
+          "minItems": 0,
+          "maxItems": 1000,
+          "x-authored": false
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/prose",
+            "x-authored": true
+          },
+          "minItems": 0,
+          "maxItems": 1000,
+          "x-authored": false,
+          "description": "Not displayed. Run evidence shows only its computed status; put task-level concerns in a finding."
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source_id",
+            "x-authored": false
+          },
+          "minItems": 1,
+          "maxItems": 1000,
+          "x-authored": false,
+          "uniqueItems": true
+        }
+      },
+      "x-authored": false
+    },
+    "task_revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "revision"
+      ],
+      "properties": {
+        "task_id": {
+          "$ref": "#/$defs/task_id",
+          "x-authored": false
+        },
+        "revision": {
+          "$ref": "#/$defs/digest",
+          "x-authored": false
+        }
+      },
+      "x-authored": false
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "category",
+        "basis",
+        "status",
+        "title",
+        "explanation",
+        "tasks",
+        "items",
+        "evidence",
+        "advisory"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/finding_id",
+          "x-authored": false
+        },
+        "category": {
+          "enum": [
+            "missing_task",
+            "agent_failure",
+            "missing_trigger",
+            "evidence_limit",
+            "weak_verifier",
+            "verifier_cheating",
+            "false_rejection",
+            "ungraded_execution",
+            "trust_boundary"
+          ],
+          "x-authored": false
+        },
+        "basis": {
+          "enum": [
+            "inspection",
+            "executed_control"
+          ],
+          "x-authored": false
+        },
+        "status": {
+          "enum": [
+            "confirmed",
+            "unproven",
+            "resolved"
+          ],
+          "x-authored": false
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000,
+          "pattern": "\\S",
+          "x-authored": true,
+          "x-prose": true,
+          "description": "A complete problem statement with its own subject, without task IDs, file names, or links. See references/report-sections.md#key-findings."
+        },
+        "explanation": {
+          "$ref": "#/$defs/prose",
+          "description": "Make the affected task the subject of the first sentence and mention it once. State what was observed, why it matters, and what would confirm an unproven finding. Use plain task and finding IDs, never links. The renderer adds the evidence citation. See references/report-sections.md#key-findings.",
+          "x-authored": true
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/task_revision",
+            "x-authored": false
+          },
+          "minItems": 0,
+          "maxItems": 1000,
+          "x-authored": false
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item_name",
+            "x-authored": false
+          },
+          "minItems": 0,
+          "maxItems": 1000,
+          "x-authored": false,
+          "uniqueItems": true
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source_id",
+            "x-authored": false
+          },
+          "minItems": 1,
+          "maxItems": 1000,
+          "x-authored": false,
+          "uniqueItems": true
+        },
+        "advisory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/prose",
+              "x-authored": true,
+              "description": "One sentence on which results cannot be trusted and until when, without repeating the mechanism. See references/report-sections.md#advisories."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-authored": true,
+          "description": "One sentence on which results cannot be trusted and until when, without repeating the mechanism. See references/report-sections.md#advisories."
+        }
+      },
+      "x-authored": false
+    },
+    "item_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "\\S",
+      "x-authored": false
+    },
+    "recommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "finding_id",
+        "priority",
+        "order",
+        "action",
+        "items",
+        "proposed_task"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^R[1-9][0-9]*$",
+          "x-authored": false
+        },
+        "finding_id": {
+          "$ref": "#/$defs/finding_id",
+          "x-authored": false
+        },
+        "priority": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "x-authored": false
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1,
+          "x-authored": false
+        },
+        "action": {
+          "enum": [
+            "new_task",
+            "revise_task",
+            "collect_evidence",
+            "fix_agent",
+            "review_scope",
+            "repair_verifier"
+          ],
+          "x-authored": false
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/item_name",
+            "x-authored": false
+          },
+          "minItems": 0,
+          "maxItems": 1000,
+          "x-authored": false,
+          "uniqueItems": true
+        },
+        "proposed_task": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/prose",
+              "x-authored": true,
+              "description": "One or two imperative sentences: the scenario or change, then what the verifier must require or reject. Null when the next action is not a task. See references/report-sections.md#recommended-tasks-by-capability--tool."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-authored": false
+        }
+      },
+      "x-authored": false
+    },
+    "review_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "task_id",
+        "family",
+        "origin",
+        "applicability",
+        "definition",
+        "receipt",
+        "explanation",
+        "finding_ids"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^V[1-9][0-9]*$",
+          "x-authored": false
+        },
+        "task_id": {
+          "$ref": "#/$defs/task_id",
+          "x-authored": false
+        },
+        "family": {
+          "enum": [
+            "early_exit",
+            "all_failure",
+            "reference_comments",
+            "forged_success",
+            "valid_alternative",
+            "realistic_wrong_answer"
+          ],
+          "x-authored": false
+        },
+        "origin": {
+          "enum": [
+            "existing",
+            "proposed"
+          ],
+          "x-authored": false
+        },
+        "applicability": {
+          "enum": [
+            "applicable",
+            "not_applicable"
+          ],
+          "x-authored": false
+        },
+        "definition": {
+          "$ref": "#/$defs/source_id",
+          "x-authored": false
+        },
+        "receipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/source_id",
+              "x-authored": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-authored": false
+        },
+        "explanation": {
+          "$ref": "#/$defs/prose",
+          "x-authored": true,
+          "x-report-visible": false,
+          "description": "Retain the per-task check rationale for validation. The report displays a shared description of each check family."
+        },
+        "finding_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/finding_id",
+            "x-authored": false
+          },
+          "minItems": 0,
+          "maxItems": 1000,
+          "x-authored": false,
+          "uniqueItems": true
+        }
+      },
+      "x-authored": false
+    },
+    "scope_note": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "explanation",
+        "evidence"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000,
+          "pattern": "\\S",
+          "x-authored": true,
+          "x-prose": true
+        },
+        "explanation": {
+          "$ref": "#/$defs/prose",
+          "x-authored": true
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source_id",
+            "x-authored": false
+          },
+          "minItems": 1,
+          "maxItems": 1000,
+          "x-authored": false,
+          "uniqueItems": true
+        }
+      },
+      "x-authored": false
+    }
+  }
+}

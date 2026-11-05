@@ -1,224 +1,76 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Writing the Audit coverage report
-
-Write `.eval-author/audit-coverage-report.md` using the
-[template](../templates/audit-coverage-report.md). This is the readable audit
-output: explain what the audit intends to check, what existing tests address,
-what selected runs demonstrate, what remains unknown, and what to do next. Adapt
-the template to the available evidence and replace its authoring prompts before
-presenting the report.
+# Generate the Audit coverage report
 
 ## Artifact names
 
-The **Audit coverage report** is the guided audit's only user-facing document.
-Its Intended coverage section holds proposed checks and evidence requirements;
-its findings support the later review. Keep `audit.md`, measurement JSON, and
-journey state internal; explicit file-operation requests retain their scope.
-Use the [audit renderer](../../eval-author/references/conversations/audit.md) for
-checkpoint copy and links. Claim only actual report updates and validation.
+- Introduce `.eval-author/audit-coverage-report.md` as the audit's readable review artifact.
+- Treat `.eval-author/.working/audit/report-content.json` as authored input and the Markdown as generated, read-only output.
+- Keep the specification, measurement JSON, source bindings, and journey state internal unless explicitly requested.
+- Use the [audit renderer](../../eval-author/references/conversations/audit.md) for conversation checkpoints and verified report links.
 
-## Sources and scope
+## Author and render
 
-Use the current `audit.md`, inspected evaluation definitions and verifiers, and
-applicable measurement artifacts. Link Ethos, selected eval locations, and
-available supporting evidence inside the report. State the trace scope, methods run,
-excluded or failed inputs, and whether the result is a specification only,
-partial measurement, or measured audit. Distinguish confirmed absence of evals
-from inaccessible or uninspected evals.
+- Author each field by following the [section guide](report-sections.md). It shows what the renderer writes in every report section, which fields you write, the reference and writing rules, and examples.
+- Select sources through the existing audit workflow before reading them. Bind only selected, inspected sources with their actual digests.
+- Keep live journey state out of immutable source bindings. Bind its selected artifacts instead and retain decisions only in workflow state.
+- Obtain a selected file's digest with `report_content.py --repo . --source-digest <path>`. Add `--task-tree` for the native task revision digest. This command writes nothing.
+- Preserve stable IDs, user corrections, agreed scope, and decisions while updating authored input.
+- Keep narrative separate from facts computed from the specification, native measurements, and receipts. Leave missing task-to-run mappings unresolved.
+- Preserve the audit's recorded date and code revision. Render no history or trend claims from refresh time.
+- Run the validator before rendering. Repair the named input fields when validation fails.
+- After rendering, check that task identifiers parse as Markdown links. If one appears as plain text, correct its authored field to use the task identifier and rerender. The renderer rebuilds the link from the task's canonical path, so this is a repair step, not a reason to block the report.
 
-The specification defines the item names and evidence requirements. The JSON
-report supplies measured counts and item coverage. Method-specific details and
-judgments explain those results; keep generated JSON unchanged. Trace paths in
-reports are references, not permission to open new sources: follow the audit's
-source-selection rule before any further trace inspection.
+```bash
+python <audit-skill-dir>/scripts/audit_spec/report_content.py --repo . \
+  --content .eval-author/.working/audit/report-content.json --lint-prose
+python <audit-skill-dir>/scripts/audit_spec/render_report.py --repo . \
+  --content .eval-author/.working/audit/report-content.json
+```
 
-## Coverage and test mappings
+- Link the generated Markdown after a successful write. Report actual validation and rendering outcomes only.
+- Preserve the existing report when inputs are invalid, stale, or unavailable.
+- Restore directly edited generated Markdown from its last generated version. Make the requested correction in the field named by the renderer, then rerun it. Never interpret or merge Markdown edits automatically.
+- Leave hand-authored legacy reports readable until the user requests conversion. On conversion, author validated content from the reviewed facts and preserve stable IDs, decisions, and links. Pass the old Markdown's SHA-256 with `--convert-legacy <digest>` only for that explicit conversion. The renderer retains its original bytes outside the generated report.
+- Leave HTML, all READMEs, and the suite report generator unchanged.
 
-Summarize tools, capabilities, and failure cases separately. For each kind, show
-the declared total and distinguish measured coverage, measured items not
-demonstrated, and unmeasured items. Copy measured counts from applicable reports;
-do not turn an unmeasured kind's zero covered count into a 0% coverage claim.
-For a kind with no declared items, show that fact without a percentage.
-Control runs do not establish agent coverage. Link relevant control results
-under Findings and limitations as evidence about the verifier, separately
-from the coverage measurements.
+## Inspect verifier behavior and retained controls
 
-Use a section named **Intended coverage** as the complete, readable catalog of
-the scope being reviewed. State whether the user has agreed to that scope;
-successful schema validation alone does not make it approved. Map every current
-audit item by stable `name` and kind to:
+- Inspect each selected task's reachable grading path and agent-visible inputs using the shared [simple-cheat screen](../../eval-author/references/task-validation.md#screen-simple-cheats).
+- Follow entry points and guards through assertions and reward writers. Include inspected code, mounts, expected data, and writable report paths in `suite_files` before scope approval.
+- Assess each cheat family, valid alternatives, and realistic wrong answers against the task. Link control definitions in the task README's Verifier section without editing it during an audit.
+- Inspect retained task measurements and acceptance records, including failures and overrides. Follow selected manifests to native results only within authorized sources. Exclusion from agent coverage doesn't exclude control evidence from verifier review.
+- Record each discovered issue separately, with its task revision, explanation, basis, and evidence. Keep false acceptance, false rejection, agent failure, missing trigger exposure, and unusable execution evidence distinct.
+- Retain current and historical failures. A later passing control doesn't erase another failure on the same revision. Check individual assertions even when aggregate reward is zero.
+- Keep missing, stale, unhealthy, and unsupported evidence unproven. A successful reconciliation doesn't qualify a task or establish agent coverage.
+- Keep private answers and raw attack payloads out of the report.
+- Run the reconciliation checker against validated content before findings review. The checker reads existing evidence and executes no task code.
 
-- **Intended check and required evidence:** explain in ordinary language what
-  must be demonstrated and what evidence would establish it. Summarize the
-  specification's tool expectations, capability behavior, or failure trigger
-  and expected safe response, together with its evidence requirements. Keep
-  these proposed criteria distinct from observed results. A stable name or test
-  mapping alone does not tell the user what they are agreeing to.
-- **Existing tests:** links to inspected cases, instructions, or verifiers that
-  address the item. This describes intended testing, not observed coverage. Use
-  “no match in inspected tests” or “not inspected” where appropriate, and preserve
-  the scope of that statement.
-- **Measurement status:** covered, measured but not demonstrated, or unmeasured.
-  `not_measured_by_any_method` is unmeasured; `not_covered_by_any_input_report`
-  means the selected measurements did not demonstrate the item.
-- **Observed evidence and limits:** relevant task/run IDs, method, measurement
-  files, judgments, or trace references. The aggregate's `input_reports` links
-  covered names to task/run identities and coverage files. State the reason for
-  missing evidence rather than inventing a supporting run.
+```bash
+python <eval-author-skill-dir>/scripts/audit_verifier_evidence.py --repo . \
+  --content .eval-author/.working/audit/report-content.json
+```
 
-Group rows by kind when helpful, or use per-item lists when a table would become
-too wide. Keep the complete catalog in this section rather than maintaining
-separate scope and mapping lists that can drift. Preserve material criteria when
-summarizing; include the readable criteria here rather than requiring YAML or
-JSON review. A manual mapping from task definitions can be useful without traces, but
-does not establish measured coverage. A covered item in one run does not erase
-observed failures in others or establish agent quality.
+- Save its JSON result beneath `.eval-author/.working/audit/` and retain its file evidence in `measurement.evidence`. Use the renderer's typed `bindings` for findings inputs.
+- Resolve missing explained findings and review grading logic before presenting findings for acceptance. The checker cannot assess the accuracy of the explanation.
+- Use `--report <path>` with explicit task and evidence paths only for legacy Markdown reports. That compatibility path retains the old heading-based check.
 
-Include proposed grading checks and evidence requirements in Intended coverage.
-Distinguish inspected grading logic from demonstrated grader behavior.
+## Review and bindings
+
+- Follow [guided decisions](guided-audit.md#4-generate-and-review-coverage-report) for source selection, scope approval, findings review, and the next action.
+- Review all declared checks through the generated coverage tables. Use the generated Markdown heading links for scope review, starting at `#capabilities-audited`.
+- Record `findings.report` with the generated Markdown's path and SHA-256, and `findings.content` with the authored JSON's path and SHA-256.
+- Copy the renderer's `bindings` into `findings.inputs`. Retain the existing provenance in `findings.source` and bind findings acceptance to the current derived digest.
+- Revalidate after content, task, receipt, or other bound input changes. Changed content reopens findings review. Changed inspected task or specification inputs retain the existing scope and measurement invalidation rules.
+- Record acceptance in workflow state without rewriting the report merely to mark it accepted.
 
 ## Findings, limitations, and next actions
 
-### Inspect verifier behavior and retained controls
-
-For every selected task, inspect the reachable grading path and agent-visible
-inputs using the shared [simple-cheat screen](../../eval-author/references/task-validation.md#screen-simple-cheats).
-This applies to existing, revised, and trace-derived tasks in Harbor and NeMo Gym.
-Follow entry points and guards through assertions and reward writers. Inspect the
-build, mounts, expected data, and writable runner or report paths. Reading task
-documentation alone does not complete this review. Include inspected task files
-in `suite_files` before check approval so changed inputs reopen the review.
-
-Assess each screening family against the actual task. Keep applicable planned
-controls, expected rejection, and concrete non-applicability reasons in the
-task README's Verifier section when authoring or revising it. An audit reads
-these definitions without changing the task. An absent control or unsupported
-runtime leaves screening unproven. Check valid alternatives and realistic wrong
-answers too: rejecting every input is not protection. Distinguish exposed private
-answers from reference-like text in inert comments. Neither establishes executed
-behavior. Link the existing definitions instead of repeating them in the report.
-
-Before findings review, reconcile the selected tasks' retained control evidence
-and acceptance records, including failures and explicit acceptance overrides.
-For locally authored tasks, inspect their `task-measurements/<task>/` records
-alongside the selected task. Follow the manifests to native results only within
-authorized sources. Reuse settled selections. If a source was excluded from
-inspection, resolve that scope before reading it. Exclusion from agent coverage
-alone does not exclude control evidence from verifier review. A missing agent
-trajectory does not prevent reporting a verifier defect.
-
-Check revision and evidence bindings, native health, and individual assertions.
-Keep current failures, historical failures, ungraded execution, and missing
-controls distinct. A successful later control does not erase another failure on
-the same revision. Historical acceptance does not prove screening. Review
-false rejection of valid alternatives separately from false credit for a cheat.
-Apply the shared acceptance and repair rules without silently changing a task's
-acceptance decision or executing new controls during an audit.
-
-Run the bundled [evidence reconciliation check](../../eval-author/scripts/audit_verifier_evidence.py)
-against the report before presenting findings. Pass each selected task and its
-bounded evidence directory, plus the already selected sources containing linked
-manifests and native results. For example:
-
-```bash
-python <eval-author-skill-dir>/scripts/audit_verifier_evidence.py \
-  --repo . --report .eval-author/audit-coverage-report.md \
-  --task .eval-author/tasks/example \
-  --evidence-dir .eval-author/task-measurements/example \
-  --source-root .eval-author/jobs/selected-controls
-```
-
-Repeat the path flags for additional selected tasks and sources. With no retained
-evidence, omit `--evidence-dir` and explain that limitation beside an inline link
-to the task directory in Findings and limitations. The checker reads existing
-records and executes no task code. It checks the shared native task-evidence
-format for both providers. Other evidence formats require manual review and an
-explicit limitation, not a claim that screening passed.
-
-Each failed current control needs an inline receipt link and an explanation in
-Findings and limitations of what should have happened, what happened, and why it
-matters. Stale or incomplete evidence may share one explanation linked to its
-manifest. Preserve unresolved failed evidence after a repair until current
-results establish what changed. Missing declared controls must remain visible.
-The checker rejects missing links and bare link lists and flags evidence
-mismatches for explanation. It cannot judge the prose or discover a code
-defect: review those explanations and the grading path yourself. Do not present
-findings for acceptance until both reviews are complete.
-
-Save the check's JSON output under `.eval-author/.working/audit/` and retain it
-and its returned `{path, digest}` evidence references in the existing
-`measurement.evidence` list alongside coverage artifacts. They establish report
-provenance, not agent coverage. Keep task inputs in `suite_files`. Recheck after
-any task, control evidence, or report change before recording findings review.
-
-### Explain findings and recommend actions
-
-Explain material gaps with evidence: a missing scenario in inspected tests, an
-observed agent failure, or insufficient measurement evidence. Where the cause
-is unknown, say so. Missing judgments or an unverified failure trigger do not
-prove that another task is needed. Include material fixture and verifier limits,
-such as synthetic data or checks that exercise only part of the intended behavior.
-
-When shortcut screening exposes a defect, record it in the relevant finding
-with the task revision and native evidence link. Distinguish an agent failure,
-a verifier accepting an invalid solution, a verifier rejecting a valid solution,
-and execution with no usable grading evidence. Apply the existing
-[screening rules](../../eval-author/references/task-validation.md#screen-simple-cheats)
-when describing results. Keep planned, failed, incomplete, and passed checks
-distinct. Missing or stale evidence stays unproven. A cheat receiving forbidden
-credit blocks acceptance even if aggregate reward is zero. Summarize the flaw
-without copying private answers or raw attack payloads.
-
-Without usable traces, report measurement as unmeasured and explain the needed
-input or conversion. With partial measurement, make clear that counts apply only
-to the successful subset and list the exclusions. Do not fabricate a JSON report.
-If inputs change, identify affected findings as stale until refreshed; old
-measurements must not appear current. Retain still-applicable findings and user
-corrections when updating the report.
-
-Close with a recommended next action grounded in the findings. For an existing
-suite with useful gaps to address, recommend proposing new or improved eval tasks
-and name the behaviors those proposals should target. Explain when gathering
-evidence, fixing the agent, or creating the first evals should come first.
-Use the [guided handoff](guided-audit.md#after-review-offer-the-next-step) for
-the combined findings review and authorized handoff. An audit can finish
-without a justified change.
-
-After the user selects proposal work, `eval-author-task-create` expands the
-existing **Next actions and open questions** section. Its
-[proposal guidance](../../eval-author-task-create/SKILL.md#step-1-propose-dataset-improvements)
-defines the needed detail. Read the report first and add only missing
-information. Link existing findings and Intended coverage rows instead of
-repeating their evidence, scenarios, or checks. Keep a single ranked list of
-actions with stable IDs, decisions, and links to resulting tasks and evidence.
-Do not add a second overview, mapping table, or lifecycle section. Do not
-copy recommendations into the suite README or HTML report.
-
-Keep unresolved verifier risks with the action. Planned cheat controls and their
-expected rejection belong only in the task README's
-[Verifier section](../../eval-author/references/suite-readme.md#task-documentation).
-Link it once the task exists. Record only new findings and relevant
-outcomes in the audit report, with revision and run links. Selection, task
-construction, validation, screening, agent execution, and measured coverage
-are separate facts. Preserve the original audit commit, scope, and evidence
-and do not change its coverage claims based on later control runs. Keep
-changing status outside validated task folders.
-
-When resuming `.eval-author/proposals/dataset-recommendations.md`, reconcile
-its entries into these existing sections without duplicating content. Preserve
-IDs, evidence links, decisions, agreed scope, and open questions. Rebase relative
-links for the report's location. Leave the original file untouched as historical material, link it once, and maintain
-only the audit report going forward. Reuse existing journey state for scope
-and approvals. Do not infer execution permission from a selected action.
-Carry historical control definitions into the task README when authoring it,
-rather than copying them into the audit report.
-
-## Review and updates
-
-Follow [guided review and decisions](guided-audit.md#4-generate-and-review-coverage-report).
-Announce and link actual report updates in the complete rendered response, using
-Intended coverage for checks review and findings for later acceptance. Read-only
-requests discuss available findings without writing or claiming an update;
-focused operations do not require unrelated inspection or a full guided audit.
+- Explain missing scenarios, observed failures, fixture limits, and insufficient measurement separately. Missing judgments or an unencountered trigger don't prove that another task is needed.
+- Recommend the next useful action from the evidence. Retain an existing failing task instead of proposing a duplicate when the scenario already exists.
+- Expand the same authored recommendation records only after the user selects proposal work. Follow [task-create](../../eval-author-task-create/SKILL.md#step-1-propose-dataset-improvements) without restarting settled audit decisions.
+- Keep planned cheat controls and expected rejection only in the task README's [Verifier section](../../eval-author/references/suite-readme.md#task-documentation) during task authoring. Link those definitions once they exist.
+- Keep selection, construction, validation, control execution, agent execution, acceptance, and measured coverage as separate facts.
+- Reconcile historical `dataset-recommendations.md` entries into the authored content during requested conversion. Preserve IDs, decisions, evidence, and unresolved risks. Leave the historical file intact and rebase relative links.
+- Regenerate Markdown after authorized content changes. Never maintain another authored recommendation list or edit the generated report directly.

@@ -177,9 +177,9 @@ measurement limitation, not proof of a dataset deficiency. Failure-case coverage
 skill's `failure_cases` measurement; manual observations alone do not change
 measurement status. Failure cases remain ineligible for automatic tool-gap generation.
 
-Expand **Next actions and open questions** in the existing Audit coverage
-report, following its [report guidance](../eval-author-audit/references/coverage-report.md#findings-limitations-and-next-actions).
-Keep the generated coverage JSON unchanged. Rank by
+Expand the same authored recommendation records using the [report workflow](../eval-author-audit/references/coverage-report.md#findings-limitations-and-next-actions).
+Revalidate, regenerate Markdown, and retain its input bindings for renewed review.
+Keep generated Markdown and measurement JSON read-only. Rank by
 expected value and strength of evidence, explaining why the first action comes
 first. Apply established user priorities, including cost when relevant, and
 distinguish them from suggested priorities still awaiting review. Prefer a short,

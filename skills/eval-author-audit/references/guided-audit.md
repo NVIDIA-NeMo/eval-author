@@ -54,7 +54,8 @@ and required methods succeeded; failed or missing work stays `partial`. Use
 actual reply and reason in `source`, not an offered choice or missing-input finding.
 Native scripts establish measurement correctness; the lifecycle checks retained bytes.
 
-Save `findings: {report: {path, digest}, source}` for the coverage report and bind
+Save the generated report, content, and input bindings in `findings` using the
+[report binding rules](coverage-report.md#review-and-bindings) and bind
 `findings_review: {digest, source}` to the state snapshot's `audit.findings_digest`. Bind
 `next_action: {kind, findings_digest, source}` to that same current digest only
 when the user selects it. Acceptance clears answered `pending` and
@@ -206,7 +207,7 @@ or their findings as findings about the user's confirmed evaluation scope.
 After suite selection, complete the report guidance's
 [verifier inspection](coverage-report.md#inspect-verifier-behavior-and-retained-controls)
 before checks review. Include applicable verifier checks and required evidence
-in Intended coverage. Do not mark grading not applicable merely because no
+in the generated coverage tables. Do not mark grading not applicable merely because no
 agent trajectory exists or the inventory read only task documentation.
 
 Inputs: checked Ethos and authoritative tool names from the registry, agent
@@ -215,20 +216,20 @@ draft items, generate or reconcile `audit.md`, and validate it. These items
 describe intended coverage; they are not runnable tests or proof that the
 existing tests cover it.
 
-Create or update `.eval-author/audit-coverage-report.md` using the
-[report guidance](coverage-report.md) and the available findings. Its **Intended
-coverage** section is the readable review surface: include every proposed item,
+Author or update `.eval-author/.working/audit/report-content.json`, then validate
+and render it with the [report workflow](coverage-report.md). The generated
+coverage tables are the readable review surface: include every proposed item,
 its intended check, and its required evidence from `audit.md`. Map audit items to
 inspected test definitions where possible, with measurement explicitly unmeasured
 until applicable results exist. Record unresolved mappings without inventing
 tests or inspecting unselected traces.
 Direct the user to this section of the Audit coverage report for the current
 review. Keep `audit.md` as its internal structured source. Agreement with the
-complete, current Intended coverage section approves the matching checks and evidence
+complete, current coverage tables approves the matching checks and evidence
 requirements, while review of findings remains a later decision.
 
 Render `audit_checks` with the actual report update, validation result, verified
-Intended coverage link, and concrete checks grouped by tools, capabilities,
+coverage-table link, and concrete checks grouped by tools, capabilities,
 failure cases, and grading. Keep the complete criteria in the report and label
 any bounded preview as a summary. Follow [report naming](coverage-report.md#artifact-names);
 do not introduce a second review document. Validation is not approval. Save the
@@ -271,7 +272,7 @@ measurement; conversion success alone does not complete measurement.
 Complete when the agreed measurement scope has been processed and aggregated
 successfully, even when coverage is low. If some inputs fail, report only the
 successful subset with explicit exclusions and keep the agreed milestone partial.
-Refresh `audit-coverage-report.md` with the measured subset, methods, and any
+Update the authored content and regenerate `audit-coverage-report.md` with the measured subset, methods, and any
 excluded inputs. Explain the result and limits, link the updated report, and
 when measurement is complete, continue directly to findings review without
 another approval pause.
@@ -307,7 +308,7 @@ Distinguish items not measured from measured items lacking evidence; neither aut
 the dataset needs another test. Keep the [artifact names](coverage-report.md#artifact-names)
 consistent: approving the proposed checks and reviewing the Audit coverage
 report's findings are separate decisions. Both user reviews use the Audit
-coverage report: first its Intended coverage section, now its findings, evidence
+coverage report: first its coverage tables, now its findings, evidence
 limits, and next actions. Link the relevant saved sections and explicitly name
 those as the content to review; do not ask the user to reapprove intended checks.
 
@@ -317,7 +318,7 @@ Render `audit_findings` with its combined corrections, acceptance, and next-acti
 question, then end the turn. Do not append another question. Save acceptance only
 after the user reviews the report and corrections are resolved. A reply accepting the findings and
 selecting a next step satisfies the review; do not add another approval prompt.
-Record the answered review in progress and refresh the report if findings change.
+Record the answered review in progress. Update authored content and regenerate the report if findings change.
 
 ### After review: offer the next step
 

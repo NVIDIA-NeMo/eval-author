@@ -178,16 +178,16 @@ From the specification checkpoint onward, inspect the human-readable report at
 `.eval-author/audit-coverage-report.md` separately from progress state. It must
 explain scope with available evidence, and map stable
 audit-item names to intended tests separately from observed run evidence. A test
-definition is not measured coverage. Its **Intended coverage** section must list
+definition is not measured coverage. Its generated **coverage tables** must list
 every current specification item by stable name and kind, explain the intended
 check in ordinary language, and state what evidence would demonstrate it. Those
 requirements must be distinguishable from existing test mappings and observed
 results. Checkpoint replies must match the complete output from the
 [audit renderer](../../skills/eval-author/references/conversations/audit.md), whose
 fixed copy lives in [audit_templates.py](../../skills/eval-author/scripts/conversation_flows/audit_templates.py).
-Use the report's Intended coverage section for proposed-check review, without
+Use the report's generated coverage tables for proposed-check review, without
 introducing a second document. Agreement to the complete,
-current section approves the faithfully matching specification; it does not
+current tables approve the faithfully matching specification; it does not
 complete final report review. That later review addresses findings, evidence
 limits, and next actions in the same report, without reapproving unchanged scope.
 Every turn that creates or updates this
@@ -544,7 +544,7 @@ Reply: “Yes, propose those task improvements.” It proceeds directly to
 measurements, reviewed Ethos, and selected source scope. It does not replay audit
 onboarding, repeat settled input questions, or add another readiness checkpoint.
 The ranked, evidence-based proposals are saved and linked as
-the same `.eval-author/audit-coverage-report.md`, distinguishing new tasks,
+the same generated `.eval-author/audit-coverage-report.md` from authored content, distinguishing new tasks,
 improvements to existing tasks, and evidence gathering. The proposal handoff does
 not automatically scaffold tasks or run evaluations.
 
@@ -607,8 +607,8 @@ further explanation in commentary must not replace the checkpoint's opening.
 deferred because no recorded runs exist yet.”
 
 **Inspect the artifacts:** The validated `.eval-author/audit.md` remains a draft
-pending content review. The Markdown report's **Intended coverage** section
-contains all 30 current items, grouped or otherwise identifiable by kind. Compare
+pending content review. The Markdown report's generated **coverage tables**
+contain all 30 current items, grouped or otherwise identifiable by kind. Compare
 its stable names, intended checks, and required evidence with the specification;
 there must be no omitted item or second conflicting scope list. Each item must
 be understandable without interpreting its identifier or reading the YAML.
@@ -617,7 +617,7 @@ measurement statuses are unmeasured, even where a test definition maps to an
 item. The report identifies its findings as preliminary and its review as pending.
 
 **Inspect the turn-ending checkpoint:** Verify canonical `audit_checks` output
-and a working Intended coverage section link to the single report. Its bounded
+and a working coverage-table link to the single report. Its bounded
 preview explains concrete tools, capabilities, failure cases, and grading; the
 complete 30-item catalog remains in the report. Counts or bare names alone are
 insufficient. Deferred measurement remains explicit; checks approval does not
@@ -783,3 +783,20 @@ as agent coverage or an infrastructure failure as an agent defect.
 Refresh the suite reports and verify the audit report and validated task README
 stay unchanged. First-eval, direct expansion, and Gym keep their existing flows,
 including native screening and gym-report.md. No paid model experiments are needed.
+
+## Generated report integrity
+
+Confirm that `.eval-author/.working/audit/report-content.json` validates before
+the report is rendered. Compare the task Findings cell with all issue records
+for that task. Check that confirmed verifier cheating produces a Summary
+advisory and that the dedicated screening section retains missing, stale, and
+failed evidence. An unexecuted concern must not appear as an executed cheat.
+
+Request a section revision. Confirm that the agent changes the authored input,
+regenerates Markdown, and retains content and source bindings for review. Then
+edit the generated Markdown directly. Refresh must refuse the edit, preserve
+the file, show a diff, and identify the content field to change.
+
+For a legacy report, confirm that ordinary refresh preserves it. Request
+conversion explicitly and confirm that the original bytes remain available.
+HTML reports, all READMEs, and audit-history storage remain unchanged.

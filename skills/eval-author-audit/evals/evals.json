@@ -33,20 +33,6 @@
       ]
     },
     {
-      "id": "audit-report-interpretation",
-      "prompt": "Interpret the supplied historical synthetic coverage result /workspace/input/.eval-author/coverage.json. Save a short report at /workspace/output/.eval-author/audit-coverage-report.md. This is a report-only request; do not remeasure or create tasks. The underlying trace was hand-constructed, with no native task or model execution.",
-      "expected_output": "Writes the requested report identifying lookup_item as covered and list_items as uncovered: one of two tool items. Explains that tool_calls evidence proves recorded invocation only, not answer correctness, live agent behavior, or production defects. Distinguishes zero capability/failure-case denominator items from proof those behaviors are covered; does not generate tasks or claim a new measurement.",
-      "assertions": [
-        "Writes the requested report identifying lookup_item as covered and list_items as uncovered: one of two tool items.",
-        "Explains that tool_calls evidence proves recorded invocation only, not answer correctness, live agent behavior, or production defects.",
-        "Distinguishes zero capability/failure-case denominator items from proof those behaviors are covered; does not generate tasks or claim a new measurement."
-      ],
-      "expected_skill": "eval-author-audit",
-      "files": [
-        "files/.eval-author/coverage.json"
-      ]
-    },
-    {
       "id": "eval-author-audit-negative",
       "prompt": "What is 17 + 25? Reply with the number only.",
       "expected_output": "42",
