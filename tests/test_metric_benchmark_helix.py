@@ -62,7 +62,7 @@ def plan():
     return plan_submission(loaded, settings, bindings, "test-run")
 
 
-def archive(native_id, *, malicious=False, duplicate=False):
+def archive(native_id, *, malicious=False, duplicate=False, overwrite_metadata=False):
     trial = f"{native_id}__trial"
     directory = f"evidence/harbor/job/{trial}"
     result = {
@@ -102,6 +102,10 @@ def archive(native_id, *, malicious=False, duplicate=False):
             member = tarfile.TarInfo("agent-eval-results/summary.json")
             member.size = 2
             tar.addfile(member, io.BytesIO(b"{}"))
+        if overwrite_metadata:
+            member = tarfile.TarInfo("job.json")
+            member.size = 2
+            tar.addfile(member, io.BytesIO(b"{}"))
     return stream.getvalue()
 
 
@@ -123,6 +127,7 @@ class Server:
         self.page_size = 2
         self.images_ready = True
         self.wrong_job = False
+        self.overwrite_metadata = False
         self.client = HelixClient(
             SimpleNamespace(
                 base_url=plan.execution.base_url,
@@ -170,7 +175,13 @@ class Server:
             job = path.rsplit("/jobs/", 1)[1].split("/")[0]
             index = 0 if self.duplicate_task else int(job.split("-task-")[1])
             return httpx.Response(
-                200, content=archive(f"native-{index}", malicious=self.malicious, duplicate=self.duplicate)
+                200,
+                content=archive(
+                    f"native-{index}",
+                    malicious=self.malicious,
+                    duplicate=self.duplicate,
+                    overwrite_metadata=self.overwrite_metadata,
+                ),
             )
         if "/results/agent-eval-results" in path:
             return httpx.Response(200, json={"name": "agent-eval-results"})
@@ -339,7 +350,9 @@ def test_paginated_collection_preserves_every_native_file_and_is_not_analysis_re
         download_helix_results(submission, output, server.client)
 
 
-@pytest.mark.parametrize("failure", ["malicious", "duplicate", "duplicate_task", "fail_download", "wrong_job"])
+@pytest.mark.parametrize(
+    "failure", ["malicious", "duplicate", "duplicate_task", "fail_download", "wrong_job", "overwrite_metadata"]
+)
 def test_bad_or_interrupted_download_never_publishes_output(plan, tmp_path, failure):
     server = Server(plan)
     submit_helix_evals(plan, tmp_path / "submitted", server.client)
@@ -349,6 +362,20 @@ def test_bad_or_interrupted_download_never_publishes_output(plan, tmp_path, fail
     assert not (tmp_path / "output").exists()
     setattr(server, failure, False)
     assert len(download_helix_results(tmp_path / "submitted", tmp_path / "output", server.client)["observations"]) == 9
+
+
+def test_collection_supports_symlinked_output_parent(plan, tmp_path):
+    server = Server(plan)
+    submitted = tmp_path / "submitted"
+    submit_helix_evals(plan, submitted, server.client)
+    actual = tmp_path / "actual"
+    actual.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(actual, target_is_directory=True)
+    result = download_helix_results(submitted, link / "output", server.client)
+    assert len(result["observations"]) == 9
+    for row in result["observations"]:
+        assert (actual / "output" / row["native_results_path"]).is_dir()
 
 
 def test_destination_binding_and_redacted_http_error(plan, tmp_path):

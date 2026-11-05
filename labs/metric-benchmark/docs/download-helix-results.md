@@ -42,7 +42,7 @@ collected-evidence/
     member.json
     artifact.json
     bundle.tar.gz
-    agent-eval-results/
+    bundle/agent-eval-results/
       trials.jsonl
       ... complete original bundle, including native Harbor evidence ...
 ```

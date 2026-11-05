@@ -223,6 +223,8 @@ def _unpack(archive: Path, output: Path):
         for member in tar.getmembers():
             relative_path(member.name)
             normalized = PurePosixPath(member.name).as_posix()
+            if PurePosixPath(normalized).parts[0] != "agent-eval-results":
+                raise ValueError("Helix artifact member is outside agent-eval-results")
             if not (member.isfile() or member.isdir()) or normalized in seen:
                 raise ValueError("Helix artifact contains a link, special file, or duplicate path")
             seen.add(normalized)
@@ -269,7 +271,7 @@ def download_helix_results(submission: Path, output: Path, client) -> dict:
             artifacts[member["job"]] = client.artifact(member["job"])
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".helix-collect-", dir=output.parent) as temporary:
-        staged = Path(temporary) / "results"
+        staged = Path(temporary).resolve() / "results"
         staged.mkdir()
         observations = []
         for index, status, members in statuses:
@@ -293,7 +295,7 @@ def download_helix_results(submission: Path, output: Path, client) -> dict:
                 write_json(destination / "artifact.json", artifacts[member["job"]])
                 archive = destination / "bundle.tar.gz"
                 client.download(member["job"], archive)
-                bundle = _unpack(archive, destination)
+                bundle = _unpack(archive, destination / "bundle")
                 task_id, native = _trial(bundle, plan.bindings.cases[run.case_id])
                 if task_id in observed:
                     raise ValueError(f"case {run.case_id}, agent {run.agent_bundle_id}: duplicate downloaded task")
