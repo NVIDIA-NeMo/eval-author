@@ -20,23 +20,34 @@ python labs/metric-benchmark/download_helix_results.py \
 - `--context`: existing authenticated Helix context; otherwise use the active context.
 
 The command checks once. It exits 2 while jobs are queued/running or results are
-being packaged, and exits 1 for failures or incomplete terminal output. Known
-failures take priority over other runs still running. An interrupted submission
+being packaged, and exits 1 for invalid identities, incomplete terminal matrices,
+or API/transfer failures. Terminal infrastructure failures do not hide other active
+runs: collection waits until every configured member has settled. An interrupted submission
 must first be resumed with the submit tool.
 
 Once all runs are complete, it reads every page of task membership and checks that
-every expected task job succeeded and has an artifact. It then downloads each
+every expected task is accounted for. Succeeded jobs must have an artifact. It downloads each
 `agent-eval-results` task bundle, including native Harbor files and agent traces.
 It retains the original compressed bundle, task membership, artifact metadata and full
 Jobs API response, including the resolved `job.spec`. Each job must match its
 expected run and task index. Evidence is matched through native task IDs.
 The combined summary alone is insufficient for offline analysis.
 
+Failed, cancelled or expired task jobs produce explicit `status: missing` collection
+observations with unavailable-evidence reasons, retained membership and any existing
+Jobs API specification. Successful members remain fully collected. This is distinct
+from a succeeded job whose native trial reports an execution error; its native evidence
+is retained unchanged. Collection never invents a reward or reruns evaluations.
+`provenance.json` captures the collecting client/server versions; job specifications
+preserve the actual worker configuration. Resolved taskset ordering is retained too.
+
 ```text
 collected-evidence/
   collection.json
   submission.json
+  provenance.json
   runs/run-0000/status.json
+  runs/run-0000/taskset.json
   runs/run-0000/task-0000/
     job.json
     member.json
@@ -47,10 +58,13 @@ collected-evidence/
       ... complete original bundle, including native Harbor evidence ...
 ```
 
-An incomplete transfer never publishes the destination. Rerun to download again;
-partial transfer caching is not implemented. A matching completed collection is
+An incomplete transfer never publishes the destination. Verified individual archives
+are retained in a private sibling `.<output-name>.helix-downloads` cache, bound to the
+submission identity. Retrying verifies and reuses those archives rather than transferring
+them again. The cache is removed after the complete output is published. A matching completed collection is
 reused after checking its files. Archives with traversal, links, special entries,
-or duplicate paths are rejected.
+duplicate paths, or members outside `agent-eval-results/` are rejected.
+Extraction is isolated from collector-owned metadata.
 Use one writer per destination.
 
 ## Python library and remaining boundary
@@ -82,7 +96,8 @@ directory. Run again after completion: expect exit 0, one observation per task a
 agent, and intact native result files and traces. A very short run may complete
 before the first check; record that rather than claiming the live pending path was tested.
 Repeat the completed download and confirm that the collection is unchanged.
-Failures or incomplete terminal matrices must not produce a successful collection.
+An incomplete terminal matrix must not produce a successful collection. Terminal
+failed members must be explicitly accounted for as missing native evidence.
 The mocked suite exercises these failure cases; a successful live smoke alone does not.
 
 For the one-task Oracle/NOP control, inspect the native verifier rewards and compare

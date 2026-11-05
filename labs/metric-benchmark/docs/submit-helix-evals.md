@@ -15,13 +15,14 @@ The publisher produces the bindings used by this stage.
 
 ```bash
 python labs/metric-benchmark/submit_helix_evals.py \
-  --cases cases.yml --execution helix-execution.yml --bindings helix-inputs.yml \
+  --cases cases.yml --execution helix-execution.yml --bindings publication/bindings.json \
   --run-id experiment-1 --output submitted-run --context evaluation
 ```
 
 - `--cases`: the prepared case manifests; supplied content pins are checked.
 - `--execution`: connection and scheduling settings, shown below.
-- `--bindings`: prep-generated mapping tied to the resolved case identity.
+- `--bindings`: publisher-generated mapping tied to case and publication identities.
+- `--publication`: publication record; defaults to `publication.json` beside the bindings.
 - `--run-id`: identifier for this experiment execution.
 - `--output`: local submission directory. Keep this for recovery and download.
 - `--context`: an existing Helix CLI context; otherwise use the active context.
@@ -43,46 +44,30 @@ sandbox:
   profile: evaluation-sandbox
 ```
 
-An upload mapping for a small case could have this shape. Digest placeholders
-must be replaced by prep; Helix reference fragments use 64 bare hex characters,
-whereas the benchmark's case digest includes the `sha256:` prefix.
+Use the publisher's complete `bindings.json` and `publication.json`; do not hand-author
+Harbor targets. The planner derives each target from the prepared agent and checks
+its packaging and bundle identity against the publication record before any submission.
+The publication digest covers the derivation separately from unchanged `cases_sha256`.
+Unsupported registered-agent mappings are rejected by publication.
 
-```yaml
-# helix-inputs.yml
-cases_sha256: "sha256:<resolved-case-digest>"
-cases:
-  example-case:
-    taskset: "benchmark/suite#<taskset-content-digest>"
-    tasks:
-      example-task:
-        ref: "benchmark/uploaded-task#<task-content-digest>"
-        native_task_id: example-task
-    targets:
-      baseline:
-        source: {name: oracle}
-      mutant:
-        source: {name: nop}
-```
-
-These built-ins demonstrate execution, not a scientific mutation experiment.
-Targets use the native Helix Harbor target schema. Registered agent sources are
-resolved by Helix at acceptance; proving their resolved identity against prepared
-mutant bundles remains part of the validation work before release.
+Omitted endpoint/workspace values are taken from the resolved publication record.
+The selected context must match it; changing context cannot redirect a replay.
 
 Before the first submission, the library checks every case's uploaded taskset
 membership, native task identities and ready default-platform image builds.
 Pending image builds return exit 2 before any run is submitted. It forces one attempt and zero trial
 retries. Concurrency is per remote run, subject to Helix's operator limits.
 
-`submission.json` records requests and stable idempotency keys before network
-submission. Accepted responses live under `runs/`. Repeat the same command under
+`submission.json` records the verified publication, requests and stable idempotency keys before network
+submission. `provenance.json` records the submitting client/server versions.
+Accepted responses live under `runs/`. Repeat the same command under
 the same Helix caller after interruption: saved acceptances are reused and ambiguous
 requests replay their original keys. Changed inputs need a new output directory.
 A terminal failed evaluation is not restarted by replaying its submission.
 
 ## Python library and runtime
 
-`plan_submission(loaded_cases, settings, bindings, run_id)` constructs the requests.
+`plan_submission(loaded_cases, settings, bindings, run_id, publication=publication_plan)` constructs the requests.
 `submit_helix_evals(plan, output, client)` submits them. The CLI calls those same
 functions. `HelixClient.from_context(workspace, context=...)` uses the official
 `nemo-helix-plugin` client, installed separately for this exploration; planning
@@ -109,7 +94,7 @@ Obtain these from the instance owner or the preparation step:
 - A dispatcher profile and sandbox configuration valid for that deployment.
 - The prepared `cases.yml` and its referenced agent/task metadata, with real content pins.
 - Published taskset/task revision references and native task IDs for those cases,
-  plus the corresponding Harbor targets. Fill the binding example above with these values.
+  plus the publisher-generated bindings and publication record that derive their targets.
 
 Keep deployment URLs, credentials, native evidence and private logs outside the
 source checkout and public issue/PR comments.

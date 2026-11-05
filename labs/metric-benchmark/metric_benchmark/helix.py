@@ -3,6 +3,8 @@
 
 """Experimental submit/check/collect boundary; native evidence import is not yet qualified."""
 
+import os
+import shutil
 import tarfile
 import tempfile
 from pathlib import Path, PurePosixPath
@@ -12,9 +14,8 @@ import yaml
 from pydantic import Field, JsonValue, model_validator
 
 from metric_benchmark.config import Case, HelixExecution, LoadedCases, StrictLoader
-from metric_benchmark.helix_publication import CaseBinding, HelixBindings
-from metric_benchmark.helix_publication import TaskBinding as TaskBinding
-from metric_benchmark.io import digest_bytes, file_manifest, json_bytes, read_json, write_json
+from metric_benchmark.helix_publication import CaseBinding, HelixBindings, PublicationPlan, agent_target
+from metric_benchmark.io import digest_bytes, digest_file, file_manifest, json_bytes, read_json, write_json
 from metric_benchmark.models import Digest, Model, Text, relative_path, resolve_evidence, unique
 
 
@@ -31,6 +32,7 @@ class Submission(Model):
     cases: list[dict[str, JsonValue]]
     execution: HelixExecution
     bindings: HelixBindings
+    publication: PublicationPlan
     runs: list[SubmissionRun] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -44,6 +46,36 @@ class Submission(Model):
             raise ValueError("submission must include exactly the configured case/agent matrix in order")
         if set(self.bindings.cases) != {case.case_id for case in cases}:
             raise ValueError("submission bindings differ from case membership")
+        if self.publication.identity != self.bindings.publication_sha256:
+            raise ValueError("submission publication identity differs from bindings")
+        if self.publication.cases_sha256 != self.cases_sha256 or self.publication.execution != self.execution:
+            raise ValueError("publication differs from submission inputs or execution destination")
+        published = {case.case_id: case for case in self.publication.cases}
+        if set(published) != {case.case_id for case in cases}:
+            raise ValueError("publication case membership differs")
+        for case in cases:
+            bound = self.bindings.cases[case.case_id]
+            agents = {agent.agent_bundle_id: agent for agent in published[case.case_id].agents}
+            tasks = {task.task_id: task for task in published[case.case_id].tasks}
+            if set(agents) != {agent.agent_bundle_id for agent in case.agents()} or set(tasks) != set(
+                case.task_sources
+            ):
+                raise ValueError("publication agent/task membership differs")
+            if set(bound.agents) != set(agents) or set(bound.tasks) != set(tasks):
+                raise ValueError("binding packaging or task membership differs")
+            for task_id, task in tasks.items():
+                if case.task_sources[task_id].sha256 != task.sha256:
+                    raise ValueError("publication task differs from signed source")
+            for agent in case.agents():
+                published_agent = agents[agent.agent_bundle_id]
+                packaging = bound.agents[agent.agent_bundle_id]
+                if published_agent.packaging != packaging or published_agent.target != agent_target(agent, packaging):
+                    raise ValueError("publication target differs from prepared agent derivation")
+                if packaging.bundle_input is not None:
+                    if agent.inputs[packaging.bundle_input].sha256 != published_agent.sha256:
+                        raise ValueError("publication bundle differs from prepared agent input")
+        if self.runs != _submission_runs(cases, self.execution, self.bindings, self.run_id, self.cases_sha256):
+            raise ValueError("submission requests differ from the prepared experiment")
         return self
 
 
@@ -64,14 +96,10 @@ def _object(path: Path) -> dict:
     return value
 
 
-def plan_submission(loaded: LoadedCases, settings: HelixExecution, bindings: HelixBindings, run_id: str) -> Submission:
-    cases = loaded.identity_payload()
-    identity = digest_bytes(json_bytes(cases))
-    if bindings.cases_sha256 != identity or set(bindings.cases) != set(loaded.cases):
-        raise ValueError("uploaded bindings differ from the case definitions")
+def _submission_runs(cases, settings, bindings, run_id, identity):
     runs = []
-    for case_id, prepared in loaded.cases.items():
-        case = prepared.case
+    for case in cases:
+        case_id = case.case_id
         bound = bindings.cases[case_id]
         if set(bound.tasks) != {t.task_id for t in case.task_inventory.tasks}:
             raise ValueError(f"case {case_id}: uploaded task membership differs")
@@ -79,8 +107,12 @@ def plan_submission(loaded: LoadedCases, settings: HelixExecution, bindings: Hel
             raise ValueError(f"case {case_id}: uploaded agent membership differs")
         unique([task.ref for task in bound.tasks.values()], "remote task references")
         unique([task.native_task_id.casefold() for task in bound.tasks.values()], "remote native task IDs")
+        if set(bound.agents) != {a.agent_bundle_id for a in case.agents()}:
+            raise ValueError("uploaded agent packaging differs from case membership")
         for agent in case.agents():
-            target = dict(bound.targets[agent.agent_bundle_id])
+            target = agent_target(agent, bound.agents[agent.agent_bundle_id])
+            if bound.targets[agent.agent_bundle_id] != target:
+                raise ValueError("uploaded target differs from prepared agent configuration")
             for key, value in {
                 "kind": "harbor",
                 "n_attempts": 1,
@@ -121,8 +153,35 @@ def plan_submission(loaded: LoadedCases, settings: HelixExecution, bindings: Hel
                     }
                 )
             )
+    return runs
+
+
+def plan_submission(
+    loaded: LoadedCases, settings: HelixExecution, bindings: HelixBindings, run_id: str, *, publication: PublicationPlan
+) -> Submission:
+    cases = loaded.identity_payload()
+    identity = digest_bytes(json_bytes(cases))
+    if bindings.cases_sha256 != identity or set(bindings.cases) != set(loaded.cases):
+        raise ValueError("uploaded bindings differ from the case definitions")
+    if settings.base_url is None or settings.workspace is None:
+        settings = HelixExecution.model_validate(
+            {
+                **settings.model_dump(),
+                "base_url": settings.base_url or publication.execution.base_url,
+                "workspace": settings.workspace or publication.execution.workspace,
+            }
+        )
+    if settings.base_url is None or settings.workspace is None:
+        raise ValueError("publication must record the resolved execution destination")
+    runs = _submission_runs([case.case for case in loaded.cases.values()], settings, bindings, run_id, identity)
     return Submission(
-        run_id=run_id, cases_sha256=identity, cases=cases, execution=settings, bindings=bindings, runs=runs
+        run_id=run_id,
+        cases_sha256=identity,
+        cases=cases,
+        execution=settings,
+        bindings=bindings,
+        publication=publication,
+        runs=runs,
     )
 
 
@@ -162,6 +221,8 @@ def submit_helix_evals(plan: Submission, output: Path, client) -> list[dict]:
     # All preflight reads finish before any paid work is submitted.
     _verify_uploaded_inputs(plan, client)
     write_json(output / "submission.json", plan)
+    if not (output / "provenance.json").exists():
+        write_json(output / "provenance.json", client.provenance())
     accepted = []
     for index, run in enumerate(plan.runs):
         path = _response_path(output, index)
@@ -191,13 +252,10 @@ def check_helix_runs(root: Path, client):
             raise ValueError("Helix returned a different run ID")
         label = f"case {run.case_id}, agent {run.agent_bundle_id}"
         phase, result = status["phase"], status["result_state"]
-        if phase in ("failed", "cancelled", "expired") or result == "failed":
-            failed.append(f"{label}: {phase}, results {result}")
-            continue
-        if phase in ("accepted", "running") or (phase == "completed" and result == "pending"):
+        if phase in ("accepted", "running") or result == "pending":
             waiting.append(f"{label}: {phase}, results {result}")
             continue
-        if phase != "completed" or result != "ready":
+        if phase not in ("completed", "failed", "cancelled", "expired") or result not in ("ready", "failed", "none"):
             failed.append(f"{label}: unsupported or incomplete state {phase}/{result}")
             continue
         members = client.members(status["run_id"])
@@ -205,10 +263,14 @@ def check_helix_runs(root: Path, client):
         if len(members) != expected or {m["task_index"] for m in members} != set(range(expected)):
             failed.append(f"{label}: incomplete or duplicated task matrix")
             continue
-        if any(m["phase"] != "succeeded" or not m.get("job") for m in members):
+        if any(
+            m["phase"] not in ("succeeded", "failed", "cancelled", "expired")
+            or (m["phase"] == "succeeded" and not m.get("job"))
+            for m in members
+        ):
             failed.append(f"{label}: task jobs failed or remain unfinished")
             continue
-        unique([m["job"] for m in members], "remote task jobs")
+        unique([m["job"] for m in members if m.get("job")], "remote task jobs")
         statuses.append((index, status, sorted(members, key=lambda m: m["task_index"])))
     if failed:
         raise ValueError("; ".join(failed))
@@ -252,6 +314,34 @@ def _trial(bundle: Path, bound: CaseBinding):
     return matches[0], native.relative_to(bundle).as_posix()
 
 
+def _cached_download(client, job: str, archive: Path, cached: Path):
+    receipt = cached.with_suffix(".json")
+    if receipt.exists() and cached.exists():
+        if (
+            cached.is_symlink()
+            or receipt.is_symlink()
+            or _object(receipt) != {"job": job, "sha256": digest_file(cached)}
+        ):
+            raise ValueError("saved download cache changed")
+        shutil.copyfile(cached, archive)
+    else:
+        client.download(job, archive)
+
+
+def _retain_download(job: str, archive: Path, cached: Path):
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    if not cached.exists():
+        with tempfile.NamedTemporaryFile(dir=cached.parent) as temporary:
+            shutil.copyfile(archive, temporary.name)
+            try:
+                os.link(temporary.name, cached)
+            except FileExistsError:
+                pass
+    if cached.is_symlink() or digest_file(cached) != digest_file(archive):
+        raise ValueError("saved download cache differs from verified archive")
+    write_json(cached.with_suffix(".json"), {"job": job, "sha256": digest_file(cached)})
+
+
 def download_helix_results(submission: Path, output: Path, client) -> dict:
     plan, statuses = check_helix_runs(submission, client)
     identity = digest_bytes(json_bytes(plan))
@@ -268,8 +358,13 @@ def download_helix_results(submission: Path, output: Path, client) -> dict:
     artifacts = {}
     for _, _, members in statuses:
         for member in members:
-            artifacts[member["job"]] = client.artifact(member["job"])
+            if member["phase"] == "succeeded":
+                artifacts[member["job"]] = client.artifact(member["job"])
     output.parent.mkdir(parents=True, exist_ok=True)
+    cache = output.parent / f".{output.name}.helix-downloads"
+    if cache.is_symlink():
+        raise ValueError("download cache must not be a symlink")
+    write_json(cache / "submission.json", {"submission_sha256": identity})
     with tempfile.TemporaryDirectory(prefix=".helix-collect-", dir=output.parent) as temporary:
         staged = Path(temporary).resolve() / "results"
         staged.mkdir()
@@ -277,10 +372,56 @@ def download_helix_results(submission: Path, output: Path, client) -> dict:
         for index, status, members in statuses:
             run = plan.runs[index]
             write_json(staged / f"runs/run-{index:04d}/status.json", status)
+            bound = plan.bindings.cases[run.case_id]
+            taskset = client.revision("tasksets", bound.taskset)
+            refs = taskset.get("tasks")
+            if (
+                not isinstance(refs, list)
+                or len(refs) != len(bound.tasks)
+                or set(refs) != {task.ref for task in bound.tasks.values()}
+            ):
+                raise ValueError("resolved taskset membership differs from bindings")
+            task_ids = {task.ref: task_id for task_id, task in bound.tasks.items()}
+            taskset_path = staged / f"runs/run-{index:04d}/taskset.json"
+            write_json(taskset_path, {"ref": bound.taskset, "tasks": refs})
             observed = set()
             for member in members:
                 destination = staged / f"runs/run-{index:04d}/task-{member['task_index']:04d}"
                 destination.mkdir(parents=True)
+                write_json(destination / "member.json", member)
+                expected_task_id = task_ids[refs[member["task_index"]]]
+                if member["phase"] != "succeeded":
+                    job_path = None
+                    if member.get("job"):
+                        job = client.job(member["job"])
+                        if (
+                            job.get("name") != member["job"]
+                            or job.get("workspace") != plan.execution.workspace
+                            or job.get("spec", {}).get("run_id") != status["run_id"]
+                            or job.get("spec", {}).get("task_index") != member["task_index"]
+                        ):
+                            raise ValueError("failed job specification differs from its run member")
+                        write_json(destination / "job.json", job)
+                        job_path = (destination / "job.json").relative_to(staged).as_posix()
+                    observed.add(expected_task_id)
+                    observations.append(
+                        {
+                            "case_id": run.case_id,
+                            "agent_bundle_id": run.agent_bundle_id,
+                            "task_id": expected_task_id,
+                            "remote_run_id": status["run_id"],
+                            "job": member.get("job"),
+                            "job_spec_path": job_path,
+                            "member_path": (destination / "member.json").relative_to(staged).as_posix(),
+                            "taskset_path": taskset_path.relative_to(staged).as_posix(),
+                            "status": "missing",
+                            "native_results_path": (destination / "missing-native").relative_to(staged).as_posix(),
+                            "unavailable_evidence": {
+                                "native_results": f"Helix task job {member['phase']}: {member.get('error') or 'no completed native trial'}"
+                            },
+                        }
+                    )
+                    continue
                 job = client.job(member["job"])
                 spec = job.get("spec", {})
                 if (
@@ -294,11 +435,15 @@ def download_helix_results(submission: Path, output: Path, client) -> dict:
                 write_json(destination / "member.json", member)
                 write_json(destination / "artifact.json", artifacts[member["job"]])
                 archive = destination / "bundle.tar.gz"
-                client.download(member["job"], archive)
+                cached = cache / f"{index:04d}-{member['task_index']:04d}.tar.gz"
+                _cached_download(client, member["job"], archive, cached)
                 bundle = _unpack(archive, destination / "bundle")
                 task_id, native = _trial(bundle, plan.bindings.cases[run.case_id])
+                if task_id != expected_task_id:
+                    raise ValueError("native task differs from its resolved taskset position")
                 if task_id in observed:
                     raise ValueError(f"case {run.case_id}, agent {run.agent_bundle_id}: duplicate downloaded task")
+                _retain_download(member["job"], archive, cached)
                 observed.add(task_id)
                 observations.append(
                     {
@@ -308,12 +453,16 @@ def download_helix_results(submission: Path, output: Path, client) -> dict:
                         "remote_run_id": status["run_id"],
                         "job": member["job"],
                         "job_spec_path": (destination / "job.json").relative_to(staged).as_posix(),
+                        "member_path": (destination / "member.json").relative_to(staged).as_posix(),
+                        "taskset_path": taskset_path.relative_to(staged).as_posix(),
+                        "status": "collected",
                         "native_results_path": (bundle / native).relative_to(staged).as_posix(),
                     }
                 )
             if observed != set(plan.bindings.cases[run.case_id].tasks):
                 raise ValueError(f"case {run.case_id}: downloaded matrix is incomplete")
         write_json(staged / "submission.json", plan)
+        write_json(staged / "provenance.json", client.provenance())
         record = {
             "artifact_type": "helix_evidence_collection",
             "analysis_ready": False,
@@ -328,4 +477,5 @@ def download_helix_results(submission: Path, output: Path, client) -> dict:
         if output.exists():
             raise ValueError("collection destination was created by another writer")
         staged.rename(output)
+    shutil.rmtree(cache)
     return record

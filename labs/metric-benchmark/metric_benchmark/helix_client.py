@@ -6,11 +6,40 @@
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from typing import Literal
 from urllib.parse import quote
 
 from httpx import HTTPError
+from pydantic import BaseModel, ConfigDict, Field
 
 from metric_benchmark.config import HelixExecution, check_base_url
+
+
+class RunStatus(BaseModel):
+    model_config = ConfigDict(extra="allow", strict=True)
+    run_id: str
+    workspace: str
+    taskset_ref: str
+    idempotency_key: str
+    phase: Literal["accepted", "running", "completed", "failed", "cancelled", "expired"]
+    result_state: Literal["pending", "ready", "failed", "none"]
+
+
+class RunMember(BaseModel):
+    model_config = ConfigDict(extra="allow", strict=True)
+    task: str
+    task_index: int = Field(ge=0)
+    phase: Literal["image_preparing", "image_ready", "registered", "succeeded", "failed", "cancelled", "expired"]
+    job: str | None = None
+    error: str | None = None
+
+
+def native_response(model, value):
+    try:
+        model.model_validate(value)
+    except ValueError:
+        raise ValueError(f"Helix returned an invalid {model.__name__} response") from None
+    return value
 
 
 class HelixClient:
@@ -94,7 +123,7 @@ class HelixClient:
         return {"client_versions": packages, "server": self.request("GET", "/cluster-info")}
 
     def submit(self, body):
-        return self.request("POST", self.prefix + "agent-evaluate/runs", body)
+        return native_response(RunStatus, self.request("POST", self.prefix + "agent-evaluate/runs", body))
 
     def image_builds(self, reference):
         owner, digest = reference.split("#")
@@ -106,7 +135,9 @@ class HelixClient:
         )
 
     def status(self, run_id):
-        return self.request("GET", self.prefix + f"agent-evaluate/runs/{quote(run_id, safe='')}")
+        return native_response(
+            RunStatus, self.request("GET", self.prefix + f"agent-evaluate/runs/{quote(run_id, safe='')}")
+        )
 
     def members(self, run_id):
         rows = []
@@ -115,10 +146,16 @@ class HelixClient:
             result = self.request(
                 "GET", self.prefix + f"agent-evaluate/runs/{quote(run_id, safe='')}/tasks?page={page}&page_size=1000"
             )
-            pagination = result["pagination"]
+            pagination = result.get("pagination")
+            if (
+                not isinstance(pagination, dict)
+                or not isinstance(result.get("data"), list)
+                or any(type(pagination.get(key)) is not int for key in ("page", "total_pages", "total_results"))
+            ):
+                raise ValueError("invalid Helix task pagination")
             if pagination["page"] != page or (page > 1 and not result["data"]):
                 raise ValueError("invalid Helix task pagination")
-            rows.extend(result["data"])
+            rows.extend(native_response(RunMember, row) for row in result["data"])
             if page >= pagination["total_pages"]:
                 if len(rows) != pagination["total_results"]:
                     raise ValueError("Helix task pagination changed; retry collection")

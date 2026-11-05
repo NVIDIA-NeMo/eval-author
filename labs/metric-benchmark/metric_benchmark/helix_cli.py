@@ -7,10 +7,11 @@ import argparse
 import json
 from pathlib import Path
 
-from metric_benchmark.config import load_cases
+import yaml
+
+from metric_benchmark.config import HelixExecution, StrictLoader, execution_settings, load_cases
 from metric_benchmark.helix import (
     HelixBindings,
-    HelixExecution,
     NotReady,
     Submission,
     download_helix_results,
@@ -19,6 +20,7 @@ from metric_benchmark.helix import (
     submit_helix_evals,
 )
 from metric_benchmark.helix_client import HelixClient
+from metric_benchmark.helix_publication import PublicationPlan
 from metric_benchmark.io import read_json, write_json
 
 
@@ -27,6 +29,9 @@ def submit_main():
     parser.add_argument("--cases", required=True, type=Path)
     parser.add_argument("--execution", required=True, type=Path)
     parser.add_argument("--bindings", required=True, type=Path)
+    parser.add_argument(
+        "--publication", type=Path, help="Publication record; defaults to publication.json beside bindings"
+    )
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--context", help="Existing authenticated Helix CLI context")
@@ -34,11 +39,17 @@ def submit_main():
     parser.add_argument("--plan-only", action="store_true", help="Write requests without connecting to Helix")
     args = parser.parse_args()
     try:
+        settings = execution_settings(yaml.load(args.execution.read_text(), Loader=StrictLoader))
+        if not isinstance(settings, HelixExecution):
+            raise ValueError("submission requires backend: helix")
         plan = plan_submission(
             load_cases(args.cases, allow_unsigned=args.allow_unsigned),
-            load_yaml(args.execution, HelixExecution),
+            settings,
             load_yaml(args.bindings, HelixBindings),
             args.run_id,
+            publication=PublicationPlan.model_validate(
+                read_json(args.publication or args.bindings.parent / "publication.json")
+            ),
         )
         if args.plan_only:
             write_json(args.output / "submission.json", plan)

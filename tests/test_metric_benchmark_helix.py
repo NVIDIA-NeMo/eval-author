@@ -25,7 +25,8 @@ from metric_benchmark.helix import (
     submit_helix_evals,
 )
 from metric_benchmark.helix_client import HelixClient
-from metric_benchmark.io import json_bytes, read_json
+from metric_benchmark.helix_publication import PublicationPlan, PublishAgent, agent_target
+from metric_benchmark.io import json_bytes, read_json, write_json
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = ROOT / "tests/fixtures/metric_benchmark/cases.yml"
@@ -34,9 +35,46 @@ CASES = ROOT / "tests/fixtures/metric_benchmark/cases.yml"
 @pytest.fixture
 def plan():
     loaded = load_cases(CASES)
+    settings = HelixExecution(
+        base_url="https://helix.example.com",
+        workspace="example",
+        dispatcher_profile="workers",
+        max_concurrent_task_jobs=2,
+    )
+    publication = PublicationPlan.model_validate(
+        {
+            "cases_sha256": loaded.identity,
+            "execution": settings.model_dump(),
+            "cases": [
+                {
+                    "case_id": case_id,
+                    "tasks": [
+                        {
+                            "task_id": tid,
+                            "name": "task-" + str(i),
+                            "path": source.path,
+                            "sha256": source.sha256,
+                            "context_sha256": source.sha256,
+                        }
+                        for i, (tid, source) in enumerate(prepared.case.task_sources.items())
+                    ],
+                    "agents": [
+                        {
+                            "agent_bundle_id": agent.agent_bundle_id,
+                            "packaging": {},
+                            "target": agent_target(agent, PublishAgent()),
+                        }
+                        for agent in prepared.case.agents()
+                    ],
+                }
+                for case_id, prepared in loaded.cases.items()
+            ],
+        }
+    )
     bindings = HelixBindings.model_validate(
         {
             "cases_sha256": loaded.identity,
+            "publication_sha256": publication.identity,
             "cases": {
                 case_id: {
                     "taskset": "example/suite#" + "a" * 64,
@@ -47,19 +85,16 @@ def plan():
                         }
                         for i, task in enumerate(prepared.case.task_inventory.tasks)
                     },
-                    "targets": {agent.agent_bundle_id: {"source": agent.harbor} for agent in prepared.case.agents()},
+                    "agents": {agent.agent_bundle_id: {} for agent in prepared.case.agents()},
+                    "targets": {
+                        agent.agent_bundle_id: agent_target(agent, PublishAgent()) for agent in prepared.case.agents()
+                    },
                 }
                 for case_id, prepared in loaded.cases.items()
             },
         }
     )
-    settings = HelixExecution(
-        base_url="https://helix.example.com",
-        workspace="example",
-        dispatcher_profile="workers",
-        max_concurrent_task_jobs=2,
-    )
-    return plan_submission(loaded, settings, bindings, "test-run")
+    return plan_submission(loaded, settings, bindings, "test-run", publication=publication)
 
 
 def archive(native_id, *, malicious=False, duplicate=False, overwrite_metadata=False):
@@ -109,6 +144,11 @@ def archive(native_id, *, malicious=False, duplicate=False, overwrite_metadata=F
     return stream.getvalue()
 
 
+class MockHelixClient(HelixClient):
+    def provenance(self):
+        return {"client_versions": {"harbor": "0.24.0"}, "server": {"revision": "mock"}}
+
+
 class Server:
     def __init__(self, plan):
         self.plan = plan
@@ -123,12 +163,15 @@ class Server:
         self.duplicate = False
         self.duplicate_task = False
         self.fail_download = False
+        self.fail_download_after = None
         self.failed_run = None
         self.page_size = 2
         self.images_ready = True
         self.wrong_job = False
         self.overwrite_metadata = False
-        self.client = HelixClient(
+        self.failed_member = False
+        self.missing_job = False
+        self.client = MockHelixClient(
             SimpleNamespace(
                 base_url=plan.execution.base_url,
                 http_client=httpx.Client(transport=httpx.MockTransport(self.handle)),
@@ -147,7 +190,7 @@ class Server:
             )
         if "/tasksets/" in path:
             tasks = [t.ref for t in bound.tasks.values()]
-            return httpx.Response(200, json={"tasks": tasks[:-1] if self.bad_taskset else list(reversed(tasks))})
+            return httpx.Response(200, json={"tasks": tasks[:-1] if self.bad_taskset else tasks})
         if "/tasks/task-" in path:
             index = int(path.split("task-")[1].split("/")[0])
             return httpx.Response(200, json={"spec": {"kind": "harbor", "native_task_id": f"native-{index}"}})
@@ -170,7 +213,10 @@ class Server:
                 raise httpx.ReadTimeout("lost submit response")
             return httpx.Response(201, json=self.accepted[key])
         if path.endswith("/download"):
-            if self.fail_download:
+            if self.fail_download or (
+                self.fail_download_after is not None
+                and sum(p.endswith("/download") for _, p in self.calls) > self.fail_download_after
+            ):
                 raise httpx.ReadTimeout("interrupted download")
             job = path.rsplit("/jobs/", 1)[1].split("/")[0]
             index = 0 if self.duplicate_task else int(job.split("-task-")[1])
@@ -199,10 +245,14 @@ class Server:
         remote = path.split("/runs/")[1].split("/")[0]
         status = next(value for value in self.accepted.values() if value["run_id"] == remote)
         if path.endswith("/tasks"):
-            members = [
+            members: list[dict] = [
                 {"task": f"task-{i}", "task_index": i, "phase": "succeeded", "job": f"{remote}-task-{i}"}
                 for i in range(len(bound.tasks))
             ]
+            if self.failed_member:
+                members[1].update(phase="failed", error="worker did not produce native evidence")
+                if self.missing_job:
+                    members[1]["job"] = None
             if self.bad_members:
                 members.pop()
             page = int(request.url.params["page"])
@@ -231,6 +281,7 @@ def test_plan_cli_library_parity_without_executable_inputs(plan, tmp_path):
     settings, bindings = tmp_path / "execution.yml", tmp_path / "bindings.yml"
     settings.write_text(yaml.safe_dump(plan.execution.model_dump()))
     bindings.write_text(yaml.safe_dump(plan.bindings.model_dump()))
+    write_json(tmp_path / "publication.json", plan.publication)
     result = subprocess.run(
         [
             sys.executable,
@@ -300,14 +351,13 @@ def test_not_ready_downloads_nothing(plan, tmp_path, phase, result_state):
     assert not any("/results/" in path for _, path in server.calls)
 
 
-def test_known_failure_takes_priority_over_running(plan, tmp_path):
+def test_terminal_failure_does_not_hide_other_active_runs(plan, tmp_path):
     server = Server(plan)
     submit_helix_evals(plan, tmp_path, server.client)
     server.phase = "running"
     server.failed_run = "remote-1"
-    with pytest.raises(ValueError, match="agent mutant: failed") as exc:
+    with pytest.raises(NotReady, match="Not done"):
         check_helix_runs(tmp_path, server.client)
-    assert not isinstance(exc.value, NotReady)
 
 
 def test_missing_submission_and_partial_taskset_are_not_complete(plan, tmp_path):
@@ -398,22 +448,47 @@ def test_reject_wrong_case_identity_and_repetitions(plan):
     bindings = copy.deepcopy(plan.bindings)
     bindings.cases_sha256 = "sha256:" + "b" * 64
     with pytest.raises(ValueError, match="case definitions"):
-        plan_submission(loaded, plan.execution, bindings, "run")
+        plan_submission(loaded, plan.execution, bindings, "run", publication=plan.publication)
     bindings = copy.deepcopy(plan.bindings)
     next(iter(bindings.cases.values())).targets["baseline"]["n_attempts"] = 2
-    with pytest.raises(ValueError, match="n_attempts"):
-        plan_submission(loaded, plan.execution, bindings, "run")
+    with pytest.raises(ValueError, match="prepared agent configuration"):
+        plan_submission(loaded, plan.execution, bindings, "run", publication=plan.publication)
 
 
-@pytest.mark.parametrize("phase", ["failed", "cancelled", "expired"])
-def test_ready_partial_bundle_is_rejected(plan, tmp_path, phase):
+@pytest.mark.parametrize("phase", ["completed", "failed", "cancelled", "expired"])
+@pytest.mark.parametrize("missing_job", [False, True])
+def test_terminal_failures_preserve_successes_and_account_for_missing_trials(plan, tmp_path, phase, missing_job):
     server = Server(plan)
     submit_helix_evals(plan, tmp_path / "submitted", server.client)
-    server.phase = phase
-    with pytest.raises(ValueError, match=phase):
-        download_helix_results(tmp_path / "submitted", tmp_path / "output", server.client)
-    assert not (tmp_path / "output").exists()
-    assert not any("/results/" in path for _, path in server.calls)
+    server.phase, server.failed_member, server.missing_job = phase, True, missing_job
+    result = download_helix_results(tmp_path / "submitted", tmp_path / "output", server.client)
+    assert len(result["observations"]) == 9
+    missing = [row for row in result["observations"] if row["status"] == "missing"]
+    assert len(missing) == 3
+    for row in missing:
+        assert "worker did not produce" in row["unavailable_evidence"]["native_results"]
+        assert not (tmp_path / "output" / row["native_results_path"]).exists()
+        assert (tmp_path / "output" / row["member_path"]).is_file()
+        assert (row["job_spec_path"] is None) == missing_job
+    assert sum(path.endswith("/download") for _, path in server.calls) == 6
+
+
+@pytest.mark.parametrize("field", ["source", "agent_kwargs", "env_vars"])
+def test_changed_binding_target_never_submits(plan, tmp_path, field):
+    server = Server(plan)
+    bound = next(iter(plan.bindings.cases.values()))
+    bound.targets["baseline"][field] = {"name": "nop"} if field == "source" else {"runtime_path": "/opt/other"}
+    with pytest.raises(ValueError, match="target differs"):
+        submit_helix_evals(plan, tmp_path, server.client)
+    assert not server.calls
+
+
+def test_changed_publication_identity_never_submits(plan, tmp_path):
+    server = Server(plan)
+    plan.bindings.publication_sha256 = "sha256:" + "f" * 64
+    with pytest.raises(ValueError, match="publication identity"):
+        submit_helix_evals(plan, tmp_path, server.client)
+    assert not server.calls
 
 
 def test_requests_match_installed_helix_schema(plan):
@@ -436,3 +511,19 @@ def test_submission_snapshot_cannot_silently_change_the_matrix(plan, change):
         data["cases"][0]["baseline"]["revision"] = "new"
     with pytest.raises(ValueError, match="matrix|identity"):
         Submission.model_validate(data)
+
+
+def test_interrupted_collection_reuses_verified_downloads(plan, tmp_path):
+    server = Server(plan)
+    submit_helix_evals(plan, tmp_path / "submitted", server.client)
+    server.fail_download_after = 2
+    output = tmp_path / "output"
+    with pytest.raises(ValueError, match="ReadTimeout"):
+        download_helix_results(tmp_path / "submitted", output, server.client)
+    assert not output.exists()
+    assert len(list((tmp_path / ".output.helix-downloads").glob("*.tar.gz"))) == 2
+    server.fail_download_after = None
+    result = download_helix_results(tmp_path / "submitted", output, server.client)
+    assert len(result["observations"]) == 9
+    assert sum(p.endswith("/download") for _, p in server.calls) == 10
+    assert not (tmp_path / ".output.helix-downloads").exists()
