@@ -142,6 +142,70 @@ patched version, and substitutes only the agent executable. The private
 observed patched build. Nonzero exits and missing scores remain failures. Build
 or runtime-contract mismatches prevent execution; they do not become passing scores.
 
+Live CI additionally prepares every task environment in both arms **before the
+step receiving inference credentials**. It retains the native task Dockerfile,
+fixtures, workspace isolation, and custom commands, then adds the required
+system packages. Preflight and both arms use the verified local image IDs;
+missing images, changed sources, missing packages, or version mismatches stop
+execution rather than invoking package repositories during a trial.
+
+To opt into this same path locally, first build the patched binary above, then
+run with the pinned evaluator's Python and a fresh private output directory:
+
+```bash
+/path/to/live-runtime/bin/python tools/prepare_live_images.py \
+  --skill skills/eval-author-environment \
+  --binary-manifest "$EA_PATCHED_OPENCODE_MANIFEST" \
+  --output /absolute/path/prepared-live-images
+export EA_PREPARED_IMAGES_MANIFEST=/absolute/path/prepared-live-images/prepared-images.json
+export EA_REQUIRE_PREPARED_IMAGES=1
+```
+
+Use the normal collector command with that **single matching skill** on the same
+Docker daemon. Preparation needs public registry/package access, Docker Compose,
+and Linux AMD64 or ARM64; inference credentials are removed from its child
+environment. Keep the preparation directory private: it includes staged task
+inputs and image provenance, not a public report. Regenerate it after source or
+runtime changes. Unset both image-preparation variables to retain the original
+local installation path. CI always requires preparation for live shards; its
+existing fallback summaries and main-only environment gate are unchanged.
+
+The default Python 3.12.16/trixie base is pinned by platform-specific registry
+digest. Added packages have exact Debian versions, including Node.js
+20.19.2 and npm 9.2.0; the manifest records the full Debian revisions and final
+local image IDs, and setup verifies installed versions. Other custom bases must
+already use digests and support these package versions. Only single-stage,
+Dockerfile-only `evals.json` tasks with isolated paired workspaces are supported;
+unsupported configurations fail closed, not through a generic replacement image.
+The original custom Dockerfile is validated before native staging; multiple stages,
+parser directives, heredocs, and inherited `ONBUILD` triggers are unsupported.
+Layering uses the inspected immutable parent ID, preserves the task's execution
+metadata, and runs package installation with an explicit shell.
+Task identities bind each arm, native task name, normalized full task configuration,
+and environment content. Only exact same-name gateway credential/provider
+placeholders may differ between keyless and credentialed staging. Resource,
+working-directory, or arbitrary environment overrides require new preparation.
+Only public startup and phase network policies are supported: network-control
+sidecars and Compose overlays are rejected before native startup rather than
+built after credentials arrive. The offline setup test disconnects networking
+externally; it does not establish native no-network-policy support.
+Debian indexes and transitive dependencies in native task installation remain
+mutable: snapshot package-index retrieval was unavailable during validation.
+Exact direct-package versions failing to resolve cause preparation to fail;
+they are never replaced with newer versions. This is verified image reuse, not
+a claim of bit-for-bit reproducible rebuilds. It does not change agent execution
+deadlines or guarantee model responses or timeout cleanup.
+
+Preparation has a 600-second aggregate deadline across all images, not a fresh
+allowance per Docker command. CI also deducts elapsed dependency/binary setup
+from a shared monotonic job window, reserving the unchanged 2700-second evaluation
+allowance plus 60 seconds for collection overhead. The window ends 55 minutes
+after the fallback step starts, leaving reporting headroom within the 60-minute
+job (less checkout time). If the remaining window cannot
+support the handoff, preparation or collection fails before inference. Bounded
+setup/preparation/collection steps and the existing `always()` fallback uploads
+provide a second guard; these limits do not guarantee timely package availability.
+
 The standalone SkillSpector **Security Scan is skipped by CI policy**. It is
 excluded from `--checks`, recorded in `policy.skipped_checks`, and represented
 as `skipped` in each skill's validator summary. A passing aggregate means the

@@ -31,10 +31,21 @@ def _activate():
     manifest = os.environ["EA_PATCHED_OPENCODE_MANIFEST"]
     if module.sha256(manifest) != os.environ.get("_EA_PATCHED_OPENCODE_MANIFEST_SHA256"):
         raise RuntimeError("manifest binding changed")
+    if "EA_PREPARED_IMAGES_MANIFEST" in os.environ:
+        if module.sha256(os.environ["EA_PREPARED_IMAGES_MANIFEST"]) != os.environ.get("_EA_PREPARED_IMAGES_SHA256"):
+            raise RuntimeError("prepared image manifest binding changed")
     module.activate(manifest)
 
 
-if "EA_PATCHED_OPENCODE_MANIFEST" in os.environ or "_EA_PATCHED_OPENCODE_HOOK" in os.environ:
+if any(
+    key in os.environ
+    for key in (
+        "EA_PATCHED_OPENCODE_MANIFEST",
+        "_EA_PATCHED_OPENCODE_HOOK",
+        "EA_PREPARED_IMAGES_MANIFEST",
+        "EA_REQUIRE_PREPARED_IMAGES",
+    )
+):
     try:
         _activate()
     except BaseException:

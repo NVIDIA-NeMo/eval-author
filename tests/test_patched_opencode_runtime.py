@@ -219,6 +219,8 @@ def boundary(runtime, native, binary_manifest, monkeypatch):
             stdout = f"{response['sha']}  {runtime.REMOTE}\n"
         if command.endswith(runtime.REMOTE + " --version"):
             stdout = f"{response['version']}\n"
+        if command.startswith("dpkg-query"):
+            stdout = "\n".join(k + "=" + v for k, v in runtime.PACKAGE_VERSIONS.items())
         code = 7 if "run --format=json" in command else (response["code"] if runtime.REMOTE in command else 0)
         if "nvm install 22" in command and response.get("nvm_failure"):
             return SimpleNamespace(return_code=3, stdout="", stderr="Version '22' not found")
@@ -551,6 +553,7 @@ def test_launch_environment_preserves_protocol_and_rejects_conflicts(runtime, na
         "missing_digest",
         "token",
         "loader_import",
+        "prepared_without_binary",
     ],
 )
 def test_actual_child_startup_failures_exit_78_without_running_main(
@@ -601,6 +604,11 @@ def test_actual_child_startup_failures_exit_78_without_running_main(
         environment[runtime.TOKEN_ENV] = "wrong"
     elif problem == "loader_import":
         source = "raise RuntimeError('synthetic secret must not escape')\n"
+    elif problem == "prepared_without_binary":
+        environment.pop(runtime.MANIFEST_ENV)
+        environment.pop(runtime.TOKEN_ENV)
+        environment["EA_REQUIRE_PREPARED_IMAGES"] = "1"
+        environment["EA_PREPARED_IMAGES_MANIFEST"] = "/missing-preparation"
     copied.write_text(source)
     if problem != "runtime_hash":
         environment[runtime.DIGEST_ENV] = hashlib.sha256(copied.read_bytes()).hexdigest()
@@ -610,3 +618,33 @@ def test_actual_child_startup_failures_exit_78_without_running_main(
     assert result.returncode == 78, (problem, result.stdout, result.stderr)
     assert result.stdout == b""
     assert result.stderr == b"patched OpenCode activation failed; refusing execution\n"
+
+
+def test_required_preparation_missing_fails_before_native_mutation(runtime, native, binary_manifest, monkeypatch):
+    monkeypatch.setenv("EA_REQUIRE_PREPARED_IMAGES", "1")
+    original = native.OpenCode.install
+    with pytest.raises(ValueError, match="prepar"):
+        runtime.activate(binary_manifest[0])
+    assert native.OpenCode.install is original
+
+
+def test_prepared_install_checks_dependencies_without_repository_fallback(
+    runtime, native, boundary, binary_manifest, tmp_path, monkeypatch
+):
+    assert hasattr(runtime, "prepared_install_check"), "prepared dependency guard is missing"
+    checks = []
+
+    async def check(agent, environment):
+        checks.append(environment)
+        await runtime.prepared_install_check(agent, environment)
+
+    # Exercise the real pinned setup and dependency probe. The Docker lifecycle
+    # is covered separately; this boundary supplies its verified identity.
+    monkeypatch.setattr(runtime, "prepared_activation", lambda *_: check)
+    runtime.activate(binary_manifest[0])
+    agent = native.Gateway(logs_dir=tmp_path / "prepared", model_name="openai/synthetic", version="1.19.5")
+    asyncio.run(agent.setup(boundary.environment))
+    assert checks == [boundary.environment]
+    assert any("command -v node" in c["command"] and "command -v npm" in c["command"] for c in boundary.commands)
+    assert not any("apt-get" in c["command"] or "npm i" in c["command"] for c in boundary.commands)
+    assert boundary.uploads

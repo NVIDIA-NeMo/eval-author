@@ -112,20 +112,24 @@ jobs:
       SKILL_EVAL_AGENT_MODEL: ${{ needs.authorize.outputs.agent }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        timeout-minutes: 2
         if: matrix.id != 'none'
         with:
           persist-credentials: false
       - name: Write fallback report before dependency or Docker setup
         if: matrix.id != 'none'
         run: |
+          python -c 'import os,time; open(os.environ["GITHUB_ENV"], "a").write(f"EA_LIVE_JOB_DEADLINE={time.monotonic() + 3300}\n")'
           python tools/live_ci.py initialize --models-resolved --tier "$SHARD_TIER" --skill "$SHARD_SKILL" --check "$SHARD_CHECK" --output "$RUNNER_TEMP/skill-publish"
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        timeout-minutes: 2
         if: matrix.id != 'none'
         with:
           version: '0.12.3'
           python-version: '3.12'
           enable-cache: false
       - name: Install verified Docker Compose runtime
+        timeout-minutes: 2
         if: matrix.check == 'live' && matrix.id != 'none'
         env:
           COMPOSE_VERSION: '5.5.1'
@@ -136,6 +140,7 @@ jobs:
           sudo install -D -m 0755 "$RUNNER_TEMP/docker-compose" /usr/local/lib/docker/cli-plugins/docker-compose
           test "$(docker compose version --short)" = "$COMPOSE_VERSION"
       - name: Install isolated evaluator runtime
+        timeout-minutes: 5
         if: matrix.id != 'none'
         env:
           EVALUATOR_EXTRAS: ${{ matrix.check == 'live' && 'tier3' || 'tier2' }}
@@ -143,9 +148,16 @@ jobs:
           uv venv --python 3.12 "$RUNNER_TEMP/live-runtime"
           uv pip install --python "$RUNNER_TEMP/live-runtime/bin/python" "skillevaluator[$EVALUATOR_EXTRAS] @ git+https://github.com/NVIDIA/SkillEvaluator.git@3fd2cf57e4a2af01f282e001f7515b6e76f18ec7" # v0.7.0
       - name: Build patched OpenCode runtime
+        timeout-minutes: 8
         if: matrix.check == 'live' && matrix.id != 'none'
         run: python tools/build_patched_opencode.py --output "$RUNNER_TEMP/patched-opencode"
+      - name: Prepare and verify exact trial images without inference credentials
+        timeout-minutes: 10
+        if: matrix.check == 'live' && matrix.id != 'none'
+        run: |
+          "$RUNNER_TEMP/live-runtime/bin/python" tools/prepare_live_images.py --skill "skills/$SHARD_SKILL" --binary-manifest "$RUNNER_TEMP/patched-opencode/binary-manifest.json" --output "$RUNNER_TEMP/prepared-live-images"
       - name: Run exactly one assigned check
+        timeout-minutes: 47
         if: matrix.id != 'none'
         env:
           INFERENCE_HUB_API_KEY: ${{ secrets.INFERENCE_HUB_API_KEY }}
@@ -153,6 +165,8 @@ jobs:
           if test "$SHARD_CHECK" = live; then
             export EA_REQUIRE_PATCHED_OPENCODE=1
             export EA_PATCHED_OPENCODE_MANIFEST="$RUNNER_TEMP/patched-opencode/binary-manifest.json"
+            export EA_REQUIRE_PREPARED_IMAGES=1
+            export EA_PREPARED_IMAGES_MANIFEST="$RUNNER_TEMP/prepared-live-images/prepared-images.json"
           fi
           python tools/collect_live_skill_evaluations.py --run --ci-context-budget --tier "$SHARD_TIER" --skill "$SHARD_SKILL" --check "$SHARD_CHECK" --evaluator "$RUNNER_TEMP/live-runtime/bin/skillevaluator" --evaluator-python "$RUNNER_TEMP/live-runtime/bin/python" --output "$RUNNER_TEMP/skill-live"
       - name: Preserve valid checkpoint or fallback

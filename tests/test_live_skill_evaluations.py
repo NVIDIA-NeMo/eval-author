@@ -730,6 +730,24 @@ def test_live_schema_v2_rejects_v1_shards_through_provenance_bindings(live, repo
         ci.validated_row(candidate, base, expected)
 
 
+def test_collector_rejects_exhausted_ci_window_before_credentials(live, repo, tmp_path, monkeypatch):
+    monkeypatch.setenv("EA_LIVE_JOB_DEADLINE", "2800")
+    monkeypatch.setattr(live.time, "monotonic", lambda: 100.0)
+    monkeypatch.setattr(live, "configuration", lambda *a: pytest.fail("credentials read after budget exhaustion"))
+    with pytest.raises(TimeoutError, match="budget"):
+        live.collect(repo, tmp_path / "exhausted", tier="3", skill_name="eval-author", check_name="live", run=True)
+
+
+def test_collector_rechecks_job_window_at_evaluator_launch(live, repo, tmp_path, monkeypatch):
+    monkeypatch.setenv("EA_LIVE_JOB_DEADLINE", "2800")
+    monkeypatch.setattr(live.time, "monotonic", lambda: 100.0)
+    monkeypatch.setattr(
+        live, "execute", lambda *a: pytest.fail("model-capable process launched after budget exhaustion")
+    )
+    with pytest.raises(TimeoutError, match="budget"):
+        live.execute_with_progress(["synthetic"], repo, {}, tmp_path / "run.log", live.TIER3_TIMEOUT_SECONDS)
+
+
 def test_plan_and_missing_key_never_execute(live, repo, tmp_path, monkeypatch):
     def no_execute(*args, **kwargs):
         pytest.fail("plan or missing credentials launched a process")
@@ -749,6 +767,8 @@ def test_plan_and_missing_key_never_execute(live, repo, tmp_path, monkeypatch):
 @pytest.mark.parametrize("required", [None, "1"])
 def test_patched_runtime_manifest_reaches_only_live_evaluation(live, repo, tmp_path, monkeypatch, manifest, required):
     monkeypatch.setenv("INFERENCE_HUB_API_KEY", "fixture-key")
+    monkeypatch.setenv("EA_PREPARED_IMAGES_MANIFEST", "/private/prepared-images.json")
+    monkeypatch.setenv("EA_REQUIRE_PREPARED_IMAGES", "1")
     if manifest is None:
         monkeypatch.delenv("EA_PATCHED_OPENCODE_MANIFEST", raising=False)
     else:
@@ -764,6 +784,8 @@ def test_patched_runtime_manifest_reaches_only_live_evaluation(live, repo, tmp_p
         calls.append(is_live)
         assert env.get("EA_PATCHED_OPENCODE_MANIFEST") == (manifest if is_live else None)
         assert env.get("EA_REQUIRE_PATCHED_OPENCODE") == (required if is_live else None)
+        assert env.get("EA_PREPARED_IMAGES_MANIFEST") == ("/private/prepared-images.json" if is_live else None)
+        assert env.get("EA_REQUIRE_PREPARED_IMAGES") == ("1" if is_live else None)
         assert "PYTHONPATH" not in env
         if "validate" in argv:
             return 0, None

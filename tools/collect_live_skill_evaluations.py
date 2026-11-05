@@ -24,6 +24,7 @@ import live_agent_diagnostics
 from collect_skill_evaluations import EVALUATOR_REVISION, execute, now, sha, tree_digest
 from license_duplication_policy import POLICY, expected_license_duplicate
 from live_evaluation_diagnostics import diagnostics
+from patched_opencode_runtime import LIVE_EXECUTION_SECONDS, LIVE_HANDOFF_SECONDS, live_job_remaining
 from run_pinned_evaluator import CONTEXT_POLICY, CONTEXT_SCALAR_LIMIT
 from run_pinned_live_evaluator import OPENCODE_VERSION
 
@@ -31,7 +32,7 @@ HUB_BASE_URL = "https://inference-api.nvidia.com/v1"
 HUB_KEY = "INFERENCE_HUB_API_KEY"
 DEFAULT_CHAT_MODEL = "azure/openai/gpt-5.6-luna"
 DEFAULT_EMBEDDING_MODEL = "azure/openai/text-embedding-3-small"
-TIER3_TIMEOUT_SECONDS = 2700
+TIER3_TIMEOUT_SECONDS = LIVE_EXECUTION_SECONDS
 DIMENSIONS = ("security", "correctness", "discoverability", "effectiveness", "efficiency")
 FINDINGS = {"duplicate", "EXACT_DUPLICATE", "HIGH_SIMILARITY", "SIMILAR", "LOOSELY_RELATED", "DISTINCT"}
 
@@ -87,6 +88,8 @@ class LiveReport(TypedDict):
 
 def execute_with_progress(argv, repo, env, log, timeout):
     """Keep CI responsive without streaming unredacted subprocess output."""
+    if timeout == TIER3_TIMEOUT_SECONDS:
+        live_job_remaining(timeout + LIVE_HANDOFF_SECONDS)
     label = f"{log.parent.name}/{log.name}"
     started = time.monotonic()
     stopped = threading.Event()
@@ -399,6 +402,8 @@ def collect(
     if any(not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", s.name) for s in skills):
         raise ValueError("invalid skill name")
     digests = {s.name: tree_digest(s) for s in skills}
+    if run and tier in ("3", "both") and check_name in ("live", "all"):
+        live_job_remaining(TIER3_TIMEOUT_SECONDS + LIVE_HANDOFF_SECONDS)
     models, env, missing_key = configuration(provider)
     output.mkdir(parents=True, exist_ok=False, mode=0o700)
     # Docker needs a home for its client state; never inherit host credentials
@@ -491,6 +496,8 @@ def collect(
             row.update(status="incomplete", reason="skill_changed_during_run")
             persist()
             continue
+        if row["tier"] == 3:
+            live_job_remaining(TIER3_TIMEOUT_SECONDS + LIVE_HANDOFF_SECONDS)
         target = output / f"check-{index}"
         target.mkdir(mode=0o700)
         skill = repo / "skills" / row["skill"]
@@ -549,7 +556,12 @@ def collect(
                     "off",
                 ]
                 live_env = dict(env)
-                for key in ("EA_PATCHED_OPENCODE_MANIFEST", "EA_REQUIRE_PATCHED_OPENCODE"):
+                for key in (
+                    "EA_PATCHED_OPENCODE_MANIFEST",
+                    "EA_REQUIRE_PATCHED_OPENCODE",
+                    "EA_PREPARED_IMAGES_MANIFEST",
+                    "EA_REQUIRE_PREPARED_IMAGES",
+                ):
                     if key in os.environ:
                         live_env[key] = os.environ[key]
                 code, error = execute_with_progress(argv, repo, live_env, target / "console.log", TIER3_TIMEOUT_SECONDS)
