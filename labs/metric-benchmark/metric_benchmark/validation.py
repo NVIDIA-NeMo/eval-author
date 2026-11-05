@@ -3,7 +3,6 @@
 
 """Validate matrix accounting, native Harbor observations, and evidence paths."""
 
-import argparse
 import warnings
 from pathlib import Path
 
@@ -18,9 +17,8 @@ from metric_benchmark.config import (
     ScoringConfig,
     ScoringPolicy,
     file_manifest,
-    load_cases,
 )
-from metric_benchmark.io import cli, read_json, write_json
+from metric_benchmark.io import read_json
 from metric_benchmark.models import ExecutionManifest, RawResults, Score, resolve_evidence
 
 
@@ -252,20 +250,3 @@ def validate_experiment_results(loaded: LoadedCases, root: Path, *, case_id: str
         except (OSError, ValueError) as error:
             raise ValueError(f"case {selected_id}: {error}") from error
     return {"run_id": manifest.run_id, "cases": reports}
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cases", type=Path, required=True)
-    parser.add_argument(
-        "--allow-unsigned", action="store_true", help="allow missing input pins; still verify supplied SHAs"
-    )
-    parser.add_argument("--case", help="validate only this case; default: all configured cases")
-    parser.add_argument("--results-root", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
-
-    def run(args):
-        loaded = load_cases(args.cases, allow_unsigned=args.allow_unsigned)
-        write_json(args.output, validate_experiment_results(loaded, args.results_root, case_id=args.case))
-
-    cli(parser, run)
