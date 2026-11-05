@@ -9,7 +9,7 @@ import pytest
 import yaml
 from metric_benchmark.config import load_benchmark
 from metric_benchmark.execution import case_root, execute_benchmark
-from metric_benchmark.io import read_json
+from metric_benchmark.io import file_manifest, read_json
 from metric_benchmark.pipeline import run_experiment
 from metric_benchmark.validation import validate_experiment_results
 from test_metric_benchmark_config import LAB, SUBSETS_PATH, prepared_benchmark, write_definition
@@ -320,6 +320,55 @@ def test_saved_results_analysis_does_not_repeat_native_validation(tmp_path):
     assert read_json(output / "experiment.json") == result
     assert not (output / "validation.json").exists()
     assert json.loads(trial_path.read_text())["task_checksum"] == "changed"
+
+
+@pytest.mark.parametrize("failure", ["exit", "timeout"])
+def test_partial_analysis_resumes_only_unfinished_coverage(tmp_path, failure):
+    path, adapter = experiment(tmp_path)
+    unavailable = tmp_path / "service-unavailable"
+    unavailable.touch()
+    calls = tmp_path / "coverage-calls.txt"
+    adapter.write_text(
+        adapter.read_text().replace(
+            "covered =",
+            f"""with Path({str(calls)!r}).open('a') as log:
+    log.write(r['eval_subset_id'] + '\\n')
+if r['eval_subset_id'] == 'subset-000002' and Path({str(unavailable)!r}).exists():
+    if {failure!r} == 'timeout':
+        import time
+        time.sleep(60)
+    raise SystemExit('service unavailable')
+covered =""",
+        )
+    )
+    settings = yaml.safe_load((path.parent / "analysis.yml").read_text())
+    settings["coverage"]["timeout_seconds"] = 1
+    write_definition(path, "analysis.yml", settings)
+    output = tmp_path / "out"
+    with pytest.raises(ValueError, match="exited|timed out"):
+        run_experiment(path, "run", output, runner=fake_harbor)
+    assert not (output / "experiment.json").exists()
+    work = output / "analysis/case-0000/coverage-evidence"
+    completed = file_manifest(work / "subset-000001")
+    assert list(work.glob("failed-*/stderr.log"))
+    evidence = file_manifest(output / "execution")
+
+    with pytest.raises(ValueError, match="completed coverage request is missing"):
+        run_experiment(path, "run", output, results_root=output / "execution", cached_only=True)
+    assert calls.read_text().splitlines() == ["subset-000001", "subset-000002"]
+
+    unavailable.unlink()
+    result = run_experiment(
+        path,
+        "run",
+        output,
+        results_root=output / "execution",
+        runner=lambda _: pytest.fail("analysis recovery must not run agents"),
+    )
+    assert read_json(output / "experiment.json") == result
+    assert calls.read_text().splitlines() == ["subset-000001", "subset-000002", "subset-000002", "subset-000003"]
+    assert file_manifest(work / "subset-000001") == completed
+    assert file_manifest(output / "execution") == evidence
 
 
 def test_analysis_changes_reuse_execution_without_executable_inputs(tmp_path):
