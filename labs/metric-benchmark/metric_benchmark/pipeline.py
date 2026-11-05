@@ -3,7 +3,6 @@
 
 """Execute a configured benchmark through reusable stage libraries."""
 
-import argparse
 from collections.abc import Callable
 from importlib.metadata import version
 from pathlib import Path
@@ -14,7 +13,7 @@ from metric_benchmark.config import load_benchmark
 from metric_benchmark.correlation import correlate
 from metric_benchmark.coverage import invoke_coverage
 from metric_benchmark.execution import execute_benchmark, run_harbor
-from metric_benchmark.io import cli, digest_file, file_manifest, read_json, write_json
+from metric_benchmark.io import digest_file, file_manifest, read_json, write_json
 from metric_benchmark.models import ExecutionManifest, resolve_evidence
 from metric_benchmark.scoring import compute_mutant_scores, identity
 from metric_benchmark.validation import read_case_index, selection_for_results, validate_experiment_results
@@ -130,27 +129,3 @@ def run_experiment(
     }
     write_json(output / "experiment.json", result)
     return result
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--benchmark", type=Path, required=True)
-    parser.add_argument(
-        "--allow-unsigned", action="store_true", help="allow missing input pins; still verify supplied SHAs"
-    )
-    parser.add_argument("--run-id", required=True)
-    parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--results", type=Path, help="existing execution root; skip agent execution")
-    parser.add_argument("--cached-only", action="store_true", help="also prohibit new coverage calls")
-
-    def run(args):
-        run_experiment(
-            args.benchmark,
-            args.run_id,
-            args.output,
-            results_root=args.results,
-            cached_only=args.cached_only,
-            allow_unsigned=args.allow_unsigned,
-        )
-
-    cli(parser, run)
