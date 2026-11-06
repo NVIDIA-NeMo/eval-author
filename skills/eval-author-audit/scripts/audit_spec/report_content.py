@@ -411,7 +411,8 @@ def _references(model: Content) -> list[dict]:
                 historical = any(
                     value.get("task_sha256") == ref["revision"]
                     and _manifest_task(model, value) == model.source(task["source"])
-                    for value in model.values.values()
+                    for identifier, value in model.values.items()
+                    if model.sources[identifier]["kind"] == "manifest"
                 )
                 if not current and not historical:
                     raise ValueError("Finding task revision needs the current task or a selected historical manifest")

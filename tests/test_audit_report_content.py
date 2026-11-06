@@ -948,3 +948,18 @@ def test_braces_that_are_not_finding_references_pass_through(audit_report):
     save(root, data)
     text = renderer.render(load(audit_report))[0].decode()
     assert "The F1 score and \\{kind, label\\} stay as written." in text
+
+
+def test_only_a_manifest_source_can_vouch_for_a_historical_task_revision(audit_report):
+    content, _, root = audit_report
+    historical = "a" * 64
+    run = root / "report-sources/run.json"
+    run.write_text(
+        json.dumps({**json.loads(run.read_text()), "task_sha256": historical, "task_dir": "report-sources/tasks/source-answer"})
+    )
+    data = example_data(root)
+    next(row for row in data["sources"] if row["id"] == "S5")["sha256"] = content.sha(run.read_bytes())
+    data["findings"][0]["tasks"][0]["revision"] = historical
+    save(root, data)
+    with pytest.raises(content.ContentError, match="selected historical manifest"):
+        load(audit_report)
