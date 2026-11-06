@@ -1022,7 +1022,7 @@ def test_runtime_binding_includes_execution_platform(monkeypatch):
     runner = load("runner", SCRIPT)
     assert hasattr(runner, "runtime_identity"), "runtime platform binding missing"
     identity = runner.runtime_identity()
-    assert identity["harbor"] == "0.20.0"
+    assert identity["harbor"] == "0.24.0"
     assert identity["system"] in ("linux", "darwin", "other")
     original = runner.bindings()["runtime_digest"]
     monkeypatch.setattr(runner, "runtime_identity", lambda: dict(identity, machine="other"))

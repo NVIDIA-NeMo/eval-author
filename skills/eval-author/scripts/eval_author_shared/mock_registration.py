@@ -87,18 +87,26 @@ def probe_registration(agent: str | None, servers: list[Any], *, repo: Path | No
         with scratch_directory(repo, prefix="trace-mcp-registration-") as temporary:
             provider = factory.create_agent_from_config(config, logs_dir=Path(temporary), mcp_servers=servers)
             writer = getattr(provider, "_build_register_mcp_servers_command", None)
-            if not callable(writer):
+            builder = getattr(provider, "_build_effective_config", None)
+            if callable(writer):
+                signature = inspect.signature(writer)
+                # Some writers take the destination config path instead of owning it.
+                kwargs = (
+                    {"config_path": str(Path(temporary) / "config.toml")}
+                    if "config_path" in signature.parameters
+                    else {}
+                )
+                signature.bind(**kwargs)
+                command = writer(**kwargs)
+                payload = registration_payload(command) if isinstance(command, str) else None
+            elif callable(builder):
+                # Harbor 0.24's Codex adapter uploads a structured effective config.
+                inspect.signature(builder).bind()
+                payload = builder()
+            else:
                 result["reason"] = "registration_writer_unavailable"
                 return result
-            signature = inspect.signature(writer)
-            # Some writers take the destination config path instead of owning it.
-            kwargs = (
-                {"config_path": str(Path(temporary) / "config.toml")} if "config_path" in signature.parameters else {}
-            )
-            signature.bind(**kwargs)
-            command = writer(**kwargs)
-        payload = registration_payload(command) if isinstance(command, str) else None
-        if payload is None:
+        if not isinstance(payload, dict):
             result["reason"] = "registration_encoding_unrecognized"
             return result
         if not any(key in payload for key in ("mcp_servers", "mcpServers")):
