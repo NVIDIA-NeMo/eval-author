@@ -4,27 +4,38 @@
 """Verify preserved Helix task and agent identities against prepared inputs."""
 
 import copy
+import re
 import tarfile
+import tempfile
 import tomllib
+from importlib.metadata import version
 from pathlib import Path
 
 from harbor.models.task.task import Task as HarborTask
 from harbor.models.trial.config import AgentConfig
 
-from metric_benchmark.helix import Submission, _object
-from metric_benchmark.helix_publication import PublicationPlan
+from metric_benchmark.helix import Submission, _check_status_identity, _object
+from metric_benchmark.helix_publication import agent_target, overlay_task
 from metric_benchmark.io import digest_bytes, digest_file, file_manifest, input_digest, json_bytes
 from metric_benchmark.models import Model, Text, relative_path, resolve_evidence
 
 
 class HelixIdentity(Model):
     collection_path: Text
-    publication_path: Text
-    source_archive_path: Text
-    effective_task_path: Text
+    source_archive_path: Text | None = None
+    effective_task_path: Text | None = None
 
 
 def collection_record(directory):
+    try:
+        return _collection_record(directory)
+    except (KeyError, TypeError, IndexError) as error:
+        raise ValueError(f"malformed Helix collection: {type(error).__name__}") from None
+
+
+def _collection_record(directory):
+    if version("harbor") not in ("0.20.0", "0.24.0"):
+        raise ValueError("Helix checksum validation requires Harbor 0.20.0 or 0.24.0")
     record = _object(resolve_evidence(directory, "collection.json"))
     files = file_manifest(directory)
     files.pop("collection.json", None)
@@ -37,9 +48,30 @@ def collection_record(directory):
         raise ValueError("collection submission identity differs")
     if record["cases_sha256"] != plan.cases_sha256 or record["run_id"] != plan.run_id:
         raise ValueError("collection case or run identity differs")
+    provenance = _object(resolve_evidence(directory, "provenance.json"))
+    if provenance["client_versions"].get("harbor") != "0.24.0":
+        raise ValueError("collection requires the qualified Harbor 0.24.0 client")
+    scope = record.get("scope_case_id")
+    if scope is not None:
+        original = _object(resolve_evidence(directory, "source_collection.json"))
+        prefixes = tuple(f"runs/run-{i:04d}/" for i, run in enumerate(plan.runs) if run.case_id == scope)
+        selected = {
+            name: digest
+            for name, digest in original["files"].items()
+            if not name.startswith("runs/") or name.startswith(prefixes)
+        }
+        actual = dict(files)
+        actual.pop("source_collection.json")
+        if selected != actual or record["observations"] != [
+            r for r in original["observations"] if r["case_id"] == scope
+        ]:
+            raise ValueError("case evidence differs from source collection")
+        if any(original[key] != record[key] for key in ("submission_sha256", "cases_sha256", "run_id")):
+            raise ValueError("case collection identity differs from source")
     expected = {
         (run.case_id, run.agent_bundle_id, task_id)
         for run in plan.runs
+        if scope is None or run.case_id == scope
         for task_id in plan.bindings.cases[run.case_id].tasks
     }
     observed = [(row["case_id"], row["agent_bundle_id"], row["task_id"]) for row in record["observations"]]
@@ -48,8 +80,8 @@ def collection_record(directory):
     return record, plan
 
 
-def verify_archive(archive, source, expected_digest):
-    if digest_file(archive) != "sha256:" + expected_digest:
+def verify_archive(archive, source, expected_digest=None):
+    if expected_digest is not None and digest_file(archive) != "sha256:" + expected_digest:
         raise ValueError("source archive differs from resolved job")
     files = {}
     seen = set()
@@ -90,6 +122,8 @@ def normalized_target(target):
     if set(target) - defaults.keys():
         raise ValueError("unsupported Helix target fields")
     result = {**defaults, **target}
+    if any(result[key] != defaults[key] for key in ("kind", "n_attempts", "max_retries", "n_concurrent_trials")):
+        raise ValueError("Helix import requires one Harbor attempt without retries or concurrency overrides")
     result["source"] = {"model_name": None, **result["source"]}
     # Earlier deployed built-in sources serialized an unused null `model` field.
     if "model" in result["source"] and result["source"]["model"] is None:
@@ -106,6 +140,10 @@ def verify_native_agent(trial, target, policy):
     kwargs = dict(target["agent_kwargs"])
     name, import_path = source.get("name"), source.get("import_path")
     hosts = policy.get("agent_setup_egress", [])
+    if not isinstance(hosts, list) or any(not isinstance(host, str) or not host for host in hosts):
+        raise ValueError("resolved agent setup egress must be a list of hostnames")
+    if any(key in kwargs for key in ("agent_setup_egress_inner", "agent_setup_egress_hosts")):
+        raise ValueError("prepared kwargs must not override the platform egress wrapper")
     if hosts and name not in ("oracle", "nop"):
         kwargs.update(agent_setup_egress_inner=import_path or name, agent_setup_egress_hosts=hosts)
         import_path, name = "nemo_evals.harbor.agent_setup_egress:AgentSetupEgress", None
@@ -120,81 +158,143 @@ def verify_native_agent(trial, target, policy):
         raise ValueError("native agent configuration differs from resolved target")
 
 
-def verify_helix_identity(row, case, root, input_root, trial):
+def verify_helix_identity(row, case, root, input_root, trial, cache, *, allow_unsigned=False):
+    if allow_unsigned:
+        raise ValueError("Helix import requires fully signed prepared inputs")
+    try:
+        _verify_identity(row, case, root, input_root, trial, cache)
+    except (KeyError, IndexError, TypeError, StopIteration) as error:
+        raise ValueError(f"malformed Helix identity evidence: {type(error).__name__}") from None
+
+
+def _verify_identity(row, case, root, input_root, trial, cache):
     from metric_benchmark.validation import task_checksum
 
-    proof = HelixIdentity.model_validate(_object(resolve_evidence(root, row.helix_identity_path)))
+    proof = HelixIdentity.model_validate(_object(resolve_evidence(root, row.identity_proof_path)))
     collection = resolve_evidence(root, proof.collection_path)
-    record, submission = collection_record(collection)
+    key = ("collection", collection)
+    if key not in cache:
+        cache[key] = collection_record(collection)
+    record, submission = cache[key]
+    if record.get("scope_case_id", case.case_id) != case.case_id:
+        raise ValueError("collection scope differs from prepared case")
     case_snapshot = next((value for value in submission.cases if value["case_id"] == case.case_id), None)
     if case_snapshot != case.model_dump(mode="json"):
         raise ValueError("Helix submission differs from prepared case")
-    publication = PublicationPlan.model_validate(_object(resolve_evidence(root, proof.publication_path)))
-    if publication.cases_sha256 != submission.cases_sha256 or publication.execution != submission.execution:
-        raise ValueError("publication and submission inputs differ")
     matches = [
         r
         for r in record["observations"]
-        if r["case_id"] == case.case_id
-        and r["agent_bundle_id"] == row.agent_bundle_id
-        and r["task_id"] == row.evaluation.task.task_id
+        if (r["case_id"], r["agent_bundle_id"], r["task_id"])
+        == (case.case_id, row.agent_bundle_id, row.evaluation.task.task_id)
     ]
     if len(matches) != 1:
         raise ValueError("collection must contain exactly one matching observation")
     observation = matches[0]
-    if resolve_evidence(root, row.native_results_path) != resolve_evidence(
-        collection, observation["native_results_path"]
-    ):
+    # Missing native paths deliberately do not exist; still enforce their lexical binding.
+    if row.native_results_path != str(Path(proof.collection_path) / observation["native_results_path"]):
         raise ValueError("native evidence differs from collection observation")
     if row.agent_run_id != observation["remote_run_id"] or row.evaluation.execution != 1:
         raise ValueError("imported execution differs from native run")
-    run = next(r for r in submission.runs if r.case_id == case.case_id and r.agent_bundle_id == row.agent_bundle_id)
+    run_index, run = next(
+        (i, r)
+        for i, r in enumerate(submission.runs)
+        if r.case_id == case.case_id and r.agent_bundle_id == row.agent_bundle_id
+    )
     bound = submission.bindings.cases[case.case_id]
-    task_id = row.evaluation.task.task_id
-    task_binding = bound.tasks[task_id]
-    published_case = next(c for c in publication.cases if c.case_id == case.case_id)
-    published_task = next(t for t in published_case.tasks if t.task_id == task_id)
-    published_agent = next(a for a in published_case.agents if a.agent_bundle_id == row.agent_bundle_id)
-    source = case.task_sources[task_id].resolve(input_root)
+    binding = bound.tasks[row.evaluation.task.task_id]
+    if (
+        not observation["member_path"].startswith(f"runs/run-{run_index:04d}/")
+        or observation["taskset_path"] != f"runs/run-{run_index:04d}/taskset.json"
+    ):
+        raise ValueError("observation evidence belongs to a different run")
+    member = _object(resolve_evidence(collection, observation["member_path"]))
+    status = _object(resolve_evidence(collection, f"runs/run-{run_index:04d}/status.json"))
+    _check_status_identity(status, run, submission)
+    if status["run_id"] != row.agent_run_id or status["phase"] not in ("completed", "failed", "cancelled", "expired"):
+        raise ValueError("collection run is not the expected completed run")
+    taskset = _object(resolve_evidence(collection, observation["taskset_path"]))
+    if (
+        taskset["ref"] != bound.taskset
+        or len(taskset["tasks"]) != len(bound.tasks)
+        or set(taskset["tasks"]) != {task.ref for task in bound.tasks.values()}
+        or type(member["task_index"]) is not int
+        or member["task_index"] < 0
+        or taskset["tasks"][member["task_index"]] != binding.ref
+    ):
+        raise ValueError("native member differs from pinned taskset position")
+    if member.get("job") != observation["job"]:
+        raise ValueError("native member job differs from collection")
+    job = None
+    if observation["job_spec_path"] is not None:
+        job = _object(resolve_evidence(collection, observation["job_spec_path"]))
+        if (
+            job["name"] != observation["job"]
+            or job["workspace"] != submission.execution.workspace
+            or job["spec"]["run_id"] != row.agent_run_id
+            or job["spec"]["task_index"] != member["task_index"]
+        ):
+            raise ValueError("resolved job differs from native run member")
+    if observation["status"] == "missing":
+        if (
+            trial is not None
+            or row.status != "missing"
+            or member["phase"] not in ("failed", "cancelled", "expired")
+            or row.unavailable_evidence != observation["unavailable_evidence"]
+            or bool(observation["job"]) != (job is not None)
+            or proof.effective_task_path is not None
+            or proof.source_archive_path is not None
+        ):
+            raise ValueError("missing observation is not supported by failed task evidence")
+        return
+    if observation["status"] != "collected" or member["phase"] != "succeeded" or job is None or trial is None:
+        raise ValueError("collected observation requires a succeeded native task job")
+    job_directory = resolve_evidence(collection, observation["job_spec_path"]).parent
+    verify_archive(
+        resolve_evidence(job_directory, "bundle.tar.gz"), resolve_evidence(job_directory, "bundle/agent-eval-results")
+    )
+    published_case = next(c for c in submission.publication.cases if c.case_id == case.case_id)
+    published_task = next(t for t in published_case.tasks if t.task_id == row.evaluation.task.task_id)
+    source = case.task_sources[row.evaluation.task.task_id].resolve(input_root)
+    target = normalized_target(bound.targets[row.agent_bundle_id])
+    agent = next(a for a in case.agents() if a.agent_bundle_id == row.agent_bundle_id)
+    if normalized_target(agent_target(agent, bound.agents[row.agent_bundle_id])) != target:
+        raise ValueError("submitted agent differs from prepared definition")
+    spec = job["spec"]
+    if normalized_target(spec["spec"]["target"]) != target:
+        raise ValueError("resolved target differs from prepared agent")
+    if proof.effective_task_path is None or proof.source_archive_path is None:
+        raise ValueError("completed task lacks image derivation evidence")
+    effective = resolve_evidence(root, proof.effective_task_path)
+    archive = resolve_evidence(root, proof.source_archive_path)
+    derivation_key = (
+        "derivation",
+        case.case_id,
+        published_task.task_id,
+        effective,
+        archive,
+        digest_bytes(json_bytes(spec["environment"])),
+        digest_bytes(json_bytes(spec["spec"]["tasks"])),
+    )
+    if derivation_key not in cache:
+        verify_task_derivation(
+            case, input_root, published_case, published_task, binding, spec, source, effective, archive
+        )
+        cache[derivation_key] = task_checksum(HarborTask(effective))
+    if trial.task_name != source.name or trial.task_checksum != cache[derivation_key]:
+        raise ValueError("native task checksum differs from verified effective task")
+    if trial.config.task.path is None or trial.config.task.path.name != source.name:
+        raise ValueError("native task path differs from prepared task identity")
+    verify_native_agent(trial, target, spec["sandbox_policy"])
+
+
+def verify_task_derivation(case, input_root, published_case, published_task, binding, spec, source, effective, archive):
     if input_digest(source) != published_task.sha256:
         raise ValueError("published task differs from prepared input")
-    target = normalized_target(bound.targets[row.agent_bundle_id])
-    if normalized_target(run.request["spec"]["target"]) != target or run.request["spec"]["tasks"] != bound.taskset:
-        raise ValueError("submission target or taskset differs from bindings")
-    if normalized_target(published_agent.target) != target:
-        raise ValueError("published target differs from submitted target")
-    agent = next(a for a in case.agents() if a.agent_bundle_id == row.agent_bundle_id)
-    if published_agent.transport == "task_image":
-        if published_agent.image_bundle_path is None or published_agent.sha256 is None:
-            raise ValueError("task-image publication lacks pinned bundle identity")
-        if not any(input_digest(v.resolve(input_root)) == published_agent.sha256 for v in agent.inputs.values()):
-            raise ValueError("published bundle is not a prepared agent input")
-        bundled = resolve_evidence(source, published_agent.image_bundle_path)
-        if input_digest(bundled) != published_agent.sha256:
-            raise ValueError("task image context does not contain the prepared agent bundle")
-    elif published_agent.sha256 is not None:
-        raise ValueError("registered-agent import requires a qualified resolved-config mapping")
-    elif target["source"].get("name") not in ("oracle", "nop") or agent.harbor != {"name": target["source"]["name"]}:
-        raise ValueError("control target differs from prepared agent")
-    job = _object(resolve_evidence(collection, observation["job_spec_path"]))
-    job_directory = resolve_evidence(collection, observation["job_spec_path"]).parent
-    bundle = resolve_evidence(job_directory, "bundle.tar.gz")
-    verify_archive(bundle, resolve_evidence(job_directory, "agent-eval-results"), digest_file(bundle)[7:])
-    spec = job["spec"]
-    if (
-        job["name"] != observation["job"]
-        or job["workspace"] != submission.execution.workspace
-        or spec["run_id"] != observation["remote_run_id"]
-    ):
-        raise ValueError("resolved job differs from native run")
-    member = _object(resolve_evidence(collection, str(Path(observation["job_spec_path"]).with_name("member.json"))))
-    if member["job"] != job["name"] or member["task_index"] != spec["task_index"]:
-        raise ValueError("resolved job differs from task member")
     tasks = spec["spec"]["tasks"]
-    if len(tasks) != 1 or tasks[0]["id"] != task_binding.native_task_id:
+    if len(tasks) != 1 or tasks[0]["id"] != binding.native_task_id:
         raise ValueError("resolved job task identity differs")
     native = tasks[0]["spec"]
-    owner, revision = task_binding.ref.split("#")
+    owner, revision = binding.ref.split("#")
     if (
         native["kind"] != "harbor"
         or native["native_task_id"] != source.name
@@ -213,25 +313,31 @@ def verify_helix_identity(row, case, root, input_root, trial):
     ):
         raise ValueError("prepared image is not bound to the published source archive")
     image = environment["agent"]["image_ref"]
-    if "@sha256:" not in image or len(image.rsplit("@sha256:", 1)[1]) != 64:
+    if re.fullmatch(r".+@sha256:[0-9a-f]{64}", image) is None:
         raise ValueError("effective task image must be pinned by digest")
     if environment.get("verifier") is not None or environment.get("compose_images"):
         raise ValueError("separate verifier and compose image mappings are not qualified")
-    verify_archive(resolve_evidence(root, proof.source_archive_path), source, archive_digest)
-    effective = resolve_evidence(root, proof.effective_task_path)
-    expected_files, effective_files = file_manifest(source), file_manifest(effective)
-    expected_files.pop("task.toml")
-    effective_files.pop("task.toml", None)
-    if expected_files != effective_files:
-        raise ValueError("effective task changed files other than image binding")
+    prepared_agents = {agent.agent_bundle_id: agent for agent in case.agents()}
+    bundles = []
+    for published in published_case.agents:
+        bundle = published.model_copy(deep=True)
+        if bundle.packaging.bundle_input is not None:
+            path = prepared_agents[bundle.agent_bundle_id].inputs[bundle.packaging.bundle_input].resolve(input_root)
+            if input_digest(path) != bundle.sha256:
+                raise ValueError("published bundle differs from prepared agent input")
+            bundle.path = str(path)
+        bundles.append(bundle)
+    with tempfile.TemporaryDirectory(prefix="metric-benchmark-verify-overlay-") as temporary:
+        context = overlay_task(source, bundles, Path(temporary) / source.name)
+        if input_digest(context) != published_task.context_sha256:
+            raise ValueError("derived context differs from publication")
+        verify_archive(archive, context, archive_digest)
+        expected_files, effective_files = file_manifest(context), file_manifest(effective)
+        expected_files.pop("task.toml")
+        effective_files.pop("task.toml", None)
+        if expected_files != effective_files:
+            raise ValueError("effective task changed files other than image binding")
     expected_config = copy.deepcopy(original)
     expected_config.setdefault("environment", {})["docker_image"] = image
     if tomllib.loads((effective / "task.toml").read_text()) != expected_config:
         raise ValueError("effective task changes more than the image binding")
-    if trial.task_name != source.name or trial.task_checksum != task_checksum(HarborTask(effective)):
-        raise ValueError("native task checksum differs from verified effective task")
-    if trial.config.task.path is None or trial.config.task.path.name != source.name:
-        raise ValueError("native task path differs from prepared task identity")
-    if normalized_target(spec["spec"]["target"]) != target:
-        raise ValueError("resolved target differs from published agent")
-    verify_native_agent(trial, target, spec["sandbox_policy"])

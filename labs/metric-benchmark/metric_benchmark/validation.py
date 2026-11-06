@@ -117,6 +117,7 @@ def validate_results(
     groups: dict[tuple, list] = {}
     paths = set()
     unavailable = []
+    identity_cache = {}
     for row in raw.execution_results:
         try:
             key = (row.agent_bundle_id, *row.evaluation.task.key())
@@ -132,6 +133,12 @@ def validate_results(
                     raise ValueError("missing execution needs unavailable score and evidence reason")
                 if (root / row.native_results_path).exists():
                     raise ValueError("missing execution unexpectedly has native evidence")
+                if raw.backend == "helix":
+                    from metric_benchmark.helix_identity import verify_helix_identity
+
+                    verify_helix_identity(
+                        row, case, root, input_root, None, identity_cache, allow_unsigned=allow_unsigned
+                    )
             else:
                 if row.native_results_path in paths:
                     raise ValueError("native trial evidence reused by multiple observations")
@@ -144,10 +151,12 @@ def validate_results(
                 prepared_task = tasks[task]
                 if trial.trial_name != native.name:
                     raise ValueError("native trial identity differs from directory")
-                if row.helix_identity_path is not None:
+                if raw.backend == "helix":
                     from metric_benchmark.helix_identity import verify_helix_identity
 
-                    verify_helix_identity(row, case, root, input_root, trial)
+                    verify_helix_identity(
+                        row, case, root, input_root, trial, identity_cache, allow_unsigned=allow_unsigned
+                    )
                 else:
                     if trial.task_name != prepared_task.name or trial.task_checksum != checksums[task]:
                         raise ValueError("native task identity or checksum differs from prepared input")
@@ -222,6 +231,8 @@ def validate_experiment_results(loaded: LoadedCases, root: Path, *, case_id: str
                 raise ValueError("results directory reused by multiple cases")
             directories.add(index.parent)
             raw = RawResults.model_validate(read_json(index))
+            if raw.backend != manifest.backend:
+                raise ValueError("case backend differs from execution.json")
             if raw.run_id != manifest.run_id:
                 raise ValueError("case run_id differs from execution.json")
             reports[selected_id] = validate_results(

@@ -87,9 +87,11 @@ result without Helix dependencies or network access.
 
 The importer verifies the complete matrix, prepared bundle identity, uploaded
 source archive, resolved job target, immutable image binding, native checksum,
-and native measurements. It retains the original collection plus the identity
+and native measurements. It partitions native evidence by case and retains the identity
 proofs described in the [results format](results-format.md#helix-identity-evidence).
-The output is published only after all cases pass validation. Identical retries
+Import requires fully signed prepared inputs. Terminal task jobs lacking native
+trials remain explicitly unavailable. The output is published only after all cases
+pass validation. Identical retries
 verify and reuse the completed output; changed evidence requires investigation.
 
 Qualified mappings currently cover Oracle/NOP controls and explicitly configured

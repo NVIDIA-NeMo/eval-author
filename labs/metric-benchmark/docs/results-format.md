@@ -285,22 +285,30 @@ for the report produced by checking these results.
 
 ## Helix identity evidence
 
-A Helix-imported execution adds `helix_identity_path`, a relative path to a proof
-record under the case results directory. Local results omit it or use `null`.
-The proof references the preserved collection and publication plan, the original
-compressed task source archive, and a separate effective task snapshot.
+Helix-imported manifests and case indexes declare `backend: helix`. Each row
+has `identity_scheme: helix-task-image-v2` and an `identity_proof_path` relative
+to its case directory. Local indexes default to `backend: local` and cannot
+select a Helix proof. Proofs reference case-scoped collection evidence and,
+for completed trials, the uploaded source archive and effective task snapshot.
 
-The validator checks the archive against the signed prepared source, its digest
-against `job.spec`, and the job's pinned task revision and image. All effective
-task files must match the prepared task, except `task.toml`, whose only permitted
-change is the resolved `environment.docker_image`. Harbor's checksum of that
-snapshot must match the unchanged native result. The resolved and native agent
-configurations must match the publication target and its signed bundle. The
-recorded setup-egress wrapper and secret environment templates are checked too.
+The validator reconstructs the publication overlay from signed original tasks
+and agent bundles without changing them. Its digest must match publication;
+its exact archive must match `job.spec`. The effective snapshot may differ
+from that overlay only in `task.toml`'s resolved `environment.docker_image`.
+Harbor's checksum must match the unchanged native result. Targets are derived
+from prepared `Agent.harbor` for every supported transport; the resolved target,
+native configuration, setup-egress wrapper and secret templates must agree.
 
-These checks establish consistency of downloaded evidence, not cryptographic
-attestation of the remote service. Preserve the original collection privately.
-The importer retains native archives and extracted files byte-for-byte and emits
-the usual `execution.json` and per-case `results.json`. Its `import.json` seals
-all output files for replay. Native execution exceptions remain error observations
-with unavailable scores; import never turns a failed execution into a success.
+Each case retains its own native bundles once. Source archives and effective
+snapshots are shared across that case's observations when task, derived context,
+archive and image identities agree. The original collection manifest is retained
+as `source_collection.json`, and case scope is verified against its hashes and
+the complete submitted matrix. Validation caches collection and task derivation
+checks only within that validation call.
+
+These are consistency checks, not remote cryptographic attestation. Preserve
+the original collection privately. `import.json` seals output files and records
+publication, collection and importer versions. Native exceptions remain error
+observations. Terminal task jobs without native results become `missing` rows
+with unavailable scores, backed by run, member and taskset evidence. Neither
+case becomes a successful zero reward. Unsigned prepared inputs are unsupported.
