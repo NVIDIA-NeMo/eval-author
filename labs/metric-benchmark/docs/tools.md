@@ -66,12 +66,45 @@ layout, completed-job reuse, interrupted-job recovery, and the Python API.
 changing task or agent definitions. See the [publication command guide](publish-helix-inputs.md)
 for prerequisites, packaging settings, output records and replay behavior.
 
-### Helix exploration
+## Execute, collect and import Helix results
 
-The exploratory [submit](submit-helix-evals.md) and
-[download](download-helix-results.md) tools schedule prepared cases and collect
-native task evidence. Their collection format is not yet qualified for score
-analysis; the existing local execution and validation tools are unchanged.
+Use the [submit](submit-helix-evals.md) and [download](download-helix-results.md)
+commands after publication. Collection preserves complete native evidence and
+remains `analysis_ready: false`. Import is a separate, offline stage:
+
+```bash
+/path/to/helix/.venv/bin/python labs/metric-benchmark/import_helix_results.py \
+  --cases /private/experiment/cases.yml --publication /private/publication \
+  --collection /private/collected --output /private/results
+```
+
+Initial import needs the pinned Helix client and its `tomlkit==0.15.0` dependency
+(`uv pip install --python /path/to/helix/.venv/bin/python tomlkit==0.15.0` for the
+qualified client revision). It reproduces the platform's image binding on a
+separate task copy. It never rewrites native results or prepared source files.
+The normal benchmark environment can subsequently validate and analyze the
+result without Helix dependencies or network access.
+
+The importer verifies the complete matrix, prepared bundle identity, uploaded
+source archive, resolved job target, immutable image binding, native checksum,
+and native measurements. It partitions native evidence by case and retains the identity
+proofs described in the [results format](results-format.md#helix-identity-evidence).
+Import requires fully signed prepared inputs. Terminal task jobs lacking native
+trials remain explicitly unavailable. The output is published only after all cases
+pass validation. Identical retries
+verify and reuse the completed output; changed evidence requires investigation.
+
+Qualified mappings currently cover Oracle/NOP controls and explicitly configured
+installed Harbor agents with `task_image` bundles, single-step tasks, and one
+shared agent/verifier environment. Registered agents, separate verifier images,
+and compose images fail closed until their identity transformations are qualified.
+Custom adapters must report provider failures as execution errors and use a model
+route reachable from the sandbox. A zero verifier reward alone does not establish
+that the model ran. Use the platform operator's supported gateway configuration;
+keep deployment-specific routes and secret references in private configuration.
+
+The Python entrypoint is `metric_benchmark.helix_import.import_helix_results`.
+Its arguments are loaded cases and the publication, collection and output paths.
 
 ## Compute mutant scores
 

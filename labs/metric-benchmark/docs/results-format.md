@@ -282,3 +282,33 @@ native fields with default values are omitted. Recorded `/mock/metric-benchmark/
 paths illustrate the producer's original location; validation does not open them.
 See the separate [example validation output](validation-report.md#example-validation-output)
 for the report produced by checking these results.
+
+## Helix identity evidence
+
+Helix-imported manifests and case indexes declare `backend: helix`. Each row
+has `identity_scheme: helix-task-image-v2` and an `identity_proof_path` relative
+to its case directory. Local indexes default to `backend: local` and cannot
+select a Helix proof. Proofs reference case-scoped collection evidence and,
+for completed trials, the uploaded source archive and effective task snapshot.
+
+The validator reconstructs the publication overlay from signed original tasks
+and agent bundles without changing them. Its digest must match publication;
+its exact archive must match `job.spec`. The effective snapshot may differ
+from that overlay only in `task.toml`'s resolved `environment.docker_image`.
+Harbor's checksum must match the unchanged native result. Targets are derived
+from prepared `Agent.harbor` for every supported transport; the resolved target,
+native configuration, setup-egress wrapper and secret templates must agree.
+
+Each case retains its own native bundles once. Source archives and effective
+snapshots are shared across that case's observations when task, derived context,
+archive and image identities agree. The original collection manifest is retained
+as `source_collection.json`, and case scope is verified against its hashes and
+the complete submitted matrix. Validation caches collection and task derivation
+checks only within that validation call.
+
+These are consistency checks, not remote cryptographic attestation. Preserve
+the original collection privately. `import.json` seals output files and records
+publication, collection and importer versions. Native exceptions remain error
+observations. Terminal task jobs without native results become `missing` rows
+with unavailable scores, backed by run, member and taskset evidence. Neither
+case becomes a successful zero reward. Unsigned prepared inputs are unsupported.

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Experimental submit/check/collect boundary; native evidence import is not yet qualified."""
+"""Submit, check and preserve native evidence for the separate validated importer."""
 
 import os
 import shutil
@@ -492,7 +492,7 @@ def download_helix_results(submission: Path, output: Path, client) -> dict:
         record = {
             "artifact_type": "helix_evidence_collection",
             "analysis_ready": False,
-            "reason": "Helix runtime-to-prepared-input validation has not yet been qualified",
+            "reason": "Native evidence requires the separate validated import stage before analysis",
             "run_id": plan.run_id,
             "cases_sha256": plan.cases_sha256,
             "submission_sha256": identity,
