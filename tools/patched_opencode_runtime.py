@@ -143,7 +143,7 @@ def check_package_versions(output):
 LIVE_JOB_DEADLINE_ENV = "EA_LIVE_JOB_DEADLINE"
 LIVE_EXECUTION_SECONDS = 2700
 LIVE_HANDOFF_SECONDS = 60
-PREPARATION_TIMEOUT_SECONDS = 600
+PREPARATION_TIMEOUT_SECONDS = 900
 _PREPARATION_DEADLINE: ContextVar[float | None] = ContextVar("prepared_image_deadline", default=None)
 _PREPARATION_PHASE = ContextVar("prepared_image_phase", default="unknown")
 PREPARATION_CATEGORIES = frozenset(

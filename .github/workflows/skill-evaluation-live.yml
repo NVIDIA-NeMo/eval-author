@@ -143,7 +143,7 @@ jobs:
       github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' && !inputs.run_live)
     runs-on: ubuntu-24.04
-    timeout-minutes: 28
+    timeout-minutes: 33
     env:
       EVALUATOR_EXTRAS: tier3
       SHARD_SKILL: eval-author-audit
@@ -159,7 +159,7 @@ jobs:
           import os, time
           started = time.monotonic()
           with open(os.environ["GITHUB_ENV"], "a") as stream:
-              stream.write(f"EA_PREPARATION_STARTED={started}\nEA_LIVE_JOB_DEADLINE={started + 4200}\n")
+              stream.write(f"EA_PREPARATION_STARTED={started}\nEA_LIVE_JOB_DEADLINE={started + 4500}\n")
           PY
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         id: uv
@@ -198,7 +198,7 @@ jobs:
           python tools/build_patched_opencode.py --relocate-manifest "$RUNNER_TEMP/downloaded-opencode/binary-manifest.json" --binary "$RUNNER_TEMP/downloaded-opencode/opencode" --output "$RUNNER_TEMP/patched-opencode"
       - name: Prepare full skills/eval-author-audit dataset without models
         id: prepare
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           "$RUNNER_TEMP/live-runtime/bin/python" tools/prepare_live_images.py --skill "skills/$SHARD_SKILL" --binary-manifest "$RUNNER_TEMP/patched-opencode/binary-manifest.json" --output "$RUNNER_TEMP/prepared-live-images" --timing-checkpoint "$RUNNER_TEMP/preparation-operation-timing.json"
       - name: Summarize hosted preparation timing without raw payloads
@@ -228,14 +228,14 @@ jobs:
               binary_sha256 = load_manifest(pathlib.Path(os.environ["RUNNER_TEMP"]) / "patched-opencode/binary-manifest.json")["sha256"]
           except (OSError, ValueError):
               binary_sha256 = None
-          complete = all(value == "success" for value in outcomes.values()) and elapsed is not None and 0 <= elapsed <= 1440 and revision is not None and binary_sha256 is not None
+          complete = all(value == "success" for value in outcomes.values()) and elapsed is not None and 0 <= elapsed <= 1740 and revision is not None and binary_sha256 is not None
           summary = {
               "schema_version": 1, "status": "complete" if complete else "incomplete",
               "platform": "linux/amd64", "skill": "eval-author-audit", "source_revision": revision,
               "dataset_sha256": hashlib.sha256(pathlib.Path("skills/eval-author-audit/evals/evals.json").read_bytes()).hexdigest(),
               "runtime_sha256": hashlib.sha256(pathlib.Path("tools/patched_opencode_runtime.py").read_bytes()).hexdigest(),
-              "setup_and_preparation_seconds": elapsed, "setup_and_preparation_budget_seconds": 1440,
-              "image_preparation_cap_seconds": 600, "outcomes": outcomes,
+              "setup_and_preparation_seconds": elapsed, "setup_and_preparation_budget_seconds": 1740,
+              "image_preparation_cap_seconds": 900, "outcomes": outcomes,
               "model_execution_enabled": False, "binary_sha256": binary_sha256,
           }
           output = pathlib.Path(os.environ["RUNNER_TEMP"]) / "preparation-timing-summary.json"
@@ -271,8 +271,8 @@ jobs:
     name: ${{ matrix.check }} / ${{ matrix.skill }}
     environment: skill-evaluator
     runs-on: ubuntu-24.04
-    # Explicit step caps sum to 75m. No agent, setup or preparation cap is raised.
-    timeout-minutes: 75
+    # Explicit step caps sum to 80m. Agent execution/setup limits are unchanged.
+    timeout-minutes: 80
     env:
       SHARD_TIER: ${{ matrix.tier }}
       SHARD_CHECK: ${{ matrix.check }}
@@ -290,9 +290,9 @@ jobs:
         timeout-minutes: 1
         if: matrix.id != 'none'
         run: |
-          # T0 includes all dependency/artifact/image setup: 4200-2700-60=1440s.
-          # Checkout has its own 2m cap; 3m remain for staging/upload after T0+70m.
-          python -c 'import os,time; open(os.environ["GITHUB_ENV"], "a").write(f"EA_LIVE_JOB_DEADLINE={time.monotonic() + 4200}\n")'
+          # T0 includes all dependency/artifact/image setup: 4500-2700-60=1740s.
+          # Checkout has its own 2m cap; 3m remain for staging/upload after T0+75m.
+          python -c 'import os,time; open(os.environ["GITHUB_ENV"], "a").write(f"EA_LIVE_JOB_DEADLINE={time.monotonic() + 4500}\n")'
           python tools/live_ci.py initialize --models-resolved --tier "$SHARD_TIER" --skill "$SHARD_SKILL" --check "$SHARD_CHECK" --output "$RUNNER_TEMP/skill-publish"
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         timeout-minutes: 2
@@ -321,7 +321,7 @@ jobs:
         if: matrix.check == 'live' && matrix.id != 'none'
         run: *relocate-binary
       - name: Prepare and verify exact trial images without inference credentials
-        timeout-minutes: 10
+        timeout-minutes: 15
         if: matrix.check == 'live' && matrix.id != 'none'
         run: |
           "$RUNNER_TEMP/live-runtime/bin/python" tools/prepare_live_images.py --skill "skills/$SHARD_SKILL" --binary-manifest "$RUNNER_TEMP/patched-opencode/binary-manifest.json" --output "$RUNNER_TEMP/prepared-live-images"

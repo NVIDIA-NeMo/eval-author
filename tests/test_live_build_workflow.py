@@ -82,30 +82,30 @@ def test_diagnostic_checkpoint_is_opt_in_and_always_retained_without_private_out
         "${{ runner.temp }}/preparation-timing-summary.json",
         "${{ runner.temp }}/preparation-operation-timing.json",
     }
-    assert prepare["timeout-minutes"] == 10
-    assert timing["timeout-minutes"] == 28
-    assert jobs["evaluate"]["timeout-minutes"] == 75
+    assert prepare["timeout-minutes"] == 15
+    assert timing["timeout-minutes"] == 33
+    assert jobs["evaluate"]["timeout-minutes"] == 80
 
 
 def test_outer_budget_covers_declared_steps_without_raising_native_caps():
     jobs = workflow()["jobs"]
     evaluate = jobs["evaluate"]
-    assert evaluate["timeout-minutes"] == 75
+    assert evaluate["timeout-minutes"] == 80
     assert sum(s["timeout-minutes"] for s in evaluate["steps"]) == evaluate["timeout-minutes"]
     initialize = next(s for s in evaluate["steps"] if "live_ci.py initialize" in s.get("run", ""))
-    assert "time.monotonic() + 4200" in initialize["run"]
+    assert "time.monotonic() + 4500" in initialize["run"]
     assert evaluate["steps"].index(initialize) == 1  # No hidden setup before T0.
     reserve = 2700 + 60
-    assert 4200 - reserve == 1440
+    assert 4500 - reserve == 1740
     prepare = next(s for s in evaluate["steps"] if "prepare_live_images.py" in s.get("run", ""))
-    assert prepare["timeout-minutes"] == 10
+    assert prepare["timeout-minutes"] == 15
     before_prepare = evaluate["steps"][1 : evaluate["steps"].index(prepare) + 1]
-    assert sum(s["timeout-minutes"] for s in before_prepare) * 60 <= 4200 - reserve
+    assert sum(s["timeout-minutes"] for s in before_prepare) * 60 <= 4500 - reserve
     runtime = (ROOT / "tools/patched_opencode_runtime.py").read_text()
     for name, value in {
         "LIVE_EXECUTION_SECONDS": 2700,
         "LIVE_HANDOFF_SECONDS": 60,
-        "PREPARATION_TIMEOUT_SECONDS": 600,
+        "PREPARATION_TIMEOUT_SECONDS": 900,
     }.items():
         assert re.search(rf"^{name} = {value}$", runtime, re.M)
 

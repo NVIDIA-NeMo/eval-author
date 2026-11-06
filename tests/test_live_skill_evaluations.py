@@ -1044,8 +1044,8 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
         "plan": 5,
         "authorize": 5,
         "build-opencode": 20,
-        "preparation-timing": 28,
-        "evaluate": 75,
+        "preparation-timing": 33,
+        "evaluate": 80,
         "aggregate": 10,
     }
     assert all(

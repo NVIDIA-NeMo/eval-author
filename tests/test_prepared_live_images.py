@@ -779,10 +779,10 @@ def test_preparation_aggregate_deadline_caps_and_cancels_docker_commands(
             output = "linux/arm64"
         elif args[0] == "build":
             timeouts.append(timeout)
-            if timeout <= 200:
+            if timeout <= 300:
                 clock[0] += timeout
                 raise subprocess.TimeoutExpired(argv, timeout)
-            clock[0] += 200
+            clock[0] += 300
             tag = args[args.index("-t") + 1]
             tags[tag] = dict(
                 Id="sha256:" + "b" * 64,
@@ -801,7 +801,7 @@ def test_preparation_aggregate_deadline_caps_and_cancels_docker_commands(
     monkeypatch.setattr(preparation.subprocess, "run", run)
     with pytest.raises((TimeoutError, subprocess.TimeoutExpired)):
         preparation.prepare_images(native_skill, tmp_path / "prepared", binary_manifest)
-    assert timeouts == [600, 400, 200]
+    assert timeouts == [600, 600, 300]
     assert not (tmp_path / "prepared/prepared-images.json").exists()
 
 
@@ -1030,7 +1030,7 @@ def test_timing_checkpoint_survives_real_subprocess_failure(
     failed = events[-2]
     assert failed["category"] == category and failed["phase"] == "task_source"
     assert failed["operation_elapsed_seconds"] > 0
-    assert 0 <= failed["remaining_deadline_seconds"] < 600
+    assert 0 <= failed["remaining_deadline_seconds"] < 900
     assert data["latest"]["event"] == "failed"
     assert data["latest"]["completed_images"] == 0
     assert not (tmp_path / "out/prepared-images.json").exists()
@@ -1129,7 +1129,7 @@ def test_timing_success_keeps_real_docker_argv_env_and_deadline(preparation, tmp
     data = json.loads(timing_path.read_text())
     completed = next(row for row in data["events"] if row["event"] == "operation_completed")
     assert completed["operation_elapsed_seconds"] == 7
-    assert completed["remaining_deadline_seconds"] == 593
+    assert completed["remaining_deadline_seconds"] == 893
     assert data["latest"]["completed_images"] == 1
     assert data["latest"]["total_elapsed_seconds"] == 7
     assert "private" not in timing_path.read_text().lower()
@@ -1147,7 +1147,25 @@ def test_timing_checkpoint_write_time_is_inside_aggregate_budget(preparation, tm
     preparation.prepare_images(
         tmp_path, tmp_path / "out", tmp_path / "binary", timing_checkpoint=tmp_path / "timing.json"
     )
-    assert observed == [700.0]
+    assert observed == [1000.0]
+
+
+@pytest.mark.parametrize("elapsed,remaining", [(601, 299), (899, 1), (900, 0)])
+def test_preparation_has_fifteen_minute_aggregate_budget(preparation, tmp_path, monkeypatch, elapsed, remaining):
+    clock = [100.0]
+    monkeypatch.setattr(preparation.time, "monotonic", lambda: clock[0])
+    monkeypatch.delenv(preparation.LIVE_JOB_DEADLINE_ENV, raising=False)
+
+    def prepare(*args):
+        clock[0] += elapsed
+        return preparation.preparation_timeout(600)
+
+    monkeypatch.setattr(preparation, "_prepare_images", prepare)
+    if remaining:
+        assert preparation.prepare_images(tmp_path, tmp_path / "out", tmp_path / "binary") == remaining
+    else:
+        with pytest.raises(preparation.PreparationTimeoutError):
+            preparation.prepare_images(tmp_path, tmp_path / "out", tmp_path / "binary")
 
 
 @pytest.mark.parametrize("exception", [ValueError("PRIVATE payload"), RuntimeError("SECRET path")])

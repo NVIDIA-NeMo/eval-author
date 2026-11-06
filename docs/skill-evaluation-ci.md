@@ -41,7 +41,7 @@ the final aggregate records missing or invalid job reports as incomplete.
 Runner loss or cancellation can still prevent the aggregate job from publishing.
 
 Tier 3 evaluation has a 45-minute timeout; its separate dataset validation
-keeps a 60-second timeout. The outer live CI shard job allows 75 minutes for
+keeps a 60-second timeout. The outer live CI shard job allows 80 minutes for
 dependency setup, evaluation, and report retention; the binary build runs in a
 separate upstream job. These limits are a candidate
 based on local measurements, not a guarantee of completion: runtime preflight
@@ -193,12 +193,12 @@ repository fallback. This is verified image reuse, not
 a claim of bit-for-bit reproducible rebuilds. It does not change agent execution
 deadlines or guarantee model responses or timeout cleanup.
 
-Preparation has a 600-second aggregate deadline across all images, not a fresh
+Preparation has a 900-second (15-minute) aggregate deadline across all images, not a fresh
 allowance per Docker command. CI also deducts elapsed dependency/artifact setup
 from a shared monotonic job window, reserving the unchanged 2700-second evaluation
-allowance plus 60 seconds for collection overhead. The window ends 70 minutes
-after the fallback step starts, leaving 24 minutes for setup and preparation,
-and reporting headroom within the 75-minute job (less checkout time).
+allowance plus 60 seconds for collection overhead. The window ends 75 minutes
+after the fallback step starts, leaving 29 minutes for setup and preparation,
+and reporting headroom within the 80-minute job (less checkout time).
 The PR timing check exercises the same setup and preparation commands, without
 models, against the full Audit dataset. Its result is a preparation measurement,
 not a live evaluation or full-matrix pass. If the remaining window cannot
@@ -224,8 +224,8 @@ capped at 1 MiB and counts at 128 trial images; elapsed fields saturate at one d
 The unchanged `always()` upload retains only this checkpoint and the existing
 safe summary, even after preparation failure/cancellation. A process killed
 mid-operation leaves its last observed boundary, not a fabricated final duration
-or success. Runner loss can still prevent artifact upload. No live-shard gate or
-preparation, step or job timeout is increased.
+or success. Runner loss can still prevent artifact upload. The checkpoint option
+does not change any configured deadlines or live-shard gates.
 
 The standalone SkillSpector **Security Scan is skipped by CI policy**. It is
 excluded from `--checks`, recorded in `policy.skipped_checks`, and represented
