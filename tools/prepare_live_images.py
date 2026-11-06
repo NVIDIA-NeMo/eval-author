@@ -7,7 +7,7 @@ import argparse
 import os
 from pathlib import Path
 
-from patched_opencode_runtime import LIVE_JOB_DEADLINE_ENV, prepare_images
+from patched_opencode_runtime import LIVE_JOB_DEADLINE_ENV, preparation_failure, prepare_images
 
 
 def main():
@@ -28,8 +28,14 @@ def main():
     os.environ.update(environment)
     try:
         prepare_images(args.skill.resolve(), args.output.resolve(), args.binary_manifest.resolve())
-    except Exception:
-        parser.exit(1, "image preparation failed; inference was not started\n")
+    except Exception as error:
+        details = preparation_failure(error)
+        parser.exit(
+            1,
+            "image preparation failed: "
+            + " ".join(key + "=" + value for key, value in details.items())
+            + "; inference was not started\n",
+        )
     print("prepared trial images verified")
 
 

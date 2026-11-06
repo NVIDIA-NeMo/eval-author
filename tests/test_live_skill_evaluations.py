@@ -730,12 +730,22 @@ def test_live_schema_v2_rejects_v1_shards_through_provenance_bindings(live, repo
         ci.validated_row(candidate, base, expected)
 
 
-def test_collector_rejects_exhausted_ci_window_before_credentials(live, repo, tmp_path, monkeypatch):
-    monkeypatch.setenv("EA_LIVE_JOB_DEADLINE", "2800")
+@pytest.mark.parametrize("deadline", ["2800", "0", "NaN", "inf", "PRIVATE-malformed"])
+def test_collector_rejects_exhausted_ci_window_before_credentials(live, repo, tmp_path, monkeypatch, deadline):
+    monkeypatch.setenv("EA_LIVE_JOB_DEADLINE", deadline)
     monkeypatch.setattr(live.time, "monotonic", lambda: 100.0)
-    monkeypatch.setattr(live, "configuration", lambda *a: pytest.fail("credentials read after budget exhaustion"))
-    with pytest.raises(TimeoutError, match="budget"):
-        live.collect(repo, tmp_path / "exhausted", tier="3", skill_name="eval-author", check_name="live", run=True)
+    configuration = live.configuration
+
+    def configure(provider, *, read_credentials=True):
+        assert read_credentials is False, "credentials read after budget exhaustion"
+        return configuration(provider, read_credentials=read_credentials)
+
+    monkeypatch.setattr(live, "configuration", configure)
+    report = live.collect(repo, tmp_path / "exhausted", tier="3", skill_name="eval-author", check_name="live", run=True)
+    row = next(row for row in report["observations"] if row["status"] != "skipped")
+    assert row["status"] == "incomplete" and row["reason"] == "insufficient_job_budget"
+    persisted = json.loads((tmp_path / "exhausted/live-skillevaluator-summary.json").read_text())
+    assert persisted == report
 
 
 def test_collector_rechecks_job_window_at_evaluator_launch(live, repo, tmp_path, monkeypatch):
@@ -745,7 +755,38 @@ def test_collector_rechecks_job_window_at_evaluator_launch(live, repo, tmp_path,
         live, "execute", lambda *a: pytest.fail("model-capable process launched after budget exhaustion")
     )
     with pytest.raises(TimeoutError, match="budget"):
-        live.execute_with_progress(["synthetic"], repo, {}, tmp_path / "run.log", live.TIER3_TIMEOUT_SECONDS)
+        live.execute_with_progress(
+            ["synthetic"], repo, {}, tmp_path / "run.log", live.TIER3_TIMEOUT_SECONDS, reserve_live_budget=True
+        )
+
+
+def test_same_timeout_on_nonlive_command_does_not_reserve_budget(live, repo, tmp_path, monkeypatch):
+    monkeypatch.setenv("EA_LIVE_JOB_DEADLINE", "0")
+    monkeypatch.setattr(live, "execute", lambda *a: (0, None))
+    assert live.execute_with_progress(["context"], repo, {}, tmp_path / "context.log", live.TIER3_TIMEOUT_SECONDS) == (
+        0,
+        None,
+    )
+
+
+def test_budget_expiry_during_validation_is_persisted_without_evaluation(live, repo, tmp_path, monkeypatch):
+    monkeypatch.setenv("INFERENCE_HUB_API_KEY", "fixture-only")
+    monkeypatch.setenv("EA_LIVE_JOB_DEADLINE", "10000")
+    monkeypatch.setattr(live.time, "monotonic", lambda: 100.0)
+    calls = []
+
+    def execute(argv, *args):
+        calls.append(argv)
+        assert "validate" in argv
+        monkeypatch.setenv("EA_LIVE_JOB_DEADLINE", "0")
+        return 0, None
+
+    monkeypatch.setattr(live, "execute", execute)
+    report = live.collect(repo, tmp_path / "late-expiry", tier="3", skill_name="eval-author", run=True)
+    row = next(row for row in report["observations"] if row["status"] != "skipped")
+    assert len(calls) == 1
+    assert row["status"] == "incomplete" and row["reason"] == "insufficient_job_budget"
+    assert row["finished_at"]
 
 
 def test_plan_and_missing_key_never_execute(live, repo, tmp_path, monkeypatch):
@@ -799,7 +840,7 @@ def test_patched_runtime_manifest_reaches_only_live_evaluation(live, repo, tmp_p
         path.write_text(json.dumps(data))
         return 0, None
 
-    monkeypatch.setattr(live, "execute_with_progress", execute)
+    monkeypatch.setattr(live, "execute", execute)
     output = tmp_path / "patched-collection"
     live.collect(repo, output, run=True)
     assert calls.count(True) == 1 and calls.count(False) >= 2
@@ -1002,7 +1043,9 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
     assert {name: config["timeout-minutes"] for name, config in workflow["jobs"].items()} == {
         "plan": 5,
         "authorize": 5,
-        "evaluate": 60,
+        "build-opencode": 20,
+        "preparation-timing": 28,
+        "evaluate": 75,
         "aggregate": 10,
     }
     assert all(
@@ -1036,14 +1079,15 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
     assert not {"OPENAI_API_KEY", "NVIDIA_API_KEY", "HUB_METADATA_API_KEY"}.intersection(evaluation["env"])
 
 
-def test_ci_builds_patched_runtime_only_for_live_before_credentials():
+def test_ci_verifies_downloaded_runtime_only_for_live_before_credentials():
     workflow = yaml.safe_load((ROOT / ".github/workflows/skill-evaluation-live.yml").read_text())
     steps = workflow["jobs"]["evaluate"]["steps"]
-    build = next(step for step in steps if step.get("name") == "Build patched OpenCode runtime")
+    build = next(step for step in steps if step.get("name") == "Verify downloaded OpenCode runtime")
     evaluation = next(step for step in steps if step.get("name") == "Run exactly one assigned check")
     assert build["if"] == "matrix.check == 'live' && matrix.id != 'none'"
     assert "tools/build_patched_opencode.py" in build["run"]
     assert '--output "$RUNNER_TEMP/patched-opencode"' in build["run"]
+    assert '--relocate-manifest "$RUNNER_TEMP/downloaded-opencode/binary-manifest.json"' in build["run"]
     assert "secrets." not in json.dumps(build)
     assert steps.index(build) < steps.index(evaluation)
     assert 'if test "$SHARD_CHECK" = live; then' in evaluation["run"]

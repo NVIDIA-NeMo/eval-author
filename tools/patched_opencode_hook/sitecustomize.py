@@ -6,6 +6,19 @@
 import os
 
 
+def _record_failure(reason):
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "live_agent_diagnostics.py"
+    spec = importlib.util.spec_from_file_location("_ea_live_diagnostics", path)
+    if spec is None or spec.loader is None:
+        return
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.record_runtime_failure("startup_hook", reason)
+
+
 def _activate():
     import hashlib
     import importlib.util
@@ -32,8 +45,12 @@ def _activate():
     if module.sha256(manifest) != os.environ.get("_EA_PATCHED_OPENCODE_MANIFEST_SHA256"):
         raise RuntimeError("manifest binding changed")
     if "EA_PREPARED_IMAGES_MANIFEST" in os.environ:
-        if module.sha256(os.environ["EA_PREPARED_IMAGES_MANIFEST"]) != os.environ.get("_EA_PREPARED_IMAGES_SHA256"):
-            raise RuntimeError("prepared image manifest binding changed")
+        try:
+            if module.sha256(os.environ["EA_PREPARED_IMAGES_MANIFEST"]) != os.environ.get("_EA_PREPARED_IMAGES_SHA256"):
+                raise RuntimeError("prepared image manifest binding changed")
+        except BaseException:
+            _record_failure("prepared_image_mismatch")
+            raise
     module.activate(manifest)
 
 
@@ -50,5 +67,9 @@ if any(
         _activate()
     except BaseException:
         # CPython ordinarily prints and ignores sitecustomize exceptions.
+        try:
+            _record_failure("patched_runtime_activation_failed")
+        except BaseException:
+            pass
         os.write(2, b"patched OpenCode activation failed; refusing execution\n")
         os._exit(78)

@@ -84,7 +84,12 @@ def test_non_evaluate_commands_fail_before_upstream_imports(wrapper, upstream, m
     "mutation",
     ["revision", "missing_origin", "malformed_origin", "list_origin", "vcs", "editable", "evaluator", "harbor"],
 )
-def test_runtime_drift_fails_before_upstream_imports(wrapper, upstream, monkeypatch, mutation):
+def test_runtime_drift_fails_before_upstream_imports(wrapper, upstream, monkeypatch, tmp_path, mutation):
+    diagnostic = __import__("live_agent_diagnostics")
+    path = tmp_path / "failure.json"
+    token = "f" * 64
+    monkeypatch.setenv("_EA_LIVE_FAILURE_PATH", str(path))
+    monkeypatch.setenv("_EA_LIVE_FAILURE_TOKEN", token)
     if mutation == "revision":
         upstream.origin["vcs_info"]["commit_id"] = "unreviewed"
     elif mutation == "vcs":
@@ -102,6 +107,10 @@ def test_runtime_drift_fails_before_upstream_imports(wrapper, upstream, monkeypa
     with pytest.raises(ValueError, match="requires pinned"):
         wrapper.main()
     imports.assert_not_called()
+    assert diagnostic.read_runtime_failure(path, token) == {
+        "source": "wrapper",
+        "reason": "patched_runtime_activation_failed",
+    }
 
 
 @pytest.mark.parametrize(
@@ -212,6 +221,56 @@ def test_native_preflight_and_both_trial_arms_launch_with_pin(wrapper, monkeypat
     assert dict(runner._HARBOR_AGENT_KWARGS) == {**original, "opencode": {"version": wrapper.OPENCODE_VERSION}}
 
 
+@pytest.mark.parametrize("launch_module", [RUNNER, "skillevaluator.tier3.harbor.runtime_preflight"])
+def test_real_native_harbor_launch_forwards_host_only_failure_channel(wrapper, monkeypatch, tmp_path, launch_module):
+    import subprocess
+
+    pytest.importorskip("skillevaluator")
+    runner = wrapper.import_module(RUNNER)
+    preflight = wrapper.import_module("skillevaluator.tier3.harbor.runtime_preflight")
+    cli = wrapper.import_module("skillevaluator.cli")
+    diagnostic = wrapper.import_module("live_agent_diagnostics")
+    for module in (runner, preflight):
+        monkeypatch.setattr(module, "_harbor_launch_environment", module._harbor_launch_environment)
+    monkeypatch.setattr(runner, "_HARBOR_AGENT_KWARGS", runner._HARBOR_AGENT_KWARGS)
+    path = tmp_path / "failure.json"
+    token = "c" * 64
+    monkeypatch.setattr(
+        os,
+        "environ",
+        {
+            "HOME": str(tmp_path),
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHON_DOTENV_DISABLED": "1",
+            "HARBOR_TELEMETRY": "0",
+            "_EA_LIVE_FAILURE_PATH": str(path),
+            "_EA_LIVE_FAILURE_TOKEN": token,
+        },
+    )
+
+    def dispatch():
+        # Pinned native plans intentionally omit arbitrary ambient variables;
+        # add the channel at the host subprocess handoff, never the task env.
+        env = wrapper.import_module(launch_module)._harbor_launch_environment(
+            {
+                "PYTHONPATH": str(ROOT / "tools/patched_opencode_hook"),
+                "EA_PATCHED_OPENCODE_MANIFEST": "PRIVATE-missing",
+                "PYTHONDONTWRITEBYTECODE": "1",
+            }
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", "raise AssertionError('hook bypass')"], env=env, capture_output=True
+        )
+        assert result.returncode == 78
+
+    monkeypatch.setattr(cli, "cli", dispatch)
+    wrapper.main()
+    assert diagnostic.read_runtime_failure(path, token) == {
+        "source": "startup_hook",
+        "reason": "patched_runtime_activation_failed",
+    }
+
+
 def test_required_patch_without_manifest_fails_before_dispatch(wrapper, upstream, monkeypatch):
     monkeypatch.delenv("EA_PATCHED_OPENCODE_MANIFEST", raising=False)
     monkeypatch.setenv("EA_REQUIRE_PATCHED_OPENCODE", "1")
@@ -243,6 +302,20 @@ def test_manifest_activation_precedes_pin_and_cli_dispatch(wrapper, upstream, mo
     upstream.modules["skillevaluator.cli"].cli.side_effect = lambda: activated.append("cli")
     wrapper.main()
     assert activated == [str(manifest), "cli"]
+
+
+def test_cli_payload_cannot_claim_wrapper_activation_failure(wrapper, upstream, monkeypatch, tmp_path):
+    diagnostic = __import__("live_agent_diagnostics")
+    path = tmp_path / "failure.json"
+    token = "a" * 64
+    monkeypatch.setenv("_EA_LIVE_FAILURE_PATH", str(path))
+    monkeypatch.setenv("_EA_LIVE_FAILURE_TOKEN", token)
+    # No native launch here; keep the upstream fixture limited to CLI dispatch.
+    monkeypatch.setattr(wrapper, "install_failure_channel", lambda: None)
+    upstream.modules["skillevaluator.cli"].cli.side_effect = ValueError("patched_runtime_activation_failed PRIVATE")
+    with pytest.raises(ValueError):
+        wrapper.main()
+    assert diagnostic.read_runtime_failure(path, token) is None
 
 
 def test_broken_patch_never_falls_back_to_pin_only(wrapper, upstream, monkeypatch):

@@ -4,6 +4,8 @@
 import hashlib
 import importlib.util
 import io
+import json
+import shutil
 import subprocess
 import tarfile
 from pathlib import Path
@@ -114,7 +116,7 @@ def test_cli_rejects_release_and_reused_output(tmp_path):
             capture_output=True,
         )
         assert result.returncode != 0
-        assert "OPENCODE_RELEASE" in result.stderr if env else "exists" in result.stderr
+        assert "Build failed: validation_failed" in result.stderr
     assert not (tmp_path / "binary-manifest.json").exists()
 
 
@@ -282,3 +284,149 @@ def test_native_exit_and_version_fail_closed(tmp_path, exit_code, version):
     result = subprocess.CompletedProcess([], exit_code, version + "\n", "")
     with pytest.raises(ValueError, match="native"):
         builder().native_manifest(elf(tmp_path), result, "linux/amd64")
+
+
+def test_downloaded_manifest_relocation_checks_real_bytes_and_version(tmp_path, monkeypatch):
+    module = builder()
+    assert hasattr(module, "relocate_manifest"), "downloaded artifact relocation is missing"
+    monkeypatch.syspath_prepend(str(BUILDER.parent))
+    from patched_opencode_runtime import load_manifest
+
+    original = tmp_path / "builder"
+    original.mkdir()
+    binary = original / "opencode"
+    binary.write_text(f"#!/bin/sh\nprintf '%s\\n' '{VERSION}'\n")
+    manifest = {
+        "schema_version": 1,
+        "binary_path": str(binary),
+        "sha256": module.sha256(binary),
+        "expected_version": VERSION,
+    }
+    (original / "binary-manifest.json").write_text(json.dumps(manifest))
+    downloaded = tmp_path / "downloaded"
+    shutil.move(original, downloaded)
+    output = tmp_path / "relocated"
+    output.mkdir()
+    module.relocate_manifest(downloaded / "binary-manifest.json", downloaded / "opencode", output)
+    bound = load_manifest(output / "binary-manifest.json")
+    assert bound == {**manifest, "binary_path": str(downloaded / "opencode")}
+    assert not original.exists()
+
+
+@pytest.mark.parametrize("tamper", ["bytes", "version", "exit", "extra_field", "symlink", "duplicate"])
+def test_downloaded_artifact_tamper_never_creates_ready_manifest(tmp_path, monkeypatch, tamper):
+    module = builder()
+    assert hasattr(module, "relocate_manifest"), "downloaded artifact relocation is missing"
+    monkeypatch.syspath_prepend(str(BUILDER.parent))
+    binary = tmp_path / "opencode"
+    version = "wrong" if tamper == "version" else VERSION
+    binary.write_text(f"#!/bin/sh\nprintf '%s\\n' '{version}'\nexit {7 if tamper == 'exit' else 0}\n")
+    data = {
+        "schema_version": 1,
+        "binary_path": "/vanished-builder/opencode",
+        "sha256": module.sha256(binary),
+        "expected_version": VERSION,
+    }
+    if tamper == "bytes":
+        binary.write_text("tampered")
+    if tamper == "extra_field":
+        data["payload"] = "private task data"
+    if tamper == "symlink":
+        link = tmp_path / "link"
+        link.symlink_to(binary)
+        binary = link
+    text = json.dumps(data)
+    if tamper == "duplicate":
+        text = text.replace('"schema_version": 1', '"schema_version": 1, "schema_version": 1')
+    source = tmp_path / "download.json"
+    source.write_text(text)
+    output = tmp_path / "ready"
+    output.mkdir()
+    with pytest.raises(ValueError):
+        module.relocate_manifest(source, binary, output)
+    assert not (output / "binary-manifest.json").exists()
+
+
+@pytest.mark.parametrize(
+    "error,category",
+    [
+        (ValueError("PRIVATE source/task payload"), "validation_failed"),
+        (subprocess.TimeoutExpired(["PRIVATE"], 1), "timeout"),
+        (OSError("PRIVATE host path"), "io_failed"),
+    ],
+)
+def test_build_failure_publishes_only_allowlisted_aggregate(tmp_path, monkeypatch, capsys, error, category):
+    module = builder()
+
+    def failed(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(module, "build", failed)
+    raw, artifact = tmp_path / "raw", tmp_path / "artifact"
+    assert module.main(["--output", str(raw), "--artifact-output", str(artifact), "--platform", "linux/amd64"]) == 1
+    summary = json.loads((artifact / "build-summary.json").read_text())
+    assert summary["status"] == "failed"
+    assert summary["failure_category"] == category
+    assert summary["source_commit"] == module.SOURCE_COMMIT
+    assert summary["platform"] == "linux/amd64"
+    assert summary["binary_sha256"] is None
+    assert type(summary["elapsed_seconds"]) is float
+    assert {p.name for p in artifact.iterdir()} == {"build-summary.json"}
+    assert "PRIVATE" not in json.dumps(summary) + str(capsys.readouterr())
+
+
+def test_build_success_stages_exact_allowlist_not_raw_provenance(tmp_path, monkeypatch):
+    module = builder()
+
+    def built(output, platform, *args, **kwargs):
+        binary = elf(output)
+        binary.chmod(0o755)
+        (output / "build.log").write_text("PRIVATE task data")
+        (output / "provenance.json").write_text('{"injected":"PRIVATE"}')
+        data = module.native_manifest(binary, subprocess.CompletedProcess([], 0, VERSION, ""), platform)
+        module.save_json(output / "binary-manifest.json", data)
+        return data
+
+    monkeypatch.setattr(module, "build", built)
+    artifact = tmp_path / "artifact"
+    assert (
+        module.main(
+            ["--output", str(tmp_path / "raw"), "--artifact-output", str(artifact), "--platform", "linux/amd64"]
+        )
+        == 0
+    )
+    assert {p.name for p in artifact.iterdir()} == {"opencode", "binary-manifest.json", "build-summary.json"}
+    summary = json.loads((artifact / "build-summary.json").read_text())
+    assert summary["status"] == "complete" and summary["failure_category"] is None
+    assert summary["binary_sha256"] == module.sha256(artifact / "opencode")
+    assert "PRIVATE" not in (artifact / "build-summary.json").read_text()
+
+
+def test_output_creation_failure_cannot_leak_a_secondary_exception(tmp_path, capsys):
+    blocker = tmp_path / "PRIVATE-path"
+    blocker.write_text("not a directory")
+    assert builder().main(["--output", str(blocker / "child"), "--platform", "linux/amd64"]) == 1
+    captured = capsys.readouterr()
+    assert captured.err == "Build failed: io_failed\n"
+    assert captured.out == ""
+
+
+def test_summary_write_failure_remains_sanitized(tmp_path, monkeypatch, capsys):
+    module = builder()
+    original = module.save_json
+    writes = []
+
+    def save(path, data):
+        writes.append(path)
+        if len(writes) > 1:
+            raise OSError("PRIVATE filesystem details")
+        original(path, data)
+
+    def fail(*args):
+        raise ValueError("PRIVATE build details")
+
+    monkeypatch.setattr(module, "save_json", save)
+    monkeypatch.setattr(module, "build", fail)
+    assert module.main(["--output", str(tmp_path / "raw"), "--artifact-output", str(tmp_path / "artifact")]) == 1
+    assert "PRIVATE" not in str(capsys.readouterr())
+    assert json.loads((tmp_path / "artifact/build-summary.json").read_text())["status"] == "incomplete"

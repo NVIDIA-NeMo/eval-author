@@ -68,7 +68,33 @@ PACKAGE_VERSIONS = {
 PACKAGE_QUERY = "dpkg-query -W -f='${Package}=${Version}\\n' " + " ".join(SYSTEM_DEPENDENCIES)
 
 
-def pinned_dockerfile(source, platform):
+def dependency_install_command(*, default_sources=False):
+    # Use isolated, signed snapshot indexes without replacing custom apt sources.
+    sources = "\\n".join(
+        f"deb [check-valid-until=no] https://snapshot.debian.org/archive/{archive}/20261105T000000Z/ {suite} main"
+        for archive, suite in (("debian", "trixie"), ("debian-security", "trixie-security"))
+    )
+    apt = 'apt-get -o Acquire::Retries=3 -o Dir::Etc::sourcelist="$sources" -o Dir::Etc::sourceparts=- '
+    return (
+        "set -eu; sources=$(mktemp); trap 'rm -f \"$sources\"' EXIT; "
+        + f"printf '%b\\n' '{sources}' > \"$sources\"; rm -rf /var/lib/apt/lists/*; "
+        + apt
+        + "update && "
+        + apt
+        + "install -y --no-install-recommends "
+        + " ".join(name + "=" + PACKAGE_VERSIONS[name] for name in SYSTEM_DEPENDENCIES)
+        + " && rm -rf /var/lib/apt/lists/* && "
+        + DEPENDENCY_CHECK
+        + (
+            ' && cp "$sources" /etc/apt/sources.list && chmod 644 /etc/apt/sources.list'
+            " && rm -f /etc/apt/sources.list.d/debian.sources"
+            if default_sources
+            else ""
+        )
+    )
+
+
+def pinned_dockerfile(source, platform, *, dependency_image=None):
     # Bound the supported grammar rather than mistaking physical lines or
     # heredoc bodies for instructions. Preserve all non-FROM source bytes.
     instructions = []
@@ -100,7 +126,9 @@ def pinned_dockerfile(source, platform):
         raise ValueError("unsupported prepared Dockerfile FROM")
     image = match[1]
     if image in ("python:3.12-slim", "python:3.12.16-slim-trixie"):
-        image = BASE_IMAGES[platform]
+        if dependency_image is not None and not re.fullmatch("sha256:[a-f0-9]{64}", dependency_image):
+            raise ValueError("invalid immutable dependency image")
+        image = dependency_image or BASE_IMAGES[platform]
     elif not re.fullmatch(r"[a-zA-Z0-9./:_-]+@sha256:[a-f0-9]{64}", image):
         raise ValueError("custom base image must be pinned by digest")
     alias = " AS " + match[2] if match[2] else ""
@@ -117,6 +145,53 @@ LIVE_EXECUTION_SECONDS = 2700
 LIVE_HANDOFF_SECONDS = 60
 PREPARATION_TIMEOUT_SECONDS = 600
 _PREPARATION_DEADLINE: ContextVar[float | None] = ContextVar("prepared_image_deadline", default=None)
+_PREPARATION_PHASE = ContextVar("prepared_image_phase", default="unknown")
+PREPARATION_CATEGORIES = frozenset(
+    {
+        "docker_failed",
+        "docker_unavailable",
+        "deadline_exceeded",
+        "filesystem_error",
+        "validation_error",
+        "contract_error",
+        "unknown_error",
+    }
+)
+PREPARATION_PHASES = frozenset(
+    {
+        "unknown",
+        "budget",
+        "contract",
+        "binary_manifest",
+        "platform",
+        "staging",
+        "dependencies",
+        "task_source",
+        "task_layer",
+        "offline_probe",
+        "publication",
+    }
+)
+PREPARATION_OPERATIONS = frozenset({"none", "build", "inspect", "info", "run", "other"})
+
+
+class PreparationError(ValueError):
+    def __init__(self, category, phase, operation="none"):
+        self.category = category if type(category) is str and category in PREPARATION_CATEGORIES else "unknown_error"
+        self.phase = phase if type(phase) is str and phase in PREPARATION_PHASES else "unknown"
+        self.operation = operation if type(operation) is str and operation in PREPARATION_OPERATIONS else "other"
+        super().__init__(f"category={self.category} phase={self.phase} operation={self.operation}")
+
+
+class PreparationTimeoutError(PreparationError, TimeoutError):
+    pass
+
+
+def preparation_failure(error):
+    if type(error) not in (PreparationError, PreparationTimeoutError):
+        return dict(category="unknown_error", phase="unknown", operation="none")
+    safe = PreparationError(error.category, error.phase, error.operation)
+    return dict(category=safe.category, phase=safe.phase, operation=safe.operation)
 
 
 def live_job_remaining(reserve=0):
@@ -141,11 +216,19 @@ def preparation_timeout(limit):
 
 
 def _docker(args, *, timeout=30):
-    timeout = preparation_timeout(timeout)
-    environment = {key: os.environ[key] for key in ("PATH", "HOME", "DOCKER_HOST", "TMPDIR") if key in os.environ}
-    result = subprocess.run(["docker", *args], env=environment, capture_output=True, text=True, timeout=timeout)
+    operation = "inspect" if args[:2] == ["image", "inspect"] else args[0] if args else "other"
+    operation = operation if operation in PREPARATION_OPERATIONS else "other"
+    phase = _PREPARATION_PHASE.get()
+    try:
+        timeout = preparation_timeout(timeout)
+        environment = {key: os.environ[key] for key in ("PATH", "HOME", "DOCKER_HOST", "TMPDIR") if key in os.environ}
+        result = subprocess.run(["docker", *args], env=environment, capture_output=True, text=True, timeout=timeout)
+    except (TimeoutError, subprocess.TimeoutExpired):
+        raise PreparationTimeoutError("deadline_exceeded", phase, operation) from None
+    except OSError:
+        raise PreparationError("docker_unavailable", phase, operation) from None
     if result.returncode:
-        raise ValueError("prepared-image Docker operation failed")
+        raise PreparationError("docker_failed", phase, operation) from None
     return result.stdout.strip()
 
 
@@ -159,6 +242,15 @@ def docker_platform():
 
 def inspect_image(tag):
     return json.loads(_docker(["image", "inspect", "--format", "{{json .}}", tag]))
+
+
+def inspect_build_parent(tag, platform):
+    image = inspect_image(tag)
+    if not re.fullmatch("sha256:[a-f0-9]{64}", image["Id"]) or image["Os"] + "/" + image["Architecture"] != platform:
+        raise ValueError("prepared source image identity mismatch")
+    if image["Config"].get("OnBuild"):
+        raise ValueError("prepared layering does not support inherited ONBUILD")
+    return image
 
 
 def check_prepared_image(identity, record, platform, *, probe=False, binary=None):
@@ -204,18 +296,37 @@ def check_prepared_image(identity, record, platform, *, probe=False, binary=None
 
 
 def prepare_images(skill, output, binary_manifest):
-    budget = min(PREPARATION_TIMEOUT_SECONDS, live_job_remaining(LIVE_EXECUTION_SECONDS + LIVE_HANDOFF_SECONDS))
-    token = _PREPARATION_DEADLINE.set(time.monotonic() + budget)
+    phase_token = _PREPARATION_PHASE.set("budget")
+    token = _PREPARATION_DEADLINE.set(None)
     try:
+        budget = min(PREPARATION_TIMEOUT_SECONDS, live_job_remaining(LIVE_EXECUTION_SECONDS + LIVE_HANDOFF_SECONDS))
+        _PREPARATION_DEADLINE.set(time.monotonic() + budget)
         return _prepare_images(skill, output, binary_manifest)
+    except PreparationError:
+        raise
+    except (TimeoutError, subprocess.TimeoutExpired):
+        raise PreparationTimeoutError("deadline_exceeded", _PREPARATION_PHASE.get()) from None
+    except Exception as error:
+        if isinstance(error, OSError):
+            category = "filesystem_error"
+        elif isinstance(error, ValueError):
+            category = "validation_error"
+        else:
+            category = "contract_error" if _PREPARATION_PHASE.get() == "contract" else "unknown_error"
+        raise PreparationError(category, _PREPARATION_PHASE.get()) from None
     finally:
         _PREPARATION_DEADLINE.reset(token)
+        _PREPARATION_PHASE.reset(phase_token)
 
 
 def _prepare_images(skill, output, binary_manifest):
+    _PREPARATION_PHASE.set("contract")
     verify_contract()
+    _PREPARATION_PHASE.set("binary_manifest")
     bound = load_manifest(binary_manifest)
+    _PREPARATION_PHASE.set("platform")
     platform = docker_platform()
+    _PREPARATION_PHASE.set("staging")
     output = Path(output)
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
     tasks = stage_preparation(skill, output / "tasks")
@@ -230,9 +341,11 @@ def _prepare_images(skill, output, binary_manifest):
         images={},
         packages=PACKAGE_VERSIONS,
     )
+    dependency_image = None
     for arm, paths in tasks.items():
         data["tasks"][arm] = []
         for task in paths:
+            _PREPARATION_PHASE.set("task_source")
             context = task / "environment"
             identity = prepared_task_identity(task, platform, bound["sha256"])
             data["tasks"][arm].append(identity)
@@ -241,41 +354,51 @@ def _prepare_images(skill, output, binary_manifest):
             source_tag = "ea-live-source:" + identity
             tag = "ea-live-prepared:" + identity
             pinned_source = output / (identity + ".Dockerfile")
-            pinned_source.write_text(pinned_dockerfile((context / "Dockerfile").read_text(), platform))
+            original = (context / "Dockerfile").read_text()
+            pinned = pinned_dockerfile(original, platform)
+            uses_default = pinned != pinned_dockerfile(original, platform, dependency_image="sha256:" + "0" * 64)
+            if uses_default and dependency_image is None:
+                _PREPARATION_PHASE.set("dependencies")
+                dependencies = output / "dependencies"
+                dependencies.mkdir(mode=0o700)
+                recipe = (
+                    "FROM "
+                    + BASE_IMAGES[platform]
+                    + "\nRUN "
+                    + json.dumps(["/bin/sh", "-ec", dependency_install_command(default_sources=True)])
+                    + "\n"
+                )
+                (dependencies / "Dockerfile").write_text(recipe)
+                dependency_tag = "ea-live-deps:" + hashlib.sha256((platform + recipe).encode()).hexdigest()
+                _docker(["build", "--platform", platform, "-t", dependency_tag, str(dependencies)], timeout=600)
+                dependency_image = inspect_build_parent(dependency_tag, platform)["Id"]
+            _PREPARATION_PHASE.set("task_source")
+            pinned_source.write_text(pinned_dockerfile(original, platform, dependency_image=dependency_image))
             _docker(
                 ["build", "--platform", platform, "-f", str(pinned_source), "-t", source_tag, str(context)], timeout=600
             )
-            source = inspect_image(source_tag)
-            if (
-                not re.fullmatch("sha256:[a-f0-9]{64}", source["Id"])
-                or source["Os"] + "/" + source["Architecture"] != platform
-            ):
-                raise ValueError("prepared source image identity mismatch")
-            if source["Config"].get("OnBuild"):
-                raise ValueError("prepared layering does not support inherited ONBUILD")
+            source = inspect_build_parent(source_tag, platform)
             user = source["Config"].get("User") or "root"
             if not re.fullmatch(r"[A-Za-z0-9_.:-]+", user):
                 raise ValueError("unsupported prepared-image user")
             layer = output / identity
+            _PREPARATION_PHASE.set("task_layer")
             layer.mkdir(mode=0o700)
-            install = (
-                "apt-get -o Acquire::Retries=3 update && apt-get -o Acquire::Retries=3 install -y --no-install-recommends "
-                + " ".join(name + "=" + PACKAGE_VERSIONS[name] for name in SYSTEM_DEPENDENCIES)
-                + " && rm -rf /var/lib/apt/lists/* && "
-                + DEPENDENCY_CHECK
-            )
-            (layer / "Dockerfile").write_text(
-                f"FROM {source['Id']}\nUSER root\n"
-                + "RUN "
-                + json.dumps(["/bin/sh", "-ec", install])
-                + "\n"
-                + f"LABEL {IMAGE_LABEL}={identity}\nUSER {user}\n"
-            )
+            recipe = f"FROM {source['Id']}\n"
+            if not uses_default:
+                recipe += "USER root\nRUN " + json.dumps(["/bin/sh", "-ec", dependency_install_command()])
+                recipe += "\n"
+            recipe += f"LABEL {IMAGE_LABEL}={identity}\n"
+            if not uses_default:
+                recipe += f"USER {user}\n"
+            (layer / "Dockerfile").write_text(recipe)
             _docker(["build", "--platform", platform, "-t", tag, str(layer)], timeout=600)
             image = inspect_image(tag)
             record = dict(tag=tag, image_id=image["Id"], source_image_id=source["Id"])
+            _PREPARATION_PHASE.set("offline_probe")
             check_prepared_image(identity, record, platform, probe=True, binary=bound)
             data["images"][identity] = record
+    _PREPARATION_PHASE.set("publication")
     if data["source_identity"] != preparation_identity(skill, platform, bound["sha256"]):
         raise ValueError("preparation source changed during build")
     preparation_timeout(1)

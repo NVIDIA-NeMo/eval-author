@@ -18,7 +18,9 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import uuid
+from contextlib import suppress
 from pathlib import Path, PurePosixPath
 
 
@@ -191,6 +193,47 @@ def host_environment(output: Path) -> dict[str, str]:
 
 def save_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
+
+
+def relocate_manifest(source: Path, binary: Path, output: Path) -> dict:
+    from patched_opencode_runtime import _unique_object, load_manifest, regular_file
+
+    source = regular_file(source)
+    binary = regular_file(binary)
+    if source.stat().st_size > 16384:
+        raise ValueError("binary manifest is too large")
+    data = json.loads(source.read_text(), object_pairs_hook=_unique_object)
+    if not isinstance(data, dict) or not isinstance(data.get("binary_path"), str):
+        raise ValueError("invalid binary manifest schema")
+    if not Path(data["binary_path"]).is_absolute():
+        raise ValueError("expected an absolute original binary path")
+    data["binary_path"] = str(binary)
+    candidate = output / "candidate-manifest.json"
+    try:
+        save_json(candidate, data)
+        # Artifact downloads do not preserve executable permissions. Restore them
+        # only after checking the exact downloaded bytes; validate the complete
+        # runtime contract before executing anything.
+        verify_digest(binary, data.get("sha256", ""))
+        binary.chmod(0o755)
+        bound = load_manifest(candidate)
+        home = output / "version-home"
+        home.mkdir(mode=0o700)
+        result = subprocess.run(
+            [str(binary), "--version"],
+            cwd=output,
+            env={"HOME": str(home), "PATH": os.defpath, "LC_ALL": "C", "TMPDIR": str(home)},
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode or result.stdout.strip() != PATCHED_VERSION:
+            raise ValueError("downloaded native version check failed")
+        load_manifest(candidate)
+        candidate.rename(output / "binary-manifest.json")
+        return bound
+    finally:
+        candidate.unlink(missing_ok=True)
 
 
 class DockerBuild:
@@ -569,6 +612,11 @@ def build(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="new local output directory (never overwritten)")
+    parser.add_argument("--relocate-manifest", type=Path, help="verify and rebind a downloaded absolute manifest")
+    parser.add_argument("--binary", type=Path, help="downloaded binary; required with --relocate-manifest")
+    parser.add_argument(
+        "--artifact-output", type=Path, help="new directory for binary, manifest and safe build summary only"
+    )
     parser.add_argument(
         "--platform", choices=sorted(BUN_IMAGES), help="Linux container target; defaults to host architecture"
     )
@@ -582,7 +630,16 @@ def main(argv: list[str] | None = None) -> int:
         "--dependency-sha256", help="independently retained SHA256 of that exact archive; required for reuse"
     )
     args = parser.parse_args(argv)
+    started = time.monotonic()
+    summary = None
+    artifact = None
+    output = None
+    result = 1
     try:
+        if bool(args.relocate_manifest) != bool(args.binary):
+            raise ValueError("relocation requires both manifest and binary")
+        if args.relocate_manifest and (args.artifact_output or args.dependency_archive or args.export_dependencies):
+            raise ValueError("relocation cannot build or export artifacts")
         if "OPENCODE_RELEASE" in os.environ:
             raise ValueError("OPENCODE_RELEASE is forbidden, even when empty or 0")
         if bool(args.dependency_archive) != bool(args.dependency_sha256):
@@ -598,15 +655,64 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("output already exists; choose a fresh output directory")
         output = args.output.resolve()
         output.mkdir(parents=True, mode=0o700)
-        print(
-            json.dumps(
-                build(output, platform, args.dependency_archive, args.dependency_sha256, args.export_dependencies)
-            )
+        if args.relocate_manifest:
+            relocate_manifest(args.relocate_manifest.absolute(), args.binary.absolute(), output)
+            print("downloaded binary digest and version verified")
+            return 0
+        if args.artifact_output:
+            artifact = args.artifact_output.absolute()
+            artifact.mkdir(parents=True, mode=0o700, exist_ok=False)
+            summary = {
+                "schema_version": 1,
+                "status": "incomplete",
+                "failure_category": "interrupted",
+                "elapsed_seconds": None,
+                "platform": platform,
+                "source_commit": SOURCE_COMMIT,
+                "source_archive_sha256": SOURCE_SHA256,
+                "lock_sha256": LOCK_SHA256,
+                "patch_sha256": PATCH_SHA256,
+                "builder_sha256": sha256(Path(__file__)),
+                "bun_image": BUN_IMAGES[platform],
+                "expected_version": PATCHED_VERSION,
+                "binary_sha256": None,
+            }
+            save_json(artifact / "build-summary.json", summary)
+        manifest = build(output, platform, args.dependency_archive, args.dependency_sha256, args.export_dependencies)
+        if artifact is not None and summary is not None:
+            shutil.copyfile(output / "opencode", artifact / "opencode")
+            verify_digest(artifact / "opencode", manifest["sha256"])
+            save_json(artifact / "binary-manifest.json", manifest)
+            summary.update(status="complete", failure_category=None, binary_sha256=manifest["sha256"])
+        print("patched binary build and native version verified")
+        result = 0
+    except Exception as error:
+        category = (
+            "timeout"
+            if isinstance(error, subprocess.TimeoutExpired)
+            else "validation_failed"
+            if isinstance(error, (ValueError, tarfile.TarError))
+            else "subprocess_failed"
+            if isinstance(error, subprocess.SubprocessError)
+            else "io_failed"
+            if isinstance(error, OSError)
+            else "internal_error"
         )
-        return 0
-    except (ValueError, OSError, subprocess.SubprocessError, tarfile.TarError) as error:
-        print(f"Build failed: {error}", file=sys.stderr)
-        return 1
+        if output is not None:
+            with suppress(OSError):
+                (output / "build-error.log").write_text(str(error))
+        if summary is not None:
+            summary.update(status="failed", failure_category=category)
+        print(f"Build failed: {category}", file=sys.stderr)
+    finally:
+        if summary is not None and artifact is not None:
+            summary["elapsed_seconds"] = round(time.monotonic() - started, 3)
+            try:
+                save_json(artifact / "build-summary.json", summary)
+            except OSError:
+                print("Build failed: summary_write_failed", file=sys.stderr)
+                result = 1
+    return result
 
 
 if __name__ == "__main__":

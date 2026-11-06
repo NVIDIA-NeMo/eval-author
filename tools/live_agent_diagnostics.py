@@ -19,6 +19,41 @@ MAX_ENTRIES = 64
 MAX_EVENTS = 32
 MAX_TOTAL_BYTES = 8_000_000
 SCHEMA = "nemo.eval_author.agent_diagnostics.v1"
+FAILURE_SCHEMA = "nemo.eval_author.live_runtime_failure.v1"
+RUNTIME_FAILURES = {
+    "patched_runtime_activation_failed",
+    "prepared_image_mismatch",
+    "insufficient_job_budget",
+}
+TIER3_REASONS = RUNTIME_FAILURES | {
+    "runtime_failure_evidence_invalid",
+    "execution_incomplete",
+    "docker_build_failed",
+    "docker_runtime_failed",
+    "agent_api_failed",
+    "agent_install_failed",
+    "agent_command_failed",
+    "agent_install_timeout",
+    "agent_execution_timeout",
+    "agent_artifacts_missing",
+    "agent_runtime_preflight_failed",
+    "explicit_run_required",
+    "not_selected",
+    "missing_dataset",
+    "invalid_dataset",
+    "missing_provider_key",
+    "skill_changed_during_run",
+    "interrupted",
+    "dataset_validation_failed",
+    "timeout",
+    "report_missing_or_ambiguous",
+    "tool_or_report_error",
+    "job_report_unavailable",
+    "job_did_not_finish",
+    "authorization_or_configuration_unavailable",
+    "job_setup_or_execution_failed",
+    "invalid_job_report",
+}
 EXCEPTIONS = {
     "NonZeroAgentExitCodeError": "agent_command_failed",
     "AgentSetupTimeoutError": "agent_install_timeout",
@@ -85,6 +120,75 @@ def read_regular(path, limit=MAX_FILE_BYTES):
             if len(raw) > limit:
                 raise ValueError("receipt grew beyond limit")
             return raw
+
+
+def runtime_failure_projection(value):
+    if not isinstance(value, dict) or set(value) != {"source", "reason"}:
+        return None
+    if (
+        value["source"] in ("wrapper", "startup_hook")
+        and isinstance(value["reason"], str)
+        and value["reason"] in RUNTIME_FAILURES
+    ):
+        return dict(value)
+    if value == {"source": "unresolved", "reason": "runtime_failure_evidence_invalid"}:
+        return dict(value)
+    return None
+
+
+def record_runtime_failure(source, reason):
+    # A private host-only channel, separate from native/model output and task
+    # mounts. This binds an attempt, not a defense against same-UID host code.
+    value = runtime_failure_projection({"source": source, "reason": reason})
+    token = os.environ.get("_EA_LIVE_FAILURE_TOKEN", "")
+    path = os.environ.get("_EA_LIVE_FAILURE_PATH")
+    if value is None or not path or not re.fullmatch(r"[a-f0-9]{64}", token):
+        return
+    payload = {"schema": FAILURE_SCHEMA, "token": token, **value}
+    try:
+        path = Path(path)
+        with directory(path.parent) as parent:
+            fd = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent)
+            with os.fdopen(fd, "w") as stream:
+                json.dump(payload, stream)
+    except OSError:
+        pass  # Reporting must not bypass the original fail-closed exception.
+
+
+def read_runtime_failure(path, token):
+    def unique_object(pairs):
+        value = dict(pairs)
+        if len(value) != len(pairs):
+            raise ValueError("duplicate failure field")
+        return value
+
+    try:
+        value = json.loads(read_regular(path, 1024), object_pairs_hook=unique_object)
+        if (
+            not isinstance(value, dict)
+            or set(value) != {"schema", "token", "source", "reason"}
+            or value["schema"] != FAILURE_SCHEMA
+            or value["token"] != token
+            or not re.fullmatch(r"[a-f0-9]{64}", token)
+        ):
+            raise ValueError("invalid failure receipt")
+        result = runtime_failure_projection({"source": value["source"], "reason": value["reason"]})
+        if result is None or result["source"] == "unresolved":
+            raise ValueError("invalid failure category")
+        return result
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError, TypeError, RecursionError):
+        return {"source": "unresolved", "reason": "runtime_failure_evidence_invalid"}
+
+
+@contextmanager
+def runtime_failure_scope(reason, source="wrapper"):
+    try:
+        yield
+    except Exception:
+        record_runtime_failure(source, reason)
+        raise
 
 
 def object_value(value):
@@ -181,6 +285,7 @@ def unavailable(report=None):
         "schema": SCHEMA,
         "capture_status": "unavailable",
         "files_read": 0,
+        "non_json_lines": 0,
         "events": [],
         "opencode_reported_versions": [],
         "execution": execution_facts(report),
@@ -274,7 +379,7 @@ def capture(report, target, skill):
                             if event is not None:
                                 append({"source": "opencode_error_event", **provenance, **event})
                         except (ValueError, RecursionError):
-                            partial = True
+                            result["non_json_lines"] += 1
     except FileNotFoundError:
         pass
     except (OSError, ValueError):
@@ -288,15 +393,38 @@ def render(evidence):
     return json.dumps(evidence, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
+def project_public_row(row):
+    if row.get("tier") != 3:
+        return
+    reason = row.get("reason")
+    if reason is not None and (not isinstance(reason, str) or reason not in TIER3_REASONS):
+        row["reason"] = "execution_incomplete"
+    if "diagnostics" in row or "agent_diagnostics" in row:
+        row["agent_diagnostics"] = public_projection(row.get("agent_diagnostics"))
+        row["diagnostics"] = render(row["agent_diagnostics"])
+    if row.get("reason") in ("patched_runtime_activation_failed", "prepared_image_mismatch"):
+        failure = object_value(object_value(row.get("agent_diagnostics")).get("runtime_failure"))
+        if failure.get("reason") != row["reason"]:
+            row["reason"] = "runtime_failure_evidence_invalid"
+
+
 def public_projection(value):
     value = object_value(value)
     result = unavailable()
     if value.get("schema") != SCHEMA:
         return result
+    non_json_lines = value.get("non_json_lines", 0)
+    if type(non_json_lines) is not int or not 0 <= non_json_lines <= MAX_TOTAL_BYTES:
+        return result
+    result["non_json_lines"] = non_json_lines
+    failure = runtime_failure_projection(value.get("runtime_failure"))
+    if failure is not None:
+        result["runtime_failure"] = failure
     if value.get("capture_status") in ("unavailable", "captured", "partial"):
         result["capture_status"] = value["capture_status"]
     if type(value.get("files_read")) is int and 0 <= value["files_read"] <= MAX_FILES:
         result["files_read"] = value["files_read"]
+
     versions = value.get("opencode_reported_versions")
     if isinstance(versions, list):
         result["opencode_reported_versions"] = sorted(

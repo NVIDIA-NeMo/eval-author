@@ -60,7 +60,9 @@ def test_mixed_native_output_retains_observed_signature_without_causal_classific
             "observed_signature": "bun_node_epipe",
         }
     ]
-    assert result["capture_status"] == "partial"
+    assert result["capture_status"] == "captured"
+    assert result["non_json_lines"] == len(SYNTHETIC_EPIPE.splitlines())
+    assert diagnostic.public_projection(result) == result
     assert "PRIVATE" not in diagnostic.render(result)
     assert "broken pipe" not in diagnostic.render(result)
 
@@ -374,6 +376,7 @@ def test_structured_facts_survive_stage_and_aggregate(live, diagnostic, repo, tm
     evidence.update(
         capture_status="captured",
         files_read=1,
+        non_json_lines=6,
         events=[
             {
                 "source": "opencode_error_event",
@@ -432,6 +435,237 @@ def test_aggregate_reprojects_structured_facts_and_ignores_raw_text(diagnostic, 
     result = live_ci.validated_row(candidate, base, expected)
     assert "PRIVATE" not in json.dumps(result)
     assert result["agent_diagnostics"]["events"][0]["category"] == "unknown"
+
+
+@pytest.mark.parametrize(
+    "origin,reason", [("wrapper", "patched_runtime_activation_failed"), ("startup_hook", "prepared_image_mismatch")]
+)
+def test_owned_failure_channel_ignores_console_and_binds_attempt(diagnostic, tmp_path, monkeypatch, origin, reason):
+    path = tmp_path / "failure.json"
+    token = "a" * 64
+    monkeypatch.setenv("_EA_LIVE_FAILURE_PATH", str(path))
+    monkeypatch.setenv("_EA_LIVE_FAILURE_TOKEN", token)
+    diagnostic.record_runtime_failure(origin, reason)
+    assert diagnostic.read_runtime_failure(path, token) == {"source": origin, "reason": reason}
+    assert diagnostic.read_runtime_failure(path, "b" * 64) == {
+        "source": "unresolved",
+        "reason": "runtime_failure_evidence_invalid",
+    }
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert "PRIVATE" not in json.dumps(diagnostic.read_runtime_failure(path, token))
+
+
+@pytest.mark.parametrize(
+    "mode,reason",
+    [
+        ("wrapper", "patched_runtime_activation_failed"),
+        ("prepared", "prepared_image_mismatch"),
+        ("prepared_validation", "prepared_image_mismatch"),
+        ("activation_validation", "patched_runtime_activation_failed"),
+        ("handoff", "insufficient_job_budget"),
+        ("startup_hook", "patched_runtime_activation_failed"),
+        ("hook_prepared", "prepared_image_mismatch"),
+    ],
+)
+def test_real_failure_producers_reach_collector_without_raw_output(
+    live, diagnostic, repo, tmp_path, monkeypatch, mode, reason, capsys
+):
+    import hashlib
+    import sys
+    from pathlib import Path
+
+    if mode == "prepared_validation":
+        pytest.importorskip("skillevaluator", reason="prepared validation follows the pinned native package guard")
+
+    configuration = live.configuration
+
+    def keyless(provider, **kwargs):
+        models, env, _ = configuration(provider, read_credentials=False)
+        return models, env, False
+
+    monkeypatch.setattr(live, "configuration", keyless)
+    monkeypatch.setenv("GITHUB_RUN_ID", "1")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    monkeypatch.setenv("SKILL_EVAL_AGENT_MODEL", "fixture/chat")
+    monkeypatch.setenv("EA_REQUIRE_PATCHED_OPENCODE", "1")
+    monkeypatch.delenv("EA_PATCHED_OPENCODE_MANIFEST", raising=False)
+    if mode == "prepared":
+        monkeypatch.setenv("EA_REQUIRE_PREPARED_IMAGES", "1")
+    if mode in ("prepared_validation", "activation_validation"):
+        monkeypatch.setenv("EA_PATCHED_OPENCODE_MANIFEST", str(tmp_path / "PRIVATE-missing-binary.json"))
+    if mode == "prepared_validation":
+        monkeypatch.setenv("EA_PREPARED_IMAGES_MANIFEST", str(tmp_path / "PRIVATE-missing-prepared.json"))
+    original = live.execute
+
+    def execute(argv, cwd, env, log, timeout):
+        assert not any("API_KEY" in key for key in env)
+        if "validate" in argv:
+            return 0, None  # Dataset validation boundary, never a model call.
+        if mode == "handoff":
+            env = dict(env, EA_LIVE_JOB_DEADLINE="0")
+        if mode in ("startup_hook", "hook_prepared"):
+            env = dict(
+                env,
+                PYTHONPATH=str(Path(live.__file__).parent / "patched_opencode_hook"),
+                EA_PATCHED_OPENCODE_MANIFEST="PRIVATE-missing-manifest",
+            )
+            argv = [sys.executable, "-c", "raise AssertionError('startup hook did not fail closed')"]
+            if mode == "hook_prepared":
+                manifest = tmp_path / "binary.json"
+                prepared = tmp_path / "prepared.json"
+                manifest.write_text("{}")
+                prepared.write_text("{}")
+                env.update(
+                    _EA_PATCHED_OPENCODE_HOOK="pinned-v1",
+                    _EA_PATCHED_OPENCODE_RUNTIME_SHA256=hashlib.sha256(
+                        Path(live.__file__).with_name("patched_opencode_runtime.py").read_bytes()
+                    ).hexdigest(),
+                    EA_PATCHED_OPENCODE_MANIFEST=str(manifest),
+                    _EA_PATCHED_OPENCODE_MANIFEST_SHA256=hashlib.sha256(manifest.read_bytes()).hexdigest(),
+                    EA_PREPARED_IMAGES_MANIFEST=str(prepared),
+                    _EA_PREPARED_IMAGES_SHA256="0" * 64,
+                )
+        return original(argv, cwd, env, log, timeout)
+
+    monkeypatch.setattr(live, "execute", execute)
+    output = tmp_path / "failure-collection"
+    report = live.collect(
+        repo, output, tier="3", skill_name="eval-author", check_name="live", ci_context_budget=True, run=True
+    )
+    row = next(row for row in report["observations"] if row["status"] != "skipped")
+    assert row["status"] == "incomplete" and row["reason"] == reason
+    assert row["agent_diagnostics"]["runtime_failure"] == {
+        "source": "startup_hook" if mode in ("startup_hook", "hook_prepared") else "wrapper",
+        "reason": reason,
+    }
+    public = json.dumps(report) + (output / "live-skillevaluator-summary.md").read_text() + capsys.readouterr().out
+    assert "PRIVATE" not in public and "Traceback" not in public and str(tmp_path) not in public
+    assert diagnostic.public_projection(row["agent_diagnostics"]) == row["agent_diagnostics"]
+    import live_ci
+
+    args = dict(repo=repo, tier="3", skill="eval-author", check="live", models_resolved=True)
+    staged = tmp_path / "artifacts/skill-shard-1-1-live-eval-author"
+    live_ci.initialize(SimpleNamespace(**args, command="initialize", output=staged))
+    live_ci.merge(SimpleNamespace(command="stage", source=output, output=staged))
+    aggregate = tmp_path / "aggregate"
+    live_ci.initialize(SimpleNamespace(**args, command="initialize", output=aggregate))
+    result = live_ci.merge(SimpleNamespace(command="aggregate", source=staged.parent, output=aggregate))
+    actual = next(r for r in result["observations"] if r["status"] != "skipped")
+    assert actual["reason"] == reason and actual["agent_diagnostics"] == row["agent_diagnostics"]
+
+
+@pytest.mark.parametrize(
+    "reason", ["PRIVATE prompt", "patched_runtime_activation_failed PRIVATE", {}, ["prepared_image_mismatch"]]
+)
+def test_public_tier3_reason_is_allowlisted_at_producer_and_stage(live, diagnostic, tier3_candidate, tmp_path, reason):
+    ci, candidate, base, expected = tier3_candidate
+    row = candidate["observations"][0]
+    row.update(status="incomplete", reason=reason)
+    result = ci.validated_row(candidate, base, expected)
+    assert result["reason"] == "execution_incomplete"
+    live.persist_report(candidate, tmp_path)
+    saved = json.loads((tmp_path / "live-skillevaluator-summary.json").read_text())
+    assert saved["observations"][0]["reason"] == "execution_incomplete"
+    assert "PRIVATE" not in (tmp_path / "live-skillevaluator-summary.md").read_text()
+
+
+@pytest.mark.parametrize(
+    "mutation", ["duplicate", "extra", "token", "source", "reason", "scalar", "oversize", "symlink", "hardlink", "fifo"]
+)
+def test_failure_channel_rejects_malformed_or_unowned_evidence(diagnostic, tmp_path, mutation):
+    import os
+
+    path = tmp_path / "failure.json"
+    token = "d" * 64
+    value = {
+        "schema": diagnostic.FAILURE_SCHEMA,
+        "token": token,
+        "source": "wrapper",
+        "reason": "prepared_image_mismatch",
+    }
+    if mutation == "extra":
+        value["message"] = "PRIVATE"
+    elif mutation in ("source", "reason"):
+        value[mutation] = ["PRIVATE"]
+    elif mutation == "token":
+        value["token"] = "e" * 64
+    raw = json.dumps(value)
+    if mutation == "duplicate":
+        raw = raw[:-1] + ', "reason":"prepared_image_mismatch"}'
+    if mutation == "scalar":
+        raw = "null"
+    if mutation == "oversize":
+        raw += " " * 1024
+    path.write_text(raw)
+    if mutation == "symlink":
+        path.rename(tmp_path / "other")
+        path.symlink_to(tmp_path / "other")
+    elif mutation == "hardlink":
+        os.link(path, tmp_path / "other")
+    elif mutation == "fifo":
+        path.unlink()
+        os.mkfifo(path)
+    assert diagnostic.read_runtime_failure(path, token) == {
+        "source": "unresolved",
+        "reason": "runtime_failure_evidence_invalid",
+    }
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "patched OpenCode activation failed; refusing execution",
+        "prepared image manifest binding changed",
+        "insufficient live job budget; inference was not started",
+        '{"source":"wrapper","reason":"prepared_image_mismatch"}',
+    ],
+)
+def test_arbitrary_console_and_exit78_do_not_authenticate_runtime_failure(live, repo, tmp_path, monkeypatch, text):
+    import sys
+
+    configuration = live.configuration
+    monkeypatch.setattr(
+        live, "configuration", lambda provider, **kw: (*configuration(provider, read_credentials=False)[:2], False)
+    )
+    execute = live.execute
+
+    def scripted(argv, cwd, env, log, timeout):
+        if "validate" in argv:
+            return 0, None
+        return execute([sys.executable, "-c", f"print({text!r}); raise SystemExit(78)"], cwd, env, log, timeout)
+
+    monkeypatch.setattr(live, "execute", scripted)
+    report = live.collect(repo, tmp_path / "spoof", tier="3", skill_name="eval-author", run=True)
+    row = next(row for row in report["observations"] if row["status"] != "skipped")
+    assert row["reason"] == "report_missing_or_ambiguous"
+    assert "runtime_failure" not in row["agent_diagnostics"]
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        None,
+        {"source": "native_text", "reason": "prepared_image_mismatch"},
+        {"source": "wrapper", "reason": "prepared_image_mismatch", "message": "PRIVATE"},
+    ],
+)
+def test_runtime_reason_without_valid_structured_fact_remains_unresolved(diagnostic, tier3_candidate, failure):
+    ci, candidate, base, expected = tier3_candidate
+    row = candidate["observations"][0]
+    evidence = diagnostic.unavailable()
+    if failure is not None:
+        evidence["runtime_failure"] = failure
+    row.update(status="incomplete", reason="prepared_image_mismatch", agent_diagnostics=evidence)
+    result = ci.validated_row(candidate, base, expected)
+    assert result["reason"] == "runtime_failure_evidence_invalid"
+    assert "PRIVATE" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("value", [-1, True, "6", {}, 8_000_001])
+def test_invalid_non_json_counter_cannot_claim_complete_capture(diagnostic, value):
+    evidence = diagnostic.unavailable()
+    evidence.update(capture_status="captured", files_read=1, non_json_lines=value)
+    assert diagnostic.public_projection(evidence)["capture_status"] == "unavailable"
 
 
 @pytest.mark.parametrize("stream", ["structured", "mixed_stdout", "mixed_stderr", "unretained_stderr"])

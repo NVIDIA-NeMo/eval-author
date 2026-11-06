@@ -17,8 +17,9 @@ replace the required unit tests, lint, or type checks.
 | Tier 2 | Model-assisted context and similarity analysis | Approved live runs on `main` |
 | Tier 3 | Bounded agent evaluations using reviewed synthetic datasets | Approved live runs on `main` |
 
-Pull requests also receive a credential-free coverage plan. They do not run
-live inference. Fork PRs are excluded from these evaluation workflows.
+Pull requests also receive a credential-free coverage plan, one patched AMD64
+binary build, and a full Audit image-preparation timing check on a GitHub-hosted
+runner. They do not run live inference. Fork PRs are excluded from these workflows.
 Daily CI also runs the Python test matrix and three independent native NeMo Gym
 input routes. NeMo Gym summaries remain separate from SkillEvaluator artifacts; see
 [retained CI measurements](../DEVELOPMENT.md#retained-ci-measurements). The daily
@@ -40,8 +41,9 @@ the final aggregate records missing or invalid job reports as incomplete.
 Runner loss or cancellation can still prevent the aggregate job from publishing.
 
 Tier 3 evaluation has a 45-minute timeout; its separate dataset validation
-keeps a 60-second timeout. The outer live CI shard job allows 60 minutes for
-dependency setup, evaluation, and report retention. These limits are a candidate
+keeps a 60-second timeout. The outer live CI shard job allows 75 minutes for
+dependency setup, evaluation, and report retention; the binary build runs in a
+separate upstream job. These limits are a candidate
 based on local measurements, not a guarantee of completion: runtime preflight
 took 6.7 minutes, the with-skill arm took 12.7 minutes, and the last baseline
 trial finished 34.6 minutes after evaluation started, with no final native
@@ -79,15 +81,8 @@ using the configured release in
 `policy.configured_opencode_version` records the intended release, including in
 planning reports; it is not an installation or runtime observation.
 
-Harbor supports `--agent-kwarg version=<release>`, but SkillEvaluator 0.7.0 does
-not expose that option; its per-agent configuration accepts only a model.
-Passing the Harbor flag to `skillevaluator evaluate` is not a supported pin.
-The adapter instead checks the installed evaluator's exact Git revision from
-`direct_url.json`, its release version, Harbor 0.24.0, and the unchanged private
-agent-kwargs table before adding OpenCode's version. Contract drift or an existing
-OpenCode override fails closed before evaluator dispatch. Existing agent entries
-are preserved. The native Harbor command builder forwards the pin to runtime
-preflight and both A/B trial arms without changing Docker backends or grading.
+The wrapper requires the pinned SkillEvaluator and Harbor packages. Unsupported
+versions or conflicting OpenCode overrides stop evaluation before dispatch.
 
 Only Tier 3 `evaluate` uses the wrapper, under `--evaluator-python` (defaulting
 to the collector's Python). When using a separate evaluator environment, provide
@@ -95,20 +90,18 @@ that environment's Python as well as its `--evaluator` executable; the wrapper
 requires the pinned packages in that interpreter. Dataset `tier3 validate`
 still invokes the evaluator directly; Tier 2 behavior is unchanged.
 
-Keep an intended version separate from an observed runtime version. Harbor's
-`agent_info.version` and trajectory agent version may echo the configured pin:
-when a version is configured, Harbor skips its normal version-detection command.
-The collector exposes these only as `agent_diagnostics.opencode_reported_versions`.
-These public fields are not independent binary-version evidence. The patched
-runtime separately records trusted version-command output and binary checksums
-in private trial receipts; missing evidence remains unobserved.
+`agent_diagnostics.opencode_reported_versions` contains native reported versions,
+not independent binary-version evidence. The patched runtime separately verifies
+the binary and records private trial receipts; missing evidence remains unobserved.
 Pinning removes one source of drift; it does
 not freeze provider models, network dependencies, task images, or evaluation results.
 
 ### Patched live runtime
 
-Live CI builds a patched OpenCode binary before the credential-bearing evaluation
-step, using [`tools/build_patched_opencode.py`](../tools/build_patched_opencode.py).
+Live CI builds one patched OpenCode binary per platform in an upstream job using
+[`tools/build_patched_opencode.py`](../tools/build_patched_opencode.py). Live shards
+download that run's artifact and verify its digest and actual version before the
+credential-bearing evaluation step.
 The build retains the configured 1.19.5 release and applies a narrow stream-listener
 lifetime fix; it is not an official release binary or a migration to OpenCode v2.
 The patch keeps error handling active through writable-stream finalization rather
@@ -123,29 +116,32 @@ export EA_PATCHED_OPENCODE_MANIFEST=/absolute/path/patched-opencode/binary-manif
 export EA_REQUIRE_PATCHED_OPENCODE=1
 ```
 
+When reusing a downloaded build artifact, rebind its manifest to the local binary
+before setting `EA_PATCHED_OPENCODE_MANIFEST`:
+
+```bash
+python tools/build_patched_opencode.py \
+  --relocate-manifest /absolute/path/downloaded/binary-manifest.json \
+  --binary /absolute/path/downloaded/opencode \
+  --output /absolute/path/verified-opencode
+export EA_PATCHED_OPENCODE_MANIFEST=/absolute/path/verified-opencode/binary-manifest.json
+```
+
 Then use the normal live-collection command and pinned evaluator environment.
 Only Tier 3 evaluation receives these settings; dataset validation and context
 checks remain unchanged. Without either setting, local collection retains the
 pin-only behavior. CI sets the requirement explicitly and refuses a missing or
 invalid manifest instead of falling back to the unpatched binary.
 
-The runtime preserves Harbor's base setup, gateway, Docker backend, arguments,
-and scoring. For the explicitly activated patched path, it replaces the redundant
-NVM/npm OpenCode bootstrap with verified standalone-binary provisioning. The
-original system dependency checks for curl, bash, coreutils, nodejs, and npm remain;
-this path does not install an additional NVM-managed Node 22. The unactivated
-installer is unchanged. The patched CLI embeds its own runtime.
-
-It uploads the built binary into each trial, checks its host/container hash and
-patched version, and substitutes only the agent executable. The private
-`.ea-patched-binary.json` receipt distinguishes the configured release from the
-observed patched build. Nonzero exits and missing scores remain failures. Build
-or runtime-contract mismatches prevent execution; they do not become passing scores.
+The activated path provisions the verified standalone binary instead of installing
+OpenCode again through NVM/npm. Required system dependencies remain checked.
+Nonzero exits, missing scores, and binary or runtime mismatches remain failures.
 
 Live CI additionally prepares every task environment in both arms **before the
-step receiving inference credentials**. It retains the native task Dockerfile,
-fixtures, workspace isolation, and custom commands, then adds the required
-system packages. Preflight and both arms use the verified local image IDs;
+step receiving inference credentials**. Default Python task images share one
+prepared dependency base; custom digest-pinned bases receive their own dependency
+layer. Task fixtures, workspace isolation, and custom commands remain intact.
+Preflight and both arms use the verified local image IDs;
 missing images, changed sources, missing packages, or version mismatches stop
 execution rather than invoking package repositories during a trial.
 
@@ -177,31 +173,29 @@ local image IDs, and setup verifies installed versions. Other custom bases must
 already use digests and support these package versions. Only single-stage,
 Dockerfile-only `evals.json` tasks with isolated paired workspaces are supported;
 unsupported configurations fail closed, not through a generic replacement image.
-The original custom Dockerfile is validated before native staging; multiple stages,
-parser directives, heredocs, and inherited `ONBUILD` triggers are unsupported.
-Layering uses the inspected immutable parent ID, preserves the task's execution
-metadata, and runs package installation with an explicit shell.
-Task identities bind each arm, native task name, normalized full task configuration,
-and environment content. Only exact same-name gateway credential/provider
-placeholders may differ between keyless and credentialed staging. Resource,
-working-directory, or arbitrary environment overrides require new preparation.
-Only public startup and phase network policies are supported: network-control
-sidecars and Compose overlays are rejected before native startup rather than
-built after credentials arrive. The offline setup test disconnects networking
-externally; it does not establish native no-network-policy support.
-Debian indexes and transitive dependencies in native task installation remain
-mutable: snapshot package-index retrieval was unavailable during validation.
-Exact direct-package versions failing to resolve cause preparation to fail;
-they are never replaced with newer versions. This is verified image reuse, not
+Multiple stages, parser directives, heredocs, inherited `ONBUILD` triggers,
+network-control sidecars, and Compose overlays are unsupported. Resource,
+working-directory, or environment overrides require new preparation.
+Required Debian packages resolve through signed Debian and security snapshots
+at `20261105T000000Z`, rather than expiring versions in rolling indexes. The
+default dependency base also retains those snapshot sources for task APT steps;
+custom task sources are not replaced. Other task downloads can remain mutable.
+Maintainers update the snapshot and exact package versions together in
+`tools/patched_opencode_runtime.py` and verify both architectures before changing
+the pins. Unavailable snapshots or packages fail preparation, without a rolling
+repository fallback. This is verified image reuse, not
 a claim of bit-for-bit reproducible rebuilds. It does not change agent execution
 deadlines or guarantee model responses or timeout cleanup.
 
 Preparation has a 600-second aggregate deadline across all images, not a fresh
-allowance per Docker command. CI also deducts elapsed dependency/binary setup
+allowance per Docker command. CI also deducts elapsed dependency/artifact setup
 from a shared monotonic job window, reserving the unchanged 2700-second evaluation
-allowance plus 60 seconds for collection overhead. The window ends 55 minutes
-after the fallback step starts, leaving reporting headroom within the 60-minute
-job (less checkout time). If the remaining window cannot
+allowance plus 60 seconds for collection overhead. The window ends 70 minutes
+after the fallback step starts, leaving 24 minutes for setup and preparation,
+and reporting headroom within the 75-minute job (less checkout time).
+The PR timing check exercises the same setup and preparation commands, without
+models, against the full Audit dataset. Its result is a preparation measurement,
+not a live evaluation or full-matrix pass. If the remaining window cannot
 support the handoff, preparation or collection fails before inference. Bounded
 setup/preparation/collection steps and the existing `always()` fallback uploads
 provide a second guard; these limits do not guarantee timely package availability.
@@ -223,11 +217,11 @@ restriction is configured in GitHub settings; declaring an environment in YAML
 does not create it. Repository administrators can still change those settings.
 
 With `SKILL_EVALUATION_LIVE_ENABLED=true`, pushes to `main`, including merges,
-automatically run Tier 2 and Tier 3 for all skills. PRs only generate a plan
-without model calls. Main currently requires one PR approval; the branch rule
+automatically run Tier 2 and Tier 3 for all skills. PRs run planning and
+credential-free preparation checks, not model calls. Main currently requires one PR approval; the branch rule
 does not specifically require ASE or code-owner approval.
 
-Manual dispatch from `main` defaults to planning only; selecting `run_live`
+Manual dispatch defaults to planning and credential-free preparation; selecting `run_live` from `main`
 executes the selected tier and skill without an additional approval.
 Maintainers manage credentials and provider configuration outside the repository.
 Public contributors do not need access to them.
@@ -246,6 +240,12 @@ Download reports from the workflow run's **Artifacts** section:
   and Markdown aggregate summaries.
 - `skill-evaluation-plan-<run-id>-<attempt>` contains the coverage plan.
 - `skill-shard-<run-id>-<attempt>-<check>-<skill>` contains an individual job report.
+- `patched-opencode-<platform>-<run-id>-<attempt>` contains the verified binary
+  and transport manifest; it expires after seven days.
+- `opencode-build-summary-<platform-index>-<run-id>-<attempt>` contains bounded
+  build status, timing, and provenance, including a fixed failure category.
+- `preparation-timing-<run-id>-<attempt>` contains the hosted AMD64 Audit setup
+  duration and step outcomes, without native logs or task inputs.
 
 Aggregation accepts only matching revisions, policies, and the current run
 attempt. Use **Re-run all jobs** for a complete retry; rerunning only failed jobs
@@ -287,31 +287,24 @@ Context guard diagnostics retain only observed, bounded integer metadata:
 rejection, or `actual` and `limit` for chunk-count rejection. Missing or invalid
 values are omitted, not estimated; raw provider and source metadata is excluded.
 
-Public diagnostics must be an allowlisted projection, not redacted copies of
-raw logs: retain bounded counters, fixed failure categories, and version metadata
-explicitly distinguished as configured, reported, or independently observed.
-Raw exception messages, command arguments,
-paths, URLs, prompts, environment values, provider response bodies, and agent
-output can contain private data. Do not publish them to explain a failure.
-An incomplete diagnostic is preferable to guessing a provider error from an
-exit code or from the presence of `--format=json` in a failed command. A native
-`NonZeroAgentExitCodeError` may retain `observed_signature: bun_node_epipe` when
-a bounded, non-JSON block in the same trial's `opencode.txt` matches the Bun/Node
-stream-error signature. This is an observation, not a provider/authentication
-category or causal attribution: identical spoofed raw output is indistinguishable.
-JSON payloads and ordinary EPIPE mentions do not qualify. Capture remains partial;
-stdout and runtime stderr are covered only when retained in that native file,
-without identifying the originating stream, process, or pipeline stage. Other
-signatures and unretained stderr remain unclassified. The observation survives
-sanitized aggregation without changing `agent_command_failed`, incomplete status,
-scoring, or retry behavior.
+Public diagnostics contain bounded counters and fixed failure categories, not
+raw logs. `observed_signature: bun_node_epipe` means the retained output matched
+a stream-error signature; it does not identify the cause or change the result.
+Absent or partial diagnostics do not rule out a runtime or provider failure.
+`non_json_lines` counts retained lines that could not be parsed as JSON; those
+lines alone no longer make capture partial. `runtime_failure` reports a fixed
+wrapper or startup-hook failure category from a private per-attempt host receipt.
+Actionable row reasons include `patched_runtime_activation_failed`,
+`prepared_image_mismatch`, and `insufficient_job_budget`. Invalid failure receipts
+produce `runtime_failure_evidence_invalid`, not an inferred cause.
+See [runtime contracts and diagnostic boundaries](dev-notes/live-runtime-contracts.md)
+for the adapter, image-identity, and evidence-policy rationale.
 
-Artifacts expire after 30 days. Full native reports are retained separately
-only while the repository is private, under its access controls. They may
-contain task text and unredacted findings; review them before sharing. Private
-native retention is not permission to include raw evidence in public summaries.
-Logs, credentials, and full execution trajectories are not intended as published
-report artifacts.
+Summary artifacts expire after 30 days. The live workflow does not upload raw
+build logs, native reports, task inputs, credentials, or execution trajectories,
+even for private repositories. Static-check native reports retain their separate
+private-repository-only policy. Local reproduction outputs may contain private
+data; inspect them locally rather than attaching them to public reports.
 
 ## Local checks without credentials
 

@@ -16,6 +16,18 @@ def preparation(monkeypatch):
     return importlib.import_module("patched_opencode_runtime")
 
 
+def test_dependency_install_uses_only_verified_dated_sources_and_exact_pins(preparation):
+    command = preparation.dependency_install_command()
+    assert "https://snapshot.debian.org/archive/debian/20261105T000000Z/" in command
+    assert "https://snapshot.debian.org/archive/debian-security/20261105T000000Z/" in command
+    assert "trixie main" in command and "trixie-security main" in command
+    assert "Dir::Etc::sourceparts=-" in command
+    assert "check-valid-until=no" in command
+    assert "trusted=yes" not in command and "allow-unauthenticated" not in command
+    assert all(name + "=" + version in command for name, version in preparation.PACKAGE_VERSIONS.items())
+    assert "rm -rf /var/lib/apt/lists/*" in command
+
+
 def test_preparation_identity_binds_exact_context_modes_platform_binary_and_runtime(preparation, tmp_path):
     context = tmp_path / "environment"
     context.mkdir()
@@ -98,6 +110,7 @@ def test_prepare_builds_exact_native_contexts_then_verifies_offline_before_publi
     assert hasattr(preparation, "prepare_images"), "keyless prepared image builder is missing"
     commands = []
     images = {}
+    (native_skill / "evals/environment/Dockerfile").write_text("FROM custom@sha256:" + "c" * 64 + "\n")
 
     def docker(args, **kwargs):
         commands.append(args)
@@ -151,6 +164,7 @@ def test_dependency_layer_uses_inspected_parent_and_preserves_execution_metadata
 ):
     images = {}
     layers = []
+    (native_skill / "evals/environment/Dockerfile").write_text("FROM custom@sha256:" + "c" * 64 + "\n")
     source_id = "sha256:" + "a" * 64
     config = dict(
         User="1000:1000",
@@ -178,6 +192,7 @@ def test_dependency_layer_uses_inspected_parent_and_preserves_execution_metadata
                 layers.append(layer)
                 assert layer.startswith("FROM " + source_id + "\n")
                 assert 'RUN ["/bin/sh", "-ec", ' in layer
+                assert "/etc/apt/sources.list" not in layer
                 assert not onbuild, "ONBUILD was inherited and executed again"
             images[tag] = dict(
                 Id=source_id if "source" in tag else "sha256:" + "b" * 64,
@@ -190,7 +205,7 @@ def test_dependency_layer_uses_inspected_parent_and_preserves_execution_metadata
     monkeypatch.setattr(preparation, "_docker", docker)
     monkeypatch.setattr(preparation, "check_prepared_image", lambda *a, **kw: None)
     if onbuild:
-        with pytest.raises(ValueError, match="ONBUILD"):
+        with pytest.raises(ValueError, match="phase=task_source"):
             preparation.prepare_images(native_skill, tmp_path / "prepared", binary_manifest)
         assert not layers
     else:
@@ -200,7 +215,58 @@ def test_dependency_layer_uses_inspected_parent_and_preserves_execution_metadata
         assert all(record["source_image_id"] == source_id for record in data["images"].values())
 
 
-def test_real_securedocker_setup_reuses_prepared_images_offline(preparation, native_skill, tmp_path, monkeypatch):
+@pytest.mark.parametrize("platform", ["linux/amd64", "linux/arm64"])
+def test_default_dependency_image_built_once_before_all_task_copies(
+    preparation, native_skill, binary_manifest, tmp_path, monkeypatch, platform
+):
+    (native_skill / "evals/environment/Dockerfile").unlink()
+    evals = native_skill / "evals/evals.json"
+    data = json.loads(evals.read_text())
+    data["evals"].append({**data["evals"][0], "id": 2})
+    evals.write_text(json.dumps(data))
+    images, builds = {}, []
+    deps_id = "sha256:" + "d" * 64
+
+    def docker(args, **kwargs):
+        if args[0] == "info":
+            return platform
+        if args[:2] == ["image", "inspect"]:
+            return json.dumps(images[args[-1]])
+        if args[0] == "build":
+            tag = args[args.index("-t") + 1]
+            path = Path(args[args.index("-f") + 1]) if "-f" in args else Path(args[-1]) / "Dockerfile"
+            text = path.read_text()
+            builds.append((tag, text))
+            images[tag] = dict(
+                Id=deps_id if "deps" in tag else "sha256:" + "a" * 64,
+                Os="linux",
+                Architecture=platform.split("/")[1],
+                Config={},
+            )
+        return ""
+
+    monkeypatch.setattr(preparation, "_docker", docker)
+    monkeypatch.setattr(preparation, "check_prepared_image", lambda *a, **kw: None)
+    manifest = preparation.prepare_images(native_skill, tmp_path / "prepared", binary_manifest)
+    dependencies = [text for tag, text in builds if "apt-get" in text and "nodejs=" in text]
+    assert len(dependencies) == 1
+    assert builds[0][1] == dependencies[0]
+    assert "COPY" not in dependencies[0]
+    # Native default Dockerfiles also install curl: those later apt commands
+    # must not upgrade the exact pin from a rolling index.
+    assert "/etc/apt/sources.list.d/debian.sources" in dependencies[0]
+    assert "/etc/apt/sources.list" in dependencies[0]
+    sources = [text for tag, text in builds if "source" in tag]
+    assert len(sources) == 4
+    assert all(text.startswith("FROM " + deps_id + "\n") for text in sources)
+    assert all("nodejs=" not in text for tag, text in builds[1:])
+    assert len(json.loads(manifest.read_text())["images"]) == 4
+
+
+@pytest.mark.parametrize("base_kind", ["shared", "default", "custom_digest"])
+def test_real_securedocker_setup_reuses_prepared_images_offline(
+    preparation, native_skill, tmp_path, monkeypatch, base_kind
+):
     import asyncio
     import os
     import tomllib
@@ -239,11 +305,26 @@ def test_real_securedocker_setup_reuses_prepared_images_offline(preparation, nat
         HARBOR_TELEMETRY="0",
     )
     monkeypatch.setattr(os, "environ", environment)
+    if base_kind == "default":
+        (native_skill / "evals/environment/Dockerfile").unlink()
+    elif base_kind == "custom_digest":
+        (native_skill / "evals/environment/Dockerfile").write_text(
+            "FROM " + preparation.BASE_IMAGES[preparation.docker_platform()] + "\n"
+            "RUN printf custom > /custom-marker\nENV CUSTOM_PREPARATION_MARKER=retained\n"
+            'WORKDIR /custom-workdir\nSHELL ["/bin/bash", "-ec"]\n'
+            'ENTRYPOINT ["/bin/sh"]\nCMD ["-c", "sleep infinity"]\nUSER 0\n'
+        )
     (native_skill / "evals/config.yaml").write_text(
         "schema_version: 1\nharbor:\n  resources:\n    cpus: 1\n    memory_mb: 1024\n"
     )
     path = preparation.prepare_images(native_skill, tmp_path / "prepared", Path(manifest))
     data = preparation.load_preparation(path, Path(manifest))
+    for record in data["images"].values():
+        source = preparation.inspect_image(record["source_image_id"])["Config"]
+        image = preparation.inspect_image(record["image_id"])["Config"]
+        assert all(
+            source.get(key) == image.get(key) for key in ("User", "WorkingDir", "Shell", "Entrypoint", "Cmd", "Env")
+        )
     for obj, attr in [
         (OpenCode, "install"),
         (BaseInstalledAgent, "_exec"),
@@ -407,8 +488,9 @@ def test_real_securedocker_setup_reuses_prepared_images_offline(preparation, nat
                     await agent.setup(env)
                     receipt = json.loads((agent.logs_dir / ".ea-patched-binary.json").read_text())
                     assert receipt["container_sha256"] == data["binary_sha256"]
-                    marker = await env.exec(command="cat /custom-marker", user="root")
-                    assert marker.stdout == "custom"
+                    if base_kind != "default":
+                        marker = await env.exec(command="cat /custom-marker", user="root")
+                        assert marker.stdout == "custom"
                 outcomes.append(dict(label=label, setup="rejected" if missing else "verified", network="none"))
             finally:
                 await env.stop(delete=True)
@@ -834,10 +916,44 @@ def test_failed_build_never_publishes_a_preparation_manifest(
         raise ValueError("synthetic package repository unavailable")
 
     monkeypatch.setattr(preparation, "_docker", docker)
-    with pytest.raises(ValueError, match="repository"):
+    with pytest.raises(ValueError, match="category=validation_error phase=dependencies"):
         preparation.prepare_images(native_skill, tmp_path / "failed", binary_manifest)
     assert not (tmp_path / "failed/prepared-images.json").exists()
     assert calls == ["info", "build"]
+
+
+@pytest.mark.parametrize(
+    "failure,category", [("exit", "docker_failed"), ("timeout", "deadline_exceeded"), ("missing", "docker_unavailable")]
+)
+def test_docker_failure_reports_only_allowlisted_details(preparation, monkeypatch, failure, category):
+    import subprocess
+    from types import SimpleNamespace
+
+    def run(*args, **kwargs):
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(["private-payload"], 1, output=b"secret", stderr=b"secret")
+        if failure == "missing":
+            raise FileNotFoundError("secret-private-path")
+        return SimpleNamespace(returncode=1, stdout="private-payload", stderr="secret")
+
+    monkeypatch.setattr(preparation.subprocess, "run", run)
+    with pytest.raises(Exception) as caught:
+        preparation._docker(["build", "private-payload"])
+    assert preparation.preparation_failure(caught.value) == dict(category=category, phase="unknown", operation="build")
+    assert "secret" not in str(caught.value) and "private" not in str(caught.value)
+    assert caught.value.__cause__ is None
+
+
+def test_preparation_failure_projection_rejects_untrusted_details(preparation):
+    error = ValueError("docker_failed secret private-payload")
+    setattr(error, "category", "secret")
+    setattr(error, "phase", "private")
+    assert preparation.preparation_failure(error) == dict(category="unknown_error", phase="unknown", operation="none")
+    typed = preparation.PreparationError("docker_failed", "dependencies", "build")
+    typed.category = ["secret"]
+    typed.phase = "private"
+    typed.operation = {"secret": True}
+    assert preparation.preparation_failure(typed) == dict(category="unknown_error", phase="unknown", operation="other")
 
 
 def test_preparation_cli_failure_is_bounded_and_keyless(tmp_path):
@@ -862,6 +978,7 @@ def test_preparation_cli_failure_is_bounded_and_keyless(tmp_path):
             "TMPDIR": str(tmp_path),
             "PYTHONDONTWRITEBYTECODE": "1",
             "INFERENCE_HUB_API_KEY": "synthetic-secret-not-a-credential",
+            "EA_LIVE_JOB_DEADLINE": "0",
         },
         capture_output=True,
         text=True,
@@ -869,7 +986,9 @@ def test_preparation_cli_failure_is_bounded_and_keyless(tmp_path):
     )
     assert result.returncode == 1
     assert result.stdout == ""
-    assert result.stderr == "image preparation failed; inference was not started\n"
+    assert result.stderr == (
+        "image preparation failed: category=deadline_exceeded phase=budget operation=none; inference was not started\n"
+    )
     assert not (tmp_path / "output/prepared-images.json").exists()
 
 
