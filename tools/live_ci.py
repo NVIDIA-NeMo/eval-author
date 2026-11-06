@@ -12,6 +12,7 @@ import os
 import re
 from pathlib import Path
 
+import live_agent_diagnostics
 from collect_live_skill_evaluations import DIMENSIONS, collect, configuration, count, number, persist_report
 from collect_skill_evaluations import now
 
@@ -39,6 +40,7 @@ ROW_FIELDS = {
     "exit_code",
     "report_digest",
     "diagnostics",
+    "agent_diagnostics",
     *METRICS,
 }
 
@@ -137,6 +139,7 @@ def validated_row(candidate, base, expected):
     if len(matches) != 1:
         raise ValueError("missing assigned observation")
     row = copy.deepcopy({k: v for k, v in matches[0].items() if k in ROW_FIELDS})
+    live_agent_diagnostics.project_public_row(row)
     if row["reason"] is not None and (not isinstance(row["reason"], str) or len(row["reason"]) > 500):
         raise ValueError("invalid outcome reason")
     if "diagnostics" in row and (not isinstance(row["diagnostics"], str) or len(row["diagnostics"]) > 13_000):

@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import secrets
 import subprocess
 import sys
 import threading
@@ -20,16 +21,19 @@ from collections import Counter
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
+import live_agent_diagnostics
 from collect_skill_evaluations import EVALUATOR_REVISION, execute, now, sha, tree_digest
 from license_duplication_policy import POLICY, expected_license_duplicate
 from live_evaluation_diagnostics import diagnostics
+from patched_opencode_runtime import CONFIGURED_VERSION as OPENCODE_VERSION
+from patched_opencode_runtime import LIVE_EXECUTION_SECONDS, LIVE_HANDOFF_SECONDS, live_job_remaining
 from run_pinned_evaluator import CONTEXT_POLICY, CONTEXT_SCALAR_LIMIT
 
 HUB_BASE_URL = "https://inference-api.nvidia.com/v1"
 HUB_KEY = "INFERENCE_HUB_API_KEY"
 DEFAULT_CHAT_MODEL = "azure/openai/gpt-5.6-luna"
 DEFAULT_EMBEDDING_MODEL = "azure/openai/text-embedding-3-small"
-TIER3_TIMEOUT_SECONDS = 2700
+TIER3_TIMEOUT_SECONDS = LIVE_EXECUTION_SECONDS
 DIMENSIONS = ("security", "correctness", "discoverability", "effectiveness", "efficiency")
 FINDINGS = {"duplicate", "EXACT_DUPLICATE", "HIGH_SIMILARITY", "SIMILAR", "LOOSELY_RELATED", "DISTINCT"}
 
@@ -63,6 +67,7 @@ class Observation(EvaluationSummary):
     exit_code: NotRequired[int | None]
     report_digest: NotRequired[str]
     diagnostics: NotRequired[str]
+    agent_diagnostics: NotRequired[dict]
 
 
 class LiveReport(TypedDict):
@@ -82,8 +87,17 @@ class LiveReport(TypedDict):
     counts: NotRequired[dict[str, int]]
 
 
-def execute_with_progress(argv, repo, env, log, timeout):
+class InsufficientLiveBudget(TimeoutError):
+    pass
+
+
+def execute_with_progress(argv, repo, env, log, timeout, *, reserve_live_budget=False):
     """Keep CI responsive without streaming unredacted subprocess output."""
+    if reserve_live_budget:
+        try:
+            live_job_remaining(timeout + LIVE_HANDOFF_SECONDS)
+        except (TimeoutError, ValueError) as exc:
+            raise InsufficientLiveBudget("insufficient live job budget") from exc
     label = f"{log.parent.name}/{log.name}"
     started = time.monotonic()
     stopped = threading.Event()
@@ -259,7 +273,7 @@ def summarize_tier3(report, code, cases) -> EvaluationSummary:
     }
 
 
-def configuration(provider):
+def configuration(provider, *, read_credentials=True):
     if provider != "inference_hub":
         raise ValueError("only NVIDIA Inference Hub is supported")
     chat = os.environ.get("SKILL_EVAL_LLM_MODEL", "").strip() or DEFAULT_CHAT_MODEL
@@ -279,7 +293,7 @@ def configuration(provider):
         SKILL_EVAL_LLM_MODEL=models["chat"],
         SKILL_EVAL_EMBEDDING_MODEL=models["embedding"],
     )
-    key = os.environ.get(HUB_KEY, "").strip()
+    key = os.environ.get(HUB_KEY, "").strip() if read_credentials else ""
     if key:
         env["SKILL_EVAL_LLM_API_KEY"] = key
         env["SKILL_EVAL_EMBEDDING_API_KEY"] = key
@@ -312,6 +326,8 @@ def unchanged(skills, digests):
 
 
 def persist_report(report, output):
+    for row in report["observations"]:
+        live_agent_diagnostics.project_public_row(row)
     report["updated_at"] = now()
     report["counts"] = dict(Counter(row["status"] for row in report["observations"]))
     target = output / "live-skillevaluator-summary.json"
@@ -396,7 +412,13 @@ def collect(
     if any(not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", s.name) for s in skills):
         raise ValueError("invalid skill name")
     digests = {s.name: tree_digest(s) for s in skills}
-    models, env, missing_key = configuration(provider)
+    budget_failed = False
+    if run and tier in ("3", "both") and check_name in ("live", "all"):
+        try:
+            live_job_remaining(TIER3_TIMEOUT_SECONDS + LIVE_HANDOFF_SECONDS)
+        except (TimeoutError, ValueError):
+            budget_failed = True
+    models, env, missing_key = configuration(provider, read_credentials=not budget_failed)
     output.mkdir(parents=True, exist_ok=False, mode=0o700)
     # Docker needs a home for its client state; never inherit host credentials
     # or let an unset HOME redirect that state into the skill repository.
@@ -420,6 +442,7 @@ def collect(
             "evaluator_provider": "openai-compatible",
             "models": models,
             "agent": "opencode",
+            "configured_opencode_version": OPENCODE_VERSION,
             "environment": "docker",
             "attempts": 1,
             "concurrency": 1,
@@ -474,7 +497,9 @@ def collect(
             }
         )
     for row in report["observations"]:
-        if row["status"] == "not_run" and missing_key:
+        if row["status"] == "not_run" and budget_failed:
+            row.update(status="incomplete", reason="insufficient_job_budget")
+        elif row["status"] == "not_run" and missing_key:
             row["reason"] = "missing_provider_key"
     persist()
     if not run or missing_key:
@@ -494,6 +519,7 @@ def collect(
         print(f"{now()} check-{index}: Tier {row['tier']} {row['skill']} {row['check']}", flush=True)
         persist()
         data = {}
+        runtime_failure = None
         try:
             if row["tier"] == 2:
                 command = "context-optimization-check" if row["check"] == "context" else "similarity-check"
@@ -516,7 +542,8 @@ def collect(
                     row.update(reason="dataset_validation_failed", exit_code=code)
                     continue
                 argv = [
-                    evaluator,
+                    evaluator_python or sys.executable,
+                    str(Path(__file__).with_name("run_pinned_live_evaluator.py")),
                     "tier3",
                     "evaluate",
                     str(skill),
@@ -537,19 +564,38 @@ def collect(
                     "--skill-workspace-mode",
                     "isolated",
                     "--agent-runtime-preflight",
+                    "--harbor-keep-jobs",
                     "--results-dir",
                     str(target / "results"),
                     "--progress",
                     "off",
                 ]
-                code, error = execute_with_progress(argv, repo, env, target / "console.log", TIER3_TIMEOUT_SECONDS)
+                live_env = dict(env)
+                failure_path = target / "runtime-failure.json"
+                failure_token = secrets.token_hex(32)
+                live_env.update(_EA_LIVE_FAILURE_PATH=str(failure_path), _EA_LIVE_FAILURE_TOKEN=failure_token)
+                for key in (
+                    "EA_PATCHED_OPENCODE_MANIFEST",
+                    "EA_REQUIRE_PATCHED_OPENCODE",
+                    "EA_PREPARED_IMAGES_MANIFEST",
+                    "EA_REQUIRE_PREPARED_IMAGES",
+                    "EA_LIVE_JOB_DEADLINE",
+                ):
+                    if key in os.environ:
+                        live_env[key] = os.environ[key]
+                code, error = execute_with_progress(
+                    argv, repo, live_env, target / "console.log", TIER3_TIMEOUT_SECONDS, reserve_live_budget=True
+                )
+                runtime_failure = live_agent_diagnostics.read_runtime_failure(failure_path, failure_token)
+                if runtime_failure is not None:
+                    row.update(reason=runtime_failure["reason"], exit_code=code)
+                    continue
                 # Native runs also publish a latest -> run symlink. Read only
                 # physical run directories so this alias cannot duplicate a report.
-                paths = [
-                    path
-                    for path in (target / "results" / skill.name).glob("*/result.json")
-                    if not path.parent.is_symlink()
-                ]
+                try:
+                    paths = [live_agent_diagnostics.native_run(target, skill.name) / "result.json"]
+                except (OSError, ValueError):
+                    paths = []
             row["exit_code"] = code
             if error:
                 row.update(reason="timeout")
@@ -557,7 +603,9 @@ def collect(
             if len(paths) != 1 or paths[0].is_symlink() or paths[0].stat().st_size > 10_000_000:
                 row.update(reason="report_missing_or_ambiguous")
                 continue
-            raw = paths[0].read_bytes()
+            raw = (
+                live_agent_diagnostics.read_regular(paths[0], 10_000_000) if row["tier"] == 3 else paths[0].read_bytes()
+            )
             row["report_digest"] = sha(raw)
             data = json.loads(raw)
             result = (
@@ -572,11 +620,24 @@ def collect(
             )
             row = {**row, **result}
             report["observations"][index] = row
+        except InsufficientLiveBudget:
+            row.update(status="incomplete", reason="insufficient_job_budget")
         except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
             row.update(status="incomplete", reason="tool_or_report_error")
             data = {"execution_errors": [f"Collector {type(exc).__name__}: {exc}"], "results": [data]}
         finally:
-            if (
+            if row["tier"] == 3:
+                # Diagnostics are advisory even when native execution/report parsing failed.
+                # Never let a diagnostic parser replace the original outcome.
+                try:
+                    row["agent_diagnostics"] = live_agent_diagnostics.capture(data, target, skill.name)
+                except Exception:
+                    row["agent_diagnostics"] = live_agent_diagnostics.unavailable()
+                if runtime_failure is not None:
+                    row["agent_diagnostics"]["runtime_failure"] = runtime_failure
+                row["agent_diagnostics"] = live_agent_diagnostics.public_projection(row["agent_diagnostics"])
+                row["diagnostics"] = live_agent_diagnostics.render(row["agent_diagnostics"])
+            if row["tier"] == 2 and (
                 row["status"] in ("failed", "incomplete")
                 or any(row.get("severity_counts", {}).values())
                 or row.get("excluded_license_findings")
@@ -590,6 +651,7 @@ def collect(
                     "pass_rate_lift",
                     "severity_counts",
                     "diagnostics",
+                    "agent_diagnostics",
                     "raw_severity_counts",
                     "excluded_license_findings",
                 ):
