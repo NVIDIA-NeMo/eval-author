@@ -91,6 +91,29 @@ def test_entire_matrix_preflight_before_upload(tmp_path):
     assert client.calls == []
 
 
+@pytest.mark.parametrize("change", ["file_mode", "directory_mode", "empty_directory"])
+def test_task_resource_identity_covers_archive_metadata(tmp_path, change):
+    loaded, execution, settings = prepared(tmp_path / "input")
+    before = plan_publication(loaded, execution, settings)
+    source = Path(before.cases[0].tasks[0].path)
+    if change == "file_mode":
+        path = source / "instruction.md"
+        path.chmod(path.stat().st_mode ^ 0o100)
+    elif change == "directory_mode":
+        source.chmod(source.stat().st_mode ^ 0o010)
+    else:
+        (source / "empty").mkdir()
+    after = plan_publication(loaded, execution, settings)
+    assert after.cases_sha256 == before.cases_sha256
+    assert after.cases[0].tasks[0].context_sha256 == before.cases[0].tasks[0].context_sha256
+    assert after.cases[0].tasks[0].name != before.cases[0].tasks[0].name
+    client = Publisher()
+    with pytest.raises(ValueError, match="archive permissions or directory inventory changed"):
+        publish_helix_inputs(before, tmp_path / "stale", client)
+    assert client.calls == []
+    publish_helix_inputs(after, tmp_path / "current", client)
+
+
 def test_publication_requires_exact_agent_membership(tmp_path):
     loaded, execution, settings = prepared(tmp_path)
     case_id = next(iter(settings.agents))

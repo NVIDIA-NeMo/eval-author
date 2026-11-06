@@ -105,6 +105,9 @@ Identical retries reuse verified snapshots and pinned resources. Interrupted loc
 copies never publish partial snapshots. Corrupt saved outputs are rejected; changed
 inputs require a new output directory. Build observations may grow as builds advance
 or a failed build is retried. Publication never silently deletes remote resources.
+Task resource names include file permissions and directory inventory because native
+archives preserve them. Different archive metadata produces a separate resource
+without changing the prepared content identity or replacing an existing task.
 
 Library entrypoints are `plan_publication` and `publish_helix_inputs` in
 `metric_benchmark.helix_publication`; the optional SDK adapter is `HelixPublisher`.

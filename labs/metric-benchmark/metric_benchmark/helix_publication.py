@@ -6,6 +6,7 @@
 import json
 import os
 import shutil
+import stat
 import tempfile
 import tomllib
 from pathlib import Path, PurePosixPath
@@ -213,6 +214,16 @@ def overlay_task(source: Path, agents: list[PublishBundle], destination: Path) -
     return destination
 
 
+def _task_name(context: Path, digest: str) -> str:
+    # Native archives retain permissions and empty directories, unlike the prepared content digest.
+    modes = {
+        path.relative_to(context).as_posix(): stat.S_IMODE(path.stat().st_mode)
+        for path in [context, *sorted(context.rglob("*"))]
+    }
+    identity = digest_bytes(json_bytes({"sha256": digest, "directory": context.name, "modes": modes}))
+    return "mb-task-" + identity[7:39]
+
+
 def plan_publication(loaded: LoadedCases, execution: HelixExecution, settings: PublicationSettings) -> PublicationPlan:
     loaded.identity_payload(verify=True)
     if set(settings.agents) != set(loaded.cases):
@@ -257,11 +268,11 @@ def plan_publication(loaded: LoadedCases, execution: HelixExecution, settings: P
             with tempfile.TemporaryDirectory(prefix="metric-benchmark-overlay-") as temporary:
                 context = overlay_task(path, agents, Path(temporary) / path.name)
                 context_digest = input_digest(context)
-            name_hash = digest_bytes(json_bytes({"sha256": context_digest, "directory": path.name}))
+                name = _task_name(context, context_digest)
             tasks.append(
                 PublishTask(
                     task_id=task_id,
-                    name="mb-task-" + name_hash[7:39],
+                    name=name,
                     path=str(path),
                     sha256=digest,
                     context_sha256=context_digest,
@@ -322,6 +333,8 @@ def publish_helix_inputs(plan: PublicationPlan, output: Path, client: Publisher)
                     staged.rename(destination)
             if input_digest(destination) != task.context_sha256:
                 raise ValueError("saved derived task context is corrupt")
+            if _task_name(destination, task.context_sha256) != task.name:
+                raise ValueError("task archive permissions or directory inventory changed after publication planning")
             client.validate_task(destination)
             contexts[task.name] = destination
     bindings = {}
