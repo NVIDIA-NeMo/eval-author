@@ -5,10 +5,11 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
+from urllib.parse import urlsplit
 
 import yaml
-from pydantic import Field, JsonValue, TypeAdapter, model_validator
+from pydantic import Field, JsonValue, StringConstraints, TypeAdapter, model_validator
 
 from metric_benchmark.io import digest_bytes, json_bytes, read_json, verify_input
 from metric_benchmark.io import file_manifest as file_manifest
@@ -166,11 +167,56 @@ class Case(Model):
         )
 
 
+Workspace = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9._-]*$")]
+
+
+def check_base_url(value: str) -> str:
+    url = urlsplit(value)
+    if (
+        url.scheme not in ("http", "https")
+        or not url.hostname
+        or url.username
+        or url.password
+        or url.query
+        or url.fragment
+    ):
+        raise ValueError("Helix base_url must be an HTTP(S) endpoint without credentials")
+    return value.rstrip("/")
+
+
 class LocalExecution(Model):
     backend: Literal["local_harbor"] = "local_harbor"
-    harbor_version: Literal["0.20.0"] = "0.20.0"
+    harbor_version: Literal["0.20.0", "0.24.0"] = "0.20.0"
     n_concurrent_trials: int = Field(default=1, ge=1)
     environment: dict[str, JsonValue] = Field(default_factory=lambda: dict[str, JsonValue](type="docker"))
+
+
+class HelixSandbox(Model):
+    profile: Text | None = None
+    cpus: int | None = Field(default=None, gt=0)
+    memory_mb: int | None = Field(default=None, gt=0)
+    storage_mb: int | None = Field(default=None, gt=0)
+
+
+class HelixExecution(Model):
+    backend: Literal["helix"] = "helix"
+    base_url: Text | None = None
+    workspace: Workspace | None = None
+    dispatcher_profile: Text
+    max_concurrent_task_jobs: int = Field(default=1, ge=1)
+    sandbox: HelixSandbox = Field(default_factory=HelixSandbox)
+
+    @model_validator(mode="after")
+    def destination(self) -> Self:
+        if self.base_url is not None:
+            self.base_url = check_base_url(self.base_url)
+        return self
+
+
+def execution_settings(value: object) -> LocalExecution | HelixExecution:
+    if isinstance(value, dict) and value.get("backend") == "helix":
+        return HelixExecution.model_validate(value)
+    return LocalExecution.model_validate(value)
 
 
 class CaseAnalysis(Model):
@@ -267,7 +313,7 @@ class LoadedCases:
 @dataclass(frozen=True)
 class LoadedExecution:
     inputs: LoadedCases
-    settings: LocalExecution
+    settings: LocalExecution | HelixExecution
 
 
 @dataclass(frozen=True)
@@ -346,7 +392,7 @@ def load_cases(path: Path, *, allow_unsigned: bool = False) -> LoadedCases:
 
 def load_execution(cases: Path, execution: Path, *, allow_unsigned: bool = False) -> LoadedExecution:
     inputs = load_cases(cases, allow_unsigned=allow_unsigned)
-    settings = LocalExecution.model_validate(read_yaml(execution))
+    settings = execution_settings(read_yaml(execution))
     inputs.verify_execution_inputs()
     return LoadedExecution(inputs, settings)
 
@@ -367,5 +413,5 @@ def load_benchmark(path: Path, *, allow_unsigned: bool = False) -> LoadedBenchma
     execution_path = definition.execution.resolve(root, allow_unsigned=allow_unsigned)
     analysis_path = definition.analysis.resolve(root, allow_unsigned=allow_unsigned)
     analysis = load_analysis(cases_path, analysis_path, allow_unsigned=allow_unsigned)
-    execution = LoadedExecution(analysis.inputs, LocalExecution.model_validate(read_yaml(execution_path)))
+    execution = LoadedExecution(analysis.inputs, execution_settings(read_yaml(execution_path)))
     return LoadedBenchmark(definition, execution, analysis)

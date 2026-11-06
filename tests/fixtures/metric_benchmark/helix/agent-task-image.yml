@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Synthetic Fabric baseline with NOP controls, not a real mutant cohort.
+# Supply the runtime directory at the cases root, then sign the benchmark.
+baseline:
+  agent_bundle_id: baseline
+  revision: '1'
+  inputs:
+    runtime:
+      path: runtime
+      kind: directory
+  harbor:
+    import_path: nhx_evals_sdk.agent_eval.runtimes.harbor.fabric_installed_agent:FabricInstalledAgent
+    kwargs:
+      fabric_config_bundle: '{input:runtime}'
+      fabric_config_target: /opt/benchmark-agents/baseline
+    env:
+      OPENAI_API_KEY: '${OPENAI_API_KEY}'
+mutants:
+- agent_bundle_id: mutant
+  revision: '1'
+  harbor:
+    name: nop
+- agent_bundle_id: mutant-no-search
+  revision: '1'
+  harbor:
+    name: nop

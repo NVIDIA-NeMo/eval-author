@@ -15,7 +15,7 @@ fixed subset manifest.
 
 | Stage | Tool |
 | --- | --- |
-| 1. Run mutants x eval tasks | `run_evals.py` (local Harbor); future NeMo Helix implementation |
+| 1. Run mutants x eval tasks | `run_evals.py` (local Harbor); Helix publish, submit/collect, and import commands |
 | 2. Compute mutant scores | [`compute_mutant_scores.py`](compute-mutant-scores.md) |
 | 3. Compute coverage | [`compute_coverage.py`](compute-coverage.md) |
 | 4. Correlation | [`correlate.py`](correlate.md) |
@@ -52,10 +52,26 @@ The baseline is included because mutant scoring compares its outcomes with each
 mutant's outcomes. The local Harbor loop produces the shared index and native evidence used by
 the analysis tools.
 
-A future NeMo Helix implementation will use an orchestrator to run evaluations at
-scale. Each implementation owns invocation, scheduling, retries, and collection
-and produces the same output contract. Analysis can rerun against saved results
-without repeating this execution phase.
+### Helix execution
+
+Helix divides execution into three independently runnable substeps:
+
+1. **Prepare/publish:** read signed cases and execution/packaging settings, derive
+   upload contexts, and publish pinned resources. Return bindings with a separate
+   publication identity. See the [publication guide](publish-helix-inputs.md).
+2. **Execute/collect:** verify bindings and prepared agent configuration, submit
+   the complete matrix, and collect native evidence.
+3. **Import:** verify task packaging, image and agent identities, then produce
+   the shared results directory for analysis.
+
+Across these substeps:
+
+- Agent/task definitions and case identity stay fixed when choosing a backend.
+- Execution identity also records resolved deployment and packaging details.
+- Unsupported runtime mappings fail explicitly.
+- Each backend owns invocation, scheduling, retries and collection, and produces
+  the same output contract.
+- Analysis can reuse saved results without repeating execution.
 
 ### Results-directory contract
 

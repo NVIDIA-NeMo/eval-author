@@ -13,7 +13,7 @@ from harbor.models.job.config import JobConfig
 from harbor.models.trial.config import EnvironmentConfig
 from harbor.models.trial.result import TrialResult
 
-from metric_benchmark.config import Case, LoadedCase, LoadedExecution, file_manifest
+from metric_benchmark.config import Case, LoadedCase, LoadedExecution, LocalExecution, file_manifest
 from metric_benchmark.io import digest_bytes, digest_file, json_bytes, read_json, write_json
 from metric_benchmark.models import Execution, ExecutionManifest, RawResults, Text, resolve_evidence
 from metric_benchmark.validation import agent_config, native_measurements, validate_results
@@ -57,6 +57,8 @@ def job_configuration(
     """
     case = loaded_case.case
     settings = loaded.settings
+    if not isinstance(settings, LocalExecution):
+        raise ValueError("Helix execution requires the Helix submission stage")
     if set(settings.environment) - EnvironmentConfig.model_fields.keys():
         raise ValueError("unknown Harbor environment setting")
     return JobConfig.model_validate(
@@ -194,6 +196,8 @@ def execute_benchmark(
     """Run one Harbor job per case/agent and publish validated case results plus an experiment manifest.
     Reuse verified completed jobs; leave incomplete jobs for explicit Harbor recovery.
     """
+    if not isinstance(loaded.settings, LocalExecution):
+        raise ValueError("Helix execution requires the Helix submission stage")
     if not run_id.strip():
         raise ValueError("run_id must be nonempty")
     if version("harbor") != loaded.settings.harbor_version:
