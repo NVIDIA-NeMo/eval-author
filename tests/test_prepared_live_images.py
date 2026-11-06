@@ -944,6 +944,31 @@ def test_docker_failure_reports_only_allowlisted_details(preparation, monkeypatc
     assert caught.value.__cause__ is None
 
 
+@pytest.mark.parametrize("phase", ["dependencies", "task_source", "task_layer"])
+@pytest.mark.parametrize("operation", ["build", "info", "run", "image"])
+def test_preparation_selects_immutable_parent_builder_only_for_builds(preparation, monkeypatch, phase, operation):
+    from types import SimpleNamespace
+
+    monkeypatch.setenv("DOCKER_BUILDKIT", "1")
+    monkeypatch.setenv("DOCKER_CONFIG", "/untrusted-host-config")
+    monkeypatch.setenv("SYNTHETIC_SECRET", "must-not-forward")
+    calls = []
+    monkeypatch.setattr(
+        preparation.subprocess,
+        "run",
+        lambda *args, **kwargs: calls.append(kwargs) or SimpleNamespace(returncode=0, stdout=""),
+    )
+    token = preparation._PREPARATION_PHASE.set(phase)
+    try:
+        preparation._docker([operation], timeout=17)
+    finally:
+        preparation._PREPARATION_PHASE.reset(token)
+    environment = calls[0]["env"]
+    assert environment.get("DOCKER_BUILDKIT") == ("0" if operation == "build" else None)
+    assert "DOCKER_CONFIG" not in environment and "SYNTHETIC_SECRET" not in environment
+    assert calls[0]["timeout"] == 17
+
+
 def test_preparation_failure_projection_rejects_untrusted_details(preparation):
     error = ValueError("docker_failed secret private-payload")
     setattr(error, "category", "secret")

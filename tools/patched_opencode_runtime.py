@@ -222,6 +222,10 @@ def _docker(args, *, timeout=30):
     try:
         timeout = preparation_timeout(timeout)
         environment = {key: os.environ[key] for key in ("PATH", "HOME", "DOCKER_HOST", "TMPDIR") if key in os.environ}
+        if operation == "build":
+            # BuildKit resolves local config IDs as registry names, not immutable parents.
+            # Require the classic builder; never fall back to mutable parent tags.
+            environment["DOCKER_BUILDKIT"] = "0"
         result = subprocess.run(["docker", *args], env=environment, capture_output=True, text=True, timeout=timeout)
     except (TimeoutError, subprocess.TimeoutExpired):
         raise PreparationTimeoutError("deadline_exceeded", phase, operation) from None

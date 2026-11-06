@@ -159,8 +159,14 @@ export EA_REQUIRE_PREPARED_IMAGES=1
 
 Use the normal collector command with that **single matching skill** on the same
 Docker daemon. Preparation needs public registry/package access, Docker Compose,
-and Linux AMD64 or ARM64; inference credentials are removed from its child
-environment. Keep the preparation directory private: it includes staged task
+and Linux AMD64 or ARM64 with Docker's classic builder available. Preparation
+explicitly sets `DOCKER_BUILDKIT=0` for builds because BuildKit interprets local
+config IDs in `FROM` as registry names. Both task-source and final layers retain
+immutable local parents; there is no mutable-tag fallback. The classic builder
+is [deprecated by Docker](https://docs.docker.com/engine/deprecated/#legacy-builder-for-linux-images);
+Docker installations without it are unsupported and fail preparation.
+Inference credentials are removed from its child environment.
+Keep the preparation directory private: it includes staged task
 inputs and image provenance, not a public report. Regenerate it after source or
 runtime changes. Unset both image-preparation variables to retain the original
 local installation path. CI always requires preparation for live shards; its
