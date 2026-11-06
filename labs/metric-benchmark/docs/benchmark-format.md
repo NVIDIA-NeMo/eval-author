@@ -101,12 +101,45 @@ environment:
   type: docker
 ```
 
+An explicit `harbor_version: 0.24.0` selects the separately installed qualified
+Harbor 0.24 runtime, for example when using the same installed Fabric adapter as Helix.
+The default benchmark environment remains pinned to Harbor 0.20.0.
+
 An empty mapping selects defaults: `backend: local_harbor`, `harbor_version: 0.20.0`,
-`n_concurrent_trials: 1`, and Docker. No other backend or Harbor version is currently
-supported. The environment mapping accepts native Harbor environment settings.
+`n_concurrent_trials: 1`, and Docker. Local execution requires Harbor 0.20.0.
+The environment mapping accepts native Harbor environment settings.
 Execution always runs each case's baseline then mutants against its complete task
 inventory, with one attempt per pair and no automatic retries. That matrix is
 already defined by the cases and is not configured a second time.
+
+Select Helix explicitly in the same execution configuration:
+
+```yaml
+backend: helix
+base_url: https://helix.example.com
+workspace: benchmark
+dispatcher_profile: workers
+max_concurrent_task_jobs: 2
+sandbox:
+  profile: evaluation
+```
+
+Helix stages derive agent configuration from the same `Agent.harbor` definition used
+locally. Publication settings describe transport only; arbitrary target overrides are
+rejected. Tasks remain unchanged: task-image packaging creates a separately identified
+overlay whose derivation is checked on import. See [publication](publish-helix-inputs.md).
+
+`base_url` and `workspace` may be omitted and resolved from the selected authenticated
+client context. Explicit values assert the destination. The resolved values are frozen
+in publication/submission records; replay cannot silently change sites.
+Helix stages use published task and agent bindings for the prepared cases.
+The endpoint, workspace, dispatcher and sandbox describe the deployment; they do
+not change case membership or the agent/task matrix. Concurrency is per remote
+run. Omitting `sandbox` selects the deployment's default policy; resolved settings
+must be retained with the job evidence. Authentication comes from an existing
+Helix client context, never from these YAML files. Keep actual deployment settings
+outside public checkouts. The local executor rejects `backend: helix` before
+creating outputs or launching any local jobs.
 
 ## Analysis: `analysis.yml`
 

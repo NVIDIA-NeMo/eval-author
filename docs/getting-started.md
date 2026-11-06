@@ -330,6 +330,10 @@ baseline) and `oracle` agent (the task's reference solution), or NeMo Gym's nati
 positive and negative controls. These checks do not require a model provider.
 Running your actual agent uses its configured provider and dependencies.
 
+The experimental [metric-benchmark Helix publisher](../labs/metric-benchmark/docs/tools.md#publish-inputs-to-helix)
+uses a separate authenticated Helix client environment. Its setup is independent
+of skill installation and the local Harbor environment above.
+
 If you need help, [open an issue](https://github.com/NVIDIA-NeMo/eval-author/issues)
 with the workflow, relevant versions, and a minimal reproduction using synthetic
 data. Keep credentials and private traces out of public reports.
