@@ -16,7 +16,7 @@ triggers:
 not-for:
   - eval-author (use for the standard, the boundaries, and to pick a sub-flow)
   - eval-author-trace-environment (experimental; use only for an explicit request or existing workspace)
-  - eval-author-task-create (use to propose dataset improvements and create audit-gap or ATIF-source tasks)
+  - eval-author-task-create (use to propose dataset improvements and create audit-gap or trace-source tasks)
   - eval-author-first-eval (use to plan and build a starter suite)
   - eval-author-discover (use to check whether an existing suite runs)
 compatibility: >-
@@ -74,7 +74,7 @@ task's own NOP, Oracle, or verifier controls never prove the environment.
 
 ## Trace-backed tools and integrity
 
-For an admitted trace source, follow the [ATIF environment handoff](../eval-author/references/trace-input.md).
+For an admitted trace source, follow the [trace source handoff](../eval-author/references/trace-input.md).
 Preserve source-state provenance and reviewed real/mock/none decisions in the shared
 construction contract. The environment kit and its smoke handoff still precede
 task tests. Recorded replay covers only its declared interactions.

@@ -44,12 +44,13 @@ traces into ATIF. See the
 Loading needs Python 3.12 or 3.13 and the skill's `requirements.txt`. It makes
 no model calls; only `--source-kind intake` queries a live Intake service.
 
-Coverage audits measure ATIF, MLflow, NeMo Gym, and normalized traces directly. The
-experimental trace-to-environment workflow's `prepare` step reads ATIF only
-until it reads Compass Traces; its
-[source guide](../skills/eval-author-trace-environment/references/sources.md)
-describes this temporary limit. A capture that loads successfully can still
-lack sufficient interaction evidence for coverage measurement or experimental
+Coverage audits measure ATIF, MLflow, NeMo Gym, and normalized traces directly.
+The experimental trace-to-environment workflow's `prepare` step loads the same
+kinds into one Compass `Trace` and scrubs a safe copy; load Intake first and
+prepare its normalized output. See the
+[trace source guide](../skills/eval-author-inspect-trace/references/sources.md).
+A capture that loads successfully can still lack sufficient interaction
+evidence, such as recorded turns, for coverage measurement or experimental
 environment derivation.
 
 ## Build an evaluation task
@@ -92,9 +93,9 @@ Review privacy and ground truth, complete the native task, and validate it
 with the installed NeMo Gym runtime. Retain controls and exact rerun instructions.
 ```
 
-The source must be ATIF, including a NeMo Gym run's retained Harbor ATIF, until the
-workflow reads NeMo Compass Traces; source format does not select the output
-provider. No audit coverage report is
+The source can be ATIF, MLflow, a NeMo Gym rollout that records turns, or a
+normalized trace; source format does not select the output provider. No audit
+coverage report is
 required. The [NeMo Gym extension](../skills/eval-author-trace-environment/references/gym-output.md)
 shares trace preparation and candidacy, then reuses NeMo Gym's native scaffolder,
 resources server, datasets, verifier fixtures, and repeated execution controls.

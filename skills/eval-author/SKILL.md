@@ -122,7 +122,7 @@ instead of repeating orientation.
 | Build first evals | `eval-author-first-eval`; confirm reuse of any saved design on a fresh request before continuing its unfinished stage |
 | Audit coverage, gaps, and improvement opportunities | `eval-author-audit`, continuing with eval and trace selection |
 | Improve or expand evals | Preserve the expansion goal and use the expansion handoff below; an audit is optional |
-| Create a task from a recorded interaction | [Task-create ATIF source mode](../eval-author-task-create/SKILL.md#atif-source-mode), or [first-eval](../eval-author-first-eval/SKILL.md#atif-as-a-starting-source) for a new suite; use the [shared ATIF handoff](references/trace-input.md), without requiring an audit gap |
+| Create a task from a recorded interaction | [Task-create trace source mode](../eval-author-task-create/SKILL.md#trace-source-mode), or [first-eval](../eval-author-first-eval/SKILL.md#a-recorded-trace-as-a-starting-source) for a new suite; use the [shared trace handoff](references/trace-input.md), without requiring an audit gap |
 | Explicit trace-environment request or existing workspace continuation | [Trace environment](../eval-author-trace-environment/SKILL.md); retain existing artifacts and the compatibility workflow |
 
 Acceptance of the first-evaluation flow's [audit invitation](references/conversations/first-eval.md#blockers-and-the-audit-invitation)
@@ -213,7 +213,7 @@ The authority depends on the sub-flow:
   real-agent runs close the selected gap; reference controls do not measure agent ability.
 - For trace inspection, Intake establishes what happened. Local source code can
   explain behavior, but it can't replace recorded trace evidence.
-- For experimental trace-derived environments, canonical ATIF establishes the request.
+- For experimental trace-derived environments, the canonical Compass trace establishes the request.
   Harbor's NOP and Oracle runs or NeMo Gym's native validation and repeated controls
   establish the generated task's behavior within the reported proof limits.
 
@@ -262,7 +262,7 @@ dataset improvements from those findings across tools, capabilities, and failure
 cases while preserving their measured or unmeasured status. Proposal-only
 requests stop there. Its audit-gap task-creation mode consumes only actionable
 tool gaps and uses the selected NeMo Gym or Harbor native scaffolder rather than guessing a task
-layout. Its ATIF source mode instead applies privacy and candidate admission without
+layout. Its trace source mode instead applies privacy and candidate admission without
 requiring an audit gap. For a requested full workflow, proceed from audit to proposals even when
 there are no eligible tool gaps; an audit-only request ends with the findings.
 
@@ -350,7 +350,7 @@ user, not to you.
   `.eval-author/.working/`; `eval-author-audit` writes only
   requested audit artifacts; `eval-author-task-create` writes only drafts,
   proposals, job outputs, and measurements there; `eval-author-trace-environment`
-  writes only private, gitignored task workspaces there. For the shared ATIF flow,
+  writes only private, gitignored task workspaces there. For the shared trace flow,
   inspect-trace, task-create and environment also write their owned artifacts
   inside the selected private `.eval-author/.working/trace-inputs/` workspace.
   `eval-author-first-eval` writes plans, drafts, configs, and jobs there and uses
