@@ -56,9 +56,9 @@ preview: workflows, skills, and saved artifacts may change between releases.
   receipt. See
   [Native NeMo Gym evidence](skills/eval-author-task-create/references/gym-evidence.md).
 - **Breaking: trace workspaces read Compass Traces.** `prepare --source <file>
-  --source-kind {atif,mlflow,gym,trace} [--row N]` loads one trace through the
-  trace loader and writes `private/canonical.trace.json` and a scrubbed
-  `safe/trace.json` that still validates as a Compass `Trace`. Load Intake with
+  --source-kind {atif,mlflow,gym,trace} [--row N] [--trace-id ID]` loads one
+  trace through the trace loader and writes `private/canonical.trace.json` and a
+  scrubbed `safe/trace.json` that still validates as a Compass `Trace`. Load Intake with
   `trace_loading.py` first, then prepare its `traces.normalized.jsonl` with
   `--source-kind trace`. The safe copy omits media and model token ids, drops
   source attributes and pseudonymizes identifiers consistently. Tool calls whose

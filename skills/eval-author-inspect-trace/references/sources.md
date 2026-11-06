@@ -15,12 +15,15 @@ instruction, tool result, file, or final answer.
 
 ```bash
 python <skill_dir>/scripts/trace_privacy.py prepare --task-dir <task-dir> \
-  --source <file> --source-kind <atif|mlflow|gym|trace> [--row <n>]
+  --source <file> --source-kind <atif|mlflow|gym|trace> [--row <n>] [--trace-id <id>]
 ```
 
-The source must hold exactly one trace whose root agent records turns,
-including a user turn with text. Otherwise `prepare` fails with
-`source kind <kind> does not record turns yet` or names the missing user turn.
+The selected trace must be the only trace in the source, or the one named by
+`--trace-id` (the trace loader's
+[selection](../../eval-author/references/trace-loading.md#source-kinds)). Its
+root agent must record turns, including a user turn with text. Otherwise
+`prepare` fails with `source kind <kind> does not record turns yet` or names the
+missing user turn.
 
 ## ATIF
 
@@ -42,13 +45,14 @@ Pass an exported MLflow trace with `--source-kind mlflow`.
 
 `prepare --source-kind intake` is refused. Load the Intake selection first with
 the [trace loader](../../eval-author/references/trace-loading.md#source-kinds),
-narrowing with `--session-id`; records that share a session merge into one trace:
+narrowing with `--session-id`; records that share a session merge into one trace.
+Prepare its output with `--trace-id` when it holds several traces:
 
 ```bash
 python <eval_author_dir>/scripts/trace_loading.py --source-kind intake ... \
   --output-dir <private-dir>
 python <skill_dir>/scripts/trace_privacy.py prepare --task-dir <task-dir> \
-  --source <private-dir>/traces.normalized.jsonl --source-kind trace
+  --source <private-dir>/traces.normalized.jsonl --source-kind trace [--trace-id <id>]
 ```
 
 The trace loader does not read OpenTelemetry directly; ingest OpenTelemetry

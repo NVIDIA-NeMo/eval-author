@@ -10,7 +10,7 @@ JSON object and exits nonzero on contract errors.
 | Command | Purpose | Key arguments |
 |---|---|---|
 | `init` | Create the private, gitignored task workspace | `--task-id` |
-| `prepare` | Load, bound, and scrub one trace through NeMo Compass | `--task-dir --source --source-kind [--row]` |
+| `prepare` | Load, bound, and scrub one trace through NeMo Compass | `--task-dir --source --source-kind [--row --trace-id]` |
 | `audit-evidence` | Inspect recorded tool-result coverage without inferring success | `--task-dir` |
 | `review-privacy` | Record the contextual safe-trace review | `--reviewer-kind --note` |
 | `inventory-tool-calls` / `plan-tool-call-access` / `resolve-tool-call-access` / `generate-mock-tool-calls` | Trace-derived tool-call fixtures | `--task-dir [--decisions --reviewer-kind]` |

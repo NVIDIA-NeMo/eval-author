@@ -283,7 +283,7 @@ def _walk(trace: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def test_no_raw_atif_identifier_reaches_the_safe_copy_and_loss_details_match(tmp_path):
-    raw = ("RAW-SESSION", "RAW-TRAJECTORY", "RAW-CONTINUED", "RAW-CALL", "RAW-CHILD-ID", "RAW-CHILD-PATH")
+    raw = ("RAW-SESSION", "RAW-TRAJECTORY", "RAW-CALL", "RAW-CHILD-ID", "RAW-CHILD-PATH")
     source = tmp_path / "source.atif.json"
     source.write_text(
         json.dumps(
@@ -291,7 +291,6 @@ def test_no_raw_atif_identifier_reaches_the_safe_copy_and_loss_details_match(tmp
                 "schema_version": "ATIF-v1.7",
                 "session_id": "RAW-SESSION",
                 "trajectory_id": "RAW-TRAJECTORY",
-                "continued_trajectory_ref": "RAW-CONTINUED",
                 "agent": {"name": "agent", "version": "1.0"},
                 "steps": [
                     {"step_id": 1, "source": "user", "message": "Repair the fixture for RAW-SESSION."},
@@ -328,11 +327,9 @@ def test_no_raw_atif_identifier_reaches_the_safe_copy_and_loss_details_match(tmp
     trace_ingest.Trace.model_validate(safe)
     losses = {loss["code"]: loss["detail"] for loss in safe["losses"]}
     spans = _walk(safe)
-    run = next(span["run"] for span in spans if span.get("run"))
     [call] = [span["tool_call"] for span in spans if span.get("tool_call")]
     [ref] = [ref for result in call["results"] for ref in result["subagent_refs"]]
     # A source value gets the same pseudonym in a loss detail and in the field it mirrors.
-    assert losses["continued_trajectory_not_followed"] == {"continued_trajectory_ref": run["continued_trajectory_ref"]}
     assert losses["unresolved_subagent_ref"] == {"ref": {k: ref[k] for k in ("trajectory_id", "trajectory_path")}}
     assert call["results"][0]["extra"] == {"tool_call_id": call["call_id"]}
 

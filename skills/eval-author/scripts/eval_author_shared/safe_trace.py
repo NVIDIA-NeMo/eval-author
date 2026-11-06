@@ -112,16 +112,20 @@ def parse_trace(data: bytes, *, label: str = "safe trace") -> Trace:
     return trace
 
 
-def load_trace(path: Path, kind: str, *, row: int | None = None) -> Trace:
+def load_trace(path: Path, kind: str, *, row: int | None = None, trace_id: str | None = None) -> Trace:
     """Load exactly one trace through Eval Author's single Compass loading boundary."""
     import trace_loading
 
+    # Without a selection the source itself must hold one trace; with one, the loader's own bound applies.
+    max_traces = 1 if trace_id is None else trace_loading.DEFAULT_MAX_TRACES
     try:
         # Loader diagnostics may echo source values; keep command output content-free.
         with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
-            traces = trace_loading.load_traces(path, kind, max_traces=1, row=row)
+            traces = trace_loading.load_traces(path, kind, max_traces=max_traces, row=row, trace_id=trace_id)
     except trace_loading.TraceLimitError as error:
-        raise SafeTraceError("prepare requires a source that holds exactly one trace") from error
+        raise SafeTraceError(
+            "prepare requires a source that holds exactly one trace; select one with --trace-id"
+        ) from error
     except trace_loading.TraceLoadError as error:
         raise SafeTraceError(f"could not load the source as {kind}: {error}") from error
     except (ValueError, OSError) as error:

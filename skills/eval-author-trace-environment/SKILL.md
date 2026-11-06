@@ -125,7 +125,7 @@ of guessing.
 python <skill_dir>/scripts/trace_environment.py prepare \
   --task-dir <task-dir> \
   --source <source-file> \
-  --source-kind <atif|mlflow|gym|trace> [--row <n>]
+  --source-kind <atif|mlflow|gym|trace> [--row <n>] [--trace-id <id>]
 ```
 
 The helper retains an exact owner-private original, writes the bounded canonical
