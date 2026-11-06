@@ -15,6 +15,9 @@ def main():
     parser.add_argument("--skill", type=Path, required=True)
     parser.add_argument("--binary-manifest", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--timing-checkpoint", type=Path, help="new allowlisted aggregate checkpoint outside private output"
+    )
     args = parser.parse_args()
     if any(os.environ.get(key) for key in ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP")):
         parser.error("conflicting Python instrumentation")
@@ -27,7 +30,12 @@ def main():
     os.environ.clear()
     os.environ.update(environment)
     try:
-        prepare_images(args.skill.resolve(), args.output.resolve(), args.binary_manifest.resolve())
+        prepare_images(
+            args.skill.resolve(),
+            args.output.resolve(),
+            args.binary_manifest.resolve(),
+            timing_checkpoint=args.timing_checkpoint,
+        )
     except Exception as error:
         details = preparation_failure(error)
         parser.exit(

@@ -148,7 +148,27 @@ def test_prepare_builds_exact_native_contexts_then_verifies_offline_before_publi
         return ""
 
     monkeypatch.setattr(preparation, "_docker", docker)
-    path = preparation.prepare_images(native_skill, tmp_path / "prepared", binary_manifest)
+    checkpoint = tmp_path / "timing.json"
+    path = preparation.prepare_images(
+        native_skill, tmp_path / "prepared", binary_manifest, timing_checkpoint=checkpoint
+    )
+    timing = json.loads(checkpoint.read_text())
+    assert timing["latest"]["event"] == "completed"
+    assert timing["latest"]["completed_images"] == 2
+    completed = [row for row in timing["events"] if row["event"] == "image_completed"]
+    assert [row["image_ordinal"] for row in completed] == [1, 2]
+    assert [row["completed_images"] for row in completed] == [1, 2]
+    assert all(row["image_elapsed_seconds"] >= 0 for row in completed)
+    assert {row["phase"] for row in timing["events"]} >= {
+        "contract",
+        "binary_manifest",
+        "platform",
+        "staging",
+        "task_source",
+        "task_layer",
+        "offline_probe",
+        "publication",
+    }
     data = json.loads(path.read_text())
     assert data["schema_version"] == 1
     assert set(data["tasks"]) == {"with", "without"}
@@ -969,6 +989,227 @@ def test_preparation_selects_immutable_parent_builder_only_for_builds(preparatio
     assert calls[0]["timeout"] == 17
 
 
+@pytest.mark.parametrize("failure,category", [("exit", "docker_failed"), ("timeout", "deadline_exceeded")])
+def test_timing_checkpoint_survives_real_subprocess_failure(
+    preparation, tmp_path, monkeypatch, capsys, failure, category
+):
+    import sys
+
+    checkpoint = tmp_path / "timing.json"
+    docker = tmp_path / "docker"
+    docker.write_text(
+        f"#!{sys.executable}\n"
+        "import json, pathlib, sys, time\n"
+        f"data = json.load(open({str(checkpoint)!r}))\n"
+        "assert data['latest']['event'] == 'operation_started'\n"
+        f"pathlib.Path({str(tmp_path / 'observed-start')!r}).touch()\n"
+        "print('PRIVATE task-path image-id ::error:: forged', flush=True)\n"
+        "print('SECRET environment', file=sys.stderr, flush=True)\n"
+        + ("time.sleep(5)\n" if failure == "timeout" else "sys.exit(7)\n")
+    )
+    docker.chmod(0o700)
+    monkeypatch.setenv("PATH", str(tmp_path))
+    monkeypatch.delenv(preparation.LIVE_JOB_DEADLINE_ENV, raising=False)
+
+    def prepare(*args):
+        preparation._PREPARATION_PHASE.set("task_source")
+        preparation._docker(["build", "PRIVATE task-path"], timeout=2 if failure == "timeout" else 5)
+
+    monkeypatch.setattr(preparation, "_prepare_images", prepare)
+    with pytest.raises(preparation.PreparationError) as caught:
+        preparation.prepare_images(tmp_path, tmp_path / "out", tmp_path / "binary", timing_checkpoint=checkpoint)
+    assert preparation.preparation_failure(caught.value)["category"] == category
+    assert (tmp_path / "observed-start").exists()
+    data = json.loads(checkpoint.read_text())
+    events = data["events"]
+    assert [row["event"] for row in events if row["operation"] == "build"] == [
+        "operation_started",
+        "operation_failed",
+        "failed",
+    ]
+    failed = events[-2]
+    assert failed["category"] == category and failed["phase"] == "task_source"
+    assert failed["operation_elapsed_seconds"] > 0
+    assert 0 <= failed["remaining_deadline_seconds"] < 600
+    assert data["latest"]["event"] == "failed"
+    assert data["latest"]["completed_images"] == 0
+    assert not (tmp_path / "out/prepared-images.json").exists()
+    published = checkpoint.read_text() + str(caught.value) + str(capsys.readouterr())
+    assert all(secret not in published for secret in ("PRIVATE", "SECRET", "task-path", "image-id", "::error::"))
+    assert preparation._PREPARATION_TIMING.get() is None
+    assert checkpoint.stat().st_mode & 0o777 == 0o600
+
+
+def test_timing_checkpoint_projection_bounds_and_atomic_failure(preparation, tmp_path, monkeypatch, capsys):
+    checkpoint = tmp_path / "timing.json"
+    timing = preparation.PreparationTiming(checkpoint)
+    monkeypatch.setattr(preparation, "PREPARATION_TIMING_MAX_EVENTS", 3)
+    token = preparation._PREPARATION_PHASE.set("PRIVATE ::error:: forged")
+    try:
+        timing.emit("started", ["PRIVATE"], {"SECRET": True})
+        timing.emit("operation_started", "build")
+        timing.emit("operation_completed", "build")
+        timing.emit("failed", "build", "docker_failed")
+    finally:
+        preparation._PREPARATION_PHASE.reset(token)
+    data = json.loads(checkpoint.read_text())
+    assert len(data["events"]) == 3 and data["events_truncated"] is True
+    assert data["latest"]["event"] == "failed"
+    assert data["events"][0]["operation"] == "other"
+    assert data["events"][0]["category"] == "unknown_error"
+    assert data["events"][0]["phase"] == "unknown"
+    console = capsys.readouterr().out
+    assert len(console.splitlines()) == 3
+    assert all(value not in console + checkpoint.read_text() for value in ("PRIVATE", "SECRET", "::error::"))
+    before = checkpoint.read_bytes()
+
+    def fail_replace(*args):
+        raise OSError("PRIVATE path SECRET")
+
+    monkeypatch.setattr(preparation.os, "replace", fail_replace)
+    with pytest.raises(preparation.PreparationError, match="filesystem_error") as caught:
+        timing.emit("failed")
+    assert "PRIVATE" not in str(caught.value)
+    assert checkpoint.read_bytes() == before
+    assert set(tmp_path.iterdir()) == {checkpoint}
+
+
+def test_timing_counts_and_payload_size_are_bounded(preparation, tmp_path, monkeypatch, capsys):
+    timing = preparation.PreparationTiming(tmp_path / "timing.json")
+    for _ in range(128):
+        timing.emit("image_started")
+        timing.emit("image_completed")
+    with pytest.raises(preparation.PreparationError, match="validation_error"):
+        timing.emit("image_started")
+    before = timing.path.read_bytes()
+    monkeypatch.setattr(preparation, "PREPARATION_TIMING_MAX_BYTES", 1)
+    with pytest.raises(preparation.PreparationError, match="validation_error"):
+        timing.emit("failed")
+    assert timing.path.read_bytes() == before
+    assert len(capsys.readouterr().out.splitlines()) == 256
+
+
+def test_timing_checkpoint_rejects_existing_and_symlink_targets(preparation, tmp_path):
+    existing = tmp_path / "existing.json"
+    existing.write_text("PRIVATE")
+    alias = tmp_path / "alias.json"
+    alias.symlink_to(existing)
+    for path in (existing, alias):
+        with pytest.raises(ValueError, match="unsafe timing checkpoint"):
+            preparation.PreparationTiming(path)
+    assert existing.read_text() == "PRIVATE"
+
+
+def test_timing_success_keeps_real_docker_argv_env_and_deadline(preparation, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    clock = [100.0]
+    monkeypatch.setattr(preparation.time, "monotonic", lambda: clock[0])
+    monkeypatch.delenv(preparation.LIVE_JOB_DEADLINE_ENV, raising=False)
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        clock[0] += 7
+        return SimpleNamespace(returncode=0, stdout="private response")
+
+    def prepare(*args):
+        preparation._preparation_phase("task_source")
+        preparation._timing_event("image_started")
+        assert preparation._docker(["build", "PRIVATE"], timeout=600) == "private response"
+        preparation._timing_event("image_completed")
+
+    monkeypatch.setattr(preparation.subprocess, "run", run)
+    monkeypatch.setattr(preparation, "_prepare_images", prepare)
+    timing_path = tmp_path / "timing.json"
+    preparation.prepare_images(tmp_path, tmp_path / "out", tmp_path / "binary", timing_checkpoint=timing_path)
+    assert calls[0][0] == ["docker", "build", "PRIVATE"]
+    assert calls[0][1]["env"]["DOCKER_BUILDKIT"] == "0"
+    assert calls[0][1]["timeout"] == 600
+    data = json.loads(timing_path.read_text())
+    completed = next(row for row in data["events"] if row["event"] == "operation_completed")
+    assert completed["operation_elapsed_seconds"] == 7
+    assert completed["remaining_deadline_seconds"] == 593
+    assert data["latest"]["completed_images"] == 1
+    assert data["latest"]["total_elapsed_seconds"] == 7
+    assert "private" not in timing_path.read_text().lower()
+
+
+def test_timing_checkpoint_write_time_is_inside_aggregate_budget(preparation, tmp_path, monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr(preparation.time, "monotonic", lambda: clock[0])
+    monkeypatch.delenv(preparation.LIVE_JOB_DEADLINE_ENV, raising=False)
+    monkeypatch.setattr(preparation.os, "fsync", lambda _: clock.__setitem__(0, clock[0] + 2))
+    observed = []
+    monkeypatch.setattr(
+        preparation, "_prepare_images", lambda *args: observed.append(preparation._PREPARATION_DEADLINE.get())
+    )
+    preparation.prepare_images(
+        tmp_path, tmp_path / "out", tmp_path / "binary", timing_checkpoint=tmp_path / "timing.json"
+    )
+    assert observed == [700.0]
+
+
+@pytest.mark.parametrize("exception", [ValueError("PRIVATE payload"), RuntimeError("SECRET path")])
+def test_timing_unexpected_subprocess_exception_keeps_operation(preparation, tmp_path, monkeypatch, exception):
+    def run(*args, **kwargs):
+        raise exception
+
+    monkeypatch.setattr(preparation.subprocess, "run", run)
+    monkeypatch.setattr(preparation, "_prepare_images", lambda *args: preparation._docker(["build", "PRIVATE"]))
+    checkpoint = tmp_path / "timing.json"
+    with pytest.raises(preparation.PreparationError):
+        preparation.prepare_images(tmp_path, tmp_path / "out", tmp_path / "binary", timing_checkpoint=checkpoint)
+    data = json.loads(checkpoint.read_text())
+    assert data["events"][-2]["event"] == "operation_failed"
+    assert data["latest"]["operation"] == "build"
+    assert "PRIVATE" not in checkpoint.read_text() and "SECRET" not in checkpoint.read_text()
+
+
+def test_timing_checkpoint_survives_process_group_cancellation(tmp_path):
+    import os
+    import signal
+    import subprocess
+    import sys
+    import time
+
+    checkpoint = tmp_path / "timing.json"
+    entered = tmp_path / "entered"
+    docker = tmp_path / "docker"
+    docker.write_text(
+        f"#!{sys.executable}\nimport pathlib, time\npathlib.Path({str(entered)!r}).touch()\ntime.sleep(30)\n"
+    )
+    docker.chmod(0o700)
+    script = (
+        f"import sys; sys.path.insert(0, {str(ROOT / 'tools')!r}); "
+        "import patched_opencode_runtime as p; "
+        "p._prepare_images = lambda *args: p._docker(['build', 'PRIVATE'], timeout=30); "
+        f"p.prepare_images('.', '.', '.', timing_checkpoint={str(checkpoint)!r})"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", script],
+        start_new_session=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={"PATH": str(tmp_path), "HOME": str(tmp_path), "TMPDIR": str(tmp_path), "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while not entered.exists() and process.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert entered.exists(), "synthetic subprocess did not start"
+    finally:
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGKILL)
+        stdout, stderr = process.communicate(timeout=5)
+    data = json.loads(checkpoint.read_text())
+    assert process.returncode == -signal.SIGKILL
+    assert data["latest"]["event"] == "operation_started"
+    assert data["latest"]["operation"] == "build"
+    assert data["latest"]["completed_images"] == 0
+    assert "PRIVATE" not in checkpoint.read_text() + stdout.decode() + stderr.decode()
+
+
 def test_preparation_failure_projection_rejects_untrusted_details(preparation):
     error = ValueError("docker_failed secret private-payload")
     setattr(error, "category", "secret")
@@ -981,7 +1222,8 @@ def test_preparation_failure_projection_rejects_untrusted_details(preparation):
     assert preparation.preparation_failure(typed) == dict(category="unknown_error", phase="unknown", operation="other")
 
 
-def test_preparation_cli_failure_is_bounded_and_keyless(tmp_path):
+@pytest.mark.parametrize("diagnostic", [False, True])
+def test_preparation_cli_failure_is_bounded_and_keyless(tmp_path, diagnostic):
     import os
     import subprocess
     import sys
@@ -996,6 +1238,7 @@ def test_preparation_cli_failure_is_bounded_and_keyless(tmp_path):
             str(tmp_path / "missing.json"),
             "--output",
             str(tmp_path / "output"),
+            *(["--timing-checkpoint", str(tmp_path / "timing.json")] if diagnostic else []),
         ],
         env={
             "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
@@ -1010,7 +1253,15 @@ def test_preparation_cli_failure_is_bounded_and_keyless(tmp_path):
         timeout=30,
     )
     assert result.returncode == 1
-    assert result.stdout == ""
+    if diagnostic:
+        timing = json.loads((tmp_path / "timing.json").read_text())
+        assert timing["latest"]["category"] == "deadline_exceeded"
+        assert timing["latest"]["phase"] == "budget"
+        assert timing["latest"]["event"] == "failed"
+        assert len(result.stdout.splitlines()) == 2
+        assert "synthetic-secret" not in result.stdout + result.stderr
+    else:
+        assert result.stdout == ""
     assert result.stderr == (
         "image preparation failed: category=deadline_exceeded phase=budget operation=none; inference was not started\n"
     )

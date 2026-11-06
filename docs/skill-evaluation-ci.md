@@ -206,6 +206,27 @@ support the handoff, preparation or collection fails before inference. Bounded
 setup/preparation/collection steps and the existing `always()` fallback uploads
 provide a second guard; these limits do not guarantee timely package availability.
 
+The credential-free timing job adds `--timing-checkpoint` to preparation, writing
+`preparation-operation-timing.json` beside the existing timing summary. This
+opt-in file must be new, in an existing directory outside the private preparation
+output. It is atomically replaced before and after each Docker operation and at
+phase/image boundaries. It records only fixed event, phase, operation and failure
+categories; completed unique trial-image count; a one-based trial-image ordinal
+(zero before any image); and monotonic operation, image and total elapsed seconds
+with remaining preparation budget. Image completion means its offline probe
+passed. Shared dependency work is included in the first image's elapsed time.
+These are host-operation boundary timings, including checkpoint overhead, not
+Dockerfile instruction or package timings; build instruction progress is not
+observed. No command arguments, image IDs, paths, environment values or task/log
+content are emitted. Console progress and retained history stop at 2048 events;
+the latest checkpoint still updates and marks history truncation. The file is
+capped at 1 MiB and counts at 128 trial images; elapsed fields saturate at one day.
+The unchanged `always()` upload retains only this checkpoint and the existing
+safe summary, even after preparation failure/cancellation. A process killed
+mid-operation leaves its last observed boundary, not a fabricated final duration
+or success. Runner loss can still prevent artifact upload. No live-shard gate or
+preparation, step or job timeout is increased.
+
 The standalone SkillSpector **Security Scan is skipped by CI policy**. It is
 excluded from `--checks`, recorded in `policy.skipped_checks`, and represented
 as `skipped` in each skill's validator summary. A passing aggregate means the

@@ -69,6 +69,24 @@ def test_keyless_pr_timing_uses_real_audit_production_preparation():
     assert timing["env"]["SHARD_SKILL"] == "eval-author-audit"
 
 
+def test_diagnostic_checkpoint_is_opt_in_and_always_retained_without_private_output():
+    jobs = workflow()["jobs"]
+    timing = jobs["preparation-timing"]
+    prepare = next(step for step in timing["steps"] if step.get("id") == "prepare")
+    assert '--timing-checkpoint "$RUNNER_TEMP/preparation-operation-timing.json"' in prepare["run"]
+    production = next(step for step in jobs["evaluate"]["steps"] if "prepare_live_images.py" in step.get("run", ""))
+    assert "--timing-checkpoint" not in production["run"]
+    uploads = [step for step in timing["steps"] if step.get("uses", "").startswith("actions/upload-artifact@")]
+    assert len(uploads) == 1 and uploads[0]["if"] == "always()"
+    assert set(uploads[0]["with"]["path"].splitlines()) == {
+        "${{ runner.temp }}/preparation-timing-summary.json",
+        "${{ runner.temp }}/preparation-operation-timing.json",
+    }
+    assert prepare["timeout-minutes"] == 10
+    assert timing["timeout-minutes"] == 28
+    assert jobs["evaluate"]["timeout-minutes"] == 75
+
+
 def test_outer_budget_covers_declared_steps_without_raising_native_caps():
     jobs = workflow()["jobs"]
     evaluate = jobs["evaluate"]

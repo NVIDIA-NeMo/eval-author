@@ -194,6 +194,119 @@ def preparation_failure(error):
     return dict(category=safe.category, phase=safe.phase, operation=safe.operation)
 
 
+_PREPARATION_TIMING: ContextVar["PreparationTiming | None"] = ContextVar("preparation_timing", default=None)
+PREPARATION_TIMING_MAX_EVENTS = 2048
+PREPARATION_TIMING_MAX_BYTES = 1048576
+
+
+class PreparationTiming:
+    def __init__(self, path):
+        self.path = Path(path).absolute()
+        if self.path.exists() or any(p.is_symlink() for p in (self.path, *self.path.parents)):
+            raise ValueError("unsafe timing checkpoint")
+        self.started = time.monotonic()
+        self.operation_started = self.started
+        self.events = []
+        self.truncated = False
+        self.image_ordinal = 0
+        self.completed_images = 0
+        self.image_started = None
+
+    def emit(self, event, operation="none", category="none"):
+        import tempfile
+
+        allowed_events = {
+            "started",
+            "phase",
+            "image_started",
+            "image_completed",
+            "operation_started",
+            "operation_completed",
+            "operation_failed",
+            "completed",
+            "failed",
+        }
+        if type(event) is not str or event not in allowed_events:
+            raise PreparationError("validation_error", "unknown")
+        safe = PreparationError(category, _PREPARATION_PHASE.get(), operation)
+        now = time.monotonic()
+        if event == "image_started":
+            if self.image_ordinal >= 128:
+                raise PreparationError("validation_error", safe.phase)
+            self.image_ordinal += 1
+            self.image_started = now
+        elif event == "image_completed":
+            self.completed_images += 1
+        if event == "operation_started":
+            self.operation_started = now
+        deadline = _PREPARATION_DEADLINE.get()
+
+        def seconds(value):
+            return round(float(min(86400, max(0, value))), 3) if math.isfinite(value) else 0.0
+
+        row = dict(
+            event=event,
+            phase=safe.phase,
+            operation=safe.operation,
+            category="none" if type(category) is str and category == "none" else safe.category,
+            image_ordinal=self.image_ordinal,
+            completed_images=self.completed_images,
+            operation_elapsed_seconds=seconds(now - self.operation_started) if operation != "none" else 0.0,
+            image_elapsed_seconds=seconds(now - self.image_started) if self.image_started is not None else 0.0,
+            total_elapsed_seconds=seconds(now - self.started),
+            remaining_deadline_seconds=seconds(min(PREPARATION_TIMEOUT_SECONDS, deadline - now))
+            if deadline is not None
+            else 0.0,
+        )
+        if any(
+            type(value) is not int or not 0 <= value <= 128 for value in (self.image_ordinal, self.completed_images)
+        ):
+            raise PreparationError("validation_error", safe.phase)
+        retained = len(self.events) < PREPARATION_TIMING_MAX_EVENTS
+        if retained:
+            self.events.append(row)
+        else:
+            self.truncated = True
+        payload = (
+            json.dumps(
+                dict(
+                    schema_version=1,
+                    clock="monotonic",
+                    measurement="host_operation_boundaries",
+                    build_instruction_observed=False,
+                    events_truncated=self.truncated,
+                    latest=row,
+                    events=self.events,
+                ),
+                sort_keys=True,
+            )
+            + "\n"
+        )
+        if len(payload.encode()) > PREPARATION_TIMING_MAX_BYTES:
+            raise PreparationError("validation_error", safe.phase)
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", dir=self.path.parent, delete=False) as stream:
+                temporary = Path(stream.name)
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, self.path)
+        except OSError:
+            raise PreparationError("filesystem_error", safe.phase) from None
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+        if retained:
+            print("preparation_progress " + json.dumps(row, sort_keys=True), flush=True)
+
+
+def _timing_event(event, operation="none", category="none"):
+    timing = _PREPARATION_TIMING.get()
+    if timing is not None:
+        timing.emit(event, operation, category)
+
+
 def live_job_remaining(reserve=0):
     value = os.environ.get(LIVE_JOB_DEADLINE_ENV)
     if value is None:
@@ -219,6 +332,7 @@ def _docker(args, *, timeout=30):
     operation = "inspect" if args[:2] == ["image", "inspect"] else args[0] if args else "other"
     operation = operation if operation in PREPARATION_OPERATIONS else "other"
     phase = _PREPARATION_PHASE.get()
+    _timing_event("operation_started", operation)
     try:
         timeout = preparation_timeout(timeout)
         environment = {key: os.environ[key] for key in ("PATH", "HOME", "DOCKER_HOST", "TMPDIR") if key in os.environ}
@@ -228,11 +342,19 @@ def _docker(args, *, timeout=30):
             environment["DOCKER_BUILDKIT"] = "0"
         result = subprocess.run(["docker", *args], env=environment, capture_output=True, text=True, timeout=timeout)
     except (TimeoutError, subprocess.TimeoutExpired):
+        _timing_event("operation_failed", operation, "deadline_exceeded")
         raise PreparationTimeoutError("deadline_exceeded", phase, operation) from None
     except OSError:
+        _timing_event("operation_failed", operation, "docker_unavailable")
         raise PreparationError("docker_unavailable", phase, operation) from None
+    except Exception as error:
+        category = "validation_error" if isinstance(error, ValueError) else "unknown_error"
+        _timing_event("operation_failed", operation, category)
+        raise PreparationError(category, phase, operation) from None
     if result.returncode:
+        _timing_event("operation_failed", operation, "docker_failed")
         raise PreparationError("docker_failed", phase, operation) from None
+    _timing_event("operation_completed", operation)
     return result.stdout.strip()
 
 
@@ -299,38 +421,55 @@ def check_prepared_image(identity, record, platform, *, probe=False, binary=None
         check_package_versions(versions)
 
 
-def prepare_images(skill, output, binary_manifest):
+def prepare_images(skill, output, binary_manifest, *, timing_checkpoint=None):
     phase_token = _PREPARATION_PHASE.set("budget")
     token = _PREPARATION_DEADLINE.set(None)
+    timing_token = _PREPARATION_TIMING.set(None)
+    started = time.monotonic()
     try:
+        if timing_checkpoint is not None:
+            _PREPARATION_TIMING.set(PreparationTiming(timing_checkpoint))
+        _timing_event("started")
         budget = min(PREPARATION_TIMEOUT_SECONDS, live_job_remaining(LIVE_EXECUTION_SECONDS + LIVE_HANDOFF_SECONDS))
-        _PREPARATION_DEADLINE.set(time.monotonic() + budget)
-        return _prepare_images(skill, output, binary_manifest)
-    except PreparationError:
-        raise
-    except (TimeoutError, subprocess.TimeoutExpired):
-        raise PreparationTimeoutError("deadline_exceeded", _PREPARATION_PHASE.get()) from None
+        _PREPARATION_DEADLINE.set(started + budget)
+        result = _prepare_images(skill, output, binary_manifest)
+        _timing_event("completed")
+        return result
     except Exception as error:
-        if isinstance(error, OSError):
-            category = "filesystem_error"
-        elif isinstance(error, ValueError):
-            category = "validation_error"
+        if isinstance(error, PreparationError):
+            safe = error
+        elif isinstance(error, (TimeoutError, subprocess.TimeoutExpired)):
+            safe = PreparationTimeoutError("deadline_exceeded", _PREPARATION_PHASE.get())
         else:
-            category = "contract_error" if _PREPARATION_PHASE.get() == "contract" else "unknown_error"
-        raise PreparationError(category, _PREPARATION_PHASE.get()) from None
+            if isinstance(error, OSError):
+                category = "filesystem_error"
+            elif isinstance(error, ValueError):
+                category = "validation_error"
+            else:
+                category = "contract_error" if _PREPARATION_PHASE.get() == "contract" else "unknown_error"
+            safe = PreparationError(category, _PREPARATION_PHASE.get())
+        details = preparation_failure(safe)
+        _timing_event("failed", details["operation"], details["category"])
+        raise safe from None
     finally:
+        _PREPARATION_TIMING.reset(timing_token)
         _PREPARATION_DEADLINE.reset(token)
         _PREPARATION_PHASE.reset(phase_token)
 
 
+def _preparation_phase(phase):
+    _PREPARATION_PHASE.set(phase)
+    _timing_event("phase")
+
+
 def _prepare_images(skill, output, binary_manifest):
-    _PREPARATION_PHASE.set("contract")
+    _preparation_phase("contract")
     verify_contract()
-    _PREPARATION_PHASE.set("binary_manifest")
+    _preparation_phase("binary_manifest")
     bound = load_manifest(binary_manifest)
-    _PREPARATION_PHASE.set("platform")
+    _preparation_phase("platform")
     platform = docker_platform()
-    _PREPARATION_PHASE.set("staging")
+    _preparation_phase("staging")
     output = Path(output)
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
     tasks = stage_preparation(skill, output / "tasks")
@@ -349,12 +488,13 @@ def _prepare_images(skill, output, binary_manifest):
     for arm, paths in tasks.items():
         data["tasks"][arm] = []
         for task in paths:
-            _PREPARATION_PHASE.set("task_source")
+            _preparation_phase("task_source")
             context = task / "environment"
             identity = prepared_task_identity(task, platform, bound["sha256"])
             data["tasks"][arm].append(identity)
             if identity in data["images"]:
                 continue
+            _timing_event("image_started")
             source_tag = "ea-live-source:" + identity
             tag = "ea-live-prepared:" + identity
             pinned_source = output / (identity + ".Dockerfile")
@@ -362,7 +502,7 @@ def _prepare_images(skill, output, binary_manifest):
             pinned = pinned_dockerfile(original, platform)
             uses_default = pinned != pinned_dockerfile(original, platform, dependency_image="sha256:" + "0" * 64)
             if uses_default and dependency_image is None:
-                _PREPARATION_PHASE.set("dependencies")
+                _preparation_phase("dependencies")
                 dependencies = output / "dependencies"
                 dependencies.mkdir(mode=0o700)
                 recipe = (
@@ -376,7 +516,7 @@ def _prepare_images(skill, output, binary_manifest):
                 dependency_tag = "ea-live-deps:" + hashlib.sha256((platform + recipe).encode()).hexdigest()
                 _docker(["build", "--platform", platform, "-t", dependency_tag, str(dependencies)], timeout=600)
                 dependency_image = inspect_build_parent(dependency_tag, platform)["Id"]
-            _PREPARATION_PHASE.set("task_source")
+            _preparation_phase("task_source")
             pinned_source.write_text(pinned_dockerfile(original, platform, dependency_image=dependency_image))
             _docker(
                 ["build", "--platform", platform, "-f", str(pinned_source), "-t", source_tag, str(context)], timeout=600
@@ -386,7 +526,7 @@ def _prepare_images(skill, output, binary_manifest):
             if not re.fullmatch(r"[A-Za-z0-9_.:-]+", user):
                 raise ValueError("unsupported prepared-image user")
             layer = output / identity
-            _PREPARATION_PHASE.set("task_layer")
+            _preparation_phase("task_layer")
             layer.mkdir(mode=0o700)
             recipe = f"FROM {source['Id']}\n"
             if not uses_default:
@@ -399,10 +539,11 @@ def _prepare_images(skill, output, binary_manifest):
             _docker(["build", "--platform", platform, "-t", tag, str(layer)], timeout=600)
             image = inspect_image(tag)
             record = dict(tag=tag, image_id=image["Id"], source_image_id=source["Id"])
-            _PREPARATION_PHASE.set("offline_probe")
+            _preparation_phase("offline_probe")
             check_prepared_image(identity, record, platform, probe=True, binary=bound)
             data["images"][identity] = record
-    _PREPARATION_PHASE.set("publication")
+            _timing_event("image_completed")
+    _preparation_phase("publication")
     if data["source_identity"] != preparation_identity(skill, platform, bound["sha256"]):
         raise ValueError("preparation source changed during build")
     preparation_timeout(1)

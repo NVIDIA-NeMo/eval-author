@@ -199,8 +199,8 @@ jobs:
       - name: Prepare full skills/eval-author-audit dataset without models
         id: prepare
         timeout-minutes: 10
-        run: &prepare-images |
-          "$RUNNER_TEMP/live-runtime/bin/python" tools/prepare_live_images.py --skill "skills/$SHARD_SKILL" --binary-manifest "$RUNNER_TEMP/patched-opencode/binary-manifest.json" --output "$RUNNER_TEMP/prepared-live-images"
+        run: |
+          "$RUNNER_TEMP/live-runtime/bin/python" tools/prepare_live_images.py --skill "skills/$SHARD_SKILL" --binary-manifest "$RUNNER_TEMP/patched-opencode/binary-manifest.json" --output "$RUNNER_TEMP/prepared-live-images" --timing-checkpoint "$RUNNER_TEMP/preparation-operation-timing.json"
       - name: Summarize hosted preparation timing without raw payloads
         timeout-minutes: 1
         if: always()
@@ -250,7 +250,9 @@ jobs:
         if: always()
         with:
           name: preparation-timing-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/preparation-timing-summary.json
+          path: |
+            ${{ runner.temp }}/preparation-timing-summary.json
+            ${{ runner.temp }}/preparation-operation-timing.json
           retention-days: 30
           if-no-files-found: error
 
@@ -321,7 +323,8 @@ jobs:
       - name: Prepare and verify exact trial images without inference credentials
         timeout-minutes: 10
         if: matrix.check == 'live' && matrix.id != 'none'
-        run: *prepare-images
+        run: |
+          "$RUNNER_TEMP/live-runtime/bin/python" tools/prepare_live_images.py --skill "skills/$SHARD_SKILL" --binary-manifest "$RUNNER_TEMP/patched-opencode/binary-manifest.json" --output "$RUNNER_TEMP/prepared-live-images"
       - name: Run exactly one assigned check
         timeout-minutes: 47
         if: matrix.id != 'none'
