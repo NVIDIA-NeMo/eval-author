@@ -250,7 +250,7 @@ authority for task solvability and verifier discrimination, **not** for native
 tool registration: those agents can solve via shell without discovering MCP.
 
 The generated executable `launch-replay.sh` takes no registration arguments and
-resolves its scenario relative to itself. This supports Harbor's current Codex
+resolves its scenario relative to itself. This supports Harbor 0.20.0's Codex
 writer, which otherwise joins the executable and arguments into one executable
 name. It does not patch or replace Harbor. Keep the launcher executable and retain
 Python 3 and a POSIX shell in the image.
@@ -266,7 +266,7 @@ require a harness-specific execution check instead.
 
 Runtime report v2 separates `mock_integration.registration` from
 `mock_integration.execution`. Registration readers inspect literal JSON/TOML
-configuration emitted by the installed writer, including map and list encodings:
+configuration from the installed writer or structured builder, including map and list encodings:
 
 | Registration status | Evidence and consequence |
 |---|---|

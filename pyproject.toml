@@ -20,7 +20,7 @@ trace-loaders = [
 
 [dependency-groups]
 dev = [
-  "harbor==0.20.0",
+  "harbor==0.24.0",
   "mcp>=1.29,<2",
   "pre-commit>=4,<5",
   "pydantic>=2",

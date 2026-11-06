@@ -6,6 +6,17 @@
 Notable changes to NeMo Eval Author are recorded here. Eval Author is a research
 preview: workflows, skills, and saved artifacts may change between releases.
 
+## Unreleased
+
+### Changed
+
+- Default Harbor installation, development/test runtime, and local metric-benchmark
+  execution now use Harbor 0.24.0. Existing environments need to upgrade; see
+  [development setup](DEVELOPMENT.md#environment-and-skill-layout). Native Harbor
+  scaffolding now emits task schema 1.4.
+- Harbor report trial links use the 0.24.0 viewer routes. Refresh existing reports
+  after upgrading.
+
 ## 0.1.0
 
 Initial research-preview release, tested with Harbor 0.20.0 and NeMo Gym v0.6.0.

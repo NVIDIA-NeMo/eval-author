@@ -304,7 +304,7 @@ def run(output):
             "sha256:" + hashlib.sha256(json.dumps(report["inputs"], sort_keys=True).encode()).hexdigest()
         )
         harbor_version = importlib.metadata.version("harbor")
-        require(harbor_version == "0.20.0", "requires locked Harbor 0.20.0")
+        require(harbor_version == "0.24.0", "requires locked Harbor 0.24.0")
         report["runtime"]["harbor"] = harbor_version
         report["runtime"]["docker"] = json.loads(
             execute(["docker", "version", "--format", "{{json .}}"], output, "docker-version", 30)

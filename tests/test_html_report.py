@@ -427,11 +427,12 @@ def test_task_paths_keep_same_named_parent_directories_distinct(tmp_path):
     assert second["tasks"] == first["tasks"]
 
 
-def test_runs_group_attempts_without_double_counting(tmp_path):
+@pytest.mark.parametrize("trial_name,encoded_name", [("single", "single"), ("trial #one", "trial%20%23one")])
+def test_runs_group_attempts_without_double_counting(tmp_path, trial_name, encoded_name):
     path = job(tmp_path)
     trial(tmp_path, path + "/one")
     trial(tmp_path, path + "/two", reward=0)
-    standalone = ".eval-author/jobs/checks/single"
+    standalone = f".eval-author/jobs/checks/{trial_name}"
     trial(tmp_path, standalone, reward=0)
     metadata = rule(path)
     metadata["runs"].update(rule(standalone)["runs"])
@@ -444,7 +445,7 @@ def test_runs_group_attempts_without_double_counting(tmp_path):
     legacy = result["standalone_trials"][0]
     assert legacy["path"] == standalone
     assert legacy["score_label"] == "0 / 1 reward (0.0%) · 1/1 scored"
-    assert legacy["route"].endswith("/org%2Frefund/trials/single")
+    assert legacy["route"] == f"jobs/checks/trials/{encoded_name}"
     assert all(run["kind"] == "job" for run in result["runs"])
 
 
@@ -1355,7 +1356,7 @@ def test_native_harbor_viewer_routes_match_pinned_manifest():
     source = manifests[0].read_text()
     assert '"path":"jobs/:jobName"' in source
     assert '"path":"task-definitions/:taskName"' in source
-    assert "tasks/:source/:agent/:modelProvider/:modelName/:taskName/trials/:trialName" in source
+    assert '"path":"jobs/:jobName/trials/:trialName"' in source
 
 
 @pytest.mark.parametrize("complete", [True, False])
@@ -1418,7 +1419,7 @@ const scenario=input.scenario;
 const jobs=['job','trial','different-job'].includes(scenario);
 const mode=jobs?'jobs':'tasks';
 const record=jobs?{id:'native-id',path:'.eval-author/jobs/example'}:{path:'.eval-author/tasks/example'};
-const route=jobs?'jobs/example'+(scenario==='trial'?'/tasks/_/agent/_/model/task/trials/attempt':''):'task-definitions/example';
+const route=jobs?'jobs/example'+(scenario==='trial'?'/trials/attempt':''):'task-definitions/example';
 const calls=[];
 const context={AbortController,clearTimeout,setTimeout:(fn,ms)=>{
   assert.equal(ms,3000);return setTimeout(fn,scenario==='timeout'?10:ms);

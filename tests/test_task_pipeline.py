@@ -244,7 +244,7 @@ def test_scaffold_uses_harbor_native_task_layout(tmp_path: Path) -> None:
     assert payload["paths"]["proposal"] == ".eval-author/.working/proposals/cover-read-instruction.md"
     assert (draft / "instruction.md").read_text(encoding="utf-8") == instruction.read_text(encoding="utf-8")
     task_toml = (draft / "task.toml").read_text(encoding="utf-8")
-    assert 'schema_version = "1.3"' in task_toml
+    assert 'schema_version = "1.4"' in task_toml
     assert 'name = "example/cover-read"' in task_toml
     assert (draft / "environment" / "Dockerfile").is_file()
     assert (draft / "solution" / "solve.sh").is_file()
