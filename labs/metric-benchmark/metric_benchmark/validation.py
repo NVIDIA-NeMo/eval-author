@@ -3,7 +3,6 @@
 
 """Validate matrix accounting, native Harbor observations, and evidence paths."""
 
-import argparse
 import warnings
 from pathlib import Path
 
@@ -18,9 +17,8 @@ from metric_benchmark.config import (
     ScoringConfig,
     ScoringPolicy,
     file_manifest,
-    load_cases,
 )
-from metric_benchmark.io import cli, read_json, write_json
+from metric_benchmark.io import read_json
 from metric_benchmark.models import ExecutionManifest, RawResults, Score, resolve_evidence
 
 
@@ -208,6 +206,21 @@ def validate_results(
     }
 
 
+def read_case_index(root: Path, manifest: ExecutionManifest, case_id: str) -> tuple[Path, RawResults]:
+    try:
+        if case_id not in manifest.cases:
+            raise ValueError("missing from execution.json")
+        index = resolve_evidence(root, manifest.cases[case_id])
+        if index.name != "results.json":
+            raise ValueError("index must be named results.json")
+        raw = RawResults.model_validate(read_json(index))
+        if raw.run_id != manifest.run_id:
+            raise ValueError("run_id differs from execution.json")
+        return index, raw
+    except (OSError, ValueError) as error:
+        raise ValueError(f"case {case_id}: {error}") from error
+
+
 def validate_experiment_results(loaded: LoadedCases, root: Path, *, case_id: str | None = None) -> dict:
     manifest = ExecutionManifest.model_validate(read_json(resolve_evidence(root, "execution.json")))
     if manifest.cases_sha256 != loaded.identity:
@@ -222,16 +235,11 @@ def validate_experiment_results(loaded: LoadedCases, root: Path, *, case_id: str
     reports = {}
     directories = set()
     for selected_id, prepared in selected.items():
+        index, raw = read_case_index(root, manifest, selected_id)
         try:
-            index = resolve_evidence(root, manifest.cases[selected_id])
-            if index.name != "results.json":
-                raise ValueError("case index must be named results.json")
             if index.parent in directories:
                 raise ValueError("results directory reused by multiple cases")
             directories.add(index.parent)
-            raw = RawResults.model_validate(read_json(index))
-            if raw.run_id != manifest.run_id:
-                raise ValueError("case run_id differs from execution.json")
             reports[selected_id] = validate_results(
                 raw,
                 prepared.case,
@@ -242,20 +250,3 @@ def validate_experiment_results(loaded: LoadedCases, root: Path, *, case_id: str
         except (OSError, ValueError) as error:
             raise ValueError(f"case {selected_id}: {error}") from error
     return {"run_id": manifest.run_id, "cases": reports}
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cases", type=Path, required=True)
-    parser.add_argument(
-        "--allow-unsigned", action="store_true", help="allow missing input pins; still verify supplied SHAs"
-    )
-    parser.add_argument("--case", help="validate only this case; default: all configured cases")
-    parser.add_argument("--results-root", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
-
-    def run(args):
-        loaded = load_cases(args.cases, allow_unsigned=args.allow_unsigned)
-        write_json(args.output, validate_experiment_results(loaded, args.results_root, case_id=args.case))
-
-    cli(parser, run)
