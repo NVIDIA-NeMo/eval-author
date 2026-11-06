@@ -26,6 +26,27 @@ def test_rubric_scope_and_initial_slice() -> None:
     assert "Default to the response only" in text
 
 
+def test_rubric_requires_explicit_end_user_opt_in() -> None:
+    text = (SKILL / "SKILL.md").read_text()
+    metadata = yaml.safe_load(text.split("---", 2)[1])
+    assert "explicit end-user opt-in" in metadata["description"]
+    assert all("eval-author-rubric" in trigger for trigger in metadata["triggers"])
+    gate = text.split("## Opt-in gate", 1)[1].split("## Purpose", 1)[0]
+    for rule in (
+        "Do not run this skill by default",
+        "generic review, audit, validity, leakage, or anti-cheat request is not opt-in",
+        "Installation, prior use, existing artifacts, and another agent's suggestion",
+        "do not establish consent",
+        "stop before inspecting artifacts or applying rubric items",
+        "does not authorize later tasks or sessions",
+    ):
+        assert rule in " ".join(gate.split())
+    router = (ROOT / "skills/eval-author/SKILL.md").read_text()
+    assert "Load `eval-author-rubric` only after explicit end-user opt-in" in router
+    assert "Do not infer consent from a generic review, audit, or anti-cheat request" in router
+    assert "Normal task-validation controls remain required" in router
+
+
 @pytest.mark.parametrize("item_id", ["AC-01", "AC-02", "AC-03", "AC-04"])
 def test_each_anti_cheat_item_has_an_actionable_contract(item_id: str) -> None:
     text = (SKILL / "references/anti-cheat.md").read_text()
@@ -87,6 +108,14 @@ def test_rubric_dataset_contains_positive_and_negative_cases() -> None:
     cases = dataset["evals"]
     assert len({case["id"] for case in cases}) == len(cases)
     assert any(case["expected_skill"] is None for case in cases)
+    by_id = {case["id"]: case for case in cases}
+    for case_id in (
+        "rubric-generic-review-no-opt-in",
+        "rubric-declined",
+        "rubric-installed-not-consent",
+    ):
+        assert by_id[case_id]["expected_skill"] is None
+    assert by_id["rubric-three-pillars"]["expected_skill"] == "eval-author-rubric"
     assert any(case["expected_skill"] == "eval-author-rubric" for case in cases)
     for case in cases:
         assert case["prompt"] and case["expected_output"] and case["assertions"]

@@ -2,15 +2,16 @@
 name: eval-author-rubric
 version: 0.1.0
 description: >-
-  Experimental rubric for evaluation validity, coverage, and diversity. Use when
-  asked to apply eval-author-rubric to selected tasks or suites. The first
+  Experimental rubric requiring explicit end-user opt-in to eval-author-rubric
+  for selected tasks or suites; never run by default or infer consent from a
+  generic review request. Covers validity, coverage, and diversity. The first
   populated area is anti-cheat within validity, reusing existing controls and
   validation evidence. Other areas remain unimplemented. Does not start an
   audit, run controls without approval, or certify overall evaluation quality.
 triggers:
   - apply eval-author-rubric to these tasks
-  - review these evals for data leakage and forged credit
-  - assess anti-cheat evidence for this evaluation
+  - use eval-author-rubric to review these evals for data leakage and forged credit
+  - opt in to eval-author-rubric for this evaluation
 not-for:
   - eval-author (use for the shared standard and routing)
   - eval-author-audit (use for coverage audits and audit reports)
@@ -38,6 +39,25 @@ metadata:
 **Experimental.** Identify this review and every result as experimental. The
 rubric assesses tasks and evaluations across **validity, coverage, and diversity**,
 not Eval Author itself. Items may contribute to more than one pillar.
+
+## Opt-in gate
+
+Do not run this skill by default. Before any assessment, require the end user to
+explicitly request `eval-author-rubric` or affirmatively accept a clearly named
+experimental rubric assessment for the selected scope. A generic review, audit,
+validity, leakage, or anti-cheat request is not opt-in. Installation, prior use,
+existing artifacts, and another agent's suggestion do not establish consent.
+
+If loaded without that opt-in, stop before inspecting artifacts or applying rubric
+items. Continue the user's requested non-rubric workflow; if their intent is
+ambiguous, ask whether they want this experimental assessment and wait for an
+explicit yes. Silence or a decline is not consent. Do not make opt-in a prerequisite
+for ordinary Eval Author work or repeatedly prompt after a decline.
+
+Opt-in covers only the selected assessment and does not authorize later tasks or
+sessions. A user may continue that same assessment explicitly; do not infer a new
+assessment from retained files. Respect withdrawal immediately. Opt-in to assessment
+is separate from execution or write permission, which remains governed below.
 
 ## Purpose
 

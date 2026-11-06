@@ -187,7 +187,10 @@ Include the relevant file paths, trace IDs, or workspace names in your request.
 
 The rubric covers validity, coverage, and diversity. Its first populated area is
 anti-cheat within validity, reusing existing task controls and validation evidence.
-Ask: "Apply eval-author-rubric to these tasks." This produces a scoped assessment,
+It is off by default: installing the skills or requesting an ordinary review,
+audit, or anti-cheat check does not opt you in. Explicitly ask:
+"Apply eval-author-rubric to these tasks." Consent applies to that assessment,
+not future tasks or sessions. This produces a scoped assessment,
 not a coverage audit or overall quality certification.
 See the [rubric skill](skills/eval-author-rubric/SKILL.md).
 
