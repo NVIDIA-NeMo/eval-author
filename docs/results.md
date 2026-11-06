@@ -143,7 +143,8 @@ audit's coverage criteria.
 
 The report opens with a Summary (including an ADVISORY when verifier cheating is
 confirmed and the Evaluation coverage table), then Key findings. Recommended
-Tasks by Capability & Tool holds the ranked Next actions and proposed tasks.
+next actions is a single list, highest priority first, that names each finding or
+advisory, the capabilities and tools it involves, and the proposed task.
 The Coverage report maps each audit item to its tasks and run evidence, followed by the task
 catalog, verifier cheat screening, scope and execution evidence, and
 definitions.

@@ -671,7 +671,7 @@
             {
               "$ref": "#/$defs/prose",
               "x-authored": true,
-              "description": "One or two imperative sentences: the scenario or change, then what the verifier must require or reject. Null when the next action is not a task. See references/report-sections.md#recommended-tasks-by-capability--tool."
+              "description": "One or two imperative sentences: the scenario or change, then what the verifier must require or reject. Null when the next action is not a task. See references/report-sections.md#recommended-next-actions."
             },
             {
               "type": "null"
@@ -716,7 +716,7 @@
             }
           ],
           "x-authored": false,
-          "description": "Optional. Fill it only for a proposal the user selected. The report shows it under that item in Next actions."
+          "description": "Optional. Fill it only for a proposal the user selected. The report shows it under that item in Recommended next actions."
         }
       },
       "x-authored": false

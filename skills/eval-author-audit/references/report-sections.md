@@ -184,15 +184,18 @@ say why the gap matters.
 "explanation": "T4's ten retained runs all scored zero, and the task record attributes this to the agent not saving the pasted transcript. Because {F2} shows the grading script also mishandles empty replies, these scores do not yet establish an agent failure. Rerunning the task after the verifier repair would."
 ```
 
-## Recommended Tasks by Capability & Tool
+## Recommended next actions
 
-**The renderer writes:** a ranked Next actions list with one line per
-recommendation, ordered by `order` and showing its `priority`, the action, and a
-link to its advisory or finding. When a recommendation has `details`, three
-nested lines follow its item: Verification, Breadth, and Next step, plus a link to
-each affected task's README Verifier section when one exists. Then one table per item kind, with a row for each
-recommendation that has both a `proposed_task` and mapped `items`. A finding or
-item without a recommendation appears in the report with no suggestion.
+**The renderer writes:** one flat list with an item for every recommendation, with
+no grouping by capability, tool, or failure case. Items are ordered by `priority`
+(high, medium, low), and `order` breaks ties. Each item shows its priority, a link
+to its advisory or finding, every capability, tool, or failure case it involves
+(or "no mapped capability or tool"), and the action followed by your
+`proposed_task`. A revise-task item also links the task it revises. When a
+recommendation has `details`, three nested lines follow: Verification, Breadth, and
+Next step, plus a link to each affected task's README Verifier section when one
+exists. A finding or item without a recommendation appears elsewhere in the report
+with no suggestion.
 
 **You author:** `proposed_task`. Write one or two imperative sentences: the
 scenario or change, then what the verifier must require or reject. Leave it

@@ -5,7 +5,7 @@ SECTIONS = (
     (2, "Summary"),
     (3, "Evaluation coverage"),
     (2, "Key findings"),
-    (2, "Recommended Tasks by Capability & Tool"),
+    (2, "Recommended next actions"),
     (2, "Task catalog"),
     (2, "Coverage report"),
     (2, "Verifier cheat screening"),
@@ -13,7 +13,7 @@ SECTIONS = (
     (2, "Definitions"),
 )
 EVAL_AUTHOR_URL = "https://github.com/NVIDIA-NeMo/eval-author"
-SUBHEADINGS = {"advisory": "ADVISORY", "next_actions": "Next actions"}
+SUBHEADINGS = {"advisory": "ADVISORY"}
 ACTIONS = {
     "new_task": "Add a task",
     "revise_task": "Revise a task",
@@ -28,8 +28,9 @@ NEXT_STEPS = {
     "more_measurement": "Needs more measurement",
 }
 PRIORITIES = {"high": "High", "medium": "Medium", "low": "Low"}
+PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
+KIND_NAMES = {"capability": "capability", "tool": "tool", "failure_case": "failure case"}
 TABLES = {
-    "recommended": ("Functionality", "Proposed task"),
     "tasks": ("Task", "Behavior", "Capabilities and tools", "Findings"),
     "coverage": ("Functionality", "Intended check and required evidence", "Tasks", "Run evidence"),
     "current": ("", "Current audit"),
@@ -78,7 +79,8 @@ COPY = {
     "empty_kind": "The audit declares no items in this category.",
     "no_findings": "The audit records no key findings.",
     "no_tasks": "The audit inspected no runnable tasks.",
-    "no_proposals": "The audit proposes no tasks in this area.",
+    "no_recommendations": "The audit proposes no next actions.",
+    "no_involved_items": "no mapped capability or tool",
     "no_runs": "No selected agent runs",
     "resolved_advisory": "The finding is resolved. Its evidence remains part of this audit.",
     "unresolved_advisory": "The affected verifier results need review before they can be trusted.",

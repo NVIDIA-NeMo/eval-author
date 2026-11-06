@@ -61,7 +61,7 @@ def test_example_schema_layout_and_authored_values_are_consistent(audit_report):
     assert headings == [
         "Summary",
         "Key findings",
-        "Recommended Tasks by Capability & Tool",
+        "Recommended next actions",
         "Task catalog",
         "Coverage report",
         "Verifier cheat screening",
@@ -171,7 +171,7 @@ def test_summary_holds_coverage_history_then_advisories_before_key_findings(audi
     _, renderer, _ = audit_report
     report = renderer.render(load(audit_report))[0].decode()
     summary, key = report.split("## Summary\n\n", 1)[1].split("## Key findings\n\n", 1)
-    key = key.split("## Recommended Tasks", 1)[0]
+    key = key.split("## Recommended next actions", 1)[0]
     paragraphs = summary.split("### Evaluation coverage", 1)[0].strip().split("\n\n")
     assert len(paragraphs) == 2
     found, limits = paragraphs
@@ -226,7 +226,7 @@ def test_findings_have_plain_headings_and_canonical_task_links(audit_report, tas
     heading, paragraph = advisory.split("\n\n", 2)[:2]
     assert heading == "#### Advisory 1 - Accepts an agent-written reward file"
     assert paragraph.startswith("The grading script for [T1-source-answer](tasks/source-answer/instruction.md) accepts")
-    key = report.split("## Key findings\n\n", 1)[1].split("## Recommended Tasks", 1)[0]
+    key = report.split("## Key findings\n\n", 1)[1].split("## Recommended next actions", 1)[0]
     assert "agent-written reward file" not in key
     tokens = list(markdown_tokens(advisory))
     assert not any("](" in token.content for token in tokens if token.type == "text")
@@ -386,7 +386,7 @@ def test_key_findings_are_paragraphs_without_revision_or_recommendation_boilerpl
     model = load(audit_report)
     report = renderer.render(model)[0].decode()
     key_findings, recommendations = report.split("## Key findings\n\n", 1)[1].split(
-        "## Recommended Tasks by Capability & Tool\n\n", 1
+        "## Recommended next actions\n\n", 1
     )
     recommendations = recommendations.split("## Task catalog\n\n", 1)[0]
     summary = report.split("## Summary\n\n", 1)[1].split("## Key findings", 1)[0]
@@ -403,7 +403,7 @@ def test_key_findings_are_paragraphs_without_revision_or_recommendation_boilerpl
         if row["proposed_task"]:
             proposal = "Proposed task: " + renderer.prose(model, row["proposed_task"])
             assert (summary + key_findings).count(proposal) == 1
-            assert recommendations.count(renderer.prose(model, row["proposed_task"])) == (1 if row["items"] else 0)
+            assert recommendations.count(renderer.prose(model, row["proposed_task"])) == 1
 
 
 def test_key_findings_remain_visible_without_recommendations(audit_report):
@@ -413,7 +413,7 @@ def test_key_findings_remain_visible_without_recommendations(audit_report):
     model = load(audit_report, data)
     report = renderer.render(model)[0].decode()
     summary, key_findings = report.split("## Summary\n\n", 1)[1].split("## Key findings\n\n", 1)
-    key_findings = key_findings.split("## Recommended Tasks", 1)[0]
+    key_findings = key_findings.split("## Recommended next actions", 1)[0]
     for row in data["findings"]:
         if row["category"] == "verifier_cheating":
             assert row["title"] in summary and row["title"] not in key_findings
@@ -424,18 +424,17 @@ def test_key_findings_remain_visible_without_recommendations(audit_report):
     assert_markdown_links(report, renderer)
 
 
-def test_task_proposal_without_item_mappings_stays_with_its_finding(audit_report):
+def test_a_proposal_without_item_mappings_is_still_listed_and_says_so(audit_report):
     _, renderer, root = audit_report
     data = example_data(root)
     data["recommendations"][0]["items"] = []
     model = load(audit_report, data)
     report = renderer.render(model)[0].decode()
-    recommendations = report.split("## Recommended Tasks by Capability & Tool\n\n", 1)[1].split(
-        "## Task catalog\n\n", 1
-    )[0]
+    recommendations = report.split("## Recommended next actions\n\n", 1)[1].split("## Task catalog\n\n", 1)[0]
     proposal = renderer.prose(model, data["recommendations"][0]["proposed_task"])
-    assert report.count(proposal) == 1
-    assert proposal not in recommendations
+    assert recommendations.count(proposal) == 1
+    item = next(line for line in recommendations.splitlines() if "Advisory 1" in line)
+    assert item.endswith("no mapped capability or tool")
     advisory = report.split("### ADVISORY\n\n", 1)[1].split("## Key findings", 1)[0]
     assert "Proposed task: " + proposal in advisory
     assert_markdown_links(report, renderer)
@@ -982,18 +981,47 @@ def test_details_need_a_proposed_task(audit_report):
         load(audit_report)
 
 
+def next_actions(text):
+    return text.split("## Recommended next actions\n\n", 1)[1].split("## Task catalog\n\n", 1)[0]
+
+
+def test_next_actions_are_one_flat_list_ordered_by_priority(audit_report):
+    _, renderer, root = audit_report
+    data = example_data(root)
+    priorities = dict(zip(("R1", "R2", "R3", "R4"), ("low", "medium", "low", "high")))
+    for row in data["recommendations"]:
+        row["priority"] = priorities[row["id"]]
+    save(root, data)
+    block = next_actions(renderer.render(load(audit_report))[0].decode())
+    assert "### " not in block
+    items = [line for line in block.splitlines() if line.startswith("- **")]
+    assert [line.split("**")[1] for line in items] == ["High", "Medium", "Low", "Low"]
+    assert not re.search(r"^\d+\. ", block, re.M)
+    # The author's order only breaks ties within a priority.
+    assert "Advisory 1" in items[2] and "Finding 2" in items[3]
+
+
+def test_a_next_action_lists_every_item_it_involves(audit_report):
+    _, renderer, root = audit_report
+    data = example_data(root)
+    data["recommendations"][0]["items"] = ["cited_answers", "read_file"]
+    save(root, data)
+    block = next_actions(renderer.render(load(audit_report))[0].decode())
+    item = next(line for line in block.splitlines() if "Advisory 1" in line)
+    assert item.endswith("cited\\_answers (capability), read\\_file (tool)")
+
+
 def test_details_render_under_their_next_action_and_only_for_selected_proposals(audit_report):
     _, renderer, root = audit_report
     data = example_data(root)
     selected = next(row for row in data["recommendations"] if row["action"] == "revise_task")
     selected["details"] = DETAILS
     save(root, data)
-    text = renderer.render(load(audit_report))[0].decode()
-    actions = text.split("### Next actions\n\n", 1)[1].split("\n\n", 1)[0].splitlines()
-    position = next(i for i, line in enumerate(actions) if "Revise a task" in line)
-    assert actions[position + 1].startswith("   - **Verification:** Accept a reply that cites the read source.")
-    assert actions[position + 3] == "   - **Next step:** Needs manual task design"
-    assert sum(line.startswith("   - **Verification:**") for line in actions) == 2  # the example's selected R2 and this one
+    lines = next_actions(renderer.render(load(audit_report))[0].decode()).splitlines()
+    position = next(i for i, line in enumerate(lines) if line.startswith("  - Revise a task"))
+    assert lines[position + 1].startswith("  - **Verification:** Accept a reply that cites the read source.")
+    assert lines[position + 3] == "  - **Next step:** Needs manual task design"
+    assert sum(line.startswith("  - **Verification:**") for line in lines) == 2  # the example's selected proposal and this one
 
 
 def test_the_verifier_link_appears_only_when_the_task_readme_has_a_verifier_section(audit_report):

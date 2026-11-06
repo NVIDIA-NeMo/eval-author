@@ -400,9 +400,9 @@ def detail_lines(model: content.Content, row: dict) -> list[str]:
     if not details:
         return []
     lines = [
-        "   - **Verification:** " + prose(model, details["verification"]),
-        "   - **Breadth:** " + prose(model, details["breadth"]),
-        "   - **Next step:** " + layout.NEXT_STEPS[details["next_step"]],
+        "  - **Verification:** " + prose(model, details["verification"]),
+        "  - **Breadth:** " + prose(model, details["breadth"]),
+        "  - **Next step:** " + layout.NEXT_STEPS[details["next_step"]],
     ]
     finding = next(item for item in model.data["findings"] if item["id"] == row["finding_id"])
     links = []
@@ -413,18 +413,26 @@ def detail_lines(model: content.Content, row: dict) -> list[str]:
             target = path_target(posixpath.join(model.sources[task["source"]]["path"], "README.md")) + "#verifier"
             links.append(md_link(task_identifier(model, task_id) + " Verifier section", target))
     if links:
-        lines.append("   - **Verifier controls:** " + ", ".join(links))
+        lines.append("  - **Verifier controls:** " + ", ".join(links))
     return lines
 
 
-def proposal_lead(model: content.Content, row: dict, jump) -> str:
-    """The finding link, plus the revised task's link, which the proposal text cannot repeat."""
-    lead = jump(row["id"])
-    if row["action"] != "revise_task":
-        return lead
-    finding = next(item for item in model.data["findings"] if item["id"] == row["finding_id"])
-    task_ids = list(dict.fromkeys(ref["task_id"] for ref in finding["tasks"]))
-    return lead + (" (" + ", ".join(task_link(model, task_id) for task_id in task_ids) + ")" if task_ids else "")
+def action_text(model: content.Content, row: dict) -> str:
+    """The action, the revised task's link, which the proposal text cannot repeat, and the proposal."""
+    text = layout.ACTIONS[row["action"]]
+    if row["action"] == "revise_task":
+        finding = next(item for item in model.data["findings"] if item["id"] == row["finding_id"])
+        task_ids = list(dict.fromkeys(ref["task_id"] for ref in finding["tasks"]))
+        if task_ids:
+            text += " (" + ", ".join(task_link(model, task_id) for task_id in task_ids) + ")"
+    text += "."
+    return text + (" " + prose(model, row["proposed_task"]) if row["proposed_task"] is not None else "")
+
+
+def involved_items(model: content.Content, row: dict) -> str:
+    kinds = {item["name"]: item["kind"] for item in model.spec["items"]}
+    names = [f"{literal(name)} ({layout.KIND_NAMES[kinds[name]]})" for name in row["items"]]
+    return ", ".join(names) if names else layout.COPY["no_involved_items"]
 
 
 def proposed_tasks(model: content.Content, finding_ids: set[str]) -> list[str]:
@@ -575,42 +583,25 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
     for row in key_findings:
         add(_finding(model, row), f"findings[{data['findings'].index(row)}]")
     section(3, "recommendations")
-    add(
-        [
-            layout.COPY["recommended_with_ethos" if data["inputs"]["ethos"] else "recommended"],
-            "",
-        ],
-        "recommendations",
-    )
-    if data["recommendations"]:
-        add(["### " + layout.SUBHEADINGS["next_actions"], ""], "recommendations")
-        ranked = sorted(data["recommendations"], key=lambda row: row["order"])
-        next_actions = []
-        for rank, row in enumerate(ranked, 1):
-            next_actions.append(
-                f"{rank}. {layout.PRIORITIES[row['priority']]} priority - {layout.ACTIONS[row['action']]}: "
-                + jump(row["finding_id"])
-            )
-            next_actions.extend(detail_lines(model, row))
-        add(next_actions, "recommendations")
-        add([""], "recommendations")
-    for kind, title in layout.KINDS:
-        add(["### " + title, ""], "recommendations")
-        rows = []
-        for item in items:
-            proposals = [
-                row
-                for row in data["recommendations"]
-                if item["name"] in row["items"] and row["proposed_task"] is not None
-            ]
-            if item["kind"] == kind and proposals:
-                rows.append(
-                    [
-                        literal(item["name"]) + " - " + prose(model, item["description"]),
-                        " ".join(proposal_lead(model, row, jump) + ": " + prose(model, row["proposed_task"]) for row in proposals),
-                    ]
-                )
-        add(table("recommended", rows) if rows else [layout.COPY["no_proposals"], ""], "recommendations")
+    if not data["recommendations"]:
+        add([layout.COPY["no_recommendations"], ""], "recommendations")
+    else:
+        add([layout.COPY["recommended_with_ethos" if data["inputs"]["ethos"] else "recommended"], ""], "recommendations")
+    ranked = sorted(data["recommendations"], key=lambda row: (layout.PRIORITY_RANK[row["priority"]], row["order"]))
+    for row in ranked:
+        details = detail_lines(model, row)
+        add(
+            [
+                f"- **{layout.PRIORITIES[row['priority']]}** · "
+                + jump(row["finding_id"], finding_heading(model, row["finding_id"]))
+                + " · "
+                + involved_items(model, row),
+                "  - " + action_text(model, row),
+                *details,
+                "",
+            ],
+            "recommendations",
+        )
     section(4, "tasks")
     add([layout.COPY["catalog"], ""], "tasks")
     task_rows = []
