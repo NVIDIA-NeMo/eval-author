@@ -22,7 +22,7 @@ The [validation report](validation-report.md) documents the separate output of
 checking this format, including how to generate it.
 
 This is an experimental format and may change with the benchmark. The current
-native reader supports single-step Harbor 0.20.0 trial directories. The index
+native reader supports single-step Harbor 0.24.0 trial directories. The index
 models live in [models.py](../metric_benchmark/models.py); native consistency
 checks live in [validation.py](../metric_benchmark/validation.py).
 
@@ -222,7 +222,7 @@ Store the raw Harbor execution files under the case’s results directory. Each 
 `results.json` points to its trial directory through `native_results_path`, a
 relative POSIX path within that case directory. Keep the configuration, results, logs and
 available agent/verifier evidence; symlinks and special files are not allowed.
-The validator reads each observed trial’s Harbor 0.20.0 `result.json` and checks
+The validator reads each observed trial’s Harbor 0.24.0 `result.json` and checks
 the task identity/checksum, trial directory name, agent configuration, status and
 all native measurements against the prepared inputs and results index.
 

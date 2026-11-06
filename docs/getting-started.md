@@ -327,7 +327,7 @@ not supported by that path. Ordinary Harbor workflows are unchanged.
 
 Use the Python environment supported by your installed Harbor version for
 Harbor-backed operations. This repository's development checks use Python 3.12
-and 3.13 with Harbor 0.20.0; see [development setup](../DEVELOPMENT.md).
+and 3.13 with Harbor 0.24.0; see [development setup](../DEVELOPMENT.md).
 
 The experimental trace-to-environment workflow uses Harbor's `nop` agent (a no-op
 baseline) and `oracle` agent (the task's reference solution), or NeMo Gym's native
