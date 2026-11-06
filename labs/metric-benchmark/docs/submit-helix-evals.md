@@ -73,7 +73,7 @@ functions. `HelixClient.from_context(workspace, context=...)` uses the official
 `nemo-helix-plugin` client, installed separately for this exploration; planning
 and the normal local runner do not require it. No dependency lock changes are
 included yet. The prototype was checked against Helix source commit
-`df376600748eb576146dfb2d1b8770414545a487`.
+`2d3a403a0bd0fd08cd7c099a3e3a9878f2631a7b`.
 
 Next use the [download tool](download-helix-results.md). Its current output is
 an evidence collection, **not yet the benchmark's validated results directory**.
@@ -114,7 +114,7 @@ export EVAL_AUTHOR_REPO="$PWD"
 
 git clone https://github.com/NVIDIA-NeMo/nemo-helix.git ../nemo-helix-client
 cd ../nemo-helix-client
-git checkout --detach df376600748eb576146dfb2d1b8770414545a487
+git checkout --detach 2d3a403a0bd0fd08cd7c099a3e3a9878f2631a7b
 uv tool run --from uv==0.13.4 uv sync --python 3.13 --frozen --no-default-groups --package nemo-helix-ext
 uv tool run --from uv==0.13.4 uv sync --frozen --no-default-groups --package nemo-evals-plugin --inexact
 export HELIX_PYTHON="$PWD/.venv/bin/python"
@@ -130,8 +130,10 @@ uv tool run --from uv==0.13.4 uv run --no-sync --with pytest \
   pytest -q "$EVAL_AUTHOR_REPO/tests/test_metric_benchmark_helix.py"
 ```
 
-The pinned client is the version used for the prototype, not a claim about the
-server version. If the deployment requires a different client, record that version
+This client uses Harbor 0.24.0 and Fabric 0.6.0. It is a tested client pin,
+not a claim about the server or worker version. Fabric installed agents require
+the task-side Fabric package to match the worker release; a mismatched pin fails
+before starting a native trial. If the deployment requires a different client, record that version
 and rerun the schema check before adapting requests. Follow that client's documented
 login flow; do not substitute unsigned development tokens for normal authentication.
 
