@@ -7,6 +7,7 @@ import os
 import shutil
 import tarfile
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
@@ -196,9 +197,34 @@ def _verify_uploaded_inputs(plan: Submission, client):
             if definition["kind"] != "harbor" or definition["native_task_id"] != task.native_task_id:
                 raise ValueError(f"case {case_id}, task {task_id}: published native task identity differs")
             builds = client.image_builds(task.ref)["data"]
-            latest = next((build for build in builds if build.get("platform") is None), None)
+            latest = latest_default_build(builds)
             if latest is None or latest.get("status") != "ready":
                 raise NotReady(f"case {case_id}, task {task_id}: published task image is not ready")
+
+
+def latest_default_build(builds):
+    if not isinstance(builds, list) or any(not isinstance(build, dict) for build in builds):
+        raise ValueError("Helix image build history must be a list of build records")
+    candidates = [build for build in builds if build.get("platform") is None]
+    if len(candidates) < 2:
+        return candidates[0] if candidates else None
+    dated = []
+    for build in candidates:
+        value = build.get("created_at")
+        if not isinstance(value, str):
+            raise ValueError("multiple image builds require creation timestamps")
+        try:
+            timestamp = datetime.fromisoformat(value)
+        except ValueError:
+            raise ValueError("invalid image build creation timestamp") from None
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=UTC)
+        dated.append((timestamp, build))
+    latest = max(timestamp for timestamp, _ in dated)
+    matches = [build for timestamp, build in dated if timestamp == latest]
+    if len(matches) != 1:
+        raise ValueError("image build history has an ambiguous latest build")
+    return matches[0]
 
 
 def _response_path(root: Path, index: int) -> Path:

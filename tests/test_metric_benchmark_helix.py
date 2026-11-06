@@ -527,3 +527,15 @@ def test_interrupted_collection_reuses_verified_downloads(plan, tmp_path):
     assert len(result["observations"]) == 9
     assert sum(p.endswith("/download") for _, p in server.calls) == 10
     assert not (tmp_path / ".output.helix-downloads").exists()
+
+
+def test_image_build_readiness_uses_creation_time_not_server_order():
+    from metric_benchmark.helix import latest_default_build
+
+    old = {"platform": None, "created_at": "2026-11-01T00:00:00", "status": "ready"}
+    new = {"platform": None, "created_at": "2026-11-02T00:00:00Z", "status": "running"}
+    assert latest_default_build([old, new]) == latest_default_build([new, old]) == new
+    with pytest.raises(ValueError, match="ambiguous"):
+        latest_default_build([new, dict(new, status="ready")])
+    with pytest.raises(ValueError, match="timestamps"):
+        latest_default_build([old, {"platform": None, "status": "ready"}])
