@@ -71,9 +71,9 @@ def report_links(payload, modules, *, intended=False, findings=False):
     target = str(Path(payload["state"]["repository"]) / lifecycle["findings"]["report"]["path"])
     links = {"report": {"target": target}}
     if intended:
-        links["intended_coverage"] = {"target": target, "fragment": "intended-coverage"}
+        links["intended_coverage"] = {"target": target, "fragment": "capabilities-audited"}
     if findings:
-        links["findings"] = {"target": target, "fragment": "findings-and-evidence"}
+        links["findings"] = {"target": target, "fragment": "key-findings"}
     payload["facts"]["links"] = links
 
 
@@ -457,7 +457,7 @@ def test_stage_inapplicable_links_are_rejected(modules, stage, key):
     payload = checkpoint(modules, stage)
     report_links(payload, modules)
     report = payload["facts"]["links"]["report"]
-    payload["facts"]["links"][key] = {**report, "fragment": "intended-coverage"}
+    payload["facts"]["links"][key] = {**report, "fragment": "capabilities-audited"}
     with pytest.raises(ValueError, match="audit links"):
         modules[2].render(payload)
 
@@ -654,3 +654,20 @@ def test_cli_matches_the_pure_renderer(modules):
 def test_audit_checkpoints_have_no_stateless_preview(modules):
     with pytest.raises(ValueError):
         modules[2].render({"stage": "audit_findings", "journey": "audit", "ready": True})
+
+
+def test_changed_task_bindings_tell_the_user_the_approval_no_longer_applies(modules):
+    payload = checkpoint(modules, "next_action")
+    lifecycle = domain(payload, modules)
+    files = payload["facts"]["audit_observations"]["files"]
+    content = {"path": ".eval-author/.working/audit/report-content.json", "digest": modules[1].fingerprint("Content")}
+    lifecycle["findings"].update(
+        content=content,
+        inputs=[{"path": "suites/refund", "digest": modules[1].fingerprint("Task tree"), "kind": "task"}],
+    )
+    files[content["path"]] = content["digest"]
+    files["suites/refund"] = modules[1].fingerprint("Edited task tree")
+    flow = importlib.import_module("conversation_flows.audit")
+    message = flow.measurement_status(lifecycle, progress(payload, modules))
+    assert message.startswith("Tasks recorded in the findings changed after approval: suites/refund.")
+    assert "no longer apply" in message

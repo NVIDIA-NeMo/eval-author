@@ -26,7 +26,7 @@ def panel(tmp_path, monkeypatch):
     runs = tmp_path / "runs"
     runs.mkdir()
     report = tmp_path / "audit.md"
-    report.write_text("## Findings and limitations\n\nNo defects observed.\n")
+    report.write_text("## Key findings\n\nNo defects observed.\n")
     cases: dict[str, dict] = {}
     for name, kind, reward in [
         ("reference", "reference", 1),
@@ -107,7 +107,7 @@ def panel(tmp_path, monkeypatch):
 
     def findings(*paths):
         report.write_text(
-            "## Findings and limitations\n\n"
+            "## Key findings\n\n"
             + "\n\n".join(
                 f"The recorded control needs review: [evidence]({p.relative_to(tmp_path).as_posix()})." for p in paths
             )
@@ -154,14 +154,14 @@ def test_link_without_visible_finding_cannot_clear_a_failure(panel, placement):
         "comment": "<!-- This cheat earned credit: " + link + " -->",
         "reference_link": "This cheat earned credit: [control][c]\n\n[c]: " + str(receipt.relative_to(panel.tmp_path)),
     }
-    panel.report.write_text("## Findings and limitations\n\n" + snippets[placement])
+    panel.report.write_text("## Key findings\n\n" + snippets[placement])
     assert not panel.check()["valid"]
 
 
 def test_later_pass_and_owner_acceptance_do_not_hide_earlier_failure(panel):
     receipt, _ = panel.record("forged-success", 1)
     panel.record("forged-success", 0, suffix="-later")
-    panel.report.write_text("## Findings and limitations\n\nThe owner accepted this task despite its known defects.\n")
+    panel.report.write_text("## Key findings\n\nThe owner accepted this task despite its known defects.\n")
     assert not panel.check()["valid"]
     panel.findings(receipt)
     assert panel.check()["valid"]
@@ -239,7 +239,7 @@ def test_result_symlink_is_rejected_before_reading(panel):
 
 
 def test_report_links_do_not_authorize_reading_arbitrary_sources(panel):
-    panel.report.write_text("## Findings and limitations\n\nUnrelated [private source](elsewhere/private.json).\n")
+    panel.report.write_text("## Key findings\n\nUnrelated [private source](elsewhere/private.json).\n")
     result = panel.check()
     assert result["valid"]
     assert not any(ref["path"].startswith("elsewhere") for ref in result["evidence"])
@@ -330,3 +330,12 @@ def test_zero_aggregate_reward_does_not_hide_a_failed_control_assertion(panel):
     result = panel.check()
     assert not result["valid"]
     assert any(row["classification"] == "failed_control" for row in result["controls"])
+
+
+@pytest.mark.parametrize("heading", ["Key findings", "Findings and limitations"])
+def test_findings_links_read_the_current_and_legacy_findings_heading(panel, heading):
+    audit = importlib.import_module("audit_verifier_evidence")
+    text = f"## {heading}\n\nThis cheat earned credit: [control](records/control.json)\n\n## Next section\n\n"
+    links = audit.findings_links(panel.report, text)
+    assert links == {(panel.report.parent / "records/control.json").resolve()}
+    assert audit.findings_links(panel.report, text.replace(heading, "Other section", 1)) == set()

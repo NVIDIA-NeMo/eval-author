@@ -177,43 +177,43 @@ measurement limitation, not proof of a dataset deficiency. Failure-case coverage
 skill's `failure_cases` measurement; manual observations alone do not change
 measurement status. Failure cases remain ineligible for automatic tool-gap generation.
 
-Expand **Next actions and open questions** in the existing Audit coverage
-report, following its [report guidance](../eval-author-audit/references/coverage-report.md#findings-limitations-and-next-actions).
-Keep the generated coverage JSON unchanged. Rank by
-expected value and strength of evidence, explaining why the first action comes
-first. Apply established user priorities, including cost when relevant, and
+Rank by expected value and strength of evidence, explaining why the first action
+comes first. Apply established user priorities, including cost when relevant, and
 distinguish them from suggested priorities still awaiting review. Prefer a short,
-useful list over one suggestion per uncovered item.
-For each recommendation, link what the report already covers and add only
-missing details:
+useful list over one suggestion per uncovered item. A written recommendation is
+not a generated, validated, or accepted NeMo Gym or Harbor task.
 
-- **Change and scenario:** add a task, strengthen a named existing task, retain
-  an existing regression, or gather evidence; describe the concrete request and
-  fixture or failure trigger that makes it useful.
-- **Expected behavior and verification:** the outcome to check and how a verifier
-  would distinguish correct from incorrect behavior, plus unresolved verifier trust
-  boundaries. For failure cases, identify evidence of the trigger and expected response.
-- **Basis and evidence:** the category above, stable audit item names, and task,
-  run, trace-step, judgment, or verifier references supporting the recommendation.
-  Mark proposed fixture details as proposals, not observed facts.
-- **Proposed breadth:** the distinct input examples, behavior variations,
-  difficulty, positive and negative scenarios, expected outcomes, exclusions,
-  and cost assumptions that would make this recommendation useful. Label counts
-  and tradeoffs as provisional until agreed; repeated runs are not new examples.
-- **Next action:** say whether the suggestion is eligible for automatic tool-gap
-  task creation, needs manual task design, or needs more measurement. A written
-  recommendation is not a generated, validated, or accepted NeMo Gym or Harbor task.
+Expand only the recommendation the user selects, using the [report workflow](../eval-author-audit/references/coverage-report.md#findings-limitations-and-next-actions).
+Fill its `details` in the authored report content, then revalidate, regenerate
+the Markdown, and retain its input bindings for renewed review. Keep generated Markdown and measurement JSON read-only. Unselected
+recommendations keep their one-sentence `proposed_task`. Author these fields:
 
-When authoring the task, document applicable
-[simple-cheat controls](../eval-author/references/task-validation.md#screen-simple-cheats)
-and expected rejection only in its README's
-[Verifier section](../eval-author/references/suite-readme.md#task-documentation).
-Link that section from the recommendation once it exists.
+- **Change and scenario:** the recommendation's `proposed_task`. Say whether to add a task,
+  strengthen a named task, retain a regression, or gather evidence, and describe the
+  concrete request and the fixture or failure trigger.
+- **Verification:** `details.verification`. The outcome to check, how a verifier
+  distinguishes correct from incorrect behavior, and any unresolved trust boundary.
+  For failure cases, identify the trigger evidence and the expected response.
+- **Breadth:** `details.breadth`. Distinct inputs, behavior variations, difficulty,
+  positive and negative scenarios, exclusions, and cost assumptions. Label counts and
+  tradeoffs provisional until agreed. Repeated runs are not new examples.
+- **Next step:** `details.next_step`: `auto_tool_gap` when automatic tool-gap task
+  creation applies, `manual_design` when a person must design the task, or
+  `more_measurement` when evidence comes first.
 
-For NeMo Gym recommendations, include a [version and rerun plan](references/gym-tasks.md#version-and-rerun-plan)
-in the recommendation: exact pins supported by the available evidence, unresolved
-versions, and the settings and reset procedure needed to repeat the evaluation.
-Carry the selected plan into task creation; a proposed pin is not a verified lock.
+Do not author these in the report content:
+
+- **Basis and evidence.** They already live on the finding. Mark proposed fixture
+  details as proposals, not observed facts.
+- **The Verifier link.** The renderer links each affected task's README Verifier
+  section once it exists. Document the applicable
+  [simple-cheat controls](../eval-author/references/task-validation.md#screen-simple-cheats)
+  and expected rejection only in that README section while authoring the task.
+- **NeMo Gym version and rerun plan.** Put the [version and rerun plan](references/gym-tasks.md#version-and-rerun-plan)
+  in the task README and run configuration: exact pins supported by the available
+  evidence, unresolved versions, and the settings and reset procedure. The report
+  links to the task instead of repeating it. Carry the selected plan into task creation;
+  a proposed pin is not a verified lock.
 
 Lead the proposal response with the highest-value recommendations and enough
 scenario and expected-behavior detail to act on them. Follow with supporting

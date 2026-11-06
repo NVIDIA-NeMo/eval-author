@@ -1,28 +1,21 @@
 ---
 name: eval-author-audit
 description: >-
-  Audit evaluation coverage, find gaps, and recommend improvements against ETHOS.md.
-  Use for "audit my existing evals", "generate audit.md from ETHOS.md", schema
-  validation, measuring an ATIF trace, or aggregating coverage reports.
-  Full audits first read ../eval-author/SKILL.md and quietly perform its bounded
-  saved-context lookup before choosing an introduction. Reuse applicable saved context.
-  Separate returning requests get a brief acknowledgment, then continue without another readiness pause.
-  Fresh full audits use the core's rendered orientation and end the turn before
-  repository inspection or prerequisites. Scoped commands keep their scope.
-  Use milestone check-ins and user-confirmed eval and trace sources. Generate a
-  hand-editable audit.md, validate declared tools, capabilities, failure cases,
-  evidence, and references, then measure and aggregate coverage. Save artifacts
-  under .eval-author/ without changing the agent source.
+  Audit existing evaluations for coverage gaps, weak verifiers, and evidence limits,
+  then recommend improvements. Use for "audit my existing evals", "let's gauge the
+  quality of my evaluations", "review my evaluation coverage", or questions about
+  whether evals cover intended agent behavior and whether their results are trustworthy.
 triggers:
   - audit my existing evals
-  - generate audit.md from ETHOS.md
-  - validate audit.md coverage schema
-  - measure audit.md coverage against a harbor trace
-  - aggregate audit.md coverage reports
-  - check audit.md coverage denominator
-  - what should my evals cover from the agent ethos
-  - review the audit coverage denominator
-  - audit coverage of my evals against the ethos
+  - review my evaluation coverage
+  - let's gauge the quality of my evaluations
+  - how good are my evals
+  - find gaps in my evaluation coverage
+  - do my evals cover what my agent is supposed to do
+  - can I trust my evaluation results
+  - check whether my verifiers can be fooled
+  - measure coverage from my evaluation runs
+  - recommend improvements to my evaluations
 not-for:
   - eval-author (use for the standard, the boundaries, and to pick a sub-flow)
   - eval-author-discover (use to check NeMo Gym or Harbor suite readiness)
@@ -104,7 +97,9 @@ aggregation use their supplied inputs without new onboarding. File-only and
 provider-independent operations do not require runtime installation. Read-only
 and suggestion requests remain read-only.
 
-## Ethos prerequisite
+## Prerequisites
+
+### Ethos prerequisite
 
 Use the confirmed result from [Ethos confirmation](../eval-author/references/ethos-confirmation.md).
 An explicit `--ethos <path>` overrides a prior handoff path; recheck applicability
@@ -112,6 +107,13 @@ and confirmation for changed content. Before drafting audit items or generating
 `audit.md`, require the selected agent's confirmed intended behavior. If it is
 missing or changed, invoke the canonical `ethos-orchestrate` through that adapter;
 do not run a separate audit interview, writer, or review loop.
+
+### Runtime prerequisites
+
+Generation/validation need Python 3.11+, PyYAML, and jsonschema; no provider probe.
+ATIF measurement from Harbor or NeMo Gym needs Python 3.12+ and Harbor's trajectory model; use `requirements.txt`.
+Use the [shared locator](../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks) with `--provider harbor --flow audit`.
+For NeMo Gym traces, follow [NeMo Gym audit inputs](references/gym-audit.md); offline conversion and measurement need no NeMo Gym runtime. Commands read local files, not services.
 
 ## Coverage specification
 
@@ -134,48 +136,7 @@ Write audit artifacts under `.eval-author/`. Audit operations do not edit the
 customer's source, existing evals, source-of-truth documents, or `ETHOS.md`;
 prerequisite Ethos work belongs to the shared procedure in the pre-flight above.
 
-## Audit outputs
-
-Follow [report presentation](references/coverage-report.md#artifact-names): only
-the Audit coverage report is introduced for guided review; other outputs are internal.
-
-| Name | File under `.eval-author/` | Purpose |
-|---|---|---|
-| Audit specification | `audit.md` | Structured source of checks and required evidence, reviewed through the report's Intended coverage section |
-| Audit coverage report | `audit-coverage-report.md` | Readable intended coverage, test mappings, measured coverage, gaps, evidence limits, and next actions |
-| Coverage measurements (JSON) | `audit-coverage-report.json` | Script-generated measurements aggregated over the selected runs, when available |
-| Journey state (internal) | `.working/journey-state.json` | Shared decisions, audit progress, and resumption |
-
-For a full audit, create the Audit coverage report with the validated Audit
-specification, refresh it after measurement, and update it for final review.
-Follow the [report guidance](references/coverage-report.md) and [template](templates/audit-coverage-report.md) even when measurement is deferred.
-
-Whenever the Markdown report is created or updated, explicitly say so and link
-it in the turn-ending response, including intermediate decision checkpoints.
-
-Focused operations need this report only when requested or continuing a full
-audit; keep their scope. Read-only and `suggest` requests remain read-only.
-
-## Scripts
-
-Audit-spec mechanics live under `scripts/audit_spec/`:
-
-Read `scripts/audit_spec/README.md` for the current measurement assumptions:
-ATIF input, Harbor trajectory parsing, v1 `tool_calls`, `capabilities`, and
-`failure_cases` coverage, and coverage aggregation from `coverage.json` files.
-
-| Script | Use it to |
-|---|---|
-| `scripts/audit_spec/generate.py` | Create, reconcile, replace, or preview `.eval-author/audit.md` from `ETHOS.md` and reviewed item proposals |
-| `scripts/audit_spec/measure.py` | Measure one ATIF trace or Harbor trial directory against `audit.md` and write coverage/details files for each selected method |
-| `scripts/audit_spec/report.py` | Aggregate per-trace `coverage.json` files into one coverage report with uncovered audit items |
-| `scripts/audit_spec/validate.py` | Validate the marked audit-spec block in `audit.md` |
-
-Shared helpers, measurement method contracts, schemas, and examples are
-documented in `scripts/audit_spec/README.md`.
-Runtime dependencies are listed in `requirements.txt`.
-
-## Step 1: Draft Or Update Audit Items
+### Step 1: Draft Or Update Audit Items
 
 Before drafting or updating `.eval-author/.working/audit-items.yaml`, read
 `templates/audit.md` and `schemas/audit.schema.json`. Use the template as the
@@ -220,7 +181,7 @@ description when their absence must gate coverage. Measurement uses
 `trigger`, `expected_behavior`, and `prohibited_outputs` otherwise provide the
 rubric and authoring context rather than separate hidden checks.
 
-## Step 2: Generate Or Reconcile Audit.md
+### Step 2: Generate Or Reconcile Audit.md
 
 Create or update `.eval-author/audit.md` from `<ethos_path>` and the reviewed item
 proposals:
@@ -295,7 +256,7 @@ and reports `agent_change` unless the user passes `--agent` explicitly.
 but does not resolve them against `sources` until a future generator or grammar
 defines that reference format.
 
-## Step 3: Validate
+### Step 3: Validate
 
 Run validation after every generated or hand-edited audit file:
 
@@ -311,7 +272,9 @@ provided and cross-item references such as `required_tools` and `applies_to`.
 Validation proves only structure and references, not that the denominator is
 complete or correct.
 
-## Step 4: Measure One ATIF Trace
+## Coverage measurement
+
+### Step 4: Measure One ATIF Trace
 
 After validation and the guided audit's specification review (when applicable),
 measure one completed trial directory or one ATIF trajectory file from the
@@ -443,7 +406,7 @@ The script validates `coverage.json` against `schemas/audit_coverage.schema.json
 and validates `details.json` against the selected method's details schema before
 writing. Use the next step to aggregate coverage across tasks and runs.
 
-## Step 5: Aggregate Coverage Reports
+### Step 5: Aggregate Coverage Reports
 
 After measuring one or more traces, aggregate the per-trace `coverage.json`
 files into a coverage report. For a guided audit, include only measurements from
@@ -473,6 +436,29 @@ Aggregate JSON shape, `coverage_by_evidence_class`, headline fields, and
 gaps to [`eval-author-task-create`](../eval-author-task-create/SKILL.md) using
 `coverage_by_evidence_class.agent_under_test` when present.
 
+## Audit coverage report
+
+Follow [report presentation](references/coverage-report.md#artifact-names): only
+the Audit coverage report is introduced for guided review; other outputs are internal.
+
+| Name | File under `.eval-author/` | Purpose |
+|---|---|---|
+| Audit specification | `audit.md` | Structured source of checks and required evidence, reviewed through the generated coverage tables |
+| Audit coverage report | `audit-coverage-report.md` | Readable intended coverage, test mappings, measured coverage, gaps, evidence limits, and next actions |
+| Coverage measurements (JSON) | `audit-coverage-report.json` | Script-generated measurements aggregated over the selected runs, when available |
+| Report content (internal) | `.working/audit/report-content.json` | Validated authored narrative, mappings, recommendations, and source references |
+| Journey state (internal) | `.working/journey-state.json` | Shared decisions, audit progress, and resumption |
+
+For a full audit, create the Audit coverage report with the validated Audit
+specification, refresh it after measurement, and update it for final review.
+Follow the [report workflow](references/coverage-report.md). Before authoring, read the [section guide](references/report-sections.md) with the [worked content example](examples/report-content.json) and [content schema](schemas/report_content.schema.json). Generate Markdown with the bundled renderer, including when measurement is deferred. Never edit the generated Markdown directly.
+
+Whenever the Markdown report is created or updated, explicitly say so and link
+it in the turn-ending response, including intermediate decision checkpoints.
+
+Focused operations need this report only when requested or continuing a full
+audit; keep their scope. Read-only and `suggest` requests remain read-only.
+
 ## Next Steps
 
 - Before findings review, complete [verifier inspection and evidence reconciliation](references/coverage-report.md#inspect-verifier-behavior-and-retained-controls).
@@ -487,12 +473,27 @@ gaps to [`eval-author-task-create`](../eval-author-task-create/SKILL.md) using
   `reason: not_measured_by_any_method` remain unmeasured, even when the proposal
   step suggests a candidate scenario for them.
 
-## Prerequisites
+## Scripts
 
-Establish Ethos and review audit items first. Generation/validation need Python 3.11+, PyYAML, and jsonschema; no provider probe.
-ATIF measurement from Harbor or NeMo Gym needs Python 3.12+ and Harbor's trajectory model; use `requirements.txt`.
-Use the [shared locator](../eval-author/references/runtime-prerequisites.md#runtime-prerequisite-checks) with `--provider harbor --flow audit`.
-For NeMo Gym traces, follow [NeMo Gym audit inputs](references/gym-audit.md); offline conversion and measurement need no NeMo Gym runtime. Commands read local files, not services.
+Audit-spec mechanics live under `scripts/audit_spec/`:
+
+Read `scripts/audit_spec/README.md` for the current measurement assumptions:
+ATIF input, Harbor trajectory parsing, v1 `tool_calls`, `capabilities`, and
+`failure_cases` coverage, and coverage aggregation from `coverage.json` files.
+
+| Script | Use it to |
+|---|---|
+| `scripts/audit_spec/generate.py` | Create, reconcile, replace, or preview `.eval-author/audit.md` from `ETHOS.md` and reviewed item proposals |
+| `scripts/audit_spec/measure.py` | Measure one ATIF trace or Harbor trial directory against `audit.md` and write coverage/details files for each selected method |
+| `scripts/audit_spec/report.py` | Aggregate per-trace `coverage.json` files into one coverage report with uncovered audit items |
+| `scripts/audit_spec/report_content.py` | Validate authored report content and source bindings |
+| `scripts/audit_spec/render_report.py` | Render the generated, read-only Markdown audit |
+| `scripts/audit_spec/report_layout.py` | Define fixed report headings, tables, and copy |
+| `scripts/audit_spec/validate.py` | Validate the marked audit-spec block in `audit.md` |
+
+Shared helpers, measurement method contracts, schemas, and examples are
+documented in `scripts/audit_spec/README.md`.
+Runtime dependencies are listed in `requirements.txt`.
 
 ## Limitations
 

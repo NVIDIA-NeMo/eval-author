@@ -127,6 +127,7 @@ internal validation, measurement, and saved progress:
 | **Audit specification (internal)** | `.eval-author/audit.md` | Intended checks and evidence requirements |
 | **Audit coverage report** | `.eval-author/audit-coverage-report.md` | Readable scope, test mappings, findings, limits, and next actions |
 | **Coverage measurements (internal JSON)** | `.eval-author/audit-coverage-report.json` | Generated measured results aggregated over the selected runs, when available |
+| **Report content (internal)** | `.eval-author/.working/audit/report-content.json` | Saved report text and evidence references |
 | **Journey state (internal)** | `.eval-author/.working/journey-state.json` | Saved scope and review decisions, partial progress, pending questions, and next action |
 
 When you switch from creating or improving evaluations into an audit, the
@@ -140,31 +141,22 @@ and links available supporting evidence. A mapping to an existing test describes
 designed to address; it does not establish that a recorded run satisfied the
 audit's coverage criteria.
 
-If you ask for proposals, Eval Author expands **Next actions and open questions**
-in the same report, reusing its existing findings and checks. Planned cheat
-controls and their expected rejection live only in the task README's **Verifier**
-section, written during task authoring. The audit report links to that section.
-Legacy **Grading** and **Grader**
-headings remain supported.
+The report opens with a Summary (including an ADVISORY when verifier cheating is
+confirmed and the Evaluation coverage table), then Key findings. Recommended
+next actions is a single list, highest priority first, that names each finding or
+advisory, the capabilities and tools it involves, and the proposed task.
+The Coverage report maps each audit item to its tasks and run evidence, followed by the task
+catalog, verifier cheat screening, scope and execution evidence, and
+definitions.
 
-Cheating discoveries and evidence limits belong in **Findings and limitations**,
-with task revision and native evidence links. Control results describe verifier
-behavior and do not establish agent coverage. Recommendations appear only in
-the audit report. Existing `dataset-recommendations.md` files remain historical
-after their decisions and missing details are reconciled into it.
+The audit report is generated. Ask Eval Author to revise and regenerate it when
+you need changes. Direct Markdown edits block refresh.
 
-Use the report's **Intended coverage** section to review the proposed audit scope.
-It lists every item's stable name and kind, explains the intended check in plain
-language, and states the required evidence separately from existing tests,
-observed evidence, and measurement status. Totals and gap findings alone do not
-describe what the audit intends to check.
+Older manually written reports remain readable. Ask for conversion before
+regenerating one. Conversion preserves the original report and historical
+recommendation files.
 
-At the scope check-in, the proposed checks await your agreement and the report
-is preliminary. The reply previews intended checks grouped by tools, capabilities,
-failure cases, and grading, links directly to the full
-**Intended coverage** section, and asks what is missing or incorrect before
-moving to the named next milestone. Approving this scope is separate from
-reviewing the findings at the final report milestone.
+Reports do not yet compare coverage across audits.
 
 Measurement details live under `.eval-author/audit-measurements/`;
 the Coverage measurements (JSON) file combines only the current selected inputs.
@@ -204,11 +196,11 @@ The audit also inspects selected tasks' grading paths and reconciles retained
 cheat-control results before findings review. Findings distinguish verifier
 defects, agent failures, rejected valid solutions, and ungraded execution.
 Failed controls remain relevant even when a task has no usable agent trajectory.
-Missing or stale evidence leaves screening unproven. These results appear in
-**Findings and limitations** with evidence links and do not increase agent
-coverage. The report check detects omitted evidence links, while the auditing
-agent reviews the explanation and task logic. Planned control definitions and
-expected rejection stay in the task README's **Verifier** section.
+A later passing control doesn't erase a failure on the same task revision.
+Missing or stale evidence leaves screening unproven. These verifier checks do
+not establish agent coverage. Planned control definitions and expected rejection
+stay in the task README's **Verifier** section. Legacy **Grading** and **Grader**
+headings remain supported.
 
 Journey state saves audit decisions and the pending checkpoint across chats
 and workflow switches. Accepting findings records the answer without rewriting
