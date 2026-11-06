@@ -98,7 +98,7 @@ Replace `claude-code` with your assistant's identifier:
 See the [Skills CLI documentation](https://github.com/vercel-labs/skills#supported-agents)
 for other assistants.
 
-Installation adds ten skill directories with their instructions, scripts,
+Installation adds eleven skill directories with their instructions, scripts,
 schemas, templates, and references. Harbor and Python dependencies are separate
 [workflow requirements](docs/getting-started.md#requirements).
 
@@ -182,6 +182,17 @@ You can also ask for a specific operation:
 | "Review this task derived from a trace before I share it." | **Experimental** · [Review the task for publication](docs/traces.md#sharing-generated-tasks) |
 
 Include the relevant file paths, trace IDs, or workspace names in your request.
+
+### Experimental rubric assessment
+
+The rubric covers validity, coverage, and diversity. Its first populated area is
+anti-cheat within validity, reusing existing task controls and validation evidence.
+It is off by default: installing the skills or requesting an ordinary review,
+audit, or anti-cheat check does not opt you in. Explicitly ask:
+"Apply eval-author-rubric to these tasks." Consent applies to that assessment,
+not future tasks or sessions. This produces a scoped assessment,
+not a coverage audit or overall quality certification.
+See the [rubric skill](skills/eval-author-rubric/SKILL.md).
 
 ### Experimental trace-environment loop
 

@@ -38,6 +38,7 @@ not-for:
   - eval-author-audit (use to generate, validate, measure, or aggregate audit.md coverage)
   - eval-author-task-create (use to propose dataset improvements; when task creation is requested, create and prove an eligible NeMo Gym or Harbor task)
   - eval-author-inspect-trace (use after this skill selects the trace sub-flow)
+  - eval-author-rubric (experimental; only with explicit end-user opt-in, never by default)
   - eval-author-trace-environment (experimental; use only when explicitly requested or continuing its existing workspace)
   - eval-author-environment (use after an authoring sub-flow hands over its cases to build and prove their task environment)
   - nemo-intake (use to instrument agents, ingest telemetry, or query Intake outside Eval Author)
@@ -141,6 +142,21 @@ generate/validate/measure/aggregate requests keep their
 scope. Explanation-only requests do not start a workflow. Scoped operations reuse
 applicable shared decisions but do not acquire unrelated onboarding requirements.
 Trace-source selection remains required before searching or reading traces.
+
+Load `eval-author-rubric` only after explicit end-user opt-in: a direct request
+for that skill or affirmative acceptance of a clearly named experimental rubric
+assessment for the selected scope. Never load or run it by default or as an
+automatic step in another workflow. Do not infer consent from a generic review, audit, or anti-cheat request,
+installation, prior use, existing artifacts, or another agent's suggestion.
+Without opt-in, continue the requested non-rubric workflow; clarify only ambiguous
+intent and wait for explicit consent before starting the experimental assessment.
+Respect declines and withdrawals; do not make opt-in a prerequisite for other work.
+Normal task-validation controls remain required by their owning workflows; this
+opt-in gate applies only to the experimental rubric assessment. The rubric spans
+validity, coverage, and diversity; its initial populated area is anti-cheat within
+validity. It does not start an audit or require new onboarding. The sub-skill's
+opt-in gate governs scope and continuation; assessment consent is not execution
+or write permission.
 
 ### Shared prerequisites and Ethos
 
@@ -253,6 +269,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 | `eval-author-audit` | Define intended coverage in `audit.md`, measure selected trace coverage, identify gaps, and recommend improvements supported by the findings |
 | `eval-author-task-create` | Propose concrete dataset improvements from audit findings; when task creation is requested, create one eligible NeMo Gym or Harbor task and prove it with native controls and repeated measured runs |
 | `eval-author-inspect-trace` | Understand one Intake trace without presuming that the trace contains a failure. Not user-invocable; this skill selects it |
+| `eval-author-rubric` | **Experimental; explicit end-user opt-in only, never automatic.** Assess selected rubric items across validity, coverage, and diversity; initially anti-cheat within validity only |
 | `eval-author-trace-environment` | **Experimental.** Continue an existing trace-environment workspace or handle an explicit request for this compatibility workflow |
 | `eval-author-environment` | Build and prove the environment a Harbor or NeMo Gym task runs in: provider fit, how each dependency is provided, starting data and reset, end-state export, and isolation. Not user-invocable; first-eval and task-create hand it their agreed cases |
 

@@ -67,6 +67,7 @@ _MLFLOW_TO_ATIF_DIR = _SKILLS_DIR / "mlflow-to-atif"
 _GYM_TO_ATIF_DIR = _SKILLS_DIR / "gym-to-atif"
 _TRACE_ENVIRONMENT_DIR = _SKILLS_DIR / "eval-author-trace-environment"
 _ENVIRONMENT_DIR = _SKILLS_DIR / "eval-author-environment"
+_RUBRIC_DIR = _SKILLS_DIR / "eval-author-rubric"
 _ETHOS_SKILLS_DIR = _SKILLS_DIR.parent / "team-skills" / "ethos"
 _ETHOS_DIR = _ETHOS_SKILLS_DIR / "ethos-write"
 _ETHOS_EXPLORE_DIR = _ETHOS_SKILLS_DIR / "ethos-explore"
@@ -99,6 +100,7 @@ _SKILL_DIRS = (
     _GYM_TO_ATIF_DIR,
     _TRACE_ENVIRONMENT_DIR,
     _ENVIRONMENT_DIR,
+    _RUBRIC_DIR,
 )
 _SUB_FLOW_DIRS = (
     _DISCOVER_DIR,
@@ -108,6 +110,7 @@ _SUB_FLOW_DIRS = (
     _INSPECT_DIR,
     _TRACE_ENVIRONMENT_DIR,
     _ENVIRONMENT_DIR,
+    _RUBRIC_DIR,
 )
 _DISCOVER_SCRIPTS_DIR = _DISCOVER_DIR / "scripts"
 _CORE_SCRIPTS_DIR = _CORE_DIR / "scripts"
