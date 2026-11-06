@@ -437,6 +437,8 @@ def _references(model: Content) -> list[dict]:
             unique(row["id"])
             known([row["finding_id"]], findings)
             known(row["items"], items)
+            if row.get("details") is not None and row["proposed_task"] is None:
+                raise ValueError("Details describe a proposed task, so a recommendation with details needs one")
             if row["action"] in {"new_task", "revise_task"} and row["proposed_task"] is None:
                 raise ValueError("A task proposal needs its concrete scenario and verifier requirements")
 

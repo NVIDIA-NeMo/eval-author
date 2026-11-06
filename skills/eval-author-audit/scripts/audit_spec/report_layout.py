@@ -22,6 +22,11 @@ ACTIONS = {
     "review_scope": "Review the audit scope",
     "repair_verifier": "Repair the verifier",
 }
+NEXT_STEPS = {
+    "auto_tool_gap": "Eligible for automatic tool-gap task creation",
+    "manual_design": "Needs manual task design",
+    "more_measurement": "Needs more measurement",
+}
 PRIORITIES = {"high": "High", "medium": "Medium", "low": "Low"}
 TABLES = {
     "recommended": ("Functionality", "Proposed task"),

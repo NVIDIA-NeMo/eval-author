@@ -963,3 +963,55 @@ def test_only_a_manifest_source_can_vouch_for_a_historical_task_revision(audit_r
     save(root, data)
     with pytest.raises(content.ContentError, match="selected historical manifest"):
         load(audit_report)
+
+
+DETAILS = {
+    "verification": "Accept a reply that cites the read source. Reject a quotation that the trace never read.",
+    "breadth": "Provisionally two inputs, one with a matching quotation and one without.",
+    "next_step": "manual_design",
+}
+
+
+def test_details_need_a_proposed_task(audit_report):
+    content, _, root = audit_report
+    data = example_data(root)
+    recommendation = next(row for row in data["recommendations"] if row["proposed_task"] is None)
+    recommendation["details"] = DETAILS
+    save(root, data)
+    with pytest.raises(content.ContentError, match="needs one"):
+        load(audit_report)
+
+
+def test_details_render_under_their_next_action_and_only_for_selected_proposals(audit_report):
+    _, renderer, root = audit_report
+    data = example_data(root)
+    selected = next(row for row in data["recommendations"] if row["action"] == "revise_task")
+    selected["details"] = DETAILS
+    save(root, data)
+    text = renderer.render(load(audit_report))[0].decode()
+    actions = text.split("### Next actions\n\n", 1)[1].split("\n\n", 1)[0].splitlines()
+    position = next(i for i, line in enumerate(actions) if "Revise a task" in line)
+    assert actions[position + 1].startswith("   - **Verification:** Accept a reply that cites the read source.")
+    assert actions[position + 3] == "   - **Next step:** Needs manual task design"
+    assert sum(line.startswith("   - **Verification:**") for line in actions) == 2  # the example's selected R2 and this one
+
+
+def test_the_verifier_link_appears_only_when_the_task_readme_has_a_verifier_section(audit_report):
+    content, renderer, root = audit_report
+    data = example_data(root)
+    next(row for row in data["recommendations"] if row["action"] == "revise_task")["details"] = DETAILS
+    save(root, data)
+    assert "Verifier controls" not in renderer.render(load(audit_report))[0].decode()
+    task = root / "report-sources/tasks/source-answer"
+    (task / "README.md").write_text("# Source answer\n\n## Verifier\n\nControls and expected rejection.\n")
+    # The README is part of the bound task revision, so rebind it as the audit workflow would.
+    revision = content.core_module().task_evidence.task_digest(task)
+    data = example_data(root)
+    data["sources"][2]["sha256"] = data["tasks"][0]["revision"] = revision
+    for row in data["findings"]:
+        for ref in row["tasks"]:
+            ref["revision"] = revision
+    save(root, data)
+    text = renderer.render(load(audit_report))[0].decode()
+    line = next(line for line in text.splitlines() if "**Verifier controls:**" in line)
+    assert "source-answer/README.md#verifier" in line and "Verifier section" in line

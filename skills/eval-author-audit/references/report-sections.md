@@ -188,7 +188,9 @@ say why the gap matters.
 
 **The renderer writes:** a ranked Next actions list with one line per
 recommendation, ordered by `order` and showing its `priority`, the action, and a
-link to its advisory or finding. Then one table per item kind, with a row for each
+link to its advisory or finding. When a recommendation has `details`, three
+nested lines follow its item: Verification, Breadth, and Next step, plus a link to
+each affected task's README Verifier section when one exists. Then one table per item kind, with a row for each
 recommendation that has both a `proposed_task` and mapped `items`. A finding or
 item without a recommendation appears in the report with no suggestion.
 
@@ -196,6 +198,16 @@ item without a recommendation appears in the report with no suggestion.
 scenario or change, then what the verifier must require or reject. Leave it
 `null` when the next action is collecting evidence, fixing the agent, or
 reviewing scope rather than a task.
+
+**Also author, for the proposal the user selects:** `details`, filled only after
+selection. Leave it out for every other recommendation, and never set it without a
+`proposed_task`. All three fields are short prose in the same plain voice.
+
+| Field | What to write |
+|---|---|
+| `verification` | What the verifier must accept and reject, and any trust boundary still open |
+| `breadth` | Provisional inputs, variations, and exclusions. Label counts provisional until agreed |
+| `next_step` | `auto_tool_gap`, `manual_design`, or `more_measurement` |
 
 **Avoid:** "Add a task for insufficient evidence."
 

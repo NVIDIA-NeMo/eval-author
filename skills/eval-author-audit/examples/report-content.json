@@ -209,7 +209,12 @@
       "items": [
         "missing_evidence"
       ],
-      "proposed_task": "Supply a source without an answer and require the agent to acknowledge that limitation."
+      "proposed_task": "Supply a source without an answer and require the agent to acknowledge that limitation.",
+      "details": {
+        "verification": "Accept a reply that says the sources do not contain the answer. Reject a reply that supplies a quotation, a participant, or a count, because none can come from the supplied source.",
+        "breadth": "Provisionally three inputs: no answer in the source, a partial answer, and an answer that exists only in a different source. Exclude multi-turn variants until the first set is agreed.",
+        "next_step": "manual_design"
+      }
     },
     {
       "id": "R3",

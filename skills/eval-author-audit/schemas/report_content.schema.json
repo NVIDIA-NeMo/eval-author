@@ -678,6 +678,45 @@
             }
           ],
           "x-authored": false
+        },
+        "details": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "verification",
+                "breadth",
+                "next_step"
+              ],
+              "properties": {
+                "verification": {
+                  "$ref": "#/$defs/prose",
+                  "x-authored": true,
+                  "description": "What the verifier must accept and reject, and any trust boundary still open."
+                },
+                "breadth": {
+                  "$ref": "#/$defs/prose",
+                  "x-authored": true,
+                  "description": "Provisional input examples, variations, and exclusions. Counts stay provisional until the user agrees them."
+                },
+                "next_step": {
+                  "enum": [
+                    "auto_tool_gap",
+                    "manual_design",
+                    "more_measurement"
+                  ],
+                  "x-authored": false
+                }
+              },
+              "x-authored": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "x-authored": false,
+          "description": "Optional. Fill it only for a proposal the user selected. The report shows it under that item in Next actions."
         }
       },
       "x-authored": false

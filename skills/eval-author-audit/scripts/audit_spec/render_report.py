@@ -394,6 +394,29 @@ def finding_paragraph(model: content.Content, row: dict) -> str:
     return finding_explanation(model, row) + " " + citation
 
 
+def detail_lines(model: content.Content, row: dict) -> list[str]:
+    """Nested bullets for a proposal the user selected: its details, and the Verifier section links that exist."""
+    details = row.get("details")
+    if not details:
+        return []
+    lines = [
+        "   - **Verification:** " + prose(model, details["verification"]),
+        "   - **Breadth:** " + prose(model, details["breadth"]),
+        "   - **Next step:** " + layout.NEXT_STEPS[details["next_step"]],
+    ]
+    finding = next(item for item in model.data["findings"] if item["id"] == row["finding_id"])
+    links = []
+    for task_id in dict.fromkeys(ref["task_id"] for ref in finding["tasks"]):
+        task = model.tasks[task_id]
+        readme = model.source(task["source"]) / "README.md"
+        if readme.is_file() and re.search(r"^#{1,6}\s+Verifier\b", readme.read_text(errors="replace"), re.M):
+            target = path_target(posixpath.join(model.sources[task["source"]]["path"], "README.md")) + "#verifier"
+            links.append(md_link(task_identifier(model, task_id) + " Verifier section", target))
+    if links:
+        lines.append("   - **Verifier controls:** " + ", ".join(links))
+    return lines
+
+
 def proposal_lead(model: content.Content, row: dict, jump) -> str:
     """The finding link, plus the revised task's link, which the proposal text cannot repeat."""
     lead = jump(row["id"])
@@ -562,14 +585,14 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
     if data["recommendations"]:
         add(["### " + layout.SUBHEADINGS["next_actions"], ""], "recommendations")
         ranked = sorted(data["recommendations"], key=lambda row: row["order"])
-        add(
-            [
+        next_actions = []
+        for rank, row in enumerate(ranked, 1):
+            next_actions.append(
                 f"{rank}. {layout.PRIORITIES[row['priority']]} priority - {layout.ACTIONS[row['action']]}: "
                 + jump(row["finding_id"])
-                for rank, row in enumerate(ranked, 1)
-            ],
-            "recommendations",
-        )
+            )
+            next_actions.extend(detail_lines(model, row))
+        add(next_actions, "recommendations")
         add([""], "recommendations")
     for kind, title in layout.KINDS:
         add(["### " + title, ""], "recommendations")

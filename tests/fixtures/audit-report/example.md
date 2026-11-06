@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-[eval-author-audit-report]: urn:eval-author:audit-report:%7B%22body_sha256%22%3A%20%221effd16e180f672a3fc4bea88baa83c93397f072fbe6475f9ad3ba5d4c7f40ae%22%2C%20%22content_sha256%22%3A%20%22798365c34d1e907ea77c7f91b56aff102c66063597a41406d19ebe1463dc9d8c%22%2C%20%22renderer_version%22%3A%201%2C%20%22sources_sha256%22%3A%20%22c3f754c65550da88c25a6f2457ee1139d23bc0181574efe31c2cdec19c9d535b%22%2C%20%22validator_version%22%3A%201%7D
+[eval-author-audit-report]: urn:eval-author:audit-report:%7B%22body_sha256%22%3A%20%2221445ae37b05a1ccb9d00eea9bcc9c61609d58225c6130ea55628eeaf2c04e1a%22%2C%20%22content_sha256%22%3A%20%224ac97454cee3e6dd1a9894962e205422f81e54038319d63826d48b814115181c%22%2C%20%22renderer_version%22%3A%201%2C%20%22sources_sha256%22%3A%20%22c3f754c65550da88c25a6f2457ee1139d23bc0181574efe31c2cdec19c9d535b%22%2C%20%22validator_version%22%3A%201%7D
 
 # Audit coverage report: research-agent
 
@@ -62,6 +62,9 @@ The recommendations draw on the inspected task definitions, the audit specificat
 
 1. High priority - Repair the verifier: [Advisory 1](#advisory-1---the-verifier-accepts-an-unchecked-success-response)
 2. Medium priority - Add a task: [Finding 1](#finding-1---coverage-gaps)
+   - **Verification:** Accept a reply that says the sources do not contain the answer. Reject a reply that supplies a quotation, a participant, or a count, because none can come from the supplied source.
+   - **Breadth:** Provisionally three inputs: no answer in the source, a partial answer, and an answer that exists only in a different source. Exclude multi-turn variants until the first set is agreed.
+   - **Next step:** Needs manual task design
 3. Low priority - Collect more evidence: [Finding 2](#finding-2---retained-controls-are-unavailable)
 4. Medium priority - Revise a task: [Finding 3](#finding-3---quotation-accuracy-is-unchecked)
 
