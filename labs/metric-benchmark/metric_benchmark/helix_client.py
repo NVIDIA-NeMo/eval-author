@@ -75,7 +75,15 @@ class HelixClient:
 
     def provenance(self) -> dict:
         packages = {}
-        for name in ("nemo-helix-plugin", "nemo-evals-plugin", "nhx-evals-sdk", "harbor"):
+        for name in (
+            "nemo-helix-plugin",
+            "nemo-evals-plugin",
+            "nhx-evals-sdk",
+            "harbor",
+            "nemo-fabric",
+            "nemo-fabric-runtime",
+            "nemo-fabric-adapter-contract",
+        ):
             try:
                 packages[name] = version(name)
             except PackageNotFoundError:

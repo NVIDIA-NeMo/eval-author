@@ -12,7 +12,7 @@ resolved execution settings, packaging and mechanically derived agent targets.
 
 Use a separately installed Helix client with Harbor 0.24.0 and the evals SDK; keep
 it separate from the default benchmark environment (Harbor 0.20.0). The client
-records installed package versions and the deployed cluster response in
+records installed package versions (including Fabric) and the deployed cluster response in
 `provenance.json`; publication refuses an unqualified Harbor client version.
 The authenticated context needs an authorized workspace, native task/taskset
 publication and image-build permissions. Do not put credentials in YAML.
@@ -21,7 +21,10 @@ Keep deployment YAML, publication outputs and live evidence outside the checkout
 Local execution may explicitly select Harbor 0.24.0 in its own client environment.
 This permits the same installed adapter on both backends without changing the
 prepared agent. An adapter must be installed in each execution worker; arbitrary
-Python import paths do not cause automatic worker package installation.
+Python import paths do not cause automatic worker package installation. Fabric
+requires the task-side package to match the worker release; use the deployment's
+qualified client/adapter versions. The cluster revision alone does not report
+every worker package version; preserve job specifications and startup failures.
 
 ## Packaging configuration
 
