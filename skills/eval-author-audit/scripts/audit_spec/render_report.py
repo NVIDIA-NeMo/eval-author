@@ -93,7 +93,7 @@ def task_mentions(model: content.Content, value: str):
         yield match, identifiers[match[0]]
 
 
-FINDING_ID = re.compile(r"\{(F[1-9][0-9]*)\}")
+FINDING_ID = content.FINDING_REFERENCE
 GAP = "coverage_gaps"
 
 

@@ -927,3 +927,24 @@ def test_an_absolute_content_path_works_through_a_symlinked_repository(audit_rep
     link = root.parent / (root.name + "-link")
     link.symlink_to(root)
     assert content.load(link / "report-content.json", root.resolve()).path == (root / "report-content.json").resolve()
+
+
+def test_a_prose_reference_to_a_missing_finding_is_rejected(audit_report):
+    content, _, root = audit_report
+    data = example_data(root)
+    data["findings"][2]["explanation"] += " See {F9}."
+    save(root, data)
+    with pytest.raises(content.ContentError) as caught:
+        load(audit_report)
+    rows = [row for row in caught.value.errors if row["rule"] == "unknown_finding_reference"]
+    assert [row["field"] for row in rows] == ["content.findings[2].explanation"]
+    assert "{F9}" in rows[0]["fix"]
+
+
+def test_braces_that_are_not_finding_references_pass_through(audit_report):
+    _, renderer, root = audit_report
+    data = example_data(root)
+    data["findings"][2]["explanation"] += " The F1 score and {kind, label} stay as written."
+    save(root, data)
+    text = renderer.render(load(audit_report))[0].decode()
+    assert "The F1 score and \\{kind, label\\} stay as written." in text

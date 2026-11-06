@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _schema import load_audit_spec, validate_audit_spec  # noqa: E402
 
 VERSION = 1
+FINDING_REFERENCE = re.compile(r"\{(F[1-9][0-9]*)\}")
 SCHEMA_PATH = Path(__file__).resolve().parents[2] / "schemas/report_content.schema.json"
 CONTENT_PATH = ".eval-author/.working/audit/report-content.json"
 MAX_BYTES = 8_000_000
@@ -456,6 +457,16 @@ def _references(model: Content) -> list[dict]:
         check(f"content.verifier_review.checks[{index}]", review_check)
     if not errors:
         check("content.verifier_review", lambda: _controls(model))
+    for path, value in prose_fields(data, visible_only=True):
+        for match in FINDING_REFERENCE.finditer(value):
+            if match[1] not in findings:
+                errors.append(
+                    issue(
+                        path,
+                        "unknown_finding_reference",
+                        f"{match[0]} does not match a finding ID. Use the ID of an existing finding or remove the reference",
+                    )
+                )
     return errors
 
 
