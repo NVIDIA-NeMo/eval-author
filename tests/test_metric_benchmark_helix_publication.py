@@ -5,26 +5,33 @@ import shutil
 from pathlib import Path
 
 import pytest
-from metric_benchmark.config import HelixExecution, PinnedInput, load_cases
-from metric_benchmark.helix_publication import PublicationSettings, PublishAgent, plan_publication, publish_helix_inputs
+from metric_benchmark.config import HelixExecution, load_execution
+from metric_benchmark.helix_publication import (
+    PublicationPlan,
+    PublishAgent,
+    load_publication_settings,
+    plan_publication,
+    publish_helix_inputs,
+)
 from metric_benchmark.io import file_manifest, input_digest, read_json
-from test_metric_benchmark_config import prepared_benchmark
+from test_metric_benchmark_config import AGENT_DIR, FIXTURE, prepared_benchmark
 
 
-def prepared(tmp_path):
+def prepared(tmp_path, *, task_image=False):
     experiment, _ = prepared_benchmark(tmp_path)
     from metric_benchmark.signing import sign_benchmark
 
+    shutil.copyfile(FIXTURE / "helix/execution.yml", tmp_path / "execution.yml")
+    if task_image:
+        shutil.copyfile(FIXTURE / "helix/agent-task-image.yml", tmp_path / AGENT_DIR / "agent.yml")
+        bundle = tmp_path / "runtime"
+        bundle.mkdir()
+        (bundle / "agent.yaml").write_text("name: synthetic-test-agent\n")
     sign_benchmark(experiment, resign=True)
-    loaded = load_cases(tmp_path / "cases.yml")
-    settings = PublicationSettings(
-        agents={
-            case_id: {agent.agent_bundle_id: PublishAgent() for agent in case.case.agents()}
-            for case_id, case in loaded.cases.items()
-        }
-    )
-    execution = HelixExecution(base_url="https://helix.example.com", workspace="default", dispatcher_profile="default")
-    return loaded, execution, settings
+    loaded = load_execution(tmp_path / "cases.yml", tmp_path / "execution.yml")
+    example = "publication-task-image.yml" if task_image else "publication-builtin.yml"
+    settings = load_publication_settings(FIXTURE / "helix" / example)
+    return loaded.inputs, loaded.settings, settings
 
 
 class Publisher:
@@ -130,21 +137,7 @@ def test_publication_cannot_override_prepared_agent():
 
 
 def task_image_inputs(tmp_path):
-    loaded, execution, settings = prepared(tmp_path / "input")
-    case_id, case = next(iter(loaded.cases.items()))
-    agent = case.case.baseline
-    bundle = loaded.root / "runtime"
-    bundle.mkdir()
-    (bundle / "agent.py").write_text("print('prepared runtime')\n")
-    agent.inputs["runtime"] = PinnedInput(path="runtime", kind="directory", sha256=input_digest(bundle))
-    agent.harbor = {"import_path": "installed.module:Agent", "kwargs": {"runtime_path": "{input:runtime}"}}
-    settings.agents[case_id][agent.agent_bundle_id] = PublishAgent(
-        bundle_input="runtime",
-        transport="task_image",
-        image_bundle_path="environment/runtime",
-        image_mount_path="/opt/agents/baseline",
-    )
-    return loaded, execution, settings
+    return prepared(tmp_path / "input", task_image=True)
 
 
 def test_task_image_overlay_preserves_signed_task_identity(tmp_path):
@@ -160,10 +153,12 @@ def test_task_image_overlay_preserves_signed_task_identity(tmp_path):
     for task in case.tasks:
         context = tmp_path / "output/contexts" / task.name / Path(task.path).name
         assert input_digest(context) == task.context_sha256 != task.sha256
-        assert (context / "environment/runtime/agent.py").is_file()
+        assert (context / "environment/benchmark-agents/baseline/agent.yaml").is_file()
         assert (context / "instruction.md").read_bytes() == (Path(task.path) / "instruction.md").read_bytes()
     target = result.cases[case.case_id].targets[case.agents[0].agent_bundle_id]
-    assert target["agent_kwargs"] == {"runtime_path": "/opt/agents/baseline"}
+    assert target["agent_kwargs"] == {"fabric_config_target": "/opt/benchmark-agents/baseline"}
+    assert target["env_secrets"] == {"OPENAI_API_KEY": "workspace/model-access"}
+    assert target["env_vars"] == {}
 
 
 def test_snapshot_interruption_does_not_publish_partial_copy(tmp_path, monkeypatch):
@@ -228,9 +223,10 @@ def test_fabric_transport_only_replaces_bundle_upload(tmp_path):
     spec = settings.agents[case_id][agent.agent_bundle_id]
     agent.harbor = {
         "import_path": FABRIC_INSTALLED_AGENT,
+        "env": agent.harbor["env"],
         "kwargs": {
             "fabric_config_bundle": "{input:runtime}",
-            "fabric_config_target": "/opt/agents/baseline",
+            "fabric_config_target": "/opt/benchmark-agents/baseline",
             "fabric_config": {"temperature": 0.0},
             "fabric_package": "fixed==1.0",
         },
@@ -242,3 +238,37 @@ def test_fabric_transport_only_replaces_bundle_upload(tmp_path):
     spec.image_mount_path = "/opt/agents/mutant"
     with pytest.raises(ValueError, match="upload destination"):
         agent_target(agent, spec)
+
+
+@pytest.mark.parametrize("task_image", [False, True])
+def test_example_plan_only_cli(tmp_path, monkeypatch, task_image):
+    from publish_helix_inputs import main
+
+    root = tmp_path / "input"
+    loaded, _, _ = prepared(root, task_image=task_image)
+    output = tmp_path / "plan"
+    example = "publication-task-image.yml" if task_image else "publication-builtin.yml"
+    # Context-derived coordinates remain unresolved during offline planning.
+    shutil.copyfile(FIXTURE / "helix/execution-context.yml", root / "execution.yml")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "publish_helix_inputs.py",
+            "--cases",
+            str(root / "cases.yml"),
+            "--execution",
+            str(root / "execution.yml"),
+            "--publication",
+            str(FIXTURE / "helix" / example),
+            "--output",
+            str(output),
+            "--plan-only",
+        ],
+    )
+    main()
+    plan = PublicationPlan.model_validate(read_json(output / "publication.json"))
+    assert plan.cases_sha256 == loaded.identity
+    assert plan.execution.workspace is None
+    assert plan.execution.base_url is None
+    assert len(plan.cases[0].tasks) == 3
+    assert list(output.iterdir()) == [output / "publication.json"]

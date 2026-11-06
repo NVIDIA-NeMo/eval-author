@@ -21,28 +21,21 @@ DESCRIPTION_PATH = Path("agents/rho-agent/description.json")
 TASK_IDS = ["inspect-files", "read-config", "search-workspace"]
 
 
-def test_helix_backend_signing_and_local_execution_boundary(tmp_path):
+@pytest.mark.parametrize("example", ["execution.yml", "execution-context.yml"])
+def test_helix_backend_signing_and_local_execution_boundary(tmp_path, example):
     from metric_benchmark.config import HelixExecution
     from metric_benchmark.execution import execute_benchmark
     from metric_benchmark.signing import check_benchmark, sign_benchmark
 
     experiment, _ = prepared_benchmark(tmp_path)
-    write_definition(
-        experiment,
-        "execution.yml",
-        {
-            "backend": "helix",
-            "base_url": "https://helix.example.com/",
-            "workspace": "benchmark",
-            "dispatcher_profile": "workers",
-            "sandbox": {"profile": "evaluation"},
-        },
-    )
+    shutil.copyfile(FIXTURE / "helix" / example, tmp_path / "execution.yml")
     sign_benchmark(experiment, resign=True)
     check_benchmark(experiment)
     benchmark = load_benchmark(experiment)
     assert isinstance(benchmark.execution.settings, HelixExecution)
-    assert benchmark.execution.settings.base_url == "https://helix.example.com"
+    assert benchmark.execution.settings.base_url == (
+        "https://helix.example.com" if example == "execution.yml" else None
+    )
     loaded = load_execution(tmp_path / "cases.yml", tmp_path / "execution.yml")
     output = tmp_path / "output"
     with pytest.raises(ValueError, match="Helix submission stage"):

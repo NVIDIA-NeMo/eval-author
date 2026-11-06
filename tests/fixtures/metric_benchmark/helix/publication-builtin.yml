@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Matches the unchanged agents/rho-agent/agent.yml control cohort.
+agents:
+  rho-agent:
+    baseline:
+      transport: builtin
+    mutant:
+      transport: builtin
+    mutant-no-search:
+      transport: builtin

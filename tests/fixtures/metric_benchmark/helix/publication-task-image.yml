@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Pair with agent-task-image.yml as the prepared agent manifest.
+agents:
+  rho-agent:
+    baseline:
+      transport: task_image
+      bundle_input: runtime
+      image_bundle_path: environment/benchmark-agents/baseline
+      image_mount_path: /opt/benchmark-agents/baseline
+      env_secrets:
+        OPENAI_API_KEY: workspace/model-access
+    mutant:
+      transport: builtin
+    mutant-no-search:
+      transport: builtin
