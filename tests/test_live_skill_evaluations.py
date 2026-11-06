@@ -966,6 +966,7 @@ def test_seed_datasets_are_bounded_and_have_negative_cases(live):
         "skills/mlflow-to-atif",
         "skills/eval-author-task-create",
         "skills/eval-author-environment",
+        "skills/eval-author-rubric",
         "team-skills/ethos/ethos-orchestrate",
         "team-skills/ethos/ethos-explore",
         "team-skills/ethos/ethos-write",
