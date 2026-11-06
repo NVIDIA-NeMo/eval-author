@@ -318,6 +318,8 @@ def _measurement(model: Content, identifier: str):
 
 def trace_path(model: Content, entry: dict) -> Path:
     """Resolve a measured input's trace through the aggregate's artifact map."""
+    if model.aggregate is None:
+        raise ValueError("Resolve a trace only after the measurement aggregate is loaded")
     aggregate_path = model.source(model.data["inputs"]["measurement"])
     artifacts = model.aggregate["binding"].get("artifacts", {})
     original = entry["subject"]["trace"]
@@ -421,7 +423,9 @@ def _references(model: Content) -> list[dict]:
             ):
                 raise ValueError("An executed-control finding requires a saved receipt")
             if row["category"] == "missing_task" and row["status"] != "confirmed":
-                raise ValueError("A missing-task finding must be confirmed; record an unproven or resolved gap elsewhere")
+                raise ValueError(
+                    "A missing-task finding must be confirmed; record an unproven or resolved gap elsewhere"
+                )
             if row["category"] == "verifier_cheating" and not row["tasks"]:
                 raise ValueError("A verifier cheating finding must identify an affected task revision")
             if row["advisory"] is not None and (row["category"] != "verifier_cheating" or row["status"] == "unproven"):

@@ -954,7 +954,9 @@ def test_only_a_manifest_source_can_vouch_for_a_historical_task_revision(audit_r
     historical = "a" * 64
     run = root / "report-sources/run.json"
     run.write_text(
-        json.dumps({**json.loads(run.read_text()), "task_sha256": historical, "task_dir": "report-sources/tasks/source-answer"})
+        json.dumps(
+            {**json.loads(run.read_text()), "task_sha256": historical, "task_dir": "report-sources/tasks/source-answer"}
+        )
     )
     data = example_data(root)
     next(row for row in data["sources"] if row["id"] == "S5")["sha256"] = content.sha(run.read_bytes())
@@ -1021,7 +1023,9 @@ def test_details_render_under_their_next_action_and_only_for_selected_proposals(
     position = next(i for i, line in enumerate(lines) if line.startswith("  - Revise a task"))
     assert lines[position + 1].startswith("  - **Verification:** Accept a reply that cites the read source.")
     assert lines[position + 3] == "  - **Next step:** Needs manual task design"
-    assert sum(line.startswith("  - **Verification:**") for line in lines) == 2  # the example's selected proposal and this one
+    assert (
+        sum(line.startswith("  - **Verification:**") for line in lines) == 2
+    )  # the example's selected proposal and this one
 
 
 def test_the_verifier_link_appears_only_when_the_task_readme_has_a_verifier_section(audit_report):

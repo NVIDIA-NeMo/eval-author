@@ -586,7 +586,9 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
     if not data["recommendations"]:
         add([layout.COPY["no_recommendations"], ""], "recommendations")
     else:
-        add([layout.COPY["recommended_with_ethos" if data["inputs"]["ethos"] else "recommended"], ""], "recommendations")
+        add(
+            [layout.COPY["recommended_with_ethos" if data["inputs"]["ethos"] else "recommended"], ""], "recommendations"
+        )
     ranked = sorted(data["recommendations"], key=lambda row: (layout.PRIORITY_RANK[row["priority"]], row["order"]))
     for row in ranked:
         details = detail_lines(model, row)
@@ -927,7 +929,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--content", type=Path, default=Path(content.CONTENT_PATH))
     parser.add_argument("--lint-prose", action="store_true")
     parser.add_argument("--convert-legacy", metavar="SHA256")
-    parser.add_argument("--discard-edits", metavar="SHA256", help="Replace a hand-edited report; the edited copy is kept")
+    parser.add_argument(
+        "--discard-edits", metavar="SHA256", help="Replace a hand-edited report; the edited copy is kept"
+    )
     args = parser.parse_args(argv)
     try:
         result = refresh(
