@@ -186,10 +186,20 @@ class Content:
         }
 
 
+def relative_to_repo(repo: Path, path: Path) -> str:
+    """Resolve only the repository prefix, so a symlinked repo path still works and in-repo symlinks stay visible."""
+    if not path.is_absolute():
+        return path.as_posix()
+    for base in (path, *path.parents):
+        if base.exists() and base.resolve() == repo:
+            return path.relative_to(base).as_posix()
+    return path.relative_to(repo).as_posix()
+
+
 def load(path: Path, repo: Path, *, lint: bool = False) -> Content:
     repo = repo.resolve(strict=True)
     try:
-        path = local(repo, path.relative_to(repo).as_posix() if path.is_absolute() else path.as_posix())
+        path = local(repo, relative_to_repo(repo, path))
         raw = read_bytes(path)
         data = decode(raw)
     except (OSError, ValueError) as exc:
@@ -408,6 +418,8 @@ def _references(model: Content) -> list[dict]:
                 model.sources[ref]["kind"] == "receipt" for ref in row["evidence"]
             ):
                 raise ValueError("An executed-control finding requires a saved receipt")
+            if row["category"] == "missing_task" and row["status"] != "confirmed":
+                raise ValueError("A missing-task finding must be confirmed; record an unproven or resolved gap elsewhere")
             if row["category"] == "verifier_cheating" and not row["tasks"]:
                 raise ValueError("A verifier cheating finding must identify an affected task revision")
             if row["advisory"] is not None and (row["category"] != "verifier_cheating" or row["status"] == "unproven"):

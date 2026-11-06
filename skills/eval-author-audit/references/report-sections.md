@@ -131,7 +131,7 @@ with recommendation:
 ## Key findings
 
 **The renderer writes:**
-- `Finding 1 - Coverage gaps`, always the first key finding, with computed counts of undemonstrated and unmapped items and a link to the coverage tables. Whether coverage was measured, and how to measure it, appear only in Summary and in Scope and Execution Evidence. Don't restate either in any finding.
+- `Finding 1 - Coverage gaps`, the first key finding when any item lacks demonstrated coverage or a mapped task, or a `missing_task` finding exists. It carries computed counts of undemonstrated and unmapped items and a link to the coverage tables. Whether coverage was measured, and how to measure it, appear only in Summary and in Scope and Execution Evidence. Don't restate either in any finding.
 - Finding numbers, headings, evidence citations, and `Proposed task:` lines
 
 **You author:** `title` and `explanation` for every finding that isn't an
@@ -140,7 +140,9 @@ advisory, plus the `proposed_task` of each related recommendation.
 ### Missing-task findings
 
 Findings with category `missing_task` are folded into `Finding 1 - Coverage gaps`.
-`Finding 1 - Coverage gaps` is always the first key finding. Each missing-task
+A `missing_task` finding must have status `confirmed`. When there are no gaps, no
+coverage-gaps finding is rendered or counted, and the other findings number from 1.
+Each missing-task
 finding renders as a bullet that opens with its title in bold, with no evidence
 citation. Its proposed task appears as a nested bullet. The counts are
 already there, so name the uncovered behaviors the way a reader knows them and

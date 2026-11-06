@@ -60,8 +60,8 @@ class Review:
 
 
 def findings_links(report: Path, text: str) -> set[Path]:
-    """Only links accompanied by prose in Findings and limitations count."""
-    section = re.search(r"^## Findings and limitations\s*\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+    """Only links accompanied by prose in Key findings count. Unconverted legacy reports use Findings and limitations."""
+    section = re.search(r"^## (?:Key findings|Findings and limitations)\s*\n(.*?)(?=^## |\Z)", text, re.M | re.S)
     if section is None:
         return set()
     content = re.sub(r"<!--.*?-->|```.*?```|~~~.*?~~~", "", section[1], flags=re.S)
@@ -185,6 +185,8 @@ def content_model(repo: Path, path: Path):
     name = "report_content"
     module = sys.modules.get(name)
     if module is None or module.__file__ is None or Path(module.__file__).resolve() != scripts / "report_content.py":
+        if not (scripts / "report_content.py").is_file():
+            raise ValueError("Install the sibling eval-author-audit skill for structured report review")
         spec = importlib.util.spec_from_file_location(name, scripts / "report_content.py")
         if spec is None or spec.loader is None:
             raise ValueError("Install the sibling eval-author-audit skill for structured report review")

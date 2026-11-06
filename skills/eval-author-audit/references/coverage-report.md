@@ -31,7 +31,7 @@ python <audit-skill-dir>/scripts/audit_spec/render_report.py --repo . \
 
 - Link the generated Markdown after a successful write. Report actual validation and rendering outcomes only.
 - Preserve the existing report when inputs are invalid, stale, or unavailable.
-- Restore directly edited generated Markdown from its last generated version. Make the requested correction in the field named by the renderer, then rerun it. Never interpret or merge Markdown edits automatically.
+- Never interpret or merge direct Markdown edits. When the renderer reports `generated_output_modified`, make the requested correction in the field it names and rerun. To discard the edits instead, rerun with `--discard-edits <sha>` using the digest in the error. The edited copy is kept at `.eval-author/.working/audit/edited-report-<sha>.md`.
 - Leave hand-authored legacy reports readable until the user requests conversion. On conversion, author validated content from the reviewed facts and preserve stable IDs, decisions, and links. Pass the old Markdown's SHA-256 with `--convert-legacy <digest>` only for that explicit conversion. The renderer retains its original bytes outside the generated report.
 - Leave HTML, all READMEs, and the suite report generator unchanged.
 

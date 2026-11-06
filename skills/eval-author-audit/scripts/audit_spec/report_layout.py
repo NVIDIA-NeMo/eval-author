@@ -24,7 +24,7 @@ ACTIONS = {
 }
 PRIORITIES = {"high": "High", "medium": "Medium", "low": "Low"}
 TABLES = {
-    "recommended": ("Functionality", "Intended check and required evidence"),
+    "recommended": ("Functionality", "Proposed task"),
     "tasks": ("Task", "Behavior", "Capabilities and tools", "Findings"),
     "coverage": ("Functionality", "Intended check and required evidence", "Tasks", "Run evidence"),
     "current": ("", "Current audit"),

@@ -1883,7 +1883,7 @@ def test_suite_refresh_keeps_audit_recommendations_in_audit_report(tmp_path):
     audit = write(
         tmp_path,
         ".eval-author/audit-coverage-report.md",
-        "# Audit coverage report\n\n## Findings and limitations\n"
+        "# Audit coverage report\n\n## Key findings\n"
         "A forged success artifact received credit in the selected control.\n\n"
         "## Next actions and open questions\n"
         "1. R1: Fix trusted-ledger verification. Selected, screening remains unproven.\n",

@@ -71,9 +71,9 @@ def report_links(payload, modules, *, intended=False, findings=False):
     target = str(Path(payload["state"]["repository"]) / lifecycle["findings"]["report"]["path"])
     links = {"report": {"target": target}}
     if intended:
-        links["intended_coverage"] = {"target": target, "fragment": "intended-coverage"}
+        links["intended_coverage"] = {"target": target, "fragment": "capabilities-audited"}
     if findings:
-        links["findings"] = {"target": target, "fragment": "findings-and-evidence"}
+        links["findings"] = {"target": target, "fragment": "key-findings"}
     payload["facts"]["links"] = links
 
 
@@ -457,7 +457,7 @@ def test_stage_inapplicable_links_are_rejected(modules, stage, key):
     payload = checkpoint(modules, stage)
     report_links(payload, modules)
     report = payload["facts"]["links"]["report"]
-    payload["facts"]["links"][key] = {**report, "fragment": "intended-coverage"}
+    payload["facts"]["links"][key] = {**report, "fragment": "capabilities-audited"}
     with pytest.raises(ValueError, match="audit links"):
         modules[2].render(payload)
 

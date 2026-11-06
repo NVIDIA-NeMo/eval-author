@@ -19,14 +19,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import report_content as content  # noqa: E402
 import report_layout as layout  # noqa: E402
 
-VERSION = 9
+VERSION = 1
 OUTPUT = ".eval-author/audit-coverage-report.md"
 HEADER = "[eval-author-audit-report]: urn:eval-author:audit-report:"
-LEGACY_HEADER = "<!-- eval-author-audit-report "
 
 
 def literal(value: str) -> str:
-    return re.sub(r"([\\`*_{}\[\]()#!|~<>])", r"\\\1", value)
+    return re.sub(r"([\\`*_{}\[\]()#!|~<>&])", r"\\\1", value)
 
 
 def cell(value: str) -> str:
@@ -43,7 +42,7 @@ def md_link(label: str, target: str) -> str:
 
 
 def path_target(path: str) -> str:
-    return quote(posixpath.relpath(path, posixpath.dirname(OUTPUT)), safe="/.#")
+    return quote(posixpath.relpath(path, posixpath.dirname(OUTPUT)), safe="/.")
 
 
 def anchor_target(heading: str) -> str:
@@ -102,11 +101,28 @@ def is_advisory(row: dict) -> bool:
     return row["category"] == "verifier_cheating" and row["status"] != "unproven"
 
 
-def finding_labels(data: dict) -> dict[str, str]:
-    """Map content finding IDs to report labels: Advisory 1..n, then Finding 1 (coverage gaps) and Finding 2..n."""
+def has_coverage_gaps(model: content.Content) -> bool:
+    """A coverage-gaps finding exists only when an item lacks demonstrated coverage or a mapped task."""
+    if "_has_gaps" not in model.__dict__:
+        covered, measured, _ = measurements(model)
+        items = model.spec["items"]
+        mapped = {row["item"] for row in model.data["task_mappings"] if row["tasks"]}
+        model.__dict__["_has_gaps"] = (
+            any(row["category"] == "missing_task" for row in model.data["findings"])
+            or any(item["name"] not in mapped for item in items)
+            or any(item["name"] not in covered for item in items if item["kind"] in measured)
+        )
+    return model.__dict__["_has_gaps"]
+
+
+def finding_labels(model: content.Content) -> dict[str, str]:
+    """Map content finding IDs to report labels: Advisory 1..n, then Finding 1 (coverage gaps, when any) and the rest."""
+    data = model.data
     labels = {row["id"]: f"Advisory {index}" for index, row in enumerate(filter(is_advisory, data["findings"]), 1)}
-    labels[GAP] = "Finding 1"
-    count = 1
+    count = 0
+    if has_coverage_gaps(model):
+        labels[GAP] = "Finding 1"
+        count = 1
     for row in data["findings"]:
         if row["id"] in labels:
             continue
@@ -119,7 +135,7 @@ def finding_labels(data: dict) -> dict[str, str]:
 
 
 def relabel(model: content.Content, value: str) -> str:
-    labels = finding_labels(model.data)
+    labels = finding_labels(model)
     return FINDING_ID.sub(lambda match: labels.get(match[1], match[0]), value)
 
 
@@ -150,8 +166,8 @@ def advisory_status(model: content.Content, row: dict) -> str:
 
 
 def finding_heading(model: content.Content, identifier: str) -> str:
-    labels = finding_labels(model.data)
-    if labels[identifier] == labels[GAP]:
+    labels = finding_labels(model)
+    if identifier == GAP or labels[identifier] == labels.get(GAP):
         return labels[GAP] + " - " + layout.COPY["coverage_gap_title"]
     row = next(row for row in model.data["findings"] if row["id"] == identifier)
     suffix = advisory_status(model, row) if is_advisory(row) else ""
@@ -186,7 +202,7 @@ def finding_explanation(model: content.Content, row: dict) -> str:
 def reference(model: content.Content, identifier: str, label: str | None = None) -> str:
     if identifier in model.tasks:
         return task_link(model, identifier)
-    labels = finding_labels(model.data)
+    labels = finding_labels(model)
     if identifier not in labels:
         recommendation = next((row for row in model.data["recommendations"] if row["id"] == identifier), None)
         if recommendation is None:
@@ -378,6 +394,16 @@ def finding_paragraph(model: content.Content, row: dict) -> str:
     return finding_explanation(model, row) + " " + citation
 
 
+def proposal_lead(model: content.Content, row: dict, jump) -> str:
+    """The finding link, plus the revised task's link, which the proposal text cannot repeat."""
+    lead = jump(row["id"])
+    if row["action"] != "revise_task":
+        return lead
+    finding = next(item for item in model.data["findings"] if item["id"] == row["finding_id"])
+    task_ids = list(dict.fromkeys(ref["task_id"] for ref in finding["tasks"]))
+    return lead + (" (" + ", ".join(task_link(model, task_id) for task_id in task_ids) + ")" if task_ids else "")
+
+
 def proposed_tasks(model: content.Content, finding_ids: set[str]) -> list[str]:
     lines = []
     for row in model.data["recommendations"]:
@@ -476,7 +502,7 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
             "",
             f"- **Date:** {identity['date']}",
             "- **Prepared by:** " + md_link("Eval Author", layout.EVAL_AUTHOR_URL),
-            f"- **Repository:** {literal(identity['repository'])}",
+            f"- **Repository:** {cell(identity['repository'])}",
             f"- **Audited commit:** {identity['commit']}" + (" (dirty working tree)" if identity["dirty"] else ""),
             "",
         ],
@@ -485,7 +511,8 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
     section(0, "summary")
     cheats = [row for row in data["findings"] if is_advisory(row)]
     key_findings = [row for row in data["findings"] if not is_advisory(row) and row["category"] != "missing_task"]
-    finding_count = len(key_findings) + 1
+    gaps_present = has_coverage_gaps(model)
+    finding_count = len(key_findings) + (1 if gaps_present else 0)
     task_proposals = [row for row in data["recommendations"] if row["proposed_task"] is not None]
     counts = layout.SUMMARY_COUNTS.format(
         advisories=len(cheats),
@@ -518,7 +545,10 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
         for row in cheats:
             add(_finding(model, row, level=4), f"findings[{data['findings'].index(row)}]")
     section(2, "findings")
-    add(coverage_gap_finding(model, covered, measured), "findings")
+    if gaps_present:
+        add(coverage_gap_finding(model, covered, measured), "findings")
+    elif not key_findings:
+        add([layout.COPY["no_findings"], ""], "findings")
     for row in key_findings:
         add(_finding(model, row), f"findings[{data['findings'].index(row)}]")
     section(3, "recommendations")
@@ -554,7 +584,7 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
                 rows.append(
                     [
                         literal(item["name"]) + " - " + prose(model, item["description"]),
-                        " ".join(jump(row["id"]) + ": " + prose(model, row["proposed_task"]) for row in proposals),
+                        " ".join(proposal_lead(model, row, jump) + ": " + prose(model, row["proposed_task"]) for row in proposals),
                     ]
                 )
         add(table("recommended", rows) if rows else [layout.COPY["no_proposals"], ""], "recommendations")
@@ -769,7 +799,7 @@ def render(model: content.Content) -> tuple[bytes, dict[int, str]]:
     return (HEADER + quote(json.dumps(metadata, sort_keys=True), safe="") + "\n\n" + body).encode(), owners
 
 
-def refresh(model: content.Content, *, convert_legacy: str | None = None) -> dict:
+def refresh(model: content.Content, *, convert_legacy: str | None = None, discard_edits: str | None = None) -> dict:
     output = content.local(model.repo, OUTPUT)
     if output == model.path or any(
         output == path or path.is_dir() and output.is_relative_to(path) for path in model.paths.values()
@@ -785,11 +815,11 @@ def refresh(model: content.Content, *, convert_legacy: str | None = None) -> dic
         )
     rendered, owners = render(model)
     previous = content.read_bytes(output) if output.exists() else None
-    legacy = False
+    backup_kind = None
     if previous is not None:
         first, _, body = previous.partition(b"\n\n")
-        if not first.startswith((HEADER.encode(), LEGACY_HEADER.encode())):
-            legacy = True
+        if not first.startswith(HEADER.encode()):
+            backup_kind = "legacy-report"
             if convert_legacy != content.sha(previous):
                 raise content.ContentError(
                     [
@@ -803,14 +833,13 @@ def refresh(model: content.Content, *, convert_legacy: str | None = None) -> dic
                 )
         else:
             try:
-                header = (
-                    json.loads(unquote(first.decode()[len(HEADER) :]))
-                    if first.startswith(HEADER.encode())
-                    else json.loads(first.decode()[len(LEGACY_HEADER) : -4])
-                )
-                if header["body_sha256"] != content.sha(body):
-                    raise ValueError("Generated Markdown was edited")
-            except (ValueError, KeyError) as exc:
+                header = json.loads(unquote(first.decode()[len(HEADER) :]))
+                modified = header["body_sha256"] != content.sha(body)
+            except (ValueError, KeyError):
+                modified = True
+            if modified and discard_edits == content.sha(previous):
+                backup_kind = "edited-report"
+            elif modified:
                 diff = list(
                     difflib.unified_diff(
                         rendered.decode().splitlines(),
@@ -834,13 +863,14 @@ def refresh(model: content.Content, *, convert_legacy: str | None = None) -> dic
                             **content.issue(
                                 "content." + field,
                                 "generated_output_modified",
-                                "Edit report-content.json at this field and preserve the generated output",
+                                "Edit report-content.json at this field and preserve the generated output. "
+                                "To discard the edits instead, rerun with --discard-edits " + content.sha(previous),
                             ),
                             "diff": "\n".join(diff),
                         }
                         for field in fields
                     ]
-                ) from exc
+                )
     if previous == rendered:
         current = content.load(model.path, model.repo)
         if current.digest != model.digest:
@@ -853,11 +883,11 @@ def refresh(model: content.Content, *, convert_legacy: str | None = None) -> dic
     if current.digest != model.digest:
         raise content.ContentError([content.issue("content", "concurrent_change", "Reload content before rendering")])
     output.parent.mkdir(parents=True, exist_ok=True)
-    if legacy:
+    if backup_kind:
         assert previous is not None
-        backup = content.local(model.repo, f".eval-author/.working/audit/legacy-report-{content.sha(previous)}.md")
+        backup = content.local(model.repo, f".eval-author/.working/audit/{backup_kind}-{content.sha(previous)}.md")
         if backup.exists() and content.read_bytes(backup) != previous:
-            raise ValueError("Legacy backup changed. Preserve it before conversion")
+            raise ValueError("Backup changed. Preserve it before replacing the report")
         backup.parent.mkdir(parents=True, exist_ok=True)
         backup.write_bytes(previous)
     temporary = None
@@ -883,10 +913,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--content", type=Path, default=Path(content.CONTENT_PATH))
     parser.add_argument("--lint-prose", action="store_true")
     parser.add_argument("--convert-legacy", metavar="SHA256")
+    parser.add_argument("--discard-edits", metavar="SHA256", help="Replace a hand-edited report; the edited copy is kept")
     args = parser.parse_args(argv)
     try:
         result = refresh(
-            content.load(args.content, args.repo, lint=args.lint_prose), convert_legacy=args.convert_legacy
+            content.load(args.content, args.repo, lint=args.lint_prose),
+            convert_legacy=args.convert_legacy,
+            discard_edits=args.discard_edits,
         )
     except content.ContentError as exc:
         print(json.dumps({"valid": False, "written": False, "errors": exc.errors}, indent=2))

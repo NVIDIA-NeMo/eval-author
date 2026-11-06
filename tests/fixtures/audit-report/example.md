@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-[eval-author-audit-report]: urn:eval-author:audit-report:%7B%22body_sha256%22%3A%20%22db10bc0efdaab5bb55a63b50505aa12e2290e2b08ecd351b9bd8d766238d4539%22%2C%20%22content_sha256%22%3A%20%22798365c34d1e907ea77c7f91b56aff102c66063597a41406d19ebe1463dc9d8c%22%2C%20%22renderer_version%22%3A%209%2C%20%22sources_sha256%22%3A%20%22c3f754c65550da88c25a6f2457ee1139d23bc0181574efe31c2cdec19c9d535b%22%2C%20%22validator_version%22%3A%201%7D
+[eval-author-audit-report]: urn:eval-author:audit-report:%7B%22body_sha256%22%3A%20%221effd16e180f672a3fc4bea88baa83c93397f072fbe6475f9ad3ba5d4c7f40ae%22%2C%20%22content_sha256%22%3A%20%22798365c34d1e907ea77c7f91b56aff102c66063597a41406d19ebe1463dc9d8c%22%2C%20%22renderer_version%22%3A%201%2C%20%22sources_sha256%22%3A%20%22c3f754c65550da88c25a6f2457ee1139d23bc0181574efe31c2cdec19c9d535b%22%2C%20%22validator_version%22%3A%201%7D
 
 # Audit coverage report: research-agent
 
@@ -67,19 +67,19 @@ The recommendations draw on the inspected task definitions, the audit specificat
 
 ### Capabilities
 
-| Functionality | Intended check and required evidence |
+| Functionality | Proposed task |
 | --- | --- |
 | cited\_answers - Answer with exact quotations. | [Advisory 1](#advisory-1---the-verifier-accepts-an-unchecked-success-response): Revise the verifier to compare the submitted quotation with verifier-owned source data and reject empty answers. |
 
 ### Tools
 
-| Functionality | Intended check and required evidence |
+| Functionality | Proposed task |
 | --- | --- |
-| read\_file - Read project sources. | [Finding 3](#finding-3---quotation-accuracy-is-unchecked): Require the trace to show a read\_file call on the cited source before the answer, and reject quotations that do not appear in what was read. |
+| read\_file - Read project sources. | [Finding 3](#finding-3---quotation-accuracy-is-unchecked) ([T1-source-answer](../report-sources/tasks/source-answer/instruction.md)): Require the trace to show a read\_file call on the cited source before the answer, and reject quotations that do not appear in what was read. |
 
 ### Failure cases
 
-| Functionality | Intended check and required evidence |
+| Functionality | Proposed task |
 | --- | --- |
 | missing\_evidence - Acknowledge missing evidence. | [Finding 1](#finding-1---coverage-gaps): Supply a source without an answer and require the agent to acknowledge that limitation. |
 

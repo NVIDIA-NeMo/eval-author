@@ -452,7 +452,8 @@
           "minItems": 0,
           "maxItems": 1000,
           "x-authored": false,
-          "description": "Not displayed. Run evidence shows only its computed status; put task-level concerns in a finding."
+          "description": "Not displayed. Run evidence shows only its computed status; put task-level concerns in a finding.",
+          "x-report-visible": false
         },
         "evidence": {
           "type": "array",

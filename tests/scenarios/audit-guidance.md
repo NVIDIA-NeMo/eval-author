@@ -178,7 +178,7 @@ From the specification checkpoint onward, inspect the human-readable report at
 `.eval-author/audit-coverage-report.md` separately from progress state. It must
 explain scope with available evidence, and map stable
 audit-item names to intended tests separately from observed run evidence. A test
-definition is not measured coverage. Its generated **coverage tables** must list
+definition is not measured coverage. Its generated **Coverage report** must list
 every current specification item by stable name and kind, explain the intended
 check in ordinary language, and state what evidence would demonstrate it. Those
 requirements must be distinguishable from existing test mappings and observed
@@ -607,7 +607,7 @@ further explanation in commentary must not replace the checkpoint's opening.
 deferred because no recorded runs exist yet.”
 
 **Inspect the artifacts:** The validated `.eval-author/audit.md` remains a draft
-pending content review. The Markdown report's generated **coverage tables**
+pending content review. The Markdown report's generated **Coverage report**
 contain all 30 current items, grouped or otherwise identifiable by kind. Compare
 its stable names, intended checks, and required evidence with the specification;
 there must be no omitted item or second conflicting scope list. Each item must

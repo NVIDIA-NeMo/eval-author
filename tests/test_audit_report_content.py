@@ -479,29 +479,6 @@ def test_finding_status_and_discovery_use_complete_sentences(audit_report, statu
     assert "Verifier cheating. Confirmed. Found by inspection." not in text
 
 
-@pytest.mark.parametrize("edited", [False, True])
-def test_old_generated_header_upgrades_only_when_body_is_unchanged(audit_report, edited):
-    content, renderer, root = audit_report
-    model = load(audit_report)
-    output = root / renderer.OUTPUT
-    output.parent.mkdir()
-    body = '<a id="old-finding"></a>\n\n# Earlier generated report\n'
-    metadata = {"renderer_version": 1, "body_sha256": content.sha(body.encode())}
-    original = renderer.LEGACY_HEADER + json.dumps(metadata) + " -->\n\n" + body
-    if edited:
-        original += "A direct edit.\n"
-    output.write_text(original)
-    if edited:
-        with pytest.raises(content.ContentError, match="generated_output_modified"):
-            renderer.refresh(model)
-        assert output.read_text() == original
-    else:
-        assert renderer.refresh(model)["written"]
-        assert output.read_text().startswith(renderer.HEADER)
-        assert_markdown_links(output.read_text(), renderer)
-        assert not renderer.refresh(model)["written"]
-
-
 @pytest.mark.parametrize(
     "change,field",
     [
@@ -897,3 +874,69 @@ def test_bound_traces_without_run_records_count_as_selected_runs(audit_report, m
         renderer.content, "trace_path", lambda model, entry: model.repo / ".eval-author" / entry["subject"]["trace"]
     )
     assert renderer.run_roots(model) == "1 selected agent run in `jobs/unattributed/`"
+
+
+def test_escaping_keeps_entities_literal_and_file_fragments_out_of_paths(audit_report):
+    _, renderer, _ = audit_report
+    assert renderer.literal("Quotes &amp; citations") == "Quotes \\&amp; citations"
+    assert "%23" in renderer.path_target("tasks/a#b.md") and "#" not in renderer.path_target("tasks/a#b.md")
+
+
+def test_repository_text_cannot_inject_blocks_into_the_header(audit_report):
+    _, renderer, root = audit_report
+    data = example_data(root)
+    data["identity"]["repository"] = "example/agent\n\n## Injected"
+    save(root, data)
+    text = renderer.render(load(audit_report))[0].decode()
+    assert "\n## Injected" not in text
+
+
+def test_no_coverage_gaps_means_no_coverage_gaps_finding(audit_report):
+    _, renderer, root = audit_report
+    data = example_data(root)
+    gap_ids = {row["id"] for row in data["findings"] if row["category"] == "missing_task"}
+    data["findings"] = [row for row in data["findings"] if row["id"] not in gap_ids]
+    data["recommendations"] = [row for row in data["recommendations"] if row["finding_id"] not in gap_ids]
+    save(root, data)
+    model = load(audit_report)
+    model.__dict__["_has_gaps"] = False
+    text = renderer.render(model)[0].decode()
+    assert "Coverage gaps" not in text
+    assert "Finding 1 - " in text and "Finding 1 - Coverage" not in text
+    assert "1 advisory, 2 findings" in text
+    model.data["findings"] = [row for row in model.data["findings"] if row["category"] == "verifier_cheating"]
+    model.data["recommendations"] = []
+    model.data["verifier_review"]["checks"] = []
+    assert "The audit records no key findings." in renderer.render(model)[0].decode()
+
+
+def test_a_missing_task_finding_must_be_confirmed(audit_report):
+    content, _, root = audit_report
+    data = example_data(root)
+    next(row for row in data["findings"] if row["category"] == "missing_task")["status"] = "resolved"
+    save(root, data)
+    with pytest.raises(content.ContentError, match="must be confirmed"):
+        load(audit_report)
+
+
+def test_a_hand_edited_report_is_recoverable_with_its_digest(audit_report):
+    content, renderer, root = audit_report
+    renderer.refresh(load(audit_report))
+    output = root / renderer.OUTPUT
+    output.write_text(output.read_text() + "\nA direct edit.\n")
+    edited = output.read_bytes()
+    with pytest.raises(content.ContentError, match=f"--discard-edits {content.sha(edited)}"):
+        renderer.refresh(load(audit_report))
+    with pytest.raises(content.ContentError, match="generated_output_modified"):
+        renderer.refresh(load(audit_report), discard_edits=content.sha(b"another digest"))
+    renderer.refresh(load(audit_report), discard_edits=content.sha(edited))
+    assert b"A direct edit." not in output.read_bytes()
+    backup = root / f".eval-author/.working/audit/edited-report-{content.sha(edited)}.md"
+    assert backup.read_bytes() == edited
+
+
+def test_an_absolute_content_path_works_through_a_symlinked_repository(audit_report):
+    content, _, root = audit_report
+    link = root.parent / (root.name + "-link")
+    link.symlink_to(root)
+    assert content.load(link / "report-content.json", root.resolve()).path == (root / "report-content.json").resolve()
