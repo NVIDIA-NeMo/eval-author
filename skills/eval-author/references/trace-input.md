@@ -28,7 +28,7 @@ This local-file path does not require Intake credentials or a CLI connection.
 ```bash
 python <inspect_trace_dir>/scripts/trace_privacy.py init --root .eval-author/.working/trace-inputs --task-id <id>
 python <inspect_trace_dir>/scripts/trace_privacy.py prepare --task-dir <workspace> \
-  --source <source> --source-kind <atif|mlflow|gym|trace> [--row <n>]
+  --source <source> --source-kind <atif|mlflow|gym|trace> [--row <n>] [--trace-id <id>]
 python <inspect_trace_dir>/scripts/trace_privacy.py audit-evidence --task-dir <workspace>
 python <inspect_trace_dir>/scripts/trace_privacy.py review-privacy --task-dir <workspace> \
   --reviewer-kind agent --note '<review findings>'

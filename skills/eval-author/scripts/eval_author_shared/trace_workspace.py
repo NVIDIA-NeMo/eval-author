@@ -531,7 +531,7 @@ def _prepare(args: argparse.Namespace) -> dict[str, Any]:
                 load_path = Path(staging) / source_path.name
                 load_path.write_text(repaired, encoding="utf-8")
         try:
-            trace = safe_trace.load_trace(load_path, kind, row=args.row)
+            trace = safe_trace.load_trace(load_path, kind, row=args.row, trace_id=args.trace_id)
             image_only_turns = safe_trace.image_only_user_turns(trace, kind)
             payload = trace.model_dump(mode="json")
             if load_path != source_path:
@@ -1808,6 +1808,7 @@ def _batch_prepare(args: argparse.Namespace) -> dict[str, Any]:
                         source=source_path,
                         source_kind=member["source_kind"],
                         row=member.get("row"),
+                        trace_id=None,
                     )
                 )
                 outcome = "prepared"
@@ -2151,13 +2152,16 @@ def _parser() -> argparse.ArgumentParser:
 
     prepare = subparsers.add_parser("prepare", help="load one trace through Compass, then bound and scrub it")
     prepare.add_argument("--task-dir", required=True, type=Path)
-    prepare.add_argument("--source", required=True, type=Path, help="source file holding exactly one trace")
+    prepare.add_argument(
+        "--source", required=True, type=Path, help="source file holding exactly one trace, or select it by --trace-id"
+    )
     prepare.add_argument(
         "--source-kind",
         required=True,
         help=f"trace_loading source kind whose traces record turns: {', '.join(PREPARE_SOURCE_KINDS)}",
     )
     prepare.add_argument("--row", type=int, help="one-based physical JSONL line, for Gym JSONL sources")
+    prepare.add_argument("--trace-id", help="Compass trace id to select from a source holding several traces")
     prepare.set_defaults(run=_prepare)
 
     audit = subparsers.add_parser("audit-evidence", help="report observation coverage without inferring correctness")

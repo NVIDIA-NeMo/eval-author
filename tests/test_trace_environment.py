@@ -1391,6 +1391,39 @@ def test_prepare_rejects_sources_without_recorded_turns(tmp_path: Path) -> None:
     assert result["error"] == "source kind trace does not record turns yet"
 
 
+def test_prepare_selects_one_trace_of_a_larger_source_by_trace_id(tmp_path: Path) -> None:
+    root = tmp_path / ".eval-author" / ".working" / "trace-environments"
+    atif = tmp_path / "source.atif.json"
+    _write_json(atif, _atif())
+    payload = _TRACE_ENVIRONMENT.safe_trace.load_trace(atif, "atif").model_dump(mode="json")
+    source = tmp_path / "source.trace.jsonl"
+    source.write_text("".join(json.dumps({**payload, "id": name}) + "\n" for name in ("first", "second")))
+
+    code, result = _run("init", "--root", str(root), "--task-id", "unselected")
+    assert code == 0, result
+    code, result = _prepare(Path(result["task_dir"]), source, "trace")
+    assert code == 1
+    assert result["error"] == "prepare requires a source that holds exactly one trace; select one with --trace-id"
+
+    code, result = _run("init", "--root", str(root), "--task-id", "selected")
+    assert code == 0, result
+    task_dir = Path(result["task_dir"])
+    code, result = _run(
+        "prepare",
+        "--task-dir",
+        str(task_dir),
+        "--source",
+        str(source),
+        "--source-kind",
+        "trace",
+        "--trace-id",
+        "second",
+    )
+    assert code == 0, result
+    canonical = json.loads((task_dir / "private" / "canonical.trace.json").read_text(encoding="utf-8"))
+    assert canonical["id"] == "second"
+
+
 def test_prepare_requires_a_user_instruction_with_text(tmp_path: Path) -> None:
     root = tmp_path / ".eval-author" / ".working" / "trace-environments"
     code, result = _run("init", "--root", str(root), "--task-id", "image-only")
