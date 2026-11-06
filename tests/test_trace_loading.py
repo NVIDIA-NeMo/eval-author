@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "skills/eval-author/scripts/trace_loading.py"
 ATIF_FIXTURE = ROOT / "skills/eval-author-trace-environment/evals/files/traces/lookup.atif.json"
 MLFLOW_FIXTURE = ROOT / "skills/eval-author-trace-environment/evals/files/traces/mlflow.json"
-REVISION = "a78dc416da247a9f4bcff17881c5fd20e90a7256"
+REVISION = "11e308e1128855884190c883da5c1cc55049c71d"
 PIN = f"nemo-compass[mlflow] @ git+https://github.com/NVIDIA-NeMo/nemo-compass.git@{REVISION}"
 INTAKE_ARGS = [
     "--intake-base-url",
@@ -538,12 +538,61 @@ def test_repeated_json_key_is_refused_not_collapsed(loading, kind, suffix, tmp_p
         loading.load_traces(source, kind)
 
 
-def test_partially_loaded_session_is_refused(loading, tmp_path):
-    first = tmp_path / "first"
+def _with_losses(directory: Path, *losses: list[dict]) -> Path:
+    """A normalized source holding one copy of the MLflow fixture trace per entry of ``losses``."""
+    first = directory / "first"
     assert invoke("--source-kind", "mlflow", "--input", MLFLOW_FIXTURE, "--output-dir", first).returncode == 0
     [trace] = normalized(first)
-    trace["losses"].append({"code": "merge_incomplete", "detail": {"reason": "max_traces", "loaded_record_count": 1}})
-    partial = tmp_path / "partial.jsonl"
-    partial.write_text(json.dumps(trace) + "\n")
-    with pytest.raises(loading.TraceLoadError, match="could not be loaded completely"):
-        loading.load_traces(partial, "trace")
+    lines = [json.dumps({**trace, "id": f"trace-{index}", "losses": entries}) for index, entries in enumerate(losses)]
+    source = directory / "lossy.jsonl"
+    source.write_text("\n".join(lines) + "\n")
+    return source
+
+
+@pytest.mark.parametrize(
+    ("code", "reason"),
+    [
+        ("merge_incomplete", "a session could not be loaded completely"),
+        ("continued_trajectory_not_followed", "an ATIF trajectory continues in a file that was not loaded"),
+        ("future_loss", "the trace records an unrecognized loss"),
+    ],
+)
+def test_incomplete_trace_is_refused(loading, code, reason, tmp_path):
+    source = _with_losses(tmp_path, [{"code": code, "detail": {}}])
+    with pytest.raises(loading.TraceLoadError, match=f"^source is incomplete: {re.escape(reason)}$"):
+        loading.load_traces(source, "trace")
+
+
+@pytest.mark.parametrize(
+    ("code", "detail"),
+    [
+        ("llm_calls_aggregated", {"llm_call_count": 2}),
+        # Compass never reads external trajectory_path files, such as Terminus-2 summarization subagents.
+        ("unresolved_subagent_ref", {"ref": {"trajectory_path": "trajectory.summarization-1-summary.json"}}),
+        ("steps_outside_agent_not_in_turns", {"agent_span_id": "root", "span_ids": ["nested"]}),
+    ],
+)
+def test_losses_that_keep_the_run_whole_still_load(loading, code, detail, tmp_path):
+    source = _with_losses(tmp_path, [{"code": code, "detail": detail}])
+    [trace] = loading.load_traces(source, "trace")
+    assert [loss.code for loss in trace.losses] == [code]
+
+
+def test_trace_id_selects_a_complete_trace_beside_an_incomplete_one(loading, tmp_path):
+    source = _with_losses(tmp_path, [{"code": "merge_incomplete", "detail": {}}], [])
+    with pytest.raises(loading.TraceLoadError, match="incomplete"):
+        loading.load_traces(source, "trace")
+    [trace] = loading.load_traces(source, "trace", trace_id="trace-1")
+    assert trace.id == "trace-1"
+
+
+def test_unfollowed_atif_continuation_is_refused(loading, tmp_path):
+    trajectory = json.loads(ATIF_FIXTURE.read_text())
+    trajectory["continued_trajectory_ref"] = "part-2.json"
+    source = tmp_path / "trajectory.json"
+    source.write_text(json.dumps(trajectory))
+    output = tmp_path / "loaded"
+    result = invoke("--source-kind", "atif", "--input", source, "--output-dir", output)
+    assert result.returncode == 2
+    assert "continues in a file that was not loaded" in json.loads(result.stdout)["message"]
+    assert not output.exists()

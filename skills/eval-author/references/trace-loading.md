@@ -26,7 +26,7 @@ uv run --with-requirements <eval-author>/requirements.txt \
 Compass trace contract v3 is not in a PyPI release yet:
 
 ```text
-nemo-compass[mlflow] @ git+https://github.com/NVIDIA-NeMo/nemo-compass.git@a78dc416da247a9f4bcff17881c5fd20e90a7256
+nemo-compass[mlflow] @ git+https://github.com/NVIDIA-NeMo/nemo-compass.git@11e308e1128855884190c883da5c1cc55049c71d
 ```
 
 The loader accepts only that revision. It rejects any other install, including
@@ -50,9 +50,18 @@ release with the next Compass release.
 `--trace-id ID`, for any kind, keeps only the trace with that `id` (an MLflow
 trace ID, an ATIF `trajectory_id` or, without one, the loader's `atif-` digest
 ID, a merged `session:<id>`, or a NeMo Gym rollout ID) and fails unless exactly
-one trace matches. A session that could not be loaded completely (a
-`merge_incomplete` loss) and any input that repeats a JSON object key are
-rejected too, so no record or value is dropped silently.
+one trace matches. Any input that repeats a JSON object key is rejected, and so
+is a selected trace whose run Compass loaded only in part: a session missing
+records (`merge_incomplete`), an ATIF trajectory that continues in another file
+(`continued_trajectory_not_followed`), or any loss code this Compass pin does
+not define. No record or value is dropped silently.
+Three losses keep the run whole and load, recorded in the trace's `losses`:
+`llm_calls_aggregated`; `unresolved_subagent_ref`, a subagent Compass did not
+load because it never reads an external ATIF `trajectory_path` file (such as a
+Harbor Terminus-2 summarization subagent); and
+`steps_outside_agent_not_in_turns`, steps that exist as spans but are missing
+from a nested agent's turns. Do not treat an unresolved subagent's work as
+observed.
 A NeMo Gym `--row` or a `--trace-id` normalizes only the selected trace, but the
 output keeps an exact copy of the whole source file, other traces included, so
 treat it as restricted as the source itself.
@@ -71,7 +80,7 @@ once with mode `0600`, and an existing path is refused.
   This is **not ATIF**; reload it with `--source-kind trace`.
 - `loading.json`: schema `nemo.eval_author.trace_load.v2` with `source_kind`;
   `loader` (`distribution` `nemo-compass`, `version` `0.2.0`, and `revision`
-  `a78dc416da247a9f4bcff17881c5fd20e90a7256`); `trace_schema_version` `"3"`;
+  `11e308e1128855884190c883da5c1cc55049c71d`); `trace_schema_version` `"3"`;
   `source_sha256` digests of each source copy; `normalized_sha256`;
   `trace_count`; `max_traces`; the NeMo Gym `row`; the selected `trace_id`; and
   `intake`, the Intake selection (each `null` when not used).

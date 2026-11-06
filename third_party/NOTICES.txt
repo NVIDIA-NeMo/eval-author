@@ -866,12 +866,12 @@ SOFTWARE.
 
 
 ================================================================================
-boto3==1.43.95
+boto3==1.43.125
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/66/6e/9c6fb58b1cdddf13b3e9edc94e0c6e08fff456355f6e097684d6117aa8d4/boto3-1.43.95-py3-none-any.whl
-SHA256: sha256:c906921c4f9ab41e9587af6586f072c8f2be6979e8bde2ec26aa443bb1745019
-File: boto3-1.43.95.dist-info/LICENSE
+Source: https://files.pythonhosted.org/packages/b5/12/1e295c564a8319e6e27353c4c849ec31b0e3857b2614c36c7cc050ca1b9c/boto3-1.43.125-py3-none-any.whl
+SHA256: sha256:101fe3ee99664e671efb9af65c8e98ec0bceddf6de922ea89685da4adc8c6907
+File: boto3-1.43.125.dist-info/LICENSE
 
 
                                  Apache License
@@ -1052,21 +1052,21 @@ File: boto3-1.43.95.dist-info/LICENSE
    END OF TERMS AND CONDITIONS
 
 
-Source: https://files.pythonhosted.org/packages/66/6e/9c6fb58b1cdddf13b3e9edc94e0c6e08fff456355f6e097684d6117aa8d4/boto3-1.43.95-py3-none-any.whl
-SHA256: sha256:c906921c4f9ab41e9587af6586f072c8f2be6979e8bde2ec26aa443bb1745019
-File: boto3-1.43.95.dist-info/NOTICE
+Source: https://files.pythonhosted.org/packages/b5/12/1e295c564a8319e6e27353c4c849ec31b0e3857b2614c36c7cc050ca1b9c/boto3-1.43.125-py3-none-any.whl
+SHA256: sha256:101fe3ee99664e671efb9af65c8e98ec0bceddf6de922ea89685da4adc8c6907
+File: boto3-1.43.125.dist-info/NOTICE
 
 boto3
 Copyright 2013-2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
 
 ================================================================================
-botocore==1.43.95
+botocore==1.43.125
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/e9/77/7ce7c937b31903f1402e478fdc97f98e727656fcea3cb54e74f1ca55793e/botocore-1.43.95-py3-none-any.whl
-SHA256: sha256:0fda26d16c7c7bf7082c421390a817b696f98a43d3da7c43dbbb093f76662876
-File: botocore-1.43.95.dist-info/LICENSE.txt
+Source: https://files.pythonhosted.org/packages/3a/c1/0dca9a7ea362219b1e98f7fa8aebca1c19f6516eb91792b82595d7b79dc0/botocore-1.43.125-py3-none-any.whl
+SHA256: sha256:e3969c8191d3435440037310187d324f37c00da53987ea31df2eceff19a2795a
+File: botocore-1.43.125.dist-info/LICENSE.txt
 
 
                                  Apache License
@@ -1247,9 +1247,9 @@ File: botocore-1.43.95.dist-info/LICENSE.txt
    END OF TERMS AND CONDITIONS
 
 
-Source: https://files.pythonhosted.org/packages/e9/77/7ce7c937b31903f1402e478fdc97f98e727656fcea3cb54e74f1ca55793e/botocore-1.43.95-py3-none-any.whl
-SHA256: sha256:0fda26d16c7c7bf7082c421390a817b696f98a43d3da7c43dbbb093f76662876
-File: botocore-1.43.95.dist-info/NOTICE
+Source: https://files.pythonhosted.org/packages/3a/c1/0dca9a7ea362219b1e98f7fa8aebca1c19f6516eb91792b82595d7b79dc0/botocore-1.43.125-py3-none-any.whl
+SHA256: sha256:e3969c8191d3435440037310187d324f37c00da53987ea31df2eceff19a2795a
+File: botocore-1.43.125.dist-info/NOTICE
 
 Botocore
 Copyright 2012-2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -1344,12 +1344,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ================================================================================
-certifi==2026.7.22
+certifi==2026.10.23
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl
-SHA256: sha256:62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775
-File: certifi-2026.7.22.dist-info/licenses/LICENSE
+Source: https://files.pythonhosted.org/packages/32/d1/a3652fe2c19134d0d15922177821d863cbd7e842d53a21bbe7e8e3a1b5ac/certifi-2026.10.23-py3-none-any.whl
+SHA256: sha256:e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1
+File: certifi-2026.10.23.dist-info/licenses/LICENSE
 
 This package contains a modified version of ca-bundle.crt:
 
@@ -3261,6 +3261,37 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ================================================================================
+h2==4.4.1
+================================================================================
+
+Source: https://files.pythonhosted.org/packages/7e/22/e85faf23bd72a92d1921e37d674ca56eb298a3c8be31fdecef0ff2b3aaac/h2-4.4.1-py3-none-any.whl
+SHA256: sha256:0e25f1462b23c9cb82d9eb02e28bc706dac2a68cb457c6a0d74d63c8a2a5d0e6
+File: h2-4.4.1.dist-info/licenses/LICENSE
+
+The MIT License (MIT)
+
+Copyright (c) 2015-2020 Cory Benfield and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+================================================================================
 hf-xet==1.6.0
 ================================================================================
 
@@ -3472,6 +3503,37 @@ File: hf_xet-1.6.0/hf_xet/LICENSE
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+
+================================================================================
+hpack==4.2.0
+================================================================================
+
+Source: https://files.pythonhosted.org/packages/71/b4/4a9fcfb2aef6ba44d9073ecd301443aa00b3dac95de5619f2a7de7ec8a91/hpack-4.2.0-py3-none-any.whl
+SHA256: sha256:858ac0b02280fa582b5080d68db0899c62a80375e0e5413a74970c5e518b6986
+File: hpack-4.2.0.dist-info/licenses/LICENSE
+
+The MIT License (MIT)
+
+Copyright (c) 2014 Cory Benfield
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 
 ================================================================================
@@ -3742,6 +3804,37 @@ File: huggingface_hub-1.31.0.dist-info/licenses/LICENSE
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+
+================================================================================
+hyperframe==6.1.0
+================================================================================
+
+Source: https://files.pythonhosted.org/packages/48/30/47d0bf6072f7252e6521f3447ccfa40b421b6824517f82854703d0f5a98b/hyperframe-6.1.0-py3-none-any.whl
+SHA256: sha256:b03380493a519fce58ea5af42e4a42317bf9bd425596f7a0835ffce80f1a42e5
+File: hyperframe-6.1.0.dist-info/LICENSE
+
+The MIT License (MIT)
+
+Copyright (c) 2014 Cory Benfield
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 
 ================================================================================
@@ -4072,12 +4165,12 @@ THE SOFTWARE.
 
 
 ================================================================================
-litellm==1.101.0
+litellm==1.108.1
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/71/c0/08a31c8c5f7fce96e98e2a7f818f446d0468da484228a7450cd2b6f71dcf/litellm-1.101.0.tar.gz
-SHA256: sha256:734ab2b8cad6a3b582d52d9c9c5fcab759eb382b93935ef808fda0e16d822ac3
-File: litellm-1.101.0/LICENSE
+Source: https://files.pythonhosted.org/packages/15/ca/116c69ba346b7a2dff9781c4c1b3b1d0f4d4af9e34d4769598ca2ca1e516/litellm-1.108.1.tar.gz
+SHA256: sha256:41ab58a9ecf985a7b0819010bf6cb4d438d7cc603ad3b9197c0b0d95f340eb33
+File: litellm-1.108.1/LICENSE
 
 Portions of this software are licensed as follows:
 
@@ -4936,7 +5029,7 @@ SOFTWARE.
 nemo-compass==0.2.0
 ================================================================================
 
-Source: https://raw.githubusercontent.com/NVIDIA-NeMo/nemo-compass/a78dc416da247a9f4bcff17881c5fd20e90a7256/LICENSE
+Source: https://raw.githubusercontent.com/NVIDIA-NeMo/nemo-compass/11e308e1128855884190c883da5c1cc55049c71d/LICENSE
 SHA256: sha256:4f321b887d0350e672e06c8a8bc85cff17ee2d1f3c360617079041ceee324c81
 File: supplemental license
 
@@ -5146,7 +5239,7 @@ Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
    limitations under the License.
 
 
-Source: https://raw.githubusercontent.com/NVIDIA-NeMo/nemo-compass/a78dc416da247a9f4bcff17881c5fd20e90a7256/NOTICE
+Source: https://raw.githubusercontent.com/NVIDIA-NeMo/nemo-compass/11e308e1128855884190c883da5c1cc55049c71d/NOTICE
 SHA256: sha256:0d40caae08d209a7339bd0051dd7fee90a5ad3e0e99880be0c5998aa492ea659
 File: supplemental license
 

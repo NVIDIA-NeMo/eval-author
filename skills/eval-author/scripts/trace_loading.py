@@ -30,13 +30,24 @@ if TYPE_CHECKING:
 LOADER = {
     "distribution": "nemo-compass",
     "version": "0.2.0",
-    "revision": "a78dc416da247a9f4bcff17881c5fd20e90a7256",
+    "revision": "11e308e1128855884190c883da5c1cc55049c71d",
 }
 COMPASS_REPOSITORY = "https://github.com/NVIDIA-NeMo/nemo-compass.git"
 TRACE_SCHEMA_VERSION = "3"
 RECEIPT_SCHEMA = "nemo.eval_author.trace_load.v2"
 SOURCE_KINDS = ("atif", "mlflow", "gym", "intake", "trace")
 MAX_RECORD_BYTES = 128 * 1024 * 1024
+# Compass losses that leave every recorded step of the run loaded. The trace keeps them, so
+# consumers still see a subagent Compass could not resolve (it never reads external ATIF
+# ``trajectory_path`` files, which Harbor's Terminus-2 writes for summarization subagents)
+# or steps missing from a nested agent's turns. Every other loss, including a code this
+# pin does not know, means part of the run is missing.
+ACCEPTED_LOSS_CODES = frozenset({"llm_calls_aggregated", "unresolved_subagent_ref", "steps_outside_agent_not_in_turns"})
+# Content-free reasons for the partial-run losses the pinned Compass emits.
+INCOMPLETE_LOSSES = {
+    "merge_incomplete": "a session could not be loaded completely",
+    "continued_trajectory_not_followed": "an ATIF trajectory continues in a file that was not loaded",
+}
 # Distributions that install their own top-level ``trace_ingest`` package.
 _SHADOWING = ("trace-ingest", "insight-agent")
 
@@ -114,14 +125,21 @@ def load_traces(
         raise TraceLoadError("source contains more than max_traces traces")
     if not traces:
         raise TraceLoadError("source contains no traces")
-    # Compass still returns a merged session when it could not load every record of it.
-    if any(loss.code == "merge_incomplete" for trace in traces for loss in trace.losses):
-        raise TraceLoadError("source holds a session that could not be loaded completely")
     if trace_id is not None:
         traces = [trace for trace in traces if trace.id == trace_id]
         if len(traces) != 1:
             raise TraceLoadError("--trace-id must match exactly one trace in the source")
+    _refuse_incomplete(traces)
     return traces
+
+
+def _refuse_incomplete(traces: list[Trace]) -> None:
+    """Refuse a run Compass loaded only in part, so nothing downstream reads it as whole."""
+    codes = {loss.code for trace in traces for loss in trace.losses} - ACCEPTED_LOSS_CODES
+    if not codes:
+        return
+    reasons = sorted({INCOMPLETE_LOSSES.get(code, "the trace records an unrecognized loss") for code in codes})
+    raise TraceLoadError(f"source is incomplete: {'; '.join(reasons)}")
 
 
 def _load_atif(source: Path) -> list[Trace]:

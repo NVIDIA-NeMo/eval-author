@@ -33,10 +33,12 @@ preview: workflows, skills, and saved artifacts may change between releases.
   `nemo.eval_author.trace_load.v2` receipt. `--trace-id` (or `--row` for NeMo Gym
   JSONL) selects one trace of a larger source. Intake is a live selection from the
   Intake service by workspace and time window, authenticated with
-  `NMP_ACCESS_TOKEN`; it no longer reads `nemo intake` CLI exports. See
-  [Load local traces](docs/traces.md#load-local-traces).
+  `NMP_ACCESS_TOKEN`; it no longer reads `nemo intake` CLI exports. A run that
+  Compass loaded only in part, such as a partially loaded session or an ATIF
+  trajectory that continues in another file, is refused rather than read as
+  whole. See [Load local traces](docs/traces.md#load-local-traces).
 - **Temporary NeMo Compass Git pin.** Trace loading requires `nemo-compass` from
-  Git revision `a78dc41` because trace contract v3 is not in a PyPI release yet.
+  Git revision `11e308e` because trace contract v3 is not in a PyPI release yet.
   The loader rejects any other install. A PyPI pin returns with the next Compass
   release.
 - **Audit measurement reads Compass traces.** `measure.py` loads one ATIF,

@@ -67,7 +67,7 @@ The discovery helper requires Python 3.11+. Audit generation, validation, and
 aggregation require Python 3.11+, PyYAML, and jsonschema. Measuring coverage from
 ATIF, MLflow, NeMo Gym, or normalized Compass traces requires Python 3.12–3.13 and the
 [audit dependencies](skills/eval-author-audit/requirements.txt), which temporarily pin
-NeMo Compass to Git revision `a78dc41`;
+NeMo Compass to Git revision `11e308e`;
 Harbor is not needed.
 
 Task execution may need Docker, application access, and model credentials,

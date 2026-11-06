@@ -13,6 +13,7 @@ overrides:
   databricks-sdk: Apache-2.0
   fastuuid: BSD-3-Clause
   gitdb: BSD-3-Clause
+  hyperframe: MIT
   jinja2: BSD-3-Clause
   mlflow-skinny: Apache-2.0
   # Git-pinned until the next PyPI release; Apache-2.0 per its pyproject.toml and LICENSE.

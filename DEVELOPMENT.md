@@ -70,7 +70,7 @@ required, so core-skill pull requests can merge without one.
 Trace loading and the development environment use a temporary Git pin:
 
 ```text
-nemo-compass[mlflow] @ git+https://github.com/NVIDIA-NeMo/nemo-compass.git@a78dc416da247a9f4bcff17881c5fd20e90a7256
+nemo-compass[mlflow] @ git+https://github.com/NVIDIA-NeMo/nemo-compass.git@11e308e1128855884190c883da5c1cc55049c71d
 ```
 
 Compass trace contract v3 is not in a PyPI release yet; the PyPI `0.2.0`
