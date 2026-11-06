@@ -14,3 +14,4 @@ htmlcov/
 .eval-author/
 .harbor/
 tmp/
+.local/
