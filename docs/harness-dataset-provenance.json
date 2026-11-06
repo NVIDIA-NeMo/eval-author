@@ -208,6 +208,15 @@
     "origin": "Authored in this repository; not imported from the source_repository or source_cohort above",
     "cases": [
       {
+        "skill": "eval-author-audit",
+        "id": "audit-report-render",
+        "basis": [
+          "skills/eval-author-audit/SKILL.md",
+          "skills/eval-author-audit/examples/report-content.json"
+        ],
+        "scope": "Validate and render the worked-example report content, then link the generated report"
+      },
+      {
         "skill": "eval-author-first-eval",
         "id": "first-eval-shared-entry-gym",
         "basis": [

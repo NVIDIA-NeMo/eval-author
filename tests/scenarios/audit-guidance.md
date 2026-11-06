@@ -21,7 +21,7 @@ coverage counts. Run variants with no usable agent trajectory, an explicit owner
 acceptance override, and a failure followed by a passing control on the same
 revision. The audit must inspect the task's grading entry point and exposed
 inputs and include each unresolved verifier failure in both its chat findings
-and saved Findings and limitations before asking for acceptance.
+and saved Key findings before asking for acceptance.
 
 Exercise all four families: a successful no-op, a submission containing only
 reference-like comments, forged and stale success artifacts or writable runner
@@ -774,7 +774,7 @@ Build a selected task and finish its Verifier section before validation. Planned
 cheat controls and expected rejection appear only there, including before execution.
 Proposal-only work does not create a task README or put those details in the audit
 report. Link the Verifier section from the action once it exists. Existing Grading and Grader
-sections still work. Record new cheating findings in Findings and limitations
+sections still work. Record new cheating findings in Key findings
 with revision and native evidence links. Keep planned, failed, incomplete, and
 passed checks distinct and retain failed evidence. Forbidden per-check credit
 blocks acceptance even if aggregate reward is zero. Do not treat control results
@@ -789,8 +789,9 @@ including native screening and gym-report.md. No paid model experiments are need
 Confirm that `.eval-author/.working/audit/report-content.json` validates before
 the report is rendered. Compare the task Findings cell with all issue records
 for that task. Check that confirmed verifier cheating produces a Summary
-advisory and that the dedicated screening section retains missing, stale, and
-failed evidence. An unexecuted concern must not appear as an executed cheat.
+advisory and that missing, stale, and failed screening evidence is retained
+in Key findings or the Verifier review notes under Scope and Execution Evidence.
+The fixed Verifier cheat screening section only describes the checks. An unexecuted concern must not appear as an executed cheat.
 
 Request a section revision. Confirm that the agent changes the authored input,
 regenerates Markdown, and retains content and source bindings for review. Then

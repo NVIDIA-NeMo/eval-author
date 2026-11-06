@@ -33,6 +33,18 @@
       ]
     },
     {
+      "id": "audit-report-render",
+      "prompt": "Use the audit skill's worked example as the supplied report input: copy its examples/report-content.json to /workspace/output/.eval-author/.working/audit/report-content.json and its examples/report-sources/ directory to /workspace/output/report-sources/. Validate the content with report_content.py, render the report with render_report.py, and tell me where the report is. Do not edit the generated Markdown, remeasure, or create tasks.",
+      "expected_output": "Validates the copied report-content.json with report_content.py, renders .eval-author/audit-coverage-report.md with render_report.py, and links that report. Does not write the Markdown by hand, edit the generated file, remeasure, or create tasks.",
+      "assertions": [
+        "Runs report_content.py on the copied report-content.json, or reports the precise blocker without installing dependencies.",
+        "Produces .eval-author/audit-coverage-report.md with render_report.py rather than writing or editing the Markdown directly.",
+        "Links the rendered report in the final reply; does not remeasure or create tasks."
+      ],
+      "expected_skill": "eval-author-audit",
+      "files": []
+    },
+    {
       "id": "eval-author-audit-negative",
       "prompt": "What is 17 + 25? Reply with the number only.",
       "expected_output": "42",

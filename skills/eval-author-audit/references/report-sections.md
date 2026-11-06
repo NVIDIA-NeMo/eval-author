@@ -32,7 +32,7 @@ renderer writes, which fields you author, and an example. Read it with the
 - IMPORTANT: Name each task ONCE PER FINDING, as the subject of the explanation's first sentence ("T2's grading script…"). A finding includes its explanation, its `advisory`, and the `proposed_task` of every recommendation tied to it. Everywhere else in those fields, write "the task", "its verifier", or "the grading script". The renderer refuses content that names a task twice (`repeated_task_reference`) and names the field to fix.
 - If the explanation doesn't name an affected task, the renderer opens it with the task link. Don't name that task anywhere else in the finding either.
 - Refer to another finding by wrapping its content ID in braces, such as `{F2}`. The renderer numbers advisories as Advisory 1, Advisory 2… and other findings as Finding 1, Finding 2…, and rewrites each braced reference to match. Bare tokens such as `F1 score` are left unchanged. Never write Advisory or Finding numbers yourself.
-- Never write HTML
+- Never write HTML.
 - Evidence links come from each record's `evidence` source IDs.
 - `audit.md` and `ETHOS.md` are linked only in Scope and Execution Evidence. Other source files, such as grading scripts and run records, are linked only in the evidence citation that ends a finding or advisory. Don't name any of them anywhere else.
 - List evidence sources freely in `evidence`. The citation drops the finding's own tasks, `audit.md`, and `ETHOS.md`, and shows each file name once. With nothing left to cite, it states the finding's status without a source.
@@ -55,7 +55,7 @@ In both entries:
 - Don't list findings or name tasks. Findings and the Task catalog do that, and each task name becomes a long link.
 - Write about the suite as a whole, such as "three of the four verifiers" or "some tasks".
 
-**Avoid:** making each sentence is its own paragraph. The verifier conclusion and
+**Avoid:** making each sentence its own paragraph. The verifier conclusion and
 the coverage limit each appear twice, and the task name becomes a link.
 
 > This audit includes 3 advisories, 4 findings, and 4 recommended tasks.

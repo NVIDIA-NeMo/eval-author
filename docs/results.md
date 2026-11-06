@@ -141,6 +141,13 @@ and links available supporting evidence. A mapping to an existing test describes
 designed to address; it does not establish that a recorded run satisfied the
 audit's coverage criteria.
 
+The report opens with a Summary (including an ADVISORY when verifier cheating is
+confirmed and the Evaluation coverage table), then Key findings. Recommended
+Tasks by Capability & Tool holds the ranked Next actions and proposed tasks.
+The Coverage report maps each audit item to its tasks and run evidence, followed by the task
+catalog, verifier cheat screening, scope and execution evidence, and
+definitions.
+
 The audit report is generated. Ask Eval Author to revise and regenerate it when
 you need changes. Direct Markdown edits block refresh.
 

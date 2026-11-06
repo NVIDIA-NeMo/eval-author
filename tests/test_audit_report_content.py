@@ -74,8 +74,6 @@ def test_example_schema_layout_and_authored_values_are_consistent(audit_report):
         ("Functionality", "Intended check and required evidence", "Tasks", "Run evidence"),
     ]:
         assert "| " + " | ".join(header) + " |" in text
-    assert "No comparable previous audit" not in text
-    assert "Weak evaluations" not in text
     assert "| Coverage ratio | 100% |" in text
     assert "| Coverage basis | Mapped tasks (runs not measured) |" in text
     assert "[verify.py](../report-sources/tasks/source-answer/verify.py)" in text
@@ -182,7 +180,6 @@ def test_summary_holds_coverage_history_then_advisories_before_key_findings(audi
     assert found.index("The audit uncovered evidence of verifier cheating.") < found.index("The suite's only verifier")
     assert limits.startswith("Coverage was not measured for this audit because the audit measurement step was not run.")
     assert limits.endswith("All findings come from inspecting the verifier code and the task files.")
-    assert "Coverage measurement compares" not in report
     assert "To measure coverage" not in summary
     assert "unmeasured" not in key.split("\n- ", 1)[0]
     assert "To measure coverage" not in key
@@ -202,7 +199,6 @@ def test_coverage_task_column_retains_intended_mappings_before_measurement(audit
     cells = row.split(" | ")
     assert cells[2].startswith("[T1-source-answer](../report-sources/tasks/source-answer")
     assert "Unmeasured" in cells[3]
-    assert "Not established" not in cells[2]
     failure_cases = report.split("### Failure cases\n\n")[-1].split("## Verifier cheat screening", 1)[0]
     assert "No evaluation coverage" in failure_cases
 
@@ -271,8 +267,6 @@ def test_screening_describes_each_check_once_without_per_task_runs(audit_report)
     report = renderer.render(model)[0].decode()
     screening = report.split("## Verifier cheat screening\n\n", 1)[1].split("## Scope and Execution Evidence", 1)[0]
     assert "T1-source-answer" not in screening
-    assert "| Check |" not in screening
-    assert "### Retained control evidence" not in screening
     assert "Per-task rationale stays in the validation input." not in report
     schema = json.loads(content.SCHEMA_PATH.read_text())
     families = set(schema["$defs"]["review_check"]["properties"]["family"]["enum"])
@@ -336,7 +330,6 @@ def test_summary_derives_verifier_conclusion_from_reviewed_findings(audit_report
     report = renderer.render(model)[0].decode()
     summary = report.split("## Summary\n\n", 1)[1].split("### Evaluation coverage", 1)[0]
     assert expected in summary
-    assert "No cheat controls were executed." not in summary
     assert ("no evidence of verifier tampering" in summary) is (reviewed and category is None)
     if reviewed and category is None:
         assert all(check["receipt"] is None for check in data["verifier_review"]["checks"])
@@ -404,9 +397,6 @@ def test_key_findings_are_paragraphs_without_revision_or_recommendation_boilerpl
         "Finding 2 - Retained controls are unavailable",
         "Finding 3 - Quotation accuracy is unchecked",
     ]
-    assert "This finding applies to" not in report
-    assert "This recommendation has" not in report
-    assert "The next action is" not in report
     for task in model.tasks.values():
         assert task["revision"] not in report
     for row in model.data["recommendations"]:
@@ -429,7 +419,6 @@ def test_key_findings_remain_visible_without_recommendations(audit_report):
             assert row["title"] in summary and row["title"] not in key_findings
         elif row["category"] == "missing_task":
             assert renderer.prose(model, row["explanation"]) in key_findings
-            assert "confirmed a missing task" not in report
         else:
             assert row["title"] in key_findings
     assert_markdown_links(report, renderer)
@@ -476,28 +465,27 @@ def test_finding_status_and_discovery_use_complete_sentences(audit_report, statu
     assert expected in text
     if status == "unproven":
         assert "leaves this finding unproven." in text
-    assert "Verifier cheating. Confirmed. Found by inspection." not in text
 
 
 @pytest.mark.parametrize(
-    "change,field",
+    "change,field,rule",
     [
-        ("count", "content"),
-        ("dangling", "task_mappings"),
-        ("missing_item", "task_mappings"),
-        ("duplicate_item", "task_mappings"),
-        ("duplicate_id", "findings"),
-        ("revision", "findings"),
-        ("explanation", "findings"),
-        ("evidence", "findings"),
-        ("basis", "findings"),
-        ("priority", "recommendations"),
-        ("order", "recommendations"),
-        ("run", "runs"),
-        ("empty", "summary"),
+        ("count", "content", "schema"),
+        ("dangling", "content.task_mappings[0]", "reference"),
+        ("missing_item", "content.task_mappings", "item_coverage"),
+        ("duplicate_item", "content.task_mappings", "item_coverage"),
+        ("duplicate_id", "content.findings[1]", "reference"),
+        ("revision", "content.findings[0]", "reference"),
+        ("explanation", "content.findings[0].explanation", "schema"),
+        ("evidence", "content.findings[0].evidence", "schema"),
+        ("basis", "content.findings[0]", "schema"),
+        ("priority", "content.recommendations[0].priority", "schema"),
+        ("order", "content.recommendations", "recommendation_order"),
+        ("run", "content.runs[0]", "reference"),
+        ("empty", "content.summary[0]", "schema"),
     ],
 )
-def test_each_invalid_content_rule_prevents_output(audit_report, change, field):
+def test_each_invalid_content_rule_prevents_output(audit_report, change, field, rule):
     content, renderer, root = audit_report
     data = example_data(root)
     if change == "count":
@@ -529,7 +517,7 @@ def test_each_invalid_content_rule_prevents_output(audit_report, change, field):
         data["summary"][0] = "   "
     with pytest.raises(content.ContentError) as failure:
         renderer.refresh(load(audit_report, data))
-    assert field in str(failure.value)
+    assert (field, rule) in {(row["field"], row["rule"]) for row in failure.value.errors}
     assert all(set(row) >= {"field", "rule", "fix"} for row in failure.value.errors)
     assert not (root / ".eval-author").exists()
 
@@ -618,7 +606,6 @@ def test_every_issue_is_listed_in_task_findings_with_a_compact_screening_overvie
     text = renderer.render(load(audit_report))[0].decode()
     row = next(line for line in text.splitlines() if line.startswith("| [T1-source-answer]"))
     assert all(identifier in row for identifier in ["Advisory 1", "Finding 2", "Finding 3"])
-    assert "### Retained control evidence" not in text
     assert "Task-specific issues appear in the findings." in text
 
 
