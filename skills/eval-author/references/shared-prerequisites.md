@@ -657,7 +657,7 @@ question, and `eval-author` as the next handoff. On confirmation, clear that blo
 and record `data` as `confirmed`; use `verified` only for inspected evidence.
 On resume, reassess legacy `data: not_required` and unrelated data checks; reuse
 applicable trace-availability answers or leave this prerequisite unknown.
-Keep suite/trace selection, selected evidence access, and later parser/conversion
+Keep suite/trace selection, selected evidence access, and later trace-loading
 results in the audit scope and findings. Availability alone does not approve a
 source, complete the audit, or establish measured coverage.
 Do not mark the audit interpreter as proof of the agent's runtime requirements.

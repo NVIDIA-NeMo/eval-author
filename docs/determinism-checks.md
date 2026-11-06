@@ -336,7 +336,7 @@ and 2 for incomplete or malformed evidence.
 
 ## Audit and task evidence
 
-Measurements bind the exact parsed ATIF bytes and the canonical audit
+Measurements bind the exact loaded trace bytes and the canonical audit
 payload. Semantic judgments also bind their canonical JSON contents. Aggregation
 records each measurement file's byte digest and rejects changed traces,
 denominators, judgments and duplicate/copy measurements. Existing unbound v1

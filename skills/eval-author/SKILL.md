@@ -41,8 +41,6 @@ not-for:
   - eval-author-trace-environment (experimental; use only when explicitly requested or continuing its existing workspace)
   - eval-author-environment (use after an authoring sub-flow hands over its cases to build and prove their task environment)
   - nemo-intake (use to instrument agents, ingest telemetry, or query Intake outside Eval Author)
-  - mlflow-to-atif (use to convert MLflow traces into canonical ATIF files)
-  - gym-to-atif (use to convert NeMo Gym Responses traces into canonical ATIF files)
   - nemo-experimentalist (use to run insight-driven optimization end to end, which drives the Eval Author agent itself)
   - nemo-evaluator (use to run an existing benchmark rather than work on a repository's own suite)
 compatibility: >-
@@ -51,7 +49,8 @@ compatibility: >-
   Discovery, audit, and task creation use the local checkout.
   Task execution requires the selected NeMo Gym or Harbor runtime and may require Docker and provider
   credentials. Trace inspection requires the nemo CLI, an explicit workspace,
-  and read access to configured Intake.
+  and read access to configured Intake. Trace loading requires Python 3.12–3.13
+  and the NeMo Compass Git pin from requirements.txt.
 maturity: alpha
 license: Apache-2.0
 user-invocable: true
@@ -135,8 +134,8 @@ When the goal is unclear, use `orientation` without a journey. Its shorter
 welcome and canonical goal choices ask only for the unresolved goal; reuse known
 context.
 
-Explicit inventory, planning-only, readiness, repair, trace inspection, supported NeMo Gym or MLflow
-trace conversion, trace-derived authoring, proposal-only, and audit
+Explicit inventory, planning-only, readiness, repair, trace inspection, trace
+loading, trace-derived authoring, proposal-only, and audit
 generate/validate/measure/aggregate requests keep their
 scope. Explanation-only requests do not start a workflow. Scoped operations reuse
 applicable shared decisions but do not acquire unrelated onboarding requirements.
@@ -267,6 +266,11 @@ layout. Its ATIF source mode instead applies privacy and candidate admission wit
 requiring an audit gap. For a requested full workflow, proceed from audit to proposals even when
 there are no eligible tool gaps; an audit-only request ends with the findings.
 
+Sub-flows that read provider traces load them through the shared
+`scripts/trace_loading.py`, which normalizes ATIF, MLflow, NeMo Gym, and Intake
+evidence into NeMo Compass traces; Eval Author never converts traces into ATIF.
+Read [Trace loading](references/trace-loading.md) before running it.
+
 ## Select the evaluation provider
 
 Use the same rule for first-eval, audit-derived task creation, and trace-derived
@@ -281,12 +285,12 @@ has the final say and can override the default or request a provider change.
 All flows that need a runtime use the shared
 [runtime locator and policy](references/runtime-prerequisites.md#runtime-prerequisite-checks).
 Use `--flow authoring` for creation/improvement prerequisites, first-eval,
-task-create, environment, and trace-derived authoring; `--flow discovery` for
-readiness; `--provider harbor --flow audit` for selected ATIF measurement.
-Creation and improvement require an available supported runtime before Ethos.
-Audit entry checks its Python tooling without probing an evaluation runner.
-This does not add runtime requirements to explicitly scoped file-only inventory,
-planning-only, or provider-independent audit work. Keep the selected Python/CLI pair
+task-create, environment, and trace-derived authoring and `--flow discovery` for
+readiness. Creation and improvement require an available supported runtime before Ethos.
+Audit needs no provider runtime or Harbor: measurement reads traces through NeMo
+Compass from the audit skill's `requirements.txt`. This does not add runtime
+requirements to explicitly scoped file-only inventory, planning-only, or audit
+work. Keep the selected Python/CLI pair
 and recorded version; missing setup or ambiguity never authorizes a provider switch.
 
 Select the output provider independently of the evidence source: a NeMo Gym trace

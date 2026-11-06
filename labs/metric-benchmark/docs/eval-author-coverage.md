@@ -45,9 +45,8 @@ unmeasured denominator kinds and an empty denominator yield unavailable scores.
 Judgment availability is checked only for the selected `score_scope`; `overall`
 checks every measured kind. Unjudged capability evidence does not invalidate a
 tool-only score.
-Invalid/stale judgment sidecars fail native validation. Legacy non-ATIF traces
-need an explicit conversion before ingestion; the adapter does not reinterpret
-or repair traces. Native directories are required by this adapter.
+Invalid/stale judgment sidecars fail native validation. The adapter measures
+native ATIF only; it does not reinterpret or repair traces. Native directories are required by this adapter.
 
 Native Eval Author reports retain their evidence bindings, including absolute
 workspace paths. Recomputing coverage from the same authored inputs preserves

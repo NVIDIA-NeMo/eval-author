@@ -18,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "nemo.eval_author.gym_evidence.v1"
 PROTOCOL = "gym-ledger-controls-v1"
-ROUTES = ("audit", "trace", "ng-trajectory")
+ROUTES = ("audit", "trace")
 NATIVE_TESTS = ("test_native_scaffold_and_validation", "test_native_http_execution_controls")
 # Preserve the audit protocol's published check names for existing consumers.
 TESTS = ("test_native_proposal_scaffold_and_validation", "test_native_http_execution_controls")

@@ -42,8 +42,6 @@ for measurement assumptions, evidence sidecars, and aggregation. Command example
 are in the [audit skill](skills/eval-author-audit/SKILL.md).
 The experimental trace-environment skill documents its
 [artifact contract](skills/eval-author-trace-environment/SKILL.md#artifact-contract).
-For standalone NeMo Gym trace conversion, see
-[`gym-to-atif`](skills/gym-to-atif/SKILL.md).
 
 ## ETHOS.md authoring
 
@@ -67,19 +65,28 @@ so a core-skill failure would block the ethos signature. The
 request that changes `skills/` or `team-skills/` without a passing run; it is not
 required, so core-skill pull requests can merge without one.
 
-## Public NeMo Compass dependency
+## NeMo Compass dependency
 
-The optional loaders and development environment use `nemo-compass[mlflow]==0.1.0`
-from PyPI. Compass includes the `trace_ingest` models and loaders; no separate
-trace-ingest package or Git checkout is needed. `uv sync --locked` installs the
-pinned release and its dependencies.
+Trace loading and the development environment use a temporary Git pin:
 
-Loader receipts record the distribution and version with a null Git revision.
-The loaders accept the pinned release from PyPI or a release wheel and reject
-Git or editable source installs. Keep their version checks and installation
-guides synchronized with dependency updates. Use a fresh environment when
-migrating from `trace-ingest` or `insight-agent`, since those distributions
-share Python import paths with Compass.
+```text
+nemo-compass[mlflow] @ git+https://github.com/NVIDIA-NeMo/nemo-compass.git@11e308e1128855884190c883da5c1cc55049c71d
+```
+
+Compass trace contract v3 is not in a PyPI release yet; the PyPI `0.2.0`
+release predates it. Return to a PyPI pin with the next Compass release.
+Eval Author loads every trace into a Compass `Trace` and never writes ATIF.
+`uv sync --locked` installs the pinned revision and its dependencies; skills
+that load traces list the same pin in their `requirements.txt`, used with
+`uv run --with-requirements <skill>/requirements.txt`.
+
+`skills/eval-author/scripts/trace_loading.py` records the distribution, version,
+and revision in its receipts. It rejects any other install, including another
+commit, a local or editable directory, the PyPI `0.2.0` release, and the older
+`trace-ingest` and `insight-agent` distributions, since those share Python
+import paths. When updating the dependency, change `trace_loading.py`,
+`pyproject.toml`, and every `skills/*/requirements.txt` together;
+`tools/check_runtime_policy.py` rejects a mismatch.
 
 For a stacked PR whose base is not `main`, run the same test matrix manually
 with `gh workflow run ci.yml --repo NVIDIA-NeMo/eval-author --ref BRANCH`.
@@ -100,8 +107,6 @@ instructions. The individual skill files document each workflow in detail.
 | [`eval-author-environment`](skills/eval-author-environment/SKILL.md) | Build and prove the environment a Harbor or NeMo Gym task runs in; reached from first-eval and task-create. |
 | [`eval-author-inspect-trace`](skills/eval-author-inspect-trace/SKILL.md) | Explain an Intake trace selected through the entry skill. |
 | [`eval-author-trace-environment`](skills/eval-author-trace-environment/SKILL.md) | **Experimental.** Derive and validate a private Harbor or native NeMo Gym task from trace evidence. |
-| [`mlflow-to-atif`](skills/mlflow-to-atif/SKILL.md) | Convert MLflow traces to ATIF. |
-| [`gym-to-atif`](skills/gym-to-atif/SKILL.md) | Convert one NeMo Gym Responses record or retain original Harbor ATIF from a NeMo Gym run. |
 
 ## Validation
 
@@ -181,19 +186,8 @@ Positive, no-action, and wrong-answer policies are explicitly scripted controls;
 their rewards do not measure model performance. The scripted endpoint emits no
 model captures or token counts, so NeMo Gym reports CLI rollout health as `unobserved`;
 the test retains and checks this limitation with no health checks ignored.
-The `ng-trajectory` cases first produce real NeMo Gym rollout attachments, retain one
-JSONL row with both the attachment loader and Responses-to-ATIF converter, then
-build and exercise a new native task from that evidence. They also verify that
-an attachment-only input is rejected by the ATIF converter. To select this path:
-
-```bash
-EVAL_AUTHOR_GYM_PYTHON=/path/to/Gym/.venv/bin/python uv run --locked pytest -q tests/test_gym_native.py -k ng-trajectory
-```
-
-Use pytest's `--basetemp` with a fresh private directory to retain the source
-rollouts, conversion receipts, drafts, and controls for inspection; pytest
-clears that directory at the start of a run. Attachment capture in these
-scripted controls does not establish model-call capture or measured performance.
+Use pytest's `--basetemp` with a fresh private directory to retain the drafts
+and controls for inspection; pytest clears that directory at the start of a run.
 
 Skipped native tests do not establish NeMo Gym compatibility. A live model evaluation additionally requires the actual
 agent/model configuration and credentials.
@@ -201,7 +195,7 @@ agent/model configuration and credentials.
 ### Retained CI measurements
 
 CI runs daily at 07:05 UTC: Tier 1 static evaluation, the Python 3.12/3.13 test
-matrix, and native NeMo Gym compatibility for audit, ATIF trace, and `ng_trajectory`
+matrix, and native NeMo Gym compatibility for audit and ATIF trace
 inputs. Each NeMo Gym route runs independently; a failure in one does not cancel the
 others. Daily runs have their own concurrency group so a push cannot cancel them.
 No inference credentials or model calls are used. Tier 2/3 live evaluation keeps
@@ -216,10 +210,10 @@ Use the same collector locally with a fresh output directory per route:
 uv run --locked python tools/collect_gym_evidence.py \
   --gym-python /path/to/Gym/.venv/bin/python --gym-root /path/to/Gym \
   --gym-revision 3045a793346a31291d7ea4ae6af3f94a35036ce5 \
-  --route ng-trajectory --output /tmp/new-gym-ng-trajectory-evidence
+  --route trace --output /tmp/new-gym-trace-evidence
 ```
 
-`--route` accepts `audit` (the default), `trace`, or `ng-trajectory`. Each run
+`--route` accepts `audit` (the default) or `trace`. Each run
 requires both native tests and the controls for that specific route; evidence
 from another route cannot substitute for it.
 
@@ -236,14 +230,13 @@ CI retains separate aggregate artifacts:
 | --- | --- | --- |
 | Audit (`gym-ledger-controls-v1`) | `gym-evidence` | 90 days |
 | ATIF trace (`gym-trace-ledger-controls-v1`) | `gym-trace-evidence` | 90 days |
-| NeMo Gym rollout attachment (`gym-ng-trajectory-ledger-controls-v1`) | `gym-ng-trajectory-evidence` | 90 days |
 | [Scripted verifier-cheat panel](docs/determinism-checks.md#verifier-cheat-panel) | `verifier-cheat-evidence` | 30 days |
 | [Live anti-cheat experiment](docs/determinism-checks.md#live-anti-cheat-experiment) | `anti-cheat-live` | 90 days |
 
 Each name ends with `-<run-id>-<attempt>`. JUnit, native rollouts, and detailed
 logs use the corresponding `*-native` prefix and are retained for 30 days only
 while the repository is private. These include pytest's synthetic `.eval-author`
-workspaces with source rollouts, conversions, and task drafts. Missing summaries
+workspaces with synthetic traces and task drafts. Missing summaries
 fail the upload step.
 
 The verifier-cheat panel publishes only its allowlisted summary; its raw native
@@ -252,10 +245,10 @@ evidence uses `verifier-cheat-native` with the same private-repository-only,
 never uploads raw model/native evidence, even for private repositories.
 
 The audit artifact retains the schema, check names, and counters expected by the
-companion fixtures importer. The trace artifacts are separate measurements;
-the current audit importer does not ingest them. Download them directly from
-the CI run. Future dashboard ingestion must recognize their distinct protocols
-rather than combine them with audit results. Downloaded artifacts are evidence,
+companion fixtures importer. The trace artifact is a separate measurement;
+the current audit importer does not ingest it. Download it directly from
+the CI run. Future dashboard ingestion must recognize its distinct protocol
+rather than combine it with audit results. Downloaded artifacts are evidence,
 not executable inputs.
 
 For paired comparisons, `--source-root /path/to/other/checkout` changes the skill

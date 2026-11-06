@@ -29,10 +29,9 @@ Use Python 3.11+ to run the locator. Select `discovery` for readiness and
 `authoring` for creation/improvement prerequisites, first-eval, task-create,
 environment, or trace-derived authoring. Audit shared entry checks the existing
 Python environment and packages in `audit_tools` from the policy directly; it
-does not probe an evaluation runner. After ATIF evidence is selected for audit
-measurement, use `--provider harbor --flow audit` for the trajectory parser,
-including for converted NeMo Gym evidence. This does not change the suite's framework
-or require an evaluation environment. Use `--provider both` only
+does not probe an evaluation runner, and trace measurement needs no Harbor or
+provider runtime because it loads traces through NeMo Compass from the audit
+skill's `requirements.txt`. Use `--provider both` only
 when both runtimes are needed. File-only inventory never runs this command.
 Here `<skill_dir>` is the eval-author skill directory. The shared files ship in
 its `scripts/` directory; every flow uses this one locator and policy. If this

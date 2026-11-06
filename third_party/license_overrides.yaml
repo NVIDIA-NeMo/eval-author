@@ -16,12 +16,12 @@ overrides:
   hyperframe: MIT
   jinja2: BSD-3-Clause
   mlflow-skinny: Apache-2.0
+  # Git-pinned until the next PyPI release; Apache-2.0 per its pyproject.toml and LICENSE.
+  nemo-compass: Apache-2.0
   numpy: BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0
-  pathspec: MPL-2.0
   pyasn1-modules: BSD-2-Clause
   python-dateutil: Apache-2.0 OR BSD-3-Clause
   scipy: BSD-3-Clause
-  shellingham: ISC
   sqlparse: BSD-3-Clause
   tiktoken: MIT
   tokenizers: Apache-2.0

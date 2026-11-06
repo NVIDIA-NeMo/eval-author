@@ -19,9 +19,10 @@ An explicitly requested trace-environment workflow remains supported.
 
 ## Prepare and review
 
-Use an existing ATIF directly. Normalize other sources with
-[the source adapters](../../eval-author-inspect-trace/references/sources.md),
-retaining uncertainty/loss records. Adapters produce canonical evidence; call
+Use an existing ATIF directly. Other source kinds cannot enter `prepare` until
+the trace workspace reads NeMo Compass Traces; see
+[trace sources](../../eval-author-inspect-trace/references/sources.md). Never
+hand-convert a trace into ATIF. Call
 inspect-trace's privacy commands before handing its content to construction.
 This local-file path does not require Intake credentials or a CLI connection.
 
