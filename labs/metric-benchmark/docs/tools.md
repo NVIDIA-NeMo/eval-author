@@ -66,6 +66,13 @@ layout, completed-job reuse, interrupted-job recovery, and the Python API.
 changing task or agent definitions. See the [publication command guide](publish-helix-inputs.md)
 for prerequisites, packaging settings, output records and replay behavior.
 
+### Helix exploration
+
+The exploratory [submit](submit-helix-evals.md) and
+[download](download-helix-results.md) tools schedule prepared cases and collect
+native task evidence. Their collection format is not yet qualified for score
+analysis; the existing local execution and validation tools are unchanged.
+
 ## Compute mutant scores
 
 See the [`compute_mutant_scores.py` command guide](compute-mutant-scores.md) for
