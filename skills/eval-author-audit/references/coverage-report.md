@@ -44,7 +44,6 @@ python <audit-skill-dir>/scripts/audit_spec/render_report.py --repo . \
 - Record each discovered issue separately, with its task revision, explanation, basis, and evidence. Keep false acceptance, false rejection, agent failure, missing trigger exposure, and unusable execution evidence distinct.
 - Retain current and historical failures. A later passing control doesn't erase another failure on the same revision. Check individual assertions even when aggregate reward is zero.
 - Keep missing, stale, unhealthy, and unsupported evidence unproven. A successful reconciliation doesn't qualify a task or establish agent coverage.
-- Keep private answers and raw attack payloads out of the report.
 - Run the reconciliation checker against validated content before findings review. The checker reads existing evidence and executes no task code.
 
 ```bash

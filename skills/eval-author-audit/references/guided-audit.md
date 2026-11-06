@@ -206,8 +206,7 @@ or their findings as findings about the user's confirmed evaluation scope.
 
 After suite selection, complete the report guidance's
 [verifier inspection](coverage-report.md#inspect-verifier-behavior-and-retained-controls)
-before checks review. Include applicable verifier checks and required evidence
-in the generated coverage tables. Do not mark grading not applicable merely because no
+before checks review. Do not mark grading not applicable merely because no
 agent trajectory exists or the inventory read only task documentation.
 
 Inputs: checked Ethos and authoritative tool names from the registry, agent

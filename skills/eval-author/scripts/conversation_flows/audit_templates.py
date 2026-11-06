@@ -62,6 +62,10 @@ MEASUREMENT_PENDING = "Coverage is unmeasured until the agreed measurement is co
 MEASUREMENT_STALE = (
     "Saved measurements are missing, changed, or no longer applicable; they do not establish current coverage."
 )
+TASKS_CHANGED = (
+    "Tasks recorded in the findings changed after approval: {tasks}. "
+    "The approved checks and measurement no longer apply until you review the checks again."
+)
 FINDINGS_TABLE = "| Finding | Evidence and significance |\n|---|---|"
 FINDING_KINDS = {
     "strength": "Strength",

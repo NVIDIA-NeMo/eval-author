@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-[eval-author-audit-report]: urn:eval-author:audit-report:%7B%22body_sha256%22%3A%20%2277e1fb23c7987a1900712afe475e78c58bec603f984471a9793461cb4a1c5e92%22%2C%20%22content_sha256%22%3A%20%22798365c34d1e907ea77c7f91b56aff102c66063597a41406d19ebe1463dc9d8c%22%2C%20%22renderer_version%22%3A%209%2C%20%22sources_sha256%22%3A%20%22c3f754c65550da88c25a6f2457ee1139d23bc0181574efe31c2cdec19c9d535b%22%2C%20%22validator_version%22%3A%201%7D
+[eval-author-audit-report]: urn:eval-author:audit-report:%7B%22body_sha256%22%3A%20%22db10bc0efdaab5bb55a63b50505aa12e2290e2b08ecd351b9bd8d766238d4539%22%2C%20%22content_sha256%22%3A%20%22798365c34d1e907ea77c7f91b56aff102c66063597a41406d19ebe1463dc9d8c%22%2C%20%22renderer_version%22%3A%209%2C%20%22sources_sha256%22%3A%20%22c3f754c65550da88c25a6f2457ee1139d23bc0181574efe31c2cdec19c9d535b%22%2C%20%22validator_version%22%3A%201%7D
 
 # Audit coverage report: research-agent
 
@@ -16,7 +16,7 @@ This audit includes 1 advisory, 3 findings, and 3 recommended tasks. 1 of 1 decl
 
 Coverage was not measured for this audit because the audit measurement step was not run. The audit inspected one task and one illustrative run record, and no controls were retained. All findings come from inspecting the verifier code and the task files.
 
-### Evaluation coverage over time
+### Evaluation coverage
 
 |  | Current audit |
 | --- | --- |
@@ -27,7 +27,7 @@ Coverage was not measured for this audit because the audit measurement step was 
 
 ### ADVISORY
 
-#### A1 - The verifier accepts an unchecked success response
+#### Advisory 1 - The verifier accepts an unchecked success response
 
 [T1-source-answer](../report-sources/tasks/source-answer/instruction.md)'s verifier prints success without checking the submitted answer, so an empty submission can pass even when the task's quotation requirement is unmet. Code inspection confirmed verifier cheating, as documented in [verify.py](../report-sources/tasks/source-answer/verify.py).
 
@@ -37,18 +37,18 @@ Proposed task: Revise the verifier to compare the submitted quotation with verif
 
 ## Key findings
 
-### F1 - Coverage gaps
+### Finding 1 - Coverage gaps
 
 0 of 1 capabilities, 0 of 1 tools and 1 of 1 failure cases have no mapped task. The [Coverage report](#coverage-report) lists every declared item with its tasks and run evidence.
 
 - **The suite lacks a missing-evidence task.** [T1-source-answer](../report-sources/tasks/source-answer/instruction.md) asks the agent to return a quotation from the supplied source, but the inspected suite has no scenario for a question that the source cannot answer. The audit therefore cannot assess how the agent handles missing evidence.
   - Proposed task: Supply a source without an answer and require the agent to acknowledge that limitation.
 
-### F2 - Retained controls are unavailable
+### Finding 2 - Retained controls are unavailable
 
 [T1-source-answer](../report-sources/tasks/source-answer/instruction.md) has no supported control receipts in the selected material, so the audit cannot establish whether its verifier rejects wrong answers or accepts valid alternatives. The available code inspection evidence in the task files leaves this finding unproven.
 
-### F3 - Quotation accuracy is unchecked
+### Finding 3 - Quotation accuracy is unchecked
 
 [T1-source-answer](../report-sources/tasks/source-answer/instruction.md)'s verifier does not compare the answer with the selected source, so a passing result does not establish whether the quotation is accurate. Code inspection confirmed a weak verifier, as documented in [verify.py](../report-sources/tasks/source-answer/verify.py).
 
@@ -58,23 +58,30 @@ Proposed task: Require the trace to show a read\_file call on the cited source b
 
 The recommendations draw on the inspected task definitions, the audit specification, and the selected Ethos.
 
+### Next actions
+
+1. High priority - Repair the verifier: [Advisory 1](#advisory-1---the-verifier-accepts-an-unchecked-success-response)
+2. Medium priority - Add a task: [Finding 1](#finding-1---coverage-gaps)
+3. Low priority - Collect more evidence: [Finding 2](#finding-2---retained-controls-are-unavailable)
+4. Medium priority - Revise a task: [Finding 3](#finding-3---quotation-accuracy-is-unchecked)
+
 ### Capabilities
 
 | Functionality | Intended check and required evidence |
 | --- | --- |
-| cited\_answers - Answer with exact quotations. | [A1](#a1---the-verifier-accepts-an-unchecked-success-response): Revise the verifier to compare the submitted quotation with verifier-owned source data and reject empty answers. |
+| cited\_answers - Answer with exact quotations. | [Advisory 1](#advisory-1---the-verifier-accepts-an-unchecked-success-response): Revise the verifier to compare the submitted quotation with verifier-owned source data and reject empty answers. |
 
 ### Tools
 
 | Functionality | Intended check and required evidence |
 | --- | --- |
-| read\_file - Read project sources. | [F3](#f3---quotation-accuracy-is-unchecked): Require the trace to show a read\_file call on the cited source before the answer, and reject quotations that do not appear in what was read. |
+| read\_file - Read project sources. | [Finding 3](#finding-3---quotation-accuracy-is-unchecked): Require the trace to show a read\_file call on the cited source before the answer, and reject quotations that do not appear in what was read. |
 
 ### Failure cases
 
 | Functionality | Intended check and required evidence |
 | --- | --- |
-| missing\_evidence - Acknowledge missing evidence. | [F1](#f1---coverage-gaps): Supply a source without an answer and require the agent to acknowledge that limitation. |
+| missing\_evidence - Acknowledge missing evidence. | [Finding 1](#finding-1---coverage-gaps): Supply a source without an answer and require the agent to acknowledge that limitation. |
 
 ## Task catalog
 
@@ -82,7 +89,7 @@ The catalog lists inspected runnable tasks, their intended behavior, and their a
 
 | Task | Behavior | Capabilities and tools | Findings |
 | --- | --- | --- | --- |
-| [T1-source-answer](../report-sources/tasks/source-answer/instruction.md): Source answer | Answer with a quotation from the project source. | Capabilities: cited\_answers. Tools: Unmeasured. The selected record for [T1-source-answer](../report-sources/tasks/source-answer/instruction.md) does not establish a source read. | [A1 - The verifier accepts an unchecked success response](#a1---the-verifier-accepts-an-unchecked-success-response) (confirmed) [F2 - Retained controls are unavailable](#f2---retained-controls-are-unavailable) (unproven) [F3 - Quotation accuracy is unchecked](#f3---quotation-accuracy-is-unchecked) (confirmed) |
+| [T1-source-answer](../report-sources/tasks/source-answer/instruction.md): Source answer | Answer with a quotation from the project source. | Capabilities: cited\_answers. Tools: Unmeasured. The selected record for [T1-source-answer](../report-sources/tasks/source-answer/instruction.md) does not establish a source read. | [Advisory 1 - The verifier accepts an unchecked success response](#advisory-1---the-verifier-accepts-an-unchecked-success-response) (confirmed); [Finding 2 - Retained controls are unavailable](#finding-2---retained-controls-are-unavailable) (unproven); [Finding 3 - Quotation accuracy is unchecked](#finding-3---quotation-accuracy-is-unchecked) (confirmed) |
 
 ## Coverage report
 

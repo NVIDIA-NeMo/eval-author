@@ -457,6 +457,12 @@ def test_structured_task_inputs_reopen_scope_when_the_task_tree_changes(audit, t
     content_path.write_text("{}\n")
     from eval_author_shared.task_evidence import task_digest
 
+    value["checks_approval"]["digest"] = audit.derive(state, audit.observe(tmp_path, state))["checks_digest"]
+    value["measurement"]["checks_digest"] = value["checks_approval"]["digest"]
+    for ref in [value["findings"]["report"], *value["measurement"]["evidence"]]:
+        ref["digest"] = hashlib.sha256((tmp_path / ref["path"]).read_bytes()).hexdigest()
+    approved_digest = audit.derive(state, audit.observe(tmp_path, state))["checks_digest"]
+    # Record the findings after approval and measurement, without recomputing either.
     value["findings"].update(
         content={
             "path": content_path.relative_to(tmp_path).as_posix(),
@@ -464,11 +470,10 @@ def test_structured_task_inputs_reopen_scope_when_the_task_tree_changes(audit, t
         },
         inputs=[{"path": "suites/refund", "digest": task_digest(tmp_path / "suites/refund"), "kind": "task"}],
     )
-    value["checks_approval"]["digest"] = audit.derive(state, audit.observe(tmp_path, state))["checks_digest"]
-    value["measurement"]["checks_digest"] = value["checks_approval"]["digest"]
-    for ref in [value["findings"]["report"], *value["measurement"]["evidence"]]:
-        ref["digest"] = hashlib.sha256((tmp_path / ref["path"]).read_bytes()).hexdigest()
     current = audit.derive(state, audit.observe(tmp_path, state))
+    assert current["checks_digest"] == approved_digest
+    assert current["checks_approved"] and current["measurement_complete"]
+    assert current["findings_digest"] and not current["changed_task_bindings"]
     value["findings_review"] = {"digest": current["findings_digest"], "source": "User accepted current report"}
     assert audit.derive(state, audit.observe(tmp_path, state))["findings_reviewed"]
     (tmp_path / "suites/refund/extra.txt").write_text("Task changed.\n")
@@ -476,3 +481,41 @@ def test_structured_task_inputs_reopen_scope_when_the_task_tree_changes(audit, t
     assert not current["checks_approved"]
     assert not current["measurement_complete"]
     assert not current["findings_reviewed"]
+    assert current["changed_task_bindings"] == ["suites/refund"]
+
+
+def test_recording_task_bound_findings_keeps_approval_and_measurement(audit):
+    state, value, observed = measured(audit)
+    before = audit.derive(state, observed)
+    task = {"path": "suites/refund", "digest": audit.fingerprint("task tree"), "kind": "task"}
+    content = {"path": ".eval-author/.working/audit/report-content.json", "digest": audit.fingerprint("content")}
+    value["findings"].update(content=content, inputs=[task])
+    observed["files"].update({task["path"]: task["digest"], content["path"]: content["digest"]})
+    after = audit.derive(state, observed)
+    assert after["checks_digest"] == before["checks_digest"]
+    assert after["checks_approved"] and after["measurement_complete"]
+    assert after["findings_digest"] and after["changed_task_bindings"] == []
+
+
+def test_a_changed_task_binding_revokes_approval_and_blocks_progress(audit):
+    state, value, observed = measured(audit)
+    task = {"path": "suites/refund", "digest": audit.fingerprint("task tree"), "kind": "task"}
+    content = {"path": ".eval-author/.working/audit/report-content.json", "digest": audit.fingerprint("content")}
+    value["findings"].update(content=content, inputs=[task])
+    observed["files"].update({task["path"]: audit.fingerprint("edited"), content["path"]: content["digest"]})
+    current = audit.derive(state, observed)
+    assert current["changed_task_bindings"] == ["suites/refund"]
+    assert not current["checks_approved"] and not current["measurement_complete"]
+
+
+def test_transition_names_the_changed_tasks_before_recording_more_progress(audit, monkeypatch):
+    state, value, observed = measured(audit)
+    task = {"path": "suites/refund", "digest": audit.fingerprint("task tree"), "kind": "task"}
+    content = {"path": ".eval-author/.working/audit/report-content.json", "digest": audit.fingerprint("content")}
+    value["findings"].update(content=content, inputs=[task])
+    observed["files"].update({task["path"]: audit.fingerprint("edited"), content["path"]: content["digest"]})
+    previous = copy.deepcopy(state)
+    value["findings_review"] = {"digest": audit.fingerprint("review"), "source": "User accepted findings"}
+    monkeypatch.setattr(audit, "observe", lambda *_: observed)
+    with pytest.raises(ValueError, match="Tasks recorded in the findings changed after approval: suites/refund"):
+        audit.transition(Path("/synthetic"), previous, state)

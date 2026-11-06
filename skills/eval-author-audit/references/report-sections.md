@@ -31,7 +31,7 @@ renderer writes, which fields you author, and an example. Read it with the
 - Refer to a task by its ID only, such as `T2`. The renderer turns every mention into a link labelled with the full identifier, like `T2-safe-01-embedded-instruction`.
 - IMPORTANT: Name each task ONCE PER FINDING, as the subject of the explanation's first sentence ("T2's grading script…"). A finding includes its explanation, its `advisory`, and the `proposed_task` of every recommendation tied to it. Everywhere else in those fields, write "the task", "its verifier", or "the grading script". The renderer refuses content that names a task twice (`repeated_task_reference`) and names the field to fix.
 - If the explanation doesn't name an affected task, the renderer opens it with the task link. Don't name that task anywhere else in the finding either.
-- Refer to another finding by its content ID, such as `F2`. The renderer renumbers advisories as A1, A2… and other findings as F1, F2…, and rewrites your references to match. Never write A or R numbers yourself.
+- Refer to another finding by wrapping its content ID in braces, such as `{F2}`. The renderer numbers advisories as Advisory 1, Advisory 2… and other findings as Finding 1, Finding 2…, and rewrites each braced reference to match. Bare tokens such as `F1 score` are left unchanged. Never write Advisory or Finding numbers yourself.
 - Never write HTML
 - Evidence links come from each record's `evidence` source IDs.
 - `audit.md` and `ETHOS.md` are linked only in Scope and Execution Evidence. Other source files, such as grading scripts and run records, are linked only in the evidence citation that ends a finding or advisory. Don't name any of them anywhere else.
@@ -89,7 +89,7 @@ An advisory is a `verifier_cheating` finding with status `confirmed` or
 `resolved`. It appears only under Summary → ADVISORY and never under Key
 findings. An `unproven` cheating finding is an ordinary key finding.
 
-**The renderer writes:** the `A1 - <title>` heading and any status suffix, the
+**The renderer writes:** the `Advisory 1 - <title>` heading and any status suffix, the
 evidence citation ("Code inspection confirmed verifier cheating, as documented
 in …"), and the `Proposed task:` line. See the evidence rule under
 [Task, finding, and file references](#task-finding-and-file-references) for
@@ -131,7 +131,7 @@ with recommendation:
 ## Key findings
 
 **The renderer writes:**
-- `F1 - Coverage gaps`, always the first key finding, with computed counts of undemonstrated and unmapped items and a link to the coverage tables. Whether coverage was measured, and how to measure it, appear only in Summary and in Scope and Execution Evidence. Don't restate either in any finding.
+- `Finding 1 - Coverage gaps`, always the first key finding, with computed counts of undemonstrated and unmapped items and a link to the coverage tables. Whether coverage was measured, and how to measure it, appear only in Summary and in Scope and Execution Evidence. Don't restate either in any finding.
 - Finding numbers, headings, evidence citations, and `Proposed task:` lines
 
 **You author:** `title` and `explanation` for every finding that isn't an
@@ -139,8 +139,8 @@ advisory, plus the `proposed_task` of each related recommendation.
 
 ### Missing-task findings
 
-Findings with category `missing_task` are folded into `F1 - Coverage gaps`.
-`F1 - Coverage gaps` is always the first key finding. Each missing-task
+Findings with category `missing_task` are folded into `Finding 1 - Coverage gaps`.
+`Finding 1 - Coverage gaps` is always the first key finding. Each missing-task
 finding renders as a bullet that opens with its title in bold, with no evidence
 citation. Its proposed task appears as a nested bullet. The counts are
 already there, so name the uncovered behaviors the way a reader knows them and
@@ -162,7 +162,7 @@ say why the gap matters.
 
 **Avoid:** once the task IDs are removed, the title has no subject.
 
-> ### F4 - Have no current control receipts
+> ### Finding 4 - Have no current control receipts
 
 **Write:**
 
@@ -179,14 +179,16 @@ say why the gap matters.
 
 ```json
 "title": "Every recorded run scored zero",
-"explanation": "T4's ten retained runs all scored zero, and the task record attributes this to the agent not saving the pasted transcript. Because F2 shows the grading script also mishandles empty replies, these scores do not yet establish an agent failure. Rerunning the task after the verifier repair would."
+"explanation": "T4's ten retained runs all scored zero, and the task record attributes this to the agent not saving the pasted transcript. Because {F2} shows the grading script also mishandles empty replies, these scores do not yet establish an agent failure. Rerunning the task after the verifier repair would."
 ```
 
 ## Recommended Tasks by Capability & Tool
 
-**The renderer writes:** one table per item kind, with a row for each
-recommendation that has both a `proposed_task` and mapped `items`, linked to
-its advisory or finding.
+**The renderer writes:** a ranked Next actions list with one line per
+recommendation, ordered by `order` and showing its `priority`, the action, and a
+link to its advisory or finding. Then one table per item kind, with a row for each
+recommendation that has both a `proposed_task` and mapped `items`. A finding or
+item without a recommendation appears in the report with no suggestion.
 
 **You author:** `proposed_task`. Write one or two imperative sentences: the
 scenario or change, then what the verifier must require or reject. Leave it

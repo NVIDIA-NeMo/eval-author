@@ -3,7 +3,7 @@
 
 SECTIONS = (
     (2, "Summary"),
-    (3, "Evaluation coverage over time"),
+    (3, "Evaluation coverage"),
     (2, "Key findings"),
     (2, "Recommended Tasks by Capability & Tool"),
     (2, "Task catalog"),
@@ -13,7 +13,16 @@ SECTIONS = (
     (2, "Definitions"),
 )
 EVAL_AUTHOR_URL = "https://github.com/NVIDIA-NeMo/eval-author"
-SUBHEADINGS = {"advisory": "ADVISORY"}
+SUBHEADINGS = {"advisory": "ADVISORY", "next_actions": "Next actions"}
+ACTIONS = {
+    "new_task": "Add a task",
+    "revise_task": "Revise a task",
+    "collect_evidence": "Collect more evidence",
+    "fix_agent": "Fix the agent",
+    "review_scope": "Review the audit scope",
+    "repair_verifier": "Repair the verifier",
+}
+PRIORITIES = {"high": "High", "medium": "Medium", "low": "Low"}
 TABLES = {
     "recommended": ("Functionality", "Intended check and required evidence"),
     "tasks": ("Task", "Behavior", "Capabilities and tools", "Findings"),

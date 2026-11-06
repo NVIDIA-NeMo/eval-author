@@ -156,6 +156,10 @@ def bullet_section(heading: str, value: object, label: str) -> str | None:
 
 def measurement_status(lifecycle: dict, audit: dict) -> str:
     measurement = lifecycle["measurement"]
+    if audit["changed_task_bindings"]:
+        return copy.TASKS_CHANGED.format(
+            tasks=", ".join(literal(path, "task path") for path in audit["changed_task_bindings"])
+        )
     if audit["measurement_complete"]:
         return copy.MEASUREMENT_COMPLETE
     if measurement:

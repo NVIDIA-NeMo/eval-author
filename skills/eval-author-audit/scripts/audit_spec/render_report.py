@@ -94,7 +94,7 @@ def task_mentions(model: content.Content, value: str):
         yield match, identifiers[match[0]]
 
 
-FINDING_ID = re.compile(r"(?<![\w-])F[1-9][0-9]*(?![\w-])")
+FINDING_ID = re.compile(r"\{(F[1-9][0-9]*)\}")
 GAP = "coverage_gaps"
 
 
@@ -103,9 +103,9 @@ def is_advisory(row: dict) -> bool:
 
 
 def finding_labels(data: dict) -> dict[str, str]:
-    """Map content finding IDs to report IDs: advisories A1..An, then F1 (coverage gaps) and F2..Fn."""
-    labels = {row["id"]: f"A{index}" for index, row in enumerate(filter(is_advisory, data["findings"]), 1)}
-    labels[GAP] = "F1"
+    """Map content finding IDs to report labels: Advisory 1..n, then Finding 1 (coverage gaps) and Finding 2..n."""
+    labels = {row["id"]: f"Advisory {index}" for index, row in enumerate(filter(is_advisory, data["findings"]), 1)}
+    labels[GAP] = "Finding 1"
     count = 1
     for row in data["findings"]:
         if row["id"] in labels:
@@ -114,13 +114,13 @@ def finding_labels(data: dict) -> dict[str, str]:
             labels[row["id"]] = labels[GAP]
         else:
             count += 1
-            labels[row["id"]] = f"F{count}"
+            labels[row["id"]] = f"Finding {count}"
     return labels
 
 
 def relabel(model: content.Content, value: str) -> str:
     labels = finding_labels(model.data)
-    return FINDING_ID.sub(lambda match: labels.get(match[0], match[0]), value)
+    return FINDING_ID.sub(lambda match: labels.get(match[1], match[0]), value)
 
 
 def display_text(model: content.Content, value: str) -> str:
@@ -529,6 +529,18 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
         ],
         "recommendations",
     )
+    if data["recommendations"]:
+        add(["### " + layout.SUBHEADINGS["next_actions"], ""], "recommendations")
+        ranked = sorted(data["recommendations"], key=lambda row: row["order"])
+        add(
+            [
+                f"{rank}. {layout.PRIORITIES[row['priority']]} priority - {layout.ACTIONS[row['action']]}: "
+                + jump(row["finding_id"])
+                for rank, row in enumerate(ranked, 1)
+            ],
+            "recommendations",
+        )
+        add([""], "recommendations")
     for kind, title in layout.KINDS:
         add(["### " + title, ""], "recommendations")
         rows = []
@@ -568,7 +580,7 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
             }
         )
         relevant = [row for row in data["findings"] if any(ref["task_id"] == task["id"] for ref in row["tasks"])]
-        issues = " ".join(
+        issues = "; ".join(
             jump(row["id"], finding_heading(model, row["id"]))
             + " ("
             + row["status"]

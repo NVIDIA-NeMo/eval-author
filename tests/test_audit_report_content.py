@@ -145,11 +145,11 @@ def test_escaped_task_link_in_summary_renders_as_a_markdown_link(audit_report):
     "title,slug",
     [
         (
-            "F1 - The verifier accepts an unchecked success response",
-            "f1---the-verifier-accepts-an-unchecked-success-response",
+            "Finding 1 - The verifier accepts an unchecked success response",
+            "finding-1---the-verifier-accepts-an-unchecked-success-response",
         ),
         ("Capabilities audited", "capabilities-audited"),
-        ("F1 - Coverage gaps", "f1---coverage-gaps"),
+        ("Finding 1 - Coverage gaps", "finding-1---coverage-gaps"),
     ],
 )
 def test_heading_links_follow_native_markdown_slugs(audit_report, title, slug):
@@ -174,7 +174,7 @@ def test_summary_holds_coverage_history_then_advisories_before_key_findings(audi
     report = renderer.render(load(audit_report))[0].decode()
     summary, key = report.split("## Summary\n\n", 1)[1].split("## Key findings\n\n", 1)
     key = key.split("## Recommended Tasks", 1)[0]
-    paragraphs = summary.split("### Evaluation coverage over time", 1)[0].strip().split("\n\n")
+    paragraphs = summary.split("### Evaluation coverage", 1)[0].strip().split("\n\n")
     assert len(paragraphs) == 2
     found, limits = paragraphs
     assert found.startswith("This audit includes ")
@@ -188,8 +188,8 @@ def test_summary_holds_coverage_history_then_advisories_before_key_findings(audi
     assert "To measure coverage" not in key
     scope = report.split("## Scope and Execution Evidence\n\n", 1)[1].split("## Definitions", 1)[0]
     assert "Coverage is unmeasured. To measure coverage, agree on the audit checks" in scope
-    assert summary.index("### Evaluation coverage over time") < summary.index("### ADVISORY")
-    assert key.startswith("### F1 - Coverage gaps\n")
+    assert summary.index("### Evaluation coverage") < summary.index("### ADVISORY")
+    assert key.startswith("### Finding 1 - Coverage gaps\n")
     assert "\n- **The suite lacks a missing-evidence task.** " in key
     assert "\n  - Proposed task: Supply a source without an answer" in key
 
@@ -228,7 +228,7 @@ def test_findings_have_plain_headings_and_canonical_task_links(audit_report, tas
     report = renderer.render(load(audit_report, data))[0].decode()
     advisory = report.split("### ADVISORY\n\n", 1)[1].split("## Key findings", 1)[0]
     heading, paragraph = advisory.split("\n\n", 2)[:2]
-    assert heading == "#### A1 - Accepts an agent-written reward file"
+    assert heading == "#### Advisory 1 - Accepts an agent-written reward file"
     assert paragraph.startswith("The grading script for [T1-source-answer](tasks/source-answer/instruction.md) accepts")
     key = report.split("## Key findings\n\n", 1)[1].split("## Recommended Tasks", 1)[0]
     assert "agent-written reward file" not in key
@@ -252,7 +252,7 @@ def test_multiple_affected_tasks_lead_the_finding_paragraph(audit_report):
     row["tasks"].append({**row["tasks"][0], "task_id": "T2"})
     row["title"] = "T1 and T2 accept unchecked success responses"
     row["explanation"] = "Both verifiers accept an empty submission."
-    assert renderer.finding_heading(model, row["id"]) == "A1 - Accept unchecked success responses"
+    assert renderer.finding_heading(model, row["id"]) == "Advisory 1 - Accept unchecked success responses"
     expected = renderer.task_link(model, "T1") + " and " + renderer.task_link(model, "T2")
     assert renderer.finding_explanation(model, row).startswith(expected + ": ")
     row["explanation"] = "T1 and T2 accept an empty submission."
@@ -334,7 +334,7 @@ def test_summary_derives_verifier_conclusion_from_reviewed_findings(audit_report
         data["verifier_review"] = {"checks": [], "notes": []}
     model = load(audit_report, data)
     report = renderer.render(model)[0].decode()
-    summary = report.split("## Summary\n\n", 1)[1].split("### Evaluation coverage over time", 1)[0]
+    summary = report.split("## Summary\n\n", 1)[1].split("### Evaluation coverage", 1)[0]
     assert expected in summary
     assert "No cheat controls were executed." not in summary
     assert ("no evidence of verifier tampering" in summary) is (reviewed and category is None)
@@ -400,9 +400,9 @@ def test_key_findings_are_paragraphs_without_revision_or_recommendation_boilerpl
     tokens = list(markdown_tokens(key_findings))
     headings = [tokens[index + 1].content for index, token in enumerate(tokens) if token.type == "heading_open"]
     assert headings == [
-        "F1 - Coverage gaps",
-        "F2 - Retained controls are unavailable",
-        "F3 - Quotation accuracy is unchecked",
+        "Finding 1 - Coverage gaps",
+        "Finding 2 - Retained controls are unavailable",
+        "Finding 3 - Quotation accuracy is unchecked",
     ]
     assert "This finding applies to" not in report
     assert "This recommendation has" not in report
@@ -640,7 +640,7 @@ def test_every_issue_is_listed_in_task_findings_with_a_compact_screening_overvie
     _, renderer, _ = audit_report
     text = renderer.render(load(audit_report))[0].decode()
     row = next(line for line in text.splitlines() if line.startswith("| [T1-source-answer]"))
-    assert all(identifier in row for identifier in ["A1", "F2", "F3"])
+    assert all(identifier in row for identifier in ["Advisory 1", "Finding 2", "Finding 3"])
     assert "### Retained control evidence" not in text
     assert "Task-specific issues appear in the findings." in text
 
@@ -793,7 +793,7 @@ def test_unnamed_task_is_prefixed_once_and_not_repeated_in_its_citation(audit_re
     data = example_data(root)
     data["findings"][2]["explanation"] = "No supported control receipts exist in the selected material."
     report = renderer.render(load(audit_report, data))[0].decode()
-    finding = report.split("### F2 - Retained controls are unavailable\n\n", 1)[1].split("\n\n", 1)[0]
+    finding = report.split("### Finding 2 - Retained controls are unavailable\n\n", 1)[1].split("\n\n", 1)[0]
     assert finding.count("T1-source-answer") == 1
     assert finding.startswith("[T1-source-answer](")
     assert finding.endswith("The available code inspection evidence in the task files leaves this finding unproven.")
@@ -853,12 +853,12 @@ def test_finding_citations_dedupe_and_skip_scope_sources(audit_report):
     # F3: only the audit spec and the Ethos.
     data["findings"][2]["evidence"] = ["S1", "S2"]
     report = renderer.render(load(audit_report, data))[0].decode()
-    accuracy = report.split("### F3 - Quotation accuracy is unchecked\n\n", 1)[1].split("\n\n", 1)[0]
+    accuracy = report.split("### Finding 3 - Quotation accuracy is unchecked\n\n", 1)[1].split("\n\n", 1)[0]
     assert accuracy.endswith(
         "Code inspection confirmed a weak verifier, as documented in "
         "[verify.py](../report-sources/tasks/source-answer/verify.py)."
     )
-    controls = report.split("### F2 - Retained controls are unavailable\n\n", 1)[1].split("\n\n", 1)[0]
+    controls = report.split("### Finding 2 - Retained controls are unavailable\n\n", 1)[1].split("\n\n", 1)[0]
     assert controls.endswith("This finding is unproven.")
 
 

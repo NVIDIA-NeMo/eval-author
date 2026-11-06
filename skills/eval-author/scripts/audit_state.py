@@ -262,7 +262,7 @@ def derive(state: dict, observed: dict) -> dict | None:
     files = observed_files(state, observed)
     sources_ready = all(value[key]["status"] != "pending" for key in ("suites", "traces"))
     inputs = value["suite_files"] + value["trace_files"] + ([value["specification"]] if value["specification"] else [])
-    inputs += [ref["path"] for ref in (value["findings"] or {}).get("inputs", []) if ref["kind"] == "task"]
+    task_refs = [ref for ref in (value["findings"] or {}).get("inputs", []) if ref["kind"] == "task"]
     if value.get("selection_manifest"):
         inputs.append(value["selection_manifest"])
     checks_digest = None
@@ -287,7 +287,10 @@ def derive(state: dict, observed: dict) -> dict | None:
             }
         )
     approval = value["checks_approval"]
-    approved = bool(checks_digest and approval and approval["digest"] == checks_digest)
+    # Task bindings gate approval without entering the approved digest, so recording findings
+    # after approval and measurement does not revoke them. A later task change does.
+    changed_tasks = [ref["path"] for ref in task_refs if files.get(ref["path"]) != ref["digest"]]
+    approved = bool(checks_digest and approval and approval["digest"] == checks_digest and not changed_tasks)
     measurement = value["measurement"]
     current = bool(approved and measurement and measurement["checks_digest"] == checks_digest)
     evidence_current = bool(current and all(files.get(ref["path"]) == ref["digest"] for ref in measurement["evidence"]))
@@ -363,6 +366,7 @@ def derive(state: dict, observed: dict) -> dict | None:
         "checkpoint_digests": checkpoint_digests,
         "checks_digest": checks_digest,
         "checks_approved": approved,
+        "changed_task_bindings": changed_tasks,
         "measurement_evidence_current": evidence_current,
         "measurement_complete": measured,
         "findings_digest": findings_digest,
@@ -394,6 +398,12 @@ def transition(repo, previous: dict, updated: dict) -> dict | None:
         value = after[field]
         if value is None or value == (before or {}).get(field):
             continue
+        if current["changed_task_bindings"] and field in {"measurement", "findings_review", "next_action"}:
+            raise ValueError(
+                "Tasks recorded in the findings changed after approval: "
+                + ", ".join(current["changed_task_bindings"])
+                + ". Re-review the checks before recording more audit progress"
+            )
         if field == "checks_approval" and not current["checks_approved"]:
             raise ValueError("Approve the current checks after resolving source selections")
         if field == "measurement":
