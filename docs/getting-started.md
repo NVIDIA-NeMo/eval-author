@@ -300,6 +300,11 @@ To continue, [check an existing suite](existing-evals.md#check-readiness),
 
 ## Requirements
 
+Contained live-CI reproduction additionally requires a disposable per-shard
+Linux VM, not shared Docker Desktop. See the
+[live evaluation prerequisites and phase commands](skill-evaluation-ci.md#patched-live-runtime).
+This is not a requirement for installing or authoring skills.
+
 Requirements depend on the operation. Use the
 [Harbor setup guide](../skills/eval-author/references/harbor-setup.md) when
 you need to create, validate, or run Harbor tasks.

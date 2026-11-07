@@ -51,6 +51,9 @@ def test_static_and_live_installs_match_the_reported_evaluator_revision():
     ):
         workflow = yaml.safe_load((root / ".github/workflows" / filename).read_text())
         install = next(step["run"] for step in workflow["jobs"][job_name]["steps"] if step.get("name") == step_name)
+        if filename == "skill-evaluation-live.yml":
+            assert 'tools/live_shard.py runtime --root "$RUNNER_TEMP/live-shard"' in install
+            install = (root / "tools/live_shard.py").read_text()
         assert f"git+https://github.com/NVIDIA/SkillEvaluator.git@{collector.EVALUATOR_REVISION}" in install
 
 

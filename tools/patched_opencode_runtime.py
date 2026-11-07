@@ -12,6 +12,7 @@ import stat
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from contextvars import ContextVar
 from importlib import import_module
 from importlib.metadata import distribution
@@ -328,6 +329,87 @@ def preparation_timeout(limit):
     return min(limit, remaining)
 
 
+_PREPARATION_PRIVATE_DIAGNOSTICS: ContextVar[Path | None] = ContextVar("preparation_private_diagnostics", default=None)
+PREPARATION_PRIVATE_STREAM_BYTES = 16384
+
+
+@contextmanager
+def _private_parent(path):
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    fd = os.open(path.anchor, flags)
+    try:
+        for part in path.parts[1:-1]:
+            child = os.open(part, flags, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        yield fd
+    finally:
+        os.close(fd)
+
+
+def _validate_private_diagnostics(path, skill, timing_checkpoint):
+    path = Path(path).absolute()
+    source = Path(skill).resolve()
+    roots = [source, Path(__file__).resolve().parents[1]]
+    roots.extend(parent for parent in source.parents if (parent / ".git").exists())
+    if (
+        ".." in path.parts
+        or any(path.is_relative_to(root) or root.is_relative_to(path) for root in roots)
+        or (timing_checkpoint is not None and path == Path(timing_checkpoint).resolve())
+    ):
+        raise ValueError("unsafe private diagnostics destination")
+    with _private_parent(path) as parent:
+        try:
+            os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            return path
+    raise ValueError("unsafe private diagnostics destination")
+
+
+def _private_stream(value):
+    limit = PREPARATION_PRIVATE_STREAM_BYTES
+    if value is None:
+        return "", False
+    # Bound persisted output, not subprocess.run(capture_output=True)'s buffering.
+    prefix = value[:limit]
+    raw = prefix if isinstance(prefix, bytes) else prefix.encode("utf-8", errors="replace")
+    decoded = raw[:limit].decode("utf-8", errors="replace").encode("utf-8")
+    text = decoded[:limit].decode("utf-8", errors="ignore")
+    return text, len(value) > limit or len(raw) > limit or len(decoded) > limit
+
+
+def _retain_docker_failure(category, phase, operation, exit_code, stdout, stderr):
+    path = _PREPARATION_PRIVATE_DIAGNOSTICS.get()
+    if path is None:
+        return
+    try:
+        stdout, stdout_truncated = _private_stream(stdout)
+        stderr, stderr_truncated = _private_stream(stderr)
+        safe = PreparationError(category, phase, operation)
+        record = dict(
+            schema_version=1,
+            category=safe.category,
+            phase=safe.phase,
+            operation=safe.operation,
+            exit_code=exit_code,
+            stdout=stdout,
+            stderr=stderr,
+            stdout_truncated=stdout_truncated,
+            stderr_truncated=stderr_truncated,
+        )
+        with _private_parent(path) as parent:
+            fd = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent)
+        with os.fdopen(fd, "w") as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            json.dump(record, stream, sort_keys=True)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    except Exception:
+        # Retention is best effort; the original typed Docker failure stays authoritative.
+        pass
+
+
 def _docker(args, *, timeout=30):
     operation = "inspect" if args[:2] == ["image", "inspect"] else args[0] if args else "other"
     operation = operation if operation in PREPARATION_OPERATIONS else "other"
@@ -341,7 +423,9 @@ def _docker(args, *, timeout=30):
             # Require the classic builder; never fall back to mutable parent tags.
             environment["DOCKER_BUILDKIT"] = "0"
         result = subprocess.run(["docker", *args], env=environment, capture_output=True, text=True, timeout=timeout)
-    except (TimeoutError, subprocess.TimeoutExpired):
+    except (TimeoutError, subprocess.TimeoutExpired) as error:
+        if isinstance(error, subprocess.TimeoutExpired):
+            _retain_docker_failure("deadline_exceeded", phase, operation, None, error.stdout, error.stderr)
         _timing_event("operation_failed", operation, "deadline_exceeded")
         raise PreparationTimeoutError("deadline_exceeded", phase, operation) from None
     except OSError:
@@ -352,6 +436,7 @@ def _docker(args, *, timeout=30):
         _timing_event("operation_failed", operation, category)
         raise PreparationError(category, phase, operation) from None
     if result.returncode:
+        _retain_docker_failure("docker_failed", phase, operation, result.returncode, result.stdout, result.stderr)
         _timing_event("operation_failed", operation, "docker_failed")
         raise PreparationError("docker_failed", phase, operation) from None
     _timing_event("operation_completed", operation)
@@ -421,12 +506,17 @@ def check_prepared_image(identity, record, platform, *, probe=False, binary=None
         check_package_versions(versions)
 
 
-def prepare_images(skill, output, binary_manifest, *, timing_checkpoint=None):
+def prepare_images(skill, output, binary_manifest, *, timing_checkpoint=None, private_diagnostics=None):
     phase_token = _PREPARATION_PHASE.set("budget")
     token = _PREPARATION_DEADLINE.set(None)
     timing_token = _PREPARATION_TIMING.set(None)
+    private_token = _PREPARATION_PRIVATE_DIAGNOSTICS.set(None)
     started = time.monotonic()
     try:
+        if private_diagnostics is not None:
+            _PREPARATION_PRIVATE_DIAGNOSTICS.set(
+                _validate_private_diagnostics(private_diagnostics, skill, timing_checkpoint)
+            )
         if timing_checkpoint is not None:
             _PREPARATION_TIMING.set(PreparationTiming(timing_checkpoint))
         _timing_event("started")
@@ -452,6 +542,7 @@ def prepare_images(skill, output, binary_manifest, *, timing_checkpoint=None):
         _timing_event("failed", details["operation"], details["category"])
         raise safe from None
     finally:
+        _PREPARATION_PRIVATE_DIAGNOSTICS.reset(private_token)
         _PREPARATION_TIMING.reset(timing_token)
         _PREPARATION_DEADLINE.reset(token)
         _PREPARATION_PHASE.reset(phase_token)
