@@ -15,8 +15,6 @@ models:
     model: replace-with-workspace-model
 instructions:
   system:
-    content: >-
-      Complete the task using the available tools. File-tool paths are relative
-      to the task workspace; omit the workspace prefix from those paths.
+    content: Complete the task using the available tools.
 telemetry:
   enabled: false

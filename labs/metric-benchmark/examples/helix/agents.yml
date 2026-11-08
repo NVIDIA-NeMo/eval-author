@@ -8,7 +8,7 @@ baseline:
     bundle_input: runtime
     config_path: agent.yaml
     kwargs:
-      fabric_workspace: /app
+      fabric_workspace: /
     setup_timeout_multiplier: 12
   inputs:
     runtime:
@@ -21,7 +21,7 @@ mutants:
     bundle_input: runtime
     config_path: agent.yaml
     kwargs:
-      fabric_workspace: /app
+      fabric_workspace: /
     setup_timeout_multiplier: 12
   inputs:
     runtime:
