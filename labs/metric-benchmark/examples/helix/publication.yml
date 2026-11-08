@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Case and agent IDs must match the signed cases.
+agents:
+  example:
+    baseline: {}
+    mutant: {}
+# If an agent needs a secret, set env_secrets on its entry:
+# env_secrets:
+#   SERVICE_TOKEN: workspace/service-token
