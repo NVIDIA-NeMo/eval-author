@@ -269,7 +269,9 @@ def test_pin_drift_is_a_failure(tmp_path, monkeypatch):
     policy_dir = tmp_path / "skills/eval-author/scripts"
     policy_dir.mkdir(parents=True)
     (policy_dir / "runtime-policy.json").write_bytes((SCRIPTS / "runtime-policy.json").read_bytes())
-    project = (ROOT / "pyproject.toml").read_text().replace('"harbor==0.20.0"', '"harbor==99.0.0"')
+    policy = json.loads((policy_dir / "runtime-policy.json").read_text())
+    pinned = policy["providers"]["harbor"]["test_profiles"]["ci"]["version"]
+    project = (ROOT / "pyproject.toml").read_text().replace(f'"harbor=={pinned}"', '"harbor==99.0.0"')
     (tmp_path / "pyproject.toml").write_text(project)
     with pytest.raises(ValueError, match="must match runtime policy"):
         checker.check(tmp_path)
