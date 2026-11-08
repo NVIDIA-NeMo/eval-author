@@ -97,6 +97,9 @@ Helix currently implements registered Harbor agents through its Fabric adapter.
 That is a worker implementation detail: benchmark users register an agent bundle and
 select tasks. They do not configure bundle mounts or alter task Dockerfiles.
 
+The example uses DeepAgents file tools, whose paths are relative to the task
+workspace. Other harnesses may expose a shell or different tools.
+
 Supporting separate resources does not make every task/agent pairing valid. Worker
 dependencies, task setup permissions, network access and model availability still
 need to support the chosen agent. Fail unsupported combinations explicitly and
