@@ -1104,15 +1104,17 @@ def test_seed_datasets_are_bounded_and_have_negative_cases(live):
         "skills/mlflow-to-atif",
         "skills/eval-author-task-create",
         "skills/eval-author-environment",
+        "skills/eval-author-rubric",
         "team-skills/ethos/ethos-orchestrate",
         "team-skills/ethos/ethos-explore",
         "team-skills/ethos/ethos-write",
     ):
         skill = ROOT / path
-        expected_count = 6 if skill.name in ("eval-author", "eval-author-first-eval") else 4
+        expected_count = 6 if skill.name in ("eval-author", "eval-author-first-eval", "eval-author-rubric") else 4
         assert live.dataset_cases(skill) == expected_count
         cases = json.loads((skill / "evals/evals.json").read_text())["evals"]
-        assert sum(c["expected_skill"] is None for c in cases) == 1
+        expected_negative_count = 3 if skill.name == "eval-author-rubric" else 1
+        assert sum(c["expected_skill"] is None for c in cases) == expected_negative_count
         for case in cases:
             for filename in case["files"]:
                 assert (skill / "evals" / filename).is_file()
