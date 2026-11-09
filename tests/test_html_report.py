@@ -448,6 +448,14 @@ def test_runs_group_attempts_without_double_counting(tmp_path):
     assert all(run["kind"] == "job" for run in result["runs"])
 
 
+@pytest.mark.parametrize("trial_name,encoded_name", [("single", "single"), ("trial #one", "trial%20%23one")])
+def test_trial_viewer_route_escapes_trial_name(tmp_path, trial_name, encoded_name):
+    path = f".eval-author/jobs/checks/{trial_name}"
+    trial(tmp_path, path)
+    result = report.refresh(tmp_path, patch=rule(path))
+    assert result["standalone_trials"][0]["route"].endswith(f"/trials/{encoded_name}")
+
+
 def test_missing_nonbinary_errors_and_invalid_are_not_passes(tmp_path):
     path = job(tmp_path, total=5)
     trial(tmp_path, path + "/pass")
