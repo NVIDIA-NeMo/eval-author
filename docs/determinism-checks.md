@@ -11,6 +11,7 @@ Developer tools in `tools/` are not included in skill-only installations.
 | --- | --- |
 | [Workflow scope](#workflow-scope) | Reviewed actions, writes and handoffs match a request contract. |
 | [Discovery comparisons](#discovery-comparisons) | Repeated discovery reports agree under frozen inputs. |
+| [Rubric identity measurements](#rubric-identity-measurements) | Handcrafted mutations produce exact scoped identity diagnostics and scores. |
 | [Audit and task evidence](#audit-and-task-evidence) | Acceptance still matches its retained source and execution evidence. |
 | [Verifier-cheat panel](#verifier-cheat-panel) | Real Harbor controls distinguish a sound grader from a planted vulnerable grader. |
 | [Live anti-cheat experiment](#live-anti-cheat-experiment) | Model-backed Harbor task attempts separate real behavior from vulnerable reward signals. |
@@ -24,6 +25,69 @@ trajectories or free-form prose. The
 [conversation renderer](../skills/eval-author/scripts/conversation_renderer.py)
 separately requires byte-identical messages for identical rendering inputs;
 that presentation guarantee does not establish deterministic workflow execution.
+
+## Rubric identity measurements
+
+The experimental W02 demo assesses source-bound task access (`DISC-01-A`),
+explicit grading-path identification (`DISC-01-B`), and grading-dependency access
+with a retained completeness review (`DISC-01-C`). Raw identity, route,
+configuration, relationship, and approval measurements remain separate from
+canonical criterion scores. See the
+[rubric measurement contract](../skills/eval-author-rubric/references/identity.md)
+for input fields and supported evidence.
+
+Run the credential-free handcrafted demo from the checkout:
+
+```bash
+uv run --locked python tools/run_rubric_measurements.py --format text
+uv run --locked python tools/run_rubric_measurements.py
+```
+
+The default output is `rubric-mutation-panel-v2` JSON. It preserves the existing
+14 raw-measurement regressions and runs five canonical assessment variants through
+the actual measurement CLI. Each variant includes independent expected scores,
+observed items and raw measurements, exact diagnostic expectations, input identity,
+CLI exit code, and whether expectations matched. The panel exits nonzero on an
+unexpected outcome, not merely because it correctly detects a planted defect.
+
+| Variant | DISC-01-A | DISC-01-B | DISC-01-C |
+| --- | --- | --- | --- |
+| Valid declared inventory | 2 | 2 | 2 |
+| Wrong scorer | 2 | 0 | 2 |
+| Ambiguous route | 2 | null | 2 |
+| Confirmed missing task file | 0 | 2 | 2 |
+| Partial inventory and dependency route | 1 | 1 | 1 |
+
+`null` means `NOT_ASSESSED`, never zero. The other eight canonical criteria remain
+null in every variant. No level 3 is awarded: the handcrafted retained review is
+not independent corroboration. Inventories cover only declared local references
+and known grading branches; they do not establish arbitrary-code dependency
+closure, solver permissions, provider compatibility, or grading correctness.
+The partial review preserves its unresolved material dependency instead of
+certifying completeness. The confirmed-missing variant actually removes the task
+file before the checker reads it; a caller's missing-access declaration alone
+remains unknown.
+
+The wrong-scorer variant changes an explicit JSON selector to a weak route that
+names only a claimed-success check. This is a **weak-route defect, not demonstrated
+exploitation**: no scorer, solver, cheat, model, or native task executes. These are
+synthetic local selections, not customer tasks or proof of W01/W05 integration.
+The existing native verifier-cheat panel below remains the executed cheat control.
+Temporary inputs are removed after each case; redirect default JSON stdout if you
+need to retain the report. That report is not a retained executable task package.
+
+For an explicitly selected private package, the installed rubric provides:
+
+```bash
+python skills/eval-author-rubric/scripts/measure.py \
+  --root /path/to/package --selection /path/to/private-selection.json
+```
+
+It emits `rubric-measurements-v2` JSON without modifying workflow state. Exit 1
+means failed/unknown raw predicates or comparisons still requiring review; exit 2
+means invalid input. Exit 0 does not mean every canonical item is assessed or that
+native preflight passed. Configuration acceptability remains unassessed.
+Keep selections and output private; they can contain local evidence locations.
 
 ## Verifier-cheat panel
 

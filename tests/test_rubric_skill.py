@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -24,6 +25,87 @@ def test_rubric_scope_and_initial_slice() -> None:
     assert "Do not write an Audit" in text
     assert "A review request alone does not authorize executing repository code" in text
     assert "Default to the response only" in text
+
+
+def test_rubric_routes_only_the_explicitly_selected_assessment_area() -> None:
+    text = " ".join((SKILL / "SKILL.md").read_text().split())
+    for rule in (
+        "Anti-cheat-only opt-in does not select W02",
+        "W02-only opt-in does not select anti-cheat",
+        "If the named-rubric request leaves the area ambiguous, clarify the scope once before inspecting artifacts",
+        "Apply every selected criterion",
+        "Account for every selected task and every selected criterion, including unknowns",
+        "Do not apply unselected areas",
+        "Use only controls needed by selected criteria",
+        "W01 and W05 are downstream handoffs, not current deliverables or blockers",
+    ):
+        assert rule in text
+    assert "references/anti-cheat.md" in text
+    assert "references/artifact-configuration-provenance.md" in text
+    assert "references/identity.md" in text
+    assert "Apply every item in the reference" not in text
+    assert "Never promote local predicate scores" not in text
+
+
+def test_w02_canonical_source_preserves_criterion_checks_and_anchors() -> None:
+    source = SKILL / "references/artifact-configuration-provenance.json"
+    assert source.is_file()
+    data = json.loads(source.read_text())
+    items = data["items"]
+    assert {item["id"] for item in items} == {
+        "DISC-01-A",
+        "DISC-01-B",
+        "DISC-01-C",
+        "DISC-02-A",
+        "DISC-02-B",
+        "DISC-03-A",
+        "AUD-02",
+        "ENV-01",
+        "ENV-02-A",
+        "ENV-03",
+        "CREATE-07",
+    }
+    assert len(items) == 11
+    checks = [check for item in items for check in item["checks"]]
+    assert len(checks) == len({check["id"] for check in checks}) == 38
+    assert sum(len(item["scoring"]) for item in items) == 44
+    assert all(set(item["scoring"]) == {"0", "1", "2", "3"} for item in items)
+    # Frozen Rubric v4 W02 subset, including original questions, checks, and anchors.
+    canonical_bytes = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+    assert hashlib.sha256(canonical_bytes).hexdigest() == (
+        "b11c83765d5e7bd84b85c24c99d137aad38bed0ef7eb5ec65fe8f4216eeec135"
+    )
+
+
+def test_w02_reference_uses_canonical_definitions_and_item_specific_evidence() -> None:
+    reference = SKILL / "references/artifact-configuration-provenance.md"
+    assert reference.is_file()
+    text = reference.read_text()
+    normalized = " ".join(text.split())
+    items = json.loads((SKILL / "references/artifact-configuration-provenance.json").read_text())["items"]
+    sections = dict(re.findall(r"## ([A-Z]+-\d+(?:-[A-Z])?) — ([\s\S]*?)(?=\n## |\Z)", text))
+    assert set(sections) == {item["id"] for item in items}
+    for item in items:
+        assert sections[item["id"]].startswith(item["title"] + "\n")
+        assert "**Methods and evidence:**" in sections[item["id"]]
+        assert "**Assessment limit:**" in sections[item["id"]]
+        assert f"artifact-configuration-provenance.json#/items/{items.index(item)}" in sections[item["id"]]
+        for anchor in item["scoring"].values():
+            assert anchor not in text, "Keep full score anchors in canonical JSON only"
+    for rule in (
+        "E0 alone supports no numeric score",
+        "Do not import anti-cheat's evidence-floor table",
+        "CREATE-07 and AUD-02 can meet their level-3 anchors at E2",
+        "W01 and W05 are downstream handoffs, not current deliverables or blockers",
+        "Every selected criterion must have a result row",
+        "Every source check must be accounted for",
+        "NOT_ASSESSED",
+        "NOT_APPLICABLE",
+        "No aggregate W02 score",
+        "helper tests are not evidence about the selected task",
+    ):
+        assert rule in normalized
+    assert not re.search(r"\bID-0[1-5]\b", text)
 
 
 def test_rubric_requires_explicit_end_user_opt_in() -> None:

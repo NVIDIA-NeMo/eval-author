@@ -1,0 +1,71 @@
+{
+  "raw_measurements": [
+    {"id":"valid","mutation":null,"measurement":"identity","status":"pass","codes":[]},
+    {"id":"missing","mutation":"missing","measurement":"identity","status":"unknown","codes":["identity.access_missing"]},
+    {"id":"denied","mutation":"denied","measurement":"identity","status":"unknown","codes":["identity.access_denied"]},
+    {"id":"unresolved","mutation":"unresolved","measurement":"identity","status":"unknown","codes":["identity.access_unresolved"]},
+    {"id":"changed-task","mutation":"changed-task","measurement":"identity","status":"fail","codes":["identity.digest_mismatch"]},
+    {"id":"wrong-scorer","mutation":"wrong-scorer","measurement":"route","status":"fail","codes":["route.scorer_mismatch"]},
+    {"id":"ambiguous-route","mutation":"ambiguous-route","measurement":"route","status":"unknown","codes":["route.dynamic_unresolved"]},
+    {"id":"config-difference","mutation":"config-difference","measurement":"config","status":"different","codes":[],"differences":["/runtime_pins/harbor"]},
+    {"id":"missing-dependency","mutation":"missing-dependency","measurement":"route","status":"unknown","codes":["route.dependency_missing"]},
+    {"id":"valid-links","mutation":null,"measurement":"links","status":"pass","codes":[]},
+    {"id":"broken-reference","mutation":"broken-reference","measurement":"links","status":"fail","codes":["links.required_missing"]},
+    {"id":"valid-approval","mutation":null,"measurement":"approvals","status":"pass","codes":[]},
+    {"id":"stale-approval","mutation":"stale-approval","measurement":"approvals","status":"fail","codes":["approvals.digest_stale"]},
+    {"id":"missing-decision","mutation":"missing-decision","measurement":"approvals","status":"fail","codes":["approvals.decision_missing"]}
+  ],
+  "not_assessed": ["DISC-02-A", "DISC-02-B", "DISC-03-A", "AUD-02", "ENV-01", "ENV-02-A", "ENV-03", "CREATE-07"],
+  "assessments": [
+    {
+      "id": "valid", "mutation": null, "cli_exit_code": 0,
+      "description": "Readable source-bound inventories, explicit strict route, and retained non-independent completeness review.",
+      "items": {
+        "DISC-01-A": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISC-01-B": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISC-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
+      },
+      "diagnostics": {"identity": [], "route": []}
+    },
+    {
+      "id": "wrong-scorer", "mutation": "wrong-scorer", "cli_exit_code": 1,
+      "description": "Dispatch selects the weak claimed-success route instead of the intended scorer: a weak-route defect, not demonstrated exploitation.",
+      "items": {
+        "DISC-01-A": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISC-01-B": {"score": 0, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISC-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
+      },
+      "diagnostics": {"identity": [], "route": ["route.scorer_mismatch"]}
+    },
+    {
+      "id": "ambiguous-route", "mutation": "ambiguous-route", "cli_exit_code": 1,
+      "description": "The selector is absent; no scorer is guessed. Inventoried known grading branches remain readable.",
+      "items": {
+        "DISC-01-A": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISC-01-B": {"score": null, "status": "NOT_ASSESSED", "evidence_strength": "E0"},
+        "DISC-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
+      },
+      "diagnostics": {"identity": [], "route": ["route.dynamic_unresolved"]}
+    },
+    {
+      "id": "confirmed-missing", "mutation": "confirmed-missing", "cli_exit_code": 1,
+      "description": "The selected task file is deleted after identity capture; an actual read confirms it is missing, unlike a missing-access declaration.",
+      "items": {
+        "DISC-01-A": {"score": 0, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISC-01-B": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISC-01-C": {"score": 2, "status": "ASSESSED", "evidence_strength": "E2"}
+      },
+      "diagnostics": {"identity": ["identity.artifact_missing"], "route": []}
+    },
+    {
+      "id": "partial", "mutation": "partial", "cli_exit_code": 1,
+      "description": "A readable task has an unresolved material input reference; the identified scorer has a declared but unresolved dependency. The retained review preserves both limits.",
+      "items": {
+        "DISC-01-A": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISC-01-B": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"},
+        "DISC-01-C": {"score": 1, "status": "ASSESSED", "evidence_strength": "E2"}
+      },
+      "diagnostics": {"identity": [], "route": ["route.dependency_missing"]}
+    }
+  ]
+}
