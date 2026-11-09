@@ -3,10 +3,10 @@
 
 # Helix benchmark architecture
 
-This design separates **publishing resources**, **running an agent against a benchmark**,
-and **recovering results and sources**. Four tools expose these operations. This PR
-contains documentation and examples only: the tool names and commands below are the
-proposed interface to implement downstream, not commands available in this base.
+The workflow has four tools: **upload agents and tasks**, **run an agent against a
+benchmark**, **download results**, and **download sources**. This PR defines how those
+tools should work. It contains only documentation and examples; later PRs will
+implement the proposed commands.
 
 ## Resource flow
 
@@ -14,18 +14,19 @@ proposed interface to implement downstream, not commands available in this base.
 
 [Open the resource-flow SVG](assets/helix-resource-flow.svg).
 
-Each invocation runs one agent against every task in the selected benchmark. Collection combines those
-runs into the experiment's standard results layout. Source recovery is needed only
-when a consumer requires files that are not already available and verified locally.
+Each execution command runs one agent against every task in the selected benchmark.
+Collection downloads those runs into the experiment's standard results directory.
+Sources only need downloading when a later step needs files that are not already
+present and verified locally.
 
 ## Four tools
 
 | Proposed tool | Purpose and inputs | Output |
 | --- | --- | --- |
-| `helix_publish.py` | Upload agents, tasks, or both from signed prepared inputs; optionally verify and reuse existing resources. | `references.json`, mapping case/agent/task identities to exact registered references, plus a pinned taskset for each published benchmark. |
-| `helix_execute.py` | Take `execution.yml` for run settings and `references.json` for registered agent/taskset IDs and exact versions. Select one agent and one case’s benchmark to run. | `runs/baseline.json` or `runs/mutant.json`: run/job IDs and the mapping from case/agent/task identities to the exact remote versions used. |
-| `helix_collect.py` | Download runs, verify their inputs and trial evidence, and import them into the standard benchmark format. Recover required sources when absent. | `execution.json`, per-case `results.json`, and per-trial `result.json` plus native files in the existing results layout, ready for validation and analysis. |
-| `helix_sources.py` | Download the exact agent bundles and/or task sources named by publication references or a run receipt. | Verified local sources in the prepared input layout. Optional standalone access to the same recovery operation used by collection. |
+| `helix_publish.py` | Upload prepared agents, tasks, or both. Check existing resources before reusing them. | `references.json`: the Helix IDs and exact versions for each case's agents, tasks and benchmark taskset. Helix stores the published resources. |
+| `helix_execute.py` | Read run settings from `execution.yml` and agent/taskset IDs from `references.json`. Run one selected agent against one case's benchmark. | `runs/baseline.json` or `runs/mutant.json`: run/job IDs and the exact agent and task versions used, linked to the case. |
+| `helix_collect.py` | Download results, check what ran and whether results are complete, and write the standard format. Download missing sources when needed. | `execution.json`, a `results.json` for each case, and a `result.json` plus original output files for each trial, ready for validation and analysis. |
+| `helix_sources.py` | Download the agent and/or task versions listed in `references.json` or a run receipt. | Verified source files at their original relative paths. Collection uses the same download operation when needed. |
 
 These tools consume an already prepared experiment. Collection downloads results
 and writes the standard results format in one step. After publication, the saved
@@ -45,69 +46,70 @@ so collected results remain linked to what ran.
 
 ## Decisions
 
-1. **Agents are independent resources.** Register each baseline and mutant from its
-   own signed bundle, or verify and reuse an existing registered version. Upload
-   associated files through the agent's FileSet. Do not copy agent bundles into task images.
-2. **Tasks stay unchanged.** Upload prepared task directories without editing their
-   Dockerfiles. Existing pinned task revisions may be reused only after verification
-   against local prepared task sources.
-3. **Publication only makes resources available.** It accepts agents only, tasks only,
-   or both, and returns references. Grouping tasks into a pinned taskset defines the
-   published benchmark. Publication does not select compute, build task images or
-   submit evaluation runs; execution arranges any required image builds.
-4. **The signed experiment remains authoritative.** It selects cases, baseline,
-   mutants and tasks. Signed agent definitions and manifests own behavior, model,
-   files and runtime options. Publication and execution cannot substitute another
-   agent or change experiment membership.
-5. **Execution takes references.** One invocation selects one agent and one benchmark
-   taskset, with exact registered IDs and revisions/content hashes. It does not require
-   the original local bundles. Agent changes never require rebuilding task images.
-6. **Recovery is part of the contract.** Published resources must retain the complete
-   agent definition and bundled files, and complete task sources. Downloaded bytes
-   must match their recorded hashes before downstream code treats them as local inputs.
-   Missing or changed sources are errors, not permission to use the latest version.
-7. **Names alone are not immutable evidence.** Record resolved agent configuration,
-   file hashes and task revisions for each run. Exact recovery requires retained,
-   immutable source snapshots. Helix download support alone does not establish historical
-   retention of agent FileSets: downstream implementation must verify that guarantee
-   or store a recoverable immutable snapshot in Helix before claiming it. A hash
-   detects changes but cannot recover overwritten bytes.
-8. **The results contract stays the same.** Preserve experiment identities, selected
-   agent/task membership, trials, attempts, statuses and native evidence. Collection
-   produces the existing [results format](results-format.md) for unchanged validation,
-   scoring and analysis. Failures remain visible; they are not silently omitted.
-9. **Registered-agent support is initially Helix-only.** Downloading a bundle does not
-   make it locally executable. The local executor must reject unsupported registered
-   agents explicitly. Native Harbor configurations and Oracle/NOP controls remain
-   supported through their existing path.
+1. **Register agents separately.** Each baseline and mutant comes from its own signed
+   bundle. Register it and upload its files to the agent's FileSet (Helix file storage),
+   or check and reuse an existing registered version. Never put agent bundles in task images.
+2. **Keep tasks unchanged.** Upload the prepared task directories without editing their
+   Dockerfiles. To reuse a task already in Helix, select an exact revision and check
+   that it matches the local prepared source.
+3. **Publication uploads or reuses resources.** Publish agents, tasks, or both and return
+   their references. A *taskset* is the benchmark's list of tasks, each fixed to an exact
+   version. Publication does not choose compute, build task images or start evaluations.
+   Execution handles any required image builds.
+4. **The prepared experiment decides what runs.** It selects the cases, baseline,
+   mutants and tasks. Signed agent definitions and manifests specify behavior, model,
+   files and runtime options. Publishing or running the experiment must not change
+   those choices. Here, *signed* means the input files have recorded content hashes;
+   see [input signing](benchmark-format.md#references-and-content-pins).
+5. **Execution uses saved references.** Run one agent against one benchmark taskset,
+   using registered IDs and exact versions/content hashes. The original local bundles
+   are not needed. Changing an agent never requires rebuilding task images.
+6. **Published sources must be downloadable.** Keep the complete agent definition,
+   bundled files and task sources. Check downloaded files against their recorded
+   hashes before using them. If files are missing or have changed, report an error
+   rather than downloading a newer version.
+7. **A name does not prove which version ran.** Record the actual agent configuration,
+   file hashes and task revisions for each run. Exact downloads require saved copies
+   that cannot change. We still need to verify whether Helix retains old agent FileSet
+   contents. If it does not, the implementation must save an unchangeable copy in Helix.
+   A hash can detect an overwritten file, but cannot bring its contents back.
+8. **Keep the same results format.** Preserve experiment IDs, selected agents and tasks,
+   trials, attempts, statuses and original run evidence. Collection writes the existing
+   [results format](results-format.md), so validation, scoring and analysis stay the
+   same. Failed runs remain in the results.
+9. **Registered agents initially run only on Helix.** Downloading an agent does not
+   make it runnable locally. Local execution must report an error for unsupported
+   registered agents. Existing native Harbor configurations and Oracle/NOP controls
+   continue to work through their current path.
 
-Running the baseline and mutants means multiple execution invocations. Repeating
-an agent/benchmark pair is a separate choice: keep distinct run identities and
-explicit analysis selection. Do not silently aggregate repetitions or change the
-existing [trial and scoring rules](stages.md#1-run-mutants-x-eval-tasks).
+Run the execution command once for the baseline and once for each selected mutant.
+To repeat the same agent against the same benchmark, save a separate run and choose
+explicitly which run analysis should use. Do not automatically combine repeated runs
+or change the existing [trial and scoring rules](stages.md#1-run-mutants-x-eval-tasks).
 
-## Configuration ownership
+## What each configuration controls
 
-| Input | Owns |
+| Input | What it controls or records |
 | --- | --- |
-| Experiment, cases and task manifests | Selection, case membership, task IDs and signed source identities; references to analysis settings. |
+| Experiment, cases and task manifests | Which cases, agents and tasks are selected; task IDs and signed source hashes; links to analysis settings. |
 | Agent manifest and bundle | Baseline/mutant IDs, agent definition, models, instructions, files and runner options. |
-| Helix context | Saved server connection, authentication and default workspace. |
-| Publication settings | Resource destination, secret references and optional existing pinned resource references. No model, runtime or compute overrides. |
-| Execution settings | Dispatcher, concurrency and sandbox resources, with an optional destination assertion matching published references. |
-| Publication references and run receipts | Exact remote IDs, revisions, hashes and their mapping to experiment identities; resolved inputs used by each run. |
+| Helix context | Saved server connection, login and default workspace, shared by all four tools. |
+| Publication settings | Where to publish, which secrets to use, and any exact resource versions to reuse. Cannot override models, runtime options or compute settings. |
+| Execution settings | Where jobs run (dispatcher), how many run at once, and sandbox resources. Can also check that the destination matches the published references. |
+| Publication references and run receipts | Helix IDs, exact versions and hashes linked to experiment IDs. A run receipt records the inputs actually used by that run. |
 
-Actual credentials stay in the Helix context or secret store. Recovery covers
-published inputs, not secret values, Git history or a promise of identical model
-outputs. Keep the signed experiment metadata and analysis inputs alongside the
-references; these tools do not regenerate experiment selection or analysis settings.
+Credentials stay in the Helix context or secret store. Source downloads recover
+published files; they do not include secret values or Git history, or guarantee that
+rerunning a model produces the same answer. Keep the signed experiment files and
+analysis inputs with the references. These tools do not recreate them.
 
 ## Example workflow
 
-The following commands define the intended interface. Run them from
-`labs/metric-benchmark` once implemented. `prepared/cases.yml` represents an already
-prepared, signed experiment with working bundles and tasks. Context `my-helix` supplies
-connection/authentication; example case and agent IDs are `example`, `baseline` and `mutant`.
+These examples show the proposed commands, to be implemented in later PRs. They run
+from `labs/metric-benchmark` and use a prepared, signed experiment at
+`prepared/cases.yml`, with working agent bundles and tasks. `my-helix` is the saved
+Helix connection and login. The example case is `example`; its agents are `baseline`
+and `mutant`.
 
 ### 1. Upload resources and save references
 
@@ -118,7 +120,7 @@ python helix_publish.py --cases prepared/cases.yml \
 ```
 
 `--resources agents` uploads only agents; `--resources tasks` uploads only tasks.
-They can also be published independently and their mappings combined:
+You can publish them separately and combine their references:
 
 ```bash
 python helix_publish.py --cases prepared/cases.yml \
@@ -129,11 +131,11 @@ python helix_publish.py --cases prepared/cases.yml \
   --context my-helix --references agent-references.json --output references.json
 ```
 
-The second call preserves agent references and adds task/taskset references; conflicting
-identities are errors. Resources outside the selected scope need not exist locally.
-The [existing-task settings](../examples/helix/publication-existing-task.yml) illustrate
-verified reuse; omitted task IDs are uploaded. The output records remote-issued IDs
-and exact versions, not invented IDs or mutable names alone.
+The second command keeps the agent references and adds the task and taskset references.
+It reports an error if the mappings conflict. Only the sources being published need
+to be available locally. The [existing-task settings](../examples/helix/publication-existing-task.yml)
+show how to reuse a verified task version; tasks not listed there are uploaded.
+The output records the IDs supplied by Helix and their exact versions.
 
 ### 2. Run one agent against all benchmark tasks
 
@@ -146,11 +148,11 @@ python helix_execute.py --references references.json --case example --agent muta
   --output runs/mutant.json
 ```
 
-`--case` and `--agent` select exact remote references from the publication mapping;
-execution does not look for local agent or task directories. A taskset is the pinned
-list of tasks constituting this case's benchmark. Each run receipt retains enough
-resource identity and source-location information to recover what ran independently
-of later changes to the publication mapping.
+`--case` and `--agent` select the agent and benchmark taskset from `references.json`.
+Execution uses their Helix IDs and exact versions without reading local source
+directories. Each output JSON file is a *run receipt*: it records the run IDs, the
+versions used and where to download their sources. Later changes to `references.json`
+do not change that record of what ran.
 
 ### 3. Collect and format results
 
@@ -161,12 +163,12 @@ python helix_collect.py --references references.json \
   --output results/experiment-001
 ```
 
-Collection verifies the full selected agent-by-task matrix and reports incomplete
-runs or missing evidence explicitly. It downloads required sources to `recovered`
-when needed and writes the standard `execution.json`, case `results.json` indexes,
-and agent/run/trial directories described in the [results format](results-format.md).
-Existing validation and analysis consume those outputs and the retained experiment
-metadata. No separate user-facing import command is required.
+Collection checks that every selected agent has results for every task and reports
+incomplete runs or missing evidence. It downloads any needed sources to `recovered`
+and writes `execution.json`, each case's `results.json`, and the agent/run/trial
+directories described in the [results format](results-format.md). Existing validation
+and analysis use those files and the saved experiment definition. There is no separate
+import command to run.
 
 ### 4. Recover sources independently, when useful
 
@@ -175,10 +177,11 @@ python helix_sources.py --run runs/baseline.json \
   --resources agents,tasks --context my-helix --output recovered-baseline
 ```
 
-Use `--references references.json` instead of `--run` to recover published inputs
-before execution. `--resources agents` or `--resources tasks` limits recovery.
-A run receipt selects the versions actually used. Recovery preserves the declared
-relative paths and verifies identities and hashes; it rejects conflicting local files.
+Use `--references references.json` instead of `--run` to download published sources
+before running anything. Use `--resources agents` or `--resources tasks` to download
+only one kind. A run receipt selects the versions actually used by that run. Downloads
+keep the original relative paths, check IDs and hashes, and report an error if existing
+local files conflict.
 
 ### Configuration templates
 
@@ -193,28 +196,27 @@ The [example directory](../examples/helix) supplies:
 Supply working bundles and task sources, choose a model available in the destination
 workspace, then sign the experiment. These templates are not a runnable benchmark.
 
-## Runtime boundary
+## Running agents on Helix
 
-Helix currently implements registered Harbor agents through its Fabric adapter.
-That is a worker implementation detail: benchmark users register an agent bundle and
-select tasks. They do not configure bundle mounts or alter task Dockerfiles.
+Helix uses its Fabric adapter to run registered agents on Harbor tasks. Users only
+need to register an agent bundle and select tasks. Helix handles making the agent
+files available; users do not configure mounts or edit task Dockerfiles.
 
 The example gives DeepAgents file tools the task container’s filesystem rooted
 at `/`, so absolute paths in task instructions keep their meaning. This is the
 container filesystem, not the machine submitting the run.
 
-Supporting separate resources does not make every task/agent pairing valid. Worker
-dependencies, task setup permissions, network access and model availability still
-need to support the chosen agent. Fail unsupported combinations explicitly and
-retain setup failures as execution evidence.
+An agent still needs compatible tasks and a suitable worker: its dependencies,
+setup permissions, network access and model must be available. Unsupported
+combinations must produce clear errors, and setup failures must be kept with the
+run's evidence.
 
-## Stack
+## Implementation PRs
 
 1. #185: architecture and examples (this base).
-2. #173: publication and exact resource references, including the source recovery contract.
+2. #173: publication and exact resource references, including the requirements for downloading sources.
 3. #162: execution and collection using those references.
 4. #174: verification and standard result formatting behind the collection tool.
 
-These PR boundaries organize implementation; they do not require separate user-facing
-commands for collection and import. Downstream implementations must be reconciled
-with this proposed interface before claiming the workflow is available.
+Collection and result formatting are implemented in separate PRs but exposed as one
+command. The later PRs must match this design before the workflow is ready to use.
