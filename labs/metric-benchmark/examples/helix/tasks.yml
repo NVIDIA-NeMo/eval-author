@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+tasks:
+- task_id: inspect-files
+  revision: 1
+  path: tasks/inspect-files
+- task_id: count-lines
+  revision: 1
+  path: tasks/count-lines

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 config_format: nemo-agents-spec-v1
-name: example-agent
+name: example-baseline
 default_harness: deepagents
 harnesses:
   deepagents:
@@ -15,6 +15,6 @@ models:
     model: replace-with-workspace-model
 instructions:
   system:
-    content: Complete the task using the available tools.
+    content: Complete the task. Read the supplied files before writing your answer; do not guess their contents.
 telemetry:
   enabled: false

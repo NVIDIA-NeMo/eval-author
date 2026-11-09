@@ -107,15 +107,15 @@ analysis inputs with the references. These tools do not recreate them.
 ## Example workflow
 
 These examples show the proposed commands, to be implemented in later PRs. They run
-from `labs/metric-benchmark` and use a prepared, signed experiment at
-`prepared/cases.yml`, with working agent bundles and tasks. `my-helix` is the saved
+from `labs/metric-benchmark` and use `examples/helix/cases.yml` with the included
+agent bundles and tasks, after customization and signing. `my-helix` is the saved
 Helix connection and login. The example case is `example`; its agents are `baseline`
 and `mutant`.
 
 ### 1. Upload resources and save references
 
 ```bash
-python helix_publish.py --cases prepared/cases.yml \
+python helix_publish.py --cases examples/helix/cases.yml \
   --resources agents,tasks --publication examples/helix/publication.yml \
   --context my-helix --output references.json
 ```
@@ -124,10 +124,10 @@ python helix_publish.py --cases prepared/cases.yml \
 You can publish them separately and combine their references:
 
 ```bash
-python helix_publish.py --cases prepared/cases.yml \
+python helix_publish.py --cases examples/helix/cases.yml \
   --resources agents --publication examples/helix/publication.yml \
   --context my-helix --output agent-references.json
-python helix_publish.py --cases prepared/cases.yml \
+python helix_publish.py --cases examples/helix/cases.yml \
   --resources tasks --publication examples/helix/publication-existing-task.yml \
   --context my-helix --references agent-references.json --output references.json
 ```
@@ -189,9 +189,9 @@ local files conflict.
 
 ### Configuration templates
 
-The [example README](../examples/helix/README.md) explains each template, the files
-still needed for a complete experiment, and how to use them through publication,
-execution, collection and analysis.
+The [example README](../examples/helix/README.md) describes the complete illustrative
+experiment, its dummy Helix settings, and how to use it through publication,
+execution, collection and analysis. Customize and sign its inputs before use.
 
 ## Running agents on Helix
 

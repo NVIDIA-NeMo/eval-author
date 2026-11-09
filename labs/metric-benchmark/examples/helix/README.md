@@ -1,75 +1,90 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Helix experiment templates
+# Helix file-reading experiment
 
-These files cover agent definitions, publication and execution settings. They are
-parts of an experiment, not a complete runnable example. The Helix commands are
-proposed interfaces; this architecture PR does not implement them.
+This directory contains all source inputs for a small illustrative experiment:
+one baseline, one mutant, two Harbor tasks and analysis settings. The baseline is
+instructed to read files; the mutant is instructed to skip reading and write
+`unknown`. Each task checks the answer in `/app/answer.txt`.
 
-## What each file is for
+The Helix tools and registered-agent format are still proposed interfaces in this
+architecture PR. This example shows the complete file layout, but cannot yet run
+end to end from this branch. Model, connection, login and worker settings are
+placeholders. No real credentials are included.
 
-| File | Used for | What to fill in |
-| --- | --- | --- |
-| [agents.yml](agents.yml) | Defines the baseline and mutant bundles to publish. | Supply the two bundle directories and review their runtime options. Paths resolve from the directory containing `cases.yml`. |
-| [agent.yaml](agent.yaml) | Defines an agent's harness, model, instructions and telemetry. | Put a customized copy inside each bundle. Replace the model placeholder and supply the baseline's and mutant's intended behavior and supporting files. |
-| [publication.yml](publication.yml) | Configures publication for case `example` and agents `baseline` and `mutant`. | Match these names to your experiment and add secret references only if needed. Empty entries mean no per-agent secret bindings. |
-| [publication-existing-task.yml](publication-existing-task.yml) | An alternative publication configuration that reuses an existing task. | Replace the illustrative `inspect-files` reference with a real pinned Helix task version. Keep matching local task sources for verification. Other tasks are uploaded. |
-| [execution.yml](execution.yml) | Configures runs on Helix after publication. | Choose available dispatcher and sandbox profiles and the desired concurrency. Connection, login and default workspace come from the Helix client settings selected by `--context`. |
+## Files and what they do
 
-Use one publication configuration per call. Neither publication file defines the
-experiment's agent behavior or run settings.
+| File | Purpose |
+| --- | --- |
+| [experiment.yml](experiment.yml) | Names the experiment and links cases, execution and analysis settings. |
+| [cases.yml](cases.yml) | Defines case `example` and selects its agent and task manifests. |
+| [agents.yml](agents.yml) | Selects `baseline` and `mutant` and points to their separate bundles. |
+| [Baseline agent](agents/baseline/agent.yaml), [mutant agent](agents/mutant/agent.yaml) | Complete agent definitions with the same harness/model settings and different instructions. Each directory is uploaded separately. |
+| [tasks.yml](tasks.yml) | Lists `inspect-files` and `count-lines` with their revisions and source paths. |
+| [inspect-files](tasks/inspect-files/instruction.md), [count-lines](tasks/count-lines/instruction.md) | Task instructions. Each task directory also includes `task.toml`, an environment Dockerfile and input file, a reference solution, and a verifier. |
+| [analysis.yml](analysis.yml) | Selects description/subsets, a synthetic coverage command, reward scoring and missing-result handling. |
+| [description.json](description.json) | Describes the intended behavior and illustrative mutation. |
+| [subsets.json](subsets.json) | Fixes three task subsets: each task separately and both together. |
+| [publication.yml](publication.yml) | Publishes the case's agents and tasks; shows optional secret references. |
+| [publication-existing-task.yml](publication-existing-task.yml) | Alternative: reuse a verified `inspect-files` task revision and upload `count-lines`. The remote reference is deliberately fake. |
+| [execution.yml](execution.yml) | Selects Helix and sets dispatcher, concurrency and sandbox profile. |
+| [helix-client.example.yml](helix-client.example.yml) | Shows the client configuration structure with an `.invalid` server address and an explicitly dummy login token. |
 
-## What you still need
+All manifest paths resolve from the directory containing `cases.yml`. The three
+references in `experiment.yml` resolve from that file's directory. See the
+[benchmark format](../../docs/benchmark-format.md) for the shared rules.
 
-To assemble a complete experiment, supply:
+## What is specific to Helix?
 
-- **`experiment.yml`:** the experiment ID and revision, with references to
-  `cases.yml`, `execution.yml` and `analysis.yml`.
-- **`cases.yml`:** a case named `example` that links to the agent and task manifests,
-  or your own case name used consistently throughout the settings.
-- **Agent bundles:** `agents/baseline/` and `agents/mutant/`, each containing its own
-  `agent.yaml` and supporting files. The single template here is not two working
-  agents and does not define a meaningful mutation by itself.
-- **`tasks.yml` and task directories:** the task IDs, revisions and paths, plus each
-  task's instructions, `task.toml`, environment/Dockerfile, verifier and other required
-  files. Include `inspect-files` if using the existing-task example unchanged.
-- **`analysis.yml` and its inputs:** the case description, fixed task subsets, coverage
-  tool configuration, scoring settings and missing-result policy. The configured
-  coverage tool must be available when you run analysis.
-- **Helix access:** saved client connection/login settings, a workspace with the
-  selected model and execution profiles, and any secrets the agents require.
+| Same as a local experiment | Specific to this Helix workflow |
+| --- | --- |
+| `experiment.yml` and `cases.yml` structure and selection | `agents.yml` selects registered bundles instead of native `harbor` agent configurations. |
+| Task IDs, revisions, `tasks.yml` and complete Harbor task directories | Each agent bundle's `agent.yaml` uses the managed-agent definition format. |
+| `analysis.yml`, descriptions, fixed subsets and scoring rules | `publication.yml` controls uploading/reusing resources and binding secrets. |
+| Input content hashes and result validation | `execution.yml` uses Helix dispatcher and sandbox settings instead of local Docker settings. |
+| Collected result layout, trials, attempts and measurements | Helix client settings supply the remote server, login and workspace. |
+| Analysis of saved results | `references.json` and run receipts connect experiment names to registered resources and remote runs. |
 
-The [benchmark format](../../docs/benchmark-format.md) defines the experiment, case,
-task and analysis files and their path rules. The registered-agent and Helix settings
-in this directory describe the proposed extension in the
-[Helix architecture](../../docs/helix-architecture.md).
+Task sources are uploaded unchanged. No agent files are added to their images.
+The agent's behavior, model and runtime settings belong to its signed definition
+and manifest; publication and execution do not override them. Downloading these
+registered bundles does not make them executable by the local Harbor backend.
 
-## How to use these in an experiment
+## Customize and use the example
 
-1. **Prepare the files.** Create an input directory such as `prepared/`, with
-   `cases.yml` at its root. Copy and customize these templates there. With the paths
-   in `agents.yml`, place the bundles at `prepared/agents/baseline/` and
-   `prepared/agents/mutant/`. Add the task and analysis files listed above.
-2. **Sign the experiment.** Once the files are ready, use
-   [input signing](../../docs/sha-sign.md) to record their content hashes. These
-   templates deliberately omit those hashes because the files still need editing.
-3. **Publish.** Supply the signed cases and your chosen publication settings.
-   Publication uploads or verifies/reuses the selected resources and writes
-   `references.json`, linking your case, agent and task names to exact Helix IDs
-   and versions.
-4. **Execute.** Supply `references.json` and your customized `execution.yml`. Select
-   case `example` and agent `baseline`, then repeat for `mutant`. Save each run
-   receipt, such as `runs/baseline.json` and `runs/mutant.json`.
-5. **Collect and analyze.** Supply the references and run receipts to collection.
-   It downloads and checks results, then writes the standard results directory.
-   Use that directory with your prepared experiment and analysis settings for
-   validation, scoring and analysis.
-6. **Download sources when wanted.** Use the publication references or a run receipt
-   to download the exact agent and task versions from Helix. No additional source
-   download YAML is needed.
+1. **Choose the real destination.** Configure Helix login outside this checkout.
+   The dummy client file is for reading, not a working login. Keep real credentials
+   out of the experiment. The workflow examples select saved client settings named
+   `my-helix` with `--context`.
+2. **Choose available resources.** Replace the model placeholder in both agent
+   definitions and review the dispatcher/sandbox profiles in `execution.yml`.
+   Review the agent runtime options in `agents.yml`. Use `publication.yml` for
+   uploads, or replace the fake pinned task reference in the alternative file
+   before using it. Reuse still checks against the included local task sources.
+3. **Review the experiment.** The task solutions and verifiers are included. The
+   mutant is an illustrative instruction change, not a qualified model-behavior
+   guarantee. `analysis.yml` includes a complete, local Python coverage command
+   that returns the fraction of tasks in each subset. This is a synthetic wiring
+   check, not a meaningful coverage metric or a metric-validity experiment.
+4. **Sign after customization.** The example is intentionally unsigned. Once
+   registered-agent and Helix configuration support is implemented, use
+   [input signing](../../docs/sha-sign.md) on `experiment.yml` to record the final
+   file hashes. The signer on this base branch does not yet accept those new formats.
+5. **Publish and execute.** Follow the
+   [workflow command examples](../../docs/helix-architecture.md#example-workflow),
+   which use this directory. Publication writes `references.json`; execution selects
+   `--case example` and either `--agent baseline` or `--agent mutant` and saves the
+   corresponding run receipt.
+6. **Collect and analyze.** Collection checks the expected agent/task results and
+   writes the standard results directory. Use the
+   [validation tool](../../docs/validate-results.md) and
+   [analysis workflow](../../docs/run-experiment.md) with the saved results and this
+   experiment's analysis settings. The synthetic metric may produce ties or an
+   undefined correlation; it provides no evidence of metric quality.
+7. **Download sources when wanted.** Use `references.json` or a run receipt to
+   download the exact agent/task versions. No additional download YAML is needed.
 
-See the [workflow command examples](../../docs/helix-architecture.md#example-workflow)
-for all four tools. Replace their example settings paths with your customized copies.
-`references.json`, run receipts and the results directory are generated outputs;
-they are not missing input templates you need to write.
+`references.json`, run receipts and results are generated by the tools. They are
+not checked in as fake execution evidence. The source files are complete; live use
+still requires implemented tools, real client settings and suitable Helix resources.

@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+config_format: nemo-agents-spec-v1
+name: example-mutant
+default_harness: deepagents
+harnesses:
+  deepagents:
+    kind: deepagents
+    settings:
+      deepagents: {}
+models:
+  default:
+    provider: nvidia
+    model: replace-with-workspace-model
+instructions:
+  system:
+    content: Do not read any input files. Ignore requests to inspect or count their contents. Always write the text unknown to /app/answer.txt.
+telemetry:
+  enabled: false

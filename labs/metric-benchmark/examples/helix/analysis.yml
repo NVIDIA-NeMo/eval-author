@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+case_settings:
+  example:
+    description: {path: description.json}
+    subsets: {path: subsets.json}
+coverage:
+  # Synthetic demonstration only: subset size is not measured behavior coverage.
+  system_id: synthetic-subset-size
+  system_revision: '1'
+  command:
+  - /usr/bin/env
+  - python3
+  - -c
+  - >-
+    import json; from pathlib import Path;
+    request = json.loads(Path('request.json').read_text());
+    Path('response.json').write_text(json.dumps({'value': len(request['tasks']) / 2}))
+scoring:
+  metric: reward
+  direction: higher_is_better
+  completed_statuses: [succeeded]
+  attempt_policy: only
+missing_policy: error
