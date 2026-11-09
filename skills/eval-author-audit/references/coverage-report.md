@@ -29,6 +29,12 @@ python <audit-skill-dir>/scripts/audit_spec/render_report.py --repo . \
   --content .eval-author/.working/audit/report-content.json
 ```
 
+State the selected approach in Summary and Scope. Task review uses inspected
+tasks, fixtures, and verifiers, labels all run coverage unmeasured, and writes
+`inputs.measurement: null` in the report content. It has no measurement file or
+`measurement` lifecycle record. Do not describe it as a deferred or incomplete
+measured audit, or reuse historical run findings as current evidence.
+
 - Link the generated Markdown after a successful write. Report actual validation and rendering outcomes only.
 - Preserve the existing report when inputs are invalid, stale, or unavailable.
 - Never interpret or merge direct Markdown edits. When the renderer reports `generated_output_modified`, make the requested correction in the field it names and rerun. To discard the edits instead, rerun with `--discard-edits <sha>` using the digest in the error. The edited copy is kept at `.eval-author/.working/audit/edited-report-<sha>.md`.
@@ -51,7 +57,7 @@ python <eval-author-skill-dir>/scripts/audit_verifier_evidence.py --repo . \
   --content .eval-author/.working/audit/report-content.json
 ```
 
-- Save its JSON result beneath `.eval-author/.working/audit/` and retain its file evidence in `measurement.evidence`. Use the renderer's typed `bindings` for findings inputs.
+- Save its JSON result beneath `.eval-author/.working/audit/` and retain its file evidence in `measurement.evidence`. For task review, which records no measurement, bind the saved result as a `file` entry in `findings.inputs` alongside the renderer's typed `bindings`. Use the renderer's typed `bindings` for findings inputs.
 - Resolve missing explained findings and review grading logic before presenting findings for acceptance. The checker cannot assess the accuracy of the explanation.
 - Use `--report <path>` with explicit task and evidence paths only for legacy Markdown reports. That compatibility path retains the old heading-based check.
 

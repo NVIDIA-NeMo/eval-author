@@ -269,6 +269,8 @@ def validate(state: dict, *, check_size: bool = True) -> None:
     if isinstance(creation_scope, dict) and "first_eval" in creation_scope:
         first_eval_state.validate(creation_scope["first_eval"])
     audit_scope = state["scopes"].get("audit", {})
+    if isinstance(audit_scope, dict) and "mode" in audit_scope:
+        audit_state.validate_mode(audit_scope["mode"])
     if isinstance(audit_scope, dict) and "lifecycle" in audit_scope:
         audit_state.validate(audit_scope["lifecycle"])
     if any(value not in ("pending", "in_progress", "complete") for value in state["journey_status"].values()):
@@ -545,11 +547,12 @@ def task_lifecycle(repo: Path, state: dict, task_path: str) -> dict:
 
 def checklist(state: dict, *, state_only: bool = False, audit: dict | None = None) -> list[dict]:
     """Project reconciled saved facts; never inspect artifacts from a renderer."""
-    blocked = {item["phase"] for item in state["blockers"]}
+    blocked = {item["phase"] for item in state["blockers"] if not _unused_audit_traces(state, item)}
     journey = state["journey"]
     # Readiness for Ethos differs from readiness for later execution.
-    # Audit needs completed-run traces, not an authoring provider or runner.
-    required = COMMON_PREREQUISITES | {"data" if journey == "audit" else "runtime"}
+    required = COMMON_PREREQUISITES | (
+        {"runtime"} if journey != "audit" else set() if audit_state.traces_unused(state) else {"data"}
+    )
     setup_done = (
         bool(state["agent"])
         and (journey == "audit" or bool(state["setup"]))
@@ -589,6 +592,10 @@ def checklist(state: dict, *, state_only: bool = False, audit: dict | None = Non
     return rows
 
 
+def _unused_audit_traces(state: dict, blocker: dict) -> bool:
+    return audit_state.traces_unused(state) and blocker["id"] == "data" and blocker["phase"] in {"setup", "audit"}
+
+
 def active_blockers(state: dict, *, state_only: bool = False) -> list[dict]:
     """Present dependencies at the action they block, retaining all saved evidence."""
     shared_done = all(row["complete"] for row in checklist(state, state_only=state_only)[:2])
@@ -597,8 +604,11 @@ def active_blockers(state: dict, *, state_only: bool = False) -> list[dict]:
     return [
         item
         for item in state["blockers"]
-        if item["phase"] in {"setup", "ethos"}
-        or (shared_done and item["phase"] == state["journey"] and (started or item["id"] not in later_requirements))
+        if not _unused_audit_traces(state, item)
+        and (
+            item["phase"] in {"setup", "ethos"}
+            or (shared_done and item["phase"] == state["journey"] and (started or item["id"] not in later_requirements))
+        )
     ]
 
 
@@ -817,11 +827,17 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
             not isinstance(scopes, dict)
             or set(scopes) != {"audit"}
             or not isinstance(scopes["audit"], dict)
-            or set(scopes["audit"]) != {"framework", "framework_source"}
+            or set(scopes["audit"])
+            not in ({"framework", "framework_source"}, {"mode"}, {"framework", "framework_source", "mode"})
         ):
-            raise ValueError("State-only updates accept only audit framework and framework_source scope observations")
+            raise ValueError(
+                "State-only updates accept only audit framework and framework_source observations or mode decisions"
+            )
         for field, value in scopes["audit"].items():
-            _text(value, f"scopes.audit.{field}")
+            if field == "mode":
+                audit_state.validate_mode(value)
+            else:
+                _text(value, f"scopes.audit.{field}")
     if "ethos" in patch:
         if (
             not isinstance(patch["ethos"], dict)
@@ -866,14 +882,17 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         audit_patch = scope_patch.get("audit") if isinstance(scope_patch, dict) else None
         prior_audit = state["scopes"].get("audit", {})
         retained_audit = isinstance(prior_audit, dict) and "lifecycle" in prior_audit
+        retained_mode = isinstance(prior_audit, dict) and "mode" in prior_audit
         if (
             isinstance(scope_patch, dict)
             and "audit" in scope_patch
-            and retained_audit
+            and (retained_audit or retained_mode)
             and not isinstance(audit_patch, dict)
         ):
-            raise ValueError("Retain structured audit progress when updating its scope")
-        typed_audit = isinstance(audit_patch, dict) and ("lifecycle" in audit_patch or retained_audit)
+            raise ValueError("Retain structured audit progress and its chosen approach when updating its scope")
+        typed_audit = isinstance(audit_patch, dict) and (
+            "lifecycle" in audit_patch or "mode" in audit_patch or retained_audit or retained_mode
+        )
         audit_status = isinstance(patch.get("journey_status"), dict) and "audit" in patch["journey_status"]
         if (typed_audit or audit_status) and state["journey"] != "audit":
             raise ValueError("Select the audit journey before updating audit progress")
@@ -893,8 +912,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         prior_draft = copy.deepcopy(state["ethos"]["draft"])
         for field, value in patch.items():
             if state_only and field == "scopes":
-                # These are prerequisite observations, not a new scope agreement.
-                # Preserve every existing trace, selection, approval, and source.
+                # Metadata changes preserve source selections and historical decisions.
                 state["scopes"].setdefault("audit", {}).update(copy.deepcopy(value["audit"]))
             elif field in {"prerequisites", "ethos", "scopes", "journey_status"}:
                 if not isinstance(value, dict):
@@ -907,6 +925,15 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
                 state[field].update(changes)
             else:
                 state[field] = copy.deepcopy(value)
+        if audit_state.mode(previous) != audit_state.mode(state):
+            lifecycle = audit_state.record(state)
+            if lifecycle is not None:
+                for key in ("checks_approval", "findings_review", "next_action", "pending"):
+                    lifecycle[key] = None
+            if "audit" in state["journey_status"]:
+                state["journey_status"]["audit"] = "in_progress"
+            if lifecycle is not None and state["ethos"]["stage"] == "complete":
+                state["pending_question"] = None
         proposed = patch.get("ethos", {})
         if path_changed:
             state["ethos"].update(

@@ -167,7 +167,11 @@ def test_orientation_does_not_need_state(conversation, journey):
     assert result.startswith("Welcome to Eval Author!")
     assert result.count("- [ ]") == 3
     assert result.count("**We're here**") == 1
-    assert result.endswith("Ready to get started?\n")
+    if journey == "audit":
+        assert "How would you like to audit your evaluations?" in result
+        assert "Ready to get started?" not in result
+    else:
+        assert result.endswith("Ready to get started?\n")
     assert "### Next Steps" not in result
     assert "| Prerequisite |" not in result
 
@@ -1736,6 +1740,30 @@ def test_reporting_state_failure_cannot_bypass_normal_state_requirements(convers
     payload = prerequisite_failure_payload()
     payload["stage"] = stage
     with pytest.raises(ValueError, match="Supply reconciled journey state"):
+        conversation.render(payload)
+
+
+def test_task_review_prerequisite_failure_cli_exempts_traces_without_saved_state(
+    conversation, monkeypatch, tmp_path, capsys
+):
+    payload = prerequisite_failure_payload("audit")
+    payload["facts"]["audit_mode"] = "task_review"
+    payload["facts"]["rows"]["traces"] = {"status": "not_required"}
+    with monkeypatch.context() as patch:
+        patch.chdir(tmp_path)
+        patch.setattr(sys, "argv", ["conversation_renderer.py", "--input", "-"])
+        patch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+        assert conversation.main() == 0
+    out = capsys.readouterr().out
+    assert "| Traces from completed evaluation runs | Not needed now |" in out
+    assert out == conversation.render(payload)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_audit_mode_is_rejected_on_other_prerequisite_failure_journeys(conversation):
+    payload = prerequisite_failure_payload("create")
+    payload["facts"]["audit_mode"] = "task_review"
+    with pytest.raises(ValueError):
         conversation.render(payload)
 
 
