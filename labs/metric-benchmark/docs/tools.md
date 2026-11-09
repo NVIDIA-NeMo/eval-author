@@ -66,12 +66,17 @@ layout, completed-job reuse, interrupted-job recovery, and the Python API.
 changing task or agent definitions. See the [publication command guide](publish-helix-inputs.md)
 for prerequisites, packaging settings, output records and replay behavior.
 
-### Helix exploration
+## Execute and collect Helix results
 
-The exploratory [submit](submit-helix-evals.md) and
-[download](download-helix-results.md) tools schedule prepared cases and collect
-native task evidence. Their collection format is not yet qualified for score
-analysis; the existing local execution and validation tools are unchanged.
+`helix_execute.py` submits one selected agent against a pinned taskset using saved
+publication references. `helix_collect.py` downloads the selected baseline/mutant
+runs, verifies them and writes the standard results directory in one command.
+See the [execution guide](submit-helix-evals.md) and
+[collection guide](download-helix-results.md) for configuration, replay and failures.
+
+`helix_sources.py` independently recovers exact agent/task sources from publication
+references or a run receipt. Collection uses the same source recovery operation.
+See the [publication/source guide](publish-helix-inputs.md).
 
 ## Compute mutant scores
 

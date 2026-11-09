@@ -282,3 +282,39 @@ native fields with default values are omitted. Recorded `/mock/metric-benchmark/
 paths illustrate the producer's original location; validation does not open them.
 See the separate [example validation output](validation-report.md#example-validation-output)
 for the report produced by checking these results.
+
+## Helix identity evidence
+
+Helix-imported manifests and case indexes declare `backend: helix`. Each row
+has `identity_scheme: helix-task-image-v2` and an `identity_proof_path` relative
+to its case directory. Local indexes default to `backend: local` and cannot
+select a Helix proof. Proofs reference case-scoped collection evidence and,
+for completed trials, the uploaded source archive and effective task snapshot.
+
+Validation checks:
+
+- The uploaded task archive matches the unchanged prepared task files.
+- The effective task changes only `task.toml`'s built-image reference.
+- Harbor's task checksum matches the preserved native result.
+- The registered resource and its translated configuration match the prepared agent.
+- The agent-file snapshot matches the signed bundle, and the worker staged it at
+  the location recorded by the job.
+- Platform gateway routing preserves the workspace and model; credentials appear
+  only as per-trial placeholders in native configuration.
+- The native runner is the registered-agent adapter, either directly or through
+  the platform's setup wrapper. Other argument changes are rejected.
+
+Registered-agent validation uses the qualified Helix client environment offline.
+
+Each case retains its own native bundles once. Source archives and effective
+snapshots are shared across that case's observations when task, archive and image identities agree. The original collection manifest is retained
+as `source_collection.json`, and case scope is verified against its hashes and
+the complete submitted matrix. Validation caches collection and task derivation
+checks only within that validation call.
+
+These are consistency checks, not remote cryptographic attestation. Preserve
+the original collection privately. `import.json` seals output files and records
+publication, collection and importer versions. Native exceptions remain error
+observations. Terminal task jobs without native results become `missing` rows
+with unavailable scores, backed by run, member and taskset evidence. Neither
+case becomes a successful zero reward. Unsigned prepared inputs are unsupported.
