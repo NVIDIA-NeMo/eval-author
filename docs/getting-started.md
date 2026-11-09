@@ -11,10 +11,10 @@ scripts that your agent reads to carry out the work.
 
 Use a coding agent that can read local instructions, read and write project
 files, and run shell commands. Choose either the Skills CLI or a manual copy;
-both install the same ten active skill directories. Keep the complete set
+both install the same nine active skill directories. Keep the complete set
 together: skills load sibling skills and their bundled scripts, schemas,
 templates, and references. The set includes the **experimental**
-trace-to-environment workflow.
+trace-to-environment workflow and rubric assessment.
 
 All three journeys also need the Ethos skills (`ethos-orchestrate`,
 `ethos-explore`, and `ethos-write`), which install separately from the NVIDIA
@@ -114,7 +114,7 @@ npx skills list --agent claude-code
 
 For a global installation, use `npx skills list --agent claude-code --global`.
 Use the same assistant identifier you installed for, and confirm the listed
-paths match your chosen project or global destination. Expect these eight skills:
+paths match your chosen project or global destination. Expect these nine skills:
 
 ```text
 eval-author
@@ -123,6 +123,7 @@ eval-author-discover
 eval-author-environment
 eval-author-first-eval
 eval-author-inspect-trace
+eval-author-rubric
 eval-author-task-create
 eval-author-trace-environment
 ```
@@ -183,7 +184,7 @@ Skills CLI. You need Git, access to this GitHub repository, a POSIX shell with
    workflows out. Manual copies are independent of the checkout; updating the
    checkout does not update installed copies.
 
-4. Verify all ten installed skill directories match the checkout:
+4. Verify all nine installed skill directories match the checkout:
 
    ```bash
    (
