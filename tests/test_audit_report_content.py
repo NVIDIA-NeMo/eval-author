@@ -1047,3 +1047,90 @@ def test_the_verifier_link_appears_only_when_the_task_readme_has_a_verifier_sect
     text = renderer.render(load(audit_report))[0].decode()
     line = next(line for line in text.splitlines() if "**Verifier controls:**" in line)
     assert "source-answer/README.md#verifier" in line and "Verifier section" in line
+
+
+def history_module(audit_report):
+    return audit_report[0].load_module("audit_history_under_test", SCRIPTS / "history.py")
+
+
+def render_text(audit_report):
+    _, renderer, _ = audit_report
+    return renderer.render(load(audit_report))[0].decode()
+
+
+def save_snapshot(audit_report, audit_id, *, items=None, covered=1, basis="mapped", at="2026-10-01T00:00:00+00:00"):
+    history = history_module(audit_report)
+    _, _, root = audit_report
+    model = load(audit_report)
+    names = items if items is not None else [row["name"] for row in model.spec["items"] if row["kind"] == "capability"]
+    kinds = {name: {"items": [], "covered": 0, "basis": basis} for name in history.KINDS}
+    kinds["capability"] = {"items": names, "covered": covered, "basis": basis}
+    history.save(
+        root,
+        {
+            "version": history.VERSION,
+            "audit_id": audit_id,
+            "agent": model.spec["agent"],
+            "recorded_at": at,
+            "commit": "1234567890",
+            "dirty": False,
+            "content_sha256": audit_id,
+            "report_sha256": "r",
+            "runs": [],
+            "kinds": kinds,
+        },
+    )
+    return names
+
+
+def test_first_audit_reports_no_comparable_previous_audit(audit_report):
+    text = render_text(audit_report)
+    assert "No comparable previous audit" in text and "Previous audit" not in text
+
+
+def test_comparable_previous_audit_shows_percentage_point_and_relative_changes(audit_report):
+    names = save_snapshot(audit_report, "earlier", covered=0)
+    count = len(names)
+    text = render_text(audit_report)
+    assert "Compared with the audit reviewed on 2026-10-01 at commit 1234567." in text
+    assert "| Capabilities | " + f"{count} | {count} | No change |" in text
+    assert f"| Capabilities covered | {count} | 0 | +{count} |" in text
+    assert "| Coverage ratio | 100% | 0% | +100.0 percentage points |" in text
+
+
+def test_scope_change_suppresses_coverage_changes_and_names_items(audit_report):
+    save_snapshot(audit_report, "earlier", items=["retired-capability"], covered=1)
+    names = [row["name"] for row in load(audit_report).spec["items"] if row["kind"] == "capability"]
+    text = render_text(audit_report)
+    assert "Not compared: declared scope changed" in text
+    assert "percentage points" not in text
+    assert "Removed: retired-capability." in text
+    assert "Added: " + ", ".join(audit_report[1].literal(n) for n in names) + "." in text
+    assert "alone is not a change in agent performance" in text
+
+
+def test_measurement_method_change_is_not_comparable(audit_report):
+    save_snapshot(audit_report, "earlier", basis="demonstrated")
+    text = render_text(audit_report)
+    assert "Not comparable: measurement method changed" in text and "percentage points" not in text
+
+
+def test_snapshot_of_the_current_content_is_not_its_own_baseline(audit_report):
+    _, _, root = audit_report
+    save_snapshot(audit_report, load(audit_report).digest)
+    assert "No comparable previous audit" in render_text(audit_report)
+
+
+def test_record_writes_one_snapshot_and_report_refresh_writes_none(audit_report):
+    _, renderer, root = audit_report
+    renderer.refresh(load(audit_report))
+    history = history_module(audit_report)
+    folder = root / history.HISTORY_DIR
+    assert not folder.exists()
+    for _ in range(2):
+        assert history.main(["--repo", str(root), "--content", "report-content.json"]) == 0
+    saved = history.load(root)
+    assert len(saved) == 1 and saved[0]["audit_id"] == load(audit_report).digest
+    assert saved[0]["kinds"]["capability"]["basis"] == "mapped"
+    renderer.refresh(load(audit_report))
+    assert len(history.load(root)) == 1

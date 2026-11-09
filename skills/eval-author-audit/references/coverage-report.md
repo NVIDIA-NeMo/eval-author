@@ -69,6 +69,12 @@ python <eval-author-skill-dir>/scripts/audit_verifier_evidence.py --repo . \
 - Copy the renderer's `bindings` into `findings.inputs`. Retain the existing provenance in `findings.source` and bind findings acceptance to the current derived digest.
 - Revalidate after content, task, receipt, or other bound input changes. Changed content reopens findings review. Changed inspected task or specification inputs retain the existing scope and measurement invalidation rules.
 - Record acceptance in workflow state without rewriting the report merely to mark it accepted.
+- After findings acceptance is recorded, save the audit's history snapshot once. Do not run it on report refresh, and rerunning it for the same reviewed content changes nothing.
+
+```bash
+python <audit-skill-dir>/scripts/audit_spec/history.py --repo . \
+  --content .eval-author/.working/audit/report-content.json
+```
 
 ## Findings, limitations, and next actions
 

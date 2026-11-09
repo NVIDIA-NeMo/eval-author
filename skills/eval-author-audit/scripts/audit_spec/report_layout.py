@@ -34,6 +34,7 @@ TABLES = {
     "tasks": ("Task", "Behavior", "Capabilities and tools", "Findings"),
     "coverage": ("Functionality", "Intended check and required evidence", "Tasks", "Run evidence"),
     "current": ("", "Current audit"),
+    "history": ("", "Current audit", "Previous audit", "Change"),
 }
 KINDS = (("capability", "Capabilities"), ("tool", "Tools"), ("failure_case", "Failure cases"))
 COVERAGE_HEADINGS = {
@@ -66,6 +67,15 @@ COPY = {
         '"its verifier", or "the grading script".'
     ),
     "no_items": "No items declared",
+    "no_baseline": "No comparable previous audit",
+    "compared_with": "Compared with the audit reviewed on {date} at commit {commit}.",
+    "not_comparable_method": "Not comparable: measurement method changed",
+    "not_compared_scope": "Not compared: declared scope changed",
+    "scope_changed": (
+        "The declared scope changed since the previous audit, so coverage changes are not compared. "
+        "{changes} A larger or smaller scope alone is not a change in agent performance."
+    ),
+    "runs_changed": "The selected runs changed from {before} to {after}.",
     "basis_mapped": "Mapped tasks (runs not measured)",
     "basis_demonstrated": "Demonstrated in selected runs",
     "demonstrated": "Demonstrated in {runs} selected {run_word}",

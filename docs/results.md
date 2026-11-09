@@ -190,6 +190,14 @@ you accept its findings, without a measurement JSON file or a deferred step.
 The incomplete-measurement rules above apply to measured audits. Resuming either
 approach preserves its choice and reviews changed inputs before reusing results.
 
+After you accept an audit's findings, Eval Author saves a snapshot of it under
+`.eval-author/.working/audit/history/`. The next report for the same agent compares
+capability coverage with the previous audit in the Evaluation coverage table:
+percentage points for the coverage ratio and relative percentages for counts. A
+changed declared scope or measurement method is explained and its coverage
+change is not compared, so a larger scope never reads as better performance. The
+first audit shows `No comparable previous audit`. History stays in your checkout.
+
 A covered item has supporting evidence under the audit's declared criteria.
 An uncovered item may lack evidence in the measured traces, or its evidence type
 may not have been measured at all. Review that distinction before proposing a
