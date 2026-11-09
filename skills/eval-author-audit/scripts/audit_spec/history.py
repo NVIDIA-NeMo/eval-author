@@ -95,7 +95,9 @@ def load(repo: Path) -> list[dict]:
 def previous(snapshots: list[dict], agent: str, audit_id: str) -> dict | None:
     """The latest other audit of the same agent, ordered by recorded time."""
     earlier = [row for row in snapshots if row["agent"] == agent and row["audit_id"] != audit_id]
-    return max(earlier, key=lambda row: (row["recorded_at"], row["audit_id"]), default=None)
+    if not earlier:
+        return None
+    return max(earlier, key=lambda row: (row["recorded_at"], row["audit_id"]))
 
 
 def ratio(covered: int, total: int) -> float | None:

@@ -380,12 +380,8 @@ def derive(state: dict, observed: dict) -> dict | None:
                 "evidence": {ref["path"]: files.get(ref["path"]) for ref in (measurement or {}).get("evidence", [])},
             }
         )
-    reviewed = bool(
-        (task_review or measured or current_partial or deferred)
-        and findings_digest
-        and value["findings_review"]
-        and value["findings_review"]["digest"] == findings_digest
-    )
+    # Current findings count as reviewed without a user decision; only the next action is the user's to choose.
+    reviewed = bool((task_review or measured or current_partial or deferred) and findings_digest)
     action_current = bool(
         reviewed and value["next_action"] and value["next_action"]["findings_digest"] == findings_digest
     )

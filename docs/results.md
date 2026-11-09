@@ -187,11 +187,11 @@ for example “deferred — selected trace
 directory is missing,” so the limitation remains visible in later reviews.
 
 A task review deliberately leaves run coverage unmeasured. It can complete after
-you accept its findings, without a measurement JSON file or a deferred step.
+its findings are recorded, without a measurement JSON file or a deferred step.
 The incomplete-measurement rules above apply to measured audits. Resuming either
 approach preserves its choice and reviews changed inputs before reusing results.
 
-After you accept an audit's findings, Eval Author saves a snapshot of it under
+Once an audit's findings are recorded, Eval Author saves a snapshot of it under
 `.eval-author/.working/audit/history/`. The next report for the same agent compares
 capability coverage with the previous audit in the Evaluation coverage table:
 percentage points for the coverage ratio and relative percentages for counts. A
@@ -209,14 +209,14 @@ new evaluation. Coverage does not establish overall agent quality or prove that
 an unobserved behavior never occurs.
 
 The final checklist step, **Generate and review coverage report**, creates or
-updates the Audit coverage report and reviews its findings with you. The review
-stays pending until you respond to the check-in. Whenever a session creates or
+updates the Audit coverage report and presents its findings. Findings need no
+approval. Whenever a session creates or
 updates the report, its final response explicitly says so and links it, even if the
 audit stops at an intermediate checkpoint. When an audit resumes, changed
 inputs are reconciled with the report before its findings are treated as current.
 
 The audit also inspects selected tasks' grading paths and reconciles retained
-cheat-control results before findings review. Findings distinguish verifier
+cheat-control results before recording findings. Findings distinguish verifier
 defects, agent failures, rejected valid solutions, and ungraded execution.
 Failed controls remain relevant even when a task has no usable agent trajectory.
 A later passing control doesn't erase a failure on the same task revision.
@@ -226,11 +226,10 @@ stay in the task README's **Verifier** section. Legacy **Grading** and **Grader*
 headings remain supported.
 
 Journey state saves audit decisions and the pending checkpoint across chats
-and workflow switches. Accepting findings records the answer without rewriting
-the report to mark it accepted. See [audit resumption](existing-evals.md#audit-coverage)
+and workflow switches. Recording findings doesn't rewrite the report. See [audit resumption](existing-evals.md#audit-coverage)
 for how changed inputs reopen review and measurement.
 
-For the combined findings review and optional next-action handoff, see
+For the findings and optional next-action handoff, see
 [Audit coverage](existing-evals.md#audit-coverage).
 
 ## Trace workflows

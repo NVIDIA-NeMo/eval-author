@@ -142,10 +142,6 @@ def test_task_review_completion_and_approach_changes_survive_restart(modules, tm
         "source": "Presented report",
     }
     saved = state.update(tmp_path, {"scopes": {"audit": {"lifecycle": lifecycle}}}, expected_revision=saved["revision"])
-    lifecycle["findings_review"] = {
-        "digest": audit.progress(tmp_path, saved)["findings_digest"],
-        "source": "User accepted findings",
-    }
     saved = state.update(
         tmp_path,
         {"scopes": {"audit": {"lifecycle": lifecycle}}, "journey_status": {"audit": "complete"}},
@@ -241,7 +237,6 @@ def test_audit_updates_hash_evidence_only_when_needed(modules, tmp_path, monkeyp
     saved["scopes"]["audit"]["lifecycle"] = lifecycle
     digest = audit.derive(saved, observed)["checks_digest"]
     lifecycle["checks_approval"]["digest"] = lifecycle["measurement"]["checks_digest"] = digest
-    lifecycle["findings_review"]["digest"] = audit.derive(saved, observed)["findings_digest"]
     state.save(tmp_path, saved)
     original = state.state_path(tmp_path).read_bytes()
     patch = {}
@@ -255,7 +250,7 @@ def test_audit_updates_hash_evidence_only_when_needed(modules, tmp_path, monkeyp
         patch["journey_status"] = {"audit": "complete"}
         if change == "review_and_completion":
             lifecycle = copy.deepcopy(lifecycle)
-            lifecycle["findings_review"]["source"] = "User confirmed the current findings"
+            lifecycle["findings"]["source"] = "Presented the current findings"
             patch["scopes"] = {"audit": {"lifecycle": lifecycle}}
     if stale:
         observed["files"][lifecycle["trace_files"][0]] = audit.fingerprint("changed trace")
@@ -310,7 +305,7 @@ def test_authoring_preserves_audit_without_reading_or_changing_it(modules, tmp_p
     assert state.load_state(tmp_path)["journey_status"][journey] == "complete"
 
 
-@pytest.mark.parametrize("stage", ["suite_selection", "findings_review", "next_action"])
+@pytest.mark.parametrize("stage", ["suite_selection", "next_action"])
 def test_domain_pending_checkpoint_survives_switch_and_resumes_without_reselection(
     modules, tmp_path, monkeypatch, stage
 ):
@@ -327,9 +322,6 @@ def test_domain_pending_checkpoint_survives_switch_and_resumes_without_reselecti
         lifecycle["measurement"]["status"] = "partial"
         digest = audit.derive(saved, observed)["checks_digest"]
         lifecycle["checks_approval"]["digest"] = lifecycle["measurement"]["checks_digest"] = digest
-        lifecycle["findings_review"]["digest"] = audit.derive(saved, observed)["findings_digest"]
-        if stage == "findings_review":
-            lifecycle["findings_review"] = None
         state.save(tmp_path, saved)
     trace_choice = copy.deepcopy(lifecycle["traces"])
     saved["scopes"]["audit"]["lifecycle"] = lifecycle
@@ -488,7 +480,6 @@ def test_ethos_review_pauses_audit_evidence_reads_until_reconfirmed(modules, tmp
     digest = audit.derive(saved, observed)["checks_digest"]
     lifecycle["checks_approval"]["digest"] = lifecycle["measurement"]["checks_digest"] = digest
     digest = audit.derive(saved, observed)["findings_digest"]
-    lifecycle["findings_review"]["digest"] = digest
     lifecycle["pending"] = {
         "stage": "next_action",
         "digest": digest,
@@ -567,7 +558,6 @@ def test_rebind_reopens_audit_approval_after_unchanged_ethos_is_reconfirmed(modu
         ref["digest"] = observed["files"][ref["path"]]
     digest = audit.derive(saved, observed)["checks_digest"]
     lifecycle["checks_approval"]["digest"] = lifecycle["measurement"]["checks_digest"] = digest
-    lifecycle["findings_review"]["digest"] = audit.derive(saved, observed)["findings_digest"]
     state.save(original, saved)
     assert state.view(state.load_state(original))["checklist"][2]["complete"]
     evidence = {name: (original / name).read_bytes() for name in [*observed["files"], "ETHOS.md"]}
@@ -790,7 +780,6 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
     report.write_text("# Findings\n\nLookup is exercised; unjudged behavior limits the findings.\n")
     lifecycle["findings"] = {"report": ref(report), "source": "Presented findings and evidence limits"}
     progress = save()
-    lifecycle["findings_review"] = {"digest": progress["findings_digest"], "source": "User accepted the findings only"}
     if failed:
         progress = save()
         assert progress["findings_reviewed"] and not progress["complete"]

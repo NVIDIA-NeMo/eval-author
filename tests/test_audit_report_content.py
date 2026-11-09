@@ -1136,7 +1136,10 @@ def test_snapshot_of_the_current_content_is_not_its_own_baseline(audit_report):
     _, _, root = audit_report
     save_snapshot(audit_report, load(audit_report).digest)
     text = render_text(audit_report)
-    assert "No comparable previous audit" in text and "| Coverage ratio | 100% | No previous audit | Not compared |" in text
+    assert (
+        "No comparable previous audit" in text
+        and "| Coverage ratio | 100% | No previous audit | Not compared |" in text
+    )
 
 
 def test_record_writes_one_snapshot_and_report_refresh_writes_none(audit_report):
