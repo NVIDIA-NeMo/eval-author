@@ -172,7 +172,10 @@ Pass the payload through `--input -` on stdin, without creating an input file:
 
 Use the actual selected journey and readiness reply. Supply a bounded description
 of the observed helper error (at most 2,000 characters) in `facts.state_error`.
-Optional `facts.rows` contains observed findings and their sources. Unchecked rows remain Unknown;
+Optional `facts.rows` contains observed findings and their sources. For an audit
+that chose task review, add `facts.audit_mode: task_review` so the traces row
+renders as not needed, without saved state or fake trace availability.
+Unchecked rows remain Unknown;
 `checking` is not a final status. No `state`, `revision`, recommendations,
 custom blockers, Ethos, draft, or question inputs are accepted. This stage is
 not available through the no-input `--stage` preview mode.

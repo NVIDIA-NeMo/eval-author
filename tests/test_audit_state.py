@@ -617,6 +617,32 @@ def test_task_review_ignores_historical_run_bindings_but_keeps_reused_evidence_f
     assert audit.derive(state, observed)["findings_digest"] is None
 
 
+def test_task_review_keeps_controls_bound_under_a_retained_trace_directory(audit, monkeypatch, tmp_path):
+    state, value, _ = measured(audit)
+    state["scopes"]["audit"]["mode"] = {"kind": "task_review", "source": "User changed approach"}
+    value["traces"]["paths"] = ["runs"]
+    content = {"path": ".eval-author/.working/audit/report-content.json", "digest": audit.fingerprint("content")}
+    control = {"path": "runs/verifier-controls/result.json", "digest": audit.fingerprint("control"), "kind": "file"}
+    value["findings"].update(content=content, inputs=[control])
+    report = value["findings"]["report"]
+    digests = {path: audit.fingerprint(path) for path in (*value["suite_files"], value["specification"])}
+    digests.update({report["path"]: report["digest"], content["path"]: content["digest"]})
+    digests[control["path"]] = control["digest"]
+    monkeypatch.setattr(
+        importlib.import_module("journey_state"),
+        "_file_digest",
+        lambda path, _remaining: (digests[path.relative_to(tmp_path).as_posix()], 10),
+    )
+    observed = audit.observe(tmp_path, state)
+    assert control["path"] in observed["files"]
+    value["checks_approval"] = {"digest": audit.derive(state, observed)["checks_digest"], "source": "User approval"}
+    assert audit.derive(state, observed)["findings_digest"]
+    observed["files"][control["path"]] = audit.fingerprint("edited control")
+    assert audit.derive(state, observed)["findings_digest"] is None
+    del observed["files"][control["path"]]
+    assert audit.derive(state, observed)["findings_digest"] is None
+
+
 def test_explicit_measured_choice_preserves_legacy_measurement_semantics(audit):
     state, _, observed = reviewed(audit)
     before = audit.derive(state, observed)

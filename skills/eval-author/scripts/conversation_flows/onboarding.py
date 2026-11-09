@@ -340,7 +340,11 @@ def prerequisite_failure(payload: dict) -> str:
         raise ValueError("Select create, audit, or expand")
     if payload.get("ready") is not True:
         raise ValueError("Wait for the user's readiness reply before checking prerequisites")
-    facts = mapping(payload.get("facts"), "prerequisite failure facts", {"rows", "state_error"})
+    facts = mapping(
+        payload.get("facts"),
+        "prerequisite failure facts",
+        {"rows", "state_error"} | ({"audit_mode"} if journey == "audit" else set()),
+    )
     error = failure_text(facts, "state_error")
     paragraphs = [
         copy.PREREQUISITE_RESULTS_INTRO,

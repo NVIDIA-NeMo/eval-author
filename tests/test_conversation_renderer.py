@@ -1743,6 +1743,30 @@ def test_reporting_state_failure_cannot_bypass_normal_state_requirements(convers
         conversation.render(payload)
 
 
+def test_task_review_prerequisite_failure_cli_exempts_traces_without_saved_state(
+    conversation, monkeypatch, tmp_path, capsys
+):
+    payload = prerequisite_failure_payload("audit")
+    payload["facts"]["audit_mode"] = "task_review"
+    payload["facts"]["rows"]["traces"] = {"status": "not_required"}
+    with monkeypatch.context() as patch:
+        patch.chdir(tmp_path)
+        patch.setattr(sys, "argv", ["conversation_renderer.py", "--input", "-"])
+        patch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+        assert conversation.main() == 0
+    out = capsys.readouterr().out
+    assert "| Traces from completed evaluation runs | Not needed now |" in out
+    assert out == conversation.render(payload)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_audit_mode_is_rejected_on_other_prerequisite_failure_journeys(conversation):
+    payload = prerequisite_failure_payload("create")
+    payload["facts"]["audit_mode"] = "task_review"
+    with pytest.raises(ValueError):
+        conversation.render(payload)
+
+
 def test_prerequisite_failure_is_not_a_cli_preview(conversation, monkeypatch):
     monkeypatch.setattr(
         sys,
