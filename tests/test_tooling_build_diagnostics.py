@@ -263,11 +263,11 @@ def test_projection_failure_is_fixed_and_cannot_skip_fatal_cleanup(tmp_path, mod
 
 
 @pytest.mark.parametrize(
-    "stage", ["apt_index", "apt_install", "compose_download", "compose_verify", "versions", "complete"]
+    "stage", ["apt_index", "apt_acquire", "apt_install", "compose_download", "compose_verify", "versions", "complete"]
 )
 def test_every_observed_marker_is_emitted_by_fixed_recipe(tmp_path, modules, stage):
     _, diagnostics = modules
-    recipe = (ROOT / "tools/live_shard.Dockerfile").read_text()
+    recipe = (ROOT / "tools/live_shard.Dockerfile").read_text() + (ROOT / "tools/live_shard_apt.sh").read_text()
     marker = "EA_TOOLING_STAGE=" + stage
     assert f"printf '{marker}\\n'" in recipe
     log = tmp_path / "build.log"

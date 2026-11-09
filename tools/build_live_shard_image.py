@@ -114,6 +114,13 @@ def _build_image(output, platform, started, diagnostics):
     with (context / "Dockerfile").open("xb") as stream:
         stream.write(recipe)
     (context / "Dockerfile").chmod(0o600)
+    helper = RECIPE.with_name("live_shard_apt.sh")
+    if helper.is_symlink():
+        raise ValueError("unsafe execution helper")
+    helper_bytes = helper.read_bytes()
+    with (context / helper.name).open("xb") as stream:
+        stream.write(helper_bytes)
+    (context / helper.name).chmod(0o600)
     env = {
         "PATH": "/usr/local/bin:/usr/bin:/bin",
         "HOME": str(home),
@@ -176,6 +183,7 @@ def _build_image(output, platform, started, diagnostics):
         "platform": platform,
         "base_images": BASE_IMAGES,
         "recipe_sha256": hashlib.sha256(recipe).hexdigest(),
+        "apt_helper_sha256": hashlib.sha256(helper_bytes).hexdigest(),
         "compose_sha256": COMPOSE[platform][1],
         "elapsed_seconds": round(time.monotonic() - started, 3),
     }

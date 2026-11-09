@@ -17,9 +17,18 @@ from live_agent_diagnostics import directory, read_regular
 
 MAX_SCAN_BYTES = 262_144
 MAX_PUBLIC_BYTES = 4096
-STAGES = {"unknown", "apt_index", "apt_install", "compose_download", "compose_verify", "versions", "complete"}
+STAGES = {
+    "unknown",
+    "apt_index",
+    "apt_acquire",
+    "apt_install",
+    "compose_download",
+    "compose_verify",
+    "versions",
+    "complete",
+}
 MARKER = re.compile(
-    rb"(?:#[0-9]+ [0-9]+\.[0-9]+ )?EA_TOOLING_STAGE=(apt_index|apt_install|compose_download|compose_verify|versions|complete)"
+    rb"(?:#[0-9]+ [0-9]+\.[0-9]+ )?EA_TOOLING_STAGE=(apt_index|apt_acquire|apt_install|compose_download|compose_verify|versions|complete)"
 )
 
 

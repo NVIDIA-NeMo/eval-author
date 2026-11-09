@@ -16,10 +16,12 @@ COPY --from=engine /usr/local/bin/docker /usr/local/bin/dockerd /usr/local/bin/c
 COPY --from=engine /usr/local/bin/dind /usr/local/bin/docker-init /usr/local/bin/
 COPY --from=uv /uv /usr/local/bin/uv
 COPY --from=engine /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY live_shard_apt.sh /opt/live_shard_apt.sh
 # Pin the repository URI before apt has cached any Release metadata.
+# Prefer the smaller signed xz index over the snapshot's slow gzip delivery path.
 RUN printf 'Types: deb\nURIs: https://snapshot.ubuntu.com/ubuntu/%s/\nSuites: noble noble-updates noble-security\nComponents: main universe\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n' "$APT_SNAPSHOT" > /etc/apt/sources.list.d/ubuntu.sources && \
-    printf 'EA_TOOLING_STAGE=apt_index\n' && apt-get update -o APT::Update::Error-Mode=any && \
-    printf 'EA_TOOLING_STAGE=apt_install\n' && apt-get install -y --no-install-recommends \
+    printf 'EA_TOOLING_STAGE=apt_index\n' && apt-get update -o APT::Update::Error-Mode=any -o Acquire::CompressionTypes::Order=xz && \
+    bash /opt/live_shard_apt.sh /var/cache/apt/archives \
     python3 python3-venv git curl ca-certificates bash iptables iproute2 xz-utils && \
     dpkg-query -W > /opt/execution-image-packages.txt && \
     rm -rf /var/lib/apt/lists/*

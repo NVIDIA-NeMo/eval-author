@@ -390,7 +390,18 @@ policy are unchanged.
 The diagnostic records host phase, elapsed/build/inspection seconds, process
 exit code when available, and fixed failure categories. `observed_stage` is
 only the last recognized marker in a bounded 256 KiB tail scan: apt index,
-apt install, Compose download, Compose verification, or version checks.
+apt acquisition, apt install, Compose download, Compose verification, or version checks.
+Index acquisition prefers the smaller xz representation while retaining signed
+snapshot metadata and by-hash verification. Package acquisition uses at most
+four APT-native processes, each handling a batch of
+URL/file/SHA256 triples so APT can reuse connections against the same signed
+snapshot indexes. Downloads go into a fresh `_apt`-owned private staging directory,
+not the root-owned archive cache; only after all batches succeed are files moved
+into the cache and installation run with downloads disabled. The private
+`image.json` build receipt binds
+the bundled acquisition helper with `apt_helper_sha256`, separately from the
+Dockerfile's `recipe_sha256`. The last marker does not identify a stalled
+package or establish that parallel acquisition meets the build budget.
 Markers are observations of untrusted Docker output, **not attested causes**;
 cached, absent, truncated, or unrecognized markers can leave the stage unknown.
 No network-error wording is used to infer a root cause. A process killed before
