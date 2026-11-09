@@ -29,10 +29,38 @@ checks individually. A demonstrated defect is 0 even when other checks are unrun
 Do not average items or produce an overall validity, coverage, diversity, or
 quality score from this slice.
 
-Evidence strength is independent of the score: `E0` assertion only; `E1`
-inspectable artifacts; `E2` directly tested on the identified revision; `E3`
-independent scoped corroboration. A reproduced failure can be 0/E3. A schema,
-receipt digest, or agent-authored assessment does not establish independent review.
+Evidence strength and merit are separate fields, not independent axes: `E0`
+assertion only; `E1` inspectable artifacts; `E2` directly tested on the identified
+revision; `E3` independent scoped corroboration. The item conditions below and
+these evidence floors must both hold:
+
+| Score | Allowed evidence | Required basis |
+| --- | --- | --- |
+| 0 | E1, E2, E3 | Confirmed defect meeting the item's zero condition. |
+| 1 | E1, E2, E3 | Established partial condition with known gaps. |
+| 2 | E2, E3 | All scoped acceptance conditions, including applicable controls, tested. |
+| 3 | E3 | Score 2 plus the item's additional controls and independent corroboration. |
+
+Assertion-only E0 cannot support a numeric score; use `NOT_ASSESSED`. Stronger
+evidence does not improve defective or partial behavior: 0/E3 and 1/E3 are valid.
+A schema, receipt digest, or agent-authored assessment alone does not establish
+independent corroboration. Cite the independent source, its scope, and separation
+from the original evidence for E3; otherwise do not award 3.
+
+For a zero, static confirmation of a reachable path is sufficient only when the
+identified revision, solver control, relevant guards, and credit or exposure
+consequence establish that item's defect. A suspicious pattern or unresolved
+runtime assumption is not confirmation. Execution can raise E1 to E2 without
+changing the zero; neither static confirmation nor a scripted control proves an
+agent actually exploited the defect. Keep unrun controls explicit.
+
+For example, a confirmed reachable verifier path that accepts solver-writable
+`success.json` as full credit before checking a required update yields
+AC-02 = 0/E1 and AC-03 = 0/E1. The same mechanism meets both zero conditions.
+Use one shared finding ID, cited in both item rows; do not add scores, count two
+independent defects, or claim corroboration from reuse. If evidence meets only
+one item's condition, score only that item and assess the other from its own
+available evidence (or `NOT_ASSESSED` if insufficient).
 
 Separate methods explicitly. **Deterministic** means exact inspection or comparison
 against declared predicates, not semantic judgment just because a script invokes
@@ -116,15 +144,17 @@ expected versus actual per-check and total rewards; reference/alternative outcom
   Keep malformed, skipped, unreachable, and infrastructure-failed controls out of
   the successful-defense count. A zero total can hide forbidden partial credit.
 
-**Scoring:** 0: a healthy reached attack earns forbidden credit. 1: inspected or
+**Scoring:** 0: a confirmed reachable shortcut awards forbidden credit, established
+by static evidence under the rule above or a healthy reached attack. 1: inspected or
 partly exercised defenses leave known applicable classes unresolved. 2: every
 declared applicable attack receives intended credit and required valid controls
 pass. 3: independently authored held-out attacks and valid alternatives corroborate
 those results.
 
-**Evidence:** Applicability matrix, control sources, expected/actual scores, native
-health/reach receipts, and valid-control outcomes. Static confirmed shortcuts are
-reported as defects even when the execution-based score remains NOT_ASSESSED.
+**Evidence:** Reachable-path and solver-control evidence for a static defect;
+applicability matrix, control sources, expected/actual scores, native health/reach
+receipts, and valid-control outcomes for executed checks. Do not downgrade a
+confirmed static zero to NOT_ASSESSED merely because controls are unrun.
 
 **On gaps or failure:** Flag affected passes as untrustworthy; propose containment
 and repair through the owning workflow. Preserve failed receipts. Rerun required
@@ -162,7 +192,8 @@ stale, or mismatched controls / applicable controls; unresolved trust boundaries
   success left behind before a later failure. Verify the actual result consumer
   rejects or ignores them, with a current valid-result neighbor accepted.
 
-**Scoring:** 0: confirmed untrusted or stale evidence grants credit. 1: inspected
+**Scoring:** 0: confirmed untrusted or stale evidence grants credit, established by
+static evidence under the rule above or a healthy reached control. 1: inspected
 production or identity checks leave known consumer paths unresolved. 2: selected
 receipts are current and valid, and applicable forgery/staleness controls are
 rejected while valid results are accepted. 3: independent consumer-boundary
@@ -174,9 +205,9 @@ validation results, and paired invalid/valid receipt controls.
 **On gaps or failure:** Withhold trust in the affected results and request fresh
 native evidence or a separately authorized repair. Never edit a receipt to pass.
 
-**Boundary:** Identity does not prove scorer correctness. Reuse an AC-02 forged-
-success observation here when relevant, but do not count it as independent evidence
-or add the two scores together.
+**Boundary:** Identity does not prove scorer correctness. Apply the shared-finding
+rule and exact AC-02/AC-03 example above when reusing a forged-success observation;
+each satisfied item retains its score without duplicating the defect count.
 
 ## AC-04: prior trials do not leak answers or success
 

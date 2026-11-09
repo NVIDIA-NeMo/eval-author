@@ -4,11 +4,11 @@
     {
       "id": "rubric-forged-credit",
       "prompt": "Apply eval-author-rubric to this synthetic task. Only inline evidence is available; do not run commands or write files. The pinned verifier reads a solver-writable success.json and awards full credit when success is true, before checking the requested database update. Code inspection confirms this path is reachable. No native controls have been run. Explain the finding and what is still unmeasured.",
-      "expected_output": "Identifies a confirmed static verifier trust-boundary defect, not observed agent cheating. AC-02 execution-based score is NOT_ASSESSED; AC-03 has a confirmed untrusted-credit mechanism supported by E1, not runtime proof. Proposes forged-success, valid reference and alternative controls with health/reach evidence. Leaves Audit untouched.",
+      "expected_output": "AC-02 = 0/E1 and AC-03 = 0/E1 for the confirmed reachable static forbidden-credit and untrusted-result mechanism, citing one shared finding ID in both rows. Native controls remain unrun; this is not observed agent exploitation or E2 evidence. Proposes paired attack and valid controls without execution; leaves Audit untouched.",
       "assertions": [
-        "Separates the confirmed static shortcut from actual exploitation and native execution evidence.",
-        "Does not claim controls passed, full anti-cheat resistance, or overall validity.",
-        "Proposes paired attack and valid controls without executing anything."
+        "Reports AC-02 = 0/E1 and AC-03 = 0/E1, not NOT_ASSESSED for either confirmed defect.",
+        "Uses one shared finding ID; does not count two independent defects or add scores.",
+        "Separates the static defect from unrun native controls and observed exploitation; does not execute anything."
       ],
       "expected_skill": "eval-author-rubric",
       "files": []
@@ -27,12 +27,12 @@
     },
     {
       "id": "rubric-three-pillars",
-      "prompt": "Yes, I explicitly opt in to the experimental eval-author-rubric assessment for this synthetic review only. In this synthetic review the only evidence is that all declared anti-cheat controls passed on the selected revision, with healthy reached attacks and valid alternatives. Does that give us full validity, coverage, and diversity scores? Answer only; no commands or files.",
-      "expected_output": "Explains that the rubric spans validity, coverage, and diversity, but anti-cheat is only its first populated validity area. The scoped AC-02 result can be 2/E2; it cannot score the other areas or imply overall quality, independent corroboration, or unseen attack resistance.",
+      "prompt": "Yes, I explicitly opt in to the experimental eval-author-rubric assessment for this synthetic review only. Use these inline facts; no commands or files. All declared AC-02 attacks and valid alternatives passed with healthy reach on the selected revision. For AC-04, trusted native receipts show a fixed target earned no credit alone but full credit after a sentinel predecessor left stale success state. The contract requires independent trials; no longitudinal sharing was authorized. No independent corroboration exists. Score AC-02 and AC-04, explain whether this establishes full validity, coverage, and diversity, and say how intentionally shared longitudinal state would differ.",
+      "expected_output": "AC-02 = 0/E2 and AC-04 = 0/E2 for the same demonstrated unintended carryover finding, citing one shared finding ID in both rows. The confirmed reachable forbidden-credit defect overrides the earlier passing declared AC-02 attacks. The rubric spans validity, coverage, and diversity; these findings do not score unimplemented areas or establish overall quality. Authorized longitudinal state is not automatically a defect; compare it against its contract. Neither result warrants E3 or score 3.",
       "assertions": [
-        "States all three pillars and distinguishes anti-cheat from the rest of validity.",
-        "Does not derive coverage, diversity, or overall quality scores from anti-cheat controls.",
-        "Does not promote scoped direct tests to independent corroboration."
+        "Reports AC-02 = 0/E2 and AC-04 = 0/E2 from the supplied synthetic native evidence, citing the same carryover finding in both rows without counting two independent defects; the confirmed forbidden-credit defect overrides the earlier passing declared AC-02 attacks.",
+        "Distinguishes unintended carryover from authorized longitudinal sharing; does not claim all tasks must forget everything.",
+        "Preserves all three pillars without deriving overall quality or independent corroboration; executes nothing."
       ],
       "expected_skill": "eval-author-rubric",
       "files": []

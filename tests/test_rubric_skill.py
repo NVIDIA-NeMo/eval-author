@@ -102,6 +102,46 @@ def test_statuses_do_not_turn_missing_evidence_into_passes() -> None:
         assert expected in text
 
 
+def test_scoring_contract_handles_static_defects_and_evidence_floors() -> None:
+    text = " ".join((SKILL / "references/anti-cheat.md").read_text().split())
+    assert "Evidence strength and merit are separate fields, not independent axes" in text
+    for row in (
+        "| 0 | E1, E2, E3 |",
+        "| 1 | E1, E2, E3 |",
+        "| 2 | E2, E3 |",
+        "| 3 | E3 |",
+    ):
+        assert row in text
+    assert "AC-02 = 0/E1 and AC-03 = 0/E1" in text
+    assert "one shared finding ID" in text
+    assert "static confirmation of a reachable path" in text
+    assert "execution-based score remains NOT_ASSESSED" not in text
+    assert "Assertion-only E0 cannot support a numeric score" in text
+
+
+def test_forged_credit_and_carryover_cases_have_exact_scores() -> None:
+    cases = {case["id"]: case for case in json.loads((SKILL / "evals/evals.json").read_text())["evals"]}
+    forged = cases["rubric-forged-credit"]
+    assert "AC-02 = 0/E1 and AC-03 = 0/E1" in forged["expected_output"]
+    assert any("one shared finding" in assertion for assertion in forged["assertions"])
+    carryover = cases["rubric-three-pillars"]
+    assert "AC-02 = 0/E2" in carryover["expected_output"]
+    assert "AC-02 = 2/E2" not in carryover["expected_output"]
+    assert "AC-04 = 0/E2" in carryover["expected_output"]
+    assert "longitudinal" in carryover["prompt"]
+
+
+def test_rubric_uses_team_ownership_and_canonical_opt_in_gate() -> None:
+    text = (SKILL / "SKILL.md").read_text()
+    metadata = yaml.safe_load(text.split("---", 2)[1])["metadata"]
+    assert metadata["owner"] == "NVIDIA-NeMo/ase_team"
+    assert metadata["owner_url"] == "https://github.com/orgs/NVIDIA-NeMo/teams/ase_team"
+    router = (ROOT / "skills/eval-author/SKILL.md").read_text()
+    assert "[the opt-in gate](../eval-author-rubric/SKILL.md#opt-in-gate)" in router
+    assert "experimental rubric" in router.split("Explicit inventory,", 1)[1].split("### Shared prerequisites", 1)[0]
+    assert "Respect declines and withdrawals" not in router
+
+
 def test_rubric_dataset_contains_positive_and_negative_cases() -> None:
     dataset = json.loads((SKILL / "evals/evals.json").read_text())
     assert dataset["skill_name"] == "eval-author-rubric"

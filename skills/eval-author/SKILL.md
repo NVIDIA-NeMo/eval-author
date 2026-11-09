@@ -137,26 +137,20 @@ welcome and canonical goal choices ask only for the unresolved goal; reuse known
 context.
 
 Explicit inventory, planning-only, readiness, repair, trace inspection, supported NeMo Gym or MLflow
-trace conversion, trace-derived authoring, proposal-only, and audit
+trace conversion, trace-derived authoring, explicitly opted-in experimental rubric,
+proposal-only, and audit
 generate/validate/measure/aggregate requests keep their
 scope. Explanation-only requests do not start a workflow. Scoped operations reuse
 applicable shared decisions but do not acquire unrelated onboarding requirements.
 Trace-source selection remains required before searching or reading traces.
 
-Load `eval-author-rubric` only after explicit end-user opt-in: a direct request
-for that skill or affirmative acceptance of a clearly named experimental rubric
-assessment for the selected scope. Never load or run it by default or as an
-automatic step in another workflow. Do not infer consent from a generic review, audit, or anti-cheat request,
-installation, prior use, existing artifacts, or another agent's suggestion.
-Without opt-in, continue the requested non-rubric workflow; clarify only ambiguous
-intent and wait for explicit consent before starting the experimental assessment.
-Respect declines and withdrawals; do not make opt-in a prerequisite for other work.
-Normal task-validation controls remain required by their owning workflows; this
-opt-in gate applies only to the experimental rubric assessment. The rubric spans
-validity, coverage, and diversity; its initial populated area is anti-cheat within
-validity. It does not start an audit or require new onboarding. The sub-skill's
-opt-in gate governs scope and continuation; assessment consent is not execution
-or write permission.
+Load `eval-author-rubric` only after explicit end-user opt-in to that named
+experimental assessment; never load or run it automatically.
+Do not infer consent from a generic review, audit, or anti-cheat request.
+Follow [the opt-in gate](../eval-author-rubric/SKILL.md#opt-in-gate) for consent,
+scope, continuation, withdrawal, and execution permissions. This scoped utility
+starts no audit. Normal task-validation controls remain required by their owning
+workflows; the opt-in gate applies only to the experimental assessment.
 
 ### Shared prerequisites and Ethos
 
