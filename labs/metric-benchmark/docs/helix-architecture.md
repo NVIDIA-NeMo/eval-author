@@ -30,7 +30,7 @@ present and verified locally.
 
 These tools consume an already prepared experiment. Collection downloads results
 and writes the standard results format in one step. After publication, the saved
-references are sufficient to run on Helix and recover published sources; the original
+references are sufficient to run on Helix and download published sources; the original
 upload directory is no longer required.
 
 `references.json` maps uploaded or reused agents, tasks and benchmark tasksets to
@@ -99,7 +99,7 @@ or change the existing [trial and scoring rules](stages.md#1-run-mutants-x-eval-
 | Analysis settings (`analysis.yml`, referencing description and subset files) | Settings for analyzing results: case descriptions, fixed task subsets, coverage, scoring and missing-result handling. |
 | Publication references and run receipts (`references.json`, `runs/baseline.json`, `runs/mutant.json`) | Helix IDs, exact versions and hashes linked to experiment IDs. A run receipt records the inputs actually used by that run. |
 
-Credentials stay in the Helix client configuration or secret store. Source downloads recover
+Credentials stay in the Helix client configuration or secret store. Source downloads retrieve
 published files; they do not include secret values or Git history, or guarantee that
 rerunning a model produces the same answer. Keep the signed experiment files and
 analysis inputs with the references. These tools do not recreate them.
@@ -160,26 +160,29 @@ do not change that record of what ran.
 ```bash
 python helix_collect.py --references references.json \
   --run runs/baseline.json --run runs/mutant.json \
-  --context my-helix --sources-output recovered \
+  --context my-helix --sources-output downloaded-sources \
   --output results/experiment-001
 ```
 
 Collection checks that every selected agent has results for every task and reports
-incomplete runs or missing evidence. It downloads any needed sources to `recovered`
+incomplete runs or missing evidence. It downloads any needed sources to `downloaded-sources`
 and writes `execution.json`, each case's `results.json`, and the agent/run/trial
 directories described in the [results format](results-format.md). Existing validation
 and analysis use those files and the saved experiment definition. There is no separate
 import command to run.
 
-### 4. Recover sources independently, when useful
+### 4. Download Helix sources
+
+Download agent and task sources using their recorded Helix IDs and exact versions.
+Use a run receipt to download the versions that ran, or `references.json` to download
+the published versions.
 
 ```bash
 python helix_sources.py --run runs/baseline.json \
-  --resources agents,tasks --context my-helix --output recovered-baseline
+  --resources agents,tasks --context my-helix --output downloaded-baseline
 ```
 
-Use `--references references.json` instead of `--run` to download published sources
-before running anything. Use `--resources agents` or `--resources tasks` to download
+Use `--references references.json` instead of `--run` to download sources before execution. Use `--resources agents` or `--resources tasks` to download
 only one kind. A run receipt selects the versions actually used by that run. Downloads
 keep the original relative paths, check IDs and hashes, and report an error if existing
 local files conflict.

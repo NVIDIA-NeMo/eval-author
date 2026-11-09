@@ -3,7 +3,7 @@
 
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1540" viewBox="0 0 1440 1540" role="img" aria-labelledby="title description">
 <title id="title">Helix workflow: definitions, publication, execution and collection</title>
-<desc id="description">Experiment YAML references cases, execution and analysis YAML. Cases reference agents and tasks YAML. Publication consumes the prepared definitions and publication settings and writes references.json. Execution uses those references and execution settings and writes runs/baseline.json and runs/mutant.json. Collection writes execution.json, case results.json indexes and native trial result.json files. Optional source recovery downloads the exact agent and task files.</desc>
+<desc id="description">Experiment YAML references cases, execution and analysis YAML. Cases reference agents and tasks YAML. Publication consumes the prepared definitions and publication settings and writes references.json. Execution uses those references and execution settings and writes runs/baseline.json and runs/mutant.json. Collection writes execution.json, case results.json indexes and native trial result.json files. Optional source download retrieves the exact agent and task files.</desc>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9 Z" fill="#64748b"/></marker>
 <style>
 text {font-family:Arial,Helvetica,sans-serif;fill:#24364b}
@@ -104,16 +104,16 @@ text {font-family:Arial,Helvetica,sans-serif;fill:#24364b}
 <text x="536" y="1162" class="small">Output root: results/experiment-001/</text>
 <text x="536" y="1190" class="small">Existing case/agent/run/trial layout.</text>
 <text x="536" y="1218" class="small">Feeds validation and analysis.yml settings.</text>
-<text x="60" y="1285" class="small">Collection also recovers missing sources when needed.</text>
+<text x="60" y="1285" class="small">Collection also downloads sources when needed.</text>
 <path d="M36 1360 H1404" stroke="#dce2e9"/>
 <rect x="60" y="1390" width="360" height="76" rx="10" fill="#edf4ff" stroke="#80a4d5"/>
 <text x="76" y="1418" class="name">helix_sources.py</text>
 <text x="76" y="1443" class="body">Optional: download exact source versions</text>
 <rect x="520" y="1390" width="360" height="76" rx="10" fill="#eef8f1" stroke="#88b69a"/>
-<text x="536" y="1418" class="name">recovered-baseline/</text>
+<text x="536" y="1418" class="name">downloaded-baseline/</text>
 <text x="536" y="1443" class="body">Original agent and task paths, hash-checked</text>
 <path class="edge" d="M420 1428 H520"/>
 <text x="980" y="1418" class="small">Helix client settings: connection and login.</text>
-<text x="980" y="1446" class="small">Recovery requires retained immutable sources.</text>
+<text x="980" y="1446" class="small">Exact downloads require retained source versions.</text>
 <text x="36" y="1510" class="small">Filenames match the command examples; run/output names are caller-selected. Nested result paths follow the existing results-format contract.</text>
 </svg>
