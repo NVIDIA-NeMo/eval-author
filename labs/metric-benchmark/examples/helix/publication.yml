@@ -6,6 +6,4 @@ agents:
   example:
     baseline: {}
     mutant: {}
-# If an agent needs a secret, set env_secrets on its entry:
-# env_secrets:
-#   SERVICE_TOKEN: workspace/service-token
+# See README.md: "What goes in publication settings?" for env_secrets.

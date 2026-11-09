@@ -40,6 +40,45 @@ Manifest paths resolve from the directory containing `cases.yml`. The three
 references in `experiment.yml` resolve from its directory. The
 [benchmark format](../../docs/benchmark-format.md) explains these shared rules.
 
+## What goes in publication settings?
+
+The `agents` section attaches publication settings to agents already defined by the
+experiment. Its keys mean **case ID → agent ID → settings**:
+
+- `example` is the `case_id` in `cases.yml`.
+- `baseline` and `mutant` are the `agent_bundle_id` values in `agents.yml`.
+- `{}` is an empty YAML mapping: this agent has no additional publication settings.
+  It does not mean an empty agent or an agent that will be skipped.
+
+The additional per-agent setting shown by this design is `env_secrets`. Use it when
+an agent needs an existing Helix secret exposed as an environment variable, for
+example a token for a service the agent calls:
+
+```yaml
+agents:
+  example:
+    baseline:
+      env_secrets:
+        SERVICE_TOKEN: workspace/service-token
+    mutant: {}
+```
+
+Here, `SERVICE_TOKEN` is the environment variable the baseline agent expects.
+`workspace/service-token` is the reference to an existing secret in Helix, not its
+value. The reference is illustrative. The mutant has no secret bindings in this
+example; if both agents need the secret, configure it for both. These are credentials
+used by the running agent, separate from the Helix client login used to upload and run it.
+
+These entries do not define or select agents, and they are not a place to override
+models, instructions or runtime settings. Those belong to the signed agent inputs;
+compute settings belong in `execution.yml`.
+
+The separate `tasks` section, shown in
+[publication-existing-task.yml](publication-existing-task.yml), maps **case ID → task ID →
+existing Helix task reference**. It requests verified reuse of that exact task version.
+Tasks not listed there are uploaded from their prepared sources. The two publication
+files are alternatives, not successive steps.
+
 ## How case and task names map to Helix IDs
 
 **Before publication, you use experiment names and source paths.** `cases.yml`
