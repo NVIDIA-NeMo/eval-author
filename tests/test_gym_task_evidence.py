@@ -166,7 +166,7 @@ def test_rejects_wrong_native_evidence(inputs, mutation, message):
         if mutation == "loading_schema_v1":
             value["schema"] = "nemo.eval_author.trace_load.v1"
         elif mutation == "loading_version":
-            value["loader"] = {**value["loader"], "revision": "0" * 40}
+            value["loader"] = {**value["loader"], "version": "0.2.0"}
         elif mutation == "loading_row":
             value["row"] = 2
         else:

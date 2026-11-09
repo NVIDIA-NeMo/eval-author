@@ -22,8 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "skills/eval-author/scripts/trace_loading.py"
 ATIF_FIXTURE = ROOT / "skills/eval-author-trace-environment/evals/files/traces/lookup.atif.json"
 MLFLOW_FIXTURE = ROOT / "skills/eval-author-trace-environment/evals/files/traces/mlflow.json"
-REVISION = "11e308e1128855884190c883da5c1cc55049c71d"
-PIN = f"nemo-compass[mlflow] @ git+https://github.com/NVIDIA-NeMo/nemo-compass.git@{REVISION}"
+PIN = "nemo-compass[mlflow]==0.2.1"
 INTAKE_ARGS = [
     "--intake-base-url",
     "https://intake.example.test",
@@ -197,7 +196,7 @@ def expected_receipt(output: Path, kind: str, **values) -> dict:
     return {
         "schema": "nemo.eval_author.trace_load.v2",
         "source_kind": kind,
-        "loader": {"distribution": "nemo-compass", "version": "0.2.0", "revision": REVISION},
+        "loader": {"distribution": "nemo-compass", "version": "0.2.1"},
         "trace_schema_version": "3",
         "normalized_sha256": "sha256:" + digest,
         "trace_count": 1,
@@ -468,32 +467,26 @@ def test_more_than_max_traces_is_rejected_not_truncated(loading, tmp_path):
     ("installed", "message"),
     [
         ({}, f"install {PIN}"),
-        ({"nemo-compass": ("0.2.0", {"archive_info": {"hashes": {"sha256": "pypi"}}})}, f"install {PIN}"),
+        ({"nemo-compass": ("0.2.0", None)}, f"install {PIN}"),
         (
             {
                 "nemo-compass": (
-                    "0.2.0",
+                    "0.2.1",
                     {"url": "https://github.com/NVIDIA-NeMo/nemo-compass.git", "vcs_info": {"commit_id": "other"}},
                 )
             },
             f"install {PIN}",
         ),
         (
-            {"nemo-compass": ("0.2.0", {"url": "file:///src/nemo-compass", "dir_info": {"editable": True}})},
+            {"nemo-compass": ("0.2.1", {"url": "file:///src/nemo-compass", "dir_info": {"editable": True}})},
             f"install {PIN}",
         ),
         (
-            {
-                "nemo-compass": (
-                    "0.2.0",
-                    {"url": "https://github.com/NVIDIA-NeMo/nemo-compass.git", "vcs_info": {"commit_id": REVISION}},
-                ),
-                "trace-ingest": ("0.1.0", {}),
-            },
+            {"nemo-compass": ("0.2.1", None), "trace-ingest": ("0.1.0", None)},
             f"remove trace-ingest and reinstall {PIN}",
         ),
     ],
-    ids=["missing", "pypi-release", "other-commit", "editable", "trace-ingest"],
+    ids=["missing", "older-release", "git-checkout", "editable", "trace-ingest"],
 )
 def test_unpinned_or_shadowing_install_is_rejected_before_writing(loading, installed, message, tmp_path, monkeypatch):
     metadata = loading.importlib.metadata

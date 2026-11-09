@@ -51,7 +51,7 @@ compatibility: >-
   Task execution requires the selected NeMo Gym or Harbor runtime and may require Docker and provider
   credentials. Trace inspection requires the nemo CLI, an explicit workspace,
   and read access to configured Intake. Trace loading requires Python 3.12–3.13
-  and the NeMo Compass Git pin from requirements.txt.
+  and NeMo Compass 0.2.1 from requirements.txt.
 maturity: alpha
 license: Apache-2.0
 user-invocable: true

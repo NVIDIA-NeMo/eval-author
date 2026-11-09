@@ -29,14 +29,14 @@ def check(root: Path = ROOT) -> None:
 
 
 def check_compass_pin(root: Path = ROOT) -> None:
-    """Require every NeMo Compass pin to name the build that trace_loading.py checks for."""
+    """Require every NeMo Compass pin to name the release that trace_loading.py checks for."""
     path = root / "skills/eval-author/scripts/trace_loading.py"
     spec = importlib.util.spec_from_file_location("_policy_trace_loading", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    expected = f"git+{module.COMPASS_REPOSITORY}@{module.LOADER['revision']}"
-    pattern = re.compile(r"nemo-compass(\[[A-Za-z0-9_,-]+\])? @ " + re.escape(expected))
+    expected = f"=={module.LOADER['version']}"
+    pattern = re.compile(r"nemo-compass(\[[A-Za-z0-9_,-]+\])?" + re.escape(expected))
     project = tomllib.loads((root / "pyproject.toml").read_text())
     required = {
         "pyproject.toml trace-loaders extra": project["project"]["optional-dependencies"]["trace-loaders"],
@@ -50,10 +50,10 @@ def check_compass_pin(root: Path = ROOT) -> None:
     for where, items in sources.items():
         pins = [item for item in items if item.startswith("nemo-compass")]
         if where in required and not pins:
-            raise ValueError(f"{where} must require nemo-compass @ {expected}")
+            raise ValueError(f"{where} must require nemo-compass{expected}")
         for pin in pins:
             if not pattern.fullmatch(pin):
-                raise ValueError(f"{where} pin {pin!r} must be exactly nemo-compass @ {expected}")
+                raise ValueError(f"{where} pin {pin!r} must be exactly nemo-compass{expected}")
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ not-for:
   - nemo-experimentalist (use to optimize an agent from Insights or explicit datasets)
 compatibility: >-
   Python 3.11 or later for generation and validation; Python 3.12–3.13 and
-  the NeMo Compass Git pin for trace measurement; Harbor is not needed. Dependencies are listed in requirements.txt.
+  NeMo Compass 0.2.1 for trace measurement; Harbor is not needed. Dependencies are listed in requirements.txt.
   Generation, validation, measurement, and aggregation read local files only;
   they do not start Harbor jobs or call platform services.
 maturity: alpha

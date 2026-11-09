@@ -899,8 +899,8 @@ dev = [
 requires-dist = [
     { name = "jsonschema", specifier = ">=4.23" },
     { name = "markdown-it-py", specifier = ">=4,<5" },
-    { name = "nemo-compass", extras = ["mlflow"], marker = "extra == 'audit'", git = "https://github.com/NVIDIA-NeMo/nemo-compass.git?rev=11e308e1128855884190c883da5c1cc55049c71d" },
-    { name = "nemo-compass", extras = ["mlflow"], marker = "extra == 'trace-loaders'", git = "https://github.com/NVIDIA-NeMo/nemo-compass.git?rev=11e308e1128855884190c883da5c1cc55049c71d" },
+    { name = "nemo-compass", extras = ["mlflow"], marker = "extra == 'audit'", specifier = "==0.2.1" },
+    { name = "nemo-compass", extras = ["mlflow"], marker = "extra == 'trace-loaders'", specifier = "==0.2.1" },
     { name = "pydantic", marker = "extra == 'audit'", specifier = ">=2" },
     { name = "pyyaml", marker = "extra == 'audit'", specifier = ">=6.0" },
     { name = "referencing", specifier = ">=0.28.4" },
@@ -911,7 +911,7 @@ provides-extras = ["audit", "trace-loaders"]
 dev = [
     { name = "harbor", specifier = "==0.24.0" },
     { name = "mcp", specifier = ">=1.29,<2" },
-    { name = "nemo-compass", extras = ["mlflow"], git = "https://github.com/NVIDIA-NeMo/nemo-compass.git?rev=11e308e1128855884190c883da5c1cc55049c71d" },
+    { name = "nemo-compass", extras = ["mlflow"], specifier = "==0.2.1" },
     { name = "pre-commit", specifier = ">=4,<5" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pytest", specifier = ">=9.0.3" },
@@ -1139,8 +1139,8 @@ wheels = [
 
 [[package]]
 name = "nemo-compass"
-version = "0.2.0"
-source = { git = "https://github.com/NVIDIA-NeMo/nemo-compass.git?rev=11e308e1128855884190c883da5c1cc55049c71d#11e308e1128855884190c883da5c1cc55049c71d" }
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "jsonschema" },
@@ -1156,6 +1156,9 @@ dependencies = [
     { name = "rich" },
     { name = "scikit-learn" },
     { name = "tokenizers" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/15/dd/1b9e56d64c242504e61a9b9a8216fbb00b7de01057095093da7093ad03b0/nemo_compass-0.2.1-py3-none-any.whl", hash = "sha256:9768aa054570258985a30faa3131787bc67ffe7729742ac6b58a5fe5e3eb6aee", size = 4669390, upload-time = "2026-11-06T17:25:51.229Z" },
 ]
 
 [package.optional-dependencies]

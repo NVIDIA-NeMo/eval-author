@@ -67,26 +67,24 @@ required, so core-skill pull requests can merge without one.
 
 ## NeMo Compass dependency
 
-Trace loading and the development environment use a temporary Git pin:
+Trace loading and the development environment pin one NeMo Compass release, the
+first with trace contract v3:
 
 ```text
-nemo-compass[mlflow] @ git+https://github.com/NVIDIA-NeMo/nemo-compass.git@11e308e1128855884190c883da5c1cc55049c71d
+nemo-compass[mlflow]==0.2.1
 ```
 
-Compass trace contract v3 is not in a PyPI release yet; the PyPI `0.2.0`
-release predates it. Return to a PyPI pin with the next Compass release.
 Eval Author loads every trace into a Compass `Trace` and never writes ATIF.
-`uv sync --locked` installs the pinned revision and its dependencies; skills
+`uv sync --locked` installs the pinned release and its dependencies; skills
 that load traces list the same pin in their `requirements.txt`, used with
 `uv run --with-requirements <skill>/requirements.txt`.
 
-`skills/eval-author/scripts/trace_loading.py` records the distribution, version,
-and revision in its receipts. It rejects any other install, including another
-commit, a local or editable directory, the PyPI `0.2.0` release, and the older
-`trace-ingest` and `insight-agent` distributions, since those share Python
-import paths. When updating the dependency, change `trace_loading.py`,
-`pyproject.toml`, and every `skills/*/requirements.txt` together;
-`tools/check_runtime_policy.py` rejects a mismatch.
+`skills/eval-author/scripts/trace_loading.py` records the distribution and
+version in its receipts. It rejects any other version, a Git, local or editable
+install, and the older `trace-ingest` and `insight-agent` distributions, since
+those share Python import paths. When updating the dependency, change
+`trace_loading.py`, `pyproject.toml`, and every `skills/*/requirements.txt`
+together; `tools/check_runtime_policy.py` rejects a mismatch.
 
 For a stacked PR whose base is not `main`, run the same test matrix manually
 with `gh workflow run ci.yml --repo NVIDIA-NeMo/eval-author --ref BRANCH`.

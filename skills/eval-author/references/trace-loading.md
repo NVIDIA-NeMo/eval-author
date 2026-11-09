@@ -22,19 +22,16 @@ uv run --with-requirements <eval-author>/requirements.txt \
   --input <private-source> --output-dir <new-private-dir>
 ```
 
-`requirements.txt` temporarily pins NeMo Compass to a Git revision, because
-Compass trace contract v3 is not in a PyPI release yet:
+`requirements.txt` pins the first NeMo Compass release with trace contract v3:
 
 ```text
-nemo-compass[mlflow] @ git+https://github.com/NVIDIA-NeMo/nemo-compass.git@11e308e1128855884190c883da5c1cc55049c71d
+nemo-compass[mlflow]==0.2.1
 ```
 
-The loader accepts only that revision. It rejects any other install, including
-another commit, a local or editable directory, and the PyPI `0.2.0` release,
-which predates trace contract v3. It also rejects the older `trace-ingest` and
-`insight-agent` distributions, because each can shadow the `trace_ingest`
-package. Use a fresh environment when migrating. The pin returns to a PyPI
-release with the next Compass release.
+The loader accepts only that release installed from a package index. It rejects
+any other version, a Git, local or editable install, and the older
+`trace-ingest` and `insight-agent` distributions, because each can shadow the
+`trace_ingest` package. Use a fresh environment when migrating.
 
 ## Source kinds
 
@@ -79,8 +76,8 @@ once with mode `0600`, and an existing path is refused.
 - `traces.normalized.jsonl`: one Compass `Trace` (trace contract v3) per line.
   This is **not ATIF**; reload it with `--source-kind trace`.
 - `loading.json`: schema `nemo.eval_author.trace_load.v2` with `source_kind`;
-  `loader` (`distribution` `nemo-compass`, `version` `0.2.0`, and `revision`
-  `11e308e1128855884190c883da5c1cc55049c71d`); `trace_schema_version` `"3"`;
+  `loader` (`distribution` `nemo-compass` and `version` `0.2.1`);
+  `trace_schema_version` `"3"`;
   `source_sha256` digests of each source copy; `normalized_sha256`;
   `trace_count`; `max_traces`; the NeMo Gym `row`; the selected `trace_id`; and
   `intake`, the Intake selection (each `null` when not used).

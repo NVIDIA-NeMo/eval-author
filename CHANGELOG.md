@@ -37,10 +37,9 @@ preview: workflows, skills, and saved artifacts may change between releases.
   Compass loaded only in part, such as a partially loaded session or an ATIF
   trajectory that continues in another file, is refused rather than read as
   whole. See [Load local traces](docs/traces.md#load-local-traces).
-- **Temporary NeMo Compass Git pin.** Trace loading requires `nemo-compass` from
-  Git revision `11e308e` because trace contract v3 is not in a PyPI release yet.
-  The loader rejects any other install. A PyPI pin returns with the next Compass
-  release.
+- **NeMo Compass 0.2.1.** Trace loading requires `nemo-compass` 0.2.1 from
+  PyPI, the first release with trace contract v3. The loader rejects any other
+  version and Git, local, or editable installs.
 - **Audit measurement reads Compass traces.** `measure.py` loads one ATIF,
   MLflow, NeMo Gym, or normalized trace per file through the trace loader, so
   Harbor is no longer an audit dependency. Coverage files and reports are now

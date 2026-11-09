@@ -2,11 +2,3 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Pinned upstream documents for Git sources and distributions missing license material.
-
-nemo-compass:
-  version: "0.2.0"
-  documents:
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/nemo-compass/11e308e1128855884190c883da5c1cc55049c71d/LICENSE
-      hash: sha256:4f321b887d0350e672e06c8a8bc85cff17ee2d1f3c360617079041ceee324c81
-    - url: https://raw.githubusercontent.com/NVIDIA-NeMo/nemo-compass/11e308e1128855884190c883da5c1cc55049c71d/NOTICE
-      hash: sha256:0d40caae08d209a7339bd0051dd7fee90a5ad3e0e99880be0c5998aa492ea659

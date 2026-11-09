@@ -117,7 +117,7 @@ Supply `loaded/traces.normalized.jsonl` via `--trace` and its
 `loaded/loading.json` receipt (`nemo.eval_author.trace_load.v2`) as `loading`
 in the descriptor. The adapter requires the receipt's source digest to match the
 rollout file, its row to match the descriptor's `row`, its normalized digest to
-match the trace, its loader distribution, version, and revision to match the
+match the trace, its loader distribution and version to match the
 sibling loader's NeMo Compass pin, and the trace ID to equal the selected row's
 unique native rollout ID. Measure that trace with the audit skill's
 `--source-kind trace`. A receipt from another Compass pin no longer verifies:

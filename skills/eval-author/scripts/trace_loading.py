@@ -25,14 +25,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from trace_ingest import Trace
 
-# Trace contract v3 and its loaders are not in a PyPI release yet, so this pins the
-# reviewed Compass commit. Return to a PyPI version pin with the next release.
-LOADER = {
-    "distribution": "nemo-compass",
-    "version": "0.2.0",
-    "revision": "11e308e1128855884190c883da5c1cc55049c71d",
-}
-COMPASS_REPOSITORY = "https://github.com/NVIDIA-NeMo/nemo-compass.git"
+# The reviewed Compass release; trace contract v3 and its loaders first shipped in 0.2.1.
+LOADER = {"distribution": "nemo-compass", "version": "0.2.1"}
 TRACE_SCHEMA_VERSION = "3"
 RECEIPT_SCHEMA = "nemo.eval_author.trace_load.v2"
 SOURCE_KINDS = ("atif", "mlflow", "gym", "intake", "trace")
@@ -57,24 +51,20 @@ class TraceLoadError(ValueError):
 
 
 def pinned_requirement() -> str:
-    return f"{LOADER['distribution']}[mlflow] @ git+{COMPASS_REPOSITORY}@{LOADER['revision']}"
+    return f"{LOADER['distribution']}[mlflow]=={LOADER['version']}"
 
 
 def check_installation() -> None:
-    """Require the pinned Compass build, installed from its Git revision."""
+    """Require the pinned Compass release, installed from a package index."""
 
     pinned = pinned_requirement()
     try:
         distribution = importlib.metadata.distribution(LOADER["distribution"])
     except importlib.metadata.PackageNotFoundError:
         raise TraceLoadError(f"install {pinned}") from None
-    provenance = json.loads(distribution.read_text("direct_url.json") or "{}")
-    vcs = provenance.get("vcs_info") or {}
-    if (
-        distribution.version != LOADER["version"]
-        or vcs.get("commit_id") != LOADER["revision"]
-        or provenance.get("url") != COMPASS_REPOSITORY
-    ):
+    # direct_url.json marks a Git, local-directory, editable or URL install, whose code the
+    # version number does not identify.
+    if distribution.version != LOADER["version"] or distribution.read_text("direct_url.json") is not None:
         raise TraceLoadError(f"install {pinned}")
     for name in _SHADOWING:
         try:

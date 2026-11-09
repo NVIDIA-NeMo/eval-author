@@ -1,3 +1,3 @@
-nemo-compass[mlflow] @ git+https://github.com/NVIDIA-NeMo/nemo-compass.git@11e308e1128855884190c883da5c1cc55049c71d
+nemo-compass[mlflow]==0.2.1
 jsonschema>=4.0
 PyYAML>=6.0
