@@ -1023,7 +1023,7 @@ def test_input_mutation_invalidates_evidence_and_stops_further_calls(live, repo,
         live.collect(repo, tmp_path / "dirty", run=True)
 
 
-def test_live_workflow_limits_inference_to_main_and_is_advisory():
+def test_live_workflow_requires_central_live_gate_and_is_advisory():
     workflow = yaml.safe_load((ROOT / ".github/workflows/skill-evaluation-live.yml").read_text())
     ci = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     assert set(workflow[True]) == {"push", "pull_request", "workflow_dispatch"}
@@ -1031,6 +1031,11 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
         assert workflow[True][event] == ci[True][event]
     assert workflow[True]["workflow_dispatch"]["inputs"]["run_live"]["default"] is False
     assert workflow[True]["workflow_dispatch"]["inputs"]["tier"]["default"] == "both"
+    assert workflow[True]["workflow_dispatch"]["inputs"]["skill"]["default"] == "all"
+    assert workflow["env"]["EVALUATION_TIER"] == (
+        "${{ github.event_name == 'pull_request' && '2' || inputs.tier || 'both' }}"
+    )
+    assert workflow["env"]["EVALUATION_SKILL"] == "${{ inputs.skill || 'all' }}"
     assert workflow["concurrency"]["cancel-in-progress"] is False
     assert workflow["concurrency"]["group"] == (
         "${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"
@@ -1048,13 +1053,32 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
         "evaluate": 80,
         "aggregate": 10,
     }
+    gate = plan["outputs"]["live_requested"]
+    assert "steps." not in gate  # A failed planner must not erase the live request.
     assert all(
-        guard in authorization["if"]
-        for guard in ("refs/heads/main", "SKILL_EVALUATION_LIVE_ENABLED", "inputs.run_live", "workflow_dispatch")
+        guard in gate
+        for guard in (
+            "refs/heads/main",
+            "SKILL_EVALUATION_LIVE_ENABLED",
+            "inputs.run_live",
+            "workflow_dispatch",
+            "startsWith(github.ref, 'refs/heads/')",
+            "inputs.expected_sha != ''",
+            "inputs.expected_sha == github.sha",
+        )
     )
+    assert workflow[True]["workflow_dispatch"]["inputs"]["expected_sha"] == {
+        "description": "Full reviewed commit SHA (required for live evaluation outside main)",
+        "type": "string",
+        "default": "",
+    }
+    assert authorization["if"] == "needs.plan.outputs.live_requested == 'true'"
+    assert authorization["environment"] == "skill-evaluator"
+    for name in ("authorize", "build-opencode", "aggregate"):
+        assert "needs.plan.outputs.live_requested == 'true'" in workflow["jobs"][name]["if"]
+        assert "inputs.expected_sha" not in workflow["jobs"][name]["if"]
     assert job["environment"] == "skill-evaluator" and job["continue-on-error"]
-    assert "pull_request" not in authorization["if"]
-    assert "github.ref == 'refs/heads/main' &&" in authorization["if"]
+    assert "pull_request" not in gate
     assert not ci["jobs"]["test"].get("needs")
     upload = workflow["jobs"]["aggregate"]["steps"][-1]
     assert upload["if"] == "always()" and upload["with"]["path"].endswith("live-skillevaluator-summary.*")
