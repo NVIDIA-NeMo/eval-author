@@ -20,8 +20,8 @@ apart from the audit opening and entry lookup below.
 ## Choose the audit approach
 
 After the metadata-only lookup below, distinguish a resumed audit from a new
-audit that can reuse shared setup or Ethos. An active audit's saved `mode`, or a
-legacy audit lifecycle, means resume its unfinished decision. Shared authoring
+audit that can reuse shared setup or Ethos. An active audit's saved `mode` or
+lifecycle means resume its unfinished decision. Shared authoring
 context alone does not settle the audit approach. An explicit request for a new
 audit starts a new choice even when an earlier audit exists.
 
@@ -42,7 +42,6 @@ new runs. For a new audit replacing an earlier lifecycle, start a fresh lifecycl
 after prerequisites and Ethos, retaining framework metadata and the chosen mode.
 
 Resume a saved approach without asking again, including during prerequisites.
-Legacy audits without `mode` retain measured semantics and existing approvals.
 Change approaches only on an explicit answer. Save the new mode before proceeding,
 then reconcile affected approvals and pending questions against current digests.
 Task review leaves retained run selections and results as history without reading

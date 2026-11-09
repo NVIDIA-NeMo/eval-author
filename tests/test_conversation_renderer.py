@@ -62,6 +62,8 @@ def ready_state(state_module, journey="create"):
     state = state_module.new_state(Path("/workspace/agent"))
     state.update(agent="Account Support", journey=journey, setup="gym", revision=7)
     state["updated_at"] = "2026-10-23T12:00:00+00:00"
+    if journey == "audit":
+        state["scopes"]["audit"] = {"mode": {"kind": "measured", "source": "User chose measured audit"}}
     required = (
         state_module.COMMON_PREREQUISITES | {"data"}
         if journey == "audit"
@@ -199,8 +201,8 @@ def test_live_prerequisites_table_requires_the_opening_reply(conversation, journ
     assert "Ready to get started?" not in result
     assert "| Required skills | Checking |" in result
     if journey == "audit":
-        assert "| Traces from completed evaluation runs | Unknown |" in result
-        assert "This audit requires saved traces from evaluations that have already run." in result
+        assert "| Traces from completed evaluation runs | Not needed now |" in result
+        assert "unmeasured" in result
     else:
         assert "| Agent connection and credentials | Needed before agent runs |" in result
 
@@ -943,6 +945,7 @@ def test_prerequisite_results_preserves_audit_framework_and_selected_scope(conve
     before = copy.deepcopy(snapshot)
     payload = prerequisite_results_payload(state_module, journey="audit")
     payload.update(state=snapshot, revision=snapshot["revision"])
+    payload["facts"]["rows"].pop("traces")
     payload["facts"]["rows"]["evaluation_framework"].update(
         findings="Custom evaluation suite", source="Suite documentation"
     )
@@ -1467,6 +1470,7 @@ def test_live_prerequisites_table_reuses_known_framework_and_retains_unknown_tra
         "journey": "audit",
         "ready": True,
         "facts": {
+            "audit_mode": "measured",
             "rows": {
                 "evaluation_framework": {
                     "status": "confirmed",
@@ -1474,7 +1478,7 @@ def test_live_prerequisites_table_reuses_known_framework_and_retains_unknown_tra
                     "source": "User reply 1",
                 },
                 "traces": {"status": "unknown", "findings": "Saved trace availability is unresolved."},
-            }
+            },
         },
     }
     before = copy.deepcopy(payload)
@@ -1637,6 +1641,16 @@ def test_prerequisite_failure_reports_unsaved_findings_without_state_or_io(
         assert absent not in result
     assert "The prerequisites for reviewing ETHOS.md are complete." not in result
     assert payload == before
+
+
+@pytest.mark.parametrize("mode", [None, "task_review", "measured"])
+def test_audit_prerequisite_failure_uses_selected_approach_or_task_review_default(conversation, mode):
+    payload = prerequisite_failure_payload("audit")
+    if mode is not None:
+        payload["facts"]["audit_mode"] = mode
+    result = conversation.render(payload)
+    status = "Unknown" if mode == "measured" else "Not needed now"
+    assert f"| Traces from completed evaluation runs | {status} |" in result
 
 
 def test_prerequisite_failure_cli_uses_stdin_when_state_storage_is_unavailable(

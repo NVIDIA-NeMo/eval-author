@@ -14,6 +14,7 @@ from first_eval_state import fingerprint
 STAGES = ("suite_selection", "trace_selection", "checks_review", "measurement", "findings_review", "next_action")
 ACTIONS = {"finish", "improve", "create", "collect_evidence", "fix_agent"}
 MODES = {"task_review", "measured"}
+DEFAULT_MODE = "task_review"
 
 
 def check_kind(kind: object) -> str:
@@ -32,8 +33,7 @@ def mode(state: dict) -> str:
     scope = state.get("scopes", {}).get("audit", {})
     decision = scope.get("mode") if isinstance(scope, dict) else None
     if decision is None:
-        # Audits saved before the approach choice always required measurement.
-        return "measured"
+        return DEFAULT_MODE
     validate_mode(decision)
     return decision["kind"]
 

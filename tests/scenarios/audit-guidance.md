@@ -31,8 +31,8 @@ Resume from prerequisites, check review, and findings review in fresh chats.
 The saved approach and pending decision survive without another mode choice.
 Change to measured audit explicitly. Prior task-review approvals reopen and
 selected runs are required before measurement. Change back and verify that old
-approvals do not become current again. Legacy lifecycles without a saved mode
-remain measured and preserve their existing decisions.
+approvals do not become current again. A saved audit without a mode uses task
+review and leaves run coverage unmeasured.
 
 Unless a scenario tests this choice, select the measured approach at entry.
 An explicit request for a measured audit reuses that choice. These acceptance

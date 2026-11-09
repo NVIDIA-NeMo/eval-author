@@ -80,7 +80,9 @@ def canonical_blocker(state: dict, blocker: dict) -> dict | None:
 
 def prerequisite_table(journey: str, facts: dict, *, state: dict | None = None, checking: bool = False) -> str:
     selected_mode = (
-        audit_state.mode(state) if state is not None else audit_state.check_kind(facts.get("audit_mode", "measured"))
+        audit_state.mode(state)
+        if state is not None
+        else audit_state.check_kind(facts.get("audit_mode", audit_state.DEFAULT_MODE))
     )
     rows = copy.AUDIT_ROWS if journey == "audit" else copy.AUTHORING_ROWS
     supplied = mapping(facts.get("rows", {}), "rows", {key for key, _ in rows})
@@ -340,7 +342,11 @@ def prerequisite_failure(payload: dict) -> str:
         raise ValueError("Select create, audit, or expand")
     if payload.get("ready") is not True:
         raise ValueError("Wait for the user's readiness reply before checking prerequisites")
-    facts = mapping(payload.get("facts"), "prerequisite failure facts", {"rows", "state_error"})
+    facts = mapping(
+        payload.get("facts"),
+        "prerequisite failure facts",
+        {"rows", "state_error"} | ({"audit_mode"} if journey == "audit" else set()),
+    )
     error = failure_text(facts, "state_error")
     paragraphs = [
         copy.PREREQUISITE_RESULTS_INTRO,

@@ -16,7 +16,7 @@ For returning-audit entry, follow
 Reuse the saved `scopes.audit.mode` chosen at entry. `task_review` inspects
 existing tasks against confirmed Ethos and can finish without traces. `measured`
 includes that same task review plus coverage measurement from selected recorded
-runs. A legacy lifecycle without a mode remains measured. Follow the core's
+runs. Follow the core's
 [approach procedure](../../eval-author/references/shared-prerequisites.md#choose-the-audit-approach)
 for a new choice or an explicit change.
 

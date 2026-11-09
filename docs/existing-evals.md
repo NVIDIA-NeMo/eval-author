@@ -92,7 +92,8 @@ Previously selected suites and runs do not need another selection; when those
 inputs are settled, the next review is the proposed audit checks. Measured audits
 require traces. Missing traces pause measurement while preserving earlier work.
 Task review can finish after you accept the findings, with run coverage labeled
-unmeasured. Both approaches save the Audit coverage report.
+unmeasured. A saved audit without an approach defaults to task review.
+Both approaches save the Audit coverage report.
 If saved selections refer to older work, Eval Author explains their source and
 how they differ from current recorded tasks or runs, then asks which set you
 intend to audit. Missing-path findings identify the particular selection that

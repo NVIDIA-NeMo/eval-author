@@ -16,7 +16,7 @@ The saved audit approach controls milestones. Task review skips trace selection
 and measurement, keeps run coverage unmeasured, and permits findings review
 after check approval. Measured audits retain their selected-run requirements.
 Use onboarding's stateless `audit_mode` stage for a new choice before shared
-prerequisites, not an invented downstream checkpoint. Legacy audits stay measured.
+prerequisites, not an invented downstream checkpoint.
 
 Read `journey_state.py show` without `--state-only` after permitted inspection
 and reconciliation. Pass its complete `state`, exact `revision`, and

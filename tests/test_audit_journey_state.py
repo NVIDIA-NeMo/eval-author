@@ -25,7 +25,13 @@ def modules(monkeypatch):
 
 def ready(modules, repo):
     state, _ = modules
-    setup_ready(state, repo, journey="audit", setup=None)
+    saved = setup_ready(state, repo, journey="audit", setup=None)
+    state.update(
+        repo,
+        {"scopes": {"audit": {"mode": {"kind": "measured", "source": "User chose measured audit"}}}},
+        state_only=True,
+        expected_revision=saved["revision"],
+    )
     return ethos_ready(state, repo)
 
 
@@ -232,7 +238,7 @@ def test_audit_updates_hash_evidence_only_when_needed(modules, tmp_path, monkeyp
     state, audit = modules
     saved = ready(modules, tmp_path)
     _, lifecycle, observed = reviewed(audit)
-    saved["scopes"]["audit"] = {"lifecycle": lifecycle}
+    saved["scopes"]["audit"]["lifecycle"] = lifecycle
     digest = audit.derive(saved, observed)["checks_digest"]
     lifecycle["checks_approval"]["digest"] = lifecycle["measurement"]["checks_digest"] = digest
     lifecycle["findings_review"]["digest"] = audit.derive(saved, observed)["findings_digest"]
@@ -477,7 +483,7 @@ def test_ethos_review_pauses_audit_evidence_reads_until_reconfirmed(modules, tmp
     state, audit = modules
     saved = ready(modules, tmp_path)
     _, lifecycle, observed = reviewed(audit)
-    saved["scopes"]["audit"] = {"lifecycle": lifecycle}
+    saved["scopes"]["audit"]["lifecycle"] = lifecycle
     saved["journey_status"]["audit"] = "complete"
     digest = audit.derive(saved, observed)["checks_digest"]
     lifecycle["checks_approval"]["digest"] = lifecycle["measurement"]["checks_digest"] = digest
@@ -550,7 +556,7 @@ def test_rebind_reopens_audit_approval_after_unchanged_ethos_is_reconfirmed(modu
     original.mkdir()
     saved = ready(modules, original)
     _, lifecycle, observed = reviewed(audit)
-    saved["scopes"]["audit"] = {"lifecycle": lifecycle}
+    saved["scopes"]["audit"]["lifecycle"] = lifecycle
     saved["journey_status"]["audit"] = "complete"
     for name in observed["files"]:
         path = original / name
@@ -661,10 +667,14 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
     for path in coverage_paths:
         subject = json.loads(path.read_text())["subject"]
         assert all(subject[key] == selection[key] for key in ("task_id", "run_id", "evidence_class"))
-    state.initialize(tmp_path, agent="example-agent", journey="audit")
+    saved = state.initialize(tmp_path, agent="example-agent", journey="audit")
     state.update(
         tmp_path,
-        {"prerequisites": {key: {"status": "confirmed", "source": "Local fixture"} for key in state.PREREQUISITES}},
+        {
+            "scopes": {"audit": {"mode": {"kind": "measured", "source": "User chose measured audit"}}},
+            "prerequisites": {key: {"status": "confirmed", "source": "Local fixture"} for key in state.PREREQUISITES},
+        },
+        expected_revision=saved["revision"],
     )
     state.confirm_ethos(
         tmp_path,

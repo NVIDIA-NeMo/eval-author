@@ -36,7 +36,7 @@ def selected(audit):
         "agent": "support",
         "journey": "audit",
         "ethos": {"path": "ETHOS.md", "stage": "complete", "confirmed_digest": audit.fingerprint("intent")},
-        "scopes": {"audit": {"lifecycle": value}},
+        "scopes": {"audit": {"mode": {"kind": "measured", "source": "User chose measured audit"}, "lifecycle": value}},
         "journey_status": {},
     }
     paths = value["suite_files"] + value["trace_files"] + [value["specification"]]
@@ -617,9 +617,14 @@ def test_task_review_ignores_historical_run_bindings_but_keeps_reused_evidence_f
     assert audit.derive(state, observed)["findings_digest"] is None
 
 
-def test_explicit_measured_choice_preserves_legacy_measurement_semantics(audit):
+def test_saved_audit_without_mode_defaults_to_unmeasured_task_review(audit):
     state, _, observed = reviewed(audit)
-    before = audit.derive(state, observed)
-    assert before["mode"] == "measured" and before["complete"]
-    state["scopes"]["audit"]["mode"] = {"kind": "measured", "source": "User chose measured audit"}
-    assert audit.derive(state, observed) == before
+    del state["scopes"]["audit"]["mode"]
+    before = copy.deepcopy(state)
+    observed["files"] = {path: digest for path, digest in observed["files"].items() if not path.startswith("runs/")}
+    progress = audit.derive(state, observed)
+    assert progress["mode"] == "task_review"
+    assert not progress["measurement_complete"] and not progress["checks_approved"]
+    assert not progress["complete"]
+    assert audit.traces_unused(state)
+    assert state == before

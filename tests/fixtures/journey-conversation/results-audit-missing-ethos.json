@@ -51,7 +51,14 @@
       "validation": null,
       "remaining_questions": []
     },
-    "scopes": {},
+    "scopes": {
+      "audit": {
+        "mode": {
+          "kind": "measured",
+          "source": "User chose measured audit"
+        }
+      }
+    },
     "tasks": {},
     "journey_status": {},
     "blockers": [],
