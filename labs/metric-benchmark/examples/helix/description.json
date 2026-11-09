@@ -1,6 +1,5 @@
 {
-  "description": "The agent reads supplied files and writes the requested answer to /app/answer.txt.",
-  "baseline": "Reads task inputs before answering.",
-  "mutant": "Deliberately skips reading and writes unknown.",
-  "limitations": "Illustrative wiring example, not a qualified mutation benchmark or a measurement of coverage quality."
+  "description": "PLACEHOLDER: describe the behavior this case should evaluate.",
+  "baseline": "PLACEHOLDER: describe the original agent.",
+  "mutant": "PLACEHOLDER: describe the deliberate change to the agent."
 }

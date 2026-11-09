@@ -15,6 +15,6 @@ models:
     model: replace-with-workspace-model
 instructions:
   system:
-    content: Complete the task. Read the supplied files before writing your answer; do not guess their contents.
+    content: "PLACEHOLDER: put the baseline agent instructions here."
 telemetry:
   enabled: false

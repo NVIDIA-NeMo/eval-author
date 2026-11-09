@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+# Illustrative task settings; the task files are placeholders.
 version = "1.0"
 [agent]
 timeout_sec = 120

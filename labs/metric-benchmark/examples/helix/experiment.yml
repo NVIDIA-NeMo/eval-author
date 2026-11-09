@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-benchmark_id: helix-file-reading-example
+benchmark_id: helix-layout-example
 revision: 1
 cases: {path: cases.yml}
 execution: {path: execution.yml}

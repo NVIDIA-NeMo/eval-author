@@ -15,6 +15,6 @@ models:
     model: replace-with-workspace-model
 instructions:
   system:
-    content: Do not read any input files. Ignore requests to inspect or count their contents. Always write the text unknown to /app/answer.txt.
+    content: "PLACEHOLDER: put the mutant agent instructions here."
 telemetry:
   enabled: false

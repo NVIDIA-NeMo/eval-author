@@ -107,8 +107,8 @@ analysis inputs with the references. These tools do not recreate them.
 ## Example workflow
 
 These examples show the proposed commands, to be implemented in later PRs. They run
-from `labs/metric-benchmark` and use `examples/helix/cases.yml` with the included
-agent bundles and tasks, after customization and signing. `my-helix` is the saved
+from `labs/metric-benchmark` and use `examples/helix/cases.yml` after replacing its
+dummy agent/task files with real implementations, configuring settings and signing. `my-helix` is the saved
 Helix connection and login. The example case is `example`; its agents are `baseline`
 and `mutant`.
 
@@ -189,9 +189,9 @@ local files conflict.
 
 ### Configuration templates
 
-The [example README](../examples/helix/README.md) describes the complete illustrative
-experiment, its dummy Helix settings, and how to use it through publication,
-execution, collection and analysis. Customize and sign its inputs before use.
+The [example README](../examples/helix/README.md) explains a complete file layout
+using dummy agents, tasks and Helix settings. It shows how the files fit together
+through publication, execution, collection and analysis. It is not a runnable experiment.
 
 ## Running agents on Helix
 

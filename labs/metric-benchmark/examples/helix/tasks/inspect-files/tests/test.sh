@@ -2,10 +2,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-set -eu
-mkdir -p /logs/verifier
-if printf 'cobalt\n' | cmp -s - /app/answer.txt; then
-    echo 1 > /logs/verifier/reward.txt
-else
-    echo 0 > /logs/verifier/reward.txt
-fi
+# PLACEHOLDER: implement the task's verifier and reward output here.
+echo 'Dummy example only; no task implementation.' >&2
+exit 1

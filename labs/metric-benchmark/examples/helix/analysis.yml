@@ -6,17 +6,9 @@ case_settings:
     description: {path: description.json}
     subsets: {path: subsets.json}
 coverage:
-  # Synthetic demonstration only: subset size is not measured behavior coverage.
-  system_id: synthetic-subset-size
+  system_id: placeholder-coverage
   system_revision: '1'
-  command:
-  - /usr/bin/env
-  - python3
-  - -c
-  - >-
-    import json; from pathlib import Path;
-    request = json.loads(Path('request.json').read_text());
-    Path('response.json').write_text(json.dumps({'value': len(request['tasks']) / 2}))
+  command: [/path/to/your/coverage-tool]
 scoring:
   metric: reward
   direction: higher_is_better
