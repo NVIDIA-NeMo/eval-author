@@ -9,13 +9,43 @@ direct skill calls. The [onboarding rendering contract](conversations/onboarding
 defines stage inputs and outputs; it does not duplicate this sequence.
 It supports NeMo Gym and Harbor through the same flow. Scoped operations retain their
 existing input requirements and do not acquire a full onboarding checklist.
-For a new flow, begin this procedure only after the selected goal's rendered
+For creation and improvement, begin this procedure only after the selected goal's rendered
 checklist and readiness question have been shown and the user replies to that
 question. A goal-choice reply triggers `goal_selected`, not this procedure.
 Do not load repository context or save state in preparation for either
 orientation turn. The [onboarding renderer](conversations/onboarding.md#orientation-and-prerequisite-entry) has a
 narrow no-input command exception for those turns; other helpers remain deferred,
 apart from the audit opening and entry lookup below.
+
+## Choose the audit approach
+
+After the metadata-only lookup below, distinguish a resumed audit from a new
+audit that can reuse shared setup or Ethos. An active audit's saved `mode`, or a
+legacy audit lifecycle, means resume its unfinished decision. Shared authoring
+context alone does not settle the audit approach. An explicit request for a new
+audit starts a new choice even when an earlier audit exists.
+
+For a fresh audit, `orientation` or `goal_selected` with journey `audit` shows
+the approach question instead of the generic readiness question. With reusable
+shared context but no audit to resume, render the stateless `audit_mode` stage
+with journey `audit`. End the turn at that choice before checks, artifact reads,
+or state writes. Fixed choice descriptions and their token tradeoff live only
+in [audit_templates.py](../scripts/conversation_flows/audit_templates.py).
+
+Reuse an approach explicitly requested in the current conversation. The chosen
+approach authorizes prerequisite checks, so do not add a readiness question.
+Use `--state-only init --journey audit`, then save
+`scopes.audit.mode: {kind: task_review|measured, source: <actual user reply>}`
+through a revision-checked state-only update before checking prerequisites.
+This metadata update does not select tasks or traces, approve checks, or authorize
+new runs. For a new audit replacing an earlier lifecycle, start a fresh lifecycle
+after prerequisites and Ethos, retaining framework metadata and the chosen mode.
+
+Resume a saved approach without asking again, including during prerequisites.
+Change approaches only on an explicit answer. Save the new mode before proceeding,
+then reconcile affected approvals and pending questions against current digests.
+Task review leaves retained run selections and results as history without reading
+them. A later measured audit must recheck their applicability.
 
 ## Return to an audit
 
@@ -86,6 +116,10 @@ permits no repository reads or state operations. Continue in the same turn.
 
 Then continue these steps in the same turn when unblocked:
 
+For a new audit, settle and save the [approach](#choose-the-audit-approach)
+before these checks. A saved shared prerequisite or Ethos answer does not skip
+that choice. For a resumed audit, retain its saved approach.
+
 1. Use `--state-only init --journey audit`. Before clearing the active question
    and handoff, the helper saves the outgoing authoring decision in
    `scopes.<origin>.audit_entry`, alongside the retained scope. Read that context
@@ -100,13 +134,14 @@ Then continue these steps in the same turn when unblocked:
 2. Apply [audit prerequisites](pre-reqs/audit.md) with state-only operations,
    retaining audit/authoring applicability resets. Reuse applicable common access
    and Ethos-skill confirmations; resolve only missing or changed audit skills,
-   Python tooling, and trace availability from the request and retained evidence.
+   Python tooling, and, for measured audits, trace availability from the request and retained evidence.
    Authoring data access does not prove evaluation-run traces exist. Exempt runner,
    Docker, live-service, and execution-credential requirements without probing them.
-3. Unknown/missing traces or blocked audit tooling/access require the saved blocker
+3. For measured audits, unknown/missing traces require the saved blocker
    and `prerequisite_results`, using the canonical trace blocker when applicable.
-   Stop before Ethos or audit artifact inspection; do not offer a trace-free full
-   audit or generate runs. Preserve prior scope, completion, evidence, and Ethos.
+   Blocked audit tooling/access pauses either approach before Ethos or audit
+   artifact inspection. Preserve prior scope, evidence, and Ethos. A task review
+   needs no traces and must not acquire a trace-availability blocker.
 4. After saving an unblocked prerequisite pass, read the current journey state
    using `journey_state.py show` without `--state-only` to reconcile Ethos.
    Audit state operations leave authoring artifacts unread; their completion
@@ -140,7 +175,7 @@ After the user continues, load only the selected goal's prerequisite reference:
 | Audit coverage, gaps, and improvement opportunities | [Audit prerequisites](pre-reqs/audit.md) |
 | Improve existing evaluations | [Improvement prerequisites](pre-reqs/improve.md) |
 
-For fresh onboarding, after the actual readiness reply, render `prerequisites` with its canonical
+For fresh onboarding, after the actual readiness reply or audit-approach choice, render `prerequisites` with its canonical
 grounding sentence above the initial status table before inspecting the
 repository or saved state. Reuse facts already in
 conversation; do not perform reads or probes to populate the preview. Supply
@@ -150,6 +185,11 @@ preamble, skill-use announcement, or prose checking notice.
 This applies to skill-generated messages; mandatory host or tool UI instructions
 remain outside the rendered-output contract. Do not add a notice merely to
 satisfy a local skill convention.
+
+For the stateless audit preview, include the selected kind in `facts.audit_mode`.
+The task-review preview marks traces not required without asserting availability.
+Save the mode before stateful prerequisite results. An explicitly supplied audit
+approach counts as the user's choice, not an inferred readiness reply.
 
 Then complete bounded checks in the same turn. Finish accessible checks before
 asking about unresolved items; do not ask the user to attest to software that
@@ -491,7 +531,10 @@ does not select it as audit input.
 While the current journey is `audit`, `--state-only update` also merges the
 nonempty strings `scopes.audit.framework` and `scopes.audit.framework_source`
 into the existing scope. These observations persist even when prerequisites are
-blocked; case, corpus, and approval updates remain forbidden in this mode.
+blocked. It also accepts the revision-checked `scopes.audit.mode` decision from
+the [approach procedure](#choose-the-audit-approach). Changing approaches reopens
+check and findings approval without reading artifacts or changing source selections.
+Case, corpus, and approval updates remain forbidden in this mode.
 
 Save agreed decisions in the selected journey's `scopes` entry.
 Creation uses the additive `scopes.create.first_eval` record described in the
@@ -590,7 +633,7 @@ repository/agent, setup and prerequisite evidence and answers,
 confirmed Ethos result, saved source choice when applicable, and unresolved
 dependencies. First-eval continues with its next unresolved source/design/scope
 decision; do not repeat a source question already answered in the combined
-checkpoint. Audit continues with selected evals and traces;
+checkpoint. Audit carries its selected approach, evals, and any selected traces.
 expansion follows the core's explicit expansion handoff. Never repeat shared
 onboarding or convert confirmation into a claim of successful runtime execution.
 
@@ -631,8 +674,9 @@ reconciliation of changed Ethos or draft content.
 
 Setup completion requires agent identity, code/file/command access, usable required
 skills, and the applicable Python tooling. Creation and improvements also require
-a selected authoring setup and its runtime; audit instead requires confirmed or
-verified availability of completed-evaluation traces. Later environment, services,
+a selected authoring setup and its runtime. Measured audits also require confirmed
+or verified availability of completed-evaluation traces. Task review does not.
+Later environment, services,
 and authoring data findings do not delay this checklist step. Any explicit setup
 blocker still prevents completion, including access needed for the next Ethos action.
 
@@ -650,13 +694,15 @@ Never put credential values in state.
 For audit, record `runtime` as `not_required` with the reason that no evaluation
 runner is used. Record the checked audit Python environment and its required
 imports under `python`; use `not_required` for the environment, live services,
-and execution credentials. Record completed-evaluation trace availability under
+and execution credentials. For measured audits, record completed-evaluation trace availability under
 `data`, with the actual answer or evidence as its `source`. Unknown or missing
 availability requires a `data` blocker with phase `setup`, the pending availability
 question, and `eval-author` as the next handoff. On confirmation, clear that blocker
 and record `data` as `confirmed`; use `verified` only for inspected evidence.
-On resume, reassess legacy `data: not_required` and unrelated data checks; reuse
+On a measured resume, reassess legacy `data: not_required` and unrelated data checks. Reuse
 applicable trace-availability answers or leave this prerequisite unknown.
+For task review, follow the approach-specific
+[trace prerequisite](pre-reqs/audit.md#traces-from-completed-evaluation-runs).
 Keep suite/trace selection, selected evidence access, and later trace-loading
 results in the audit scope and findings. Availability alone does not approve a
 source, complete the audit, or establish measured coverage.

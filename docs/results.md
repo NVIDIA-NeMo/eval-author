@@ -121,6 +121,12 @@ readable in a browser.
 
 ## Coverage audits
 
+Each audit records its approach. A task review checks existing tasks, fixtures,
+and verifiers against intended behavior. A measured audit includes that review
+and adds coverage analysis from selected recorded runs. See
+[Audit coverage](existing-evals.md#audit-coverage) for the initial choice and
+token tradeoff.
+
 The Audit coverage report is the only document you review; other outputs support
 internal validation, measurement, and saved progress:
 
@@ -180,6 +186,11 @@ pending. Deferral is recorded only after your explicit choice of independent wor
 The unchecked **Measure coverage** step states the reason inline,
 for example “deferred — selected trace
 directory is missing,” so the limitation remains visible in later reviews.
+
+A task review deliberately leaves run coverage unmeasured. It can complete after
+you accept its findings, without a measurement JSON file or a deferred step.
+The incomplete-measurement rules above apply to measured audits. Resuming either
+approach preserves its choice and reviews changed inputs before reusing results.
 
 A covered item has supporting evidence under the audit's declared criteria.
 An uncovered item may lack evidence in the measured traces, or its evidence type

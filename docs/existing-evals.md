@@ -60,7 +60,20 @@ evidence cannot establish.
 ```
 
 A full audit quietly checks for saved progress before choosing its introduction.
-Fresh audits show the welcome, checklist, and readiness question without a
+For a new audit, choose one of two approaches before setup checks:
+
+- **Review tasks only.** Review scenarios, fixtures, and verifiers against
+  the agent's intended behavior (`ETHOS.md`). This needs no saved runs.
+- **Full review with measured evaluation runs.** Review tasks, then analyze
+  saved agent runs to validate that intended behaviors and tools are covered.
+  Uses additional tokens.
+
+An approach already named in your request carries forward. The choice replaces
+the initial readiness question. Resuming an audit keeps its saved approach and
+pending decision. Saved setup or Ethos from creating evaluations can be reused,
+but a new audit still needs an approach.
+
+Fresh audits show the welcome, checklist, and approach question without a
 separate opening acknowledgment, then follow the
 [shared setup and Ethos confirmation](getting-started.md).
 If you have already completed those steps while creating or improving evaluations,
@@ -76,8 +89,10 @@ Eval Author reuses your saved confirmations, checks only missing or changed
 audit requirements, and continues at the first unfinished audit step. It reviews
 Ethos again when the agent, intended behavior, or document has changed.
 Previously selected suites and runs do not need another selection; when those
-inputs are settled, the next review is the proposed audit checks. Traces remain
-required: missing traces pause the audit while preserving your earlier work.
+inputs are settled, the next review is the proposed audit checks. Measured audits
+require traces. Missing traces pause measurement while preserving earlier work.
+Task review can finish after you accept the findings, with run coverage labeled
+unmeasured. Both approaches save the Audit coverage report.
 If saved selections refer to older work, Eval Author explains their source and
 how they differ from current recorded tasks or runs, then asks which set you
 intend to audit. Missing-path findings identify the particular selection that
@@ -90,7 +105,7 @@ specific recovery step, such as restoring access, restoring a known valid copy,
 or confirming an intentional repository move. After recovery, it reloads saved
 progress and resumes the audit.
 
-If saved trace availability is unresolved or traces are absent, the prerequisite
+For measured audits, if saved trace availability is unresolved or traces are absent, the prerequisite
 response explains the required action and links the audit skill instruction
 that requires the pause. Unknown availability and confirmed absence are shown
 separately; neither is a claim about measured coverage.
@@ -167,7 +182,7 @@ suite with supported gaps, Eval Author names the main gaps and offers to propose
 new or improved evaluation tasks, ranked with their expected behavior, verifier,
 and supporting evidence. One question offers corrections, acceptance, or the
 next action, then waits. Acceptance alone ends review without another question.
-Accepting the findings can complete a fully measured
+Accepting the findings can complete a task review or fully measured
 audit while you leave the next action undecided; it does not start proposal
 work. A deferred or partial measurement remains unfinished after findings review.
 Accepting the findings and that offer moves directly

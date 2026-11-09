@@ -123,8 +123,13 @@ def report_notice(state: dict, lifecycle: dict, facts: dict) -> str:
 
 def scope(state: dict, lifecycle: dict) -> str:
     lines = [copy.SCOPE_HEADING]
+    task_review = audit_state.mode(state) == "task_review"
+    if "mode" in state["scopes"]["audit"]:
+        lines.append(copy.MODE_SELECTED.format(mode=copy.MODE_LABELS[audit_state.mode(state)]))
     exclusions = []
     for key, label in copy.SCOPE_LABELS.items():
+        if task_review and key == "traces":
+            continue
         selected = lifecycle[key]
         content = ", ".join(source_link(state, path) for path in selected["paths"])
         if selected["status"] == "pending":
@@ -155,6 +160,8 @@ def bullet_section(heading: str, value: object, label: str) -> str | None:
 
 
 def measurement_status(lifecycle: dict, audit: dict) -> str:
+    if audit["mode"] == "task_review":
+        return copy.TASK_REVIEW_UNMEASURED
     measurement = lifecycle["measurement"]
     if audit["changed_task_bindings"]:
         return copy.TASKS_CHANGED.format(
@@ -221,7 +228,13 @@ def render_checks(state: dict, lifecycle: dict, audit: dict, facts: dict) -> lis
     )
     if limits := bullet_section(copy.LIMITS_HEADING, facts.get("limits"), "evidence limits"):
         parts.append(limits)
-    parts.append(copy.CHECKS_NEXT if lifecycle["traces"]["status"] == "selected" else copy.CHECKS_LIMITED_NEXT)
+    parts.append(
+        copy.TASK_REVIEW_NEXT
+        if audit["mode"] == "task_review"
+        else copy.CHECKS_NEXT
+        if lifecycle["traces"]["status"] == "selected"
+        else copy.CHECKS_LIMITED_NEXT
+    )
     return parts
 
 
@@ -349,7 +362,11 @@ def render(payload: dict) -> str:
     else:
         parts = [
             copy.REVIEW_ACCEPTED,
-            copy.AUDIT_COMPLETE if audit["complete"] else copy.AUDIT_LIMITED,
+            copy.AUDIT_COMPLETE
+            if audit["complete"]
+            else copy.TASK_REVIEW_NO_TASKS
+            if audit["mode"] == "task_review"
+            else copy.AUDIT_LIMITED,
             report_link(state, lifecycle, facts),
         ]
         if not audit["complete"]:

@@ -38,6 +38,13 @@ omit it. The opening is not a checkpoint and asks no question.
 
 ## Orientation and prerequisite entry
 
+For journey `audit`, `orientation` and `goal_selected` ask for the audit
+approach instead of readiness. `audit_mode` is a stateless preview for new audits
+that reuse shared context. It requires journey `audit`, accepts no saved state,
+facts, or readiness claim, and renders only the approach choice from
+[audit_templates.py](../../scripts/conversation_flows/audit_templates.py).
+Use it before checks under the [approach procedure](../shared-prerequisites.md#choose-the-audit-approach).
+
 `orientation` and `goal_selected` use the no-input preview mode under the
 [core entry rules](../../SKILL.md#choose-the-entry-route). They accept no repository,
 state, revision, facts, or input-file context. Source dependencies may be loaded;
@@ -53,8 +60,8 @@ Use one command appropriate to the current turn, replacing `<skill_dir>` with
 the core skill directory. Journeys are `create`, `audit`, and `expand`.
 `orientation` without a journey uses the shorter welcome and asks for the goal,
 without introducing a checklist. With a known journey it shows the full welcome,
-matching checklist, and readiness question. `goal_selected`
-shows the selected goal's introduction, checklist, and readiness question, without
+matching checklist, and readiness question or audit-approach choice. `goal_selected`
+shows the selected goal's introduction, checklist, and applicable question, without
 repeating the welcome. Selecting a goal does not establish readiness; the core
 owns the orientation and goal-selection pauses.
 
@@ -62,7 +69,8 @@ For an explicit audit request, the core's
 [returning-audit procedure](../shared-prerequisites.md#return-to-an-audit)
 governs entry and whether the [returning audit welcome](#returning-audit-welcome) applies.
 
-`prerequisites` requires the selected journey and the actual readiness reply:
+`prerequisites` requires the selected journey and the actual readiness reply
+or audit-approach choice:
 
 ```bash
 python3 -B <skill_dir>/scripts/conversation_renderer.py --stage prerequisites --journey create --ready
@@ -80,7 +88,9 @@ source or authorizing trace inspection.
 controls when inspection may begin. The CLI form above uses defaults; `--input -` can receive
 an inline JSON payload with `stage: prerequisites`, the selected `journey`,
 `ready: true`, and optional `facts: {rows: ...}`. No state or revision is supplied.
-The only allowed preview facts are rows: no Recommendations, Blockers, Ethos,
+Audit previews also accept `facts.audit_mode` as `task_review` or `measured`.
+Task review displays traces as not required, with no availability claim.
+Other preview facts are rows: no Recommendations, Blockers, Ethos,
 draft, or question facts. Use the same row IDs and factual record fields as
 below, with actual findings and source provenance for known statuses.
 
@@ -88,7 +98,8 @@ Use the statuses and evidence requirements in [Prerequisite row facts](#prerequi
 The initial preview additionally accepts `checking`; it is not a final status.
 Known facts must retain their actual evidence status. A user-supplied availability
 answer can appear as Confirmed by you without claiming verification. The
-`--ready` flag or `ready: true` represents the actual readiness reply, never
+`--ready` flag or `ready: true` represents the actual readiness reply or selected
+audit approach, never
 permission inferred by rendering.
 
 ## Returning audit welcome
@@ -161,7 +172,10 @@ Pass the payload through `--input -` on stdin, without creating an input file:
 
 Use the actual selected journey and readiness reply. Supply a bounded description
 of the observed helper error (at most 2,000 characters) in `facts.state_error`.
-Optional `facts.rows` contains observed findings and their sources. Unchecked rows remain Unknown;
+Optional `facts.rows` contains observed findings and their sources. For an audit
+that chose task review, add `facts.audit_mode: task_review` so the traces row
+renders as not needed, without saved state or fake trace availability.
+Unchecked rows remain Unknown;
 `checking` is not a final status. No `state`, `revision`, recommendations,
 custom blockers, Ethos, draft, or question inputs are accepted. This stage is
 not available through the no-input `--stage` preview mode.
@@ -269,8 +283,10 @@ expansion are `agent_repository`, `evaluation_framework`, `skills`, `access`,
 `tooling`. Their order and display labels are defined in [onboarding_templates.py](../../scripts/conversation_flows/onboarding_templates.py).
 
 Row statuses are `verified`, `confirmed`, `missing`, `unknown`, and
-`not_required`. Only `environment`, `services_data`, and `agent_access` can be
-`not_required`. Except for the canonical audit trace blocker row described below,
+`not_required`. Only `environment`, `services_data`, `agent_access`, and the
+task-review `traces` row can be `not_required`. The saved approach owns that
+trace exemption, and the renderer supplies its copy. Except for this exemption
+and the canonical audit trace blocker row described below,
 every non-Unknown row requires findings and an actual source; missing row facts
 render as Unknown. Never fill missing evidence with a success claim. Keep
 user-confirmed answers distinct from observed checks. For stateful responses,

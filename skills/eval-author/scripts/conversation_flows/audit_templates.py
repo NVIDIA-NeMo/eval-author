@@ -3,6 +3,32 @@
 
 """Canonical copy for audit decisions and findings review."""
 
+MODE_QUESTION = "How would you like to audit your evaluations?"
+MODE_CHOICES = (
+    (
+        "Review tasks only –",
+        "Review scenarios, fixtures, and verifiers against your agent’s intended behavior (ETHOS.md).",
+    ),
+    (
+        "Full review with measured evaluation runs –",
+        "Review tasks, then analyze saved agent runs to validate that intended behaviors and tools are covered. "
+        "Uses additional tokens.",
+    ),
+)
+MODE_LABELS = {"task_review": "Review tasks only", "measured": "Full review with measured evaluation runs"}
+MODE_SELECTED = "**Audit approach:** {mode}"
+TASK_REVIEW_UNMEASURED = "This audit reviews existing tasks. Run coverage remains unmeasured."
+TASK_REVIEW_NEXT = "Once approved, I’ll review the selected tasks and bring back the findings."
+TASK_REVIEW_NO_TASKS = "The findings review is complete. No evaluation tasks were available to audit."
+
+
+def mode_prompt() -> str:
+    choices = "\n\n".join(
+        f"{index}. **{label}** {description}" for index, (label, description) in enumerate(MODE_CHOICES, 1)
+    )
+    return MODE_QUESTION + "\n\n" + choices
+
+
 SUITES_INTRO = "I found these evaluation suites."
 SUITES_TABLE = "| Suite | What it tests |\n|---|---|"
 SUITES_QUESTION = "Are these the evaluation suites you want to audit, or should we add or exclude any?"

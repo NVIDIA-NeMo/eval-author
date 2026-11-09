@@ -269,7 +269,8 @@ they are saved.
 Full creation and improvement onboarding pauses before Ethos if the selected
 runtime is missing, incompatible, or cannot yet be verified. Progress is saved
 while you resolve setup; prerequisite checks do not install software. A full
-audit checks audit tooling without probing an evaluation runner.
+audit checks audit tooling without probing an evaluation runner. New audits first
+ask for an [audit approach](existing-evals.md#audit-coverage).
 
 ## Find existing evaluations
 
