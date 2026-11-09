@@ -113,7 +113,7 @@ text {font-family:Arial,Helvetica,sans-serif;fill:#24364b}
 <text x="536" y="1418" class="name">recovered-baseline/</text>
 <text x="536" y="1443" class="body">Original agent and task paths, hash-checked</text>
 <path class="edge" d="M420 1428 H520"/>
-<text x="980" y="1418" class="small">All Helix tools use context for connection/auth.</text>
+<text x="980" y="1418" class="small">Helix client settings: connection and login.</text>
 <text x="980" y="1446" class="small">Recovery requires retained immutable sources.</text>
 <text x="36" y="1510" class="small">Filenames match the command examples; run/output names are caller-selected. Nested result paths follow the existing results-format contract.</text>
 </svg>

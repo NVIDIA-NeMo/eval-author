@@ -93,13 +93,13 @@ or change the existing [trial and scoring rules](stages.md#1-run-mutants-x-eval-
 | --- | --- |
 | Experiment, cases and task manifests (`experiment.yml`, `cases.yml`, `tasks.yml`) | Which cases, agents and tasks are selected; task IDs and signed source hashes; links to analysis settings. |
 | Agent manifest and bundle (`agents.yml`, `agent.yaml` and bundled files) | Baseline/mutant IDs, agent definition, models, instructions, files and runner options. |
-| Helix context (saved Helix client configuration, selected by `--context`) | Saved server connection, login and default workspace, shared by all four tools. |
+| Helix client settings (saved client configuration, selected by `--context`) | Saved server connection, login and default workspace, shared by all four tools. |
 | Publication settings (`publication.yml` or `publication-existing-task.yml`) | Where to publish, which secrets to use, and any exact resource versions to reuse. Cannot override models, runtime options or compute settings. |
 | Execution settings (`execution.yml`) | Where jobs run (dispatcher), how many run at once, and sandbox resources. Can also check that the destination matches the published references. |
 | Analysis settings (`analysis.yml`, referencing description and subset files) | Settings for analyzing results: case descriptions, fixed task subsets, coverage, scoring and missing-result handling. |
 | Publication references and run receipts (`references.json`, `runs/baseline.json`, `runs/mutant.json`) | Helix IDs, exact versions and hashes linked to experiment IDs. A run receipt records the inputs actually used by that run. |
 
-Credentials stay in the Helix context or secret store. Source downloads recover
+Credentials stay in the Helix client configuration or secret store. Source downloads recover
 published files; they do not include secret values or Git history, or guarantee that
 rerunning a model produces the same answer. Keep the signed experiment files and
 analysis inputs with the references. These tools do not recreate them.
