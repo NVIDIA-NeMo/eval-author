@@ -32,10 +32,10 @@ and writes the standard results format in one step. After publication, the saved
 references are sufficient to run on Helix and recover published sources; the original
 upload directory is no longer required.
 
-`references.json` preserves the link to the prepared cases: each `case_id` maps its
-baseline/mutant `agent_bundle_id` values to registered agent references, and its
-`task_id` values to pinned task references and a benchmark taskset. Local experiment
-IDs and Helix resource IDs are distinct; publication records their correspondence.
+`references.json` maps uploaded or reused agents, tasks and benchmark tasksets to
+the Helix IDs and exact versions needed for execution and download. It retains the
+experiment's case, agent and task IDs so each remote resource can be matched to its
+prepared input.
 
 Execution carries the selected mapping into its run receipt. Collected results retain
 experiment agent/task identities in the standard indexes and exact Helix IDs and
