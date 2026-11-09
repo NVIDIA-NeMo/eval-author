@@ -21,6 +21,41 @@ DESCRIPTION_PATH = Path("agents/rho-agent/description.json")
 TASK_IDS = ["inspect-files", "read-config", "search-workspace"]
 
 
+@pytest.mark.parametrize("example", ["execution.yml", "execution-context.yml"])
+def test_helix_backend_signing_and_local_execution_boundary(tmp_path, example):
+    from metric_benchmark.config import HelixExecution
+    from metric_benchmark.execution import execute_benchmark
+    from metric_benchmark.signing import check_benchmark, sign_benchmark
+
+    experiment, _ = prepared_benchmark(tmp_path)
+    shutil.copyfile(FIXTURE / "helix" / example, tmp_path / "execution.yml")
+    sign_benchmark(experiment, resign=True)
+    check_benchmark(experiment)
+    benchmark = load_benchmark(experiment)
+    assert isinstance(benchmark.execution.settings, HelixExecution)
+    assert benchmark.execution.settings.base_url == (
+        "https://helix.example.com" if example == "execution.yml" else None
+    )
+    loaded = load_execution(tmp_path / "cases.yml", tmp_path / "execution.yml")
+    output = tmp_path / "output"
+    with pytest.raises(ValueError, match="Helix submission stage"):
+        execute_benchmark(loaded, "test", output)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["file:///tmp/helix", "https://user:password@example.com", "https://example.com?token=x", "https://"],
+)
+def test_helix_connection_rejects_credentials_and_non_http_urls(url):
+    from metric_benchmark.config import execution_settings
+
+    with pytest.raises(ValueError, match="HTTP\\(S\\) endpoint without credentials"):
+        execution_settings(
+            {"backend": "helix", "base_url": url, "workspace": "benchmark", "dispatcher_profile": "workers"}
+        )
+
+
 def inventory(n=3):
     return Tasks.model_validate(
         {
@@ -351,3 +386,9 @@ def test_manifest_references_stay_inside_package(tmp_path, level, failure):
         loaded = load_benchmark(path)
         loaded.analysis.load_subsets("rho-agent")
         loaded.analysis.load_description("rho-agent")
+
+
+def test_registered_default_preserves_absolute_task_paths():
+    from metric_benchmark.config import RegisteredAgent
+
+    assert RegisteredAgent(bundle_input="runtime").kwargs == {"fabric_workspace": "/"}
