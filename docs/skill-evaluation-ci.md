@@ -14,8 +14,8 @@ replace the required unit tests, lint, or type checks.
 | Check | Purpose | When it runs |
 | --- | --- | --- |
 | Tier 1 | Static checks of skill structure, code, secrets, PII, and documentation quality | Same-repository PRs targeting `main`, pushes to `main`, manual CI dispatch, and daily at 07:05 UTC |
-| Tier 2 | Model-assisted context and similarity analysis | [Gated live runs](#live-evaluation-on-main-and-reviewed-branches) |
-| Tier 3 | Bounded agent evaluations using reviewed synthetic datasets | [Gated live runs](#live-evaluation-on-main-and-reviewed-branches) |
+| Tier 2 | Model-assisted context and similarity analysis | Approved live runs on `main` |
+| Tier 3 | Bounded agent evaluations using reviewed synthetic datasets | Approved live runs on `main` |
 
 Pull requests also receive a credential-free coverage plan, one patched AMD64
 binary build, and a full Audit image-preparation timing check on a GitHub-hosted
@@ -234,7 +234,7 @@ Keep the preparation directory private: it includes staged task
 inputs and image provenance, not a public report. Regenerate it after source or
 runtime changes. Unset both image-preparation variables to retain the original
 local installation path. CI always requires preparation for live shards; its
-existing fallback summaries and protected environment gate remain in place.
+existing fallback summaries and main-only environment gate are unchanged.
 
 For private failure diagnosis, add `--private-diagnostics /absolute/private/failure.json`.
 The destination must be new, in an existing directory outside the source checkout,
@@ -320,58 +320,22 @@ schema/version, quality and lint checks remain enabled. Incomplete evidence from
 any enabled scanner still prevents a pass. Historical reports retain their
 original policy and verdicts; scores across different policies are not equivalent.
 
-## Live evaluation on main and reviewed branches
+## Live evaluation on main
 
-Live evaluation uses the `skill-evaluator` GitHub environment. Its normal
-branch policy permits only `main`, without a separate environment approval.
-The policy is configured in GitHub settings; declaring an environment in YAML
+Live evaluation uses the `skill-evaluator` GitHub environment, restricted to
+branch `main`. It does not require a separate environment approval. The branch
+restriction is configured in GitHub settings; declaring an environment in YAML
 does not create it. Repository administrators can still change those settings.
 
 With `SKILL_EVALUATION_LIVE_ENABLED=true`, pushes to `main`, including merges,
 automatically run Tier 2 and Tier 3 for all skills. PRs run planning and
-credential-free preparation checks, not model calls. Non-main pushes never
-request live execution. Main currently requires one PR approval; the branch rule
+credential-free preparation checks, not model calls. Main currently requires one PR approval; the branch rule
 does not specifically require ASE or code-owner approval.
 
-Manual dispatch defaults to planning and credential-free preparation. Selecting
-`run_live=true` on `main` executes the selected tier and skill without an
-additional approval or `expected_sha` requirement:
-
-```bash
-gh workflow run skill-evaluation-live.yml --repo NVIDIA-NeMo/eval-author \
-  --ref main -f run_live=true -f tier=both -f skill=all
-```
-
-For a temporary pre-merge live test, independently review the **full branch
-commit**, including workflow and runtime changes. An administrator must then
-add only that exact branch name to the environment's allowed **branch** policies,
-retaining `main`; do not add a wildcard or tag policy. Keep the exception open
-only for the reviewed run and remove it after completion or failure. This is an
-explicit environment-policy change, not something the workflow configures.
-
-Dispatch that branch with its full reviewed commit SHA (replace both placeholders):
-
-```bash
-gh workflow run skill-evaluation-live.yml --repo NVIDIA-NeMo/eval-author \
-  --ref REVIEWED_BRANCH -f run_live=true -f tier=both -f skill=all \
-  -f expected_sha=FULL_REVIEWED_COMMIT_SHA
-```
-
-Outside `main`, the workflow requires `workflow_dispatch`, `run_live=true`, a
-`refs/heads/` ref (not a tag or PR ref), and a nonempty `expected_sha` equal to
-GitHub's dispatched `github.sha`. Missing, abbreviated, or mismatched SHAs deny
-live authorization. If the branch advances before dispatch, review the new
-commit instead of replacing the expected SHA without review. Both paths still
-require `SKILL_EVALUATION_LIVE_ENABLED=true` and the `skill-evaluator` environment
-policy. `tier=both` and `skill=all` retain the full existing live matrix.
-
-The SHA comparison binds the requested revision; it does **not** prove review
-or make arbitrary branch code safe. Branch writers can modify workflow code,
-and the temporary environment policy applies to the branch, not to one SHA or
-one workflow. Limit trusted writers and review the complete commit before
-opening that exception. This does not change the anti-cheat or semantic live
-workflow conditions. Maintainers manage credentials and provider configuration
-outside the repository; public contributors do not need access to them.
+Manual dispatch defaults to planning and credential-free preparation; selecting `run_live` from `main`
+executes the selected tier and skill without an additional approval.
+Maintainers manage credentials and provider configuration outside the repository.
+Public contributors do not need access to them.
 
 NVSkills CI is separately opt-in through a `/nvskills-ci` PR comment by a
 maintainer or administrator. The request workflow also handles trusted signature

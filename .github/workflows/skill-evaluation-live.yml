@@ -11,13 +11,9 @@ on:
   workflow_dispatch:
     inputs:
       run_live:
-        description: Run live evaluation on main or an explicitly reviewed branch
+        description: Run live evaluation on main
         type: boolean
         default: false
-      expected_sha:
-        description: Full reviewed commit SHA (required for live evaluation outside main)
-        type: string
-        default: ''
       tier:
         description: Tiers to evaluate
         type: choice
@@ -32,7 +28,7 @@ permissions:
   contents: read
 
 env:
-  # PRs plan and measure credential-free preparation, never run models.
+  # PRs plan and measure credential-free preparation; only main runs models.
   EVALUATION_TIER: ${{ github.event_name == 'pull_request' && '2' || inputs.tier || 'both' }}
   EVALUATION_SKILL: ${{ inputs.skill || 'all' }}
   PYTHONDONTWRITEBYTECODE: '1'
@@ -51,13 +47,6 @@ jobs:
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
-      # Direct expression: independent of planner step success or model configuration.
-      live_requested: >-
-        ${{ vars.SKILL_EVALUATION_LIVE_ENABLED == 'true' &&
-            ((github.ref == 'refs/heads/main' &&
-              (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.run_live))) ||
-             (github.event_name == 'workflow_dispatch' && inputs.run_live &&
-              startsWith(github.ref, 'refs/heads/') && inputs.expected_sha != '' && inputs.expected_sha == github.sha)) }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -80,7 +69,11 @@ jobs:
 
   authorize:
     needs: plan
-    if: needs.plan.outputs.live_requested == 'true'
+    if: >-
+      vars.SKILL_EVALUATION_LIVE_ENABLED == 'true' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && inputs.run_live))
     environment: skill-evaluator
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -92,7 +85,7 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
-      - name: Resolve model configuration once in the protected environment
+      - name: Resolve model configuration once in the main-only environment
         id: config
         env:
           SKILL_EVAL_LLM_MODEL: ${{ vars.SKILL_EVAL_LLM_MODEL }}
@@ -105,7 +98,9 @@ jobs:
     if: >-
       github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' && !inputs.run_live) ||
-      (needs.plan.outputs.live_requested == 'true' && inputs.tier != '2')
+      (vars.SKILL_EVALUATION_LIVE_ENABLED == 'true' && github.ref == 'refs/heads/main' &&
+       (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.run_live)) &&
+       inputs.tier != '2')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -338,7 +333,11 @@ jobs:
 
   aggregate:
     needs: [plan, authorize, evaluate]
-    if: always() && needs.plan.outputs.live_requested == 'true'
+    if: >-
+      always() && vars.SKILL_EVALUATION_LIVE_ENABLED == 'true' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && inputs.run_live))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:

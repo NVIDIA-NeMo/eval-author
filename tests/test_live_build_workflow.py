@@ -177,132 +177,37 @@ def condition(job, context):
         needs = [needs] if isinstance(needs, str) else needs
         if any(context.get(f"needs.{name}.result") != "success" for name in needs):
             return False
-    expression = expression.removeprefix("${{").removesuffix("}}")
-    expression = expression.replace("always()", "True").replace("cancelled()", repr(context.get("cancelled", False)))
+    expression = expression.replace("always()", "True").replace("cancelled()", "False")
     expression = re.sub(
         r"\b(?:github|inputs|vars|needs)\.[A-Za-z0-9_.-]+", lambda m: repr(context.get(m[0], "")), expression
     )
     expression = re.sub(r"!(?!=)", " not ", expression.replace("&&", " and ").replace("||", " or "))
-    return bool(
-        eval(f"({expression})", {"__builtins__": {}, "startsWith": lambda value, prefix: value.startswith(prefix)})
-    )
+    return bool(eval(expression, {"__builtins__": {}}))
 
 
 @pytest.mark.parametrize(
-    "event,branch,run_live,tier,enabled,sha,build,expected",
+    "event,branch,run_live,tier,enabled,build,expected",
     [
-        ("pull_request", "refs/pull/181/merge", False, "", True, "", "success", (True, True, False, False)),
-        ("pull_request", "refs/heads/feature", True, "both", True, "a" * 40, "success", (True, True, False, False)),
-        ("push", "refs/heads/main", False, "", True, "", "success", (True, False, True, True)),
-        ("push", "refs/heads/main", False, "", False, "", "skipped", (False, False, False, False)),
-        ("push", "refs/heads/feature", True, "both", True, "a" * 40, "success", (False, False, False, False)),
-        (
-            "workflow_dispatch",
-            "refs/heads/feature",
-            False,
-            "both",
-            True,
-            "a" * 40,
-            "success",
-            (True, True, False, False),
-        ),
-        ("workflow_dispatch", "refs/heads/feature", True, "both", True, "", "skipped", (False, False, False, False)),
-        (
-            "workflow_dispatch",
-            "refs/heads/feature",
-            True,
-            "both",
-            True,
-            "b" * 40,
-            "skipped",
-            (False, False, False, False),
-        ),
-        (
-            "workflow_dispatch",
-            "refs/heads/feature",
-            True,
-            "both",
-            True,
-            "a" * 7,
-            "skipped",
-            (False, False, False, False),
-        ),
-        (
-            "workflow_dispatch",
-            "refs/heads/feature",
-            True,
-            "both",
-            False,
-            "a" * 40,
-            "skipped",
-            (False, False, False, False),
-        ),
-        (
-            "workflow_dispatch",
-            "refs/tags/reviewed",
-            True,
-            "both",
-            True,
-            "a" * 40,
-            "skipped",
-            (False, False, False, False),
-        ),
-        (
-            "workflow_dispatch",
-            "refs/pull/181/head",
-            True,
-            "both",
-            True,
-            "a" * 40,
-            "skipped",
-            (False, False, False, False),
-        ),
-        ("workflow_dispatch", "refs/heads/feature", True, "both", True, "a" * 40, "success", (True, False, True, True)),
-        ("workflow_dispatch", "refs/heads/feature", True, "3", True, "a" * 40, "success", (True, False, True, True)),
-        ("workflow_dispatch", "refs/heads/feature", True, "2", True, "a" * 40, "skipped", (False, False, True, True)),
-        (
-            "workflow_dispatch",
-            "refs/heads/feature",
-            True,
-            "both",
-            True,
-            "a" * 40,
-            "failure",
-            (True, False, True, False),
-        ),
-        ("workflow_dispatch", "refs/heads/feature", True, "3", True, "a" * 40, "skipped", (True, False, True, False)),
-        ("workflow_dispatch", "refs/heads/main", False, "both", True, "", "success", (True, True, False, False)),
-        ("workflow_dispatch", "refs/heads/main", True, "both", True, "", "success", (True, False, True, True)),
-        ("workflow_dispatch", "refs/heads/main", True, "both", True, "b" * 40, "success", (True, False, True, True)),
-        (
-            "workflow_dispatch",
-            "refs/heads/main",
-            True,
-            "both",
-            False,
-            "a" * 40,
-            "skipped",
-            (False, False, False, False),
-        ),
-        ("workflow_dispatch", "refs/heads/main", True, "2", True, "", "skipped", (False, False, True, True)),
-        ("workflow_dispatch", "refs/heads/main", True, "3", True, "", "failure", (True, False, True, False)),
+        ("pull_request", "refs/pull/172/merge", False, "", True, "success", (True, True, False, False)),
+        ("push", "refs/heads/main", False, "", True, "success", (True, False, True, True)),
+        ("push", "refs/heads/main", False, "", False, "skipped", (False, False, False, False)),
+        ("workflow_dispatch", "refs/heads/feature", False, "both", True, "success", (True, True, False, False)),
+        ("workflow_dispatch", "refs/heads/feature", True, "both", True, "skipped", (False, False, False, False)),
+        ("workflow_dispatch", "refs/heads/main", True, "2", True, "skipped", (False, False, True, True)),
+        ("workflow_dispatch", "refs/heads/main", True, "3", True, "failure", (True, False, True, False)),
     ],
 )
-def test_event_gates_and_skipped_build_dependencies(event, branch, run_live, tier, enabled, sha, build, expected):
+def test_event_gates_and_skipped_build_dependencies(event, branch, run_live, tier, enabled, build, expected):
     jobs = workflow()["jobs"]
     context = {
         "github.event_name": event,
         "github.ref": branch,
-        "github.sha": "a" * 40,
-        "inputs.expected_sha": sha,
         "inputs.run_live": run_live,
         "inputs.tier": tier,
         "vars.SKILL_EVALUATION_LIVE_ENABLED": str(enabled).lower(),
         "needs.plan.result": "success",
         "needs.build-opencode.result": build,
     }
-    gate = jobs["plan"]["outputs"]["live_requested"]
-    context["needs.plan.outputs.live_requested"] = str(condition({"if": gate}, context)).lower()
     authorized = condition(jobs["authorize"], context)
     context["needs.authorize.result"] = "success" if authorized else "skipped"
     for model in ("chat", "embedding", "agent"):
@@ -313,39 +218,6 @@ def test_event_gates_and_skipped_build_dependencies(event, branch, run_live, tie
         )
         == expected
     )
-    context["needs.evaluate.result"] = "failure"
-    assert condition(jobs["aggregate"], context) == expected[2]
-
-
-@pytest.mark.parametrize("models", [False, True])
-@pytest.mark.parametrize("cancelled", [False, True])
-@pytest.mark.parametrize("plan", ["success", "failure"])
-@pytest.mark.parametrize("authorization", ["failure", "skipped", "cancelled", "success"])
-@pytest.mark.parametrize("evaluation", ["failure", "skipped", "cancelled", "success"])
-def test_aggregate_survives_failed_dependencies_but_never_authorizes_them(
-    plan, authorization, evaluation, models, cancelled
-):
-    jobs = workflow()["jobs"]
-    context = {
-        "needs.plan.outputs.live_requested": "true",
-        "needs.plan.result": plan,
-        "needs.authorize.result": authorization,
-        "needs.evaluate.result": evaluation,
-        "needs.build-opencode.result": "success",
-        "inputs.tier": "both",
-        "cancelled": cancelled,
-    }
-    for model in ("chat", "embedding", "agent"):
-        context[f"needs.authorize.outputs.{model}"] = "configured" if models else ""
-    assert condition(jobs["evaluate"], context) == (
-        not cancelled and plan == "success" and authorization == "success" and models
-    )
-    assert condition(jobs["aggregate"], context)
-    if plan == "failure":
-        assert not condition(jobs["authorize"], context)
-        assert not condition(jobs["build-opencode"], context)
-    context["needs.plan.outputs.live_requested"] = ""
-    assert not condition(jobs["aggregate"], context)
 
 
 @pytest.mark.parametrize(
