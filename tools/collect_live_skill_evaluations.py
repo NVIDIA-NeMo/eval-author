@@ -36,6 +36,7 @@ DEFAULT_EMBEDDING_MODEL = "azure/openai/text-embedding-3-small"
 TIER3_TIMEOUT_SECONDS = LIVE_EXECUTION_SECONDS
 DIMENSIONS = ("security", "correctness", "discoverability", "effectiveness", "efficiency")
 FINDINGS = {"duplicate", "EXACT_DUPLICATE", "HIGH_SIMILARITY", "SIMILAR", "LOOSELY_RELATED", "DISTINCT"}
+CI_DISABLED_SKILLS = ("gym-to-atif", "mlflow-to-atif")
 
 
 class ArmMetrics(TypedDict):
@@ -394,6 +395,7 @@ def collect(
     evaluator="skillevaluator",
     check_name="all",
     ci_context_budget=False,
+    ci_skill_policy=False,
     evaluator_python=None,
 ):
     repo, output = repo.resolve(), output.resolve()
@@ -455,6 +457,7 @@ def collect(
             "requested_check": check_name,
             "context_comparison_policy": CONTEXT_POLICY if ci_context_budget else "upstream",
             "context_scalar_limit": CONTEXT_SCALAR_LIMIT if ci_context_budget else 25_000_000,
+            "disabled_per_skill_checks": list(CI_DISABLED_SKILLS) if ci_skill_policy else [],
         },
         "observations": [],
     }
@@ -476,6 +479,8 @@ def collect(
             }
             if not selected or tier not in ("both", level) or check_name not in ("all", check):
                 row.update(status="skipped", reason="not_selected")
+            elif ci_skill_policy and skill.name in CI_DISABLED_SKILLS:
+                row.update(status="skipped", reason="per_skill_evaluation_disabled")
             elif level == "3":
                 try:
                     row["cases"] = dataset_cases(skill)
@@ -685,6 +690,7 @@ def main():
     parser.add_argument("--evaluator", default="skillevaluator")
     parser.add_argument("--check", choices=("all", "context", "similarity", "live"), default="all")
     parser.add_argument("--ci-context-budget", action="store_true")
+    parser.add_argument("--ci-skill-policy", action="store_true", help="Apply CI per-skill check exclusions")
     parser.add_argument("--evaluator-python")
     parser.add_argument("--run", action="store_true", help="Authorize provider calls and Docker agent execution")
     args = parser.parse_args()
@@ -698,6 +704,7 @@ def main():
         evaluator=args.evaluator,
         check_name=args.check,
         ci_context_budget=args.ci_context_budget,
+        ci_skill_policy=args.ci_skill_policy,
         evaluator_python=args.evaluator_python,
     )
     print(json.dumps({"mode": report["mode"], "counts": report["counts"]}))

@@ -39,6 +39,7 @@ TIER3_REASONS = RUNTIME_FAILURES | {
     "agent_runtime_preflight_failed",
     "explicit_run_required",
     "not_selected",
+    "per_skill_evaluation_disabled",
     "missing_dataset",
     "invalid_dataset",
     "missing_provider_key",

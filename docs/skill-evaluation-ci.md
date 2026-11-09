@@ -40,6 +40,17 @@ at once. Each writes a fallback before setup and checkpoints completed work;
 the final aggregate records missing or invalid job reports as incomplete.
 Runner loss or cancellation can still prevent the aggregate job from publishing.
 
+CI excludes `mlflow-to-atif` and `gym-to-atif` from the per-skill Tier 2 context
+and Tier 3 live jobs, including when selected by manual dispatch. Plans and
+aggregates retain these observations as `skipped` with reason
+`per_skill_evaluation_disabled`, not passed or incomplete. Their conversion
+skills, datasets, unit tests, Tier 1 checks, and participation in collection-wide
+similarity analysis remain unchanged. `live_ci.py` applies this policy to plans
+and fallbacks; CI passes `--ci-skill-policy` to the live collector so shard
+reports use the same policy. Local collector runs without that flag can still
+evaluate either converter. Reports record the exclusions in
+`policy.disabled_per_skill_checks`.
+
 Tier 3 evaluation has a 45-minute timeout; its separate dataset validation
 keeps a 60-second timeout. The outer live CI shard job allows 80 minutes for
 dependency setup, evaluation, and report retention; the binary build runs in a

@@ -367,7 +367,13 @@ def test_structured_facts_survive_stage_and_aggregate(live, diagnostic, repo, tm
     args = dict(repo=repo, tier="3", skill="eval-author", check="live", models_resolved=True)
     source = tmp_path / "source"
     candidate = live.collect(
-        repo, source, tier="3", skill_name="eval-author", check_name="live", ci_context_budget=True
+        repo,
+        source,
+        tier="3",
+        skill_name="eval-author",
+        check_name="live",
+        ci_context_budget=True,
+        ci_skill_policy=True,
     )
     candidate["mode"] = "run"
     row = next(r for r in candidate["observations"] if r["status"] != "skipped")
@@ -530,7 +536,14 @@ def test_real_failure_producers_reach_collector_without_raw_output(
     monkeypatch.setattr(live, "execute", execute)
     output = tmp_path / "failure-collection"
     report = live.collect(
-        repo, output, tier="3", skill_name="eval-author", check_name="live", ci_context_budget=True, run=True
+        repo,
+        output,
+        tier="3",
+        skill_name="eval-author",
+        check_name="live",
+        ci_context_budget=True,
+        ci_skill_policy=True,
+        run=True,
     )
     row = next(row for row in report["observations"] if row["status"] != "skipped")
     assert row["status"] == "incomplete" and row["reason"] == reason

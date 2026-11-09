@@ -82,6 +82,7 @@ def initialize(args):
         skill_name=args.skill,
         check_name=args.check,
         ci_context_budget=True,
+        ci_skill_policy=True,
     )
     report["policy"]["max_parallel_jobs"] = 2
     entries = jobs(report)

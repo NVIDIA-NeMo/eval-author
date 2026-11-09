@@ -337,7 +337,7 @@ jobs:
             export EA_REQUIRE_PREPARED_IMAGES=1
             export EA_PREPARED_IMAGES_MANIFEST="$RUNNER_TEMP/prepared-live-images/prepared-images.json"
           fi
-          python tools/collect_live_skill_evaluations.py --run --ci-context-budget --tier "$SHARD_TIER" --skill "$SHARD_SKILL" --check "$SHARD_CHECK" --evaluator "$RUNNER_TEMP/live-runtime/bin/skillevaluator" --evaluator-python "$RUNNER_TEMP/live-runtime/bin/python" --output "$RUNNER_TEMP/skill-live"
+          python tools/collect_live_skill_evaluations.py --run --ci-context-budget --ci-skill-policy --tier "$SHARD_TIER" --skill "$SHARD_SKILL" --check "$SHARD_CHECK" --evaluator "$RUNNER_TEMP/live-runtime/bin/skillevaluator" --evaluator-python "$RUNNER_TEMP/live-runtime/bin/python" --output "$RUNNER_TEMP/skill-live"
       - name: Preserve valid checkpoint or fallback
         timeout-minutes: 1
         if: always() && matrix.id != 'none'

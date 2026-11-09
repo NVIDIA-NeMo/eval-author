@@ -49,6 +49,74 @@ def repo(tmp_path):
     return repo
 
 
+@pytest.mark.parametrize("selected", ["all", "gym-to-atif", "mlflow-to-atif"])
+def test_converter_checks_are_explicitly_skipped_in_ci(live, tmp_path, selected):
+    ci = importlib.import_module("live_ci")
+    output = tmp_path / "plan"
+    args = SimpleNamespace(command="plan", repo=ROOT, output=output, tier="both", skill=selected, check="all")
+    report = ci.initialize(args)
+    converters = {"gym-to-atif", "mlflow-to-atif"}
+    rows = [row for row in report["observations"] if row["skill"] in converters]
+    assert len(rows) == 4
+    for row in rows:
+        assert row["status"] == "skipped"
+        expected_reason = "per_skill_evaluation_disabled" if selected in ("all", row["skill"]) else "not_selected"
+        assert row["reason"] == expected_reason
+    entries = json.loads((output / "matrix.json").read_text())["include"]
+    expected = {("collection", "similarity")}
+    if selected == "all":
+        for path in (ROOT / "skills").glob("*/SKILL.md"):
+            if path.parent.name not in converters:
+                expected.add((path.parent.name, "context"))
+                if live.dataset_cases(path.parent) is not None:
+                    expected.add((path.parent.name, "live"))
+    assert {(entry["skill"], entry["check"]) for entry in entries} == expected
+    args.command, args.output, args.models_resolved = "initialize", tmp_path / "aggregate", False
+    fallback = ci.initialize(args)
+    assert [row for row in fallback["observations"] if row["skill"] in converters] == rows
+
+
+@pytest.mark.parametrize("skill", ["gym-to-atif", "mlflow-to-atif"])
+@pytest.mark.parametrize("tier,check", [("2", "context"), ("3", "live")])
+def test_ci_converter_exclusions_prevent_execution_but_preserve_local_checks(
+    live, tmp_path, monkeypatch, skill, tier, check
+):
+    monkeypatch.setenv("INFERENCE_HUB_API_KEY", "test-credential")
+    monkeypatch.setattr(live, "execute", lambda *a, **k: pytest.fail("disabled check executed"))
+    output = tmp_path / "ci"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "collector",
+            "--repo",
+            str(ROOT),
+            "--output",
+            str(output),
+            "--skill",
+            skill,
+            "--tier",
+            tier,
+            "--check",
+            check,
+            "--ci-skill-policy",
+            "--run",
+        ],
+    )
+    assert live.main() == 0
+    ci_report = json.loads((output / "live-skillevaluator-summary.json").read_text())
+    assert all(row["status"] == "skipped" for row in ci_report["observations"])
+    local = live.collect(ROOT, tmp_path / "local", skill_name=skill, tier=tier, check_name=check)
+    selected = [row for row in local["observations"] if row["status"] == "not_run"]
+    assert [(row["skill"], row["check"]) for row in selected] == [(skill, check)]
+    assert local["policy"]["disabled_per_skill_checks"] == []
+    workflow = yaml.safe_load((ROOT / ".github/workflows/skill-evaluation-live.yml").read_text())
+    step = next(
+        step for step in workflow["jobs"]["evaluate"]["steps"] if step.get("name") == "Run exactly one assigned check"
+    )
+    assert "--ci-skill-policy" in step["run"]
+
+
 def tier2(validator="Context Deduplication"):
     return {
         "results": [
@@ -350,6 +418,7 @@ def test_cli_publishes_unmeasured_dimensions_without_losing_completed_attempts(
             "--check",
             "live",
             "--ci-context-budget",
+            "--ci-skill-policy",
             "--run",
         ],
     )
