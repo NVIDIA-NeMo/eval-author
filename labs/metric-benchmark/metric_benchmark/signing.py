@@ -16,9 +16,9 @@ from metric_benchmark.config import (
     BenchmarkDefinition,
     Case,
     CaseDefinition,
-    LocalExecution,
     PinnedInput,
     TaskManifest,
+    execution_settings,
     load_benchmark,
     read_yaml,
 )
@@ -114,7 +114,7 @@ def _collect(path: Path) -> tuple[dict[Path, dict | list], dict[tuple[Path, str]
     cases_path = reference(path, "cases", experiment["cases"], definition.cases, manifest=True)
     execution_path = reference(path, "execution", experiment["execution"], definition.execution, manifest=True)
     analysis_path = reference(path, "analysis", experiment["analysis"], definition.analysis, manifest=True)
-    LocalExecution.model_validate(document(execution_path))
+    execution_settings(document(execution_path))
     analysis_data = document(analysis_path)
     analysis = AnalysisSettings.model_validate(analysis_data)
     cases_data = document(cases_path)

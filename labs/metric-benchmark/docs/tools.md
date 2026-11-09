@@ -60,6 +60,12 @@ defines the output format.
 See the [`run_evals.py` command guide](run-evals.md) for arguments, the output
 layout, completed-job reuse, interrupted-job recovery, and the Python API.
 
+## Publish inputs to Helix
+
+`helix_publish.py` derives remote artifacts from prepared cases without
+changing task or agent definitions. See the [publication command guide](publish-helix-inputs.md)
+for prerequisites, packaging settings, output records and replay behavior.
+
 ## Compute mutant scores
 
 See the [`compute_mutant_scores.py` command guide](compute-mutant-scores.md) for
