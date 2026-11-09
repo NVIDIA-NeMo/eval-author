@@ -7,10 +7,11 @@ import os
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from typing import Literal
 from urllib.parse import quote
 
 from httpx import HTTPError
-from pydantic import model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from metric_benchmark.config import HelixExecution, Workspace, check_base_url, read_yaml
 from metric_benchmark.models import Model, Text
@@ -40,6 +41,33 @@ class ClientAuth(Model):
 
 class ClientSettings(HelixDestination):
     auth: ClientAuth
+
+
+class RunStatus(BaseModel):
+    model_config = ConfigDict(extra="allow", strict=True)
+    run_id: str
+    workspace: str
+    taskset_ref: str
+    idempotency_key: str
+    phase: Literal["accepted", "running", "completed", "failed", "cancelled", "expired"]
+    result_state: Literal["pending", "ready", "failed", "none"]
+
+
+class RunMember(BaseModel):
+    model_config = ConfigDict(extra="allow", strict=True)
+    task: str
+    task_index: int = Field(ge=0)
+    phase: Literal["image_preparing", "image_ready", "registered", "succeeded", "failed", "cancelled", "expired"]
+    job: str | None = None
+    error: str | None = None
+
+
+def native_response(model, value):
+    try:
+        model.model_validate(value)
+    except ValueError:
+        raise ValueError(f"Helix returned an invalid {model.__name__} response") from None
+    return value
 
 
 class HelixClient:
@@ -155,3 +183,101 @@ class HelixClient:
         if packages["harbor"] != "0.24.0":
             raise ValueError("Helix publication/execution requires the qualified Harbor 0.24.0 client environment")
         return {"client_versions": packages, "server": self.request("GET", "/cluster-info")}
+
+    def verify_agent(self, receipt):
+        import tempfile
+
+        from metric_benchmark.io import file_manifest
+
+        AgentsClient = import_module("nemo_helix_plugin.agents.client").AgentsClient
+        workspace, name = receipt["ref"].split("/", 1)
+        actual = (
+            AgentsClient.from_client(self.client)
+            .get_agent(name=name, workspace=workspace)
+            .data()
+            .model_dump(mode="json")
+        )
+        for key, value in receipt["request"].items():
+            if key not in {"name", "description"} and value is not None and actual.get(key) != value:
+                raise ValueError("registered agent changed since publication")
+        with tempfile.TemporaryDirectory(prefix="metric-benchmark-verify-agent-") as temporary:
+            self.download_files(receipt["fileset"], Path(temporary))
+            if file_manifest(Path(temporary)) != receipt["files"]:
+                raise ValueError("registered agent files changed since publication")
+
+    def submit(self, body):
+        return native_response(RunStatus, self.request("POST", self.prefix + "agent-evaluate/runs", body))
+
+    def request_builds(self, refs):
+        builds = {}
+        for ref in refs:
+            owner, digest = ref.split("#")
+            workspace, name = owner.split("/")
+            builds[ref] = self.request(
+                "POST",
+                f"/apis/evals/v2/workspaces/{quote(workspace, safe='')}/tasks/"
+                f"{quote(name, safe='')}/revisions/{digest}/image-builds",
+                {},
+            )
+        return builds
+
+    def image_builds(self, reference):
+        owner, digest = reference.split("#")
+        workspace, name = owner.split("/")
+        return self.request(
+            "GET",
+            f"/apis/evals/v2/workspaces/{quote(workspace, safe='')}/tasks/"
+            f"{quote(name, safe='')}/revisions/{digest}/image-builds",
+        )
+
+    def status(self, run_id):
+        return native_response(
+            RunStatus, self.request("GET", self.prefix + f"agent-evaluate/runs/{quote(run_id, safe='')}")
+        )
+
+    def members(self, run_id):
+        rows = []
+        page = 1
+        while True:
+            result = self.request(
+                "GET", self.prefix + f"agent-evaluate/runs/{quote(run_id, safe='')}/tasks?page={page}&page_size=1000"
+            )
+            pagination = result.get("pagination")
+            if (
+                not isinstance(pagination, dict)
+                or not isinstance(result.get("data"), list)
+                or any(type(pagination.get(key)) is not int for key in ("page", "total_pages", "total_results"))
+            ):
+                raise ValueError("invalid Helix task pagination")
+            if pagination["page"] != page or (page > 1 and not result["data"]):
+                raise ValueError("invalid Helix task pagination")
+            rows.extend(native_response(RunMember, row) for row in result["data"])
+            if page >= pagination["total_pages"]:
+                if len(rows) != pagination["total_results"]:
+                    raise ValueError("Helix task pagination changed; retry collection")
+                return rows
+            page += 1
+
+    def artifact(self, job: str):
+        path = f"/apis/jobs/v2/workspaces/{quote(self.workspace, safe='')}/jobs/{quote(job, safe='')}/results/agent-eval-results"
+        return self.request("GET", path)
+
+    def job(self, job: str):
+        return self.request(
+            "GET", f"/apis/jobs/v2/workspaces/{quote(self.workspace, safe='')}/jobs/{quote(job, safe='')}"
+        )
+
+    def download(self, job: str, output: Path):
+        path = f"/apis/jobs/v2/workspaces/{quote(self.workspace, safe='')}/jobs/{quote(job, safe='')}/results/agent-eval-results/download"
+        url = self.base_url + path
+        try:
+            with self.client.http_client.stream(
+                "GET", url, headers=self.client.request_headers(None, url=url), timeout=120, follow_redirects=False
+            ) as response:
+                if response.status_code != 200:
+                    raise ValueError(f"Helix artifact download: HTTP {response.status_code}")
+                with output.open("wb") as stream:
+                    for chunk in response.iter_bytes():
+                        stream.write(chunk)
+        except HTTPError as error:
+            raise ValueError(f"Helix artifact download: {type(error).__name__}; rerun collection") from None
