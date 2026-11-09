@@ -14,16 +14,8 @@ proposed interface to implement downstream, not commands available in this base.
 
 [Open the resource-flow SVG](assets/helix-resource-flow.svg).
 
-The diagram groups the workflow into definitions, publication, execution and collection.
-Yellow boxes are YAML definitions, blue boxes are tools, and green boxes name output
-files. The hierarchy shows `experiment.yml` referencing cases, execution and analysis
-settings, with agent and task manifests beneath `cases.yml`. `publication.yml` supplies
-Helix publication settings separately. Output filenames match the command examples;
-run receipt names and output directories are caller-selected.
-
-Repeat execution for the baseline and each selected mutant. Each invocation runs
-one agent against every task in the selected benchmark. Collection combines those
-runs into the experiment's existing results layout. Source recovery is needed only
+Each invocation runs one agent against every task in the selected benchmark. Collection combines those
+runs into the experiment's standard results layout. Source recovery is needed only
 when a consumer requires files that are not already available and verified locally.
 
 ## Four tools
@@ -31,7 +23,7 @@ when a consumer requires files that are not already available and verified local
 | Proposed tool | Purpose and inputs | Output |
 | --- | --- | --- |
 | `helix_publish.py` | Upload agents, tasks, or both from signed prepared inputs; optionally verify and reuse existing resources. | `references.json`, mapping case/agent/task identities to exact registered references, plus a pinned taskset for each published benchmark. |
-| `helix_execute.py` | Run one selected registered agent against one pinned benchmark taskset, using execution settings and context. | `runs/baseline.json` or `runs/mutant.json`: run/job references, selected experiment identities and resolved resource versions. |
+| `helix_execute.py` | Take `execution.yml` for run settings and `references.json` for registered agent/taskset IDs and exact versions. Select one agent and one case’s benchmark to run. | `runs/baseline.json` or `runs/mutant.json`: run/job IDs and the mapping from case/agent/task identities to the exact remote versions used. |
 | `helix_collect.py` | Download runs, verify their inputs and trial evidence, and import them into the standard benchmark format. Recover required sources when absent. | `execution.json`, per-case `results.json`, and per-trial `result.json` plus native files in the existing results layout, ready for validation and analysis. |
 | `helix_sources.py` | Download the exact agent bundles and/or task sources named by publication references or a run receipt. | Verified local sources in the prepared input layout. Optional standalone access to the same recovery operation used by collection. |
 
@@ -39,6 +31,18 @@ Preparation of the experiment remains outside these tools. Collection and import
 are one user-facing operation; they may use separate internal helpers. Publication
 receipts and local caches can aid inspection, but later execution and recovery must
 not depend on retaining the publisher's working directory.
+
+`references.json` preserves the link to the prepared cases: each `case_id` maps its
+baseline/mutant `agent_bundle_id` values to registered agent references, and its
+`task_id` values to pinned task references and a benchmark taskset. Local experiment
+IDs and Helix resource IDs are distinct; publication records their correspondence.
+
+Execution carries the selected mapping into its run receipt. Collected results retain
+experiment agent/task identities in the standard indexes and exact Helix IDs and
+versions in the accompanying run receipts and native evidence. Resolving what ran
+must not depend on the original publication file. Collection also uses the expected
+inventory from `references.json` to detect missing agents or tasks; returned results
+alone cannot establish that the whole selected experiment completed.
 
 ## Decisions
 
