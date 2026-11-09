@@ -5,6 +5,12 @@ description: >-
   then recommend improvements. Use for "audit my existing evals", "let's gauge the
   quality of my evaluations", "review my evaluation coverage", or questions about
   whether evals cover intended agent behavior and whether their results are trustworthy.
+  Full audits first read ../eval-author/SKILL.md and quietly perform its bounded
+  saved-context lookup before choosing an introduction. Reuse applicable saved context.
+  Separate returning requests get a brief acknowledgment, then continue without another readiness pause.
+  Fresh full audits choose task review or task review with run measurement before
+  repository inspection or prerequisites. Reuse explicit choices and a resumed
+  audit's approach. Scoped commands keep their scope.
 triggers:
   - audit my existing evals
   - review my evaluation coverage
@@ -63,19 +69,23 @@ throughout full-audit entry and resumption.
 A full audit enters the core's shared prerequisite flow, including direct
 invocation. For a fresh audit, use the core's
 [onboarding renderer](../eval-author/references/conversations/onboarding.md) for
-`orientation` with journey `audit`, then end the turn. Read only this skill,
+`orientation` with journey `audit`, then end the turn at its approach choice.
+Follow [Choose the audit approach](../eval-author/references/shared-prerequisites.md#choose-the-audit-approach)
+to reuse an explicit choice or resume one already saved. Read only this skill,
 the core, the shared rendering contract, and that onboarding reference as needed before the response; the core's
 narrow renderer and audit-entry lookup exceptions apply. Fresh audits omit the
 returning audit opening.
 Repository inspection, Ethos validation, prerequisite questions, and state writes wait for the actual readiness
-reply. Complete and save the core's state-only prerequisite pass before
+reply or audit-approach choice. Complete and save the core's state-only prerequisite pass before
 any target Ethos inspection, then reconcile artifacts and include the completed
 findings in the final `results` response. Reuse
 confirmed agent, prerequisites, and Ethos on continuation.
 Apply the shared flow's audit checks: local audit tooling and source access,
 without evaluation runner, Docker, live agent service, or credential probes.
-Confirm that traces from completed evaluations exist before continuing to Ethos;
-unknown or missing availability pauses onboarding under **Blockers**.
+For measured audits:
+Confirm that traces from completed evaluations exist before continuing to Ethos.
+Unknown or missing availability pauses measured onboarding under **Blockers**.
+Task review requires no traces and leaves run coverage unmeasured.
 Follow the [canonical trace blocker](../eval-author/references/pre-reqs/audit.md#traces-from-completed-evaluation-runs),
 supplying the exact loaded audit skill link for its renderer-owned attribution;
 do not append a separate pause explanation.
@@ -84,7 +94,7 @@ Check conversion and trajectory-parser dependencies only after evidence selectio
 After fresh onboarding's completion pause and the user's continuation, or the
 returning-audit handoff above, follow
 [Guided audit milestones](references/guided-audit.md):
-confirm evals and traces, define intended coverage, measure selected evidence,
+confirm evals and, for measured audits, traces, define intended coverage, measure selected evidence when requested,
 then generate and review `audit-coverage-report.md`. Keep source and content
 reviews explicit. Use bounded agent and eval reads. Do not enumerate or read traces
 until their source and location are selected. An existing accepted source choice

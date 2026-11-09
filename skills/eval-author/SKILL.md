@@ -7,7 +7,8 @@ description: >-
   For fresh full workflows, read this skill, show its rendered orientation,
   and end the turn before repository work. Scoped utilities keep their scope.
   Explicit full audits quietly check bounded saved context before choosing an
-  introduction. Returning audits reuse applicable prerequisites and confirmed Ethos. Separate returning requests get
+  introduction. New audits choose task review or add run measurement before checks.
+  Returning audits reuse applicable prerequisites and confirmed Ethos. Separate returning requests get
   a brief acknowledgment, then continue without another readiness pause.
   Build first evals from ETHOS.md, work on existing suites, inspect a NeMo Intake
   run, or derive a trace environment (experimental). Owns the evidence standard
@@ -80,16 +81,21 @@ below for NeMo Gym and Harbor, including direct invocations of their skills.
 For an explicit full-audit request, first follow
 [Return to an audit](references/shared-prerequisites.md#return-to-an-audit).
 It owns saved-context classification, returning openings, and direct continuation. Fresh
-requests retain the opening below.
+requests retain the opening below. Before checks on a new audit, follow
+[Choose the audit approach](references/shared-prerequisites.md#choose-the-audit-approach).
+Saved authoring context alone does not select an audit approach.
 
-The first final response to a new shared flow is orientation only. Determine the
+The first final response to a new shared flow is orientation only, including the
+approach choice for a new audit. An explicitly requested audit approach reuses
+that choice and proceeds to its prerequisite preview. Determine the
 goal from the user's request and conversation already available, without inspecting the
 repository. Render `orientation` using the pure conversation renderer, with the
 known journey or no journey for goal selection, and use its Markdown as the
 entire final visible response. The unknown-goal opening uses the shorter welcome
 without a checklist introduction. **End the turn immediately after that response.**
 When the user selects a goal, render `goal_selected` with that journey and end
-the turn again. Selecting a goal does not establish readiness or start checks.
+the turn again. For audit, this asks for the approach. Selecting a goal alone
+does not establish readiness or start checks.
 
 Before either orientation response, read only the entry skill, this core skill,
 the [conversation rendering contract](references/conversation-rendering.md), and
@@ -97,6 +103,8 @@ the [onboarding reference](references/conversations/onboarding.md) as needed.
 An explicit full audit may also load the linked audit-entry procedure and perform
 its metadata-only lookup without narration. Only reusable saved context allows
 its no-input `audit_opening` before continuation. Fresh audits omit that opening.
+The same bounded entry procedure permits stateless `audit_mode` when a new
+audit can reuse shared context but still needs an approach choice.
 Apart from those exceptions, the only permitted command is this renderer's
 no-input preview mode:
 
@@ -108,10 +116,10 @@ Replace the journey with `audit` or `expand`, or omit it for an undecided reques
 Use `--stage goal_selected --journey <selected-journey>` after goal selection.
 The renderer may load its own source dependencies, but must not inspect repository
 files or saved state, validate Ethos, check prerequisites, write files, or delegate
-work. Apart from the audit opening and entry lookup, no other helper commands are allowed before readiness. This also applies
+work. Apart from audit opening, approach choice, and entry lookup, no other helper commands are allowed before readiness or an explicit audit-approach answer. This also applies
 to direct first-eval and full-audit invocations.
 
-After the actual readiness reply, follow the
+After the actual readiness reply, or the chosen audit approach, follow the
 [shared prerequisite procedure](references/shared-prerequisites.md#check-the-agent-and-setup).
 It owns the check sequence, state-failure handling, transition into Ethos, and
 final response for fresh flows, prerequisite resumes, goal switches, and direct

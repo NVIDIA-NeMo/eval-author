@@ -13,6 +13,34 @@ from first_eval_state import fingerprint
 
 STAGES = ("suite_selection", "trace_selection", "checks_review", "measurement", "findings_review", "next_action")
 ACTIONS = {"finish", "improve", "create", "collect_evidence", "fix_agent"}
+MODES = {"task_review", "measured"}
+
+
+def check_kind(kind: object) -> str:
+    if not isinstance(kind, str) or kind not in MODES:
+        raise ValueError("Choose task_review or measured for the audit approach")
+    return kind
+
+
+def validate_mode(value: dict) -> None:
+    _fields(value, "kind source")
+    check_kind(value["kind"])
+    _text(value["source"])
+
+
+def mode(state: dict) -> str:
+    scope = state.get("scopes", {}).get("audit", {})
+    decision = scope.get("mode") if isinstance(scope, dict) else None
+    if decision is None:
+        # Audits saved before the approach choice always required measurement.
+        return "measured"
+    validate_mode(decision)
+    return decision["kind"]
+
+
+def traces_unused(state: dict) -> bool:
+    """True for an audit whose approach never reads or requires traces."""
+    return state["journey"] == "audit" and mode(state) == "task_review"
 
 
 def new_record() -> dict:
@@ -180,16 +208,37 @@ def _within(path: str, roots: list[str]) -> bool:
     return any(PurePosixPath(path).is_relative_to(PurePosixPath(root)) for root in roots)
 
 
+def _findings_inputs(state: dict, value: dict) -> list[dict]:
+    """Findings input bindings that apply to the selected approach.
+
+    Task review ignores bindings that point at historical run sources (traces and
+    their selection manifest) kept from an earlier measured approach, so they are
+    neither read nor required to exist. Every other binding, including verifier
+    control manifests and native results, stays observed and checked for freshness.
+    """
+    refs = (value["findings"] or {}).get("inputs", [])
+    if mode(state) != "task_review":
+        return refs
+    historical = [*value["traces"]["paths"], *value["traces"]["candidates"], *value["trace_files"]]
+    if value.get("selection_manifest"):
+        historical.append(value["selection_manifest"])
+    return [ref for ref in refs if not _within(ref["path"], historical)]
+
+
 def _sources(state: dict) -> set[str]:
     value = record(state)
     if value is None:
         return set()
     files = {value["specification"]} if value["specification"] else set()
+    task_review = mode(state) == "task_review"
     for key, field in (("suites", "suite_files"), ("traces", "trace_files")):
+        if task_review and key == "traces":
+            continue
         if value[key]["status"] == "selected" and (key == "suites" or value["suites"]["status"] != "pending"):
             files.update(value[field])
     if (
-        value.get("selection_manifest")
+        not task_review
+        and value.get("selection_manifest")
         and value["suites"]["status"] != "pending"
         and value["traces"]["status"] == "selected"
     ):
@@ -198,8 +247,13 @@ def _sources(state: dict) -> set[str]:
         files.add(value["findings"]["report"]["path"])
         if "content" in value["findings"]:
             files.add(value["findings"]["content"]["path"])
-            files.update(ref["path"] for ref in value["findings"]["inputs"])
-    if value["measurement"] and value["suites"]["status"] != "pending" and value["traces"]["status"] == "selected":
+            files.update(ref["path"] for ref in _findings_inputs(state, value))
+    if (
+        not task_review
+        and value["measurement"]
+        and value["suites"]["status"] != "pending"
+        and value["traces"]["status"] == "selected"
+    ):
         files.update(ref["path"] for ref in value["measurement"]["evidence"])
     for key, field in (("suites", "suite_files"), ("traces", "trace_files")):
         selection = value[key]
@@ -230,7 +284,7 @@ def observe(repo, state: dict) -> dict:
         try:
             if any(part.is_symlink() for part in (path, *path.parents)):
                 raise ValueError("Audit files must not traverse symlinks")
-            bindings = ((record(state) or {}).get("findings") or {}).get("inputs", [])
+            bindings = _findings_inputs(state, record(state) or {})
             if any(ref["path"] == name and ref["kind"] == "task" for ref in bindings):
                 from eval_author_shared.task_evidence import task_digest
 
@@ -260,10 +314,14 @@ def derive(state: dict, observed: dict) -> dict | None:
         return None
     validate(value)
     files = observed_files(state, observed)
-    sources_ready = all(value[key]["status"] != "pending" for key in ("suites", "traces"))
-    inputs = value["suite_files"] + value["trace_files"] + ([value["specification"]] if value["specification"] else [])
-    task_refs = [ref for ref in (value["findings"] or {}).get("inputs", []) if ref["kind"] == "task"]
-    if value.get("selection_manifest"):
+    task_review = mode(state) == "task_review"
+    source_keys = ("suites",) if task_review else ("suites", "traces")
+    sources_ready = all(value[key]["status"] != "pending" for key in source_keys)
+    inputs = value["suite_files"] + ([] if task_review else value["trace_files"])
+    inputs += [value["specification"]] if value["specification"] else []
+    bound_inputs = _findings_inputs(state, value)
+    task_refs = [ref for ref in bound_inputs if ref["kind"] == "task"]
+    if not task_review and value.get("selection_manifest"):
         inputs.append(value["selection_manifest"])
     checks_digest = None
     if (
@@ -281,9 +339,10 @@ def derive(state: dict, observed: dict) -> dict | None:
                 "ethos": {key: state["ethos"][key] for key in ("path", "confirmed_digest")},
                 "scope": {
                     key: {field: value[key][field] for field in ("status", "paths", "exclusions")}
-                    for key in ("suites", "traces")
+                    for key in source_keys
                 },
                 "files": {path: files[path] for path in inputs},
+                **({"mode": "task_review"} if task_review else {}),
             }
         )
     approval = value["checks_approval"]
@@ -291,20 +350,21 @@ def derive(state: dict, observed: dict) -> dict | None:
     # after approval and measurement does not revoke them. A later task change does.
     changed_tasks = [ref["path"] for ref in task_refs if files.get(ref["path"]) != ref["digest"]]
     approved = bool(checks_digest and approval and approval["digest"] == checks_digest and not changed_tasks)
-    measurement = value["measurement"]
+    measurement = None if task_review else value["measurement"]
     current = bool(approved and measurement and measurement["checks_digest"] == checks_digest)
     evidence_current = bool(current and all(files.get(ref["path"]) == ref["digest"] for ref in measurement["evidence"]))
     measured = bool(
         evidence_current
+        and measurement is not None
         and measurement["status"] == "complete"
         and value["trace_files"]
         and value["suites"]["status"] == value["traces"]["status"] == "selected"
     )
-    current_partial = bool(evidence_current and measurement["status"] == "partial")
+    current_partial = bool(evidence_current and measurement is not None and measurement["status"] == "partial")
     deferred = bool(current and measurement["status"] == "deferred")
     findings = value["findings"]
     findings_digest = None
-    findings_inputs = [findings["content"], *findings["inputs"]] if findings and "content" in findings else []
+    findings_inputs = [findings["content"], *bound_inputs] if findings and "content" in findings else []
     if (
         approved
         and findings
@@ -316,12 +376,12 @@ def derive(state: dict, observed: dict) -> dict | None:
                 "checks": checks_digest,
                 "report": findings["report"],
                 "measurement": measurement,
-                **({"content": findings["content"], "inputs": findings["inputs"]} if "content" in findings else {}),
+                **({"content": findings["content"], "inputs": bound_inputs} if "content" in findings else {}),
                 "evidence": {ref["path"]: files.get(ref["path"]) for ref in (measurement or {}).get("evidence", [])},
             }
         )
     reviewed = bool(
-        (measured or current_partial or deferred)
+        (task_review or measured or current_partial or deferred)
         and findings_digest
         and value["findings_review"]
         and value["findings_review"]["digest"] == findings_digest
@@ -334,9 +394,9 @@ def derive(state: dict, observed: dict) -> dict | None:
             STAGES,
             (
                 value["suites"]["status"] != "pending",
-                value["traces"]["status"] != "pending",
+                task_review or value["traces"]["status"] != "pending",
                 approved,
-                measured or deferred,
+                task_review or measured or deferred,
                 reviewed,
                 action_current,
             ),
@@ -361,6 +421,7 @@ def derive(state: dict, observed: dict) -> dict | None:
         stage = pending["stage"]
     applicable = bool(pending and pending["stage"] == stage and checkpoint_digests[stage] == pending["digest"])
     return {
+        "mode": mode(state),
         "stage": stage,
         "pending_checkpoint": copy.deepcopy(pending) if applicable else None,
         "checkpoint_digests": checkpoint_digests,
@@ -372,7 +433,7 @@ def derive(state: dict, observed: dict) -> dict | None:
         "findings_digest": findings_digest,
         "findings_reviewed": reviewed,
         "next_action_current": action_current,
-        "complete": measured and reviewed,
+        "complete": reviewed and (measured or task_review and value["suites"]["status"] == "selected"),
     }
 
 
@@ -387,7 +448,7 @@ def transition(repo, previous: dict, updated: dict) -> dict | None:
     if after is None:
         return
     validate(after)
-    if before == after:
+    if before == after and mode(previous) == mode(updated):
         return
     observed = observe(repo, updated)
     current = derive(updated, observed)
@@ -407,6 +468,8 @@ def transition(repo, previous: dict, updated: dict) -> dict | None:
         if field == "checks_approval" and not current["checks_approved"]:
             raise ValueError("Approve the current checks after resolving source selections")
         if field == "measurement":
+            if mode(updated) == "task_review":
+                raise ValueError("Task review leaves run coverage unmeasured")
             if not (prior and prior["checks_approved"] and current["checks_approved"]):
                 raise ValueError("Save current check approval before recording audit measurement")
             if value["checks_digest"] != current["checks_digest"]:
