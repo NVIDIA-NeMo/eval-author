@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+# Bundle paths are illustrative; no agent bundles are included.
 baseline:
   agent_bundle_id: baseline
   revision: '1'
