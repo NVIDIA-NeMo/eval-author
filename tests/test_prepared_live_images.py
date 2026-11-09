@@ -819,16 +819,19 @@ def test_preparation_exhausted_job_window_stops_before_native_or_docker(
     assert not (tmp_path / "exhausted").exists()
 
 
-def test_live_workflow_reserves_execution_and_report_headroom():
+def test_live_workflow_reserves_execution_and_report_headroom(monkeypatch):
     import yaml
+
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    from live_shard import RUN_PHASE_SECONDS
 
     workflow = yaml.safe_load((ROOT / ".github/workflows/skill-evaluation-live.yml").read_text())
     steps = workflow["jobs"]["evaluate"]["steps"]
     initialize = next(s for s in steps if "live_ci.py initialize" in s.get("run", ""))
     assert "EA_LIVE_JOB_DEADLINE" in initialize["run"]
-    for marker in ("prepare_live_images.py", "collect_live_skill_evaluations.py"):
+    for marker in ("live_shard.py prepare", "live_shard.py run "):
         step = next(s for s in steps if marker in s.get("run", ""))
-        assert step["timeout-minutes"] <= 47
+        assert step["timeout-minutes"] * 60 <= RUN_PHASE_SECONDS
 
 
 def test_live_workflow_prepares_before_secrets_and_requires_preparation():
@@ -836,15 +839,13 @@ def test_live_workflow_prepares_before_secrets_and_requires_preparation():
 
     workflow = yaml.safe_load((ROOT / ".github/workflows/skill-evaluation-live.yml").read_text())
     steps = workflow["jobs"]["evaluate"]["steps"]
-    preparation = [s for s in steps if "prepare_live_images.py" in s.get("run", "")]
+    preparation = [s for s in steps if "live_shard.py prepare" in s.get("run", "")]
     assert len(preparation) == 1, "live-only keyless image preparation step is missing"
     step = preparation[0]
-    live = next(s for s in steps if "collect_live_skill_evaluations.py" in s.get("run", ""))
+    live = next(s for s in steps if "live_shard.py run " in s.get("run", ""))
     assert steps.index(step) < steps.index(live)
     assert "matrix.check == 'live'" in step["if"]
     assert "secrets." not in json.dumps(step)
-    assert "EA_REQUIRE_PREPARED_IMAGES=1" in live["run"]
-    assert "EA_PREPARED_IMAGES_MANIFEST=" in live["run"]
 
 
 def test_wrapper_rejects_missing_preparation_before_cli(preparation, monkeypatch):
