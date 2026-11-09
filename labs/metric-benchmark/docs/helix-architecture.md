@@ -10,30 +10,16 @@ proposed interface to implement downstream, not commands available in this base.
 
 ## Resource flow
 
-```mermaid
-flowchart LR
-    Cases[Signed experiment: cases, agents and tasks] --> Agents[Agent bundles]
-    Cases --> Tasks[Unchanged task sources]
-    Agents --> Publish[helix_publish.py: upload agents, tasks, or both]
-    Tasks --> Publish
-    Existing[Existing pinned resources] --> Publish
-    Publish --> Registry[Separate registered Helix agents]
-    Publish --> Taskset[Pinned benchmark taskset]
-    Publish --> References[references.json: exact IDs, revisions and hashes]
-    Registry --> Execute[helix_execute.py: one agent against all benchmark tasks]
-    Taskset --> Execute
-    References --> Execute
-    Execute --> Runs[Run references and resolved input identities]
-    Runs --> Collect[helix_collect.py: download, verify and import results]
-    Collect --> Results[Standard results directory and native trial evidence]
-    Results --> Analysis[Existing validation, scoring and analysis]
-    References --> Sources[helix_sources.py: download and verify sources]
-    Runs --> Sources
-    Registry --> Sources
-    Taskset --> Sources
-    Sources --> Local[Local agent bundles and task directories]
-    Local --> Collect
-```
+![Helix resource flow showing YAML definitions, four proposed tools, registered resources and standard results.](assets/helix-resource-flow.svg)
+
+[Open the resource-flow SVG](assets/helix-resource-flow.svg).
+
+Yellow boxes identify YAML definitions. `experiment.yml` references cases, execution
+and analysis settings; `cases.yml` selects agent and task manifests. The manifests
+identify the signed agent bundles and unchanged task sources to publish. Blue boxes
+are the four proposed tools; green boxes are stored resources and outputs. Arrows
+show the inputs each stage consumes, not additional configuration files.
+
 
 Repeat execution for the baseline and each selected mutant. Each invocation runs
 one agent against every task in the selected benchmark. Collection combines those

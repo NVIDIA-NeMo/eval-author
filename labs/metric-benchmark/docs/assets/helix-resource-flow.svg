@@ -1,0 +1,127 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1570" viewBox="0 0 1400 1570" role="img" aria-labelledby="title description">
+<title id="title">Helix resource flow and YAML definitions</title>
+<desc id="description">The signed experiment references cases, execution and analysis YAML. Cases select agent and task manifests. Agent manifests select agent definitions and bundled files; task manifests select unchanged task directories. Publication uploads or reuses resources and returns exact references. Execution runs one registered agent against all tasks in a pinned benchmark. Collection downloads and verifies results into the standard results directory. Optional source recovery downloads exact published or executed versions. Four proposed tools are shown; implementation follows downstream.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9 Z" fill="#56667d"/></marker>
+<style>
+text {font-family:Arial,Helvetica,sans-serif;fill:#172b45}
+.title {font-size:30px;font-weight:700}.heading {font-size:22px;font-weight:700}
+.body {font-size:18px}.small {font-size:16px;fill:#475569}
+.mono {font-family:Menlo,Consolas,monospace;font-size:19px;font-weight:600}
+.edge {fill:none;stroke:#56667d;stroke-width:2;stroke-linejoin:round;marker-end:url(#arrow)}
+</style></defs><rect width="1400" height="1570" fill="white"/>
+
+<text x="36" y="46" class="title">Helix: publish resources → execute → recover results</text>
+<text x="36" y="76" class="body">Four proposed tools • exact resource versions • unchanged benchmark results contract</text>
+<rect x="36" y="98" width="265" height="44" rx="12" fill="#fff8e5" stroke="#d4ac42" stroke-width="1.5"/>
+<text x="54" y="128" class="heading">YAML definition</text>
+<rect x="325" y="98" width="265" height="44" rx="12" fill="#e9f2ff" stroke="#6b98d4" stroke-width="1.5"/>
+<text x="343" y="128" class="heading">Proposed tool</text>
+<rect x="610" y="98" width="310" height="44" rx="12" fill="#edf8f2" stroke="#75ad8d" stroke-width="1.5"/>
+<text x="628" y="128" class="heading">Stored resource / output</text>
+<text x="36" y="184" class="heading">Prepared definitions: what belongs to the experiment</text>
+<rect x="36" y="206" width="345" height="115" rx="12" fill="#fff8e5" stroke="#d4ac42" stroke-width="1.5"/>
+<text x="54" y="236" class="mono">experiment.yml</text>
+<text x="54" y="262" class="body">References cases.yml,</text>
+<text x="54" y="288" class="body">execution.yml and analysis.yml</text>
+<rect x="455" y="206" width="370" height="115" rx="12" fill="#fff8e5" stroke="#d4ac42" stroke-width="1.5"/>
+<text x="473" y="236" class="mono">cases.yml</text>
+<text x="473" y="262" class="body">Selects case IDs and the</text>
+<text x="473" y="288" class="body">agent and task manifests</text>
+<rect x="900" y="206" width="460" height="115" rx="12" fill="#fff8e5" stroke="#d4ac42" stroke-width="1.5"/>
+<text x="918" y="236" class="mono">execution.yml / analysis.yml</text>
+<text x="918" y="262" class="body">Run settings / analysis settings</text>
+<text x="918" y="288" class="body">Used at their stages below</text>
+<path class="edge" d="M381 257 H455"/>
+<path class="edge" d="M381 218 V193 H1130 V206"/>
+<rect x="36" y="375" width="625" height="116" rx="12" fill="#fff8e5" stroke="#d4ac42" stroke-width="1.5"/>
+<text x="54" y="405" class="mono">agents.yml → agent.yaml + files</text>
+<text x="54" y="431" class="body">Baseline/mutant IDs; signed behavior, model,</text>
+<text x="54" y="457" class="body">runtime options and each agent’s bundled sources</text>
+<rect x="735" y="375" width="625" height="116" rx="12" fill="#fff8e5" stroke="#d4ac42" stroke-width="1.5"/>
+<text x="753" y="405" class="mono">tasks.yml → task directories</text>
+<text x="753" y="431" class="body">Fixed task IDs and membership; unchanged instructions,</text>
+<text x="753" y="457" class="body">task.toml, Dockerfile, verifier and other task files</text>
+<path class="edge" d="M560 321 V347 H348 V375"/>
+<path class="edge" d="M720 321 V347 H1047 V375"/>
+<text x="36" y="530" class="small">Definitions / settings</text>
+<text x="495" y="530" class="small">Tools</text>
+<text x="970" y="530" class="small">Resources / outputs</text>
+<rect x="36" y="568" width="385" height="116" rx="12" fill="#fff8e5" stroke="#d4ac42" stroke-width="1.5"/>
+<text x="54" y="598" class="mono">publication.yml</text>
+<text x="54" y="624" class="body">Upload/reuse choices, destination,</text>
+<text x="54" y="650" class="body">secret references; no overrides</text>
+<rect x="495" y="568" width="405" height="116" rx="12" fill="#e9f2ff" stroke="#6b98d4" stroke-width="1.5"/>
+<text x="513" y="598" class="mono">1  helix_publish.py</text>
+<text x="513" y="624" class="body">Upload agents, tasks, or both;</text>
+<text x="513" y="650" class="body">verify any reused resources</text>
+<rect x="970" y="550" width="390" height="152" rx="12" fill="#edf8f2" stroke="#75ad8d" stroke-width="1.5"/>
+<text x="988" y="580" class="heading">Published in Helix</text>
+<text x="988" y="606" class="body">Separate registered agents;</text>
+<text x="988" y="632" class="body">unchanged tasks + pinned taskset;</text>
+<text x="988" y="658" class="body">references.json: IDs, versions, hashes</text>
+<path class="edge" d="M348 491 V546 H620 V568"/>
+<path class="edge" d="M1047 491 V516 H790 V568"/>
+<path class="edge" d="M421 626 H495"/>
+<path class="edge" d="M900 626 H970"/>
+<rect x="36" y="770" width="385" height="116" rx="12" fill="#fff8e5" stroke="#d4ac42" stroke-width="1.5"/>
+<text x="54" y="800" class="mono">execution.yml</text>
+<text x="54" y="826" class="body">Dispatcher, concurrency, sandbox;</text>
+<text x="54" y="852" class="body">optional destination assertion</text>
+<rect x="495" y="770" width="405" height="116" rx="12" fill="#e9f2ff" stroke="#6b98d4" stroke-width="1.5"/>
+<text x="513" y="800" class="mono">2  helix_execute.py</text>
+<text x="513" y="826" class="body">One referenced agent × all tasks</text>
+<text x="513" y="852" class="body">in the pinned benchmark</text>
+<rect x="970" y="770" width="390" height="116" rx="12" fill="#edf8f2" stroke="#75ad8d" stroke-width="1.5"/>
+<text x="988" y="800" class="heading">Run receipt</text>
+<text x="988" y="826" class="body">Run/job IDs, resolved versions</text>
+<text x="988" y="852" class="body">and recoverable source references</text>
+<path class="edge" d="M1165 702 V734 H697 V770"/>
+<path class="edge" d="M421 828 H495"/>
+<path class="edge" d="M900 828 H970"/>
+<text x="495" y="918" class="small">Repeat for baseline and selected mutants.</text>
+<rect x="36" y="980" width="385" height="116" rx="12" fill="#f3f5f8" stroke="#a8b3c1" stroke-width="1.5"/>
+<text x="54" y="1010" class="heading">Retained experiment metadata</text>
+<text x="54" y="1036" class="body">Publication references + selected</text>
+<text x="54" y="1062" class="body">run receipts; sources if needed</text>
+<rect x="495" y="980" width="405" height="116" rx="12" fill="#e9f2ff" stroke="#6b98d4" stroke-width="1.5"/>
+<text x="513" y="1010" class="mono">3  helix_collect.py</text>
+<text x="513" y="1036" class="body">Download, verify and import;</text>
+<text x="513" y="1062" class="body">recover missing sources as needed</text>
+<rect x="970" y="980" width="390" height="116" rx="12" fill="#edf8f2" stroke="#75ad8d" stroke-width="1.5"/>
+<text x="988" y="1010" class="heading">Standard results directory</text>
+<text x="988" y="1036" class="body">execution.json, case indexes,</text>
+<text x="988" y="1062" class="body">agent/run/trial native evidence</text>
+<path class="edge" d="M1165 886 V950 H697 V980"/>
+<path class="edge" d="M421 1038 H495"/>
+<path class="edge" d="M900 1038 H970"/>
+<rect x="36" y="1180" width="385" height="116" rx="12" fill="#fff8e5" stroke="#d4ac42" stroke-width="1.5"/>
+<text x="54" y="1210" class="mono">analysis.yml</text>
+<text x="54" y="1236" class="body">Descriptions, fixed subsets,</text>
+<text x="54" y="1262" class="body">coverage and scoring settings</text>
+<rect x="495" y="1180" width="405" height="116" rx="12" fill="#f3f5f8" stroke="#a8b3c1" stroke-width="1.5"/>
+<text x="513" y="1210" class="heading">Existing validation / analysis</text>
+<text x="513" y="1236" class="body">Use the same identities, trial</text>
+<text x="513" y="1262" class="body">accounting and scoring contract</text>
+<path class="edge" d="M1165 1096 V1140 H697 V1180"/>
+<path class="edge" d="M421 1238 H495"/>
+<path d="M36 1335 H1360" stroke="#cbd5e1"/>
+<text x="36" y="1372" class="heading">Optional source recovery — also used internally by collection</text>
+<rect x="36" y="1395" width="385" height="116" rx="12" fill="#f3f5f8" stroke="#a8b3c1" stroke-width="1.5"/>
+<text x="54" y="1425" class="heading">Exact source references</text>
+<text x="54" y="1451" class="body">From references.json before a run,</text>
+<text x="54" y="1477" class="body">or its receipt for what actually ran</text>
+<rect x="495" y="1395" width="405" height="116" rx="12" fill="#e9f2ff" stroke="#6b98d4" stroke-width="1.5"/>
+<text x="513" y="1425" class="mono">4  helix_sources.py</text>
+<text x="513" y="1451" class="body">Download agent/task sources</text>
+<text x="513" y="1477" class="body">from retained Helix snapshots</text>
+<rect x="970" y="1395" width="390" height="116" rx="12" fill="#edf8f2" stroke="#75ad8d" stroke-width="1.5"/>
+<text x="988" y="1425" class="heading">Verified local sources</text>
+<text x="988" y="1451" class="body">Agent bundles + task directories</text>
+<text x="988" y="1477" class="body">with recorded paths and hashes</text>
+<path class="edge" d="M421 1453 H495"/>
+<path class="edge" d="M900 1453 H970"/>
+<text x="36" y="1546" class="small">All remote operations use context for connection/auth. Exact recovery requires retained immutable source snapshots.</text>
+</svg>
