@@ -459,7 +459,7 @@ def test_artifact_parent_symlink_cannot_escape_scope():
     entry = {"kind": "symlink", "mode": 0o777, "target": "/outside"}
     for state in ("before", "after"):
         evidence["turns"][0][state]["entries"][".eval-author"] = entry
-    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/proposals/dataset-recommendations.md"])
+    raw = add_call(evidence, raw, action="write_artifact", writes=[".eval-author/audit-coverage-report.md"])
     assert scope.check(CONTRACTS, evidence, raw)["status"] == "fail"
 
 

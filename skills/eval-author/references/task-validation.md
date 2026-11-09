@@ -93,9 +93,10 @@ passing result establishes comprehensive soundness, fairness, or difficulty.
 ## Screen simple cheats
 
 Apply this screen to every task before acceptance or readiness, including each
-member of a generated batch and each revised task. Proposal-only work records
-the applicable attacks, expected rejection, and unresolved trust boundaries in
-the recommendation; it does not execute them or claim they passed. Use the
+member of a generated batch and each revised task. Planned controls and expected
+rejection belong only in the task README's
+[Verifier section](suite-readme.md#task-documentation). Proposal-only work can
+identify verifier risks but does not create or execute controls or claim they passed. Use the
 existing private construction cases and result contracts, not a second report
 format. A historical acceptance without this evidence is not a screened task.
 
@@ -128,8 +129,10 @@ Select concrete controls against that path:
   a runner or expected output. Also test stale success surviving a later failure.
   Verify the trusted grader ignores or rejects these without granting credit.
 
-Record task-specific applicability and concrete non-applicability reasons in
-the existing case rationales or private review notes. An unsupported runtime or
+Document task-specific protection definitions in the task README's
+[Verifier section](suite-readme.md#task-documentation). Keep detailed native case
+mappings and private evidence in the existing case rationales or private review
+notes. Record execution results in shared state and outer reports. An unsupported runtime or
 an unimplemented control is not non-applicability. Keep a realistic wrong-answer
 control and a valid alternative separately; these simple cheats do not replace
 them. For each attack, map every outcome it omits to the scored checks that must

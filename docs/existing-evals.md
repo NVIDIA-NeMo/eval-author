@@ -130,9 +130,9 @@ Audit evidence paths are relative to the repository. Each case or run must fall
 within its selected suite or trace location.
 
 Changes to the agent, Ethos, selected scope, specification, cases, verifiers, or
-traces reopen check review and dependent measurement and findings. Changing only
-the findings report requires findings review again. Saved progress therefore
-reflects the current inputs when you resume.
+traces reopen check review and dependent measurement and findings. Changes to
+report content or its supporting evidence also reopen findings review. Saved
+progress therefore reflects the current inputs when you resume.
 
 Coverage measurement compares that specification with recorded traces (ATIF,
 MLflow, NeMo Gym, or normalized NeMo Compass traces), each a structured record
@@ -141,11 +141,7 @@ under `.eval-author/audit-measurements/`. **Coverage measurements (JSON)**
 (`.eval-author/audit-coverage-report.json`) is the file of generated results
 aggregated over the selected runs, when available.
 
-Eval Author writes the Audit coverage report using the shared template and links
-available evidence. This readable Markdown artifact is
-separate from Coverage measurements (JSON).
-Test mappings describe what evaluations are designed to address and do not,
-by themselves, establish measured coverage.
+Eval Author generates the Audit coverage report and links available evidence.
 
 The Audit coverage report can be prepared before measurement and updated as
 evidence becomes available. Without usable traces, you can establish the audit
@@ -185,7 +181,8 @@ unmeasured. If the findings do not support more tasks, it explains the useful
 alternative, such as addressing an observed agent failure or gathering specific
 evidence.
 
-See [Read your results](results.md) for the saved artifacts and their limits.
+See [audit results](results.md#coverage-audits) for report editing, saved artifacts,
+and coverage limits.
 
 ## Propose new evaluations
 
@@ -198,17 +195,16 @@ Eval Author considers the Audit coverage report, underlying measurements,
 traces, and existing cases. Recommendations may include a new scenario, a
 stronger check, retaining a failing case as a regression test, or gathering more
 evidence. Each recommendation explains its priority, expected behavior, how a
-verifier would check it, planned shortcut/cheat controls, and supporting evidence.
+verifier would check it, and supporting evidence.
 Recommendations distinguish agent failures from verifier defects and ungraded
-runs. Cheat controls remain planned during proposal-only work; when a task is
-built, applicable controls must be executed before it is described as screened.
-Missing evidence leaves screening unproven. They are saved in
-`.eval-author/proposals/dataset-recommendations.md`. You can request this directly
+runs. Applicable controls must be executed before a task is described as screened.
+Missing evidence leaves screening unproven. Proposals expand the existing
+next actions in the Audit coverage report. You can request this directly
 or accept Eval Author's offer during the audit review; the handoff reuses the
 audit inputs and settled answers.
 
-The report's next steps provide context for this separate proposal
-workflow; they do not replace its recommendations artifact.
+See [audit results](results.md#coverage-audits) for where protections and later
+findings belong.
 Accepting the proposal offer produces recommendations. Creating, validating,
 or running tasks remains separately scoped: ask for the selected proposal to be
 implemented and validated when you are ready. The current automatic creation

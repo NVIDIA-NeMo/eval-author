@@ -59,8 +59,8 @@ The guide is refreshed after runs and linked in the handoff, including when
 execution is blocked.
 
 Task README files allow users to inspect its Input, Behavior under test,
-Expected result, and Grading sections. Input links the instruction and fixtures;
-Grading links the actual verifier code and criteria or judge files. The report's
+Expected result, and Verifier sections. Input links the instruction and fixtures.
+Verifier links the actual verifier code and criteria or judge files. The report's
 Expected outcome column shows the opening summary paragraph from Expected result;
 open the task README for its detailed assertions and expected values. Existing
 sections that begin with a list or table continue to display their full text.
@@ -98,8 +98,10 @@ outcomes. See [Build your first evaluations](first-evals.md).
 ## Open readable cases and traces
 
 Start with the html report or the README.md for artifact paths and commands. Harbor
-tasks and recorded jobs use its native local viewer. For NeMo Gym JSONL and ATIF,
-MLflow, or NeMo Gym traces, Eval Author includes an offline reader that creates a private `report.html`
+tasks and recorded jobs use its native local viewer. Report links target the
+Harbor 0.24.0 viewer; refresh the report after upgrading to regenerate trial links.
+For NeMo Gym JSONL and ATIF, MLflow, or NeMo Gym traces, Eval Author includes an
+offline reader that creates a private `report.html`
 you can open directly in a browser; see [Local review](../skills/eval-author/references/local-review.md)
 for commands and supported formats.
 
@@ -127,6 +129,7 @@ internal validation, measurement, and saved progress:
 | **Audit specification (internal)** | `.eval-author/audit.md` | Intended checks and evidence requirements |
 | **Audit coverage report** | `.eval-author/audit-coverage-report.md` | Readable scope, test mappings, findings, limits, and next actions |
 | **Coverage measurements (internal JSON)** | `.eval-author/audit-coverage-report.json` | Generated measured results aggregated over the selected runs, when available |
+| **Report content (internal)** | `.eval-author/.working/audit/report-content.json` | Saved report text and evidence references |
 | **Journey state (internal)** | `.eval-author/.working/journey-state.json` | Saved scope and review decisions, partial progress, pending questions, and next action |
 
 When you switch from creating or improving evaluations into an audit, the
@@ -140,18 +143,22 @@ and links available supporting evidence. A mapping to an existing test describes
 designed to address; it does not establish that a recorded run satisfied the
 audit's coverage criteria.
 
-Use the report's **Intended coverage** section to review the proposed audit scope.
-It lists every item's stable name and kind, explains the intended check in plain
-language, and states the required evidence separately from existing tests,
-observed evidence, and measurement status. Totals and gap findings alone do not
-describe what the audit intends to check.
+The report opens with a Summary (including an ADVISORY when verifier cheating is
+confirmed and the Evaluation coverage table), then Key findings. Recommended
+next actions is a single list, highest priority first, that names each finding or
+advisory, the capabilities and tools it involves, and the proposed task.
+The Coverage report maps each audit item to its tasks and run evidence, followed by the task
+catalog, verifier cheat screening, scope and execution evidence, and
+definitions.
 
-At the scope check-in, the proposed checks await your agreement and the report
-is preliminary. The reply previews intended checks grouped by tools, capabilities,
-failure cases, and grading, links directly to the full
-**Intended coverage** section, and asks what is missing or incorrect before
-moving to the named next milestone. Approving this scope is separate from
-reviewing the findings at the final report milestone.
+The audit report is generated. Ask Eval Author to revise and regenerate it when
+you need changes. Direct Markdown edits block refresh.
+
+Older manually written reports remain readable. Ask for conversion before
+regenerating one. Conversion preserves the original report and historical
+recommendation files.
+
+Reports do not yet compare coverage across audits.
 
 Measurement details live under `.eval-author/audit-measurements/`;
 the Coverage measurements (JSON) file combines only the current selected inputs.
@@ -186,6 +193,16 @@ stays pending until you respond to the check-in. Whenever a session creates or
 updates the report, its final response explicitly says so and links it, even if the
 audit stops at an intermediate checkpoint. When an audit resumes, changed
 inputs are reconciled with the report before its findings are treated as current.
+
+The audit also inspects selected tasks' grading paths and reconciles retained
+cheat-control results before findings review. Findings distinguish verifier
+defects, agent failures, rejected valid solutions, and ungraded execution.
+Failed controls remain relevant even when a task has no usable agent trajectory.
+A later passing control doesn't erase a failure on the same task revision.
+Missing or stale evidence leaves screening unproven. These verifier checks do
+not establish agent coverage. Planned control definitions and expected rejection
+stay in the task README's **Verifier** section. Legacy **Grading** and **Grader**
+headings remain supported.
 
 Journey state saves audit decisions and the pending checkpoint across chats
 and workflow switches. Accepting findings records the answer without rewriting

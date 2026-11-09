@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+- case_id: smoke-case
+  agent:
+    path: agents/smoke-agent/agent.yml
+    sha256: sha256:0cae9ccf5168db3936d50388a622ea779e46759c5763fe1207d0a763f27782cd
+  tasks:
+    path: tasks/smoke-tasks/tasks.yml
+    sha256: sha256:75840e2e0d60e67a37efe02fd41fd4c5de51c4961e2de6e90bc09255660db73a

@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+baseline:
+  agent_bundle_id: oracle
+  revision: harbor-0.20.0
+  harbor:
+    name: oracle
+mutants:
+- agent_bundle_id: nop
+  revision: harbor-0.20.0
+  harbor:
+    name: nop
+- agent_bundle_id: mutant-no-search
+  revision: '1'
+  harbor:
+    name: nop

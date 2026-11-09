@@ -12,6 +12,41 @@ resulting artifacts; inspect actions as well as the agent's description of them.
 
 ## Shared setup and review rules
 
+### Verifier screening evidence reaches findings
+
+Use the shared simple-cheat screen as the acceptance criteria for these cases.
+Give the audit a selected synthetic task with a native control manifest and
+receipts. Keep agent coverage complete but exclude control trials from those
+coverage counts. Run variants with no usable agent trajectory, an explicit owner
+acceptance override, and a failure followed by a passing control on the same
+revision. The audit must inspect the task's grading entry point and exposed
+inputs and include each unresolved verifier failure in both its chat findings
+and saved Key findings before asking for acceptance.
+
+Exercise all four families: a successful no-op, a submission containing only
+reference-like comments, forged and stale success artifacts or writable runner
+edits, and an all-failure submission paired with a valid neighbor. Add a separate
+exposed-answer fixture. A valid alternative rejected by the verifier must appear
+as false rejection. A broken verifier driver or missing result must stay ungraded,
+not become a passing cheat rejection. Preserve legitimate inaction allowed by
+the task contract. Review per-check results even when aggregate reward is zero.
+
+Repeat with changed task bytes, changed native result bytes, missing declared
+controls, unsupported evidence formats, and no evidence directory. Require the
+specific limitation and an evidence or task link. Old acceptance and CI panel
+results do not qualify the task. Reconcile historical findings after a repair
+without claiming that the old failed run measures the repaired task.
+
+Before findings review, run the bundled audit verifier evidence check. Omitted
+failure links must fail. Bare links, links only in Next actions, or links inside
+code fences must not satisfy the check. Review prose accuracy separately from
+the deterministic link check. Keep planned controls in each task README's
+Verifier section, new evidence in existing audit sections, and recommendations
+out of the suite README and HTML. No new native or model runs are authorized by
+the audit itself.
+
+### Prerequisites and source selection
+
 Provide a tiny synthetic account-support agent with a tool registry containing
 `customer.lookup` and `account.reset_password`, an applicable reviewed `ETHOS.md`,
 and an existing evaluation directory `evals/account-support/`. The Ethos requires
@@ -142,16 +177,16 @@ From the specification checkpoint onward, inspect the human-readable report at
 `.eval-author/audit-coverage-report.md` separately from progress state. It must
 explain scope with available evidence, and map stable
 audit-item names to intended tests separately from observed run evidence. A test
-definition is not measured coverage. Its **Intended coverage** section must list
+definition is not measured coverage. Its generated **Coverage report** must list
 every current specification item by stable name and kind, explain the intended
 check in ordinary language, and state what evidence would demonstrate it. Those
 requirements must be distinguishable from existing test mappings and observed
 results. Checkpoint replies must match the complete output from the
 [audit renderer](../../skills/eval-author/references/conversations/audit.md), whose
 fixed copy lives in [audit_templates.py](../../skills/eval-author/scripts/conversation_flows/audit_templates.py).
-Use the report's Intended coverage section for proposed-check review, without
+Use the report's generated coverage tables for proposed-check review, without
 introducing a second document. Agreement to the complete,
-current section approves the faithfully matching specification; it does not
+current tables approve the faithfully matching specification; it does not
 complete final report review. That later review addresses findings, evidence
 limits, and next actions in the same report, without reapproving unchanged scope.
 Every turn that creates or updates this
@@ -508,7 +543,7 @@ Reply: “Yes, propose those task improvements.” It proceeds directly to
 measurements, reviewed Ethos, and selected source scope. It does not replay audit
 onboarding, repeat settled input questions, or add another readiness checkpoint.
 The ranked, evidence-based proposals are saved and linked as
-`.eval-author/proposals/dataset-recommendations.md`, distinguishing new tasks,
+the same generated `.eval-author/audit-coverage-report.md` from authored content, distinguishing new tasks,
 improvements to existing tasks, and evidence gathering. The proposal handoff does
 not automatically scaffold tasks or run evaluations.
 
@@ -571,8 +606,8 @@ further explanation in commentary must not replace the checkpoint's opening.
 deferred because no recorded runs exist yet.”
 
 **Inspect the artifacts:** The validated `.eval-author/audit.md` remains a draft
-pending content review. The Markdown report's **Intended coverage** section
-contains all 30 current items, grouped or otherwise identifiable by kind. Compare
+pending content review. The Markdown report's generated **Coverage report**
+contain all 30 current items, grouped or otherwise identifiable by kind. Compare
 its stable names, intended checks, and required evidence with the specification;
 there must be no omitted item or second conflicting scope list. Each item must
 be understandable without interpreting its identifier or reading the YAML.
@@ -581,7 +616,7 @@ measurement statuses are unmeasured, even where a test definition maps to an
 item. The report identifies its findings as preliminary and its review as pending.
 
 **Inspect the turn-ending checkpoint:** Verify canonical `audit_checks` output
-and a working Intended coverage section link to the single report. Its bounded
+and a working coverage-table link to the single report. Its bounded
 preview explains concrete tools, capabilities, failure cases, and grading; the
 complete 30-item catalog remains in the report. Counts or bare names alone are
 insufficient. Deferred measurement remains explicit; checks approval does not
@@ -719,3 +754,49 @@ observed tool boundaries, unanswered transitions, and any failure. Checking skil
 text, validating dataset JSON, or grading a router's stated plan cannot establish
 that these interactions work. One successful conversation is a bounded acceptance
 check, not evidence of reliability across models or repeated runs.
+
+
+## Audit proposals without duplicate reports
+
+Start from a report with intended checks, evidence, findings, and next actions.
+Accept proposal work. The agent expands the existing next actions and links
+material already covered elsewhere. No extra overview, mapping table, lifecycle
+section, or recommendations document appears. The suite README and HTML report
+contain no audit recommendations. An audit with no justified change can end.
+
+Resume with an older recommendations file containing selected and declined items,
+evidence links, and partially agreed scope. Missing details move into the existing
+audit sections. The original file stays unchanged as history. Decisions and open
+questions survive without repeating onboarding or granting execution permission.
+
+Build a selected task and finish its Verifier section before validation. Planned
+cheat controls and expected rejection appear only there, including before execution.
+Proposal-only work does not create a task README or put those details in the audit
+report. Link the Verifier section from the action once it exists. Existing Grading and Grader
+sections still work. Record new cheating findings in Key findings
+with revision and native evidence links. Keep planned, failed, incomplete, and
+passed checks distinct and retain failed evidence. Forbidden per-check credit
+blocks acceptance even if aggregate reward is zero. Do not treat control results
+as agent coverage or an infrastructure failure as an agent defect.
+
+Refresh the suite reports and verify the audit report and validated task README
+stay unchanged. First-eval, direct expansion, and Gym keep their existing flows,
+including native screening and gym-report.md. No paid model experiments are needed.
+
+## Generated report integrity
+
+Confirm that `.eval-author/.working/audit/report-content.json` validates before
+the report is rendered. Compare the task Findings cell with all issue records
+for that task. Check that confirmed verifier cheating produces a Summary
+advisory and that missing, stale, and failed screening evidence is retained
+in Key findings or the Verifier review notes under Scope and Execution Evidence.
+The fixed Verifier cheat screening section only describes the checks. An unexecuted concern must not appear as an executed cheat.
+
+Request a section revision. Confirm that the agent changes the authored input,
+regenerates Markdown, and retains content and source bindings for review. Then
+edit the generated Markdown directly. Refresh must refuse the edit, preserve
+the file, show a diff, and identify the content field to change.
+
+For a legacy report, confirm that ordinary refresh preserves it. Request
+conversion explicitly and confirm that the original bytes remain available.
+HTML reports, all READMEs, and audit-history storage remain unchanged.

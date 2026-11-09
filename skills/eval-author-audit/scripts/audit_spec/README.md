@@ -79,6 +79,9 @@ Current assumptions:
 | `scripts/audit_spec/generate.py` | Create, reconcile, replace, or preview `.eval-author/audit.md` from `ETHOS.md` and reviewed item proposals |
 | `scripts/audit_spec/measure.py` | Measure one ATIF/MLflow/Gym/normalized trace or Harbor trial directory against `audit.md` and write coverage/details files for each selected method |
 | `scripts/audit_spec/report.py` | Aggregate per-trace `coverage.json` files into one coverage report with uncovered audit items |
+| `scripts/audit_spec/report_content.py` | Validate authored report content and source bindings |
+| `scripts/audit_spec/render_report.py` | Render the generated, read-only Markdown audit |
+| `scripts/audit_spec/report_layout.py` | Define fixed report headings, tables, and copy |
 | `scripts/audit_spec/validate.py` | Validate the marked audit-spec block in `audit.md` |
 
 Private shared helpers live in `scripts/audit_spec/_schema.py`,
@@ -99,6 +102,7 @@ Private shared helpers live in `scripts/audit_spec/_schema.py`,
 | Capability judgment input schema | `schemas/audit_capability_judgments.schema.json` |
 | Failure-case judgment input schema | `schemas/audit_failure_case_judgments.schema.json` |
 | Aggregate coverage report schema | `schemas/audit_coverage_report.schema.json` |
+| Report content schema | `schemas/report_content.schema.json` |
 | Capability details schema | `schemas/audit_capabilities_details.schema.json` |
 | Failure-case details schema | `schemas/audit_failure_cases_details.schema.json` |
 | Tool-call details schema | `schemas/audit_tool_calls_details.schema.json` |
@@ -111,6 +115,7 @@ Private shared helpers live in `scripts/audit_spec/_schema.py`,
 | Failure-case coverage example | `examples/schemas/failure_cases.coverage.json` |
 | Failure-case details example | `examples/schemas/failure_cases.details.json` |
 | Aggregate coverage report example | `examples/schemas/coverage_report.json` |
+| Report content example | `examples/report-content.json` |
 
 ## Measurement Methods
 

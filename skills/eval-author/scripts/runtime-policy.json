@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "policy_version": "2",
+  "policy_version": "3",
   "audit_tools": {
     "python": ">=3.11",
     "packages": {"PyYAML": ">=6.0", "jsonschema": ">=4.0"}
@@ -13,7 +13,7 @@
       "python": ">=3.12",
       "supported": {"discovery": ">=0.20.0", "authoring": ">=0.20.0"},
       "test_profiles": {
-        "ci": {"version": "0.20.0", "python": "3.12", "evidence": "pyproject.toml dependency-groups.dev; .github/workflows/ci.yml"},
+        "ci": {"version": "0.24.0", "python": "3.12", "evidence": "pyproject.toml dependency-groups.dev; .github/workflows/ci.yml"},
         "manual_discovery": {"version": "0.23.0", "python": "3.12", "evidence": "tools/discover_scenarios.py"}
       },
       "install_profile": "ci",

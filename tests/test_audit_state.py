@@ -422,3 +422,100 @@ def test_legacy_lifecycle_without_selection_manifest_validates(audit):
     value = audit.new_record()
     value.pop("selection_manifest", None)
     audit.validate(value)
+
+
+@pytest.mark.parametrize("changed", ["content", "source"])
+def test_structured_findings_bind_content_and_sources_without_reopening_measurement(audit, changed):
+    state, value, observed = measured(audit)
+    content = {"path": ".eval-author/.working/audit/report-content.json", "digest": audit.fingerprint("content")}
+    source = {"path": "selected/record.json", "digest": audit.fingerprint("source"), "kind": "file"}
+    value["findings"].update(content=content, inputs=[source])
+    observed["files"].update({content["path"]: content["digest"], source["path"]: source["digest"]})
+    current = audit.derive(state, observed)
+    value["findings_review"] = {"digest": current["findings_digest"], "source": "User accepted the generated report"}
+    assert audit.derive(state, observed)["findings_reviewed"]
+    observed["files"][content["path"] if changed == "content" else source["path"]] = audit.fingerprint("changed")
+    current = audit.derive(state, observed)
+    assert current["measurement_complete"]
+    assert not current["findings_reviewed"]
+    assert current["findings_digest"] is None
+
+
+def test_structured_task_inputs_reopen_scope_when_the_task_tree_changes(audit, tmp_path):
+    state, value, _ = measured(audit)
+    state["repository"] = str(tmp_path)
+    for name in (
+        value["suite_files"]
+        + value["trace_files"]
+        + [value["specification"], value["findings"]["report"]["path"], value["measurement"]["evidence"][0]["path"]]
+    ):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("Selected source bytes.\n")
+    content_path = tmp_path / ".eval-author/.working/audit/report-content.json"
+    content_path.parent.mkdir(parents=True)
+    content_path.write_text("{}\n")
+    from eval_author_shared.task_evidence import task_digest
+
+    value["checks_approval"]["digest"] = audit.derive(state, audit.observe(tmp_path, state))["checks_digest"]
+    value["measurement"]["checks_digest"] = value["checks_approval"]["digest"]
+    for ref in [value["findings"]["report"], *value["measurement"]["evidence"]]:
+        ref["digest"] = hashlib.sha256((tmp_path / ref["path"]).read_bytes()).hexdigest()
+    approved_digest = audit.derive(state, audit.observe(tmp_path, state))["checks_digest"]
+    # Record the findings after approval and measurement, without recomputing either.
+    value["findings"].update(
+        content={
+            "path": content_path.relative_to(tmp_path).as_posix(),
+            "digest": hashlib.sha256(content_path.read_bytes()).hexdigest(),
+        },
+        inputs=[{"path": "suites/refund", "digest": task_digest(tmp_path / "suites/refund"), "kind": "task"}],
+    )
+    current = audit.derive(state, audit.observe(tmp_path, state))
+    assert current["checks_digest"] == approved_digest
+    assert current["checks_approved"] and current["measurement_complete"]
+    assert current["findings_digest"] and not current["changed_task_bindings"]
+    value["findings_review"] = {"digest": current["findings_digest"], "source": "User accepted current report"}
+    assert audit.derive(state, audit.observe(tmp_path, state))["findings_reviewed"]
+    (tmp_path / "suites/refund/extra.txt").write_text("Task changed.\n")
+    current = audit.derive(state, audit.observe(tmp_path, state))
+    assert not current["checks_approved"]
+    assert not current["measurement_complete"]
+    assert not current["findings_reviewed"]
+    assert current["changed_task_bindings"] == ["suites/refund"]
+
+
+def test_recording_task_bound_findings_keeps_approval_and_measurement(audit):
+    state, value, observed = measured(audit)
+    before = audit.derive(state, observed)
+    task = {"path": "suites/refund", "digest": audit.fingerprint("task tree"), "kind": "task"}
+    content = {"path": ".eval-author/.working/audit/report-content.json", "digest": audit.fingerprint("content")}
+    value["findings"].update(content=content, inputs=[task])
+    observed["files"].update({task["path"]: task["digest"], content["path"]: content["digest"]})
+    after = audit.derive(state, observed)
+    assert after["checks_digest"] == before["checks_digest"]
+    assert after["checks_approved"] and after["measurement_complete"]
+    assert after["findings_digest"] and after["changed_task_bindings"] == []
+
+
+def test_a_changed_task_binding_revokes_approval_and_blocks_progress(audit):
+    state, value, observed = measured(audit)
+    task = {"path": "suites/refund", "digest": audit.fingerprint("task tree"), "kind": "task"}
+    content = {"path": ".eval-author/.working/audit/report-content.json", "digest": audit.fingerprint("content")}
+    value["findings"].update(content=content, inputs=[task])
+    observed["files"].update({task["path"]: audit.fingerprint("edited"), content["path"]: content["digest"]})
+    current = audit.derive(state, observed)
+    assert current["changed_task_bindings"] == ["suites/refund"]
+    assert not current["checks_approved"] and not current["measurement_complete"]
+
+
+def test_transition_names_the_changed_tasks_before_recording_more_progress(audit, monkeypatch):
+    state, value, observed = measured(audit)
+    task = {"path": "suites/refund", "digest": audit.fingerprint("task tree"), "kind": "task"}
+    content = {"path": ".eval-author/.working/audit/report-content.json", "digest": audit.fingerprint("content")}
+    value["findings"].update(content=content, inputs=[task])
+    observed["files"].update({task["path"]: audit.fingerprint("edited"), content["path"]: content["digest"]})
+    previous = copy.deepcopy(state)
+    value["findings_review"] = {"digest": audit.fingerprint("review"), "source": "User accepted findings"}
+    monkeypatch.setattr(audit, "observe", lambda *_: observed)
+    with pytest.raises(ValueError, match="Tasks recorded in the findings changed after approval: suites/refund"):
+        audit.transition(Path("/synthetic"), previous, state)

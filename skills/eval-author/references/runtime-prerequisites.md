@@ -74,7 +74,7 @@ A project can declare exact locations and an additional version constraint:
 ```toml
 [tool.eval-author.runtimes.harbor]
 python = ".venv/bin/python"
-requirement = ">=0.20.0,<0.24.0"
+requirement = "==0.24.0"
 
 [tool.eval-author.runtimes.gym]
 python = "/absolute/gym/.venv/bin/python"

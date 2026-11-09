@@ -1492,7 +1492,12 @@ def test_every_audit_spec_path_the_skill_or_reference_readme_names_exists() -> N
         "examples/schemas/tool_calls.details.json",
         "requirements.txt",
         "templates/audit.md",
-        "templates/audit-coverage-report.md",
+        "schemas/report_content.schema.json",
+        "references/report-sections.md",
+        "examples/report-content.json",
+        "scripts/audit_spec/report_content.py",
+        "scripts/audit_spec/render_report.py",
+        "scripts/audit_spec/report_layout.py",
     ):
         assert relative in docs, f"audit docs no longer document {relative}"
         assert (_AUDIT_DIR / relative).exists(), f"audit docs name {relative}, which is missing on disk"
@@ -1566,7 +1571,7 @@ def _markdown_anchors(document: Path) -> set[str]:
                 "what happened in this trace?",
             ),
         ),
-        (_AUDIT_DIR, ("audit my existing evals", "generate audit.md from ETHOS.md")),
+        (_AUDIT_DIR, ("audit my existing evals", "let's gauge the quality of my evaluations")),
     ],
 )
 def test_entry_descriptions_keep_examples_for_description_only_hosts(skill_dir, examples):

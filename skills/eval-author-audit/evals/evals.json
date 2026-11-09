@@ -33,18 +33,16 @@
       ]
     },
     {
-      "id": "audit-report-interpretation",
-      "prompt": "Interpret the supplied historical synthetic coverage result /workspace/input/.eval-author/coverage.json. Save a short report at /workspace/output/.eval-author/audit-coverage-report.md. This is a report-only request; do not remeasure or create tasks. The underlying trace was hand-constructed, with no native task or model execution.",
-      "expected_output": "Writes the requested report identifying lookup_item as covered and list_items as uncovered: one of two tool items. Explains that tool_calls evidence proves recorded invocation only, not answer correctness, live agent behavior, or production defects. Distinguishes zero capability/failure-case denominator items from proof those behaviors are covered; does not generate tasks or claim a new measurement.",
+      "id": "audit-report-render",
+      "prompt": "Use the audit skill's worked example as the supplied report input: copy its examples/report-content.json to /workspace/output/.eval-author/.working/audit/report-content.json and its examples/report-sources/ directory to /workspace/output/report-sources/. Validate the content with report_content.py, render the report with render_report.py, and tell me where the report is. Do not edit the generated Markdown, remeasure, or create tasks.",
+      "expected_output": "Validates the copied report-content.json with report_content.py, renders .eval-author/audit-coverage-report.md with render_report.py, and links that report. Does not write the Markdown by hand, edit the generated file, remeasure, or create tasks.",
       "assertions": [
-        "Writes the requested report identifying lookup_item as covered and list_items as uncovered: one of two tool items.",
-        "Explains that tool_calls evidence proves recorded invocation only, not answer correctness, live agent behavior, or production defects.",
-        "Distinguishes zero capability/failure-case denominator items from proof those behaviors are covered; does not generate tasks or claim a new measurement."
+        "Runs report_content.py on the copied report-content.json, or reports the precise blocker without installing dependencies.",
+        "Produces .eval-author/audit-coverage-report.md with render_report.py rather than writing or editing the Markdown directly.",
+        "Links the rendered report in the final reply; does not remeasure or create tasks."
       ],
       "expected_skill": "eval-author-audit",
-      "files": [
-        "files/.eval-author/coverage.json"
-      ]
+      "files": []
     },
     {
       "id": "eval-author-audit-negative",

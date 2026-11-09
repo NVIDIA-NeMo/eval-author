@@ -1,0 +1,342 @@
+{
+  "schema": "nemo.eval_author.audit_report_content.v1",
+  "identity": {
+    "repository": "example/research-agent",
+    "commit": "abcdef123456",
+    "dirty": false,
+    "date": "2026-11-04"
+  },
+  "sources": [
+    {
+      "id": "S1",
+      "kind": "audit",
+      "path": "report-sources/audit.md",
+      "sha256": "1215e50007ce52923a95ebdec79dbafd841cca9906d9ee88f7f6a688690b629a"
+    },
+    {
+      "id": "S2",
+      "kind": "ethos",
+      "path": "report-sources/ETHOS.md",
+      "sha256": "800e1a5c008825394f6870f1d1738fff851f42616b59f9d27db1872016efb617"
+    },
+    {
+      "id": "S3",
+      "kind": "task",
+      "path": "report-sources/tasks/source-answer",
+      "sha256": "bfdc8b56703599a179679460f409193df1fb2de5fd077d192e81754fa42dfc76"
+    },
+    {
+      "id": "S4",
+      "kind": "document",
+      "path": "report-sources/tasks/source-answer/verify.py",
+      "sha256": "245834672909c945833241a72795ce8e6fafc4e57ac5c917620bf7d158b79322"
+    },
+    {
+      "id": "S5",
+      "kind": "run",
+      "path": "report-sources/run.json",
+      "sha256": "ad18a15fc48d9b1847074a417fa563f7fea7d324e0fdfa5cba14a6b4d2740bb6"
+    }
+  ],
+  "inputs": {
+    "audit": "S1",
+    "ethos": "S2",
+    "measurement": null
+  },
+  "summary": [
+    "The suite's only verifier prints success without checking the submitted quotation, so its passing results cannot be trusted.",
+    "The audit inspected one task and one illustrative run record, and no controls were retained. All findings come from inspecting the verifier code and the task files."
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "source": "S3",
+      "revision": "bfdc8b56703599a179679460f409193df1fb2de5fd077d192e81754fa42dfc76",
+      "title": "Source answer",
+      "behavior": "Answer with a quotation from the project source.",
+      "notes": [
+        "The selected record for T1 does not establish a source read."
+      ],
+      "run_ids": [
+        "example-run"
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "id": "example-run",
+      "task_id": "T1",
+      "source": "S5"
+    }
+  ],
+  "task_mappings": [
+    {
+      "id": "M1",
+      "item": "read_file",
+      "tasks": [
+        {
+          "task_id": "T1",
+          "relationship": "target"
+        }
+      ],
+      "evidence": [
+        "S1",
+        "S3"
+      ]
+    },
+    {
+      "id": "M2",
+      "item": "cited_answers",
+      "tasks": [
+        {
+          "task_id": "T1",
+          "relationship": "target"
+        }
+      ],
+      "evidence": [
+        "S1",
+        "S4"
+      ]
+    },
+    {
+      "id": "M3",
+      "item": "missing_evidence",
+      "tasks": [],
+      "evidence": [
+        "S1",
+        "S3"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "category": "verifier_cheating",
+      "basis": "inspection",
+      "status": "confirmed",
+      "title": "The verifier accepts an unchecked success response",
+      "explanation": "T1's verifier prints success without checking the submitted answer, so an empty submission can pass even when the task's quotation requirement is unmet.",
+      "tasks": [
+        {
+          "task_id": "T1",
+          "revision": "bfdc8b56703599a179679460f409193df1fb2de5fd077d192e81754fa42dfc76"
+        }
+      ],
+      "items": [
+        "cited_answers"
+      ],
+      "evidence": [
+        "S4"
+      ],
+      "advisory": "The unchecked success path makes the task result unreliable until the verifier is repaired and exercised."
+    },
+    {
+      "id": "F2",
+      "category": "missing_task",
+      "basis": "inspection",
+      "status": "confirmed",
+      "title": "The suite lacks a missing-evidence task",
+      "explanation": "T1 asks the agent to return a quotation from the supplied source, but the inspected suite has no scenario for a question that the source cannot answer. The audit therefore cannot assess how the agent handles missing evidence.",
+      "tasks": [],
+      "items": [
+        "missing_evidence"
+      ],
+      "evidence": [
+        "S1",
+        "S3"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "F3",
+      "category": "evidence_limit",
+      "basis": "inspection",
+      "status": "unproven",
+      "title": "Retained controls are unavailable",
+      "explanation": "T1 has no supported control receipts in the selected material, so the audit cannot establish whether its verifier rejects wrong answers or accepts valid alternatives.",
+      "tasks": [
+        {
+          "task_id": "T1",
+          "revision": "bfdc8b56703599a179679460f409193df1fb2de5fd077d192e81754fa42dfc76"
+        }
+      ],
+      "items": [],
+      "evidence": [
+        "S3"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "F4",
+      "category": "weak_verifier",
+      "basis": "inspection",
+      "status": "confirmed",
+      "title": "Quotation accuracy is unchecked",
+      "explanation": "T1's verifier does not compare the answer with the selected source, so a passing result does not establish whether the quotation is accurate.",
+      "tasks": [
+        {
+          "task_id": "T1",
+          "revision": "bfdc8b56703599a179679460f409193df1fb2de5fd077d192e81754fa42dfc76"
+        }
+      ],
+      "items": [
+        "cited_answers"
+      ],
+      "evidence": [
+        "S4"
+      ],
+      "advisory": null
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "R1",
+      "finding_id": "F1",
+      "priority": "high",
+      "order": 1,
+      "action": "repair_verifier",
+      "items": [
+        "cited_answers"
+      ],
+      "proposed_task": "Revise the verifier to compare the submitted quotation with verifier-owned source data and reject empty answers."
+    },
+    {
+      "id": "R2",
+      "finding_id": "F2",
+      "priority": "medium",
+      "order": 2,
+      "action": "new_task",
+      "items": [
+        "missing_evidence"
+      ],
+      "proposed_task": "Supply a source without an answer and require the agent to acknowledge that limitation.",
+      "details": {
+        "verification": "Accept a reply that says the sources do not contain the answer. Reject a reply that supplies a quotation, a participant, or a count, because none can come from the supplied source.",
+        "breadth": "Provisionally three inputs: no answer in the source, a partial answer, and an answer that exists only in a different source. Exclude multi-turn variants until the first set is agreed.",
+        "next_step": "manual_design"
+      }
+    },
+    {
+      "id": "R3",
+      "finding_id": "F3",
+      "priority": "low",
+      "order": 3,
+      "action": "collect_evidence",
+      "items": [],
+      "proposed_task": null
+    },
+    {
+      "id": "R4",
+      "finding_id": "F4",
+      "priority": "medium",
+      "order": 4,
+      "action": "revise_task",
+      "items": [
+        "read_file"
+      ],
+      "proposed_task": "Require the trace to show a read_file call on the cited source before the answer, and reject quotations that do not appear in what was read."
+    }
+  ],
+  "verifier_review": {
+    "notes": [
+      "The review inspected the synthetic success path. Every proposed control remains unexecuted."
+    ],
+    "checks": [
+      {
+        "id": "V1",
+        "task_id": "T1",
+        "family": "early_exit",
+        "origin": "proposed",
+        "applicability": "applicable",
+        "definition": "S4",
+        "receipt": null,
+        "explanation": "Require empty output to fail the quotation requirement.",
+        "finding_ids": [
+          "F1",
+          "F3"
+        ]
+      },
+      {
+        "id": "V2",
+        "task_id": "T1",
+        "family": "all_failure",
+        "origin": "proposed",
+        "applicability": "applicable",
+        "definition": "S4",
+        "receipt": null,
+        "explanation": "Require a reject-everything submission to fail a valid-answer control.",
+        "finding_ids": [
+          "F1",
+          "F3"
+        ]
+      },
+      {
+        "id": "V3",
+        "task_id": "T1",
+        "family": "reference_comments",
+        "origin": "proposed",
+        "applicability": "applicable",
+        "definition": "S4",
+        "receipt": null,
+        "explanation": "Require a quotation in a source comment to provide no completion credit.",
+        "finding_ids": [
+          "F1",
+          "F3"
+        ]
+      },
+      {
+        "id": "V4",
+        "task_id": "T1",
+        "family": "forged_success",
+        "origin": "proposed",
+        "applicability": "applicable",
+        "definition": "S4",
+        "receipt": null,
+        "explanation": "Require forged success text to provide no completion credit.",
+        "finding_ids": [
+          "F1",
+          "F3"
+        ]
+      },
+      {
+        "id": "V5",
+        "task_id": "T1",
+        "family": "valid_alternative",
+        "origin": "proposed",
+        "applicability": "applicable",
+        "definition": "S4",
+        "receipt": null,
+        "explanation": "Require a different valid quotation to pass.",
+        "finding_ids": [
+          "F1",
+          "F3"
+        ]
+      },
+      {
+        "id": "V6",
+        "task_id": "T1",
+        "family": "realistic_wrong_answer",
+        "origin": "proposed",
+        "applicability": "applicable",
+        "definition": "S4",
+        "receipt": null,
+        "explanation": "Require a plausible but unsupported quotation to fail.",
+        "finding_ids": [
+          "F1",
+          "F3"
+        ]
+      }
+    ]
+  },
+  "scope_notes": [
+    {
+      "title": "Fixture limits",
+      "explanation": "The task, source records, and findings are illustrative synthetic data. They do not establish a live agent result.",
+      "evidence": [
+        "S2",
+        "S3",
+        "S5"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "artifact_type": "eval_subset_definitions",
+  "eval_subsets": [
+    {
+      "eval_subset_id": "answer-only",
+      "task_ids": [
+        "answer"
+      ]
+    },
+    {
+      "eval_subset_id": "control-only",
+      "task_ids": [
+        "control"
+      ]
+    },
+    {
+      "eval_subset_id": "both",
+      "task_ids": [
+        "answer",
+        "control"
+      ]
+    }
+  ],
+  "sampling_parameters": {
+    "method": "exhaustive prepared memberships",
+    "seed": 42
+  }
+}

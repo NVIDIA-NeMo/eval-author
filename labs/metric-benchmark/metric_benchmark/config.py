@@ -168,7 +168,7 @@ class Case(Model):
 
 class LocalExecution(Model):
     backend: Literal["local_harbor"] = "local_harbor"
-    harbor_version: Literal["0.20.0"] = "0.20.0"
+    harbor_version: Literal["0.24.0"] = "0.24.0"
     n_concurrent_trials: int = Field(default=1, ge=1)
     environment: dict[str, JsonValue] = Field(default_factory=lambda: dict[str, JsonValue](type="docker"))
 
