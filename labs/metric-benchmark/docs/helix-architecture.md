@@ -214,13 +214,3 @@ An agent still needs compatible tasks and a suitable worker: its dependencies,
 setup permissions, network access and model must be available. Unsupported
 combinations must produce clear errors, and setup failures must be kept with the
 run's evidence.
-
-## Implementation PRs
-
-1. #185: architecture and examples (this base).
-2. #173: publication and exact resource references, including the requirements for downloading sources.
-3. #162: execution and collection using those references.
-4. #174: verification and standard result formatting behind the collection tool.
-
-Collection and result formatting are implemented in separate PRs but exposed as one
-command. The later PRs must match this design before the workflow is ready to use.
