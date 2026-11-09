@@ -98,8 +98,9 @@ outcomes. See [Build your first evaluations](first-evals.md).
 ## Open readable cases and traces
 
 Start with the html report or the README.md for artifact paths and commands. Harbor
-tasks and recorded jobs use its native local viewer. For NeMo Gym JSONL and standalone
-ATIF, Eval Author includes an offline reader that creates a private `report.html`
+tasks and recorded jobs use its native local viewer. Report links target the
+Harbor 0.24.0 viewer; refresh the report after upgrading to regenerate trial links.
+For NeMo Gym JSONL and standalone ATIF, Eval Author includes an offline reader that creates a private `report.html`
 you can open directly in a browser; see [Local review](../skills/eval-author/references/local-review.md)
 for commands and supported formats.
 

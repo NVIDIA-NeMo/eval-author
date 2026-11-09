@@ -50,7 +50,7 @@ def agent_config(
 def task_checksum(task: HarborTask) -> str:
     # Compare the legacy checksum carried by native result.json. Lock digests
     # are a different identity and cannot be substituted when validating saved
-    # results. This compatibility path is pinned to Harbor 0.20.0.
+    # results. This compatibility path is pinned to Harbor 0.24.0.
     with warnings.catch_warnings(action="ignore", category=DeprecationWarning):
         return task.checksum
 

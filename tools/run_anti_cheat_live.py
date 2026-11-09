@@ -526,7 +526,7 @@ def run(mode, output, private_output=None, repetitions=2):
     private_output.chmod(0o700)
     old_umask = os.umask(0o077)
     try:
-        require(importlib.metadata.version("harbor") == "0.20.0")
+        require(importlib.metadata.version("harbor") == "0.24.0")
         materialize(private_output / "tasks")
         # Explicit environment allowlist; key is host-process-only, never a Harbor kwarg or container env.
         env = {

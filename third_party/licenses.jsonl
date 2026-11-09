@@ -30,7 +30,7 @@
 {"name": "googleapis-common-protos", "version": "1.75.5", "license": "APACHE-2.0", "package_url": "https://pypi.org/project/googleapis-common-protos/1.75.5/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/Apache-2.0.txt"]}
 {"name": "h11", "version": "0.16.0", "license": "MIT", "package_url": "https://pypi.org/project/h11/0.16.0/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/MIT.txt"]}
 {"name": "h2", "version": "4.4.1", "license": "MIT", "package_url": "https://pypi.org/project/h2/4.4.1/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/MIT.txt"]}
-{"name": "harbor", "version": "0.20.0", "license": "APACHE-2.0", "package_url": "https://pypi.org/project/harbor/0.20.0/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/Apache-2.0.txt"]}
+{"name": "harbor", "version": "0.24.0", "license": "APACHE-2.0", "package_url": "https://pypi.org/project/harbor/0.24.0/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/Apache-2.0.txt"]}
 {"name": "hf-xet", "version": "1.6.0", "license": "APACHE-2.0", "package_url": "https://pypi.org/project/hf-xet/1.6.0/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/Apache-2.0.txt"]}
 {"name": "hpack", "version": "4.2.0", "license": "MIT", "package_url": "https://pypi.org/project/hpack/4.2.0/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/MIT.txt"]}
 {"name": "httpcore", "version": "1.0.9", "license": "BSD-3-CLAUSE", "package_url": "https://pypi.org/project/httpcore/1.0.9/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/BSD-3-Clause.txt"]}
@@ -95,6 +95,7 @@
 {"name": "scantree", "version": "0.0.4", "license": "MIT", "package_url": "https://pypi.org/project/scantree/0.0.4/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/MIT.txt"]}
 {"name": "scikit-learn", "version": "1.9.1", "license": "BSD-3-CLAUSE", "package_url": "https://pypi.org/project/scikit-learn/1.9.1/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/BSD-3-Clause.txt"]}
 {"name": "scipy", "version": "1.18.1", "license": "BSD-3-CLAUSE", "package_url": "https://pypi.org/project/scipy/1.18.1/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/BSD-3-Clause.txt"]}
+{"name": "semver", "version": "3.1.0", "license": "BSD-3-CLAUSE", "package_url": "https://pypi.org/project/semver/3.1.0/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/BSD-3-Clause.txt"]}
 {"name": "setuptools", "version": "84.0.0", "license": "MIT", "package_url": "https://pypi.org/project/setuptools/84.0.0/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/MIT.txt"]}
 {"name": "shellingham", "version": "1.5.4", "license": "ISC", "package_url": "https://pypi.org/project/shellingham/1.5.4/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/ISC.txt"]}
 {"name": "shortuuid", "version": "1.0.13", "license": "BSD-3-CLAUSE", "package_url": "https://pypi.org/project/shortuuid/1.0.13/", "license_documents": ["third_party/NOTICES.txt", "third_party/license_texts/BSD-3-Clause.txt"]}

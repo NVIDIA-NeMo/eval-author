@@ -869,7 +869,6 @@ def timestamp(value: Any) -> str | None:
 
 def trial_record(path: str, data: dict, config: dict) -> dict:
     agent = mapping(data.get("agent_info"))
-    model = mapping(agent.get("model_info"))
     task = mapping(data.get("task_id")) or mapping(config.get("task"))
     rewards = mapping(mapping(data.get("verifier_result")).get("rewards"))
     rewards = {
@@ -885,17 +884,6 @@ def trial_record(path: str, data: dict, config: dict) -> dict:
     elif timestamp(data.get("started_at")):
         execution = "pending"
     task_name = text(data.get("task_name"))
-    route = None
-    if task_name and text(agent.get("name")):
-        parts = [
-            data.get("source") or "_",
-            agent["name"],
-            model.get("provider") or "_",
-            model.get("name") or "_",
-            task_name,
-        ]
-        if all(isinstance(v, str) for v in parts):
-            route = "tasks/" + "/".join(quote(v, safe="") for v in parts) + "/trials/" + quote(Path(path).name, safe="")
     return {
         "id": text(data.get("id")) or path,
         "path": path,
@@ -908,7 +896,7 @@ def trial_record(path: str, data: dict, config: dict) -> dict:
         "rewards": rewards,
         "execution": execution,
         "invalid_reason": None,
-        "route": route,
+        "route": "trials/" + quote(Path(path).name, safe=""),
     }
 
 

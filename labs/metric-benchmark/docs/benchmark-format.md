@@ -101,12 +101,19 @@ environment:
   type: docker
 ```
 
-An empty mapping selects defaults: `backend: local_harbor`, `harbor_version: 0.20.0`,
+An empty mapping selects defaults: `backend: local_harbor`, `harbor_version: 0.24.0`,
 `n_concurrent_trials: 1`, and Docker. No other backend or Harbor version is currently
-supported. The environment mapping accepts native Harbor environment settings.
+supported. Install that version in the execution environment; the YAML does not
+install it, and execution rejects a different installed version. The environment
+mapping accepts native Harbor environment settings.
 Execution always runs each case's baseline then mutants against its complete task
 inventory, with one attempt per pair and no automatic retries. That matrix is
 already defined by the cases and is not configured a second time.
+
+When upgrading from Harbor 0.20.0, update any explicit `harbor_version` to `0.24.0`
+and choose a new execution output directory. The runtime version is part of the
+execution identity, so completed jobs from the old runtime cannot be resumed as
+0.24.0 jobs.
 
 ## Analysis: `analysis.yml`
 

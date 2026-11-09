@@ -444,7 +444,7 @@ def test_runs_group_attempts_without_double_counting(tmp_path):
     legacy = result["standalone_trials"][0]
     assert legacy["path"] == standalone
     assert legacy["score_label"] == "0 / 1 reward (0.0%) · 1/1 scored"
-    assert legacy["route"].endswith("/org%2Frefund/trials/single")
+    assert legacy["route"] == "jobs/checks/trials/single"
     assert all(run["kind"] == "job" for run in result["runs"])
 
 
@@ -1363,7 +1363,7 @@ def test_native_harbor_viewer_routes_match_pinned_manifest():
     source = manifests[0].read_text()
     assert '"path":"jobs/:jobName"' in source
     assert '"path":"task-definitions/:taskName"' in source
-    assert "tasks/:source/:agent/:modelProvider/:modelName/:taskName/trials/:trialName" in source
+    assert '"path":"jobs/:jobName/trials/:trialName"' in source
 
 
 @pytest.mark.parametrize("complete", [True, False])
@@ -1426,7 +1426,7 @@ const scenario=input.scenario;
 const jobs=['job','trial','different-job'].includes(scenario);
 const mode=jobs?'jobs':'tasks';
 const record=jobs?{id:'native-id',path:'.eval-author/jobs/example'}:{path:'.eval-author/tasks/example'};
-const route=jobs?'jobs/example'+(scenario==='trial'?'/tasks/_/agent/_/model/task/trials/attempt':''):'task-definitions/example';
+const route=jobs?'jobs/example'+(scenario==='trial'?'/trials/attempt':''):'task-definitions/example';
 const calls=[];
 const context={AbortController,clearTimeout,setTimeout:(fn,ms)=>{
   assert.equal(ms,3000);return setTimeout(fn,scenario==='timeout'?10:ms);
