@@ -18,6 +18,9 @@ def main():
     parser.add_argument(
         "--timing-checkpoint", type=Path, help="new allowlisted aggregate checkpoint outside private output"
     )
+    parser.add_argument(
+        "--private-diagnostics", type=Path, help="new private Docker failure file outside source; never upload"
+    )
     args = parser.parse_args()
     if any(os.environ.get(key) for key in ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP")):
         parser.error("conflicting Python instrumentation")
@@ -35,6 +38,7 @@ def main():
             args.output.resolve(),
             args.binary_manifest.resolve(),
             timing_checkpoint=args.timing_checkpoint,
+            **({"private_diagnostics": args.private_diagnostics} if args.private_diagnostics is not None else {}),
         )
     except Exception as error:
         details = preparation_failure(error)

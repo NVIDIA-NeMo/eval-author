@@ -12,6 +12,7 @@ import stat
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from contextvars import ContextVar
 from importlib import import_module
 from importlib.metadata import distribution
@@ -197,6 +198,65 @@ def preparation_failure(error):
 _PREPARATION_TIMING: ContextVar["PreparationTiming | None"] = ContextVar("preparation_timing", default=None)
 PREPARATION_TIMING_MAX_EVENTS = 2048
 PREPARATION_TIMING_MAX_BYTES = 1048576
+PREPARATION_TIMING_MAX_IMAGES = 128
+PREPARATION_TIMING_MAX_SECONDS = 86400
+PREPARATION_TIMING_FIXED = {
+    "schema_version": 1,
+    "clock": "monotonic",
+    "measurement": "host_operation_boundaries",
+    "build_instruction_observed": False,
+}
+PREPARATION_TIMING_EVENTS = frozenset(
+    {
+        "started",
+        "phase",
+        "image_started",
+        "image_completed",
+        "operation_started",
+        "operation_completed",
+        "operation_failed",
+        "completed",
+        "failed",
+    }
+)
+
+
+def validate_preparation_timing(data):
+    fixed = PREPARATION_TIMING_FIXED
+    if (
+        type(data) is not dict
+        or set(data) != set(fixed) | {"events_truncated", "latest", "events"}
+        or any(type(data[k]) is not type(v) or data[k] != v for k, v in fixed.items())
+        or type(data["events_truncated"]) is not bool
+        or type(data["events"]) is not list
+        or len(data["events"]) > PREPARATION_TIMING_MAX_EVENTS
+    ):
+        raise ValueError("invalid timing checkpoint")
+    enums = {
+        "event": PREPARATION_TIMING_EVENTS,
+        "phase": PREPARATION_PHASES,
+        "operation": PREPARATION_OPERATIONS,
+        "category": PREPARATION_CATEGORIES | {"none"},
+    }
+    counters = {"image_ordinal", "completed_images"}
+    seconds = {
+        "operation_elapsed_seconds",
+        "image_elapsed_seconds",
+        "total_elapsed_seconds",
+        "remaining_deadline_seconds",
+    }
+    for row in [data["latest"], *data["events"]]:
+        if (
+            type(row) is not dict
+            or set(row) != set(enums) | counters | seconds
+            or any(type(row[k]) is not str or row[k] not in allowed for k, allowed in enums.items())
+            or any(type(row[k]) is not int or not 0 <= row[k] <= PREPARATION_TIMING_MAX_IMAGES for k in counters)
+            or any(
+                type(row[k]) not in (float, int) or not 0 <= row[k] <= PREPARATION_TIMING_MAX_SECONDS for k in seconds
+            )
+        ):
+            raise ValueError("invalid timing checkpoint")
+    return data
 
 
 class PreparationTiming:
@@ -215,23 +275,12 @@ class PreparationTiming:
     def emit(self, event, operation="none", category="none"):
         import tempfile
 
-        allowed_events = {
-            "started",
-            "phase",
-            "image_started",
-            "image_completed",
-            "operation_started",
-            "operation_completed",
-            "operation_failed",
-            "completed",
-            "failed",
-        }
-        if type(event) is not str or event not in allowed_events:
+        if type(event) is not str or event not in PREPARATION_TIMING_EVENTS:
             raise PreparationError("validation_error", "unknown")
         safe = PreparationError(category, _PREPARATION_PHASE.get(), operation)
         now = time.monotonic()
         if event == "image_started":
-            if self.image_ordinal >= 128:
+            if self.image_ordinal >= PREPARATION_TIMING_MAX_IMAGES:
                 raise PreparationError("validation_error", safe.phase)
             self.image_ordinal += 1
             self.image_started = now
@@ -242,7 +291,7 @@ class PreparationTiming:
         deadline = _PREPARATION_DEADLINE.get()
 
         def seconds(value):
-            return round(float(min(86400, max(0, value))), 3) if math.isfinite(value) else 0.0
+            return round(float(min(PREPARATION_TIMING_MAX_SECONDS, max(0, value))), 3) if math.isfinite(value) else 0.0
 
         row = dict(
             event=event,
@@ -259,7 +308,8 @@ class PreparationTiming:
             else 0.0,
         )
         if any(
-            type(value) is not int or not 0 <= value <= 128 for value in (self.image_ordinal, self.completed_images)
+            type(value) is not int or not 0 <= value <= PREPARATION_TIMING_MAX_IMAGES
+            for value in (self.image_ordinal, self.completed_images)
         ):
             raise PreparationError("validation_error", safe.phase)
         retained = len(self.events) < PREPARATION_TIMING_MAX_EVENTS
@@ -270,10 +320,7 @@ class PreparationTiming:
         payload = (
             json.dumps(
                 dict(
-                    schema_version=1,
-                    clock="monotonic",
-                    measurement="host_operation_boundaries",
-                    build_instruction_observed=False,
+                    **PREPARATION_TIMING_FIXED,
                     events_truncated=self.truncated,
                     latest=row,
                     events=self.events,
@@ -328,6 +375,94 @@ def preparation_timeout(limit):
     return min(limit, remaining)
 
 
+_PREPARATION_PRIVATE_DIAGNOSTICS: ContextVar[Path | None] = ContextVar("preparation_private_diagnostics", default=None)
+PREPARATION_PRIVATE_STREAM_BYTES = 16384
+
+
+@contextmanager
+def _private_parent(path):
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    fd = os.open(path.anchor, flags)
+    try:
+        for part in path.parts[1:-1]:
+            child = os.open(part, flags, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        yield fd
+    finally:
+        os.close(fd)
+
+
+def _validate_private_diagnostics(path, skill, timing_checkpoint):
+    path = Path(path).absolute()
+    source = Path(skill).resolve()
+    roots = [source, Path(__file__).resolve().parents[1]]
+    roots.extend(parent for parent in source.parents if (parent / ".git").exists())
+    if (
+        ".." in path.parts
+        or any(path.is_relative_to(root) or root.is_relative_to(path) for root in roots)
+        or (timing_checkpoint is not None and path == Path(timing_checkpoint).resolve())
+    ):
+        raise ValueError("unsafe private diagnostics destination")
+    with _private_parent(path) as parent:
+        try:
+            os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            return path
+    raise ValueError("unsafe private diagnostics destination")
+
+
+def _private_stream(value):
+    limit = PREPARATION_PRIVATE_STREAM_BYTES
+    if value is None:
+        return "", False
+
+    # Bound persisted output, not subprocess.run(capture_output=True)'s buffering.
+    def normalized(part):
+        if isinstance(part, bytes):
+            part = part.decode("utf-8", errors="replace")
+        return part.encode("utf-8", errors="replace")
+
+    head = normalized(value[:limit])
+    if len(value) <= limit and len(head) <= limit:
+        return head.decode("utf-8"), False
+    half = limit // 2
+    tail = normalized(value[-limit:])
+    return head[:half].decode("utf-8", errors="ignore") + tail[-half:].decode("utf-8", errors="ignore"), True
+
+
+def _retain_docker_failure(category, phase, operation, exit_code, stdout, stderr):
+    path = _PREPARATION_PRIVATE_DIAGNOSTICS.get()
+    if path is None:
+        return
+    try:
+        stdout, stdout_truncated = _private_stream(stdout)
+        stderr, stderr_truncated = _private_stream(stderr)
+        safe = PreparationError(category, phase, operation)
+        record = dict(
+            schema_version=1,
+            category=safe.category,
+            phase=safe.phase,
+            operation=safe.operation,
+            exit_code=exit_code,
+            stdout=stdout,
+            stderr=stderr,
+            stdout_truncated=stdout_truncated,
+            stderr_truncated=stderr_truncated,
+        )
+        with _private_parent(path) as parent:
+            fd = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent)
+        with os.fdopen(fd, "w") as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            json.dump(record, stream, sort_keys=True)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    except Exception:
+        # Retention is best effort; the original typed Docker failure stays authoritative.
+        pass
+
+
 def _docker(args, *, timeout=30):
     operation = "inspect" if args[:2] == ["image", "inspect"] else args[0] if args else "other"
     operation = operation if operation in PREPARATION_OPERATIONS else "other"
@@ -341,7 +476,9 @@ def _docker(args, *, timeout=30):
             # Require the classic builder; never fall back to mutable parent tags.
             environment["DOCKER_BUILDKIT"] = "0"
         result = subprocess.run(["docker", *args], env=environment, capture_output=True, text=True, timeout=timeout)
-    except (TimeoutError, subprocess.TimeoutExpired):
+    except (TimeoutError, subprocess.TimeoutExpired) as error:
+        if isinstance(error, subprocess.TimeoutExpired):
+            _retain_docker_failure("deadline_exceeded", phase, operation, None, error.stdout, error.stderr)
         _timing_event("operation_failed", operation, "deadline_exceeded")
         raise PreparationTimeoutError("deadline_exceeded", phase, operation) from None
     except OSError:
@@ -352,6 +489,7 @@ def _docker(args, *, timeout=30):
         _timing_event("operation_failed", operation, category)
         raise PreparationError(category, phase, operation) from None
     if result.returncode:
+        _retain_docker_failure("docker_failed", phase, operation, result.returncode, result.stdout, result.stderr)
         _timing_event("operation_failed", operation, "docker_failed")
         raise PreparationError("docker_failed", phase, operation) from None
     _timing_event("operation_completed", operation)
@@ -421,12 +559,17 @@ def check_prepared_image(identity, record, platform, *, probe=False, binary=None
         check_package_versions(versions)
 
 
-def prepare_images(skill, output, binary_manifest, *, timing_checkpoint=None):
+def prepare_images(skill, output, binary_manifest, *, timing_checkpoint=None, private_diagnostics=None):
     phase_token = _PREPARATION_PHASE.set("budget")
     token = _PREPARATION_DEADLINE.set(None)
     timing_token = _PREPARATION_TIMING.set(None)
+    private_token = _PREPARATION_PRIVATE_DIAGNOSTICS.set(None)
     started = time.monotonic()
     try:
+        if private_diagnostics is not None:
+            _PREPARATION_PRIVATE_DIAGNOSTICS.set(
+                _validate_private_diagnostics(private_diagnostics, skill, timing_checkpoint)
+            )
         if timing_checkpoint is not None:
             _PREPARATION_TIMING.set(PreparationTiming(timing_checkpoint))
         _timing_event("started")
@@ -452,6 +595,7 @@ def prepare_images(skill, output, binary_manifest, *, timing_checkpoint=None):
         _timing_event("failed", details["operation"], details["category"])
         raise safe from None
     finally:
+        _PREPARATION_PRIVATE_DIAGNOSTICS.reset(private_token)
         _PREPARATION_TIMING.reset(timing_token)
         _PREPARATION_DEADLINE.reset(token)
         _PREPARATION_PHASE.reset(phase_token)

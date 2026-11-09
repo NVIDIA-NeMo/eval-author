@@ -52,6 +52,20 @@ def upstream(wrapper, monkeypatch):
     return SimpleNamespace(packages=packages, modules=modules, origin=origin, table=table)
 
 
+def test_live_ci_selects_managed_python_for_the_guarded_runtime():
+    import yaml
+
+    workflow = yaml.safe_load((ROOT / ".github/workflows/skill-evaluation-live.yml").read_text())
+    installs = [
+        step["run"]
+        for job in workflow["jobs"].values()
+        for step in job.get("steps", [])
+        if "tools/live_shard.py runtime " in step.get("run", "")
+    ]
+    assert installs, "live runtime installation step missing"
+    assert len(installs) == 2 and installs[0] == installs[1]
+
+
 def test_pin_preserves_existing_entries_before_cli_dispatch(wrapper, upstream):
     def cli():
         table = upstream.modules[RUNNER]._HARBOR_AGENT_KWARGS

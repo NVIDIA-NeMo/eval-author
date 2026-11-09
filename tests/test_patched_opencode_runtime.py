@@ -42,6 +42,63 @@ def binary_manifest(tmp_path):
     return path, data
 
 
+def test_real_wrapper_rejects_ambient_startup_hook_but_clean_interpreter_dispatches(binary_manifest, tmp_path):
+    import venv
+    from importlib.metadata import distribution
+
+    pytest.importorskip("skillevaluator", reason="requires the isolated pinned live runtime")
+    # Model a distro interpreter's automatic customization without modifying the
+    # installed runtime or passing PYTHONPATH (which has a separate guard).
+    isolated = tmp_path / "runtime"
+    venv.EnvBuilder(with_pip=False, symlinks=True).create(isolated)
+    site = isolated / f"lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages"
+    (site / "native-runtime.pth").write_text(str(distribution("skillevaluator").locate_file("")) + "\n")
+    hook = site / "sitecustomize.py"
+    hook.write_text("# Synthetic foreign startup hook; no side effects.\n")
+    environment = dict(
+        HOME=str(tmp_path),
+        PATH="/usr/bin:/bin",
+        TMPDIR=str(tmp_path),
+        PYTHONDONTWRITEBYTECODE="1",
+        PYTHON_DOTENV_DISABLED="1",
+        HARBOR_TELEMETRY="0",
+        EA_REQUIRE_PATCHED_OPENCODE="1",
+        EA_PATCHED_OPENCODE_MANIFEST=str(binary_manifest[0]),
+        _EA_LIVE_FAILURE_TOKEN="a" * 64,
+    )
+    for foreign in (True, False):
+        if not foreign:
+            hook.unlink()
+        failure = tmp_path / f"failure-{foreign}.json"
+        environment["_EA_LIVE_FAILURE_PATH"] = str(failure)
+        result = subprocess.run(
+            [
+                str(isolated / "bin/python"),
+                str(ROOT / "tools/run_pinned_live_evaluator.py"),
+                "tier3",
+                "evaluate",
+                "--help",
+            ],
+            env=environment,
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == (1 if foreign else 0), (result.stdout, result.stderr)
+        assert ("Usage:" in result.stdout) is not foreign
+        if foreign:
+            assert result.stderr == "live evaluator failed; consult the allowlisted summary\n"
+            assert json.loads(failure.read_text()) == {
+                "schema": "nemo.eval_author.live_runtime_failure.v1",
+                "token": "a" * 64,
+                "source": "wrapper",
+                "reason": "patched_runtime_activation_failed",
+            }
+        else:
+            assert not failure.exists()
+
+
 def test_manifest_binds_exact_native_version_and_host_hash(runtime, binary_manifest):
     path, data = binary_manifest
     assert runtime.load_manifest(path) == data
@@ -439,9 +496,12 @@ def test_wrapper_launches_preflight_and_both_arms_with_child_hook(
     from harbor.cli.utils import parse_kwargs
 
     capture = tmp_path / "children.jsonl"
+    failure = tmp_path / "runtime-failure.json"
+    monkeypatch.setenv("_EA_LIVE_FAILURE_PATH", str(failure))
+    monkeypatch.setenv("_EA_LIVE_FAILURE_TOKEN", "a" * 64)
     recorder = tmp_path / "harbor-recorder"
     recorder.write_text(
-        f"#!{sys.executable}\nimport json,sys\nfrom harbor.agents.installed.opencode import OpenCode\nfrom pathlib import Path\nwith Path({str(capture)!r}).open('a') as out:\n out.write(json.dumps({{'argv':sys.argv[1:],'active':getattr(OpenCode.install,'_ea_patched_opencode',False)}})+'\\n')\nraise SystemExit(19)\n"
+        f"#!{sys.executable}\nimport importlib,json,sys\nfrom harbor.agents.installed.opencode import OpenCode\nfrom skillevaluator.tier3.harbor import runner,runtime_preflight\nassert runner._harbor_launch_environment is runtime_preflight._harbor_launch_environment\nassert importlib.import_module('skillevaluator.tier3.harbor.runner') is runner\nassert importlib.import_module('skillevaluator.tier3.harbor.runtime_preflight') is runtime_preflight\nfrom pathlib import Path\nwith Path({str(capture)!r}).open('a') as out:\n out.write(json.dumps({{'argv':sys.argv[1:],'active':getattr(OpenCode.install,'_ea_patched_opencode',False)}})+'\\n')\nraise SystemExit(19)\n"
     )
     recorder.chmod(0o700)
     monkeypatch.setattr(native.runner, "_harbor_bin", lambda: str(recorder))
@@ -500,6 +560,7 @@ def test_wrapper_launches_preflight_and_both_arms_with_child_hook(
             "version": "1.19.5"
         }
     assert ["--disable-verification" in child["argv"] for child in children] == [True, False, False]
+    assert not failure.exists()
 
 
 @pytest.mark.parametrize(

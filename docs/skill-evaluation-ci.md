@@ -49,8 +49,9 @@ took 6.7 minutes, the with-skill arm took 12.7 minutes, and the last baseline
 trial finished 34.6 minutes after evaluation started, with no final native
 aggregate available. The former 30-minute evaluation limit had already expired,
 so late trial results did not establish a completed evaluation. The 45-minute
-limit bounds the collector's wait; cancellation does not guarantee that all
-child processes or container work stop. Case counts,
+limit bounds the collector's wait. The contained CI path closes its private
+execution boundary before accepting native results; an unverified teardown
+fails closed and requires destruction of the disposable shard VM. Case counts,
 metrics, attempts, concurrency, models, and strict completeness checks are unchanged.
 
 CI permits up to 300 million scalar comparisons per context check using the
@@ -64,7 +65,7 @@ The allowance accommodates the maximum 512 chunks at 2048 embedding dimensions:
 `SKILL_EVAL_EMBEDDING_MODEL` to a higher-dimensional model requires revisiting
 the allowance; the actual vector dimension in the original incident was not retained.
 
-The workflow files are the source of truth for tool versions, limits, and
+The workflow files and their checked-in phase runner are the source of truth for tool versions, limits, and
 artifact configuration:
 
 - [Static checks](../.github/workflows/ci.yml)
@@ -98,6 +99,70 @@ not freeze provider models, network dependencies, task images, or evaluation res
 
 ### Patched live runtime
 
+CI and local contained reproduction share `tools/live_shard.py` phases:
+`create`, `runtime`, `relocate`, `prepare`, `run`, and `close`. Each shard needs
+its own disposable Linux VM with systemd, root access, and a host Docker daemon;
+the supported CI runner is GitHub-hosted Ubuntu 24.04. Local VMs require the
+root-owned `/etc/eval-author/disposable-shard` approval marker containing
+`isolated-vm`. Never use this privileged nesting path on shared Docker Desktop
+or a shared/self-hosted runner. Destroy the VM after the shard, including when
+cleanup cannot be verified.
+
+The execution image pins uv 0.12.3, Docker 29.7.2, and Compose 5.5.1. Every shard
+still installs its own managed Python 3.12 evaluator environment; the image is
+not a replacement for that installation. Repository inputs mount read-only;
+private native outputs retain identical absolute paths inside and outside the
+boundary. Host control state, collector reports, and fallback/upload files stay
+outside its writable mount. Tier 2 uses the same boundary without downloading
+OpenCode or preparing Tier 3 images. Successful setup phases explicitly hand
+off a short idle lease; failed phases close the boundary. Native evaluation
+closes it before report parsing, and CI closes it again before staging.
+
+Direct boundary-mode collection requires an unambiguous absolute `--evaluator`
+path and at most one runnable observation. The shard runner supplies that path;
+the native runtime directory is added only inside the boundary, not to the host
+collector's command search path. Use the CI planner for a full multi-shard run.
+
+This is lifecycle containment, not a guarantee of credential confidentiality,
+restricted egress, or protection against a compromised privileged guest.
+
+On Apple Silicon macOS, [`tools/local_live_vm.py`](../tools/local_live_vm.py)
+provides a `LocalVM` handle for owning one fresh Lima VM across these phases.
+The supported default is Homebrew Lima 2.3.0 at `/opt/homebrew/bin/limactl`,
+using VZ and an ARM64 guest; the Python API also accepts an explicit `limactl`
+path. It creates the VM; Docker provisioning remains a separate prerequisite.
+Use a fresh, short, private, canonical host control root with no symlink
+ancestors: `<root>/lima/<name>/ssh.sock.1234567890123456` must
+encode to fewer than 104 bytes. Longer paths are rejected before startup;
+keep verbose evidence directory names outside that root. The shell API,
+`LocalVM.shell(..., stdin=payload)`, accepts at most 64 KiB of in-memory bytes;
+omitting stdin supplies EOF. Do not put credentials in command arguments.
+For bounded credential handoffs, pass `stdin_deadline` as an absolute host
+monotonic timestamp. It is checked after local validation, immediately before
+the transport call; it does not shorten the command's execution timeout or
+guarantee instantaneous delivery by the operating system.
+
+For keyless local reproduction, inside an approved disposable VM, use a fresh
+absolute root outside the checkout. Start the clock before downloading the exact
+run/attempt binary artifact; finish that download before `create`, as CI does.
+Do not insert a download between boundary phases: the 120-second idle lease is
+shorter than the download step plus startup overhead.
+
+```bash
+export EA_LIVE_JOB_DEADLINE=$(python3 -c 'import sys,time; started=time.monotonic(); sys.path.insert(0, "tools"); from live_shard import LIVE_JOB_SECONDS; print(started + LIVE_JOB_SECONDS)')
+# Download the exact run/attempt artifact to /absolute/downloaded-opencode now.
+sudo --preserve-env=EA_LIVE_JOB_DEADLINE python3 tools/live_shard.py create --root /absolute/private/shard --tier 3 --check live --skill eval-author-audit
+sudo python3 tools/live_shard.py runtime --root /absolute/private/shard
+sudo python3 tools/live_shard.py relocate --root /absolute/private/shard --download /absolute/downloaded-opencode
+sudo python3 tools/live_shard.py prepare --root /absolute/private/shard
+sudo python3 tools/live_shard.py close --root /absolute/private/shard
+```
+
+Run phases consecutively; a paused handoff expires rather than retaining idle
+privileged execution. `run` authorizes model execution and is deliberately
+omitted above. The following lower-level commands remain useful for inspecting
+individual components, but do not provide the shard containment lifecycle.
+
 Live CI builds one patched OpenCode binary per platform in an upstream job using
 [`tools/build_patched_opencode.py`](../tools/build_patched_opencode.py). Live shards
 download that run's artifact and verify its digest and actual version before the
@@ -126,6 +191,16 @@ python tools/build_patched_opencode.py \
   --output /absolute/path/verified-opencode
 export EA_PATCHED_OPENCODE_MANIFEST=/absolute/path/verified-opencode/binary-manifest.json
 ```
+
+PR preparation and live Tier 3 jobs now require a credential-free native gate
+immediately after binary relocation, before image preparation or credential access.
+`tools/verify_live_runtime.py --binary-manifest /absolute/path/verified-opencode/binary-manifest.json --output /absolute/path/new-private-gate`
+runs with the installed live-runtime Python. It checks the real wrapper's
+`tier3 evaluate --help`, then real Python children from both native launch-environment
+helpers: activation and import identity must hold, and corrupted tokens/digests must
+exit 78 before main. The gate performs no models, installs, builds or pulls; it
+retains raw output privately (0600) and prints only fixed reasons, counters and timing.
+This is startup compatibility evidence, not a complete live-evaluation result.
 
 Then use the normal live-collection command and pinned evaluator environment.
 Only Tier 3 evaluation receives these settings; dataset validation and context
@@ -172,6 +247,17 @@ runtime changes. Unset both image-preparation variables to retain the original
 local installation path. CI always requires preparation for live shards; its
 existing fallback summaries and main-only environment gate are unchanged.
 
+For private failure diagnosis, add `--private-diagnostics /absolute/private/failure.json`.
+The destination must be new, in an existing directory outside the source checkout,
+with no symlink components and distinct from the public timing checkpoint. On the
+first Docker nonzero exit or subprocess timeout, preparation exclusively creates
+one 0600 JSON file with fixed category/phase/operation, exit code (null for timeout),
+and stdout/stderr head-and-tail excerpts capped at 16 KiB each with truncation flags. This bounds
+retained output, not Docker subprocess memory buffering. Retention failure does
+not replace the original preparation failure. The shared shard runner enables
+this at `workspace/preparation-docker-failure.private.json`, outside source and
+public reports; never upload it. Success creates no diagnostic file.
+
 The default Python 3.12.16/trixie base is pinned by platform-specific registry
 digest. Added packages have exact Debian versions, including Node.js
 20.19.2 and npm 9.2.0; the manifest records the full Debian revisions and final
@@ -195,10 +281,28 @@ deadlines or guarantee model responses or timeout cleanup.
 
 Preparation has a 900-second (15-minute) aggregate deadline across all images, not a fresh
 allowance per Docker command. CI also deducts elapsed dependency/artifact setup
-from a shared monotonic job window, reserving the unchanged 2700-second evaluation
-allowance plus 60 seconds for collection overhead. The window ends 75 minutes
-after the fallback step starts, leaving 29 minutes for setup and preparation,
-and reporting headroom within the 80-minute job (less checkout time).
+from a shared monotonic job window. The shared phase runner reserves 2880 seconds:
+60 for native dataset validation, 60 for aggregate handoff/collector/wrapper
+startup, the unchanged 2700-second evaluation allowance, and the existing
+60-second collection handoff. Startup is separate because the wrapper checks
+the full evaluation-plus-handoff reserve again after activation, including its
+prepared-image probes. The window ends 75 minutes after the fallback step starts,
+leaving strictly less than 1620 seconds (27 minutes) for setup and preparation.
+The 48-minute run step and this aggregate setup deadline fit the unchanged
+80-minute job with two minutes for checkout and three for staging/upload.
+Individual setup step caps overlap; their sum is not an additional allowance.
+The timing summary derives its setup budget from `tools/live_shard.py` too.
+Its `setup_and_preparation_seconds` conservatively includes teardown; the
+completion cutoff remains strictly less than 1620 seconds. Before closing the
+boundary, the reporting step atomically writes an incomplete fallback with
+`outcomes.close: unknown` and no binary provenance. It updates that outcome to
+`success` only after the close command and checkpoint projection succeed, or
+`failure` for a close or projection error; the latter does not identify which
+operation failed. Failures remain fatal, and uncertain closure never authorizes
+reading workspace provenance or staging native results. If the reporting step
+is terminated during close, its prewritten incomplete summary remains available.
+The startup allowance is not a measured cold-start guarantee: overruns still
+fail the unchanged final budget checks rather than consuming the evaluation reserve.
 The PR timing check exercises the same setup and preparation commands, without
 models, against the full Audit dataset. Its result is a preparation measurement,
 not a live evaluation or full-matrix pass. If the remaining window cannot
@@ -221,8 +325,9 @@ observed. No command arguments, image IDs, paths, environment values or task/log
 content are emitted. Console progress and retained history stop at 2048 events;
 the latest checkpoint still updates and marks history truncation. The file is
 capped at 1 MiB and counts at 128 trial images; elapsed fields saturate at one day.
-The unchanged `always()` upload retains only this checkpoint and the existing
-safe summary, even after preparation failure/cancellation. A process killed
+The `always()` upload retains only the safe summary and any checkpoint validated
+and projected after confirmed closure. Failed closure leaves the checkpoint
+private rather than uploading unvalidated data. A process killed
 mid-operation leaves its last observed boundary, not a fabricated final duration
 or success. Runner loss can still prevent artifact upload. The checkpoint option
 does not change any configured deadlines or live-shard gates.

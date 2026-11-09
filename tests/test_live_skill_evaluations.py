@@ -1073,8 +1073,8 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
         assert "EVALUATION_TIER" not in configured_job.get("env", {})
         for step in configured_job["steps"]:
             assert "EVALUATION_TIER" not in step.get("env", {})
-    compose = next(step for step in job["steps"] if step.get("name") == "Install verified Docker Compose runtime")
-    assert compose["if"] == "matrix.check == 'live' && matrix.id != 'none'"
+    boundary = next(step for step in job["steps"] if "live_shard.py create " in step.get("run", ""))
+    assert boundary["if"] == "matrix.id != 'none'"
     assert workflow["env"]["EVALUATION_SKILL"] == "${{ inputs.skill || 'all' }}"
     assert not {"OPENAI_API_KEY", "NVIDIA_API_KEY", "HUB_METADATA_API_KEY"}.intersection(evaluation["env"])
 
@@ -1085,16 +1085,12 @@ def test_ci_verifies_downloaded_runtime_only_for_live_before_credentials():
     build = next(step for step in steps if step.get("name") == "Verify downloaded OpenCode runtime")
     evaluation = next(step for step in steps if step.get("name") == "Run exactly one assigned check")
     assert build["if"] == "matrix.check == 'live' && matrix.id != 'none'"
-    assert "tools/build_patched_opencode.py" in build["run"]
-    assert '--output "$RUNNER_TEMP/patched-opencode"' in build["run"]
-    assert '--relocate-manifest "$RUNNER_TEMP/downloaded-opencode/binary-manifest.json"' in build["run"]
+    assert "tools/live_shard.py relocate " in build["run"]
+    assert '--root "$RUNNER_TEMP/live-shard"' in build["run"]
+    assert '--download "$RUNNER_TEMP/downloaded-opencode"' in build["run"]
     assert "secrets." not in json.dumps(build)
     assert steps.index(build) < steps.index(evaluation)
-    assert 'if test "$SHARD_CHECK" = live; then' in evaluation["run"]
-    assert "export EA_REQUIRE_PATCHED_OPENCODE=1" in evaluation["run"]
-    assert (
-        'export EA_PATCHED_OPENCODE_MANIFEST="$RUNNER_TEMP/patched-opencode/binary-manifest.json"' in evaluation["run"]
-    )
+    assert 'tools/live_shard.py run --root "$RUNNER_TEMP/live-shard"' in evaluation["run"]
 
 
 def test_seed_datasets_are_bounded_and_have_negative_cases(live):
