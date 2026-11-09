@@ -58,7 +58,15 @@ def test_static_and_live_installs_match_the_reported_evaluator_revision(monkeypa
             assert 'tools/live_shard.py runtime --root "$RUNNER_TEMP/live-shard"' in install
             assert live_shard.EVALUATOR_REVISION == collector.EVALUATOR_REVISION
         else:
-            assert f"git+https://github.com/NVIDIA/SkillEvaluator.git@{collector.EVALUATOR_REVISION}" in install
+            from install_evaluator import EVALUATOR_REVISION
+
+            assert EVALUATOR_REVISION == collector.EVALUATOR_REVISION
+            assert (
+                'tools/install_evaluator.py --python "$RUNNER_TEMP/static-evaluator/bin/python" --extra security'
+                in install
+            )
+            assert 'echo "$RUNNER_TEMP/static-evaluator/bin" >> "$GITHUB_PATH"' in install
+            assert "uv tool install --python 3.12 'skillevaluator" not in install
 
 
 def test_only_skillspector_security_is_skipped():

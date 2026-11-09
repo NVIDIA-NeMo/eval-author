@@ -72,6 +72,55 @@ artifact configuration:
 - [Coverage planning and live evaluation](../.github/workflows/skill-evaluation-live.yml)
 - [Live anti-cheat experiment](../.github/workflows/anti-cheat-live.yml)
 
+### Locked evaluator installation
+
+Both the static CI job and the live shard `runtime` phase use
+[`tools/install_evaluator.py`](../tools/install_evaluator.py). The separate
+`security`, `tier2`, and `tier3` closures in
+[`tools/evaluator-locks/`](../tools/evaluator-locks/) contain generated exact
+versions and distribution hashes, including setuptools, wheel, and their
+build dependencies. Installation requires matching hashes and wheels for the
+entire dependency closure; it never falls back to building a dependency sdist.
+Only SkillEvaluator itself is built from its retained immutable Git revision,
+with dependency resolution and build isolation disabled. Its Git provenance
+remains available to the existing runtime guards. Harbor remains 0.24.0.
+
+For a standalone, keyless installation (not a replacement for live containment),
+use a fresh Python 3.12 environment:
+
+```bash
+uv venv --python 3.12 /absolute/new-evaluator
+python tools/install_evaluator.py --python /absolute/new-evaluator/bin/python --extra tier2
+```
+
+Use `security` for the static scanner dependencies or `tier3` for Harbor-backed
+checks. Do not replace this command with an unconstrained `uv tool install` or
+`uv pip install`. The helper strips provider credentials and uv configuration
+overrides from installation subprocesses. Semgrep and gitleaks remain separate
+static scanner installations, outside this evaluator lock.
+
+Regenerate each closure deliberately with CI's uv 0.12.3, from the repository
+root, reviewing both the `.in` source and generated `.txt` diff:
+
+```bash
+for extra in security tier2 tier3; do
+  uv pip compile --no-config --python-version 3.12 --universal --generate-hashes \
+    --only-binary :all: --no-annotate --no-emit-package skillevaluator \
+    "tools/evaluator-locks/$extra.in" -o "tools/evaluator-locks/$extra.txt"
+done
+```
+
+The `.in` files retain the evaluator revision and its upstream build-system
+requirements; review these together when updating that revision. The evaluator
+is omitted from the hashed requirements because Git installs use immutable Git
+identity rather than distribution hashes. Do not omit any other dependency.
+A lock update needs clean installation, `uv pip check`, and CLI/runtime-guard
+checks, not just successful resolution. Universal markers cover platform
+branches, but supported installation verification is Python 3.12 on macOS ARM64
+and wheel installation targeting Linux x86-64/ARM64. Other Python/platform
+combinations are unverified; missing compatible locked wheels fail closed.
+Target installation does not establish native Linux or live-provider acceptance.
+
 ### Agent version reproducibility
 
 The evaluator and Harbor versions do not by themselves pin the agent installed

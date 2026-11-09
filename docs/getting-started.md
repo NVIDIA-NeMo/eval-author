@@ -322,6 +322,10 @@ you need to create, validate, or run Harbor tasks.
 | Inspect NeMo Intake traces | A working `nemo` CLI, an explicit workspace, and read access to a configured local or remote NeMo Helix instance. |
 | Generate the Harbor HTML case/run report | Python 3.11+, jsonschema 4.23+, and markdown-it-py 4.x. Reads local task/run artifacts; no Harbor runtime, Docker, model access, or network is needed to render. See the [Report generation](../skills/eval-author/references/suite-readme.md#report-generation). |
 
+The repository's isolated SkillEvaluator environments use a separate
+[hashed dependency and build-tool lock](skill-evaluation-ci.md#locked-evaluator-installation)
+with Python 3.12; the root `uv sync --locked` environment does not install them.
+
 The repository's opt-in [live-CI image preparation](skill-evaluation-ci.md) also
 requires Docker's deprecated classic builder; BuildKit-only installations are
 not supported by that path. Ordinary Harbor workflows are unchanged.
@@ -329,6 +333,11 @@ not supported by that path. Ordinary Harbor workflows are unchanged.
 Use the Python environment supported by your installed Harbor version for
 Harbor-backed operations. This repository's development checks use Python 3.12
 and 3.13 with Harbor 0.24.0; see [development setup](../DEVELOPMENT.md).
+
+The development lock requires certifi 2026.10.19 or newer to exclude compromised
+CA roots. Refresh existing checkouts with `uv sync --locked` and restart Python
+clients that cache TLS contexts. Separately installed workflow environments do
+not inherit this lock; review their trust-store dependencies independently.
 
 The experimental trace-to-environment workflow uses Harbor's `nop` agent (a no-op
 baseline) and `oracle` agent (the task's reference solution), or NeMo Gym's native

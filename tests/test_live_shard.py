@@ -95,8 +95,6 @@ def test_runtime_installs_each_job_with_managed_python_and_keyless_env(shard, mo
     config = json.loads(config_path.read_text())
     config["check"] = check
     config_path.write_text(json.dumps(config))
-    revision = "a" * 40
-    monkeypatch.setattr(module, "EVALUATOR_REVISION", revision)
     monkeypatch.setenv("INFERENCE_HUB_API_KEY", "never-setup")
     monkeypatch.setenv("OPENAI_API_KEY", "never-forward")
     assert phase("runtime") == 0
@@ -105,12 +103,12 @@ def test_runtime_installs_each_job_with_managed_python_and_keyless_env(shard, mo
     assert [e[1] for e in executions] == [
         ["uv", "venv", "--managed-python", "--python", "3.12", str(root / "workspace/live-runtime")],
         [
-            "uv",
-            "pip",
-            "install",
+            python,
+            str(ROOT / "tools/install_evaluator.py"),
             "--python",
             python,
-            f"skillevaluator[{extras}] @ git+https://github.com/NVIDIA/SkillEvaluator.git@{revision}",
+            "--extra",
+            extras,
         ],
     ]
     for execution in executions:
@@ -286,7 +284,7 @@ def test_tier2_runs_isolated_without_opencode_and_closes_before_return(shard, mo
     config.update(tier="2", check=check, skill="all" if check == "similarity" else "eval-author-audit")
     config_path.write_text(json.dumps(config))
     phase("runtime")
-    assert "skillevaluator[tier2]" in events[1][1][1][-1]
+    assert events[1][1][1][-2:] == ["--extra", "tier2"]
     events.clear()
     monkeypatch.setenv("INFERENCE_HUB_API_KEY", "collector-only")
     monkeypatch.setenv("OPENAI_API_KEY", "unrelated")

@@ -19,7 +19,9 @@ from pathlib import Path
 from live_agent_diagnostics import read_regular
 from live_shard_boundary import attach_boundary, close_boundary, create_boundary, execute_in_boundary, handoff_boundary
 from patched_opencode_runtime import (
-    EVALUATOR_REVISION,
+    EVALUATOR_REVISION as EVALUATOR_REVISION,
+)
+from patched_opencode_runtime import (
     LIVE_EXECUTION_SECONDS,
     LIVE_HANDOFF_SECONDS,
     PREPARATION_TIMEOUT_SECONDS,
@@ -193,12 +195,12 @@ def _run_phase(args):
             extras = "tier3" if config["check"] == "live" else "tier2"
             execute(
                 [
-                    "uv",
-                    "pip",
-                    "install",
+                    python,
+                    str(repo / "tools/install_evaluator.py"),
                     "--python",
                     python,
-                    f"skillevaluator[{extras}] @ git+https://github.com/NVIDIA/SkillEvaluator.git@{EVALUATOR_REVISION}",
+                    "--extra",
+                    extras,
                 ],
                 "install",
             )

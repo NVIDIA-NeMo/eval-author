@@ -30,7 +30,7 @@ See DEVELOPMENT.md for collection scope and exception handling.
 | [`boto3 1.43.95`](https://pypi.org/project/boto3/1.43.95/) | `APACHE-2.0` | [NOTICES.txt](third_party/NOTICES.txt), [Apache-2.0.txt](third_party/license_texts/Apache-2.0.txt) |
 | [`botocore 1.43.95`](https://pypi.org/project/botocore/1.43.95/) | `APACHE-2.0` | [NOTICES.txt](third_party/NOTICES.txt), [Apache-2.0.txt](third_party/license_texts/Apache-2.0.txt) |
 | [`cachetools 7.2.0`](https://pypi.org/project/cachetools/7.2.0/) | `MIT` | [NOTICES.txt](third_party/NOTICES.txt), [MIT.txt](third_party/license_texts/MIT.txt) |
-| [`certifi 2026.7.22`](https://pypi.org/project/certifi/2026.7.22/) | `MPL-2.0` | [NOTICES.txt](third_party/NOTICES.txt), [MPL-2.0.txt](third_party/license_texts/MPL-2.0.txt) |
+| [`certifi 2026.10.23`](https://pypi.org/project/certifi/2026.10.23/) | `MPL-2.0` | [NOTICES.txt](third_party/NOTICES.txt), [MPL-2.0.txt](third_party/license_texts/MPL-2.0.txt) |
 | [`cffi 2.1.1`](https://pypi.org/project/cffi/2.1.1/) | `MIT-0` | [NOTICES.txt](third_party/NOTICES.txt), [MIT-0.txt](third_party/license_texts/MIT-0.txt) |
 | [`charset-normalizer 3.5.1`](https://pypi.org/project/charset-normalizer/3.5.1/) | `MIT` | [NOTICES.txt](third_party/NOTICES.txt), [MIT.txt](third_party/license_texts/MIT.txt) |
 | [`click 8.5.0`](https://pypi.org/project/click/8.5.0/) | `BSD-3-CLAUSE` | [NOTICES.txt](third_party/NOTICES.txt), [BSD-3-Clause.txt](third_party/license_texts/BSD-3-Clause.txt) |
