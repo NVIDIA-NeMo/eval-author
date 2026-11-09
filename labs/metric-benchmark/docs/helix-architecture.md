@@ -27,10 +27,10 @@ when a consumer requires files that are not already available and verified local
 | `helix_collect.py` | Download runs, verify their inputs and trial evidence, and import them into the standard benchmark format. Recover required sources when absent. | `execution.json`, per-case `results.json`, and per-trial `result.json` plus native files in the existing results layout, ready for validation and analysis. |
 | `helix_sources.py` | Download the exact agent bundles and/or task sources named by publication references or a run receipt. | Verified local sources in the prepared input layout. Optional standalone access to the same recovery operation used by collection. |
 
-Preparation of the experiment remains outside these tools. Collection and import
-are one user-facing operation; they may use separate internal helpers. Publication
-receipts and local caches can aid inspection, but later execution and recovery must
-not depend on retaining the publisher's working directory.
+These tools consume an already prepared experiment. Collection downloads results
+and writes the standard results format in one step. After publication, the saved
+references are sufficient to run on Helix and recover published sources; the original
+upload directory is no longer required.
 
 `references.json` preserves the link to the prepared cases: each `case_id` maps its
 baseline/mutant `agent_bundle_id` values to registered agent references, and its
