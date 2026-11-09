@@ -14,12 +14,12 @@ proposed interface to implement downstream, not commands available in this base.
 
 [Open the resource-flow SVG](assets/helix-resource-flow.svg).
 
-Yellow boxes identify YAML definitions. `experiment.yml` references cases, execution
-and analysis settings; `cases.yml` selects agent and task manifests. The manifests
-identify the signed agent bundles and unchanged task sources to publish. Blue boxes
-are the four proposed tools; green boxes are stored resources and outputs. Arrows
-show the inputs each stage consumes, not additional configuration files.
-
+The diagram groups the workflow into definitions, publication, execution and collection.
+Yellow boxes are YAML definitions, blue boxes are tools, and green boxes name output
+files. The hierarchy shows `experiment.yml` referencing cases, execution and analysis
+settings, with agent and task manifests beneath `cases.yml`. `publication.yml` supplies
+Helix publication settings separately. Output filenames match the command examples;
+run receipt names and output directories are caller-selected.
 
 Repeat execution for the baseline and each selected mutant. Each invocation runs
 one agent against every task in the selected benchmark. Collection combines those
@@ -31,8 +31,8 @@ when a consumer requires files that are not already available and verified local
 | Proposed tool | Purpose and inputs | Output |
 | --- | --- | --- |
 | `helix_publish.py` | Upload agents, tasks, or both from signed prepared inputs; optionally verify and reuse existing resources. | `references.json`, mapping case/agent/task identities to exact registered references, plus a pinned taskset for each published benchmark. |
-| `helix_execute.py` | Run one selected registered agent against one pinned benchmark taskset, using execution settings and context. | A run receipt with run/job references, selected experiment identities and resolved resource versions. |
-| `helix_collect.py` | Download runs, verify their inputs and trial evidence, and import them into the standard benchmark format. Recover required sources when absent. | The existing results directory, native evidence and resource provenance, ready for validation and analysis. |
+| `helix_execute.py` | Run one selected registered agent against one pinned benchmark taskset, using execution settings and context. | `runs/baseline.json` or `runs/mutant.json`: run/job references, selected experiment identities and resolved resource versions. |
+| `helix_collect.py` | Download runs, verify their inputs and trial evidence, and import them into the standard benchmark format. Recover required sources when absent. | `execution.json`, per-case `results.json`, and per-trial `result.json` plus native files in the existing results layout, ready for validation and analysis. |
 | `helix_sources.py` | Download the exact agent bundles and/or task sources named by publication references or a run receipt. | Verified local sources in the prepared input layout. Optional standalone access to the same recovery operation used by collection. |
 
 Preparation of the experiment remains outside these tools. Collection and import
