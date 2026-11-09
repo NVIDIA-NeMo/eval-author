@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+agents:
+  rho-agent:
+    baseline:
+      env_secrets:
+        OPENAI_API_KEY: workspace/model-access
+    mutant: {}
+    mutant-no-search: {}
