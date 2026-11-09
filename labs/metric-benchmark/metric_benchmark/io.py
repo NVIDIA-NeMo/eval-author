@@ -36,6 +36,13 @@ def read_json(path: Path) -> object:
     )
 
 
+def read_object(path: Path) -> dict:
+    value = read_json(path)
+    if not isinstance(value, dict):
+        raise ValueError(f"expected a JSON object: {path.name}")
+    return value
+
+
 def json_bytes(value: BaseModel | dict | list) -> bytes:
     """Canonical UTF-8 JSON; benchmark models must contain JSON values."""
     if isinstance(value, BaseModel):
