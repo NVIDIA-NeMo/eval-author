@@ -8,9 +8,6 @@ baseline:
   registered:
     bundle_input: runtime
     config_path: agent.yaml
-    kwargs:
-      fabric_workspace: /
-    setup_timeout_multiplier: 12
   inputs:
     runtime:
       path: agents/baseline
@@ -21,9 +18,6 @@ mutants:
   registered:
     bundle_input: runtime
     config_path: agent.yaml
-    kwargs:
-      fabric_workspace: /
-    setup_timeout_multiplier: 12
   inputs:
     runtime:
       path: agents/mutant

@@ -119,9 +119,13 @@ references. The original experiment names remain available for analysis.
 
 - **Unchanged:** experiment/case structure, task IDs and source layout, analysis
   settings, fixed subsets, scoring rules and the standard collected results format.
-- **Different agent selection:** `agents.yml` selects registered bundles instead of
-  native local Harbor agent configurations. Their behavior and model settings belong
-  in the bundle; publication and execution do not override them.
+- **Different agent selection:** the `registered` block in `agents.yml` selects the
+  proposed registered-agent workflow, initially supported only on Helix. `bundle_input`
+  names an entry under `inputs` (`runtime` here); `config_path` names the agent definition
+  inside that bundle (`agent.yaml`). A native local agent uses a `harbor` block instead.
+  The surrounding `baseline`, `mutants`, `agent_bundle_id`, `revision` and `inputs`
+  fields are shared experiment structure. Behavior and model settings belong in the
+  bundle; publication and execution do not override them.
 - **Additional publication step:** publication settings control upload/reuse and
   secret bindings. Generated `references.json` connects experiment names to Helix IDs.
 - **Different run settings:** `execution.yml` describes Helix workers and sandboxes

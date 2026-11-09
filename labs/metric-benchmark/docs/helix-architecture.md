@@ -196,13 +196,9 @@ Referenced agent bundles, task sources and analysis data are intentionally absen
 
 ## Running agents on Helix
 
-Helix uses its Fabric adapter to run registered agents on Harbor tasks. Users only
-need to register an agent bundle and select tasks. Helix handles making the agent
-files available; users do not configure mounts or edit task Dockerfiles.
-
-The example gives DeepAgents file tools the task container’s filesystem rooted
-at `/`, so absolute paths in task instructions keep their meaning. This is the
-container filesystem, not the machine submitting the run.
+Users register an agent bundle and select tasks. Helix handles making the agent
+files available; users do not configure mounts or edit task Dockerfiles. Task paths
+must keep their meaning inside the task container.
 
 An agent still needs compatible tasks and a suitable worker: its dependencies,
 setup permissions, network access and model must be available. Unsupported
