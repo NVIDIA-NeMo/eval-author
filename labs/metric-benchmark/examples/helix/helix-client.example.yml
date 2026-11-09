@@ -1,17 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Illustration only. Do not put real tokens in this repository.
-current_context: my-helix
-clusters:
-- name: example-cluster
-  base_url: https://helix.example.invalid
-users:
-- name: example-user
-  type: oauth
-  token: DUMMY-NOT-A-REAL-TOKEN
-contexts:
-- name: my-helix
-  cluster: example-cluster
-  user: example-user
-  workspace: example-workspace
+# Proposed shared client file for the four benchmark tools, not native SDK config.
+# Dummy destination only. Keep actual credentials outside this repository.
+base_url: https://helix.example.invalid
+workspace: example-workspace
+auth:
+  access_token_env: HELIX_ACCESS_TOKEN

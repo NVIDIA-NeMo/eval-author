@@ -5,7 +5,7 @@
 baseline:
   agent_bundle_id: baseline
   revision: '1'
-  registered:
+  helix-registered:
     bundle_input: runtime
     config_path: agent.yaml
   inputs:
@@ -15,7 +15,7 @@ baseline:
 mutants:
 - agent_bundle_id: mutant
   revision: '1'
-  registered:
+  helix-registered:
     bundle_input: runtime
     config_path: agent.yaml
   inputs:

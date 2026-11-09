@@ -93,14 +93,14 @@ or change the existing [trial and scoring rules](stages.md#1-run-mutants-x-eval-
 | --- | --- |
 | Experiment, cases and task manifests (`experiment.yml`, `cases.yml`, `tasks.yml`) | Which cases, agents and tasks are selected; task IDs and signed source hashes; links to analysis settings. |
 | Agent manifest and bundle (`agents.yml`, `agent.yaml` and bundled files) | Baseline/mutant IDs, agent definition, models, instructions, files and runner options. |
-| Helix client settings (saved client configuration, selected by `--context`) | Saved server connection, login and default workspace, shared by all four tools. |
+| Helix client settings (`helix-client.example.yml`, supplied with `--client`) | Server address, authentication source and default workspace, shared by all four tools. |
 | Publication settings (`publication.yml` or `publication-existing-task.yml`) | Where to publish, which secrets to use, and any exact resource versions to reuse. Cannot override models, runtime options or compute settings. |
 | Execution settings (`execution.yml`) | Where jobs run (dispatcher), how many run at once, and sandbox resources. Can also check that the destination matches the published references. |
 | Analysis settings (`analysis.yml`, referencing description and subset files) | Settings for analyzing results: case descriptions, fixed task subsets, coverage, scoring and missing-result handling. |
 | Publication references and run receipts (`references.json`, `runs/baseline.json`, `runs/mutant.json`) | Helix IDs, exact versions and hashes linked to experiment IDs. A run receipt records the inputs actually used by that run. |
 
-Credentials stay in the Helix client configuration or secret store. Source downloads retrieve
-published files; they do not include secret values or Git history, or guarantee that
+Client credentials are read from the configured environment variable; agent secrets
+stay in the secret store. Source downloads retrieve published files; they do not include secret values or Git history, or guarantee that
 rerunning a model produces the same answer. Keep the signed experiment files and
 analysis inputs with the references. These tools do not recreate them.
 
@@ -109,16 +109,20 @@ analysis inputs with the references. These tools do not recreate them.
 These examples show the proposed commands, to be implemented in later PRs. They run
 from `labs/metric-benchmark` and use the YAML layout in `examples/helix/cases.yml`.
 The referenced sources are not included; a real run requires supplying them,
-configuring settings and signing the inputs. `my-helix` is the saved
-Helix connection and login. The example case is `example`; its agents are `baseline`
-and `mutant`.
+configuring settings and signing the inputs. Every tool takes the same `--client`
+file for its Helix server, authentication source and workspace. The example case is
+`example`; its agents are `baseline` and `mutant`.
+
+`--client` and the client YAML are proposed benchmark-tool interfaces. The implementation
+must translate these settings into Helix SDK configuration. The example names an
+environment variable for the access token; it contains no token value.
 
 ### 1. Upload resources and save references
 
 ```bash
 python helix_publish.py --cases examples/helix/cases.yml \
   --resources agents,tasks --publication examples/helix/publication.yml \
-  --context my-helix --output references.json
+  --client examples/helix/helix-client.example.yml --output references.json
 ```
 
 `--resources agents` uploads only agents; `--resources tasks` uploads only tasks.
@@ -127,10 +131,10 @@ You can publish them separately and combine their references:
 ```bash
 python helix_publish.py --cases examples/helix/cases.yml \
   --resources agents --publication examples/helix/publication.yml \
-  --context my-helix --output agent-references.json
+  --client examples/helix/helix-client.example.yml --output agent-references.json
 python helix_publish.py --cases examples/helix/cases.yml \
   --resources tasks --publication examples/helix/publication-existing-task.yml \
-  --context my-helix --references agent-references.json --output references.json
+  --client examples/helix/helix-client.example.yml --references agent-references.json --output references.json
 ```
 
 The second command keeps the agent references and adds the task and taskset references.
@@ -143,10 +147,10 @@ The output records the IDs supplied by Helix and their exact versions.
 
 ```bash
 python helix_execute.py --references references.json --case example --agent baseline \
-  --execution examples/helix/execution.yml --context my-helix \
+  --execution examples/helix/execution.yml --client examples/helix/helix-client.example.yml \
   --output runs/baseline.json
 python helix_execute.py --references references.json --case example --agent mutant \
-  --execution examples/helix/execution.yml --context my-helix \
+  --execution examples/helix/execution.yml --client examples/helix/helix-client.example.yml \
   --output runs/mutant.json
 ```
 
@@ -161,7 +165,7 @@ do not change that record of what ran.
 ```bash
 python helix_collect.py --references references.json \
   --run runs/baseline.json --run runs/mutant.json \
-  --context my-helix --sources-output downloaded-sources \
+  --client examples/helix/helix-client.example.yml --sources-output downloaded-sources \
   --output results/experiment-001
 ```
 
@@ -180,7 +184,7 @@ the published versions.
 
 ```bash
 python helix_sources.py --run runs/baseline.json \
-  --resources agents,tasks --context my-helix --output downloaded-baseline
+  --resources agents,tasks --client examples/helix/helix-client.example.yml --output downloaded-baseline
 ```
 
 Use `--references references.json` instead of `--run` to download sources before execution. Use `--resources agents` or `--resources tasks` to download

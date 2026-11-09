@@ -34,11 +34,42 @@ references.json + run receipts → collection → standard results directory
 | [publication.yml](publication.yml) | Publication settings keyed by the same case and agent names, with an optional secret-reference example. |
 | [publication-existing-task.yml](publication-existing-task.yml) | Alternative publication settings mapping a task name to a pinned task already in Helix. The reference is fake. |
 | [execution.yml](execution.yml) | Settings for running on Helix: dispatcher, concurrency and sandbox profile. |
-| [helix-client.example.yml](helix-client.example.yml) | How client settings identify a server, login and workspace. The address and token are dummy values. |
+| [helix-client.example.yml](helix-client.example.yml) | Shared server address, workspace and authentication source for all four tools. The destination is fake; the token is read from an environment variable. |
 
 Manifest paths resolve from the directory containing `cases.yml`. The three
 references in `experiment.yml` resolve from its directory. The
 [benchmark format](../../docs/benchmark-format.md) explains these shared rules.
+
+## Why do agents and tasks have different fields?
+
+Both are uploaded as separate resources. The difference is how their source files
+describe what to run:
+
+- **A task directory has a standard task definition:** `task.toml`, instructions,
+  environment and verifier files. `tasks.yml` gives it an experiment ID, revision
+  and source path; the task's own files describe how to run and check it.
+- **An agent needs an invocation definition:** `helix-registered` identifies the
+  bundle and the agent configuration file inside it. `bundle_input: runtime`
+  points to `inputs.runtime`; `config_path: agent.yaml` names the definition inside
+  that directory. A local Harbor agent instead uses its `harbor` invocation settings.
+
+`helix-registered` describes an agent to publish; it does not contain a remote ID
+or mean the agent has already been uploaded. Publication records the resulting
+agent ID in `references.json`, just as it does for tasks. This proposed agent format
+is initially Helix-only; it does not add local execution support.
+
+## Shared Helix client settings
+
+All four tools use `--client helix-client.example.yml` (with the appropriate path).
+This is a proposed benchmark-tool configuration, not a native Helix SDK file.
+It supplies the server address, workspace and authentication source consistently
+for publication, execution, collection and source downloads. The tools will translate
+it into the SDK settings they need.
+
+`auth.access_token_env: HELIX_ACCESS_TOKEN` means read the token from that environment
+variable. The YAML contains the variable's name, not a credential. The example's
+server address and workspace are placeholders. Agent service secrets remain separate
+and are described below.
 
 ## What goes in publication settings?
 
@@ -119,13 +150,10 @@ references. The original experiment names remain available for analysis.
 
 - **Unchanged:** experiment/case structure, task IDs and source layout, analysis
   settings, fixed subsets, scoring rules and the standard collected results format.
-- **Different agent selection:** the `registered` block in `agents.yml` selects the
-  proposed registered-agent workflow, initially supported only on Helix. `bundle_input`
-  names an entry under `inputs` (`runtime` here); `config_path` names the agent definition
-  inside that bundle (`agent.yaml`). A native local agent uses a `harbor` block instead.
-  The surrounding `baseline`, `mutants`, `agent_bundle_id`, `revision` and `inputs`
-  fields are shared experiment structure. Behavior and model settings belong in the
-  bundle; publication and execution do not override them.
+- **Different agent invocation:** `helix-registered` replaces the local `harbor`
+  block, as explained above. `baseline`, `mutants`, `agent_bundle_id`, `revision`
+  and `inputs` are shared experiment structure. Behavior and model settings belong
+  in the bundle; publication and execution do not override them.
 - **Additional publication step:** publication settings control upload/reuse and
   secret bindings. Generated `references.json` connects experiment names to Helix IDs.
 - **Different run settings:** `execution.yml` describes Helix workers and sandboxes
