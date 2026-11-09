@@ -7,9 +7,44 @@ import re
 import tomllib
 from pathlib import Path
 
+import pytest
 import yaml
+from packaging.requirements import Requirement
+from packaging.version import Version
 
 ROOT = Path(__file__).resolve().parents[1]
+
+SECURITY_FLOORS = {
+    "aiohttp": "3.14.4",
+    "filelock": "4.2.1",
+    "gitpython": "3.2.1",
+    "litellm": "1.101.3",
+    "pyasn1": "0.6.5",
+    "setuptools": "84.1.0",
+    "virtualenv": "21.14.13",
+}
+
+
+@pytest.mark.parametrize("name,floor", SECURITY_FLOORS.items())
+def test_root_security_dependencies_meet_patched_floors(name, floor):
+    lock = tomllib.loads((ROOT / "uv.lock").read_text())
+    versions = [p["version"] for p in lock["package"] if p["name"] == name]
+    assert versions, f"Missing locked dependency: {name}"
+    assert all(Version(version) >= Version(floor) for version in versions), (name, versions, floor)
+
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    constraints = [Requirement(value) for value in project["tool"]["uv"]["constraint-dependencies"]]
+    assert any(
+        constraint.name.lower() == name and str(constraint.specifier) == f">={floor}" for constraint in constraints
+    ), f"Missing security constraint: {name}>={floor}"
+
+
+def test_security_updates_preserve_runtime_pins_and_existing_override():
+    lock = tomllib.loads((ROOT / "uv.lock").read_text())
+    for name, version in {"harbor": "0.24.0", "nemo-compass": "0.1.0"}.items():
+        assert [p["version"] for p in lock["package"] if p["name"] == name] == [version]
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    assert project["tool"]["uv"]["override-dependencies"] == ["protobuf>=7.36.0"]
 
 
 def test_locked_certifi_excludes_compromised_trust_store():
