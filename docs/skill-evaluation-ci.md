@@ -379,6 +379,31 @@ Download reports from the workflow run's **Artifacts** section:
 - `preparation-timing-<run-id>-<attempt>` contains the hosted AMD64 Audit setup
   duration and step outcomes, without native logs or task inputs.
 
+Both preparation timing and evaluation shard artifacts include the exact
+`tooling-build-diagnostics.json` file. A separate always-run projection prints
+the same allowlisted diagnostic fields to the CI log immediately after create,
+before inference credentials are passed. It is independent of final cleanup:
+cleanup failure remains fatal and still prevents staging evaluation results.
+The 180-second tooling-build cap, remaining-time image inspection, and no-retry
+policy are unchanged.
+
+The diagnostic records host phase, elapsed/build/inspection seconds, process
+exit code when available, and fixed failure categories. `observed_stage` is
+only the last recognized marker in a bounded 256 KiB tail scan: apt index,
+apt install, Compose download, Compose verification, or version checks.
+Markers are observations of untrusted Docker output, **not attested causes**;
+cached, absent, truncated, or unrecognized markers can leave the stage unknown.
+No network-error wording is used to infer a root cause. A process killed before
+its final checkpoint can retain `running`, which does not prove it is still alive.
+
+Raw `build.log`, inspection payloads, paths, URLs, arbitrary exception strings,
+and Docker lines remain private and are never uploaded. The public projection
+accepts only an exact typed schema from a regular, single-link file no larger
+than 4 KiB, rejecting symlinks (including ancestors), malformed JSON, duplicate
+keys, and unknown fields. Missing or invalid checkpoints produce fixed
+unavailable diagnostics, not guessed failures. A projection write failure prints
+only `projection_failed`; it cannot suppress the separate always-run cleanup.
+
 Aggregation accepts only matching revisions, policies, and the current run
 attempt. Use **Re-run all jobs** for a complete retry; rerunning only failed jobs
 leaves earlier-attempt results unavailable in the new aggregate.

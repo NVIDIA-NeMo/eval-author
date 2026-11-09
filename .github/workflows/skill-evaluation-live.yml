@@ -177,6 +177,13 @@ jobs:
         run: &create-boundary >-
           sudo --preserve-env=EA_LIVE_JOB_DEADLINE,GITHUB_ACTIONS,RUNNER_ENVIRONMENT,SHARD_TIER,SHARD_CHECK,SHARD_SKILL
           python3 tools/live_shard.py create --root "$RUNNER_TEMP/live-shard"
+      - name: Publish only allowlisted tooling build diagnostics
+        timeout-minutes: 1
+        if: always()
+        run: >-
+          sudo python3 tools/tooling_build_diagnostics.py
+          --source "$RUNNER_TEMP/live-shard/control/image/build-diagnostics.json"
+          --output "$RUNNER_TEMP/tooling-build-diagnostics.json"
       - name: Install isolated evaluator runtime
         id: runtime
         timeout-minutes: 5
@@ -266,6 +273,7 @@ jobs:
           path: |
             ${{ runner.temp }}/preparation-timing-summary.json
             ${{ runner.temp }}/preparation-operation-timing.json
+            ${{ runner.temp }}/tooling-build-diagnostics.json
           retention-days: 30
           if-no-files-found: error
 
@@ -316,6 +324,13 @@ jobs:
         timeout-minutes: 4
         if: matrix.id != 'none'
         run: *create-boundary
+      - name: Publish only allowlisted tooling build diagnostics
+        timeout-minutes: 1
+        if: always() && matrix.id != 'none'
+        run: >-
+          sudo python3 tools/tooling_build_diagnostics.py
+          --source "$RUNNER_TEMP/live-shard/control/image/build-diagnostics.json"
+          --output "$RUNNER_TEMP/skill-publish/tooling-build-diagnostics.json"
       - name: Install isolated evaluator runtime
         timeout-minutes: 5
         if: matrix.id != 'none'
@@ -348,7 +363,9 @@ jobs:
         if: always() && matrix.id != 'none'
         with:
           name: skill-shard-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.id }}
-          path: ${{ runner.temp }}/skill-publish/live-skillevaluator-summary.*
+          path: |
+            ${{ runner.temp }}/skill-publish/live-skillevaluator-summary.*
+            ${{ runner.temp }}/skill-publish/tooling-build-diagnostics.json
           retention-days: 30
           if-no-files-found: error
 

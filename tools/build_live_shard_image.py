@@ -11,6 +11,7 @@ import platform as system_platform
 import re
 import signal
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -25,6 +26,12 @@ COMPOSE = {
     "linux/amd64": ("x86_64", "db1889184726840f75c4f9c001048430d4f25b3be3cb084d3ddd762bc0aed576"),
     "linux/arm64": ("aarch64", "732e3a84c1a0f67256ce80bc2598a24546b10ca05f9faa97efceb1171ece2ef7"),
 }
+
+
+class CommandFailed(ValueError):
+    def __init__(self, code):
+        super().__init__("execution image command failed")
+        self.exit_code = code
 
 
 def require_disposable_vm():
@@ -52,7 +59,7 @@ def command(argv, env, log, timeout, *, capture=False):
             process.wait()
             raise
     if code:
-        raise ValueError("execution image command failed")
+        raise CommandFailed(code)
     if not capture:
         return b""
     if log.stat().st_size > 65_536:
@@ -70,6 +77,31 @@ def build_image(output: Path, platform: str) -> str:
         raise ValueError("unsafe build output")
     started = time.monotonic()
     output.mkdir(mode=0o700)
+    from tooling_build_diagnostics import Diagnostics
+
+    diagnostics = Diagnostics(output)
+
+    def cancelled(signum, frame):
+        raise KeyboardInterrupt
+
+    previous = (
+        signal.signal(signal.SIGTERM, cancelled) if threading.current_thread() is threading.main_thread() else None
+    )
+    error = None
+    try:
+        return _build_image(output, platform, started, diagnostics)
+    except BaseException as caught:
+        error = caught
+        raise
+    finally:
+        try:
+            diagnostics.finish(error)
+        finally:
+            if previous is not None:
+                signal.signal(signal.SIGTERM, previous)
+
+
+def _build_image(output, platform, started, diagnostics):
     context = output / "context"
     context.mkdir(mode=0o700)
     home = output / "home"
@@ -90,12 +122,27 @@ def build_image(output: Path, platform: str) -> str:
         "PYTHONDONTWRITEBYTECODE": "1",
     }
     docker = ["docker", "--host", "unix:///var/run/docker.sock"]
-    argv = [*docker, "build", "--force-rm", "--platform", platform, "--iidfile", str(output / "image.id")]
+    argv = [
+        *docker,
+        "build",
+        "--force-rm",
+        "--platform",
+        platform,
+        "--iidfile",
+        str(output / "image.id"),
+    ]
     build_arguments = {**BASE_IMAGES, "COMPOSE_ARCH": COMPOSE[platform][0], "COMPOSE_SHA256": COMPOSE[platform][1]}
     for key, value in build_arguments.items():
         argv.extend(["--build-arg", key + "=" + value])
     argv.append(str(context))
-    command(argv, env, output / "build.log", BUILD_SECONDS)
+    diagnostics.value["phase"] = "build"
+    diagnostics.save()
+    phase_started = time.perf_counter()
+    try:
+        command(argv, env, output / "build.log", BUILD_SECONDS)
+    finally:
+        diagnostics.value["build_seconds"] = round(time.perf_counter() - phase_started, 3)
+    diagnostics.value["phase"] = "identity"
     image_file = output / "image.id"
     if image_file.is_symlink() or image_file.stat().st_size > 128:
         raise ValueError("invalid built image identity")
@@ -105,9 +152,15 @@ def build_image(output: Path, platform: str) -> str:
     remaining = BUILD_SECONDS - (time.monotonic() - started)
     if remaining <= 0:
         raise TimeoutError("execution image build deadline exceeded")
-    inspected = json.loads(
-        command([*docker, "image", "inspect", image], env, output / "inspect.json", remaining, capture=True)
-    )
+    diagnostics.value["phase"] = "inspect"
+    diagnostics.save()
+    phase_started = time.perf_counter()
+    try:
+        inspected = json.loads(
+            command([*docker, "image", "inspect", image], env, output / "inspect.json", remaining, capture=True)
+        )
+    finally:
+        diagnostics.value["inspect_seconds"] = round(time.perf_counter() - phase_started, 3)
     if (
         not isinstance(inspected, list)
         or len(inspected) != 1
@@ -116,6 +169,7 @@ def build_image(output: Path, platform: str) -> str:
         or inspected[0].get("Architecture") != platform.split("/")[1]
     ):
         raise ValueError("built image identity mismatch")
+    diagnostics.value["phase"] = "receipt"
     receipt = {
         "schema_version": 1,
         "image": image,

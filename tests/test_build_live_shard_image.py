@@ -14,6 +14,11 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILDER = ROOT / "tools/build_live_shard_image.py"
 
 
+@pytest.fixture(autouse=True)
+def tools_import_path(monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+
+
 def load_builder():
     assert BUILDER.is_file(), "isolated execution image builder is missing"
     spec = importlib.util.spec_from_file_location("build_live_shard_image", BUILDER)
@@ -66,6 +71,52 @@ def test_build_uses_pinned_inputs_private_context_and_verified_image(tmp_path, m
     assert all("@sha256:" in value for value in receipt["base_images"].values())
     assert output.stat().st_mode & 0o777 == 0o700
     assert (output / "image.json").stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.parametrize("platform", ["linux/amd64", "linux/arm64"])
+def test_build_preserves_legacy_compatible_argv_and_builder_selection(tmp_path, monkeypatch, platform):
+    builder = load_builder()
+    output = tmp_path / "build"
+    monkeypatch.setattr(builder, "require_disposable_vm", lambda: None)
+    monkeypatch.setattr(builder, "host_platform", lambda: platform)
+    monkeypatch.setenv("DOCKER_BUILDKIT", "1")
+    stopped = RuntimeError("stop before Docker")
+
+    def command(argv, env, log, timeout, *, capture=False):
+        expected = [
+            "docker",
+            "--host",
+            "unix:///var/run/docker.sock",
+            "build",
+            "--force-rm",
+            "--platform",
+            platform,
+            "--iidfile",
+            str(output / "image.id"),
+        ]
+        arguments = {
+            **builder.BASE_IMAGES,
+            "COMPOSE_ARCH": builder.COMPOSE[platform][0],
+            "COMPOSE_SHA256": builder.COMPOSE[platform][1],
+        }
+        for key, value in arguments.items():
+            expected.extend(["--build-arg", key + "=" + value])
+        expected.append(str(output / "context"))
+        assert argv == expected
+        assert env == {
+            "PATH": "/usr/local/bin:/usr/bin:/bin",
+            "HOME": str(output / "home"),
+            "TMPDIR": str(output / "tmp"),
+            "DOCKER_CONFIG": str(output / "home/.docker"),
+            "PYTHONDONTWRITEBYTECODE": "1",
+        }
+        assert log == output / "build.log" and timeout == 180 and capture is False
+        raise stopped
+
+    monkeypatch.setattr(builder, "command", command)
+    with pytest.raises(RuntimeError) as caught:
+        builder.build_image(output, platform)
+    assert caught.value is stopped
 
 
 def test_system_dependencies_use_the_same_fixed_signed_snapshot():
@@ -160,3 +211,53 @@ def test_real_command_timeout_is_not_success(tmp_path):
             3,
         )
     assert (tmp_path / "private.log").read_text() == "synthetic-private-output\n"
+
+
+@pytest.mark.parametrize("prefix", ["", "#7 0.12 "])
+def test_failed_build_produces_safe_checkpoint_and_cli_projection(tmp_path, monkeypatch, prefix):
+    builder = load_builder()
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    monkeypatch.setattr(builder, "require_disposable_vm", lambda: None)
+    monkeypatch.setattr(builder, "host_platform", lambda: "linux/arm64")
+    popen = subprocess.Popen
+
+    def fake_docker(argv, **kwargs):
+        assert argv[3] == "build"
+        assert "--progress=plain" not in argv
+        assert "EA_TOOLING_STAGE=apt_index" in Path(argv[-1], "Dockerfile").read_text()
+        return popen(
+            [sys.executable, "-c", f"print('{prefix}EA_TOOLING_STAGE=apt_index'); print('PRIVATE-sentinel'); exit(7)"],
+            **kwargs,
+        )
+
+    monkeypatch.setattr(subprocess, "Popen", fake_docker)
+    output = tmp_path / "build"
+    with pytest.raises(ValueError, match="^execution image command failed$"):
+        builder.build_image(output, "linux/arm64")
+    checkpoint = output / "build-diagnostics.json"
+    assert checkpoint.is_file(), "build failure has no privacy-safe checkpoint"
+    monkeypatch.setattr(subprocess, "Popen", popen)
+    published = tmp_path / "public.json"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools/tooling_build_diagnostics.py"),
+            "--source",
+            str(checkpoint),
+            "--output",
+            str(published),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    value = json.loads(published.read_text())
+    assert value["status"] == "failed"
+    assert value["failure_category"] == "command_failed"
+    assert value["phase"] == "build"
+    assert value["exit_code"] == 7
+    assert value["observed_stage"] == "apt_index"
+    assert value["build_seconds"] >= 0
+    assert "PRIVATE" not in published.read_text() + result.stdout + result.stderr + checkpoint.read_text()
+    assert "PRIVATE-sentinel" in (output / "build.log").read_text()
+    assert (output / "build.log").stat().st_mode & 0o777 == 0o600
