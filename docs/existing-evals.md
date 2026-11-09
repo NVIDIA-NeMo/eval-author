@@ -91,7 +91,7 @@ Ethos again when the agent, intended behavior, or document has changed.
 Previously selected suites and runs do not need another selection; when those
 inputs are settled, the next review is the proposed audit checks. Measured audits
 require traces. Missing traces pause measurement while preserving earlier work.
-Task review can finish after you accept the findings, with run coverage labeled
+Task review finishes once its findings are recorded, with run coverage labeled
 unmeasured. Both approaches save the Audit coverage report.
 If saved selections refer to older work, Eval Author explains their source and
 how they differ from current recorded tasks or runs, then asks which set you
@@ -134,7 +134,7 @@ choose a bounded place to look before searching.
 At **Define what the evals should cover**, review the proposed checks in the
 [Audit coverage report](results.md#coverage-audits). Approval allows measurement
 of the agreed traces without another readiness question. After measurement,
-review the findings in that same report; there is no intermediate approval pause.
+read the findings in that same report. You don't need to approve them.
 
 **Shared progress** (`.eval-author/.working/journey-state.json`) saves suite and
 trace selections separately, review decisions, measurement status, pending
@@ -146,7 +146,7 @@ within its selected suite or trace location.
 
 Changes to the agent, Ethos, selected scope, specification, cases, verifiers, or
 traces reopen check review and dependent measurement and findings. Changes to
-report content or its supporting evidence also reopen findings review. Saved
+report content or its supporting evidence also make recorded findings stale until they are regenerated. Saved
 progress therefore reflects the current inputs when you resume.
 
 Coverage measurement compares that specification with recorded ATIF traces.
@@ -179,12 +179,11 @@ before presenting its findings as current.
 The review ends with a concrete offer to help with the next step. For an existing
 suite with supported gaps, Eval Author names the main gaps and offers to propose
 new or improved evaluation tasks, ranked with their expected behavior, verifier,
-and supporting evidence. One question offers corrections, acceptance, or the
-next action, then waits. Acceptance alone ends review without another question.
-Accepting the findings can complete a task review or fully measured
+and supporting evidence. The findings need no approval, so the audit ends without a question.
+Recording them can complete a task review or fully measured
 audit while you leave the next action undecided; it does not start proposal
-work. A deferred or partial measurement remains unfinished after findings review.
-Accepting the findings and that offer moves directly
+work. A deferred or partial measurement remains unfinished after the findings.
+Choosing the offered action moves directly
 into the proposal workflow, reusing the report, specification, selected sources,
 and prior answers.
 

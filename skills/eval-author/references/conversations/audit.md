@@ -13,7 +13,7 @@ this reference defines presentation inputs, not another workflow.
 ## Input and saved questions
 
 The saved audit approach controls milestones. Task review skips trace selection
-and measurement, keeps run coverage unmeasured, and permits findings review
+and measurement, keeps run coverage unmeasured, and permits findings
 after check approval. Measured audits retain their selected-run requirements.
 Use onboarding's stateless `audit_mode` stage for a new choice before shared
 prerequisites, not an invented downstream checkpoint. Legacy audits stay measured.
@@ -25,7 +25,7 @@ Audit stages require the saved audit journey and have no stateless preview.
 The [shared contract](../conversation-rendering.md) owns purity, input authority,
 escaping, and unchanged output; callers own freshness and semantic agreement.
 
-Before suite, trace, checks, or findings review, call the pure
+Before a suite, trace, or checks decision, call the pure
 `decision_question(stage, lifecycle, facts)` helper. Save that question in
 `lifecycle.pending` with its decision stage, current digest, and presentation
 provenance through a revision-checked update:
@@ -35,14 +35,11 @@ provenance through a revision-checked update:
 | `audit_suites` | `suite_selection` | `audit.checkpoint_digests.suite_selection` |
 | `audit_traces` | `trace_selection` | `audit.checkpoint_digests.trace_selection` |
 | `audit_checks` | `checks_review` | `audit.checks_digest` |
-| `audit_findings` | `findings_review` | `audit.findings_digest` |
 
-Current partial measurement initially derives `audit.stage: "measurement"`.
-To review its findings, save `pending.stage: "findings_review"` with the current,
-non-null `audit.findings_digest` and canonical findings question. This pending
-checkpoint makes partial findings review applicable without completing measurement.
-After acceptance, an explicit next-action question uses `pending.stage: "next_action"`
-and that same current findings digest. Measurement has no decision checkpoint or
+Current findings need no decision checkpoint: once the report, content, and inputs
+are recorded and current, `audit.findings_reviewed` is true and `audit_findings`
+renders without a question. An optional next-action question uses
+`pending.stage: "next_action"` and the current `audit.findings_digest`. Measurement has no decision checkpoint or
 entry in `checkpoint_digests`. Never save `pending.stage: "measurement"`.
 
 Refresh state and observations after saving and before rendering.
@@ -92,8 +89,8 @@ supplies it. Detailed findings and evidence belong in the report.
 `links` accepts `report`, `intended_coverage`, and `findings`, each with `target`
 and optional caller-verified `fragment`. Every target must equal the saved
 report's absolute path. Checks review requires `report` and `intended_coverage`.
-Findings review requires `report` and accepts an optional `findings` link.
-Acceptance accepts only `report`. Other stages accept `report` only when
+Findings require `report` and accept an optional `findings` link.
+Acknowledgement accepts only `report`. Other stages accept `report` only when
 announcing `report_action`. Stage-inapplicable links are rejected.
 Section links require fragments. Supporting evidence stays inside the report.
 

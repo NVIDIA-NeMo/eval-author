@@ -41,7 +41,7 @@ and decision provenance. Use canonical repository-relative paths throughout the
 lifecycle. Set `specification` to its file path. List the selected case and verifier
 paths in `suite_files` and selected run paths in `trace_files`. Leave each file list
 empty until its source is selected, then keep every file within that selection's paths.
-The same record holds check approval, measurement, findings acceptance, the next
+The same record holds check approval, measurement, recorded findings, the next
 action, and `pending`. Keep that checkpoint inside the audit lifecycle
 when switching journeys. In the update that records a checkpoint's answer, set
 `pending` to `null` or replace it with the next applicable checkpoint.
@@ -63,10 +63,11 @@ Native scripts establish measurement correctness; the lifecycle checks retained 
 
 Save the generated report, content, and input bindings in `findings` using the
 [report binding rules](coverage-report.md#review-and-bindings) and bind
-`findings_review: {digest, source}` to the state snapshot's `audit.findings_digest`. Bind
-`next_action: {kind, findings_digest, source}` to that same current digest only
-when the user selects it. Acceptance clears answered `pending` and
-`pending_question`; save both decisions before any journey switch. Mark the audit
+Current recorded findings are reviewed automatically; no user acceptance or
+`findings_review` record is needed. Bind
+`next_action: {kind, findings_digest, source}` to `audit.findings_digest` only
+when the user selects it. Answering a next-action question clears `pending` and
+`pending_question`; save both before any journey switch. Mark the audit
 complete only when derived `audit.complete` is true. Findings remain in
 `audit-coverage-report.md`; link it whenever it is created or updated.
 
@@ -74,9 +75,9 @@ Treat changed inputs conservatively: changes to the agent, confirmed Ethos,
 selected scope, specification or selection manifest bytes, or selected case,
 verifier, or trace bytes reopen check review and all dependent measurement and
 findings. A change only to
-the findings report reopens findings review. Record findings acceptance in state
-without rewriting the report merely to mark it accepted. Acceptance can complete
-a task review or fully measured audit while the next action remains undecided.
+the findings report makes the recorded findings stale until they are regenerated
+and recorded again. Recording current findings can complete a task review or
+fully measured audit while the next action remains undecided.
 Improvement requires its own explicit user answer.
 
 ## 1. Confirm evals and traces
@@ -238,7 +239,7 @@ tests or inspecting unselected traces.
 Direct the user to this section of the Audit coverage report for the current
 review. Keep `audit.md` as its internal structured source. Agreement with the
 complete, current coverage tables approves the matching checks and evidence
-requirements, while review of findings remains a later decision.
+requirements, while the findings are not a user decision.
 
 Render `audit_checks` with the actual report update, validation result, verified
 coverage-table link, and concrete checks grouped by tools, capabilities,
@@ -247,14 +248,14 @@ any bounded preview as a summary. Follow [report naming](coverage-report.md#arti
 do not introduce a second review document. Validation is not approval. Save the
 user's agreement before measuring the agreed traces, without another readiness
 question. Revisions require revalidation and renewed review; approval does not
-accept the later findings. Explicitly deferred measurement allows the agreed
+approve the findings, which need no approval. Explicitly deferred measurement allows the agreed
 independent report work instead.
 
 When no evaluations exist, explain that Ethos and the report's proposed checks
 can establish what future tests should cover. Existing agent runs can still be
 examined and measured when selected, but their coverage is evidence about those
 runs and cannot complete the existing-suite audit lifecycle. Include first-eval
-creation as a supported next action in findings review.
+creation as a supported next action offered with the findings.
 
 For task review, approval of the checks permits task analysis and findings,
 with every run-coverage dimension unmeasured. Do not fabricate a deferred
@@ -298,7 +299,7 @@ successfully, even when coverage is low. If some inputs fail, report only the
 successful subset with explicit exclusions and keep the agreed milestone partial.
 Update the authored content and regenerate `audit-coverage-report.md` with the measured subset, methods, and any
 excluded inputs. Explain the result and limits, link the updated report, and
-when measurement is complete, continue directly to findings review without
+when measurement is complete, continue directly to recording findings without
 another approval pause.
 Reuse existing measurements only when their inputs still apply.
 
@@ -327,38 +328,35 @@ Then go over it with the user. Lead with what was established: proposed checks,
 partial measurement, or coverage measured over a named set of traces. Explain
 the findings, their evidence and limits, link the Audit coverage report, and
 leave deferred milestones visible. Supporting evidence belongs in the report.
-A task review can complete after findings acceptance while run coverage remains
+A task review completes once current findings are recorded while run coverage remains
 unmeasured. A specification-only outcome within a measured audit is useful
 planning work, not a completed measurement.
 Distinguish items not measured from measured items lacking evidence; neither automatically means
 the dataset needs another test. Keep the [artifact names](coverage-report.md#artifact-names)
-consistent: approving the proposed checks and reviewing the Audit coverage
-report's findings are separate decisions. Both user reviews use the Audit
-coverage report: first its coverage tables, now its findings, evidence
+consistent: only the proposed checks need user approval. The findings
+need none; present them from the Audit coverage report: its findings, evidence
 limits, and next actions. Link the relevant saved sections and explicitly name
 those as the content to review; do not ask the user to reapprove intended checks.
 
-Keep the shared audit checklist item unchecked and current while awaiting the
-user's review of coverage findings, gaps, and recommended next actions.
-Render `audit_findings` with its combined corrections, acceptance, and next-action
-question, then end the turn. Do not append another question. Save acceptance only
-after the user reviews the report and corrections are resolved. A reply accepting the findings and
-selecting a next step satisfies the review; do not add another approval prompt.
-Record the answered review in progress. Update authored content and regenerate the report if findings change.
+Record the findings in state, then render `audit_findings` and end the turn. It
+asks no approval question and saves no pending checkpoint. A user correction
+changes the content; regenerate the report and record the findings again.
+When the findings are recorded, set `journey_status.audit` to `complete` if
+`audit.complete` is true, then run the history snapshot once.
 
 ### After review: offer the next step
 
-Include the next-step offer in findings review. For an existing suite, propose new
+Include the next-step offer with the findings. For an existing suite, propose new
 or improved eval tasks for the report's main gaps. Name the relevant behaviors
 and explain that the next deliverable is a ranked set of candidate scenarios,
 expected behavior, and verification plans. Avoid ending only with a generic
 invitation for questions or a bare link to another skill.
 
-Acceptance alone ends review; render `audit_next_action` as acknowledgement
+Recording findings ends the audit; render `audit_next_action` as acknowledgement
 without a new offer or forced question. Do not begin proposal analysis, writes,
 or background work unless the user selects that action. A broad audit-and-suggest
-request does not select it. Accepting findings and the offered action together
-settles both without another permission prompt.
+request does not select it. A reply choosing the offered action settles it
+without another permission prompt.
 
 Once proposals are selected, enter `eval-author-task-create` at **Step 1: propose dataset
 improvements**. Carry the Audit coverage report, reviewed Audit specification,

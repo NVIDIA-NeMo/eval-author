@@ -58,18 +58,17 @@ python <eval-author-skill-dir>/scripts/audit_verifier_evidence.py --repo . \
 ```
 
 - Save its JSON result beneath `.eval-author/.working/audit/` and retain its file evidence in `measurement.evidence`. For task review, which records no measurement, bind the saved result as a `file` entry in `findings.inputs` alongside the renderer's typed `bindings`. Use the renderer's typed `bindings` for findings inputs.
-- Resolve missing explained findings and review grading logic before presenting findings for acceptance. The checker cannot assess the accuracy of the explanation.
+- Resolve missing explained findings and review grading logic before recording findings. The checker cannot assess the accuracy of the explanation.
 - Use `--report <path>` with explicit task and evidence paths only for legacy Markdown reports. That compatibility path retains the old heading-based check.
 
 ## Review and bindings
 
-- Follow [guided decisions](guided-audit.md#4-generate-and-review-coverage-report) for source selection, scope approval, findings review, and the next action.
+- Follow [guided decisions](guided-audit.md#4-generate-and-review-coverage-report) for source selection, scope approval, findings presentation, and the optional next action.
 - Review all declared checks through the generated coverage tables. Use the generated Markdown heading links for scope review, starting at `#capabilities-audited`.
 - Record `findings.report` with the generated Markdown's path and SHA-256, and `findings.content` with the authored JSON's path and SHA-256.
-- Copy the renderer's `bindings` into `findings.inputs`. Retain the existing provenance in `findings.source` and bind findings acceptance to the current derived digest.
-- Revalidate after content, task, receipt, or other bound input changes. Changed content reopens findings review. Changed inspected task or specification inputs retain the existing scope and measurement invalidation rules.
-- Record acceptance in workflow state without rewriting the report merely to mark it accepted.
-- After findings acceptance is recorded, save the audit's history snapshot once. Do not run it on report refresh, and rerunning it for the same reviewed content changes nothing.
+- Copy the renderer's `bindings` into `findings.inputs`. Retain the existing provenance in `findings.source` ; the current derived findings digest marks them reviewed.
+- Revalidate after content, task, receipt, or other bound input changes. Changed content makes the recorded findings stale until they are regenerated and recorded again. Changed inspected task or specification inputs retain the existing scope and measurement invalidation rules.
+- Once the findings are recorded and current, save the audit's history snapshot once. Do not run it on report refresh, and rerunning it for the same reviewed content changes nothing.
 
 ```bash
 python <audit-skill-dir>/scripts/audit_spec/history.py --repo . \
