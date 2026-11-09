@@ -3,7 +3,7 @@
 
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1540" viewBox="0 0 1440 1540" role="img" aria-labelledby="title description">
 <title id="title">Helix workflow: definitions, publication, execution and collection</title>
-<desc id="description">Experiment YAML references cases, execution and analysis YAML. Cases reference agents and tasks YAML. Publication consumes the prepared definitions and publication settings and writes references.json. Execution uses those references and execution settings and writes runs/baseline.json and runs/mutant.json. Collection writes execution.json, case results.json indexes and native trial result.json files. Optional source download retrieves the exact agent and task files.</desc>
+<desc id="description">Experiment YAML references cases, execution and analysis YAML. Cases reference agents and tasks YAML. Publication consumes the prepared definitions and publication settings and writes references.json. Execution uses those references and execution settings and writes runs/baseline.json and runs/mutant.json. Collection writes execution.json, case results.json indexes and native trial result.json files. Optional source download retrieves exact agent and task files only when their sources have been retained; missing or changed sources produce an error.</desc>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9 Z" fill="#64748b"/></marker>
 <style>
 text {font-family:Arial,Helvetica,sans-serif;fill:#24364b}

@@ -26,7 +26,7 @@ present and verified locally.
 | `helix_publish.py` | Upload prepared agents, tasks, or both. Check existing resources before reusing them. | `references.json`: each case's agent IDs, content hashes and retained source locations, plus pinned task and taskset references. |
 | `helix_execute.py` | Read run settings from `execution.yml` and agent/taskset IDs from `references.json`. Run one selected agent against one case's benchmark. | `runs/baseline.json` or `runs/mutant.json`: submission retry key, run/job IDs and the actual agent configuration, source hashes and pinned task references, linked to the case. |
 | `helix_collect.py` | Download results, check what ran and whether results are complete, and write the standard format. Download missing sources when needed. | `execution.json`, a `results.json` for each case, and a `result.json` plus original output files for each trial, ready for validation and analysis. |
-| `helix_sources.py` | Download the retained agent sources and/or pinned tasks listed in `references.json` or a run receipt. | Verified source files at their original relative paths. Collection uses the same download operation when needed. |
+| `helix_sources.py` | Download the retained agent sources and/or pinned tasks listed in `references.json` or a run receipt. | Verified source files at their original relative paths, or an error if sources are missing or changed. Collection uses the same download operation when needed. |
 
 These tools consume an already prepared experiment. Collection downloads results
 and writes the standard results format in one step. The intended contract is that
@@ -64,8 +64,8 @@ so collected results remain linked to what ran.
    Execution requests any required image builds and waits for them to succeed before
    submitting: Helix submission against a stored taskset rejects unready images.
 4. **The prepared experiment decides what runs.** It selects the cases, baseline,
-   mutants and tasks. Signed agent definitions and manifests specify behavior, model,
-   files and runtime options. Publishing or running the experiment must not change
+   mutants and tasks. Agent manifests identify the signed bundles; agent definitions specify behavior,
+   model and agent runtime settings. Publishing or running the experiment must not change
    those choices. Here, *signed* means the input files have recorded content hashes;
    see [input signing](benchmark-format.md#references-and-content-pins).
 5. **Execution uses saved references.** Run one agent against one benchmark taskset,
@@ -113,7 +113,8 @@ key. Do not overwrite an existing run receipt to start a different run.
 | Input | What it controls or records |
 | --- | --- |
 | Experiment, cases and task manifests (`experiment.yml`, `cases.yml`, `tasks.yml`) | Which cases, agents and tasks are selected; task IDs and signed source hashes; links to analysis settings. |
-| Agent manifest and bundle (`agents.yml`, `agent.yaml` and bundled files) | Baseline/mutant IDs, agent definition, models, instructions, files and runner options. |
+| Agent manifest (`agents.yml`) | Baseline/mutant IDs and the paths to each agent bundle and definition. |
+| Agent definition and bundle (`agent.yaml` and bundled files) | Agent behavior, model, instructions, files and agent runtime settings. |
 | Helix client settings (`helix-client.example.yml`, supplied with `--client`) | Server address, authentication source and default workspace, shared by all four tools. |
 | Publication settings (`publication.yml` or `publication-existing-task.yml`) | Where to publish, which secrets to use, and any existing resources to verify and reuse. Cannot override models, runtime options or compute settings. |
 | Execution settings (`execution.yml`) | Where jobs run (dispatcher), how many run at once, and sandbox resources. Can also check that the destination matches the published references. |
@@ -202,7 +203,8 @@ import command to run.
 ### 4. Download Helix sources
 
 Download retained agent sources and pinned task sources using their recorded locations
-and hashes.
+and hashes. Exact downloads require retained sources; missing or changed sources
+produce an error. See the [source retention requirement in decision 7](#decisions).
 Use a run receipt to download the versions that ran, or `references.json` to download
 the published versions.
 

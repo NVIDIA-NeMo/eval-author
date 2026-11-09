@@ -107,8 +107,9 @@ compute settings belong in `execution.yml`.
 The separate `tasks` section, shown in
 [publication-existing-task.yml](publication-existing-task.yml), maps **case ID → task ID →
 existing Helix task reference**. It requests verified reuse of that exact task version.
-Tasks not listed there are uploaded from their prepared sources. The two publication
-files are alternatives, not successive steps.
+Tasks not listed there are uploaded from their prepared sources. Use either publication file for the resources you want to publish. Agents and tasks
+can also be published separately, combining their references as shown in the
+[publication commands](../../docs/helix-architecture.md#1-upload-resources-and-save-references).
 
 ## How case and task names map to Helix IDs
 
