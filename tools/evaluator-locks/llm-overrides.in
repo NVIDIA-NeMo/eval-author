@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Local security exception for SkillEvaluator 3fd2cf57e4a2af01f282e001f7515b6e76f18ec7.
+# Its llm extra requires >=1.92.0,<1.94.0.dev0; this exact override intentionally
+# conflicts with that unchanged upstream metadata. uv overrides replace every
+# parent's LiteLLM constraint, so install_evaluator.py additionally validates the
+# entire active extras graph and admits ONLY that exact evaluator requirement.
+# uv pip check does not activate extras and cannot establish metadata consistency.
+# Keyless compatibility: actual evaluator Bedrock invoke/converse and Harbor
+# LiteLLM callers, mocking only provider HTTP; not live-model acceptance.
+# Regenerate tier2.txt/tier3.txt with their recorded uv pip compile commands.
+litellm==1.101.3

@@ -32,7 +32,16 @@ def test_install_enforces_hashes_then_builds_only_pinned_evaluator(monkeypatch, 
     calls = []
     monkeypatch.setattr(module.subprocess, "run", lambda argv, **kw: calls.append((argv, kw)))
     module.install("/fresh/bin/python", extra)
-    dependencies, source, check = [c[0] for c in calls]
+    dependencies, source, check, policy = [c[0] for c in calls]
+    assert policy == [
+        "/fresh/bin/python",
+        "-s",
+        "-B",
+        str(ROOT / "tools/install_evaluator.py"),
+        "--check-environment",
+        "--extra",
+        extra,
+    ]
     assert "--require-hashes" in dependencies
     assert dependencies[dependencies.index("--only-binary") + 1] == ":all:"
     assert dependencies[dependencies.index("--requirements") + 1] == str(module.LOCKS / f"{extra}.txt")
@@ -42,7 +51,7 @@ def test_install_enforces_hashes_then_builds_only_pinned_evaluator(monkeypatch, 
     )
     assert check == ["uv", "pip", "check", "--python", "/fresh/bin/python", "--no-config"]
     assert all(c[1]["check"] for c in calls)
-    assert all("--no-config" in c[0] for c in calls)
+    assert all("--no-config" in c[0] for c in calls[:3])
 
 
 def test_failed_dependency_install_never_builds_source(monkeypatch):
@@ -137,6 +146,161 @@ def test_corrupt_dependency_wheel_fails_before_git_install(tmp_path, monkeypatch
         check=True,
     )
     assert result.stdout.strip() == "[]"
+
+
+def test_llm_profiles_pin_reviewed_security_override():
+    from packaging.requirements import Requirement
+
+    module = installer()
+    for extra in ("tier2", "tier3"):
+        text = (module.LOCKS / f"{extra}.txt").read_text()
+        assert "litellm==1.101.3 \\" in text
+        assert "--overrides tools/evaluator-locks/llm-overrides.in" in text
+    source = (module.LOCKS / "llm-overrides.in").read_text()
+    requirements = [Requirement(line) for line in source.splitlines() if line and not line.startswith("#")]
+    assert [str(requirement) for requirement in requirements] == ["litellm==1.101.3"]
+    assert "<1.94.0.dev0" in source and "metadata" in source
+
+
+def policy_distributions(module, *, litellm="1.101.3", requirement=None, revision=None):
+    import json
+    from email.message import Message
+    from types import SimpleNamespace
+
+    def dist(name, version, requires=(), extras=()):
+        metadata = Message()
+        metadata["Name"] = name
+        for extra in extras:
+            metadata["Provides-Extra"] = extra
+        return SimpleNamespace(metadata=metadata, version=version, requires=list(requires))
+
+    evaluator = dist(
+        "skillevaluator",
+        "0.7.0",
+        [
+            'skillevaluator[llm]; extra == "tier2"',
+            'skillevaluator[llm]; extra == "tier3"',
+            requirement or 'litellm<1.94.0.dev0,>=1.92.0; extra == "llm"',
+        ],
+        extras=("security", "tier2", "tier3", "llm"),
+    )
+    evaluator.read_text = lambda name: json.dumps(
+        {
+            "url": "https://github.com/NVIDIA/SkillEvaluator.git",
+            "vcs_info": {
+                "vcs": "git",
+                "commit_id": revision or module.EVALUATOR_REVISION,
+            },
+        }
+    )
+    return [
+        evaluator,
+        dist("litellm", litellm, ["child[crypto]>=2"]),
+        dist("child", "2", ['crypto>=3; extra == "crypto"'], extras=("crypto",)),
+        dist("crypto", "3"),
+    ]
+
+
+@pytest.mark.parametrize("extra", ["tier2", "tier3"])
+def test_compatibility_policy_reports_exact_metadata_exception(extra, capsys):
+    module = installer()
+    module.validate_environment(extra, policy_distributions(module))
+    assert "intentional upstream metadata conflict" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "mutation", ["old-pin", "other-pin", "new-cap", "revision", "missing", "transitive", "other-parent"]
+)
+def test_compatibility_policy_rejects_every_unreviewed_conflict(mutation):
+    module = installer()
+    kwargs = {
+        "old-pin": {"litellm": "1.93.2"},
+        "other-pin": {"litellm": "1.101.4"},
+        "new-cap": {"requirement": 'litellm<1.95; extra == "llm"'},
+        "revision": {"revision": "0" * 40},
+    }.get(mutation, {})
+    distributions = policy_distributions(module, **kwargs)
+    if mutation == "missing":
+        distributions.pop()
+    if mutation == "transitive":
+        distributions[-1].version = "2"
+    if mutation == "other-parent":
+        distributions[-1].requires = ["litellm<1.94"]
+    with pytest.raises(RuntimeError):
+        module.validate_environment("tier3", distributions)
+
+
+@pytest.mark.parametrize("root", [True, False])
+def test_compatibility_policy_rejects_undeclared_extras(root):
+    module = installer()
+    distributions = policy_distributions(module)
+    target = distributions[0] if root else distributions[2]
+    del target.metadata["Provides-Extra"]
+    with pytest.raises(RuntimeError, match="undeclared extra"):
+        module.validate_environment("tier2", distributions)
+
+
+def test_compatibility_policy_normalizes_extra_names():
+    module = installer()
+    distributions = policy_distributions(module)
+    distributions[1].requires = ["child[Crypto_Feature]>=2"]
+    distributions[2].metadata["Provides-Extra"] = "crypto-feature"
+    distributions[2].requires = ['crypto>=3; extra == "crypto.feature"']
+    module.validate_environment("tier2", distributions)
+    distributions.pop()
+    with pytest.raises(RuntimeError, match="missing active dependency"):
+        module.validate_environment("tier2", distributions)
+
+
+@pytest.mark.parametrize("stage", [2, 3])
+def test_install_propagates_dependency_check_failures(monkeypatch, stage):
+    module = installer()
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        if len(calls) == stage + 1:
+            raise module.subprocess.CalledProcessError(1, argv)
+
+    monkeypatch.setattr(module.subprocess, "run", run)
+    with pytest.raises(module.subprocess.CalledProcessError):
+        module.install("/fresh/bin/python", "tier2")
+    assert len(calls) == stage + 1
+
+
+def test_security_profile_has_no_metadata_exception(capsys):
+    module = installer()
+    distributions = policy_distributions(module)
+    distributions = [distributions[0]]
+    module.validate_environment("security", distributions)
+    assert not capsys.readouterr().out
+
+
+def test_compatibility_policy_requires_declared_exception():
+    module = installer()
+    distributions = policy_distributions(module)
+    distributions[0].requires = []
+    with pytest.raises(RuntimeError, match="requirement missing"):
+        module.validate_environment("tier2", distributions)
+
+
+def test_compatibility_policy_ignores_inactive_markers():
+    module = installer()
+    distributions = policy_distributions(module)
+    distributions[-1].requires = ['absent; python_version < "2"', 'absent; extra == "unused"']
+    module.validate_environment("tier2", distributions)
+
+
+@pytest.mark.parametrize(
+    "override",
+    ["litellm>=1.101.3", "litellm==1.101.*", "other==1", "litellm==1.101.3\nother==1", "litellm[proxy]==1.101.3"],
+)
+def test_compatibility_policy_rejects_broad_overrides(tmp_path, monkeypatch, override):
+    module = installer()
+    (tmp_path / "llm-overrides.in").write_text(override)
+    monkeypatch.setattr(module, "LOCKS", tmp_path)
+    with pytest.raises(RuntimeError, match="override"):
+        module.validate_environment("tier2", policy_distributions(module))
 
 
 def test_unknown_profile_fails_before_install(monkeypatch):
