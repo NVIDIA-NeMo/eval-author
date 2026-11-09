@@ -198,6 +198,65 @@ def preparation_failure(error):
 _PREPARATION_TIMING: ContextVar["PreparationTiming | None"] = ContextVar("preparation_timing", default=None)
 PREPARATION_TIMING_MAX_EVENTS = 2048
 PREPARATION_TIMING_MAX_BYTES = 1048576
+PREPARATION_TIMING_MAX_IMAGES = 128
+PREPARATION_TIMING_MAX_SECONDS = 86400
+PREPARATION_TIMING_FIXED = {
+    "schema_version": 1,
+    "clock": "monotonic",
+    "measurement": "host_operation_boundaries",
+    "build_instruction_observed": False,
+}
+PREPARATION_TIMING_EVENTS = frozenset(
+    {
+        "started",
+        "phase",
+        "image_started",
+        "image_completed",
+        "operation_started",
+        "operation_completed",
+        "operation_failed",
+        "completed",
+        "failed",
+    }
+)
+
+
+def validate_preparation_timing(data):
+    fixed = PREPARATION_TIMING_FIXED
+    if (
+        type(data) is not dict
+        or set(data) != set(fixed) | {"events_truncated", "latest", "events"}
+        or any(type(data[k]) is not type(v) or data[k] != v for k, v in fixed.items())
+        or type(data["events_truncated"]) is not bool
+        or type(data["events"]) is not list
+        or len(data["events"]) > PREPARATION_TIMING_MAX_EVENTS
+    ):
+        raise ValueError("invalid timing checkpoint")
+    enums = {
+        "event": PREPARATION_TIMING_EVENTS,
+        "phase": PREPARATION_PHASES,
+        "operation": PREPARATION_OPERATIONS,
+        "category": PREPARATION_CATEGORIES | {"none"},
+    }
+    counters = {"image_ordinal", "completed_images"}
+    seconds = {
+        "operation_elapsed_seconds",
+        "image_elapsed_seconds",
+        "total_elapsed_seconds",
+        "remaining_deadline_seconds",
+    }
+    for row in [data["latest"], *data["events"]]:
+        if (
+            type(row) is not dict
+            or set(row) != set(enums) | counters | seconds
+            or any(type(row[k]) is not str or row[k] not in allowed for k, allowed in enums.items())
+            or any(type(row[k]) is not int or not 0 <= row[k] <= PREPARATION_TIMING_MAX_IMAGES for k in counters)
+            or any(
+                type(row[k]) not in (float, int) or not 0 <= row[k] <= PREPARATION_TIMING_MAX_SECONDS for k in seconds
+            )
+        ):
+            raise ValueError("invalid timing checkpoint")
+    return data
 
 
 class PreparationTiming:
@@ -216,23 +275,12 @@ class PreparationTiming:
     def emit(self, event, operation="none", category="none"):
         import tempfile
 
-        allowed_events = {
-            "started",
-            "phase",
-            "image_started",
-            "image_completed",
-            "operation_started",
-            "operation_completed",
-            "operation_failed",
-            "completed",
-            "failed",
-        }
-        if type(event) is not str or event not in allowed_events:
+        if type(event) is not str or event not in PREPARATION_TIMING_EVENTS:
             raise PreparationError("validation_error", "unknown")
         safe = PreparationError(category, _PREPARATION_PHASE.get(), operation)
         now = time.monotonic()
         if event == "image_started":
-            if self.image_ordinal >= 128:
+            if self.image_ordinal >= PREPARATION_TIMING_MAX_IMAGES:
                 raise PreparationError("validation_error", safe.phase)
             self.image_ordinal += 1
             self.image_started = now
@@ -243,7 +291,7 @@ class PreparationTiming:
         deadline = _PREPARATION_DEADLINE.get()
 
         def seconds(value):
-            return round(float(min(86400, max(0, value))), 3) if math.isfinite(value) else 0.0
+            return round(float(min(PREPARATION_TIMING_MAX_SECONDS, max(0, value))), 3) if math.isfinite(value) else 0.0
 
         row = dict(
             event=event,
@@ -260,7 +308,8 @@ class PreparationTiming:
             else 0.0,
         )
         if any(
-            type(value) is not int or not 0 <= value <= 128 for value in (self.image_ordinal, self.completed_images)
+            type(value) is not int or not 0 <= value <= PREPARATION_TIMING_MAX_IMAGES
+            for value in (self.image_ordinal, self.completed_images)
         ):
             raise PreparationError("validation_error", safe.phase)
         retained = len(self.events) < PREPARATION_TIMING_MAX_EVENTS
@@ -271,10 +320,7 @@ class PreparationTiming:
         payload = (
             json.dumps(
                 dict(
-                    schema_version=1,
-                    clock="monotonic",
-                    measurement="host_operation_boundaries",
-                    build_instruction_observed=False,
+                    **PREPARATION_TIMING_FIXED,
                     events_truncated=self.truncated,
                     latest=row,
                     events=self.events,
@@ -370,12 +416,19 @@ def _private_stream(value):
     limit = PREPARATION_PRIVATE_STREAM_BYTES
     if value is None:
         return "", False
+
     # Bound persisted output, not subprocess.run(capture_output=True)'s buffering.
-    prefix = value[:limit]
-    raw = prefix if isinstance(prefix, bytes) else prefix.encode("utf-8", errors="replace")
-    decoded = raw[:limit].decode("utf-8", errors="replace").encode("utf-8")
-    text = decoded[:limit].decode("utf-8", errors="ignore")
-    return text, len(value) > limit or len(raw) > limit or len(decoded) > limit
+    def normalized(part):
+        if isinstance(part, bytes):
+            part = part.decode("utf-8", errors="replace")
+        return part.encode("utf-8", errors="replace")
+
+    head = normalized(value[:limit])
+    if len(value) <= limit and len(head) <= limit:
+        return head.decode("utf-8"), False
+    half = limit // 2
+    tail = normalized(value[-limit:])
+    return head[:half].decode("utf-8", errors="ignore") + tail[-half:].decode("utf-8", errors="ignore"), True
 
 
 def _retain_docker_failure(category, phase, operation, exit_code, stdout, stderr):

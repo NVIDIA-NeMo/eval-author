@@ -462,15 +462,6 @@ def _collect(
             live_job_remaining(TIER3_TIMEOUT_SECONDS + LIVE_HANDOFF_SECONDS)
         except (TimeoutError, ValueError):
             budget_failed = True
-    models, env, missing_key = configuration(provider, read_credentials=not budget_failed)
-    output.mkdir(parents=True, exist_ok=False, mode=0o700)
-    if native_output != output:
-        native_output.mkdir(parents=True, exist_ok=False, mode=0o700)
-    # Docker needs a home for its client state; never inherit host credentials
-    # or let an unset HOME redirect that state into the skill repository.
-    runtime_home = native_output / "runtime-home"
-    runtime_home.mkdir(mode=0o700)
-    env["HOME"] = str(runtime_home)
     report: LiveReport = {
         "schema": "nemo.eval_author.live_skill_evaluations.v2",
         "repository": "NVIDIA-NeMo/eval-author",
@@ -486,7 +477,7 @@ def _collect(
             "provider": provider,
             "api_base_url": HUB_BASE_URL,
             "evaluator_provider": "openai-compatible",
-            "models": models,
+            "models": {},
             "agent": "opencode",
             "configured_opencode_version": OPENCODE_VERSION,
             "environment": "docker",
@@ -542,6 +533,31 @@ def _collect(
                 "cases": None,
             }
         )
+    if run and boundary_state is not None and sum(row["status"] == "not_run" for row in report["observations"]) > 1:
+        raise ValueError("single-use boundary requires at most one runnable observation")
+    if boundary_state is not None:
+        native_evaluator = Path(evaluator)
+        if (
+            not native_evaluator.is_absolute()
+            or str(native_evaluator) != evaluator
+            or ".." in native_evaluator.parts
+            or ":" in evaluator
+            or "\x00" in evaluator
+        ):
+            raise ValueError("boundary requires an unambiguous absolute evaluator path")
+    models, env, missing_key = configuration(provider, read_credentials=not budget_failed)
+    if boundary_state is not None:
+        # Keep the writable runtime discoverable only inside native execution.
+        env["PATH"] = "/usr/local/bin:/usr/bin:/bin:" + str(Path(evaluator).parent)
+    report["policy"]["models"] = models
+    output.mkdir(parents=True, exist_ok=False, mode=0o700)
+    if native_output != output:
+        native_output.mkdir(parents=True, exist_ok=False, mode=0o700)
+    # Docker needs a home for its client state; never inherit host credentials
+    # or let an unset HOME redirect that state into the skill repository.
+    runtime_home = native_output / "runtime-home"
+    runtime_home.mkdir(mode=0o700)
+    env["HOME"] = str(runtime_home)
     for row in report["observations"]:
         if row["status"] == "not_run" and budget_failed:
             row.update(status="incomplete", reason="insufficient_job_budget")

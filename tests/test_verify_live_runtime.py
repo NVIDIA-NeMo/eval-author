@@ -278,18 +278,43 @@ subprocess.Popen([sys.executable, '-c', sys.argv[1], sys.argv[2]]).wait()
     assert (tmp_path / "escaped").exists() is not process_group
 
 
-@pytest.mark.parametrize("deadline", ["0", "nan", "inf", "synthetic-canary"])
-def test_live_deadline_failure_precedes_child_probe(gate, tmp_path, monkeypatch, deadline):
+@pytest.mark.parametrize("deadline", ["0", "nan", "inf", "synthetic-canary", "1000000000000"])
+def test_live_deadline_controls_wrapper_dispatch(monkeypatch, deadline):
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    spec = importlib.util.spec_from_file_location("deadline_wrapper", ROOT / "tools/run_pinned_live_evaluator.py")
+    assert spec is not None and spec.loader is not None
+    wrapper = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(wrapper)
     monkeypatch.setenv("EA_LIVE_JOB_DEADLINE", deadline)
-    output = tmp_path / "private"
-    summary = gate.verify(tmp_path / "manifest", output)
-    assert summary["reason"] == "wrapper_failed"
-    assert summary["help_checks"] == summary["positive_children"] == summary["negative_children"] == 0
-    assert not (output / "children.stdout").exists()
-    assert "synthetic-canary" not in json.dumps(summary)
+    for key in ("_EA_LIVE_FAILURE_PATH", "_EA_LIVE_FAILURE_TOKEN"):
+        monkeypatch.delenv(key, raising=False)
+    calls = []
+    monkeypatch.setattr(wrapper, "configure_runtime", lambda: calls.append("configure"))
+    monkeypatch.setattr(wrapper, "install_failure_channel", lambda: calls.append("channel"))
+
+    class CLI:
+        @staticmethod
+        def cli():
+            calls.append("cli")
+
+    def import_cli(name):
+        assert name == "skillevaluator.cli"
+        return CLI
+
+    monkeypatch.setattr(wrapper, "import_module", import_cli)
+    if deadline == "1000000000000":
+        wrapper.main()
+        assert calls == ["configure", "channel", "cli"]
+    else:
+        with pytest.raises(ValueError if deadline == "synthetic-canary" else TimeoutError):
+            wrapper.main()
+        assert calls == []
 
 
-def test_worker_failure_keeps_exception_private_even_when_called_directly(gate, tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize("reason, expected_code", [("timeout", 124), ("children_failed", 1), (None, 1)])
+def test_worker_failure_keeps_exception_private_even_when_called_directly(
+    gate, tmp_path, monkeypatch, capsys, reason, expected_code
+):
     output = tmp_path / "private"
     output.mkdir(mode=0o700)
     monkeypatch.setattr(
@@ -307,12 +332,28 @@ def test_worker_failure_keeps_exception_private_even_when_called_directly(gate, 
     )
 
     def broken_probe(*args):
+        if reason is not None:
+            raise gate.GateFailure(reason)
         raise RuntimeError("synthetic-private-exception")
 
     monkeypatch.setattr(gate, "probe_children", broken_probe)
-    assert gate.main() == 1
+    assert gate.main() == expected_code
     captured = capsys.readouterr()
     assert captured.out == captured.err == ""
     raw = output / "probe-failure.stderr"
-    assert "synthetic-private-exception" in raw.read_text()
+    assert (reason or "synthetic-private-exception") in raw.read_text()
     assert raw.stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.parametrize("code, reason", [(124, "timeout"), (1, "children_failed"), (78, "children_failed")])
+def test_parent_classifies_worker_timeout_before_reading_receipt(gate, tmp_path, monkeypatch, code, reason):
+    def fake_run(argv, env, output, label, deadline):
+        return code if label == "children" else 0
+
+    monkeypatch.setattr(gate, "run_private", fake_run)
+    output = tmp_path / "private"
+    summary = gate.verify(tmp_path / "manifest", output)
+    assert summary["reason"] == reason
+    assert summary["help_checks"] == 1
+    assert summary["positive_children"] == summary["negative_children"] == 0
+    assert not (output / "children.stdout").exists()

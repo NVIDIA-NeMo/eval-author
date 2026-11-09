@@ -64,8 +64,6 @@ def test_live_ci_selects_managed_python_for_the_guarded_runtime():
     ]
     assert installs, "live runtime installation step missing"
     assert len(installs) == 2 and installs[0] == installs[1]
-    runner = (ROOT / "tools/live_shard.py").read_text()
-    assert '["uv", "venv", "--managed-python", "--python", "3.12"' in runner
 
 
 def test_pin_preserves_existing_entries_before_cli_dispatch(wrapper, upstream):

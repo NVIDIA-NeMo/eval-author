@@ -21,12 +21,46 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 
+def short_control_directory():
+    # Do not escape a long TMPDIR through a symlink or a shared system root.
+    candidates = [
+        os.environ.get("EA_LOCAL_VM_TEST_TMPDIR"),
+        tempfile.gettempdir(),
+        Path.home() / ".hermes/cache/scratch",
+    ]
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        parent = Path(candidate).absolute()
+        if not parent.is_dir() or any(p.is_symlink() for p in (parent, *parent.parents)):
+            continue
+        deepest = parent / "12345678" / "starting" / "lima" / "ea-12345678" / "ssh.sock.1234567890123456"
+        if len(os.fsencode(deepest)) < 104:
+            return tempfile.TemporaryDirectory(prefix="", dir=parent)
+    raise unittest.SkipTest("no canonical scratch root with Lima socket headroom; set EA_LOCAL_VM_TEST_TMPDIR")
+
+
+def test_socket_rejection_needs_no_short_fixture():
+    from local_live_vm import LocalVM
+
+    with (
+        mock.patch("local_live_vm.subprocess.Popen") as process,
+        mock.patch("local_live_vm.socket.socketpair") as channel,
+        mock.patch.object(Path, "mkdir") as mkdir,
+    ):
+        with unittest.TestCase().assertRaisesRegex(ValueError, "socket.*104"):
+            LocalVM.create(Path.cwd() / ("long-root-" * 20))
+        process.assert_not_called()
+        channel.assert_not_called()
+        mkdir.assert_not_called()
+
+
 class StdinAdmissionTests(unittest.TestCase):
     def setUp(self):
         import local_live_vm as transport
 
         self.transport = transport
-        self.temp = tempfile.TemporaryDirectory(prefix="")
+        self.temp = short_control_directory()
         self.addCleanup(self.temp.cleanup)
         root = Path(self.temp.name).resolve()
         self.vm = transport.LocalVM()
@@ -48,6 +82,29 @@ class StdinAdmissionTests(unittest.TestCase):
         self.process.poll.return_value = None
         self.vm.process = self.process
 
+    def test_shell_cleanup_preserves_first_failure_and_closes_each_pipe(self):
+        for failure in (KeyboardInterrupt("interrupted"), subprocess.TimeoutExpired(["synthetic"], 1)):
+            with self.subTest(failure=type(failure).__name__):
+                self.vm._transport_failed = False
+                proc = mock.Mock(pid=12345)
+                proc.communicate.side_effect = failure
+                proc.wait.side_effect = subprocess.TimeoutExpired(["reap"], 2)
+                proc.stdin.close.side_effect = OSError("close failed")
+                with (
+                    mock.patch.object(self.transport.time, "monotonic", return_value=100),
+                    mock.patch.object(self.transport.subprocess, "Popen", return_value=proc) as launch,
+                    mock.patch.object(self.transport.os, "killpg", side_effect=ProcessLookupError) as kill,
+                ):
+                    with self.assertRaises(type(failure)) as caught:
+                        self.vm.shell(["run"], timeout=1, stdin=b"synthetic")
+                self.assertIs(caught.exception, failure)
+                self.assertTrue(launch.call_args.kwargs["start_new_session"])
+                kill.assert_called_once_with(proc.pid, signal.SIGKILL)
+                proc.wait.assert_called_once_with(timeout=2)
+                for stream in (proc.stdin, proc.stdout, proc.stderr):
+                    stream.close.assert_called_once()
+                self.assertTrue(self.vm._transport_failed)
+
     def test_stdin_admission_rechecks_after_binding_validation(self):
         clock = [100.0]
         validate = self.transport._validate_binding
@@ -59,7 +116,7 @@ class StdinAdmissionTests(unittest.TestCase):
         with (
             mock.patch.object(self.transport.time, "monotonic", side_effect=lambda: clock[0]),
             mock.patch.object(self.transport, "_validate_binding", side_effect=slow_validation) as binding,
-            mock.patch.object(self.transport.subprocess, "run") as admission,
+            mock.patch.object(self.transport.subprocess, "Popen") as admission,
         ):
             with self.assertRaisesRegex(ValueError, "stdin admission"):
                 self.vm.shell(["run"], timeout=3000, stdin=b"SYNTHETIC", stdin_deadline=101.0)
@@ -88,15 +145,21 @@ class StdinAdmissionTests(unittest.TestCase):
         )
         with mock.patch.object(self.transport.time, "monotonic", return_value=100.0):
             for deadline in invalid:
-                with self.subTest(deadline=deadline), mock.patch.object(self.transport.subprocess, "run") as admission:
+                with (
+                    self.subTest(deadline=deadline),
+                    mock.patch.object(self.transport.subprocess, "Popen") as admission,
+                ):
                     with self.assertRaisesRegex(ValueError, "stdin admission"):
                         self.vm.shell(["run"], timeout=3000, stdin=b"SYNTHETIC", stdin_deadline=deadline)
                     admission.assert_not_called()
             for deadline in (None, 101, 101.0, math.nextafter(100.0, math.inf)):
-                with self.subTest(deadline=deadline), mock.patch.object(self.transport.subprocess, "run") as admission:
+                with (
+                    self.subTest(deadline=deadline),
+                    mock.patch.object(self.transport.subprocess, "Popen") as admission,
+                ):
+                    admission.return_value.communicate.return_value = (b"out", b"err")
                     self.vm.shell(["run"], timeout=3000, stdin=b"SYNTHETIC", stdin_deadline=deadline)
-                    self.assertEqual(admission.call_args.kwargs["input"], b"SYNTHETIC")
-                    self.assertEqual(admission.call_args.kwargs["timeout"], 3000)
+                    admission.return_value.communicate.assert_called_once_with(input=b"SYNTHETIC", timeout=3000)
 
     def test_stdin_deadline_rechecked_after_final_local_environment_construction(self):
         clock = [100.0]
@@ -110,7 +173,7 @@ class StdinAdmissionTests(unittest.TestCase):
         with (
             mock.patch.object(self.transport.time, "monotonic", side_effect=lambda: clock[0]),
             mock.patch.object(self.transport, "_env", side_effect=slow_environment) as env,
-            mock.patch.object(self.transport.subprocess, "run") as admission,
+            mock.patch.object(self.transport.subprocess, "Popen") as admission,
         ):
             with self.assertRaisesRegex(ValueError, "stdin admission"):
                 self.vm.shell(["run"], timeout=3000, stdin=b"SYNTHETIC", stdin_deadline=101.0)
@@ -128,7 +191,7 @@ class StdinAdmissionTests(unittest.TestCase):
         ]
         with (
             mock.patch.object(self.transport.time, "monotonic", return_value=100.0),
-            mock.patch.object(self.transport.subprocess, "run") as admission,
+            mock.patch.object(self.transport.subprocess, "Popen") as admission,
         ):
             for argv, timeout, stdin in cases:
                 with self.subTest(argv=argv, timeout=timeout, stdin_type=type(stdin)), self.assertRaises(ValueError):
@@ -145,21 +208,21 @@ class StdinAdmissionTests(unittest.TestCase):
     def test_omitted_stdin_deadline_preserves_default_eof_and_execution_timeout(self):
         with (
             mock.patch.object(self.transport.time, "monotonic", return_value=100.0),
-            mock.patch.object(self.transport.subprocess, "run") as admission,
+            mock.patch.object(self.transport.subprocess, "Popen") as admission,
         ):
+            admission.return_value.communicate.return_value = (b"out", b"err")
             for stdin in (None, b"SYNTHETIC"):
                 with self.subTest(stdin=stdin):
                     self.vm.shell(["run"], timeout=3000, stdin=stdin)
-                    self.assertEqual(admission.call_args.kwargs["input"], stdin)
-                    self.assertEqual(admission.call_args.kwargs["timeout"], 3000)
-                    expected = subprocess.DEVNULL if stdin is None else None
+                    admission.return_value.communicate.assert_called_with(input=stdin, timeout=3000)
+                    expected = subprocess.DEVNULL if stdin is None else subprocess.PIPE
                     self.assertEqual(admission.call_args.kwargs["stdin"], expected)
 
 
 class LocalVMTests(unittest.TestCase):
     def setUp(self):
         # Leave room for the real Lima socket guard even under a long TMPDIR.
-        self.temp = tempfile.TemporaryDirectory(prefix="")
+        self.temp = short_control_directory()
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name).resolve()
         self.cli = self.base / "limactl"
@@ -381,7 +444,7 @@ class LocalVMTests(unittest.TestCase):
         )
         for change in changes:
             with self.subTest(change=change), mock.patch.dict(vm.spec, change):
-                with mock.patch("local_live_vm.subprocess.run") as run:
+                with mock.patch("local_live_vm.subprocess.Popen") as run:
                     with self.assertRaisesRegex(ValueError, "invalid owned name"):
                         vm.shell(["true"], timeout=2)
                     run.assert_not_called()
@@ -429,7 +492,7 @@ class LocalVMTests(unittest.TestCase):
         self.addCleanup(vm.close)
         for payload in ("text", bytearray(b"x"), memoryview(b"x"), 1, False, b"x" * 65537):
             with self.subTest(payload_type=type(payload).__name__):
-                with mock.patch("local_live_vm.subprocess.run") as run:
+                with mock.patch("local_live_vm.subprocess.Popen") as run:
                     with self.assertRaisesRegex(ValueError, "stdin.*bytes.*65536"):
                         vm.shell(["read-stdin"], timeout=2, stdin=payload)
                     run.assert_not_called()
@@ -451,11 +514,63 @@ class LocalVMTests(unittest.TestCase):
         self.assertEqual(result.stdout, b"synthetic-input")
         with self.assertRaises(subprocess.TimeoutExpired):
             vm.shell(["slow"], timeout=0.2, stdin=b"synthetic-input")
-        with mock.patch("local_live_vm.subprocess.run") as run:
+        with mock.patch("local_live_vm.subprocess.Popen") as run:
             with self.assertRaisesRegex(ValueError, "exceeds VM lease"):
                 vm.shell(["fail"], timeout=31, stdin=b"synthetic-input")
             run.assert_not_called()
         self.assertTrue(vm.close()["eliminated"])
+
+    def test_shell_failure_kills_exact_host_group_not_vm(self):
+        from local_live_vm import LocalVM
+
+        original_cli = self.cli.read_text()
+        cases = ((False, False, False), (True, False, False), (True, True, False), (True, False, True))
+        for index, (inherit, parent_exits, interrupt) in enumerate(cases):
+            with self.subTest(inherit=inherit, parent_exits=parent_exits, interrupt=interrupt):
+                self.cli.write_text(original_cli)
+                child = (
+                    "import pathlib,signal,sys,time; "
+                    "signal.signal(signal.SIGTERM,signal.SIG_IGN); "
+                    "root=pathlib.Path(sys.argv[1]); "
+                    "(root/'child-started').write_text('ready'); "
+                    "time.sleep(1.5); (root/'late-marker').write_text('survived')"
+                )
+                self.alter_cli(
+                    "print('guest output')",
+                    "import subprocess\n"
+                    f"    subprocess.Popen([sys.executable, '-c', {child!r}, str(root)], "
+                    f"stdout={'None' if inherit else 'subprocess.DEVNULL'}, "
+                    f"stderr={'None' if inherit else 'subprocess.DEVNULL'})\n"
+                    "    print('transport-output', flush=True)\n"
+                    "    print('transport-error', file=sys.stderr, flush=True)\n"
+                    + ("    raise SystemExit(0)" if parent_exits else "    time.sleep(5)"),
+                )
+                vm = LocalVM.create(self.base / str(index), limactl=self.cli, job_seconds=30, command_seconds=5)
+                self.addCleanup(vm.close)
+                failure = KeyboardInterrupt("synthetic transport interruption")
+                communicate = subprocess.Popen.communicate
+
+                def interrupted(proc, *args, **kwargs):
+                    self.wait_for(vm.root / "child-started")
+                    raise failure
+
+                with mock.patch.object(subprocess.Popen, "communicate", interrupted if interrupt else communicate):
+                    with self.assertRaises(KeyboardInterrupt if interrupt else subprocess.TimeoutExpired) as caught:
+                        vm.shell(["spawn"], timeout=0.7, stdin=b"synthetic")
+                if interrupt:
+                    self.assertIs(caught.exception, failure)
+                else:
+                    assert isinstance(caught.exception, subprocess.TimeoutExpired)
+                    self.assertEqual(caught.exception.timeout, 0.7)
+                    self.assertIn(b"transport-output", caught.exception.output or b"")
+                    self.assertIn(b"transport-error", caught.exception.stderr or b"")
+                self.assertTrue((vm.root / "child-started").exists())
+                time.sleep(1.7)
+                self.assertFalse((vm.root / "late-marker").exists(), "host descendant survived transport failure")
+                self.assertTrue((vm.lima_home / vm.name).exists(), "killpg is not VM elimination")
+                with self.assertRaisesRegex(RuntimeError, "transport failed.*close"):
+                    vm.shell(["next-phase"], timeout=2)
+                self.assertTrue(vm.close()["eliminated"])
 
     def test_owned_vm_lifecycle_and_guest_exit_are_distinct(self):
         self.assertIsNotNone(importlib.util.find_spec("local_live_vm"), "local VM supervisor is missing")

@@ -118,10 +118,21 @@ OpenCode or preparing Tier 3 images. Successful setup phases explicitly hand
 off a short idle lease; failed phases close the boundary. Native evaluation
 closes it before report parsing, and CI closes it again before staging.
 
-On macOS, [`tools/local_live_vm.py`](../tools/local_live_vm.py) provides a
-`LocalVM` handle for owning one fresh Lima VM across these phases. It creates
-the VM; Docker provisioning remains a separate prerequisite. Use a short,
-private host control root: `<root>/lima/<name>/ssh.sock.1234567890123456` must
+Direct boundary-mode collection requires an unambiguous absolute `--evaluator`
+path and at most one runnable observation. The shard runner supplies that path;
+the native runtime directory is added only inside the boundary, not to the host
+collector's command search path. Use the CI planner for a full multi-shard run.
+
+This is lifecycle containment, not a guarantee of credential confidentiality,
+restricted egress, or protection against a compromised privileged guest.
+
+On Apple Silicon macOS, [`tools/local_live_vm.py`](../tools/local_live_vm.py)
+provides a `LocalVM` handle for owning one fresh Lima VM across these phases.
+The supported default is Homebrew Lima 2.3.0 at `/opt/homebrew/bin/limactl`,
+using VZ and an ARM64 guest; the Python API also accepts an explicit `limactl`
+path. It creates the VM; Docker provisioning remains a separate prerequisite.
+Use a fresh, short, private, canonical host control root with no symlink
+ancestors: `<root>/lima/<name>/ssh.sock.1234567890123456` must
 encode to fewer than 104 bytes. Longer paths are rejected before startup;
 keep verbose evidence directory names outside that root. The shell API,
 `LocalVM.shell(..., stdin=payload)`, accepts at most 64 KiB of in-memory bytes;
@@ -241,7 +252,7 @@ The destination must be new, in an existing directory outside the source checkou
 with no symlink components and distinct from the public timing checkpoint. On the
 first Docker nonzero exit or subprocess timeout, preparation exclusively creates
 one 0600 JSON file with fixed category/phase/operation, exit code (null for timeout),
-and stdout/stderr prefixes capped at 16 KiB each with truncation flags. This bounds
+and stdout/stderr head-and-tail excerpts capped at 16 KiB each with truncation flags. This bounds
 retained output, not Docker subprocess memory buffering. Retention failure does
 not replace the original preparation failure. The shared shard runner enables
 this at `workspace/preparation-docker-failure.private.json`, outside source and
@@ -281,6 +292,15 @@ The 48-minute run step and this aggregate setup deadline fit the unchanged
 80-minute job with two minutes for checkout and three for staging/upload.
 Individual setup step caps overlap; their sum is not an additional allowance.
 The timing summary derives its setup budget from `tools/live_shard.py` too.
+Its `setup_and_preparation_seconds` conservatively includes teardown; the
+completion cutoff remains strictly less than 1620 seconds. Before closing the
+boundary, the reporting step atomically writes an incomplete fallback with
+`outcomes.close: unknown` and no binary provenance. It updates that outcome to
+`success` only after the close command and checkpoint projection succeed, or
+`failure` for a close or projection error; the latter does not identify which
+operation failed. Failures remain fatal, and uncertain closure never authorizes
+reading workspace provenance or staging native results. If the reporting step
+is terminated during close, its prewritten incomplete summary remains available.
 The startup allowance is not a measured cold-start guarantee: overruns still
 fail the unchanged final budget checks rather than consuming the evaluation reserve.
 The PR timing check exercises the same setup and preparation commands, without
@@ -305,8 +325,9 @@ observed. No command arguments, image IDs, paths, environment values or task/log
 content are emitted. Console progress and retained history stop at 2048 events;
 the latest checkpoint still updates and marks history truncation. The file is
 capped at 1 MiB and counts at 128 trial images; elapsed fields saturate at one day.
-The unchanged `always()` upload retains only this checkpoint and the existing
-safe summary, even after preparation failure/cancellation. A process killed
+The `always()` upload retains only the safe summary and any checkpoint validated
+and projected after confirmed closure. Failed closure leaves the checkpoint
+private rather than uploading unvalidated data. A process killed
 mid-operation leaves its last observed boundary, not a fabricated final duration
 or success. Runner loss can still prevent artifact upload. The checkpoint option
 does not change any configured deadlines or live-shard gates.

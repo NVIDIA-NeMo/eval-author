@@ -83,7 +83,7 @@ def test_nonzero_retained_before_typed_failure_and_public_redacted(runtime, path
 @pytest.mark.parametrize("failure", ["exit", "timeout_bytes", "timeout_str"])
 def test_large_failure_outputs_are_bounded(runtime, paths, monkeypatch, failure):
     source, output, binary, private = paths
-    content = "\x00雪" * 100000
+    content = "PRIVATE head" + "\x00雪" * 100000 + "PRIVATE terminal error"
     calls = []
 
     def run(argv, **kwargs):
@@ -103,6 +103,8 @@ def test_large_failure_outputs_are_bounded(runtime, paths, monkeypatch, failure)
     assert isinstance(caught.value, runtime.PreparationTimeoutError) == failure.startswith("timeout")
     for stream in ("stdout", "stderr"):
         assert record[stream] and len(record[stream].encode()) <= 16384
+        assert record[stream].startswith("PRIVATE head")
+        assert "PRIVATE terminal error" in record[stream]
         assert record[stream + "_truncated"] is True
     assert private.stat().st_size <= 200000
     assert calls[0]["timeout"] == 17
@@ -345,3 +347,23 @@ def test_timeout_empty_or_invalid_partial_output(runtime, paths, monkeypatch, va
     record = json.loads(private.read_text())
     assert record["stdout"] == record["stderr"] == expected
     assert record["stdout_truncated"] is record["stderr_truncated"] is False
+
+
+@pytest.mark.parametrize("size", [0, 16384, 16385])
+@pytest.mark.parametrize("encoding", ["str", "bytes", "multibyte", "invalid"])
+def test_private_stream_head_tail_byte_boundary(runtime, size, encoding):
+    value = "H" + "x" * max(0, size - 2) + "T" if size else ""
+    if encoding == "multibyte":
+        value = value.replace("x", "雪")
+    elif encoding == "invalid":
+        value = value.encode().replace(b"x", b"\xff")
+    elif encoding == "bytes":
+        value = value.encode()
+    normalized = value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
+    text, truncated = runtime._private_stream(value)
+    assert len(text.encode()) <= 16384
+    assert truncated == (len(normalized.encode()) > 16384)
+    if truncated:
+        assert text.startswith("H") and text.endswith("T")
+    else:
+        assert text == normalized

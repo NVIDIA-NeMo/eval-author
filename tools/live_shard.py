@@ -16,8 +16,16 @@ import sys
 import time
 from pathlib import Path
 
+from live_agent_diagnostics import read_regular
 from live_shard_boundary import attach_boundary, close_boundary, create_boundary, execute_in_boundary, handoff_boundary
-from patched_opencode_runtime import LIVE_EXECUTION_SECONDS, LIVE_HANDOFF_SECONDS, PREPARATION_TIMEOUT_SECONDS
+from patched_opencode_runtime import (
+    EVALUATOR_REVISION,
+    LIVE_EXECUTION_SECONDS,
+    LIVE_HANDOFF_SECONDS,
+    PREPARATION_TIMEOUT_SECONDS,
+    PREPARATION_TIMING_MAX_BYTES,
+    validate_preparation_timing,
+)
 
 LIVE_JOB_SECONDS = 4500
 # The collector validates before launching the wrapper. Wrapper activation then
@@ -58,66 +66,13 @@ def parse_args(argv=None):
 
 
 def publish_timing(root, output):
-    from patched_opencode_runtime import PREPARATION_CATEGORIES, PREPARATION_OPERATIONS, PREPARATION_PHASES
-
     source = root / "workspace/preparation-operation-timing.json"
-    if not source.exists():
+    if not source.exists() and not source.is_symlink():
         return
     output = output.absolute()
     if output.is_relative_to(root) or any(p.is_symlink() for path in (source, output) for p in (path, *path.parents)):
         raise ValueError("unsafe timing path")
-    if not source.is_file() or source.stat().st_size > 1048576:
-        raise ValueError("invalid timing checkpoint")
-    data = json.loads(source.read_text())
-    fixed = {
-        "schema_version": 1,
-        "clock": "monotonic",
-        "measurement": "host_operation_boundaries",
-        "build_instruction_observed": False,
-    }
-    if (
-        set(data) != set(fixed) | {"events_truncated", "latest", "events"}
-        or any(type(data[k]) is not type(v) or data[k] != v for k, v in fixed.items())
-        or type(data["events_truncated"]) is not bool
-        or type(data["events"]) is not list
-        or len(data["events"]) > 2048
-    ):
-        raise ValueError("invalid timing checkpoint")
-    enums = {
-        "event": {
-            "started",
-            "phase",
-            "image_started",
-            "image_completed",
-            "operation_started",
-            "operation_completed",
-            "operation_failed",
-            "completed",
-            "failed",
-        },
-        "phase": PREPARATION_PHASES,
-        "operation": PREPARATION_OPERATIONS,
-        "category": PREPARATION_CATEGORIES | {"none"},
-    }
-    counters = {"image_ordinal", "completed_images"}
-    seconds = {
-        "operation_elapsed_seconds",
-        "image_elapsed_seconds",
-        "total_elapsed_seconds",
-        "remaining_deadline_seconds",
-    }
-    for row in [data["latest"], *data["events"]]:
-        if (
-            type(row) is not dict
-            or set(row) != set(enums) | counters | seconds
-            or any(type(row[k]) is not str or row[k] not in allowed for k, allowed in enums.items())
-            or any(type(row[k]) is not int or not 0 <= row[k] <= 128 for k in counters)
-            or any(
-                type(row[k]) not in (float, int) or not math.isfinite(row[k]) or not 0 <= row[k] <= 86400
-                for k in seconds
-            )
-        ):
-            raise ValueError("invalid timing checkpoint")
+    data = validate_preparation_timing(json.loads(read_regular(source, PREPARATION_TIMING_MAX_BYTES)))
     with output.open("x") as stream:
         json.dump(data, stream, allow_nan=False)
 
@@ -243,7 +198,7 @@ def _run_phase(args):
                     "install",
                     "--python",
                     python,
-                    f"skillevaluator[{extras}] @ git+https://github.com/NVIDIA/SkillEvaluator.git@3fd2cf57e4a2af01f282e001f7515b6e76f18ec7",
+                    f"skillevaluator[{extras}] @ git+https://github.com/NVIDIA/SkillEvaluator.git@{EVALUATOR_REVISION}",
                 ],
                 "install",
             )
@@ -304,7 +259,7 @@ def _run_phase(args):
             home = root / "control/collector-home"
             home.mkdir(mode=0o700)
             collector_env = {
-                "PATH": "/usr/local/bin:/usr/bin:/bin:" + str(workspace / "live-runtime/bin"),
+                "PATH": "/usr/local/bin:/usr/bin:/bin",
                 "HOME": str(home),
                 "GIT_CONFIG_NOSYSTEM": "1",
                 "GIT_CONFIG_GLOBAL": "/dev/null",

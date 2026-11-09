@@ -181,6 +181,8 @@ def verify(manifest, output):
             "children",
             started + GATE_SECONDS,
         )
+        if code == 124:
+            raise GateFailure("timeout")
         receipt = output / "children.stdout"
         if code != 0 or receipt.stat().st_size > 1024:
             raise GateFailure("children_failed")
@@ -217,13 +219,13 @@ def main():
         try:
             print(json.dumps(probe_children(args.output, args.probe_children), sort_keys=True))
             return 0
-        except Exception:
+        except Exception as exc:
             try:
                 with private_stream(args.output / "probe-failure.stderr") as stream:
                     stream.write(traceback.format_exc().encode())
             except OSError:
                 pass
-            return 1
+            return 124 if isinstance(exc, GateFailure) and str(exc) == "timeout" else 1
     summary = verify(args.binary_manifest.absolute(), args.output.absolute())
     print(json.dumps(summary, sort_keys=True))
     return 0 if summary["reason"] == "passed" else 1

@@ -42,8 +42,11 @@ def test_ci_evaluation_is_advisory_and_always_attempts_artifact_upload():
     assert stage["if"] == "always()" and "skill-fallback" in stage["run"]
 
 
-def test_static_and_live_installs_match_the_reported_evaluator_revision():
+def test_static_and_live_installs_match_the_reported_evaluator_revision(monkeypatch):
     root = Path(__file__).resolve().parents[1]
+    monkeypatch.syspath_prepend(str(root / "tools"))
+    import live_shard
+
     assert collector.EVALUATOR_REVISION == "3fd2cf57e4a2af01f282e001f7515b6e76f18ec7"
     for filename, job_name, step_name in (
         ("ci.yml", "skill-evaluator", "Install pinned evaluation tools"),
@@ -53,8 +56,9 @@ def test_static_and_live_installs_match_the_reported_evaluator_revision():
         install = next(step["run"] for step in workflow["jobs"][job_name]["steps"] if step.get("name") == step_name)
         if filename == "skill-evaluation-live.yml":
             assert 'tools/live_shard.py runtime --root "$RUNNER_TEMP/live-shard"' in install
-            install = (root / "tools/live_shard.py").read_text()
-        assert f"git+https://github.com/NVIDIA/SkillEvaluator.git@{collector.EVALUATOR_REVISION}" in install
+            assert live_shard.EVALUATOR_REVISION == collector.EVALUATOR_REVISION
+        else:
+            assert f"git+https://github.com/NVIDIA/SkillEvaluator.git@{collector.EVALUATOR_REVISION}" in install
 
 
 def test_only_skillspector_security_is_skipped():

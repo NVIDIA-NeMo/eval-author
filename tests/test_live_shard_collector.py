@@ -14,6 +14,110 @@ live = fixtures.live
 repo = fixtures.repo
 
 
+@pytest.mark.parametrize(
+    "check,ci_context_budget", [("context", False), ("context", True), ("similarity", False), ("live", False)]
+)
+def test_boundary_payload_restores_native_path_without_host_path(
+    live, repo, tmp_path, monkeypatch, check, ci_context_budget
+):
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+
+    backend = live.live_shard_boundary
+    runtime_bin = tmp_path / "workspace/live-runtime/bin"
+    evaluator = str(runtime_bin / "skillevaluator")
+    python = str(runtime_bin / "python")
+    host_path = "/usr/local/bin:/usr/bin:/bin"
+    monkeypatch.setenv("PATH", host_path + ":/ambient-writable-bin")
+    monkeypatch.setenv(live.HUB_KEY, "synthetic-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "unrelated-key")
+    monkeypatch.setattr(live, "live_job_remaining", lambda required: required)
+    monkeypatch.setattr(live, "execute", lambda *a: pytest.fail("native host execution forbidden"))
+    data = dict(status="ready", owner=None, deadline=live.time.time() + 4500, docker_config="/host-only")
+    monkeypatch.setattr(backend, "_lock", lambda state: nullcontext())
+    monkeypatch.setattr(backend, "_read", lambda state: data.copy())
+    monkeypatch.setattr(backend, "_save", lambda state, value: data.update(value))
+    monkeypatch.setattr(backend, "_expired", lambda value: False)
+    monkeypatch.setattr(backend, "_identity", lambda: {"pid": 123, "start": "fixture"})
+    monkeypatch.setattr(backend, "_docker_exec", lambda value: ["not-executed"])
+    monkeypatch.setattr(backend, "close_boundary", lambda state: data.update(status="closed"))
+    payloads = []
+
+    class Transport:
+        returncode = 0
+
+        def __init__(self, argv, **kwargs):
+            assert kwargs["env"] == {"PATH": host_path, "HOME": "/host-only"}
+
+        def communicate(self, payload, timeout):
+            payloads.append((json.loads(payload), timeout))
+
+    monkeypatch.setattr(backend, "subprocess", SimpleNamespace(Popen=Transport, PIPE=-1))
+    live.collect(
+        repo,
+        tmp_path / "output",
+        tier="3" if check == "live" else "2",
+        skill_name="all" if check == "similarity" else "eval-author",
+        check_name=check,
+        ci_context_budget=ci_context_budget,
+        evaluator=evaluator,
+        evaluator_python=python,
+        run=True,
+        boundary_state=tmp_path / "state",
+    )
+    assert len(payloads) == (2 if check == "live" else 1)
+    for payload, timeout in payloads:
+        assert payload["env"]["PATH"] == host_path + ":" + str(runtime_bin)
+        assert payload["env"]["SKILL_EVAL_LLM_API_KEY"] == "synthetic-key"
+        assert payload["env"]["SKILL_EVAL_EMBEDDING_API_KEY"] == "synthetic-key"
+        assert "OPENAI_API_KEY" not in payload["env"]
+        assert live.HUB_KEY not in payload["env"]
+        assert payload["cwd"] == str(repo)
+    if check == "live":
+        assert payloads[0][0]["argv"][:3] == [evaluator, "tier3", "validate"]
+        assert payloads[0][1] == 60
+        assert payloads[1][0]["argv"][0] == python
+        assert payloads[1][0]["argv"][2:4] == ["tier3", "evaluate"]
+        assert "--agent-runtime-preflight" in payloads[1][0]["argv"]
+        assert payloads[1][1] == live.TIER3_TIMEOUT_SECONDS
+    else:
+        assert payloads[0][0]["argv"][0] == (python if ci_context_budget else evaluator)
+        assert payloads[0][1] == 300
+    assert data["status"] == "closed"
+    assert live.os.environ["PATH"] == host_path + ":/ambient-writable-bin"
+
+
+@pytest.mark.parametrize(
+    "evaluator",
+    [
+        "skillevaluator",
+        "relative/bin/skillevaluator",
+        "/runtime/../bin/skillevaluator",
+        "/runtime:extra/bin/skillevaluator",
+        "/runtime/./bin/skillevaluator",
+        "/runtime\x00/bin/skillevaluator",
+    ],
+)
+def test_boundary_rejects_ambiguous_runtime_path_before_credentials(live, repo, tmp_path, monkeypatch, evaluator):
+    closed = []
+    monkeypatch.setattr(live, "configuration", lambda *a, **k: pytest.fail("credential configuration reached"))
+    monkeypatch.setattr(live.live_shard_boundary, "execute_in_boundary", lambda *a, **k: pytest.fail("native reached"))
+    monkeypatch.setattr(live.live_shard_boundary, "close_boundary", closed.append)
+    with pytest.raises(ValueError, match="absolute evaluator path"):
+        live.collect(
+            repo,
+            tmp_path / "output",
+            tier="2",
+            skill_name="eval-author",
+            check_name="context",
+            run=True,
+            evaluator=evaluator,
+            boundary_state=tmp_path / "state",
+        )
+    assert closed == [tmp_path / "state"]
+    assert not (tmp_path / "output").exists()
+
+
 def test_opt_in_execution_uses_boundary_and_keeps_budget(live, tmp_path, monkeypatch):
     backend = importlib.import_module("live_shard_boundary")
     calls = []
@@ -49,6 +153,7 @@ def test_collector_closes_before_parsing_and_routes_validation(live, repo, tmp_p
         skill_name="eval-author",
         check_name="live" if tier == "3" else "context",
         run=True,
+        evaluator="/native/bin/skillevaluator",
         boundary_state=tmp_path / "state",
     )
     assert calls[-1] == "close"
@@ -97,7 +202,14 @@ def test_failure_closes_before_diagnostic_reads(live, repo, tmp_path, monkeypatc
     monkeypatch.setattr(backend, "execute_in_boundary", execute)
     monkeypatch.setattr(backend, "close_boundary", close)
     monkeypatch.setattr(live.live_agent_diagnostics, "capture", capture)
-    kwargs = dict(tier="3", skill_name="eval-author", check_name="live", run=True, boundary_state=tmp_path / "state")
+    kwargs = dict(
+        tier="3",
+        skill_name="eval-author",
+        check_name="live",
+        run=True,
+        evaluator="/native/bin/skillevaluator",
+        boundary_state=tmp_path / "state",
+    )
     if close_fails:
         with pytest.raises(OSError) as caught:
             live.collect(repo, tmp_path / "output", **kwargs)
@@ -189,6 +301,7 @@ def test_native_reads_require_confirmed_close(live, repo, tmp_path, monkeypatch,
         skill_name="eval-author",
         check_name="live" if tier == "3" else "context",
         run=True,
+        evaluator="/native/bin/skillevaluator",
         boundary_state=tmp_path / "state",
     )
     if close_error:
@@ -211,6 +324,64 @@ def test_native_reads_require_confirmed_close(live, repo, tmp_path, monkeypatch,
         reads = [index for index, event in enumerate(events) if event.startswith("read:")]
         assert reads and events.index("close") < min(reads)
         assert any(row["status"] == ("passed" if tier == "2" else "completed") for row in report["observations"])
+
+
+@pytest.mark.parametrize(("tier", "skill", "check"), [("2", "all", "context"), ("both", "eval-author", "all")])
+def test_boundary_multirow_rejected_before_configuration(live, repo, tmp_path, monkeypatch, tier, skill, check):
+    events = []
+    monkeypatch.setattr(live, "configuration", lambda *a, **k: pytest.fail("credential configuration reached"))
+    monkeypatch.setattr(live.live_shard_boundary, "execute_in_boundary", lambda *a, **k: pytest.fail("native reached"))
+    monkeypatch.setattr(live.live_shard_boundary, "close_boundary", lambda state: events.append("close"))
+    with pytest.raises(ValueError, match="single-use boundary.*one runnable observation"):
+        live.collect(
+            repo,
+            tmp_path / "output",
+            tier=tier,
+            skill_name=skill,
+            check_name=check,
+            run=True,
+            boundary_state=tmp_path / "state",
+        )
+    assert events == ["close"]
+    assert not (tmp_path / "output").exists()
+
+
+@pytest.mark.parametrize("boundary_mode", [False, True])
+def test_collection_similarity_is_one_runnable_row(live, repo, tmp_path, monkeypatch, boundary_mode):
+    calls = []
+    monkeypatch.setenv(live.HUB_KEY, "synthetic-key")
+    monkeypatch.setattr(live.live_shard_boundary, "close_boundary", lambda state: None)
+
+    def execute(argv, cwd, env, log, timeout, **kwargs):
+        calls.append(argv)
+        return 5, None
+
+    monkeypatch.setattr(live, "execute_with_progress", execute)
+    report = live.collect(
+        repo,
+        tmp_path / "output",
+        tier="2",
+        check_name="similarity",
+        run=True,
+        evaluator="/native/bin/skillevaluator",
+        boundary_state=tmp_path / "state" if boundary_mode else None,
+    )
+    assert len(calls) == 1
+    assert calls[0][1] == "similarity-check"
+    assert sum(row["status"] != "skipped" for row in report["observations"]) == 1
+
+
+def test_nonboundary_context_keeps_multiple_rows(live, repo, tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setenv("PATH", "/usr/local/bin:/usr/bin:/bin:/ordinary-runtime/bin")
+    monkeypatch.setenv(live.HUB_KEY, "synthetic-key")
+    monkeypatch.setattr(live, "execute_with_progress", lambda *a, **k: calls.append(a) or (5, None))
+    report = live.collect(repo, tmp_path / "output", tier="2", check_name="context", run=True)
+    expected = len(list((repo / "skills").glob("*/SKILL.md")))
+    assert expected > 1
+    assert len(calls) == expected
+    assert all(call[2]["PATH"] == live.os.environ["PATH"] for call in calls)
+    assert sum(row["status"] != "skipped" for row in report["observations"]) == expected
 
 
 def test_early_collector_exception_closes(live, tmp_path, monkeypatch):
@@ -245,6 +416,7 @@ def test_native_allowlist_forces_safety_flags(live, repo, tmp_path, monkeypatch,
         skill_name="eval-author",
         check_name="live" if tier == "3" else "context",
         run=True,
+        evaluator="/native/bin/skillevaluator",
         boundary_state=tmp_path / "state",
     )
     assert len(environments) == (2 if tier == "3" else 1)
@@ -280,6 +452,7 @@ def test_private_native_output_is_separate_from_public_summary(live, repo, tmp_p
         skill_name="eval-author",
         check_name="live",
         run=True,
+        evaluator="/native/bin/skillevaluator",
         boundary_state=tmp_path / "state",
         native_output=native,
     )

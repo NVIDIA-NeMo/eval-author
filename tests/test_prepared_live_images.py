@@ -819,8 +819,10 @@ def test_preparation_exhausted_job_window_stops_before_native_or_docker(
     assert not (tmp_path / "exhausted").exists()
 
 
-def test_live_workflow_reserves_execution_and_report_headroom():
+def test_live_workflow_reserves_execution_and_report_headroom(monkeypatch):
     import yaml
+
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
     from live_shard import RUN_PHASE_SECONDS
 
     workflow = yaml.safe_load((ROOT / ".github/workflows/skill-evaluation-live.yml").read_text())
@@ -844,9 +846,6 @@ def test_live_workflow_prepares_before_secrets_and_requires_preparation():
     assert steps.index(step) < steps.index(live)
     assert "matrix.check == 'live'" in step["if"]
     assert "secrets." not in json.dumps(step)
-    runner = (ROOT / "tools/live_shard.py").read_text()
-    assert 'EA_REQUIRE_PREPARED_IMAGES="1"' in runner
-    assert 'EA_PREPARED_IMAGES_MANIFEST=str(workspace / "prepared-live-images/prepared-images.json")' in runner
 
 
 def test_wrapper_rejects_missing_preparation_before_cli(preparation, monkeypatch):

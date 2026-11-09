@@ -202,6 +202,92 @@ def test_exact_ownership_mismatch_never_kills(tmp_path, monkeypatch):
     assert module._read(state)["status"] == "uncertain"
 
 
+@pytest.mark.parametrize("scenario", ["recover", "timeouts", "nonzero", "late_success", "owner", "client", "close"])
+@pytest.mark.parametrize("job_budget", [120, 60, 6.1])
+def test_readiness_retries_within_absolute_budget(tmp_path, monkeypatch, scenario, job_budget):
+    module = boundary()
+    state = tmp_path / "state.json"
+    clock = [100.0]
+    end = clock[0] + min(60, job_budget)
+    cid, image = "a" * 64, "sha256:" + "b" * 64
+    module._save(
+        state,
+        {
+            "status": "creating",
+            "owner": "owner",
+            "client": "client",
+            "image": image,
+            "token": "owned",
+            "repo": "/repo",
+            "workspace": "/work",
+            "docker_config": str(tmp_path),
+            "deadline": clock[0] + job_budget,
+            "lease": clock[0] + job_budget,
+        },
+    )
+    monkeypatch.setattr(module.time, "time", lambda: clock[0])
+    monkeypatch.setattr(module, "_pidfd", lambda owner: os.open(os.devnull, os.O_RDONLY))
+    dead = []
+    monkeypatch.setattr(module, "_dead", lambda owner: owner in dead)
+    removed, probes, ready = [], [], []
+
+    def api(method, path, data=None, expected=(200,)):
+        if path.startswith("/containers/create?"):
+            return 201, {"Id": cid}
+        if path == f"/containers/{cid}/json":
+            return (
+                (404, {})
+                if removed
+                else (200, {"Id": cid, "Image": image, "Config": {"Labels": {module.LABEL: "owned"}}})
+            )
+        if method == "DELETE":
+            removed.append(path)
+        return expected[0], {}
+
+    def probe(*args, timeout, **kwargs):
+        probes.append(timeout)
+        assert 0 < timeout <= min(5, end - clock[0])
+        if scenario == "recover" and len(probes) == 2:
+            return subprocess.CompletedProcess(args, 0)
+        clock[0] += timeout
+        if scenario in ("owner", "client"):
+            dead.append(scenario)
+        if scenario == "close":
+            module._update(state, close_requested=True)
+        if scenario == "late_success" and clock[0] >= end:
+            return subprocess.CompletedProcess(args, 0)
+        if scenario in ("nonzero", "late_success"):
+            return subprocess.CompletedProcess(args, 1)
+        raise subprocess.TimeoutExpired(args, timeout)
+
+    def sleep(seconds):
+        if module._read(state)["status"] == "ready":
+            ready.append(clock[0])
+            module._update(state, close_requested=True)
+        else:
+            assert 0 <= seconds <= end - clock[0]
+            clock[0] += seconds
+
+    monkeypatch.setattr(module, "_api", api)
+    monkeypatch.setattr(module.subprocess, "run", probe)
+    monkeypatch.setattr(module.time, "sleep", sleep)
+    if scenario in ("timeouts", "nonzero", "late_success"):
+        with pytest.raises(module.BoundaryError, match="not ready"):
+            module._watch(state)
+        assert clock[0] == end
+    else:
+        module._watch(state)
+    assert ready == ([105.25] if scenario == "recover" else [])
+    if scenario == "recover":
+        assert len(probes) == 2
+    elif scenario in ("owner", "client", "close"):
+        assert len(probes) == 1
+    else:
+        assert len(probes) > 1
+    assert removed == [f"/containers/{cid}?force=true&v=true"]
+    assert module._read(state)["status"] == "closed"
+
+
 @pytest.mark.parametrize("attach_next", [False, True])
 def test_watch_revalidates_stale_owner_after_successful_handoff(tmp_path, monkeypatch, attach_next):
     module = boundary()

@@ -234,14 +234,16 @@ def test_event_gates_and_skipped_build_dependencies(event, branch, run_live, tie
 def test_actual_timing_summary_script_projects_only_typed_aggregates(tmp_path, outcome, elapsed, expected):
     job = workflow()["jobs"]["preparation-timing"]
     step = next(s for s in job["steps"] if s.get("name", "").startswith("Summarize hosted"))
-    script = step["run"].split("python3 - <<'PY'\n")[1].rsplit("PY", 1)[0]
+
     env = {
-        "PATH": os.defpath,
+        "PATH": str(tmp_path) + os.pathsep + os.defpath,
         "RUNNER_TEMP": str(tmp_path),
         "GITHUB_STEP_SUMMARY": str(tmp_path / "summary.md"),
         "GITHUB_SHA": "a" * 40,
         "EA_PREPARATION_STARTED": "1000.0",
         "PYTHONDONTWRITEBYTECODE": "1",
+        "TEST_CLOSE": "success",
+        "TEST_NOW": str(1000 + elapsed),
     }
     env.update({name: "success" for name in step["env"]})
     env["PREPARE_OUTCOME"] = outcome
@@ -262,10 +264,13 @@ def test_actual_timing_summary_script_projects_only_typed_aggregates(tmp_path, o
             }
         )
     )
-    script = f"import time; time.monotonic = lambda: {1000 + elapsed!r}\n" + script
-    result = subprocess.run([sys.executable, "-c", script], cwd=ROOT, env=env, capture_output=True, text=True)
+    summary_shell_fixture(tmp_path)
+    result = subprocess.run(
+        ["/bin/bash", "-e", "-o", "pipefail", "-c", step["run"]], cwd=ROOT, env=env, capture_output=True, text=True
+    )
     summary = json.loads((tmp_path / "preparation-timing-summary.json").read_text())
     assert summary["status"] == expected
+    assert (tmp_path / "preparation-timing-summary.json").stat().st_mode & 0o777 == 0o644
     assert result.returncode == (0 if expected == "complete" else 1)
     assert set(summary) == {
         "schema_version",
@@ -288,3 +293,154 @@ def test_actual_timing_summary_script_projects_only_typed_aggregates(tmp_path, o
     assert summary["model_execution_enabled"] is False
     assert "PRIVATE" not in json.dumps(summary) + result.stdout + result.stderr
     assert sum(s["timeout-minutes"] for s in job["steps"]) == job["timeout-minutes"]
+
+
+def summary_shell_fixture(tmp_path):
+    sys.path.insert(0, str(ROOT / "tools"))
+    from patched_opencode_runtime import PreparationTiming
+
+    state = tmp_path / "live-shard/control/boundary.json"
+    state.parent.mkdir(parents=True)
+    state.write_text("{}")
+    checkpoint = tmp_path / "live-shard/workspace/preparation-operation-timing.json"
+    checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    PreparationTiming(checkpoint).emit("started")
+    shim = tmp_path / "sudo"
+    shim.write_text(
+        f"#!{sys.executable}\n"
+        "import os,runpy,sys,time\n"
+        f"sys.path.insert(0, {str(ROOT / 'tools')!r})\n"
+        "import live_shard, patched_opencode_runtime as runtime\n"
+        "time.monotonic = lambda: float(os.environ['TEST_NOW'])\n"
+        "def close(state):\n"
+        "    mode = os.environ['TEST_CLOSE']\n"
+        "    if mode == 'failure': raise RuntimeError('PRIVATE close error')\n"
+        "    if mode == 'timeout':\n"
+        "        from pathlib import Path\n"
+        "        Path(os.environ['RUNNER_TEMP'], 'close-entered').touch()\n"
+        "        time.sleep(30)\n"
+        "live_shard.close_boundary = close\n"
+        "original = runtime.load_manifest\n"
+        "def manifest(path):\n"
+        "    assert os.environ.get('CLOSE_OUTCOME') == 'success', 'workspace read before closure'\n"
+        "    return original(path)\n"
+        "runtime.load_manifest = manifest\n"
+        "args = sys.argv[1:]\n"
+        "if args[0].startswith('--preserve-env='):\n"
+        "    preserved = args.pop(0).split('=',1)[1].split(',')\n"
+        "else: preserved = []\n"
+        "for key in ('CLOSE_OUTCOME',):\n"
+        "    if key not in preserved: os.environ.pop(key, None)\n"
+        "assert args.pop(0) == 'python3'\n"
+        "if args == ['-']: exec(compile(sys.stdin.read(), '<workflow>', 'exec'))\n"
+        "else:\n"
+        "    assert args[0] == 'tools/live_shard.py' and args[1] == 'close'\n"
+        "    sys.argv = args\n"
+        "    raise SystemExit(live_shard.main())\n"
+    )
+    shim.chmod(0o700)
+
+
+def test_evaluate_shell_never_stages_after_close_failure(tmp_path):
+    step = next(s for s in workflow()["jobs"]["evaluate"]["steps"] if "live_ci.py stage" in s.get("run", ""))
+    summary_shell_fixture(tmp_path)
+    env = {
+        "PATH": str(tmp_path) + os.pathsep + os.defpath,
+        "RUNNER_TEMP": str(tmp_path),
+        "TEST_NOW": "1000",
+        "TEST_CLOSE": "failure",
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+    result = subprocess.run(
+        ["/bin/bash", "-e", "-o", "pipefail", "-c", step["run"]], cwd=ROOT, env=env, capture_output=True, text=True
+    )
+    assert result.returncode == 1
+    assert result.stdout == "live shard phase failed; private evidence retained\n"
+    assert result.stderr == ""
+    assert not (tmp_path / "skill-publish").exists()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["failure", "malformed", "missing_state", "missing_checkpoint", "missing_clock", "invalid_clock", "timeout"],
+)
+def test_full_summary_shell_retains_safe_incomplete_fallback(tmp_path, failure):
+    import hashlib
+    import signal
+    import time
+
+    step = next(
+        s for s in workflow()["jobs"]["preparation-timing"]["steps"] if s.get("name", "").startswith("Summarize hosted")
+    )
+    summary_shell_fixture(tmp_path)
+    binary = tmp_path / "binary"
+    binary.write_bytes(b"synthetic, never executed")
+    binary.chmod(0o755)
+    manifest = tmp_path / "live-shard/workspace/patched-opencode/binary-manifest.json"
+    manifest.parent.mkdir()
+    manifest.write_text(
+        json.dumps(
+            dict(
+                schema_version=1,
+                binary_path=str(binary),
+                sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
+                expected_version="1.19.5+nodesink.e991596fecc9",
+            )
+        )
+    )
+    env = {
+        "PATH": str(tmp_path) + os.pathsep + os.defpath,
+        "RUNNER_TEMP": str(tmp_path),
+        "GITHUB_STEP_SUMMARY": str(tmp_path / "summary.md"),
+        "GITHUB_SHA": "a" * 40,
+        "EA_PREPARATION_STARTED": "1000",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "TEST_NOW": "1001",
+        "TEST_CLOSE": failure if failure in ("failure", "timeout") else "success",
+        **{name: "success" for name in step["env"]},
+    }
+    checkpoint = tmp_path / "live-shard/workspace/preparation-operation-timing.json"
+    if failure == "malformed":
+        checkpoint.write_text('{"PRIVATE": "secret"}')
+    elif failure == "missing_state":
+        (tmp_path / "live-shard/control/boundary.json").unlink()
+    elif failure == "missing_checkpoint":
+        checkpoint.unlink()
+    elif failure == "missing_clock":
+        env.pop("EA_PREPARATION_STARTED")
+    elif failure == "invalid_clock":
+        env["EA_PREPARATION_STARTED"] = "PRIVATE invalid clock"
+    process = subprocess.Popen(
+        ["/bin/bash", "-e", "-o", "pipefail", "-c", step["run"]],
+        cwd=ROOT,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        if failure == "timeout":
+            until = time.monotonic() + 5
+            while not (tmp_path / "close-entered").exists() and process.poll() is None and time.monotonic() < until:
+                time.sleep(0.01)
+            assert (tmp_path / "close-entered").exists()
+            os.killpg(process.pid, signal.SIGKILL)
+        stdout, stderr = process.communicate(timeout=10)
+    finally:
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+    assert process.returncode != 0
+    summary = json.loads((tmp_path / "preparation-timing-summary.json").read_text())
+    assert summary["status"] == "incomplete"
+    assert summary["binary_sha256"] == (
+        hashlib.sha256(binary.read_bytes()).hexdigest() if failure in ("missing_clock", "invalid_clock") else None
+    )
+    assert summary["outcomes"]["close"] == (
+        "failure" if failure in ("failure", "malformed") else "unknown" if failure == "timeout" else "success"
+    )
+    assert (tmp_path / "preparation-timing-summary.json").stat().st_mode & 0o777 == 0o644
+    assert "PRIVATE" not in json.dumps(summary) + stdout + stderr
+    if failure in ("failure", "malformed", "missing_state", "missing_checkpoint", "timeout"):
+        assert not (tmp_path / "preparation-operation-timing.json").exists()

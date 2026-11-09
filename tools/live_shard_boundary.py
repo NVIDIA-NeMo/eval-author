@@ -281,29 +281,42 @@ def _watch(state):
         _api("POST", f"/containers/{cid}/start", expected=(204,))
         # Readiness is native daemon readiness, not merely outer-container start.
         ready_until = min(time.time() + 60, data["deadline"])
-        while time.time() < ready_until:
+        while True:
+            remaining = ready_until - time.time()
+            if remaining <= 0:
+                raise BoundaryError("private Docker daemon not ready")
             data = _read(state)
             if _expired(data):
                 return
-            result = subprocess.run(
-                _docker_exec(data),
-                input=json.dumps(
-                    {
-                        "argv": ["docker", "info"],
-                        "cwd": "/",
-                        "env": {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/root"},
-                    }
-                ),
-                text=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=5,
-            )
-            if result.returncode == 0:
+            remaining = ready_until - time.time()
+            if remaining <= 0:
+                raise BoundaryError("private Docker daemon not ready")
+            try:
+                result = subprocess.run(
+                    _docker_exec(data),
+                    input=json.dumps(
+                        {
+                            "argv": ["docker", "info"],
+                            "cwd": "/",
+                            "env": {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/root"},
+                        }
+                    ),
+                    text=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=min(5, remaining),
+                )
+                ready = result.returncode == 0
+            except subprocess.TimeoutExpired:
+                ready = False
+            remaining = ready_until - time.time()
+            if remaining <= 0:
+                raise BoundaryError("private Docker daemon not ready")
+            if _expired(_read(state)):
+                return
+            if ready:
                 break
-            time.sleep(0.25)
-        else:
-            raise BoundaryError("private Docker daemon not ready")
+            time.sleep(min(0.25, max(0, ready_until - time.time())))
         _update(state, status="ready")
         while True:
             data = _read(state)

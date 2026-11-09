@@ -339,6 +339,7 @@ class _Watchdog:
 
 
 class LocalVM:
+    _transport_failed = False
     root: Path
     share: Path
     lima_home: Path
@@ -427,6 +428,8 @@ class LocalVM:
         remaining = self.spec["deadline"] - time.monotonic()
         if not math.isfinite(timeout) or not 0 < timeout <= remaining:
             raise ValueError("guest command exceeds VM lease")
+        if self._transport_failed:
+            raise RuntimeError("VM transport failed; close and verify owned VM elimination")
         command = [str(self.cli), "shell", "--workdir", "/", self.name, "--", *argv]
         env = _env(self.root, self.cli)
         # Admission only: the credential lease must not cap model execution.
@@ -436,16 +439,38 @@ class LocalVM:
             or time.monotonic() >= stdin_deadline
         ):
             raise ValueError("guest stdin admission deadline invalid or expired")
-        return subprocess.run(
+        proc = subprocess.Popen(
             command,
             env=env,
             cwd=self.root,
-            stdin=subprocess.DEVNULL if stdin is None else None,
-            input=stdin,
-            capture_output=True,
-            timeout=timeout,
+            stdin=subprocess.DEVNULL if stdin is None else subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             start_new_session=True,
         )
+        try:
+            stdout, stderr = proc.communicate(input=stdin, timeout=timeout)
+            return subprocess.CompletedProcess(command, proc.returncode, stdout, stderr)
+        except BaseException:
+            # This only stops the host transport group, not detached guest work.
+            # Keep the independent watchdog alive and forbid another guest phase.
+            self._transport_failed = True
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except BaseException:
+                pass
+            try:
+                proc.wait(timeout=2)
+            except BaseException:
+                pass
+            raise
+        finally:
+            for stream in (proc.stdin, proc.stdout, proc.stderr):
+                if stream is not None:
+                    try:
+                        stream.close()
+                    except BaseException:
+                        pass
 
     def close(self):
         try:

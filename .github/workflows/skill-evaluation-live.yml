@@ -202,24 +202,31 @@ jobs:
           RELOCATE_OUTCOME: ${{ steps.relocate.outcome }}
           PREPARE_OUTCOME: ${{ steps.prepare.outcome }}
         run: |
-          sudo python3 tools/live_shard.py close --root "$RUNNER_TEMP/live-shard" --timing-checkpoint "$RUNNER_TEMP/preparation-operation-timing.json"
-          sudo --preserve-env=RUNNER_TEMP,GITHUB_STEP_SUMMARY,GITHUB_SHA,EA_PREPARATION_STARTED,BOUNDARY_OUTCOME,RUNTIME_OUTCOME,DOWNLOAD_OUTCOME,RELOCATE_OUTCOME,PREPARE_OUTCOME python3 - <<'PY'
+          write_summary() {
+          sudo --preserve-env=RUNNER_TEMP,GITHUB_STEP_SUMMARY,GITHUB_SHA,EA_PREPARATION_STARTED,BOUNDARY_OUTCOME,RUNTIME_OUTCOME,DOWNLOAD_OUTCOME,RELOCATE_OUTCOME,PREPARE_OUTCOME,CLOSE_OUTCOME python3 - <<'PY'
           import hashlib, json, math, os, pathlib, re, sys, time
           sys.path.insert(0, str(pathlib.Path("tools").resolve()))
-          from live_shard import SETUP_SECONDS, PREPARATION_TIMEOUT_SECONDS
+          from live_shard import SETUP_SECONDS, PREPARATION_TIMEOUT_SECONDS, read_regular
           from patched_opencode_runtime import load_manifest
-          phases = ("download", "boundary", "runtime", "relocate", "prepare")
+          phases = ("download", "boundary", "runtime", "relocate", "prepare", "close")
           outcomes = {phase: os.environ.get(phase.upper() + "_OUTCOME") for phase in phases}
           outcomes = {phase: value if value in ("success", "failure", "cancelled", "skipped") else "unknown" for phase, value in outcomes.items()}
-          started = float(os.environ.get("EA_PREPARATION_STARTED", "nan"))
+          try:
+              started = float(os.environ.get("EA_PREPARATION_STARTED", "nan"))
+          except ValueError:
+              started = math.nan
           elapsed = round(time.monotonic() - started, 3) if math.isfinite(started) else None
           revision = os.environ.get("GITHUB_SHA", "")
           if not re.fullmatch("[a-f0-9]{40}", revision):
               revision = None
-          try:
-              binary_sha256 = load_manifest(pathlib.Path(os.environ["RUNNER_TEMP"]) / "live-shard/workspace/patched-opencode/binary-manifest.json")["sha256"]
-          except (OSError, ValueError):
-              binary_sha256 = None
+          binary_sha256 = None
+          if outcomes["close"] == "success":
+              try:
+                  from patched_opencode_runtime import PREPARATION_TIMING_MAX_BYTES, validate_preparation_timing
+                  validate_preparation_timing(json.loads(read_regular(pathlib.Path(os.environ["RUNNER_TEMP"]) / "preparation-operation-timing.json", PREPARATION_TIMING_MAX_BYTES)))
+                  binary_sha256 = load_manifest(pathlib.Path(os.environ["RUNNER_TEMP"]) / "live-shard/workspace/patched-opencode/binary-manifest.json")["sha256"]
+              except (OSError, ValueError):
+                  pass
           complete = all(value == "success" for value in outcomes.values()) and elapsed is not None and 0 <= elapsed < SETUP_SECONDS and revision is not None and binary_sha256 is not None
           summary = {
               "schema_version": 1, "status": "complete" if complete else "incomplete",
@@ -231,12 +238,26 @@ jobs:
               "model_execution_enabled": False, "binary_sha256": binary_sha256,
           }
           output = pathlib.Path(os.environ["RUNNER_TEMP"]) / "preparation-timing-summary.json"
-          output.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+          import tempfile
+          with tempfile.NamedTemporaryFile(mode="w", dir=output.parent, delete=False) as stream:
+              temporary = pathlib.Path(stream.name)
+              stream.write(json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n")
+              stream.flush()
+              os.fchmod(stream.fileno(), 0o644)
+              os.fsync(stream.fileno())
+          os.replace(temporary, output)
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as stream:
               stream.write("Credential-free AMD64 Audit preparation: " + summary["status"] + "; setup/preparation seconds: " + str(elapsed) + ".\n")
-          if not complete:
+          if not complete and outcomes["close"] != "unknown":
               raise SystemExit(1)
           PY
+          }
+          # Persist a safe fallback before a close that can outlive this step.
+          export CLOSE_OUTCOME=unknown
+          write_summary
+          CLOSE_OUTCOME=success
+          sudo python3 tools/live_shard.py close --root "$RUNNER_TEMP/live-shard" --timing-checkpoint "$RUNNER_TEMP/preparation-operation-timing.json" || CLOSE_OUTCOME=failure
+          write_summary
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         timeout-minutes: 2
         if: always()

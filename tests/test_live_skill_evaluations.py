@@ -1091,10 +1091,6 @@ def test_ci_verifies_downloaded_runtime_only_for_live_before_credentials():
     assert "secrets." not in json.dumps(build)
     assert steps.index(build) < steps.index(evaluation)
     assert 'tools/live_shard.py run --root "$RUNNER_TEMP/live-shard"' in evaluation["run"]
-    runner = (ROOT / "tools/live_shard.py").read_text()
-    assert 'if config["check"] == "live":' in runner
-    assert 'EA_REQUIRE_PATCHED_OPENCODE="1"' in runner
-    assert 'EA_PATCHED_OPENCODE_MANIFEST=str(workspace / "patched-opencode/binary-manifest.json")' in runner
 
 
 def test_seed_datasets_are_bounded_and_have_negative_cases(live):
