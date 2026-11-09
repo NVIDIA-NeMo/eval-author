@@ -74,8 +74,9 @@ def test_example_schema_layout_and_authored_values_are_consistent(audit_report):
         ("Functionality", "Intended check and required evidence", "Tasks", "Run evidence"),
     ]:
         assert "| " + " | ".join(header) + " |" in text
-    assert "| Coverage ratio | 100% |" in text
-    assert "| Coverage basis | Mapped tasks (runs not measured) |" in text
+    assert "|  | Current audit | Previous audit | Change |" in text
+    assert "| Coverage ratio | 100% | No previous audit | Not compared |" in text
+    assert "| Coverage basis | Mapped tasks (runs not measured) | No previous audit | Not compared |" in text
     assert "[verify.py](../report-sources/tasks/source-answer/verify.py)" in text
     assert_markdown_links(text, renderer)
 
@@ -628,7 +629,7 @@ def test_empty_review_and_zero_item_kinds_have_honest_states(audit_report):
         finding["items"] = []
     text = renderer.render(load(audit_report, data))[0].decode()
     assert "Verifier cheat screening has not been assessed because no review is available." in text
-    assert "| Coverage ratio | No items declared |" in text
+    assert "| Coverage ratio | No items declared | No previous audit | Not compared |" in text
     assert "The audit declares no items in this category." in text
 
 
@@ -1085,7 +1086,23 @@ def save_snapshot(audit_report, audit_id, *, items=None, covered=1, basis="mappe
 
 def test_first_audit_reports_no_comparable_previous_audit(audit_report):
     text = render_text(audit_report)
-    assert "No comparable previous audit" in text and "Previous audit" not in text
+    assert "No comparable previous audit" in text
+    assert "|  | Current audit | Previous audit | Change |" in text
+    assert "| Coverage ratio | 100% | No previous audit | Not compared |" in text
+
+
+def coverage_tables(text):
+    return [line for line in text.splitlines() if line.startswith("|  | Current audit")]
+
+
+def test_evaluation_coverage_is_one_table_with_or_without_a_previous_audit(audit_report):
+    first = render_text(audit_report)
+    assert len(coverage_tables(first)) == 1 and first.count("| Coverage ratio |") == 1
+    assert "|  | Current audit |\n" not in first
+    save_snapshot(audit_report, "earlier", covered=0)
+    later = render_text(audit_report)
+    assert len(coverage_tables(later)) == 1 and later.count("| Coverage ratio |") == 1
+    assert "|  | Current audit |\n" not in later
 
 
 def test_comparable_previous_audit_shows_percentage_point_and_relative_changes(audit_report):
@@ -1118,7 +1135,8 @@ def test_measurement_method_change_is_not_comparable(audit_report):
 def test_snapshot_of_the_current_content_is_not_its_own_baseline(audit_report):
     _, _, root = audit_report
     save_snapshot(audit_report, load(audit_report).digest)
-    assert "No comparable previous audit" in render_text(audit_report)
+    text = render_text(audit_report)
+    assert "No comparable previous audit" in text and "| Coverage ratio | 100% | No previous audit | Not compared |" in text
 
 
 def test_record_writes_one_snapshot_and_report_refresh_writes_none(audit_report):

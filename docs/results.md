@@ -195,8 +195,11 @@ After you accept an audit's findings, Eval Author saves a snapshot of it under
 capability coverage with the previous audit in the Evaluation coverage table:
 percentage points for the coverage ratio and relative percentages for counts. A
 changed declared scope or measurement method is explained and its coverage
-change is not compared, so a larger scope never reads as better performance. The
-first audit shows `No comparable previous audit`. History stays in your checkout.
+change is not compared, so a larger scope never reads as better performance.
+The report has one Evaluation coverage table, with Current audit, Previous audit,
+and Change columns. The first audit shows `No comparable previous audit` above the
+same table, with `No previous audit` and `Not compared` in its Previous audit and
+Change columns. History stays in your checkout.
 
 A covered item has supporting evidence under the audit's declared criteria.
 An uncovered item may lack evidence in the measured traces, or its evidence type

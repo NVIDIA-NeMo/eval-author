@@ -370,7 +370,16 @@ def history_lines(model: content.Content, covered: set[str], measured: set[str],
     # Snapshots of this same reviewed content describe this audit, not a baseline.
     earlier = history.previous(history.load(model.repo), model.spec["agent"], model.digest)
     if earlier is None:
-        return [layout.COPY["no_baseline"], ""]
+        # The one Evaluation coverage table keeps its Current, Previous, and Change columns even for a first audit.
+        count_covered, count, ratio, demonstrated = capability_coverage(model, covered, measured)
+        previous, change = layout.COPY["no_baseline_previous"], layout.COPY["no_baseline_change"]
+        first = [
+            ["Capabilities", str(count)],
+            ["Capabilities covered", str(count_covered)],
+            ["Coverage ratio", ratio],
+            ["Coverage basis", layout.COPY["basis_demonstrated" if demonstrated else "basis_mapped"]],
+        ]
+        return [layout.COPY["no_baseline"], "", *table("history", [[*row, previous, change] for row in first])]
     then = earlier["kinds"]["capability"]
     result = history.compare(now, then)
     status = result["status"]
@@ -625,19 +634,6 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
     add([" ".join(filter(None, [counts, ratio, verifier_summary(model), prose(model, found)])), ""], "summary[0]")
     add([coverage_summary(model) + " " + prose(model, limits), ""], "summary[1]")
     section(1, "inputs.measurement")
-    count_covered, count, ratio, demonstrated = capability_coverage(model, covered, measured)
-    add(
-        table(
-            "current",
-            [
-                ["Capabilities", str(count)],
-                ["Capabilities covered", str(count_covered)],
-                ["Coverage ratio", ratio],
-                ["Coverage basis", layout.COPY["basis_demonstrated" if demonstrated else "basis_mapped"]],
-            ],
-        ),
-        "inputs.measurement",
-    )
     add(history_lines(model, covered, measured, inputs), "inputs.measurement")
     if cheats:
         add(["### " + layout.SUBHEADINGS["advisory"], ""], "findings")

@@ -33,7 +33,6 @@ KIND_NAMES = {"capability": "capability", "tool": "tool", "failure_case": "failu
 TABLES = {
     "tasks": ("Task", "Behavior", "Capabilities and tools", "Findings"),
     "coverage": ("Functionality", "Intended check and required evidence", "Tasks", "Run evidence"),
-    "current": ("", "Current audit"),
     "history": ("", "Current audit", "Previous audit", "Change"),
 }
 KINDS = (("capability", "Capabilities"), ("tool", "Tools"), ("failure_case", "Failure cases"))
@@ -68,6 +67,8 @@ COPY = {
     ),
     "no_items": "No items declared",
     "no_baseline": "No comparable previous audit",
+    "no_baseline_previous": "No previous audit",
+    "no_baseline_change": "Not compared",
     "compared_with": "Compared with the audit reviewed on {date} at commit {commit}.",
     "not_comparable_method": "Not comparable: measurement method changed",
     "not_compared_scope": "Not compared: declared scope changed",

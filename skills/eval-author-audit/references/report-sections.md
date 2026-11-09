@@ -83,6 +83,21 @@ the coverage limit each appear twice, and the task name becomes a link.
 >
 > Coverage was not measured for this audit because the audit measurement step was not run. Some tasks also lack runs that could be used to measure results. All findings come from inspecting the verifier code and the task files.
 
+## Evaluation coverage
+
+**The renderer writes:** one table under the `Evaluation coverage` heading, with the
+columns Current audit, Previous audit, and Change and the rows Capabilities,
+Capabilities covered, Coverage ratio, and Coverage basis. A sentence above it names
+the audit it compares with, or says `No comparable previous audit` for a first audit,
+in which case the Previous audit cells read `No previous audit` and the Change cells read `Not compared`.
+A changed declared scope or measurement method fills the Change cells with an explanation instead of a difference.
+
+**You author:** nothing. Every value is computed from the specification, the task mappings, and
+the saved audit history.
+
+**Avoid:** adding a second coverage table, such as one with only a Current audit column, or restating
+the counts in prose. The report has exactly one Evaluation coverage table.
+
 ## Advisories
 
 An advisory is a `verifier_cheating` finding with status `confirmed` or
