@@ -23,6 +23,21 @@ def fake_harbor(config):
         write_json(native / "result.json", result)
 
 
+@pytest.mark.parametrize("installed_version", ["0.19.0", "0.23.0", "0.24.1"])
+def test_runtime_version_mismatch_fails_before_execution(tmp_path, monkeypatch, installed_version):
+    path, _ = prepared_benchmark(tmp_path / "inputs")
+    loaded = load_execution(path.parent / "cases.yml", path.parent / "execution.yml")
+    monkeypatch.setattr("metric_benchmark.execution.version", lambda package: installed_version)
+    output = tmp_path / "out"
+
+    def forbidden(config):
+        raise AssertionError("mismatched runtime must not start a job")
+
+    with pytest.raises(ValueError, match="installed Harbor version differs"):
+        execute_benchmark(loaded, "run", output, runner=forbidden)
+    assert not output.exists()
+
+
 def test_order_full_matrix_and_verified_resume(tmp_path):
     path, _ = prepared_benchmark(tmp_path / "inputs")
     loaded = load_execution(path.parent / "cases.yml", path.parent / "execution.yml")

@@ -317,7 +317,7 @@ A three-second timeout or browser-blocked request must say the viewer could not
 be reached, not that it is definitely stopped. Offer retry and direct navigation
 when a browser cannot perform the check. The report itself works offline; only
 viewer clicks make these read-only requests. Verify options and routes against
-the installed version; the initial routes match Harbor 0.20.0.
+the installed version; the report routes match Harbor 0.24.0.
 
 Keep the existing walkthrough below: explain the relevant task, run, and saved
 evidence and give the exact verified viewer launch command. Link the HTML as the

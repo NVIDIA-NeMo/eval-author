@@ -11,10 +11,10 @@ scripts that your agent reads to carry out the work.
 
 Use a coding agent that can read local instructions, read and write project
 files, and run shell commands. Choose either the Skills CLI or a manual copy;
-both install the same ten active skill directories. Keep the complete set
+both install the same eleven active skill directories. Keep the complete set
 together: skills load sibling skills and their bundled scripts, schemas,
 templates, and references. The set includes the **experimental**
-trace-to-environment workflow.
+trace-to-environment workflow and rubric assessment.
 
 All three journeys also need the Ethos skills (`ethos-orchestrate`,
 `ethos-explore`, and `ethos-write`), which install separately from the NVIDIA
@@ -114,7 +114,7 @@ npx skills list --agent claude-code
 
 For a global installation, use `npx skills list --agent claude-code --global`.
 Use the same assistant identifier you installed for, and confirm the listed
-paths match your chosen project or global destination. Expect these ten skills:
+paths match your chosen project or global destination. Expect these eleven skills:
 
 ```text
 eval-author
@@ -123,6 +123,7 @@ eval-author-discover
 eval-author-environment
 eval-author-first-eval
 eval-author-inspect-trace
+eval-author-rubric
 eval-author-task-create
 eval-author-trace-environment
 gym-to-atif
@@ -185,7 +186,7 @@ Skills CLI. You need Git, access to this GitHub repository, a POSIX shell with
    workflows out. Manual copies are independent of the checkout; updating the
    checkout does not update installed copies.
 
-4. Verify all ten installed skill directories match the checkout:
+4. Verify all eleven installed skill directories match the checkout:
 
    ```bash
    (
@@ -322,9 +323,13 @@ you need to create, validate, or run Harbor tasks.
 | Inspect NeMo Intake traces | A working `nemo` CLI, an explicit workspace, and read access to a configured local or remote NeMo Helix instance. |
 | Generate the Harbor HTML case/run report | Python 3.11+, jsonschema 4.23+, and markdown-it-py 4.x. Reads local task/run artifacts; no Harbor runtime, Docker, model access, or network is needed to render. See the [Report generation](../skills/eval-author/references/suite-readme.md#report-generation). |
 
+The repository's opt-in [live-CI image preparation](skill-evaluation-ci.md) also
+requires Docker's deprecated classic builder; BuildKit-only installations are
+not supported by that path. Ordinary Harbor workflows are unchanged.
+
 Use the Python environment supported by your installed Harbor version for
 Harbor-backed operations. This repository's development checks use Python 3.12
-and 3.13 with Harbor 0.20.0; see [development setup](../DEVELOPMENT.md).
+and 3.13 with Harbor 0.24.0; see [development setup](../DEVELOPMENT.md).
 
 The experimental trace-to-environment workflow uses Harbor's `nop` agent (a no-op
 baseline) and `oracle` agent (the task's reference solution), or NeMo Gym's native

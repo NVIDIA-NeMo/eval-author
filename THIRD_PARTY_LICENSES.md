@@ -52,7 +52,7 @@ See DEVELOPMENT.md for collection scope and exception handling.
 | [`googleapis-common-protos 1.75.5`](https://pypi.org/project/googleapis-common-protos/1.75.5/) | `APACHE-2.0` | [NOTICES.txt](third_party/NOTICES.txt), [Apache-2.0.txt](third_party/license_texts/Apache-2.0.txt) |
 | [`h11 0.16.0`](https://pypi.org/project/h11/0.16.0/) | `MIT` | [NOTICES.txt](third_party/NOTICES.txt), [MIT.txt](third_party/license_texts/MIT.txt) |
 | [`h2 4.4.1`](https://pypi.org/project/h2/4.4.1/) | `MIT` | [NOTICES.txt](third_party/NOTICES.txt), [MIT.txt](third_party/license_texts/MIT.txt) |
-| [`harbor 0.20.0`](https://pypi.org/project/harbor/0.20.0/) | `APACHE-2.0` | [NOTICES.txt](third_party/NOTICES.txt), [Apache-2.0.txt](third_party/license_texts/Apache-2.0.txt) |
+| [`harbor 0.24.0`](https://pypi.org/project/harbor/0.24.0/) | `APACHE-2.0` | [NOTICES.txt](third_party/NOTICES.txt), [Apache-2.0.txt](third_party/license_texts/Apache-2.0.txt) |
 | [`hf-xet 1.6.0`](https://pypi.org/project/hf-xet/1.6.0/) | `APACHE-2.0` | [NOTICES.txt](third_party/NOTICES.txt), [Apache-2.0.txt](third_party/license_texts/Apache-2.0.txt) |
 | [`hpack 4.2.0`](https://pypi.org/project/hpack/4.2.0/) | `MIT` | [NOTICES.txt](third_party/NOTICES.txt), [MIT.txt](third_party/license_texts/MIT.txt) |
 | [`httpcore 1.0.9`](https://pypi.org/project/httpcore/1.0.9/) | `BSD-3-CLAUSE` | [NOTICES.txt](third_party/NOTICES.txt), [BSD-3-Clause.txt](third_party/license_texts/BSD-3-Clause.txt) |
@@ -117,6 +117,7 @@ See DEVELOPMENT.md for collection scope and exception handling.
 | [`scantree 0.0.4`](https://pypi.org/project/scantree/0.0.4/) | `MIT` | [NOTICES.txt](third_party/NOTICES.txt), [MIT.txt](third_party/license_texts/MIT.txt) |
 | [`scikit-learn 1.9.1`](https://pypi.org/project/scikit-learn/1.9.1/) | `BSD-3-CLAUSE` | [NOTICES.txt](third_party/NOTICES.txt), [BSD-3-Clause.txt](third_party/license_texts/BSD-3-Clause.txt) |
 | [`scipy 1.18.1`](https://pypi.org/project/scipy/1.18.1/) | `BSD-3-CLAUSE` | [NOTICES.txt](third_party/NOTICES.txt), [BSD-3-Clause.txt](third_party/license_texts/BSD-3-Clause.txt) |
+| [`semver 3.1.0`](https://pypi.org/project/semver/3.1.0/) | `BSD-3-CLAUSE` | [NOTICES.txt](third_party/NOTICES.txt), [BSD-3-Clause.txt](third_party/license_texts/BSD-3-Clause.txt) |
 | [`setuptools 84.0.0`](https://pypi.org/project/setuptools/84.0.0/) | `MIT` | [NOTICES.txt](third_party/NOTICES.txt), [MIT.txt](third_party/license_texts/MIT.txt) |
 | [`shellingham 1.5.4`](https://pypi.org/project/shellingham/1.5.4/) | `ISC` | [NOTICES.txt](third_party/NOTICES.txt), [ISC.txt](third_party/license_texts/ISC.txt) |
 | [`shortuuid 1.0.13`](https://pypi.org/project/shortuuid/1.0.13/) | `BSD-3-CLAUSE` | [NOTICES.txt](third_party/NOTICES.txt), [BSD-3-Clause.txt](third_party/license_texts/BSD-3-Clause.txt) |

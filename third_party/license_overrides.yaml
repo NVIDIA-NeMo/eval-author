@@ -21,6 +21,7 @@ overrides:
   pyasn1-modules: BSD-2-Clause
   python-dateutil: Apache-2.0 OR BSD-3-Clause
   scipy: BSD-3-Clause
+  semver: BSD-3-Clause
   shellingham: ISC
   sqlparse: BSD-3-Clause
   tiktoken: MIT
