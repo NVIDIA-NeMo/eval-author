@@ -189,16 +189,9 @@ local files conflict.
 
 ### Configuration templates
 
-The [example directory](../examples/helix) supplies:
-
-- [Agent manifest](../examples/helix/agents.yml): separate registered baseline and mutant bundles.
-- [Agent definition](../examples/helix/agent.yaml): a minimal managed agent configuration.
-- [Execution](../examples/helix/execution.yml): compute settings.
-- [Publication](../examples/helix/publication.yml): per-agent secret bindings.
-- [Existing task](../examples/helix/publication-existing-task.yml): a pinned task revision to verify and reuse.
-
-Supply working bundles and task sources, choose a model available in the destination
-workspace, then sign the experiment. These templates are not a runnable benchmark.
+The [example README](../examples/helix/README.md) explains each template, the files
+still needed for a complete experiment, and how to use them through publication,
+execution, collection and analysis.
 
 ## Running agents on Helix
 
