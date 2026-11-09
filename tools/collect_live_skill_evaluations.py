@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import secrets
 import subprocess
 import sys
 import threading
@@ -20,16 +21,20 @@ from collections import Counter
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
+import live_agent_diagnostics
+import live_shard_boundary
 from collect_skill_evaluations import EVALUATOR_REVISION, execute, now, sha, tree_digest
 from license_duplication_policy import POLICY, expected_license_duplicate
 from live_evaluation_diagnostics import diagnostics
+from patched_opencode_runtime import CONFIGURED_VERSION as OPENCODE_VERSION
+from patched_opencode_runtime import LIVE_EXECUTION_SECONDS, LIVE_HANDOFF_SECONDS, live_job_remaining
 from run_pinned_evaluator import CONTEXT_POLICY, CONTEXT_SCALAR_LIMIT
 
 HUB_BASE_URL = "https://inference-api.nvidia.com/v1"
 HUB_KEY = "INFERENCE_HUB_API_KEY"
 DEFAULT_CHAT_MODEL = "azure/openai/gpt-5.6-luna"
 DEFAULT_EMBEDDING_MODEL = "azure/openai/text-embedding-3-small"
-TIER3_TIMEOUT_SECONDS = 2700
+TIER3_TIMEOUT_SECONDS = LIVE_EXECUTION_SECONDS
 DIMENSIONS = ("security", "correctness", "discoverability", "effectiveness", "efficiency")
 FINDINGS = {"duplicate", "EXACT_DUPLICATE", "HIGH_SIMILARITY", "SIMILAR", "LOOSELY_RELATED", "DISTINCT"}
 
@@ -63,6 +68,7 @@ class Observation(EvaluationSummary):
     exit_code: NotRequired[int | None]
     report_digest: NotRequired[str]
     diagnostics: NotRequired[str]
+    agent_diagnostics: NotRequired[dict]
 
 
 class LiveReport(TypedDict):
@@ -82,8 +88,19 @@ class LiveReport(TypedDict):
     counts: NotRequired[dict[str, int]]
 
 
-def execute_with_progress(argv, repo, env, log, timeout):
+class InsufficientLiveBudget(TimeoutError):
+    pass
+
+
+def execute_with_progress(
+    argv, repo, env, log, timeout, *, reserve_live_budget=False, boundary_state=None, final=False
+):
     """Keep CI responsive without streaming unredacted subprocess output."""
+    if reserve_live_budget:
+        try:
+            live_job_remaining(timeout + LIVE_HANDOFF_SECONDS)
+        except (TimeoutError, ValueError) as exc:
+            raise InsufficientLiveBudget("insufficient live job budget") from exc
     label = f"{log.parent.name}/{log.name}"
     started = time.monotonic()
     stopped = threading.Event()
@@ -96,6 +113,8 @@ def execute_with_progress(argv, repo, env, log, timeout):
     print(f"{now()} {label}: starting (limit {timeout}s)", flush=True)
     worker.start()
     try:
+        if boundary_state is not None:
+            return live_shard_boundary.execute_in_boundary(boundary_state, argv, repo, env, log, timeout, final=final)
         return execute(argv, repo, env, log, timeout)
     finally:
         stopped.set()
@@ -259,7 +278,7 @@ def summarize_tier3(report, code, cases) -> EvaluationSummary:
     }
 
 
-def configuration(provider):
+def configuration(provider, *, read_credentials=True):
     if provider != "inference_hub":
         raise ValueError("only NVIDIA Inference Hub is supported")
     chat = os.environ.get("SKILL_EVAL_LLM_MODEL", "").strip() or DEFAULT_CHAT_MODEL
@@ -270,7 +289,13 @@ def configuration(provider):
         "agent": "openai/" + agent,
     }
     # Do not forward unrelated host credentials, agent config, or routing overrides.
-    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8", "PYTHONDONTWRITEBYTECODE": "1"}
+    env = {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "LANG": "C.UTF-8",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHON_DOTENV_DISABLED": "1",
+        "HARBOR_TELEMETRY": "0",
+    }
     env.update(
         SKILL_EVAL_LLM_PROVIDER="openai-compatible",
         SKILL_EVAL_EMBEDDING_PROVIDER="openai-compatible",
@@ -279,7 +304,7 @@ def configuration(provider):
         SKILL_EVAL_LLM_MODEL=models["chat"],
         SKILL_EVAL_EMBEDDING_MODEL=models["embedding"],
     )
-    key = os.environ.get(HUB_KEY, "").strip()
+    key = os.environ.get(HUB_KEY, "").strip() if read_credentials else ""
     if key:
         env["SKILL_EVAL_LLM_API_KEY"] = key
         env["SKILL_EVAL_EMBEDDING_API_KEY"] = key
@@ -312,6 +337,8 @@ def unchanged(skills, digests):
 
 
 def persist_report(report, output):
+    for row in report["observations"]:
+        live_agent_diagnostics.project_public_row(row)
     report["updated_at"] = now()
     report["counts"] = dict(Counter(row["status"] for row in report["observations"]))
     target = output / "live-skillevaluator-summary.json"
@@ -367,7 +394,32 @@ def persist_report(report, output):
     (output / "live-skillevaluator-summary.md").write_text("\n".join(lines) + "\n")
 
 
-def collect(
+def collect(*args, boundary_state=None, **kwargs):
+    if boundary_state is None:
+        return _collect(*args, **kwargs)
+    closed = False
+    close_error = None
+
+    def close_boundary():
+        nonlocal closed, close_error
+        if close_error is not None:
+            raise close_error
+        if not closed:
+            try:
+                live_shard_boundary.close_boundary(boundary_state)
+            except BaseException as exc:
+                # A later cleanup retry must not authorize parsing after uncertainty.
+                close_error = exc
+                raise
+            closed = True
+
+    try:
+        return _collect(*args, boundary_state=boundary_state, _close_boundary=close_boundary, **kwargs)
+    finally:
+        close_boundary()
+
+
+def _collect(
     repo,
     output,
     *,
@@ -379,10 +431,18 @@ def collect(
     check_name="all",
     ci_context_budget=False,
     evaluator_python=None,
+    boundary_state=None,
+    native_output=None,
+    _close_boundary=None,
 ):
     repo, output = repo.resolve(), output.resolve()
     if output.is_relative_to(repo):
         raise ValueError("live output must be outside the repository")
+    native_output = output if native_output is None else native_output.resolve()
+    if native_output.is_relative_to(repo):
+        raise ValueError("native output must be outside the repository")
+    if native_output != output and (native_output.is_relative_to(output) or output.is_relative_to(native_output)):
+        raise ValueError("public and private output directories must be disjoint")
     skills = sorted(path.parent for path in (repo / "skills").glob("*/SKILL.md"))
     if not skills or (skill_name != "all" and skill_name not in {s.name for s in skills}):
         raise ValueError("unknown skill or empty collection")
@@ -396,13 +456,12 @@ def collect(
     if any(not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", s.name) for s in skills):
         raise ValueError("invalid skill name")
     digests = {s.name: tree_digest(s) for s in skills}
-    models, env, missing_key = configuration(provider)
-    output.mkdir(parents=True, exist_ok=False, mode=0o700)
-    # Docker needs a home for its client state; never inherit host credentials
-    # or let an unset HOME redirect that state into the skill repository.
-    runtime_home = output / "runtime-home"
-    runtime_home.mkdir(mode=0o700)
-    env["HOME"] = str(runtime_home)
+    budget_failed = False
+    if run and tier in ("3", "both") and check_name in ("live", "all"):
+        try:
+            live_job_remaining(TIER3_TIMEOUT_SECONDS + LIVE_HANDOFF_SECONDS)
+        except (TimeoutError, ValueError):
+            budget_failed = True
     report: LiveReport = {
         "schema": "nemo.eval_author.live_skill_evaluations.v2",
         "repository": "NVIDIA-NeMo/eval-author",
@@ -418,8 +477,9 @@ def collect(
             "provider": provider,
             "api_base_url": HUB_BASE_URL,
             "evaluator_provider": "openai-compatible",
-            "models": models,
+            "models": {},
             "agent": "opencode",
+            "configured_opencode_version": OPENCODE_VERSION,
             "environment": "docker",
             "attempts": 1,
             "concurrency": 1,
@@ -473,8 +533,35 @@ def collect(
                 "cases": None,
             }
         )
+    if run and boundary_state is not None and sum(row["status"] == "not_run" for row in report["observations"]) > 1:
+        raise ValueError("single-use boundary requires at most one runnable observation")
+    if boundary_state is not None:
+        native_evaluator = Path(evaluator)
+        if (
+            not native_evaluator.is_absolute()
+            or str(native_evaluator) != evaluator
+            or ".." in native_evaluator.parts
+            or ":" in evaluator
+            or "\x00" in evaluator
+        ):
+            raise ValueError("boundary requires an unambiguous absolute evaluator path")
+    models, env, missing_key = configuration(provider, read_credentials=not budget_failed)
+    if boundary_state is not None:
+        # Keep the writable runtime discoverable only inside native execution.
+        env["PATH"] = "/usr/local/bin:/usr/bin:/bin:" + str(Path(evaluator).parent)
+    report["policy"]["models"] = models
+    output.mkdir(parents=True, exist_ok=False, mode=0o700)
+    if native_output != output:
+        native_output.mkdir(parents=True, exist_ok=False, mode=0o700)
+    # Docker needs a home for its client state; never inherit host credentials
+    # or let an unset HOME redirect that state into the skill repository.
+    runtime_home = native_output / "runtime-home"
+    runtime_home.mkdir(mode=0o700)
+    env["HOME"] = str(runtime_home)
     for row in report["observations"]:
-        if row["status"] == "not_run" and missing_key:
+        if row["status"] == "not_run" and budget_failed:
+            row.update(status="incomplete", reason="insufficient_job_budget")
+        elif row["status"] == "not_run" and missing_key:
             row["reason"] = "missing_provider_key"
     persist()
     if not run or missing_key:
@@ -487,13 +574,14 @@ def collect(
             row.update(status="incomplete", reason="skill_changed_during_run")
             persist()
             continue
-        target = output / f"check-{index}"
+        target = native_output / f"check-{index}"
         target.mkdir(mode=0o700)
         skill = repo / "skills" / row["skill"]
         row.update(status="incomplete", reason="interrupted", started_at=now())
         print(f"{now()} check-{index}: Tier {row['tier']} {row['skill']} {row['check']}", flush=True)
         persist()
         data = {}
+        runtime_failure = None
         try:
             if row["tier"] == 2:
                 command = "context-optimization-check" if row["check"] == "context" else "similarity-check"
@@ -505,18 +593,33 @@ def collect(
                         str(Path(__file__).with_name("run_pinned_evaluator.py")),
                         *argv[1:],
                     ]
-                code, error = execute_with_progress(argv, repo, env, target / "console.log", 300)
+                code, error = execute_with_progress(
+                    argv,
+                    repo,
+                    env,
+                    target / "console.log",
+                    300,
+                    **({"boundary_state": boundary_state, "final": True} if boundary_state is not None else {}),
+                )
+                if _close_boundary is not None:
+                    _close_boundary()
                 paths = list((target / "reports").glob("*.json"))
             else:
                 # Native contract validation is keyless; no generation or autopilot.
                 code, error = execute_with_progress(
-                    [evaluator, "tier3", "validate", str(skill), "--json"], repo, env, target / "validate.log", 60
+                    [evaluator, "tier3", "validate", str(skill), "--json"],
+                    repo,
+                    env,
+                    target / "validate.log",
+                    60,
+                    **({"boundary_state": boundary_state} if boundary_state is not None else {}),
                 )
                 if code != 0 or error:
                     row.update(reason="dataset_validation_failed", exit_code=code)
                     continue
                 argv = [
-                    evaluator,
+                    evaluator_python or sys.executable,
+                    str(Path(__file__).with_name("run_pinned_live_evaluator.py")),
                     "tier3",
                     "evaluate",
                     str(skill),
@@ -537,19 +640,46 @@ def collect(
                     "--skill-workspace-mode",
                     "isolated",
                     "--agent-runtime-preflight",
+                    "--harbor-keep-jobs",
                     "--results-dir",
                     str(target / "results"),
                     "--progress",
                     "off",
                 ]
-                code, error = execute_with_progress(argv, repo, env, target / "console.log", TIER3_TIMEOUT_SECONDS)
+                live_env = dict(env)
+                failure_path = target / "runtime-failure.json"
+                failure_token = secrets.token_hex(32)
+                live_env.update(_EA_LIVE_FAILURE_PATH=str(failure_path), _EA_LIVE_FAILURE_TOKEN=failure_token)
+                for key in (
+                    "EA_PATCHED_OPENCODE_MANIFEST",
+                    "EA_REQUIRE_PATCHED_OPENCODE",
+                    "EA_PREPARED_IMAGES_MANIFEST",
+                    "EA_REQUIRE_PREPARED_IMAGES",
+                    "EA_LIVE_JOB_DEADLINE",
+                ):
+                    if key in os.environ:
+                        live_env[key] = os.environ[key]
+                code, error = execute_with_progress(
+                    argv,
+                    repo,
+                    live_env,
+                    target / "console.log",
+                    TIER3_TIMEOUT_SECONDS,
+                    reserve_live_budget=True,
+                    **({"boundary_state": boundary_state, "final": True} if boundary_state is not None else {}),
+                )
+                if _close_boundary is not None:
+                    _close_boundary()
+                runtime_failure = live_agent_diagnostics.read_runtime_failure(failure_path, failure_token)
+                if runtime_failure is not None:
+                    row.update(reason=runtime_failure["reason"], exit_code=code)
+                    continue
                 # Native runs also publish a latest -> run symlink. Read only
                 # physical run directories so this alias cannot duplicate a report.
-                paths = [
-                    path
-                    for path in (target / "results" / skill.name).glob("*/result.json")
-                    if not path.parent.is_symlink()
-                ]
+                try:
+                    paths = [live_agent_diagnostics.native_run(target, skill.name) / "result.json"]
+                except (OSError, ValueError):
+                    paths = []
             row["exit_code"] = code
             if error:
                 row.update(reason="timeout")
@@ -557,7 +687,9 @@ def collect(
             if len(paths) != 1 or paths[0].is_symlink() or paths[0].stat().st_size > 10_000_000:
                 row.update(reason="report_missing_or_ambiguous")
                 continue
-            raw = paths[0].read_bytes()
+            raw = (
+                live_agent_diagnostics.read_regular(paths[0], 10_000_000) if row["tier"] == 3 else paths[0].read_bytes()
+            )
             row["report_digest"] = sha(raw)
             data = json.loads(raw)
             result = (
@@ -572,11 +704,26 @@ def collect(
             )
             row = {**row, **result}
             report["observations"][index] = row
+        except InsufficientLiveBudget:
+            row.update(status="incomplete", reason="insufficient_job_budget")
         except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
             row.update(status="incomplete", reason="tool_or_report_error")
             data = {"execution_errors": [f"Collector {type(exc).__name__}: {exc}"], "results": [data]}
         finally:
-            if (
+            if _close_boundary is not None:
+                _close_boundary()
+            if row["tier"] == 3:
+                # Diagnostics are advisory even when native execution/report parsing failed.
+                # Never let a diagnostic parser replace the original outcome.
+                try:
+                    row["agent_diagnostics"] = live_agent_diagnostics.capture(data, target, skill.name)
+                except Exception:
+                    row["agent_diagnostics"] = live_agent_diagnostics.unavailable()
+                if runtime_failure is not None:
+                    row["agent_diagnostics"]["runtime_failure"] = runtime_failure
+                row["agent_diagnostics"] = live_agent_diagnostics.public_projection(row["agent_diagnostics"])
+                row["diagnostics"] = live_agent_diagnostics.render(row["agent_diagnostics"])
+            if row["tier"] == 2 and (
                 row["status"] in ("failed", "incomplete")
                 or any(row.get("severity_counts", {}).values())
                 or row.get("excluded_license_findings")
@@ -590,6 +737,7 @@ def collect(
                     "pass_rate_lift",
                     "severity_counts",
                     "diagnostics",
+                    "agent_diagnostics",
                     "raw_severity_counts",
                     "excluded_license_findings",
                 ):
@@ -624,6 +772,8 @@ def main():
     parser.add_argument("--check", choices=("all", "context", "similarity", "live"), default="all")
     parser.add_argument("--ci-context-budget", action="store_true")
     parser.add_argument("--evaluator-python")
+    parser.add_argument("--boundary-state", type=Path)
+    parser.add_argument("--native-output", type=Path)
     parser.add_argument("--run", action="store_true", help="Authorize provider calls and Docker agent execution")
     args = parser.parse_args()
     report = collect(
@@ -637,6 +787,8 @@ def main():
         check_name=args.check,
         ci_context_budget=args.ci_context_budget,
         evaluator_python=args.evaluator_python,
+        **({"boundary_state": args.boundary_state} if args.boundary_state is not None else {}),
+        **({"native_output": args.native_output} if args.native_output is not None else {}),
     )
     print(json.dumps({"mode": report["mode"], "counts": report["counts"]}))
     return int(args.run and any(r["status"] in ("incomplete", "not_run") for r in report["observations"]))

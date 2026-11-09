@@ -730,6 +730,65 @@ def test_live_schema_v2_rejects_v1_shards_through_provenance_bindings(live, repo
         ci.validated_row(candidate, base, expected)
 
 
+@pytest.mark.parametrize("deadline", ["2800", "0", "NaN", "inf", "PRIVATE-malformed"])
+def test_collector_rejects_exhausted_ci_window_before_credentials(live, repo, tmp_path, monkeypatch, deadline):
+    monkeypatch.setenv("EA_LIVE_JOB_DEADLINE", deadline)
+    monkeypatch.setattr(live.time, "monotonic", lambda: 100.0)
+    configuration = live.configuration
+
+    def configure(provider, *, read_credentials=True):
+        assert read_credentials is False, "credentials read after budget exhaustion"
+        return configuration(provider, read_credentials=read_credentials)
+
+    monkeypatch.setattr(live, "configuration", configure)
+    report = live.collect(repo, tmp_path / "exhausted", tier="3", skill_name="eval-author", check_name="live", run=True)
+    row = next(row for row in report["observations"] if row["status"] != "skipped")
+    assert row["status"] == "incomplete" and row["reason"] == "insufficient_job_budget"
+    persisted = json.loads((tmp_path / "exhausted/live-skillevaluator-summary.json").read_text())
+    assert persisted == report
+
+
+def test_collector_rechecks_job_window_at_evaluator_launch(live, repo, tmp_path, monkeypatch):
+    monkeypatch.setenv("EA_LIVE_JOB_DEADLINE", "2800")
+    monkeypatch.setattr(live.time, "monotonic", lambda: 100.0)
+    monkeypatch.setattr(
+        live, "execute", lambda *a: pytest.fail("model-capable process launched after budget exhaustion")
+    )
+    with pytest.raises(TimeoutError, match="budget"):
+        live.execute_with_progress(
+            ["synthetic"], repo, {}, tmp_path / "run.log", live.TIER3_TIMEOUT_SECONDS, reserve_live_budget=True
+        )
+
+
+def test_same_timeout_on_nonlive_command_does_not_reserve_budget(live, repo, tmp_path, monkeypatch):
+    monkeypatch.setenv("EA_LIVE_JOB_DEADLINE", "0")
+    monkeypatch.setattr(live, "execute", lambda *a: (0, None))
+    assert live.execute_with_progress(["context"], repo, {}, tmp_path / "context.log", live.TIER3_TIMEOUT_SECONDS) == (
+        0,
+        None,
+    )
+
+
+def test_budget_expiry_during_validation_is_persisted_without_evaluation(live, repo, tmp_path, monkeypatch):
+    monkeypatch.setenv("INFERENCE_HUB_API_KEY", "fixture-only")
+    monkeypatch.setenv("EA_LIVE_JOB_DEADLINE", "10000")
+    monkeypatch.setattr(live.time, "monotonic", lambda: 100.0)
+    calls = []
+
+    def execute(argv, *args):
+        calls.append(argv)
+        assert "validate" in argv
+        monkeypatch.setenv("EA_LIVE_JOB_DEADLINE", "0")
+        return 0, None
+
+    monkeypatch.setattr(live, "execute", execute)
+    report = live.collect(repo, tmp_path / "late-expiry", tier="3", skill_name="eval-author", run=True)
+    row = next(row for row in report["observations"] if row["status"] != "skipped")
+    assert len(calls) == 1
+    assert row["status"] == "incomplete" and row["reason"] == "insufficient_job_budget"
+    assert row["finished_at"]
+
+
 def test_plan_and_missing_key_never_execute(live, repo, tmp_path, monkeypatch):
     def no_execute(*args, **kwargs):
         pytest.fail("plan or missing credentials launched a process")
@@ -743,6 +802,50 @@ def test_plan_and_missing_key_never_execute(live, repo, tmp_path, monkeypatch):
     report = live.collect(repo, tmp_path / "plan")
     assert report["mode"] == "plan"
     assert "PRIVATE-SENTINEL" not in (tmp_path / "plan/live-skillevaluator-summary.json").read_text()
+
+
+@pytest.mark.parametrize("manifest", [None, "/private/runtime/binary-manifest.json"])
+@pytest.mark.parametrize("required", [None, "1"])
+def test_patched_runtime_manifest_reaches_only_live_evaluation(live, repo, tmp_path, monkeypatch, manifest, required):
+    monkeypatch.setenv("INFERENCE_HUB_API_KEY", "fixture-key")
+    monkeypatch.setenv("EA_PREPARED_IMAGES_MANIFEST", "/private/prepared-images.json")
+    monkeypatch.setenv("EA_REQUIRE_PREPARED_IMAGES", "1")
+    if manifest is None:
+        monkeypatch.delenv("EA_PATCHED_OPENCODE_MANIFEST", raising=False)
+    else:
+        monkeypatch.setenv("EA_PATCHED_OPENCODE_MANIFEST", manifest)
+    if required is None:
+        monkeypatch.delenv("EA_REQUIRE_PATCHED_OPENCODE", raising=False)
+    else:
+        monkeypatch.setenv("EA_REQUIRE_PATCHED_OPENCODE", required)
+    calls = []
+
+    def execute(argv, cwd, env, log, timeout):
+        is_live = "evaluate" in argv
+        calls.append(is_live)
+        assert env.get("EA_PATCHED_OPENCODE_MANIFEST") == (manifest if is_live else None)
+        assert env.get("EA_REQUIRE_PATCHED_OPENCODE") == (required if is_live else None)
+        assert env.get("EA_PREPARED_IMAGES_MANIFEST") == ("/private/prepared-images.json" if is_live else None)
+        assert env.get("EA_REQUIRE_PREPARED_IMAGES") == ("1" if is_live else None)
+        assert "PYTHONPATH" not in env
+        if "validate" in argv:
+            return 0, None
+        if is_live:
+            path = Path(argv[argv.index("--results-dir") + 1]) / "eval-author/run/result.json"
+            data = tier3()
+        else:
+            path = Path(argv[-1]) / "result.json"
+            data = tier2("Skill Similarity" if "similarity-check" in argv else "Context Deduplication")
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(data))
+        return 0, None
+
+    monkeypatch.setattr(live, "execute", execute)
+    output = tmp_path / "patched-collection"
+    live.collect(repo, output, run=True)
+    assert calls.count(True) == 1 and calls.count(False) >= 2
+    if manifest is not None:
+        assert manifest not in (output / "live-skillevaluator-summary.json").read_text()
 
 
 def test_hub_configuration_ignores_ambient_providers_and_preserves_model_namespaces(live, monkeypatch):
@@ -780,7 +883,10 @@ def test_hub_defaults_apply_to_unset_or_blank_model_variables(live, monkeypatch,
 
 
 @pytest.mark.parametrize("latest_alias", [False, True])
-def test_live_collection_is_bounded_and_retains_every_skill(live, repo, tmp_path, monkeypatch, latest_alias):
+@pytest.mark.parametrize("evaluator_python", [None, "/isolated/runtime/bin/python"])
+def test_live_collection_is_bounded_and_retains_every_skill(
+    live, repo, tmp_path, monkeypatch, latest_alias, evaluator_python
+):
     monkeypatch.setenv("INFERENCE_HUB_API_KEY", "test-credential")
     monkeypatch.setenv("OPENAI_API_KEY", "UNRELATED-SECRET")
     monkeypatch.setenv("SKILL_EVAL_LLM_BASE_URL", "https://unintended.example")
@@ -822,13 +928,25 @@ def test_live_collection_is_bounded_and_retains_every_skill(live, repo, tmp_path
         return 0, None
 
     monkeypatch.setattr(live, "execute", execute)
-    report = live.collect(repo, tmp_path / "live", run=True)
+    report = live.collect(repo, tmp_path / "live", run=True, evaluator_python=evaluator_python)
     assert report["counts"] == {"passed": 3, "skipped": 1, "completed": 1}
     assert len(calls) == 5
     policy = json.loads((tmp_path / "live/live-skillevaluator-summary.json").read_text())["policy"]
     assert policy["tier3_timeout_seconds"] == 2700
     assert policy["tier2_timeout_seconds"] == 300
-    assert [timeout for argv, timeout in calls if argv[1:3] == ["tier3", "evaluate"]] == [
+    from run_pinned_live_evaluator import OPENCODE_VERSION
+
+    assert policy["configured_opencode_version"] == OPENCODE_VERSION
+    assert "observed_opencode_version" not in policy
+    evaluations = [(argv, timeout) for argv, timeout in calls if "evaluate" in argv]
+    assert len(evaluations) == 1
+    assert evaluations[0][0][:4] == [
+        evaluator_python or sys.executable,
+        str(ROOT / "tools/run_pinned_live_evaluator.py"),
+        "tier3",
+        "evaluate",
+    ]
+    assert [timeout for argv, timeout in calls if argv[2:4] == ["tier3", "evaluate"]] == [
         policy["tier3_timeout_seconds"]
     ]
     assert [timeout for argv, timeout in calls if argv[1:3] == ["tier3", "validate"]] == [60]
@@ -925,7 +1043,9 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
     assert {name: config["timeout-minutes"] for name, config in workflow["jobs"].items()} == {
         "plan": 5,
         "authorize": 5,
-        "evaluate": 60,
+        "build-opencode": 20,
+        "preparation-timing": 33,
+        "evaluate": 80,
         "aggregate": 10,
     }
     assert all(
@@ -953,10 +1073,24 @@ def test_live_workflow_limits_inference_to_main_and_is_advisory():
         assert "EVALUATION_TIER" not in configured_job.get("env", {})
         for step in configured_job["steps"]:
             assert "EVALUATION_TIER" not in step.get("env", {})
-    compose = next(step for step in job["steps"] if step.get("name") == "Install verified Docker Compose runtime")
-    assert compose["if"] == "matrix.check == 'live' && matrix.id != 'none'"
+    boundary = next(step for step in job["steps"] if "live_shard.py create " in step.get("run", ""))
+    assert boundary["if"] == "matrix.id != 'none'"
     assert workflow["env"]["EVALUATION_SKILL"] == "${{ inputs.skill || 'all' }}"
     assert not {"OPENAI_API_KEY", "NVIDIA_API_KEY", "HUB_METADATA_API_KEY"}.intersection(evaluation["env"])
+
+
+def test_ci_verifies_downloaded_runtime_only_for_live_before_credentials():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/skill-evaluation-live.yml").read_text())
+    steps = workflow["jobs"]["evaluate"]["steps"]
+    build = next(step for step in steps if step.get("name") == "Verify downloaded OpenCode runtime")
+    evaluation = next(step for step in steps if step.get("name") == "Run exactly one assigned check")
+    assert build["if"] == "matrix.check == 'live' && matrix.id != 'none'"
+    assert "tools/live_shard.py relocate " in build["run"]
+    assert '--root "$RUNNER_TEMP/live-shard"' in build["run"]
+    assert '--download "$RUNNER_TEMP/downloaded-opencode"' in build["run"]
+    assert "secrets." not in json.dumps(build)
+    assert steps.index(build) < steps.index(evaluation)
+    assert 'tools/live_shard.py run --root "$RUNNER_TEMP/live-shard"' in evaluation["run"]
 
 
 def test_seed_datasets_are_bounded_and_have_negative_cases(live):
@@ -966,15 +1100,17 @@ def test_seed_datasets_are_bounded_and_have_negative_cases(live):
         "skills/mlflow-to-atif",
         "skills/eval-author-task-create",
         "skills/eval-author-environment",
+        "skills/eval-author-rubric",
         "team-skills/ethos/ethos-orchestrate",
         "team-skills/ethos/ethos-explore",
         "team-skills/ethos/ethos-write",
     ):
         skill = ROOT / path
-        expected_count = 6 if skill.name in ("eval-author", "eval-author-first-eval") else 4
+        expected_count = 6 if skill.name in ("eval-author", "eval-author-first-eval", "eval-author-rubric") else 4
         assert live.dataset_cases(skill) == expected_count
         cases = json.loads((skill / "evals/evals.json").read_text())["evals"]
-        assert sum(c["expected_skill"] is None for c in cases) == 1
+        expected_negative_count = 3 if skill.name == "eval-author-rubric" else 1
+        assert sum(c["expected_skill"] is None for c in cases) == expected_negative_count
         for case in cases:
             for filename in case["files"]:
                 assert (skill / "evals" / filename).is_file()
@@ -1054,11 +1190,96 @@ def test_failure_details_survive_in_artifact_summary_and_console(live, repo, tmp
         assert "<script>" not in markdown
         assert row["status"] == "failed"
     elif failure == "nested_execution":
-        assert "GraderTimeoutError" in published and "without_skill" in published
-        assert "scored_attempts: 0" in published
+        assert "GraderTimeoutError" not in published and "without_skill" in published
+        assert row["agent_diagnostics"]["execution"]["without_skill"] == {
+            "execution_status": "failed",
+            "expected_attempts": 1,
+            "scored_attempts": 0,
+        }
     else:
-        assert "connection reset" in published
+        assert "connection reset" not in published
         assert row["status"] == "incomplete"
+
+
+@pytest.mark.parametrize("preflight", [False, True])
+def test_native_error_events_survive_nonzero_exit_safely(live, repo, tmp_path, monkeypatch, capsys, preflight):
+    monkeypatch.setenv("INFERENCE_HUB_API_KEY", "fixture-only")
+    calls = []
+
+    def execute(argv, cwd, env, log, timeout):
+        calls.append(argv)
+        log.write_text("PRIVATE COMMAND PROMPT PROVIDER MESSAGE STACKTRACE")
+        if "validate" in argv:
+            return 0, None
+        run = Path(argv[argv.index("--results-dir") + 1]) / "eval-author/run"
+        job = "runtime-preflight-opencode" if preflight else "eval-author-opencode-with"
+        trial = run / "_harbor-jobs" / job / "task__native"
+        (trial / "agent").mkdir(parents=True)
+        # Harbor 0.24.0 OpenCode._parse_stdout/_error_messages consume this JSONL shape.
+        event = {
+            "type": "error",
+            "error": {
+                "name": "APIError",
+                "data": {
+                    "statusCode": 401,
+                    "isRetryable": False,
+                    "message": "PRIVATE PROVIDER MESSAGE",
+                    "responseBody": "PRIVATE RESPONSE",
+                    "requestHeaders": {"Authorization": "PRIVATE TOKEN"},
+                },
+            },
+        }
+        (trial / "agent/opencode.txt").write_text(json.dumps(event) + "\n")
+        (trial / "result.json").write_text(
+            json.dumps(
+                {
+                    "exception_info": {
+                        "exception_type": "NonZeroAgentExitCodeError",
+                        "exception_message": "PRIVATE COMMAND",
+                    },
+                    "agent_info": {"name": "opencode", "version": "1.2.3"},
+                }
+            )
+        )
+        data = tier3()
+        data.update(execution_status="failed", execution_errors=["NonZeroAgentExitCodeError: " + "PRIVATE " * 100])
+        (run / "result.json").write_text(json.dumps(data))
+        return 1, None
+
+    monkeypatch.setattr(live, "execute", execute)
+    output = tmp_path / "native-errors"
+    report = live.collect(repo, output, run=True, tier="3", skill_name="eval-author")
+    row = next(r for r in report["observations"] if r["status"] != "skipped")
+    assert row["status"] == "incomplete" and row["reason"] == "agent_command_failed"
+    assert row["exit_code"] == 1 and "arms" not in row and len(calls) == 2
+    evidence = row.get("agent_diagnostics", {})
+    assert evidence.get("events") == [
+        {
+            "source": "harbor_trial",
+            "phase": "preflight" if preflight else "with_skill",
+            "trial": 0,
+            "category": "agent_command_failed",
+            "exception_type": "NonZeroAgentExitCodeError",
+        },
+        {
+            "source": "opencode_error_event",
+            "phase": "preflight" if preflight else "with_skill",
+            "trial": 0,
+            "category": "authentication_failed",
+            "name": "APIError",
+            "status_code": 401,
+            "retryable": False,
+        },
+    ]
+    assert "--harbor-keep-jobs" in calls[-1]
+    assert evidence["opencode_reported_versions"] == ["1.2.3"]
+    for text in (
+        (output / "live-skillevaluator-summary.json").read_text(),
+        (output / "live-skillevaluator-summary.md").read_text(),
+        capsys.readouterr().out,
+    ):
+        assert "PRIVATE" not in text
+        assert "authentication_failed" in text
 
 
 def test_context_guard_metadata_survives_collection(live, repo, tmp_path, monkeypatch, capsys):

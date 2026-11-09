@@ -28,9 +28,10 @@ permissions:
   contents: read
 
 env:
-  # PRs only plan; main pushes automatically run both tiers.
+  # PRs plan and measure credential-free preparation; only main runs models.
   EVALUATION_TIER: ${{ github.event_name == 'pull_request' && '2' || inputs.tier || 'both' }}
   EVALUATION_SKILL: ${{ inputs.skill || 'all' }}
+  PYTHONDONTWRITEBYTECODE: '1'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -59,7 +60,10 @@ jobs:
         if: always()
         with:
           name: skill-evaluation-plan-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/skill-plan/
+          path: |
+            ${{ runner.temp }}/skill-plan/matrix.json
+            ${{ runner.temp }}/skill-plan/live-skillevaluator-summary.json
+            ${{ runner.temp }}/skill-plan/live-skillevaluator-summary.md
           retention-days: 30
           if-no-files-found: error
 
@@ -89,9 +93,187 @@ jobs:
           SKILL_EVAL_AGENT_MODEL: ${{ vars.SKILL_EVAL_AGENT_MODEL }}
         run: python tools/live_ci.py config
 
-  evaluate:
-    needs: [plan, authorize]
+  build-opencode:
+    needs: plan
     if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && !inputs.run_live) ||
+      (vars.SKILL_EVALUATION_LIVE_ENABLED == 'true' && github.ref == 'refs/heads/main' &&
+       (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.run_live)) &&
+       inputs.tier != '2')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        platform: [linux/amd64]
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        timeout-minutes: 2
+        with:
+          persist-credentials: false
+      - name: Build patched OpenCode runtime once per platform
+        timeout-minutes: 15
+        env:
+          BUILD_PLATFORM: ${{ matrix.platform }}
+        run: python tools/build_patched_opencode.py --platform "$BUILD_PLATFORM" --output "$RUNNER_TEMP/opencode-build-private" --artifact-output "$RUNNER_TEMP/opencode-artifact"
+      - name: Retain verified binary and strict transport manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        timeout-minutes: 2
+        if: success()
+        with:
+          name: patched-opencode-${{ matrix.platform == 'linux/amd64' && 'linux-amd64' || 'linux-arm64' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/opencode-artifact/opencode
+            ${{ runner.temp }}/opencode-artifact/binary-manifest.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: Retain allowlisted build status and provenance, never logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        timeout-minutes: 1
+        if: always()
+        with:
+          name: opencode-build-summary-${{ strategy.job-index }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/opencode-artifact/build-summary.json
+          retention-days: 30
+          if-no-files-found: error
+
+  preparation-timing:
+    needs: [plan, build-opencode]
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && !inputs.run_live)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 33
+    env:
+      SHARD_TIER: '3'
+      SHARD_CHECK: live
+      SHARD_SKILL: eval-author-audit
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        timeout-minutes: 2
+        with:
+          persist-credentials: false
+      - name: Start the same setup clock before dependencies
+        timeout-minutes: 1
+        run: |
+          python - <<'PY'
+          import os, sys, time
+          started = time.monotonic()
+          sys.path.insert(0, "tools")
+          from live_shard import LIVE_JOB_SECONDS
+          with open(os.environ["GITHUB_ENV"], "a") as stream:
+              stream.write(f"EA_PREPARATION_STARTED={started}\nEA_LIVE_JOB_DEADLINE={started + LIVE_JOB_SECONDS}\n")
+          PY
+      # Download before creating a boundary: its 120s idle lease is not a download budget.
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        id: download
+        timeout-minutes: 2
+        with: &binary-download
+          name: patched-opencode-linux-amd64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/downloaded-opencode
+      - name: Create disposable shard boundary and pinned execution image
+        id: boundary
+        timeout-minutes: 4
+        run: &create-boundary >-
+          sudo --preserve-env=EA_LIVE_JOB_DEADLINE,GITHUB_ACTIONS,RUNNER_ENVIRONMENT,SHARD_TIER,SHARD_CHECK,SHARD_SKILL
+          python3 tools/live_shard.py create --root "$RUNNER_TEMP/live-shard"
+      - name: Install isolated evaluator runtime
+        id: runtime
+        timeout-minutes: 5
+        run: &install-evaluator |
+          sudo python3 tools/live_shard.py runtime --root "$RUNNER_TEMP/live-shard"
+      - name: Verify downloaded OpenCode runtime
+        id: relocate
+        timeout-minutes: 1
+        run: &relocate-binary |
+          sudo python3 tools/live_shard.py relocate --root "$RUNNER_TEMP/live-shard" --download "$RUNNER_TEMP/downloaded-opencode"
+      - name: Prepare full skills/eval-author-audit dataset without models
+        id: prepare
+        timeout-minutes: 15
+        run: |
+          sudo python3 tools/live_shard.py prepare --root "$RUNNER_TEMP/live-shard" --timing-checkpoint "$RUNNER_TEMP/preparation-operation-timing.json"
+      - name: Summarize hosted preparation timing without raw payloads
+        timeout-minutes: 1
+        if: always()
+        env:
+          BOUNDARY_OUTCOME: ${{ steps.boundary.outcome }}
+          RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
+          DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
+          RELOCATE_OUTCOME: ${{ steps.relocate.outcome }}
+          PREPARE_OUTCOME: ${{ steps.prepare.outcome }}
+        run: |
+          write_summary() {
+          sudo --preserve-env=RUNNER_TEMP,GITHUB_STEP_SUMMARY,GITHUB_SHA,EA_PREPARATION_STARTED,BOUNDARY_OUTCOME,RUNTIME_OUTCOME,DOWNLOAD_OUTCOME,RELOCATE_OUTCOME,PREPARE_OUTCOME,CLOSE_OUTCOME python3 - <<'PY'
+          import hashlib, json, math, os, pathlib, re, sys, time
+          sys.path.insert(0, str(pathlib.Path("tools").resolve()))
+          from live_shard import SETUP_SECONDS, PREPARATION_TIMEOUT_SECONDS, read_regular
+          from patched_opencode_runtime import load_manifest
+          phases = ("download", "boundary", "runtime", "relocate", "prepare", "close")
+          outcomes = {phase: os.environ.get(phase.upper() + "_OUTCOME") for phase in phases}
+          outcomes = {phase: value if value in ("success", "failure", "cancelled", "skipped") else "unknown" for phase, value in outcomes.items()}
+          try:
+              started = float(os.environ.get("EA_PREPARATION_STARTED", "nan"))
+          except ValueError:
+              started = math.nan
+          elapsed = round(time.monotonic() - started, 3) if math.isfinite(started) else None
+          revision = os.environ.get("GITHUB_SHA", "")
+          if not re.fullmatch("[a-f0-9]{40}", revision):
+              revision = None
+          binary_sha256 = None
+          if outcomes["close"] == "success":
+              try:
+                  from patched_opencode_runtime import PREPARATION_TIMING_MAX_BYTES, validate_preparation_timing
+                  validate_preparation_timing(json.loads(read_regular(pathlib.Path(os.environ["RUNNER_TEMP"]) / "preparation-operation-timing.json", PREPARATION_TIMING_MAX_BYTES)))
+                  binary_sha256 = load_manifest(pathlib.Path(os.environ["RUNNER_TEMP"]) / "live-shard/workspace/patched-opencode/binary-manifest.json")["sha256"]
+              except (OSError, ValueError):
+                  pass
+          complete = all(value == "success" for value in outcomes.values()) and elapsed is not None and 0 <= elapsed < SETUP_SECONDS and revision is not None and binary_sha256 is not None
+          summary = {
+              "schema_version": 1, "status": "complete" if complete else "incomplete",
+              "platform": "linux/amd64", "skill": "eval-author-audit", "source_revision": revision,
+              "dataset_sha256": hashlib.sha256(pathlib.Path("skills/eval-author-audit/evals/evals.json").read_bytes()).hexdigest(),
+              "runtime_sha256": hashlib.sha256(pathlib.Path("tools/patched_opencode_runtime.py").read_bytes()).hexdigest(),
+              "setup_and_preparation_seconds": elapsed, "setup_and_preparation_budget_seconds": SETUP_SECONDS,
+              "image_preparation_cap_seconds": PREPARATION_TIMEOUT_SECONDS, "outcomes": outcomes,
+              "model_execution_enabled": False, "binary_sha256": binary_sha256,
+          }
+          output = pathlib.Path(os.environ["RUNNER_TEMP"]) / "preparation-timing-summary.json"
+          import tempfile
+          with tempfile.NamedTemporaryFile(mode="w", dir=output.parent, delete=False) as stream:
+              temporary = pathlib.Path(stream.name)
+              stream.write(json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n")
+              stream.flush()
+              os.fchmod(stream.fileno(), 0o644)
+              os.fsync(stream.fileno())
+          os.replace(temporary, output)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as stream:
+              stream.write("Credential-free AMD64 Audit preparation: " + summary["status"] + "; setup/preparation seconds: " + str(elapsed) + ".\n")
+          if not complete and outcomes["close"] != "unknown":
+              raise SystemExit(1)
+          PY
+          }
+          # Persist a safe fallback before a close that can outlive this step.
+          export CLOSE_OUTCOME=unknown
+          write_summary
+          CLOSE_OUTCOME=success
+          sudo python3 tools/live_shard.py close --root "$RUNNER_TEMP/live-shard" --timing-checkpoint "$RUNNER_TEMP/preparation-operation-timing.json" || CLOSE_OUTCOME=failure
+          write_summary
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        timeout-minutes: 2
+        if: always()
+        with:
+          name: preparation-timing-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/preparation-timing-summary.json
+            ${{ runner.temp }}/preparation-operation-timing.json
+          retention-days: 30
+          if-no-files-found: error
+
+  evaluate:
+    needs: [plan, authorize, build-opencode]
+    if: >-
+      always() && !cancelled() && needs.plan.result == 'success' && needs.authorize.result == 'success' &&
+      (needs.build-opencode.result == 'success' || inputs.tier == '2') &&
       needs.authorize.outputs.chat != '' && needs.authorize.outputs.embedding != '' &&
       needs.authorize.outputs.agent != ''
     continue-on-error: true
@@ -102,7 +284,9 @@ jobs:
     name: ${{ matrix.check }} / ${{ matrix.skill }}
     environment: skill-evaluator
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # Shared setup <=27m + run <=48m + checkout/publish <=5m = 80m.
+    # Setup's aggregate deadline is stricter than the sum of its step caps.
+    timeout-minutes: 80
     env:
       SHARD_TIER: ${{ matrix.tier }}
       SHARD_CHECK: ${{ matrix.check }}
@@ -112,63 +296,61 @@ jobs:
       SKILL_EVAL_AGENT_MODEL: ${{ needs.authorize.outputs.agent }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        timeout-minutes: 2
         if: matrix.id != 'none'
         with:
           persist-credentials: false
       - name: Write fallback report before dependency or Docker setup
+        timeout-minutes: 1
         if: matrix.id != 'none'
         run: |
+          # T0 includes all setup; live_shard reserves validation and startup too.
+          # Checkout has its own 2m cap; 3m remain for staging/upload after T0+75m.
+          python -c 'import os,sys,time; started=time.monotonic(); sys.path.insert(0, "tools"); from live_shard import LIVE_JOB_SECONDS; open(os.environ["GITHUB_ENV"], "a").write(f"EA_LIVE_JOB_DEADLINE={started + LIVE_JOB_SECONDS}\n")'
           python tools/live_ci.py initialize --models-resolved --tier "$SHARD_TIER" --skill "$SHARD_SKILL" --check "$SHARD_CHECK" --output "$RUNNER_TEMP/skill-publish"
-      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
-        if: matrix.id != 'none'
-        with:
-          version: '0.12.3'
-          python-version: '3.12'
-          enable-cache: false
-      - name: Install verified Docker Compose runtime
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        timeout-minutes: 2
         if: matrix.check == 'live' && matrix.id != 'none'
-        env:
-          COMPOSE_VERSION: '5.5.1'
-          COMPOSE_SHA256: db1889184726840f75c4f9c001048430d4f25b3be3cb084d3ddd762bc0aed576
-        run: |
-          curl --fail --location --silent --show-error "https://github.com/docker/compose/releases/download/v${COMPOSE_VERSION}/docker-compose-linux-x86_64" --output "$RUNNER_TEMP/docker-compose"
-          echo "$COMPOSE_SHA256  $RUNNER_TEMP/docker-compose" | sha256sum --check -
-          sudo install -D -m 0755 "$RUNNER_TEMP/docker-compose" /usr/local/lib/docker/cli-plugins/docker-compose
-          test "$(docker compose version --short)" = "$COMPOSE_VERSION"
-      - name: Install isolated evaluator runtime
+        with: *binary-download
+      - name: Create disposable shard boundary and pinned execution image
+        timeout-minutes: 4
         if: matrix.id != 'none'
-        env:
-          EVALUATOR_EXTRAS: ${{ matrix.check == 'live' && 'tier3' || 'tier2' }}
+        run: *create-boundary
+      - name: Install isolated evaluator runtime
+        timeout-minutes: 5
+        if: matrix.id != 'none'
+        run: *install-evaluator
+      - name: Verify downloaded OpenCode runtime
+        timeout-minutes: 1
+        if: matrix.check == 'live' && matrix.id != 'none'
+        run: *relocate-binary
+      - name: Prepare and verify exact trial images without inference credentials
+        timeout-minutes: 15
+        if: matrix.check == 'live' && matrix.id != 'none'
         run: |
-          uv venv --python 3.12 "$RUNNER_TEMP/live-runtime"
-          uv pip install --python "$RUNNER_TEMP/live-runtime/bin/python" "skillevaluator[$EVALUATOR_EXTRAS] @ git+https://github.com/NVIDIA/SkillEvaluator.git@3fd2cf57e4a2af01f282e001f7515b6e76f18ec7" # v0.7.0
+          sudo python3 tools/live_shard.py prepare --root "$RUNNER_TEMP/live-shard"
       - name: Run exactly one assigned check
+        timeout-minutes: 48
         if: matrix.id != 'none'
         env:
           INFERENCE_HUB_API_KEY: ${{ secrets.INFERENCE_HUB_API_KEY }}
-        run: |
-          python tools/collect_live_skill_evaluations.py --run --ci-context-budget --tier "$SHARD_TIER" --skill "$SHARD_SKILL" --check "$SHARD_CHECK" --evaluator "$RUNNER_TEMP/live-runtime/bin/skillevaluator" --evaluator-python "$RUNNER_TEMP/live-runtime/bin/python" --output "$RUNNER_TEMP/skill-live"
+        run: >-
+          sudo --preserve-env=INFERENCE_HUB_API_KEY,SKILL_EVAL_LLM_MODEL,SKILL_EVAL_EMBEDDING_MODEL,SKILL_EVAL_AGENT_MODEL,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_EVENT_NAME
+          python3 tools/live_shard.py run --root "$RUNNER_TEMP/live-shard"
       - name: Preserve valid checkpoint or fallback
+        timeout-minutes: 1
         if: always() && matrix.id != 'none'
-        run: python tools/live_ci.py stage --source "$RUNNER_TEMP/skill-live" --output "$RUNNER_TEMP/skill-publish"
+        run: |
+          sudo python3 tools/live_shard.py close --root "$RUNNER_TEMP/live-shard"
+          sudo python3 tools/live_ci.py stage --source "$RUNNER_TEMP/live-shard/report" --output "$RUNNER_TEMP/skill-publish"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        timeout-minutes: 2
         if: always() && matrix.id != 'none'
         with:
           name: skill-shard-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.id }}
           path: ${{ runner.temp }}/skill-publish/live-skillevaluator-summary.*
           retention-days: 30
           if-no-files-found: error
-      - name: Stage full native reports for private retention
-        if: always() && matrix.id != 'none' && github.event.repository.private == true
-        run: python tools/stage_skill_reports.py --source "$RUNNER_TEMP/skill-live" --output "$RUNNER_TEMP/skill-live-reports"
-      - name: Retain full native reports (repository access only)
-        if: always() && matrix.id != 'none' && github.event.repository.private == true
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: skill-evaluation-live-reports-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.id }}
-          path: ${{ runner.temp }}/skill-live-reports/
-          retention-days: 30
-          if-no-files-found: warn
 
   aggregate:
     needs: [plan, authorize, evaluate]

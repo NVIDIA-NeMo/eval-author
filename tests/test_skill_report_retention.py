@@ -46,11 +46,6 @@ def test_missing_outputs_after_install_failure_are_not_fabricated(tmp_path):
     "workflow,job,condition",
     [
         ("ci.yml", "skill-evaluator", "always() && github.event.repository.private == true"),
-        (
-            "skill-evaluation-live.yml",
-            "evaluate",
-            "always() && matrix.id != 'none' && github.event.repository.private == true",
-        ),
     ],
 )
 def test_full_reports_are_separate_private_only_and_attempted_after_failures(workflow, job, condition):
@@ -62,6 +57,5 @@ def test_full_reports_are_separate_private_only_and_attempted_after_failures(wor
     assert upload["with"]["retention-days"] == 30
     assert upload["with"]["path"].endswith("-reports/")
     assert "github.run_attempt" in upload["with"]["name"]
-    if job == "evaluate":
-        assert "matrix.id" in upload["with"]["name"]
+
     assert steps.index(stage) < steps.index(upload)

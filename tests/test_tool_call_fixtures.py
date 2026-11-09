@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from harbor.agents.factory import AgentFactory
+from harbor.agents.installed.claude_code import ClaudeCode
 from harbor.agents.installed.codex import Codex
 from harbor.environments.base import BaseEnvironment, ExecResult
 from harbor.models.agent.context import AgentContext
@@ -424,22 +425,38 @@ def _registered_mock(tmp_path, agent_name="codex"):
     )
     config_dir = tmp_path / "harness-config"
     config_dir.mkdir(mode=0o700)
-    writer = getattr(provider_agent, "_build_register_mcp_servers_command")
-    kwargs = (
-        {"config_path": str(config_dir / "config.toml")}
-        if "config_path" in inspect.signature(writer).parameters
-        else {}
-    )
-    command = writer(**kwargs)
-    assert isinstance(command, str)
-    # Execute only these installed, inspected writers in this synthetic test.
-    # Production preflight never executes emitted shell commands.
-    assert agent_name in {"codex", "claude-code", "vibe"}
-    subprocess.run(
-        ["bash", "-c", command],
-        env={**os.environ, "CODEX_HOME": str(config_dir), "CLAUDE_CONFIG_DIR": str(config_dir)},
-        check=True,
-    )
+    if agent_name == "codex":
+        assert isinstance(provider_agent, Codex)
+
+        async def upload_file(source_path, target_path):
+            assert target_path == str(config_dir / "config.toml")
+            shutil.copyfile(source_path, target_path)
+
+        environment = MagicMock(spec=BaseEnvironment)
+        environment.default_user = None
+        environment.upload_file = upload_file
+        asyncio.run(
+            provider_agent._upload_effective_config(
+                environment, provider_agent._build_effective_config(), str(config_dir / "config.toml")
+            )
+        )
+    else:
+        writer = getattr(provider_agent, "_build_register_mcp_servers_command")
+        kwargs = (
+            {"config_path": str(config_dir / "config.toml")}
+            if "config_path" in inspect.signature(writer).parameters
+            else {}
+        )
+        command = writer(**kwargs)
+        assert isinstance(command, str)
+        # Execute only these installed, inspected writers in this synthetic test.
+        # Production preflight never executes emitted shell commands.
+        assert agent_name in {"claude-code", "vibe"}
+        subprocess.run(
+            ["bash", "-c", command],
+            env={**os.environ, "CLAUDE_CONFIG_DIR": str(config_dir)},
+            check=True,
+        )
     config_file = config_dir / (".claude.json" if agent_name == "claude-code" else "config.toml")
     payload = (
         json.loads(config_file.read_text()) if config_file.suffix == ".json" else tomllib.loads(config_file.read_text())
@@ -493,22 +510,37 @@ def test_unknown_or_unprobed_registration_is_not_unsupported(agent_name, tmp_pat
 
 @pytest.mark.parametrize("command", [None, "unrecognized-writer", "echo not-json >> config"])
 def test_unrecognized_writer_is_unverified(monkeypatch, command, tmp_path):
-    monkeypatch.setattr(Codex, "_build_register_mcp_servers_command", lambda self: command)
+    monkeypatch.setattr(ClaudeCode, "_build_register_mcp_servers_command", lambda self: command)
+    servers = TaskConfig.model_validate(tomllib.loads(te._fixture_integration())).environment.mcp_servers
+    result = registration.probe_registration("claude-code", servers, repo=tmp_path)
+    assert result["status"] == "unverified"
+    assert result["reason"] == "registration_encoding_unrecognized"
+
+
+@pytest.mark.parametrize("payload", [None, [], "unrecognized", {}])
+def test_unrecognized_structured_config_is_unverified(monkeypatch, payload, tmp_path):
+    monkeypatch.setattr(Codex, "_build_effective_config", lambda self: payload)
     servers = TaskConfig.model_validate(tomllib.loads(te._fixture_integration())).environment.mcp_servers
     result = registration.probe_registration("codex", servers, repo=tmp_path)
     assert result["status"] == "unverified"
     assert result["reason"] == "registration_encoding_unrecognized"
 
 
+@pytest.mark.parametrize("agent_name", ["codex", "claude-code"])
 @pytest.mark.parametrize("change", [{"command": "wrong executable"}, {"args": ["--wrong"]}, {"transport": "sse"}])
-def test_demonstrated_registration_mismatch_is_unsupported(monkeypatch, change, tmp_path):
+def test_demonstrated_registration_mismatch_is_unsupported(monkeypatch, agent_name, change, tmp_path):
     server = {"command": "/opt/tool-call-fixtures/launch-replay.sh", "args": [], **change}
-    payload = json.dumps({"mcpServers": {"trace-tool-call-replay": server}})
-    monkeypatch.setattr(
-        Codex, "_build_register_mcp_servers_command", lambda self: f"echo {shlex.quote(payload)} > config"
-    )
+    payload = {"mcpServers": {"trace-tool-call-replay": server}}
+    if agent_name == "codex":
+        monkeypatch.setattr(Codex, "_build_effective_config", lambda self: payload)
+    else:
+        monkeypatch.setattr(
+            ClaudeCode,
+            "_build_register_mcp_servers_command",
+            lambda self: f"echo {shlex.quote(json.dumps(payload))} > config",
+        )
     servers = TaskConfig.model_validate(tomllib.loads(te._fixture_integration())).environment.mcp_servers
-    assert registration.probe_registration("codex", servers, repo=tmp_path)["status"] == "unsupported"
+    assert registration.probe_registration(agent_name, servers, repo=tmp_path)["status"] == "unsupported"
 
 
 @pytest.mark.parametrize(
@@ -518,13 +550,14 @@ def test_demonstrated_registration_mismatch_is_unsupported(monkeypatch, change, 
         ("unknown", "unverified"),
         ("claude-code", "verified"),
         ("vibe", "verified"),
-        ("codex", "unsupported"),
+        ("codex", "verified"),
+        ("claude-code", "unsupported"),
     ],
 )
 def test_runtime_reports_registration_separately_from_execution(tmp_path, monkeypatch, agent_name, status):
     if status == "unsupported":
         monkeypatch.setattr(
-            Codex, "_build_register_mcp_servers_command", lambda self: "echo '{\"mcpServers\": {}}' > config"
+            ClaudeCode, "_build_register_mcp_servers_command", lambda self: "echo '{\"mcpServers\": {}}' > config"
         )
     task_dir = _generated_mock(tmp_path)
     config_path = task_dir / "task/task.toml"
@@ -549,9 +582,11 @@ def test_runtime_reports_registration_separately_from_execution(tmp_path, monkey
 
 def test_probe_never_executes_unrecognized_shell(monkeypatch, tmp_path):
     marker = tmp_path / "must-not-exist"
-    monkeypatch.setattr(Codex, "_build_register_mcp_servers_command", lambda self: f"touch {shlex.quote(str(marker))}")
+    monkeypatch.setattr(
+        ClaudeCode, "_build_register_mcp_servers_command", lambda self: f"touch {shlex.quote(str(marker))}"
+    )
     servers = TaskConfig.model_validate(tomllib.loads(te._fixture_integration())).environment.mcp_servers
-    result = registration.probe_registration("codex", servers, repo=tmp_path)
+    result = registration.probe_registration("claude-code", servers, repo=tmp_path)
     assert result["status"] == "unverified"
     assert result["reason"] == "registration_encoding_unrecognized"
     assert not marker.exists()

@@ -211,18 +211,18 @@ def _within(path: str, roots: list[str]) -> bool:
 def _findings_inputs(state: dict, value: dict) -> list[dict]:
     """Findings input bindings that apply to the selected approach.
 
-    Task review ignores bindings that point at historical run sources (traces and
-    their selection manifest) kept from an earlier measured approach, so they are
-    neither read nor required to exist. Every other binding, including verifier
-    control manifests and native results, stays observed and checked for freshness.
+    Task review ignores bindings that name a historical run source (a recorded
+    trace file or the selection manifest) kept from an earlier measured approach,
+    so they are neither read nor required to exist. Matching is by exact path, not
+    directory ancestry: every other binding, including verifier control manifests
+    and native results under a retained trace directory, stays observed and
+    checked for freshness.
     """
     refs = (value["findings"] or {}).get("inputs", [])
     if mode(state) != "task_review":
         return refs
-    historical = [*value["traces"]["paths"], *value["traces"]["candidates"], *value["trace_files"]]
-    if value.get("selection_manifest"):
-        historical.append(value["selection_manifest"])
-    return [ref for ref in refs if not _within(ref["path"], historical)]
+    historical = {*value["trace_files"], value.get("selection_manifest")}
+    return [ref for ref in refs if ref["path"] not in historical]
 
 
 def _sources(state: dict) -> set[str]:
