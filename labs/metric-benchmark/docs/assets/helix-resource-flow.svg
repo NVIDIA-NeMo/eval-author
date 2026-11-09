@@ -55,7 +55,7 @@ text {font-family:Arial,Helvetica,sans-serif;fill:#24364b}
 <text x="536" y="660" class="body">Upload or reuse agents, tasks, or both</text>
 <rect x="980" y="607" width="390" height="76" rx="10" fill="#eef8f1" stroke="#88b69a"/>
 <text x="996" y="635" class="name">references.json</text>
-<text x="996" y="660" class="body">Registered IDs, versions and hashes</text>
+<text x="996" y="660" class="body">IDs, task revisions and source hashes</text>
 <path class="edge" d="M420 645 H520"/>
 <path class="edge" d="M880 645 H980"/>
 <text x="536" y="708" class="small">Input: signed cases and selected sources</text>
@@ -70,10 +70,10 @@ text {font-family:Arial,Helvetica,sans-serif;fill:#24364b}
 <text x="536" y="865" class="body">Run one agent against all benchmark tasks</text>
 <rect x="980" y="797" width="390" height="76" rx="10" fill="#eef8f1" stroke="#88b69a"/>
 <text x="996" y="825" class="name">runs/baseline.json</text>
-<text x="996" y="850" class="body">Baseline run IDs and exact input versions</text>
+<text x="996" y="850" class="body">Baseline run IDs and input references</text>
 <rect x="980" y="889" width="390" height="76" rx="10" fill="#eef8f1" stroke="#88b69a"/>
 <text x="996" y="917" class="name">runs/mutant.json</text>
-<text x="996" y="942" class="body">Mutant run IDs and exact input versions</text>
+<text x="996" y="942" class="body">Mutant run IDs and input references</text>
 <path class="edge" d="M420 850 H520"/>
 <path class="edge" d="M1370 645 H1390 V734 H930 V780 H700 V812"/>
 <path class="edge" d="M880 850 H938 V835 H980"/>

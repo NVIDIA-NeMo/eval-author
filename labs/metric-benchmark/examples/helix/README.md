@@ -119,13 +119,13 @@ parts of your experiment. They are not Helix resource IDs.
 
 **Publication writes the mapping.** It uploads each agent separately, uploads or
 verifies/reuses tasks, and creates a pinned taskset containing the case's tasks.
-It writes the resulting Helix IDs and exact versions to `references.json`.
+It writes the resulting Helix references and source hashes to `references.json`.
 Conceptually, that file records:
 
 | Experiment selection | Helix reference recorded by publication |
 | --- | --- |
-| Case `example`, agent `baseline` | Registered baseline agent ID and exact version |
-| Case `example`, agent `mutant` | Registered mutant agent ID and exact version |
+| Case `example`, agent `baseline` | Registered baseline agent ID, content hashes and retained source location |
+| Case `example`, agent `mutant` | Registered mutant agent ID, content hashes and retained source location |
 | Case `example`, task `inspect-files` | Registered task ID and exact version |
 | Case `example`, task `count-lines` | Registered task ID and exact version |
 | Case `example`, full benchmark | Taskset ID and exact version containing those task references |
@@ -160,8 +160,8 @@ references. The original experiment names remain available for analysis.
   instead of local execution settings. Shared Helix client settings provide the
   connection, login and default workspace.
 - **Remote results:** execution returns run receipts; collection downloads results
-  into the same format used by local experiments. Agent and task sources can also
-  be downloaded by their recorded IDs and exact versions.
+  into the same format used by local experiments. Source downloads use pinned task references and retained agent copies; registration
+  alone does not preserve old agent files. See [source retention](../../docs/helix-architecture.md#decisions).
 
 Tasks are uploaded unchanged; agent files are never injected into task images.
 Downloading a registered agent does not automatically make it runnable locally.
