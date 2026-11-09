@@ -37,12 +37,11 @@ the Helix IDs and exact versions needed for execution and download. It retains t
 experiment's case, agent and task IDs so each remote resource can be matched to its
 prepared input.
 
-Execution carries the selected mapping into its run receipt. Collected results retain
-experiment agent/task identities in the standard indexes and exact Helix IDs and
-versions in the accompanying run receipts and native evidence. Resolving what ran
-must not depend on the original publication file. Collection also uses the expected
-inventory from `references.json` to detect missing agents or tasks; returned results
-alone cannot establish that the whole selected experiment completed.
+The saved references are used to execute the experiment, download its sources and
+results, and verify that results account for every selected agent and task. Their
+IDs and exact versions identify the remote resources; the original local bundles
+are not required. Execution records the references it used alongside the run IDs,
+so collected results remain linked to what ran.
 
 ## Decisions
 
