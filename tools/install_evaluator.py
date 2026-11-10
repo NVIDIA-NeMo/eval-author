@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Install the reviewed evaluator closure into an isolated Python 3.12 environment."""
+"""Install the evaluator and its pinned dependencies in an isolated Python 3.12 environment."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ EXTRAS = ("security", "tier2", "tier3")
 
 
 def validate_environment(extra: str, distributions=None) -> None:
-    """Check active extras, retaining one explicit, revision-bound metadata conflict."""
+    """Check dependencies for the selected extras. Allow only the reviewed LiteLLM exception."""
     import importlib.metadata
     import json
 
@@ -115,8 +115,8 @@ def install(python: str, extra: str) -> None:
         env=env,
         check=True,
     )
-    # The only source build is the immutable evaluator. Its backend and backend
-    # dependencies were installed above; neither dependency resolver may run here.
+    # Build only the evaluator at the pinned revision. Its build backend and
+    # dependencies are already installed. Neither dependency resolver may run here.
     subprocess.run(
         [
             *common,
