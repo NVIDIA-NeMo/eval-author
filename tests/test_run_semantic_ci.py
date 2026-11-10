@@ -293,6 +293,115 @@ def test_revision_reporting_preserves_incomplete_verdict(packet, tmp_path, revis
     assert "private body" not in markdown + json.dumps(report)
 
 
+def test_ratchet_failure_retains_only_typed_diagnostic(packet, tmp_path, monkeypatch, capsys):
+    suite, runtime, lock = packet
+    (runtime / "scripts/selftest.py").write_text(
+        "import sys\nprint('PRIVATE CLAIM /private/path', file=sys.stderr)\nsys.exit(7)\n"
+    )
+    lock["binding"] = semantic.binding(suite, suite["cases"][0], runtime)
+    semantic.dump(tmp_path / "lock.json", lock)
+    assert ci.preflight(suite, runtime, tmp_path) == {}
+    monkeypatch.setattr(semantic, "Model", lambda: lambda *args: pytest.fail("must not call provider"))
+    original = (tmp_path / "lock.json").read_bytes(), (tmp_path / "baseline.json").read_bytes()
+    output = tmp_path / "out"
+    assert ci.run(tmp_path / "suite.json", runtime, output, "check", warn_on_regression=True) == 2
+    row = semantic.load(output / "semantic-regression-summary.json")["observations"][0]
+    assert row["reason"] == "execution_or_input_error"
+    assert row["metrics"] is None
+    assert row["diagnostic"] == {
+        "stage": "ratchet_selftest",
+        "category": "subprocess_failed",
+        "http_status": None,
+        "exit_code": 7,
+    }
+    public = json.dumps(row) + (output / "semantic-regression-summary.md").read_text() + capsys.readouterr().out
+    assert "PRIVATE CLAIM" not in public and "/private/path" not in public
+    assert original == ((tmp_path / "lock.json").read_bytes(), (tmp_path / "baseline.json").read_bytes())
+
+
+@pytest.mark.parametrize("http_status", [400, 401, 403, 429, 503])
+def test_http_failure_retains_status_without_provider_body(packet, tmp_path, monkeypatch, capsys, http_status):
+    from email.message import Message
+    from urllib.error import HTTPError
+
+    suite, runtime, lock = packet
+    suite["cases"][0]["skill_files"] = ["skills/eval-author-audit/SKILL.md"]
+    suite["cases"].append({**suite["cases"][0], "id": "second"})
+    semantic.dump(tmp_path / "suite.json", suite)
+    (runtime / "scripts/selftest.py").write_text("pass\n")
+    lock["binding"] = semantic.binding(suite, suite["cases"][0], runtime)
+    semantic.dump(tmp_path / "lock.json", lock)
+    calls = []
+
+    class Opener:
+        def open(self, request, timeout):
+            calls.append(timeout)
+            raise HTTPError("https://private.invalid", http_status, "PRIVATE PROVIDER BODY", Message(), None)
+
+    model = object.__new__(semantic.Model)
+    model.url = "https://synthetic.invalid"
+    model.key = "SYNTHETIC-KEY"
+    monkeypatch.setattr(semantic, "Model", lambda: model)
+    monkeypatch.setattr(semantic.urllib.request, "build_opener", lambda *args: Opener())
+    assert ci.preflight(suite, runtime, tmp_path) == {}
+    output = tmp_path / "out"
+    assert ci.run(tmp_path / "suite.json", runtime, output, "check", warn_on_regression=True) == 2
+    report = semantic.load(output / "semantic-regression-summary.json")
+    assert calls == [120, 120]
+    for row in report["observations"]:
+        assert row["reason"] == "execution_or_input_error" and row["metrics"] is None
+        assert row["diagnostic"] == {
+            "stage": "model_request",
+            "category": "http_error",
+            "http_status": http_status,
+            "exit_code": None,
+        }
+    public = json.dumps(report) + (output / "semantic-regression-summary.md").read_text() + capsys.readouterr().out
+    for private in ("PRIVATE PROVIDER BODY", "private.invalid", "SYNTHETIC-KEY", "Private evidence"):
+        assert private not in public
+
+
+@pytest.mark.parametrize("failure", ["connection", "timeout", "response"])
+def test_other_model_failures_do_not_invent_http_diagnostics(packet, tmp_path, monkeypatch, failure):
+    import io
+    from urllib.error import URLError
+
+    suite, runtime, lock = packet
+    suite["cases"][0]["skill_files"] = ["skills/eval-author-audit/SKILL.md"]
+    semantic.dump(tmp_path / "suite.json", suite)
+    (runtime / "scripts/selftest.py").write_text("pass\n")
+    lock["binding"] = semantic.binding(suite, suite["cases"][0], runtime)
+    semantic.dump(tmp_path / "lock.json", lock)
+    calls = []
+
+    class Opener:
+        def open(self, request, timeout):
+            calls.append(timeout)
+            if failure == "connection":
+                raise URLError("private connection failure")
+            if failure == "timeout":
+                raise TimeoutError("private timeout")
+            return io.BytesIO(b'{"choices":[{"finish_reason":"length"}]}')
+
+    model = object.__new__(semantic.Model)
+    model.url, model.key = "https://synthetic.invalid", "SYNTHETIC-KEY"
+    monkeypatch.setattr(semantic, "Model", lambda: model)
+    monkeypatch.setattr(semantic.urllib.request, "build_opener", lambda *args: Opener())
+    output = tmp_path / "out"
+    assert ci.run(tmp_path / "suite.json", runtime, output, "check") == 2
+    row = semantic.load(output / "semantic-regression-summary.json")["observations"][0]
+    assert row["reason"] == "execution_or_input_error" and row["metrics"] is None
+    assert "diagnostic" not in row
+    assert calls == [120]
+
+
+@pytest.mark.parametrize("value", [True, 3.5, "403", -999, 1000, None])
+def test_diagnostic_rejects_untyped_or_unbounded_values(value):
+    error = semantic.ExecutionError("PRIVATE STAGE", "PRIVATE CATEGORY", exit_code=value, http_status=value)
+    assert error.diagnostic == {"stage": "unknown", "category": "unknown", "http_status": None, "exit_code": None}
+    assert str(error) == "semantic execution failed"
+
+
 def test_missing_or_malformed_provenance_is_unavailable(packet, tmp_path):
     suite, _, _ = packet
     case = suite["cases"][0]

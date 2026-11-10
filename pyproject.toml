@@ -35,6 +35,19 @@ dev = [
 # bundled scripts, and contract tests. The skills stay at the top level
 # so they can be copied into a customer's repository.
 package = false
+# Security floors for the locked workflow/runtime and development dependencies.
+# Upgrade filelock and virtualenv together: older virtualenv releases cap filelock <4.
+constraint-dependencies = [
+  "aiohttp>=3.14.4",
+  # Reject trust stores predating removal of compromised emSign roots (GHSA-6q48-6c7w-9gw2).
+  "certifi>=2026.10.19",
+  "filelock>=4.2.1",
+  "gitpython>=3.2.1",
+  "litellm>=1.101.3",
+  "pyasn1>=0.6.5",
+  "setuptools>=84.1.0",
+  "virtualenv>=21.14.13",
+]
 # databricks-sdk (via mlflow-skinny) caps protobuf <7, but no 6.x release fixes
 # CVE-2026-0994 / BDSA-2025-123809 for Struct/Value/ListValue; 7.36.0 is the first that does.
 # databricks-sdk only uses the Timestamp/Duration well-known types. Drop once its cap allows 7.x.

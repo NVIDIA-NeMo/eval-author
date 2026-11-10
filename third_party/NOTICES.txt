@@ -293,12 +293,12 @@ PERFORMANCE OF THIS SOFTWARE.
 
 
 ================================================================================
-aiohttp==3.14.3
+aiohttp==3.14.4
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/58/d9/22ce5786ac0c1653ae8b6c23bded02c1686d11f0dbb45b31ce128e0df985/aiohttp-3.14.3.tar.gz
-SHA256: sha256:9491196535a88924a60afd5b5f434b5b203b6cc616250878dbdb223a8f7844bc
-File: aiohttp-3.14.3/LICENSE.txt
+Source: https://files.pythonhosted.org/packages/2b/27/5e1f8446545be98e9416af59c396b1ed1f9f3294afb0a40ee3a709889273/aiohttp-3.14.4-py3-none-any.whl
+SHA256: sha256:5c6758ba62aea282c537179cfc8474a90f2b5f7b089cc5ff66d8920d86a9bfdd
+File: aiohttp-3.14.4.dist-info/licenses/LICENSE.txt
 
 Apache License
                            Version 2.0, January 2004
@@ -503,9 +503,9 @@ Apache License
    limitations under the License.
 
 
-Source: https://files.pythonhosted.org/packages/58/d9/22ce5786ac0c1653ae8b6c23bded02c1686d11f0dbb45b31ce128e0df985/aiohttp-3.14.3.tar.gz
-SHA256: sha256:9491196535a88924a60afd5b5f434b5b203b6cc616250878dbdb223a8f7844bc
-File: aiohttp-3.14.3/vendor/llhttp/LICENSE
+Source: https://files.pythonhosted.org/packages/2b/27/5e1f8446545be98e9416af59c396b1ed1f9f3294afb0a40ee3a709889273/aiohttp-3.14.4-py3-none-any.whl
+SHA256: sha256:5c6758ba62aea282c537179cfc8474a90f2b5f7b089cc5ff66d8920d86a9bfdd
+File: aiohttp-3.14.4.dist-info/licenses/vendor/llhttp/LICENSE
 
 MIT License
 
@@ -2356,12 +2356,12 @@ File: fastuuid-0.14.0/LICENSE
 
 
 ================================================================================
-filelock==3.32.6
+filelock==4.2.1
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/cc/06/4f138f618dbea66803291274f228f01daf29f306fe8b96bc30dab765df75/filelock-3.32.6-py3-none-any.whl
-SHA256: sha256:3f16ecd0117feae0dfc147e8c62eb5daeccd8bd800378c3ddf416de9b4feb6b1
-File: filelock-3.32.6.dist-info/licenses/LICENSE
+Source: https://files.pythonhosted.org/packages/28/00/db89d339bc4ecdc8087fa7b8607ba22ffc27bf96286f340c9620bea428b3/filelock-4.2.1-py3-none-any.whl
+SHA256: sha256:7be2662e9e826b9bba28afc0f843a123280d799a2ea44bb5d35ccec67905ae44
+File: filelock-4.2.1.dist-info/licenses/LICENSE
 
 MIT License
 
@@ -2699,12 +2699,12 @@ in the distribution package.
 
 
 ================================================================================
-gitpython==3.1.62
+gitpython==3.2.1
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/d6/0b/29d7965215f8ef830a7ca1f42997fe13e5693d85e9edb18f938d063ef5f2/gitpython-3.1.62-py3-none-any.whl
-SHA256: sha256:7002251225e10e29d2e1f49e6532613fe5d5d9f0b6f1f02997a52b38fe56899e
-File: gitpython-3.1.62.dist-info/licenses/AUTHORS
+Source: https://files.pythonhosted.org/packages/6b/50/2a923c4dc02522ff9567f07c67ed1deca6d5fa9474f4708168b8088dfa37/gitpython-3.2.1-py3-none-any.whl
+SHA256: sha256:d66b0832aa8755c1a84892937282df0befb16c97e5a64aeebd68be9c5e323f53
+File: gitpython-3.2.1.dist-info/licenses/AUTHORS
 
 GitPython was originally written by Michael Trier.
 GitPython 0.2 was partially (re)written by Sebastian Thiel, based on 0.1.6 and git-dulwich.
@@ -2770,9 +2770,9 @@ Contributors are:
 Portions derived from other open source works and are clearly marked.
 
 
-Source: https://files.pythonhosted.org/packages/d6/0b/29d7965215f8ef830a7ca1f42997fe13e5693d85e9edb18f938d063ef5f2/gitpython-3.1.62-py3-none-any.whl
-SHA256: sha256:7002251225e10e29d2e1f49e6532613fe5d5d9f0b6f1f02997a52b38fe56899e
-File: gitpython-3.1.62.dist-info/licenses/LICENSE
+Source: https://files.pythonhosted.org/packages/6b/50/2a923c4dc02522ff9567f07c67ed1deca6d5fa9474f4708168b8088dfa37/gitpython-3.2.1-py3-none-any.whl
+SHA256: sha256:d66b0832aa8755c1a84892937282df0befb16c97e5a64aeebd68be9c5e323f53
+File: gitpython-3.2.1.dist-info/licenses/LICENSE
 
 Copyright (C) 2008, 2009 Michael Trier and contributors
 All rights reserved.
@@ -4165,12 +4165,12 @@ THE SOFTWARE.
 
 
 ================================================================================
-litellm==1.108.1
+litellm==1.108.4
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/15/ca/116c69ba346b7a2dff9781c4c1b3b1d0f4d4af9e34d4769598ca2ca1e516/litellm-1.108.1.tar.gz
-SHA256: sha256:41ab58a9ecf985a7b0819010bf6cb4d438d7cc603ad3b9197c0b0d95f340eb33
-File: litellm-1.108.1/LICENSE
+Source: https://files.pythonhosted.org/packages/2a/1e/ffa920bca1ee09bf8b8c089888f0ffd7b0653c8a5dd7ce95c19b633c8d5b/litellm-1.108.4.tar.gz
+SHA256: sha256:192974c6a17ef20ddbc3851f2151cdb0ad81eb8b67bf043cc90cea8714bbed83
+File: litellm-1.108.4/LICENSE
 
 Portions of this software are licensed as follows:
 
@@ -42355,12 +42355,12 @@ support library is itself covered by the above license.
 
 
 ================================================================================
-pyasn1==0.6.4
+pyasn1==0.6.5
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/9a/3b/6163796d69c3977d1e4287bea4a6979161cbbdd170ebb430511e8e1999ce/pyasn1-0.6.4-py3-none-any.whl
-SHA256: sha256:deda9277cfd454080ec40b207fb6df82206a3a2688735233cdcd8d3d565f088b
-File: pyasn1-0.6.4.dist-info/licenses/LICENSE.rst
+Source: https://files.pythonhosted.org/packages/19/1f/3eefd5c84c35cae44549ce1c7f7e58f7945b34f5a6bce07a135438522073/pyasn1-0.6.5-py3-none-any.whl
+SHA256: sha256:4017b0fce125096b8573b39c989fdb1a4b19cf761e683398184550fea0e66587
+File: pyasn1-0.6.5.dist-info/licenses/LICENSE.rst
 
 Copyright (c) 2005-2020, Ilya Etingof <etingof@gmail.com>
 All rights reserved.
@@ -45834,17 +45834,17 @@ License: Apache-2.0 WITH LLVM-exception
 
 
 ================================================================================
-setuptools==84.0.0
+setuptools==84.1.0
 ================================================================================
 
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
-File: setuptools-84.0.0.dist-info/licenses/LICENSE
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
+File: setuptools-84.1.0.dist-info/licenses/LICENSE
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/_vendor/backports.tarfile-1.2.0.dist-info/LICENSE
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/_vendor/jaraco.text-4.0.0.dist-info/LICENSE
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -45866,8 +45866,8 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.
 
 
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/_vendor/autocommand-2.2.2.dist-info/LICENSE
 
 GNU LESSER GENERAL PUBLIC LICENSE
@@ -46038,8 +46038,8 @@ Library.
 
 
 
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/_vendor/importlib_metadata-8.7.1.dist-info/licenses/LICENSE
 
 Apache License
@@ -46117,8 +46117,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/_vendor/jaraco_context-6.1.0.dist-info/licenses/LICENSE
 
 MIT License
@@ -46141,11 +46141,11 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTI
 USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/_vendor/jaraco_functools-4.4.0.dist-info/licenses/LICENSE
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/_vendor/zipp-3.23.0.dist-info/licenses/LICENSE
 
 MIT License
@@ -46168,8 +46168,8 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTI
 USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/_vendor/more_itertools-10.8.0.dist-info/licenses/LICENSE
 
 Copyright (c) 2012 Erik Rose
@@ -46193,8 +46193,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/_vendor/packaging-26.0.dist-info/licenses/LICENSE
 
 This software is made available under the terms of *either* of the licenses
@@ -46202,8 +46202,8 @@ found in LICENSE.APACHE or LICENSE.BSD. Contributions to this software is made
 under the terms of *both* these licenses.
 
 
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/_vendor/packaging-26.0.dist-info/licenses/LICENSE.APACHE
 
 
@@ -46385,8 +46385,8 @@ File: setuptools/_vendor/packaging-26.0.dist-info/licenses/LICENSE.APACHE
    END OF TERMS AND CONDITIONS
 
 
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/_vendor/packaging-26.0.dist-info/licenses/LICENSE.BSD
 
 Copyright (c) Donald Stufft and individual contributors.
@@ -46414,8 +46414,8 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/_vendor/platformdirs-4.4.0.dist-info/licenses/LICENSE
 
 MIT License
@@ -46441,8 +46441,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/_vendor/tomli-2.4.0.dist-info/licenses/LICENSE
 
 MIT License
@@ -46468,8 +46468,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/_vendor/wheel-0.46.3.dist-info/licenses/LICENSE.txt
 
 MIT License
@@ -46495,8 +46495,8 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 
 
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/config/NOTICE
 
 The following files include code from opensource projects
@@ -46511,8 +46511,8 @@ The following files include code from opensource projects
       You can obtain one at https://mozilla.org/MPL/2.0/.
 
 
-Source: https://files.pythonhosted.org/packages/95/9c/c510029fc6ef33a6275cd2c5d3cecd6613dfd6aa401d57c54f1c18852ccf/setuptools-84.0.0-py3-none-any.whl
-SHA256: sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+Source: https://files.pythonhosted.org/packages/18/02/b4bbb90f8f29e334898ff45c6d9b1fffaa6f378017052b3023a06262b5f7/setuptools-84.1.0-py3-none-any.whl
+SHA256: sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9
 File: setuptools/config/_validate_pyproject/NOTICE
 
 The code contained in this directory was automatically generated using the

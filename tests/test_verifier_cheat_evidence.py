@@ -4,6 +4,7 @@
 import asyncio
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -354,13 +355,19 @@ def test_valid_json_whitespace_still_passes(tmp_path, monkeypatch):
 
 def test_setup_keeps_hidden_cases_private(tmp_path):
     module = load_fixture_module("control_agent", "control_agent.py")
+    # CI paths contain /work; substituted host paths must not be rewritten again.
+    tmp_path = tmp_path / "work"
+    tmp_path.mkdir()
 
     class Environment:
         async def exec(self, command, **kwargs):
             # Run actual permission operations; host ownership is not container ownership.
             command = command.replace("chown ", "true ")
-            for directory in ("/logs", "/tests", "/work", "/controls"):
-                command = command.replace(directory, str(tmp_path / directory[1:]))
+            command = re.sub(
+                r"/(logs|tests|work|controls)\b",
+                lambda match: str(tmp_path / match.group(1)),
+                command,
+            )
             result = subprocess.run(["bash", "-c", command], capture_output=True, text=True)
             return SimpleNamespace(return_code=result.returncode)
 
