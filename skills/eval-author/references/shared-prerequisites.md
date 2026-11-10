@@ -224,7 +224,8 @@ Reuse known identity, repository paths, runtime choice, and answers. When naming
 the agent or setup, make its basis clear: the user's request, repository documentation,
 the existing suite, or a previously confirmed answer. Describe inferred identity
 and default choices as such; neither is a user confirmation. Reuse explicit
-choices without asking the user to select them again. Do not enumerate or read
+choices without asking the user to select them again. Except for the
+[retained-run lookup](#locate-retained-evaluation-runs), do not enumerate or read
 traces before the user selects their source and location.
 
 For creation and improvements, honor the user's NeMo Gym or Harbor choice,
@@ -267,6 +268,39 @@ and provide `npx skills@latest add NVIDIA-NeMo/eval-author --skill '*' --agent c
 substituting the current assistant's identifier and adding `--global` when repairing
 a global installation. Provide the command without running it during checks;
 after repair, recheck the files and resources before clearing the blocker.
+
+### Locate retained evaluation runs
+
+Before asking for missing evaluation runs during measured-audit prerequisites
+or trace source selection, check the known repository's `.eval-author/jobs/`.
+Repeat this check when a selected run path is missing or stale. Reuse current
+lookup evidence when nothing relevant has changed. Do not apply this lookup to
+task review, a pending opening/approach choice, an explicit no-trace answer, or
+a request whose explicit source bounds exclude this directory.
+
+Use bounded directory listings that include hidden and ignored paths. Default
+repository searches often omit `.eval-author/`. Inspect only saved run metadata
+and trace-file presence under this root, without opening trace contents. Keep
+the lookup to 5 directory levels and 200 entries. Record the bounds, checked
+paths, and any truncation or access failure. Do not follow symlinks outside the
+root or broaden to the checkout, home directory, or remote services.
+
+For each candidate, check the run metadata for completion, the evaluated agent
+and task/suite, and an associated trace path such as a Harbor trial's
+`agent/trajectory.json`. Exclude Oracle/nop controls, runs for other agents, and
+incomplete runs from availability evidence. Definitions, result scores, and a
+directory name alone cannot establish that a completed agent run has a trace.
+Missing, ambiguous, or unreadable metadata leaves that candidate unverified.
+Do not run evaluations, install dependencies, or parse/convert traces for this
+lookup. An empty or truncated result does not prove that no traces exist.
+
+Retain observed paths and metadata with the prerequisite or audit findings.
+When source selection is due, offer relevant candidates with their known run
+source and location instead of asking the user to locate them again. Candidates
+remain unselected until the user chooses them. An existing explicit choice needs
+no new confirmation. Honor that choice when newer runs exist, and explain any
+missing-path mismatch before asking which set to use. Actual trace inspection,
+preparation, and measurement still require selected source bounds.
 
 ### Authoring checks
 

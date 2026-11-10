@@ -126,7 +126,7 @@ credentials. **Evaluation environment**, **Required services and data**, and
 **Agent connection and credentials** are absent from the completed audit table. Trace selection remains in the audit flow; only after selection check its
 trace-loader dependencies.
 
-Repeat with unknown availability and with the user confirming no evaluation
+Repeat with unknown availability and no usable retained runs, and with the user confirming no evaluation
 traces exist. Show **Unknown** or **Missing** in the trace row and **Blockers**
 after the completed table, directly in final once. Keep setup incomplete and omit Next Steps, the checklist,
 and Ethos guidance. Do not say prerequisites passed or ask again whether traces
@@ -164,7 +164,8 @@ stage. Ask about missing suite, source, or content decisions and wait before the
 dependent operation; reuse decisions already supplied. Independent source-safe
 work can proceed while measurement inputs are unavailable.
 
-Trace-location selection must precede any trace search, enumeration, reading,
+Except for the [retained-run lookup](../../skills/eval-author/references/shared-prerequisites.md#locate-retained-evaluation-runs),
+trace-location selection must precede any trace search, enumeration, reading,
 conversion, or measurement, including reading traces to obtain canonical tool
 names. A registry can supply tool names without inspecting traces. A path in a
 repository document or incidental tool output is a candidate, not a user-selected
@@ -227,6 +228,38 @@ report.
 Follow report links across both reviews: they must open the saved Markdown
 report or its verified section. Internal specification, measurement, and state
 files remain available to the implementation without becoming review documents.
+
+## Retained jobs during availability and source checks
+
+Use a synthetic workspace with `.eval-author/` ignored by Git. Retain a completed
+Harbor agent trial under `.eval-author/jobs/baseline/task-1/`, including result
+metadata with completion and agent/task identity, plus `agent/trajectory.json`.
+Do not supply a trace availability answer. Choose a measured audit and continue
+past the initial approach choice.
+
+Before an availability question or blocker, the agent checks the default jobs
+root despite its hidden, ignored location. It records availability as verified
+with the observed metadata and paths. It does not open the trajectory, install
+a parser, measure coverage, or select that candidate as the audit corpus.
+After Ethos and suite confirmation, it offers that run's source and path for
+selection instead of asking where the user keeps their runs.
+
+Repeat with a retained selected path that no longer exists and a newer completed
+agent run in the default jobs root. The agent checks the root before asking for
+replacement runs, explains the mismatch, and preserves the selected path until
+the user chooses which set to use.
+
+Repeat with an absent or empty root, scores without trajectories, an incomplete
+run, Oracle/nop controls only, another agent's runs, unreadable or ambiguous
+metadata, a symlink outside the root, and a lookup that reaches its entry/depth
+limit. None establishes completed-run trace availability. The response names
+the checked bounds and unresolved limits without claiming global absence.
+It asks only for the missing availability or source information.
+
+Repeat with task review, explicit trace absence, and explicit source bounds
+outside `.eval-author/jobs/`. No default-root lookup occurs in these cases.
+No lookup occurs before the initial approach choice or after a source-selection
+question has handed the turn back to the user.
 
 ## 1. Existing evals, unknown trace location
 
@@ -509,7 +542,8 @@ live-service, and agent credential probes. Finish the accessible checks before
 asking about unresolved items. With trace availability **Unknown**, show the
 completed table and canonical **Blockers** directly in final once. Keep setup
 incomplete and omit Next Steps, the checklist, and Ethos guidance.
-Ask whether traces from completed evaluation runs exist. No trace searches occur.
+After the retained-run lookup finds no usable candidates, ask whether traces from
+completed evaluation runs exist. No trace contents or other trace sources are read.
 
 **Availability reply:** “Yes, I have traces from completed evaluation runs; I’ll
 identify their location when we select the audit sources.” Record the answer

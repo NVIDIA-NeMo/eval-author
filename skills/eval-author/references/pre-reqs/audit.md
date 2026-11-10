@@ -42,6 +42,12 @@ Reuse any supplied availability answer: use **Confirmed by you** when the user s
 traces exist, **Missing** when they say none exist, and **Unknown** otherwise.
 Evaluation definitions and pass/fail scores alone do not satisfy this prerequisite.
 
+When availability is unresolved, apply the
+[retained-run lookup](../shared-prerequisites.md#locate-retained-evaluation-runs)
+before declaring a blocker or asking whether runs exist. When the lookup
+establishes availability, record `data: verified` with the observed paths and
+metadata as provenance. This verifies availability, not trace validity or coverage.
+
 Unknown or missing trace availability blocks full audit onboarding. Finish the
 other accessible checks, record the actual `data` status and a `data` blocker in
 phase `setup`, then render **Blockers** and pause before Ethos. Supply its

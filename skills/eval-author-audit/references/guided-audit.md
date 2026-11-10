@@ -126,6 +126,8 @@ selection even when newer work exists. If scope is unclear, ask which named set
 to audit before requesting its run source. Preserve prior selections until that
 choice is resolved. Reassess trace availability and run mapping for a changed set;
 earlier trace confirmations do not establish evidence for newly selected work.
+Apply the [retained-run lookup](../../eval-author/references/shared-prerequisites.md#locate-retained-evaluation-runs)
+before reporting unavailable runs or asking the user to locate them.
 
 If the user confirms no evaluations exist, say so without searching to prove it.
 If the location is unknown or inaccessible, report that limit and ask for the
@@ -136,7 +138,10 @@ describe what was planned, and pass/fail scores alone cannot establish that
 coverage. State that proposed checks can still be prepared without traces,
 while measurement would remain unmeasured.
 
-Before searching for, listing, opening, converting, or measuring traces, confirm
+Before the source question, use the same retained-run lookup to offer relevant
+candidates from the default jobs directory. Reuse current lookup evidence from
+prerequisites. This metadata-only exception does not select a trace corpus.
+Before other searches, listing, opening, converting, or measuring traces, confirm
 with the user both their source and location through `audit_traces`. A local file
 or bounded directory plus the identified run source is sufficient; do not demand
 an exact filename before searching a user-selected directory. An explicit request
@@ -150,16 +155,18 @@ This rule also applies to tracing runtime tool names while drafting audit items,
 opening traces referenced by a report, and implicit trace scans inside discovery
 or trace-loading tools. Before presenting a missing-source question, inspect named
 agent docs, selected eval definitions, or a tool registry within the current
-milestone as useful, excluding run logs, trajectories, and trace directories
-until source selection is settled. After asking the source question, end the
+milestone as useful. Apart from the retained-run lookup, exclude run logs,
+trajectories, and trace directories until source selection is settled.
+After asking the source question, end the
 turn; do not continue that inspection while waiting. Independent specification
 work can resume if the user explicitly defers the missing source and selects
 that next step. Whole-repository `rg --files`,
 `find`, or recursive globs that expose trace filenames count as trace searches,
 even without opening their contents. Read directly named Ethos and agent files
 first; do not batch a broad inventory alongside loading these instructions.
-If the location is unknown, ask the next focused source question rather than searching the checkout, home
-directory, platform accounts, or unrelated jobs for candidate traces.
+If the location is still unknown after the retained-run lookup, ask the next
+focused source question rather than searching the checkout, home directory,
+platform accounts, or unrelated jobs for candidate traces.
 
 Once selected, inspect only that source and load its traces through the shared
 [trace loader](../../eval-author/references/trace-loading.md); never convert

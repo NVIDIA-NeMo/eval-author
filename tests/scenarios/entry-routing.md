@@ -149,7 +149,11 @@ appears.
   explaining that measurement requires traces from evaluations that have already
   run; unknown availability stays **Unknown**, an explicit user statement that
   traces exist is **Confirmed by you**, and confirmed absence is **Missing**
-- Unknown or missing trace availability blocks full audit onboarding: finish
+- With unknown availability, check retained jobs under the
+  [retained-run lookup](../../skills/eval-author/references/shared-prerequisites.md#locate-retained-evaluation-runs)
+  before asking for runs. Verified completed agent-run metadata plus trace-file
+  presence can satisfy availability without selecting or reading the traces
+- Availability still unknown or explicitly missing blocks full audit onboarding: finish
   accessible checks, save `data` in phase `setup` with the actual prerequisite
   status, and supply `id: data` plus the exact loaded audit `skill_link`. Render
   the canonical trace row, blocker, question, and linked skill-pause attribution.
@@ -457,9 +461,10 @@ boundaries. Exercise these variants for both origins and applicable contexts:
 | No saved state | Lookup exits 0 with `state: null` and `persisted: false`. Show only fresh orientation, with no opening acknowledgment or state initialization |
 | Malformed, unreadable, or foreign-repository state | Lookup exits 2. Preserve it, explain why audit checks pause, and offer a specific recovery action without inspecting artifacts or manufacturing approval |
 | Shared work remains unfinished | Resume its pending prerequisite or Ethos decision |
-| Trace availability unknown or missing | After any required acknowledgment, show the actual prerequisite blocker in final, retaining earlier journey completion and Ethos confirmation; do not read Ethos or traces or run evaluations |
+| Trace availability unknown | After any required acknowledgment, check retained jobs. If availability remains unresolved, show the prerequisite blocker in final without reading Ethos or traces or running evaluations |
+| Trace availability explicitly missing | Reuse the absence answer and show the prerequisite blocker without searching to disprove it |
 | Audit tooling missing | Report only unresolved audit requirements; do not repeat unrelated interviews |
-| Trace availability confirmed, run paths only candidates | Ask only for the missing source/location; do not inspect candidates |
+| Trace availability confirmed, run paths only candidates | Offer relevant retained-run candidates for source selection without opening trace contents |
 | Ethos content changed, missing, or selected agent changed | Reopen the affected intent review after applicable prerequisites pass |
 | Audit already has a pending question | After any required acknowledgment, preserve its scope and resume that actual question in the same turn |
 | Bootstrap invitation remains pending or is declined | Do not enter the audit or inspect its inputs |

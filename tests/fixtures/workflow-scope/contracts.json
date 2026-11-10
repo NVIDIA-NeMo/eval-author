@@ -501,7 +501,7 @@
         "prompts": [
           "Audit the evaluations from our previous work."
         ],
-        "context": "Separate audit request in a new chat after completed authoring in the same repository for the same agent. Shared prerequisites and Ethos were confirmed, and audit tooling is current, but completed-run trace availability is unknown. After the early audit welcome, block setup in the same turn. Authoring data exemptions do not satisfy audit readiness. Preserve prior completion and Ethos confirmation; do not inspect Ethos or traces or manufacture runs.",
+        "context": "Separate audit request in a new chat after completed authoring in the same repository for the same agent. Shared prerequisites and Ethos were confirmed, and audit tooling is current, but completed-run trace availability is unknown. A retained-run lookup already found no usable candidates and nothing relevant has changed. After the early audit welcome, reuse that lookup and block setup in the same turn. Authoring data exemptions do not satisfy audit readiness. Preserve prior completion and Ethos confirmation without inspecting Ethos or traces or manufacturing runs.",
         "flow": "eval-author-audit",
         "allowed_actions": [
           "read_skill",
@@ -524,7 +524,7 @@
         "prompts": [
           "Audit our existing evaluations."
         ],
-        "context": "Direct acceptance of the audit handoff after completed bootstrap in the active conversation, for the same repository and agent. Audit prerequisites and content-bound Ethos confirmation are valid. User confirmed traces exist and selected the suite, but saved run paths are only candidates. Skip the repeated welcome, reconcile Ethos, and ask only for the trace source/location; do not enumerate or inspect candidates.",
+        "context": "Direct acceptance of the audit handoff after completed bootstrap in the active conversation, for the same repository and agent. Audit prerequisites and content-bound Ethos confirmation are valid. User confirmed traces exist and selected the suite, but saved run paths are only candidates. The retained-run lookup already checked their metadata and trace-file presence and nothing relevant has changed. Skip the repeated welcome, reconcile Ethos, and offer the relevant candidates for trace source/location selection without opening trace contents or enumerating other sources.",
         "flow": "eval-author-audit",
         "allowed_actions": [
           "read_skill",
