@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""One construction contract, with lossless, explicit imports of historical formats."""
+"""One construction contract, with a lossless, explicit import of the historical native plan format."""
 
 from __future__ import annotations
 
@@ -9,12 +9,17 @@ import argparse
 import copy
 import json
 from pathlib import Path
-from typing import Any
 
-from . import legacy_construction as trace_format
 from . import legacy_plan as plan_format
+from . import trace_construction as trace_format
 
-SCHEMA = "nemo.eval_author.construction.v2"
+SCHEMA = "nemo.eval_author.construction.v3"
+# Earlier construction schemas cite ATIF steps; they are refused, never migrated in place.
+_RETIRED_SCHEMAS = ("nemo.eval_author.construction.v1", "nemo.eval_author.construction.v2")
+_RETIRED = (
+    "construction.v1 and v2 predate Compass Trace citations; author construction.v3 "
+    "(trace contracts cite turn or span ids and cutoff_turn_id; native contracts change only the schema id)"
+)
 PATH = "private/construction.json"
 CUSTOM_ARMS = trace_format.CUSTOM_ARMS
 ConstructionError = trace_format.ConstructionError
@@ -25,10 +30,9 @@ qualify = trace_format.qualify
 
 
 def load(path):
-    """Retain the published trace format's bound without widening native plans."""
-    value, sha = plan_format.load(path, max_bytes=trace_format.MAX_BYTES)
-    if value.get("schema") != trace_format.SCHEMA and path.stat().st_size > plan_format.MAX_BYTES:
-        raise PlanError("plan exceeds size limit")
+    value, sha = plan_format.load(path)
+    if value.get("schema") in _RETIRED_SCHEMAS:
+        raise PlanError(_RETIRED)
     return value, sha
 
 
@@ -62,7 +66,6 @@ def _trace_projection(value):
         for r in value["inputs"]
     ]
     return {
-        "schema": trace_format.SCHEMA,
         "candidate_sha256": value["bindings"]["candidate_sha256"],
         "trace_sha256": value["bindings"]["trace_sha256"],
         "requirements": [
@@ -124,6 +127,8 @@ def assess(value, mode="proposal", task=None, contract=None, workspace=None):
             "migration",
         },
     )
+    if value["schema"] in _RETIRED_SCHEMAS:
+        raise PlanError(_RETIRED)
     if value["schema"] != SCHEMA or mode not in {"proposal", "draft"}:
         raise PlanError("unsupported construction schema or stage")
     if value["provider"] not in {"harbor", "gym"}:
@@ -390,122 +395,11 @@ def activate(root, path):
     return {"active_contract": str(path), "sha256": sha, "execution": "unmeasured"}
 
 
-def from_trace(root):
-    context = trace_format.validate(root)
-    old = context["manifest"]
-    candidate = trace_format.load(root, "candidate.json")
-    summary = trace_format.load(root, "summary.json")
-    if not isinstance(candidate, dict) or not isinstance(summary, dict):
-        raise PlanError("candidate and summary must be objects")
-    requirements = [
-        {
-            "id": r["id"],
-            "candidate_index": r["candidate_index"],
-            "statement": candidate["requirements"][r["candidate_index"]]["description"],
-            "authority": {
-                "basis": "unresolved",
-                "reference": "Review the retained ground-truth inventory and requirement evidence",
-            },
-        }
-        for r in old["requirements"]
-    ]
-    checks: list[dict[str, Any]] = [
-        {
-            "id": key,
-            "requirements": [r["id"] for r in old["requirements"] if key in r["checks"]],
-            "success": {"pointer": "/checks/" + key, "equals": "PASS"},
-        }
-        for key in sorted(context["checks"])
-    ]
-
-    def observations(fails):
-        return [
-            {
-                "check": c["id"],
-                "expected": {"pointer": c["success"]["pointer"], "equals": "FAIL" if c["id"] in fails else "PASS"},
-            }
-            for c in checks
-        ]
-
-    used = {c["id"] for c in old["controls"]}
-
-    def builtin_id(kind):
-        name = "builtin-" + kind
-        while name in used:
-            name += "-builtin"
-        used.add(name)
-        return name
-
-    cases = [
-        {
-            "case": builtin_id(name),
-            "kind": name,
-            "observations": observations(context["checks"] if name == "nop" else set()),
-            "requirements": [r["id"] for r in requirements],
-            "reaches": [],
-            "dependency": None,
-            "rationale": "Built-in control",
-            "review": None,
-        }
-        for name in ("nop", "oracle")
-    ]
-    for control in old["controls"]:
-        cases.append(
-            {
-                "case": control["id"],
-                "kind": control["arm"],
-                "observations": (
-                    observations(set())
-                    if control["arm"] == "alternative"
-                    else [o for o in observations(control["fails"]) if o["check"] in control["fails"]]
-                ),
-                **{k: control[k] for k in ("requirements", "reaches", "dependency", "rationale", "review")},
-            }
-        )
-    inputs = [
-        {**row, "path": row["path"].removeprefix("task/"), "rationale": row["review"]["note"]}
-        for row in old["starting_state"]["artifacts"]
-    ]
-    prerequisites = []
-    for edge in old["dependencies"]:
-        control = context["controls"][edge["bypass_control"]]
-        check = next(c for c in checks if edge["dependent"] in c["requirements"] and c["id"] in control["fails"])
-        prerequisites.append(
-            {
-                "id": edge["id"],
-                "before": edge["prerequisite"],
-                "after": edge["dependent"],
-                "bypass_case": edge["bypass_control"],
-                "check": check["id"],
-            }
-        )
-    return {
-        "schema": SCHEMA,
-        "task_id": summary["task_id"],
-        "provider": "harbor",
-        "requirements": requirements,
-        "inputs": inputs,
-        "checks": checks,
-        "cases": cases,
-        "prerequisites": prerequisites,
-        "probes": old["probes"],
-        "starting_state": {k: v for k, v in old["starting_state"].items() if k != "artifacts"},
-        "review": old["review"],
-        "bindings": {k: old[k] for k in ("candidate_sha256", "trace_sha256")},
-        "migration": [],
-    }
-
-
 def migrate(source, output, workspace=None, contract=None):
     value, sha = load(source)
-    if value["schema"] == plan_format.SCHEMA:
-        result = from_plan(value, contract)
-    elif value["schema"] == trace_format.SCHEMA:
-        if workspace is None or source.resolve() != (workspace / PATH).resolve():
-            raise PlanError("trace migration requires the original workspace and construction path")
-        result = from_trace(workspace)
-    else:
-        raise PlanError("migration expects a historical construction format")
+    if value["schema"] != plan_format.SCHEMA:
+        raise PlanError("migration expects the historical native plan format")
+    result = from_plan(value, contract)
     result["migration"] = [{"path": str(source.resolve()), "sha256": sha, "schema": value["schema"]}]
     assess(result, workspace=workspace, contract=contract)
     if output.resolve() == source.resolve():
@@ -531,8 +425,6 @@ def validate(value, mode="proposal", task=None, contract=None):
     if isinstance(value, Path):
         path = active_path(value)
         document, sha = load(path)
-        if document["schema"] == trace_format.SCHEMA:
-            return trace_format.validate(value)
         assess(document, "draft", workspace=value)
         context = trace_format.validate(value, manifest=_trace_projection(document))
         context["sha256"] = sha
@@ -589,23 +481,11 @@ def main():
             result = migrate(args.plan, args.migrate_to, args.workspace, contract)
         else:
             value, _ = load(args.plan)
-            if value.get("schema") == trace_format.SCHEMA:
-                if args.workspace is None or args.plan.resolve() != (args.workspace / PATH).resolve():
-                    raise PlanError("historical trace validation requires --workspace and its construction path")
-                context = trace_format.validate(args.workspace)
-                result = {
-                    "status": "structurally_valid",
-                    "schema": trace_format.SCHEMA,
-                    "sha256": context["sha256"],
-                    "mode": args.mode,
-                    "execution": "unmeasured",
-                }
-            else:
-                result = (
-                    assess(value, args.mode, args.task_dir, contract, args.workspace)
-                    if value.get("schema") == SCHEMA
-                    else validate(value, args.mode, args.task_dir, contract)
-                )
+            result = (
+                assess(value, args.mode, args.task_dir, contract, args.workspace)
+                if value.get("schema") == SCHEMA
+                else validate(value, args.mode, args.task_dir, contract)
+            )
         print(json.dumps(result, indent=2))
         return 0
     except (ValueError, OSError, KeyError, TypeError) as error:

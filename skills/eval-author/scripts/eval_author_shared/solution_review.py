@@ -10,7 +10,7 @@ import os
 from collections import Counter
 from pathlib import Path
 
-from . import legacy_construction as contract
+from . import trace_construction as contract
 from .runtime_assets import ASSETS
 from .runtime_assets import load as load_runtime
 

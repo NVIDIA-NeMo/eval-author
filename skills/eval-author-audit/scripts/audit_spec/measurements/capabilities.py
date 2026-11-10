@@ -6,21 +6,19 @@
 
 from __future__ import annotations
 
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from measurements._composite import CompositeSpec, ToolGateSpec, measure_composite
 
-try:
-    from harbor.models.trajectories import Trajectory
-except ImportError:
-    Trajectory = Any  # type: ignore[assignment,misc]
+if TYPE_CHECKING:
+    from trace_ingest import Trace
 
 JsonObject: TypeAlias = dict[str, Any]
 
 _SPEC = CompositeSpec(
     method_name="capabilities",
     item_kind="capability",
-    details_schema="nemo.eval_author.audit_capabilities_details.v1",
+    details_schema="nemo.eval_author.audit_capabilities_details.v2",
     judgments_schema="nemo.eval_author.audit_capability_judgments.v1",
     tool_gate=ToolGateSpec(
         item_field="required_tools",
@@ -36,6 +34,6 @@ DETAILS_SCHEMA = _SPEC.details_schema
 JUDGMENTS_SCHEMA = _SPEC.judgments_schema
 
 
-def measure(audit: JsonObject, trajectory: Trajectory, *, judgments: JsonObject | None = None) -> JsonObject:
+def measure(audit: JsonObject, trace: Trace, *, judgments: JsonObject | None = None) -> JsonObject:
     """Measure capability items from deterministic trace evidence plus optional judgments."""
-    return measure_composite(audit, trajectory, judgments=judgments, spec=_SPEC)
+    return measure_composite(audit, trace, judgments=judgments, spec=_SPEC)

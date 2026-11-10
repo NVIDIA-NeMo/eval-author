@@ -41,7 +41,7 @@ Keep setup incomplete and omit Next Steps, the checklist, and Ethos guidance.
 Preserve progress while the user converts the suite; do not execute conversion,
 start unsupported-format authoring, or offer separate supported evaluations as
 a workaround. This requirement adds no audit or trace requirement and does not
-change supported audit evidence formats or scoped trace conversion.
+change supported audit evidence formats or scoped trace loading.
 
 When the user returns with converted paths and validation results, check the
 actual suite format before clearing the blocker and resuming prerequisites.

@@ -26,7 +26,7 @@ from _values import EVIDENCE_CLASS_ORDER, dedupe_names, subject_evidence_class  
 
 JsonObject: TypeAlias = dict[str, Any]
 
-REPORT_SCHEMA = "nemo.eval_author.audit_coverage_report.v1"
+REPORT_SCHEMA = "nemo.eval_author.audit_coverage_report.v2"
 ITEM_KINDS = tuple(sorted(AUDIT_ITEM_KINDS))
 SCHEMAS_DIR = Path(__file__).resolve().parents[2] / "schemas"
 COVERAGE_SCHEMA_PATH = SCHEMAS_DIR / "audit_coverage.schema.json"
