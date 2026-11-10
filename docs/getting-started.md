@@ -11,7 +11,7 @@ scripts that your agent reads to carry out the work.
 
 Use a coding agent that can read local instructions, read and write project
 files, and run shell commands. Choose either the Skills CLI or a manual copy;
-both install the same eleven active skill directories. Keep the complete set
+both install the same nine active skill directories. Keep the complete set
 together: skills load sibling skills and their bundled scripts, schemas,
 templates, and references. The set includes the **experimental**
 trace-to-environment workflow and rubric assessment.
@@ -114,7 +114,7 @@ npx skills list --agent claude-code
 
 For a global installation, use `npx skills list --agent claude-code --global`.
 Use the same assistant identifier you installed for, and confirm the listed
-paths match your chosen project or global destination. Expect these eleven skills:
+paths match your chosen project or global destination. Expect these nine skills:
 
 ```text
 eval-author
@@ -126,8 +126,6 @@ eval-author-inspect-trace
 eval-author-rubric
 eval-author-task-create
 eval-author-trace-environment
-gym-to-atif
-mlflow-to-atif
 ```
 
 If none appear, check the directory, assistant identifier, and scope. Then
@@ -186,7 +184,7 @@ Skills CLI. You need Git, access to this GitHub repository, a POSIX shell with
    workflows out. Manual copies are independent of the checkout; updating the
    checkout does not update installed copies.
 
-4. Verify all eleven installed skill directories match the checkout:
+4. Verify all nine installed skill directories match the checkout:
 
    ```bash
    (
@@ -316,9 +314,8 @@ you need to create, validate, or run Harbor tasks.
 | Create, validate, and run Harbor tasks | Harbor and its supported Python environment. Execution also needs the selected backend and any application access, agent integration, and provider credentials required by the task. |
 | Build and prove a task environment | Repository access for the fit check and inventory. Harbor environments need Harbor and Docker with Compose for sidecar services; NeMo Gym environments need the NeMo Gym runtime above. Vendor sandboxes need your authorization and credentials, supplied by variable name. |
 | Generate or validate an audit specification; aggregate measured coverage | Python 3.11+, PyYAML, and jsonschema. These operations read local evidence and do not call NeMo services. |
-| Measure coverage from ATIF traces | Python 3.12+ and the [audit dependencies](../skills/eval-author-audit/requirements.txt), including Harbor. Measurement does not start evaluation jobs. |
-| Convert exported MLflow traces | Python 3.11+ and the standard library. Live MLflow queries additionally need an existing MLflow environment and access to the store. |
-| Convert NeMo Gym traces with `gym-to-atif` | Python 3.11+ and the standard library for conversion. |
+| Measure coverage from ATIF, MLflow, NeMo Gym, or normalized Compass traces | Python 3.12–3.13 and the [audit dependencies](../skills/eval-author-audit/requirements.txt), which pin NeMo Compass 0.2.1; Harbor is not needed. Measurement does not start evaluation jobs. |
+| Load ATIF, MLflow, NeMo Gym, or Intake traces into NeMo Compass | Python 3.12–3.13 and the eval-author skill's [requirements](../skills/eval-author/requirements.txt). Intake loading also needs service access. See [Work with traces](traces.md#load-local-traces). |
 | Prepare and validate a trace-derived environment (**experimental**) | Python 3.11+, jsonschema 4.23+, and referencing 0.28.4+ for preparation; Harbor and Docker for Harbor checks, or the sibling task-create skill and NeMo Gym v0.6.0+ in Python 3.13.14+ for [native NeMo Gym output](../skills/eval-author-trace-environment/references/gym-output.md). |
 | Inspect NeMo Intake traces | A working `nemo` CLI, an explicit workspace, and read access to a configured local or remote NeMo Helix instance. |
 | Generate the Harbor HTML case/run report | Python 3.11+, jsonschema 4.23+, and markdown-it-py 4.x. Reads local task/run artifacts; no Harbor runtime, Docker, model access, or network is needed to render. See the [Report generation](../skills/eval-author/references/suite-readme.md#report-generation). |

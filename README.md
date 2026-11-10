@@ -65,13 +65,14 @@ identifier, and add `--global` for a global installation.
 
 The discovery helper requires Python 3.11+. Audit generation, validation, and
 aggregation require Python 3.11+, PyYAML, and jsonschema. Measuring coverage from
-ATIF traces requires Python 3.12+ and the
-[audit dependencies](skills/eval-author-audit/requirements.txt), including Harbor.
+ATIF, MLflow, NeMo Gym, or normalized Compass traces requires Python 3.12–3.13 and the
+[audit dependencies](skills/eval-author-audit/requirements.txt), which pin
+NeMo Compass 0.2.1; Harbor is not needed.
 
 Task execution may need Docker, application access, and model credentials,
 depending on the task and agent. See the
 [full requirements](docs/getting-started.md#requirements)
-for each workflow, including local trace conversion and experimental
+for each workflow, including local trace loading and experimental
 environment preparation.
 
 ## Start here
@@ -98,7 +99,7 @@ Replace `claude-code` with your assistant's identifier:
 See the [Skills CLI documentation](https://github.com/vercel-labs/skills#supported-agents)
 for other assistants.
 
-Installation adds eleven skill directories with their instructions, scripts,
+Installation adds nine skill directories with their instructions, scripts,
 schemas, templates, and references. Harbor and Python dependencies are separate
 [workflow requirements](docs/getting-started.md#requirements).
 

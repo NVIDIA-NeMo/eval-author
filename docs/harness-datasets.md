@@ -3,9 +3,9 @@
 
 # SkillEvaluator checkpoint datasets
 
-The five datasets added for audit, discovery, Intake inspection, trace environment
-derivation, and NeMo Gym conversion each contain scoped cases and one unrelated
-negative case. Each has three scoped cases. CI discovers them through each skill's `evals/evals.json`.
+The four datasets added for audit, discovery, Intake inspection, and trace
+environment derivation each contain three scoped cases and one unrelated
+negative case. CI discovers them through each skill's `evals/evals.json`.
 Repository-authored cases also cover shared entry for first evaluations and
 expansion in NeMo Gym and Harbor. The core and first-eval datasets each contain six
 cases, retaining their existing routing, recovery, and negative controls.
@@ -38,7 +38,6 @@ the imported corpus.
 | Discovery | Inventory, Oracle/grader limitations, blocked-readiness interpretation |
 | Intake inspection | Missing selection, rejected URI, unavailable CLI boundaries |
 | Trace environment | Harbor and NeMo Gym proposals, blocked-validation handoff |
-| NeMo Gym conversion | Offline conversion, retained original, explicit JSONL row selection |
 
 Inputs are synthetic. Trace provenance explicitly records no native task or
 model execution. The discovery fixture retains its weak grader and Oracle-only

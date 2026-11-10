@@ -1,5 +1,5 @@
 {
-  "schema": "nemo.eval_author.audit_coverage_report.v1",
+  "schema": "nemo.eval_author.audit_coverage_report.v2",
   "audit": {
     "path": ".eval-author/audit.md",
     "schema": "nemo.eval_author.audit.v1",
@@ -24,7 +24,8 @@
       "item_kind_count": 3,
       "subject": {
         "trace": ".harbor/runs/account-recovery/trials/trial-001/agent/trajectory.json",
-        "trace_format": "atif",
+        "trace_format": "nemo-compass-trace",
+        "source_kind": "atif",
         "task_id": "account-recovery",
         "run_id": "trial-001"
       },
@@ -40,7 +41,8 @@
       "item_kind_count": 3,
       "subject": {
         "trace": ".harbor/runs/escalation/trials/trial-002/agent/trajectory.json",
-        "trace_format": "atif",
+        "trace_format": "nemo-compass-trace",
+        "source_kind": "atif",
         "task_id": "escalation",
         "run_id": "trial-002"
       },

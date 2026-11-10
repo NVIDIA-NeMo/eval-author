@@ -23,10 +23,11 @@ strings in `scopes.audit.framework` and `scopes.audit.framework_source` using
 `--state-only update`, including while other prerequisites are blocked. This
 merges those observations without selecting cases or a corpus or approving scope.
 An audit does not require a NeMo Gym or Harbor authoring setup: leave `--setup` unset for other
-frameworks, and do not apply the Harbor default. A retained authoring choice or
-Harbor parser dependency does not identify the audited suite's framework.
+frameworks, and do not apply the Harbor default. A retained authoring choice does not identify the audited suite's framework.
 This does not select a suite or trace source, or extend the supported evidence
-formats; selected evidence still needs ATIF or an existing supported conversion.
+formats; selected evidence still needs a format the
+[trace loader](../trace-loading.md) accepts for audit: ATIF, MLflow, NeMo Gym,
+or normalized Compass `Trace`.
 
 ### Traces from completed evaluation runs
 
@@ -81,13 +82,13 @@ audit, retaining the earlier evidence.
 
 ### Later measurement requirements
 
-ATIF measurement needs the Harbor trajectory parser, including for converted NeMo Gym
-traces; use the existing locator with `--provider harbor --flow audit` then.
-It does not need a NeMo Gym runner, Docker, or agent credentials. Local NeMo Gym and MLflow
-export conversion uses the selected converter's requirements; access to a live
-source is relevant only when the user explicitly selects it. A parser, converter,
-or selected-source access failure discovered at this later stage blocks dependent
+Trace measurement loads ATIF, MLflow, NeMo Gym, or normalized traces through NeMo
+Compass with Python 3.12–3.13 and the audit skill's `requirements.txt`. It does
+not need Harbor, a NeMo Gym runner, Docker, or agent credentials, and it never
+converts traces to ATIF; access to a live source is relevant only when the user
+explicitly selects it. A trace-loader or
+selected-source access failure discovered at this later stage blocks dependent
 measurement; preserve completed Ethos and independently authorized specification
-work. Preserve the user's evaluation framework when choosing a parser dependency.
+work.
 Refer to the [audit skill](../../../eval-author-audit/SKILL.md) for those operations;
 do not move trace selection or measurement into shared prerequisites.
