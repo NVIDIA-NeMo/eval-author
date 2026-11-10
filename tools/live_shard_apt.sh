@@ -7,7 +7,14 @@ export LC_ALL=C
 export PATH="$PATH:/usr/lib/apt"
 
 archives=$1
-shift
+snapshot=$2
+shift 2
+[[ "$snapshot" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || { printf 'Invalid APT snapshot\n' >&2; exit 1; }
+# USN-8996-1: retries require the redirect/hardlink fix in the bootstrapped APT.
+apt_version=$(dpkg-query -W -f='${Version}' apt)
+[[ -n "$apt_version" ]] && dpkg --compare-versions "$apt_version" ge 2.8.4ubuntu0.1 || {
+    printf 'Patched APT required for acquisition retries\n' >&2; exit 1;
+}
 options=(-y --no-install-recommends -o "Dir::Cache::archives=$archives" -o Acquire::Retries=0)
 plan=$(mktemp "${TMPDIR:-/tmp}/live-shard-apt.XXXXXX")
 jobs=()
@@ -20,7 +27,7 @@ printf 'EA_TOOLING_STAGE=apt_acquire\n'
 # signed-index update supplies trust; force SHA256 and keep normal install checks.
 apt-get "${options[@]}" -qq --print-uris -o Acquire::ForceHash=SHA256 install "$@" > "$plan"
 printf 'EA_TOOLING_STAGE=apt_plan_validate\n'
-entry="^'(https://snapshot[.]ubuntu[.]com/ubuntu/[0-9]{8}T[0-9]{6}Z/pool/[a-zA-Z0-9/%+._:~-]+)' ([a-zA-Z0-9][a-zA-Z0-9%+._:~-]*[.]deb) ([1-9][0-9]*) (SHA256:[a-f0-9]{64})$"
+entry="^'(https://snapshot[.]ubuntu[.]com/ubuntu/${snapshot}/pool/[a-zA-Z0-9/%+._:~-]+)' ([a-zA-Z0-9][a-zA-Z0-9%+._:~-]*[.]deb) ([1-9][0-9]*) (SHA256:[a-f0-9]{64})$"
 names=("")
 while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" =~ $entry ]] || { printf 'Invalid APT acquisition plan\n' >&2; exit 1; }

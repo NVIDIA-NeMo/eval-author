@@ -40,6 +40,13 @@ def update(callback):
         stream.truncate()
 def record(value):
     value["calls"].append([Path(sys.argv[0]).name, args])
+if Path(sys.argv[0]).name == "dpkg-query":
+    assert args == ["-W", "-f=${Version}", "apt"]
+    print(os.environ.get("APT_TEST_VERSION", "2.8.4ubuntu0.1"), end="")
+    sys.exit(int(os.environ.get("APT_TEST_QUERY_EXIT", "0")))
+if Path(sys.argv[0]).name == "dpkg":
+    assert args == ["--compare-versions", os.environ.get("APT_TEST_VERSION", "2.8.4ubuntu0.1"), "ge", "2.8.4ubuntu0.1"]
+    sys.exit(0 if args[1] in ("2.8.4ubuntu0.1", "2.8.4ubuntu0.2") else 1)
 update(record)
 if Path(sys.argv[0]).name == "chown":
     if args[0] == "_apt:root":
@@ -75,6 +82,8 @@ sys.exit(1 if fail and (fail == "1" or any(fail in name for name in triples[1::3
     fake.chmod(0o755)
     (binary / "apt-helper").symlink_to(fake)
     (binary / "chown").symlink_to(fake)
+    (binary / "dpkg-query").symlink_to(fake)
+    (binary / "dpkg").symlink_to(fake)
     env = {
         "PATH": str(binary) + os.pathsep + os.defpath,
         "HOME": str(tmp_path),
@@ -83,9 +92,9 @@ sys.exit(1 if fail and (fail == "1" or any(fail in name for name in triples[1::3
         "APT_TEST_PLAN": "".join(plan_entry(i) for i in range(9)),
     }
 
-    def run(**changes):
+    def run(*, snapshot="20261105T000000Z", **changes):
         result = subprocess.run(
-            ["/bin/bash", str(HELPER), str(archive), *PACKAGES],
+            ["/bin/bash", str(HELPER), str(archive), snapshot, *PACKAGES],
             env={**env, **changes},
             capture_output=True,
             text=True,
@@ -101,6 +110,59 @@ def plan_entry(index):
     return (
         f"'https://snapshot.ubuntu.com/ubuntu/20261105T000000Z/pool/main/p/pkg/{name}' {name} 123 SHA256:{'a' * 64}\n"
     )
+
+
+@pytest.mark.parametrize("version,query_exit", [("2.8.3", "0"), ("", "0"), ("", "1")])
+def test_unpatched_or_missing_apt_rejects_before_acquisition(apt_commands, version, query_exit):
+    run, archive = apt_commands
+    result, state = run(APT_TEST_VERSION=version, APT_TEST_QUERY_EXIT=query_exit)
+    assert result.returncode != 0
+    assert not state["calls"]
+    assert not list(archive.iterdir())
+
+
+@pytest.mark.parametrize("version", ["2.8.4ubuntu0.1", "2.8.4ubuntu0.2"])
+def test_patched_apt_allows_acquisition(apt_commands, version):
+    run, _ = apt_commands
+    result, state = run(APT_TEST_VERSION=version)
+    assert result.returncode == 0, result.stderr
+    assert len(state["finished"]) == 9
+
+
+def test_recipe_bootstraps_patched_apt_without_retries_before_helper():
+    recipe = (ROOT / "tools/live_shard.Dockerfile").read_text().replace("\\\n", " ")
+    update = "apt-get update -o Acquire::Retries=0"
+    bootstrap = "apt-get install -y --no-install-recommends -o Acquire::Retries=0 apt=2.8.4ubuntu0.1"
+    helper = 'bash /opt/live_shard_apt.sh /var/cache/apt/archives "$APT_SNAPSHOT"'
+    assert recipe.index(update) < recipe.index(bootstrap) < recipe.index(helper)
+    assert "Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg" in recipe
+    assert "--allow-unauthenticated" not in recipe
+    assert "apt-get upgrade" not in recipe and "apt-get dist-upgrade" not in recipe
+
+
+def test_recipe_removes_build_only_helper_after_installation():
+    recipe = (ROOT / "tools/live_shard.Dockerfile").read_text().replace("\\\n", " ")
+    install = recipe.index('bash /opt/live_shard_apt.sh /var/cache/apt/archives "$APT_SNAPSHOT"')
+    remove = recipe.index("rm /opt/live_shard_apt.sh")
+    assert install < remove < recipe.index("rm -rf /var/lib/apt/lists/*")
+    assert "RUN " not in recipe[install:remove]
+    assert recipe.count("/opt/live_shard_apt.sh") == 3  # COPY, execution, removal; no runtime consumer.
+
+
+@pytest.mark.parametrize("snapshot", ["", ".*", "20261105T000000Z/pool", "20261105T000000Z\n"])
+def test_snapshot_argument_is_validated_before_plan(apt_commands, snapshot):
+    run, _ = apt_commands
+    result, state = run(snapshot=snapshot)
+    assert result.returncode != 0
+    assert not state["calls"]
+
+
+def test_snapshot_argument_selects_exact_transaction(apt_commands):
+    run, _ = apt_commands
+    snapshot = "20261104T000000Z"
+    result, state = run(snapshot=snapshot, APT_TEST_PLAN=plan_entry(0).replace("20261105T000000Z", snapshot))
+    assert result.returncode == 0, result.stderr
+    assert len(state["finished"]) == 1
 
 
 @pytest.mark.parametrize("failure", ["transient", "permanent", "hash"])
@@ -201,6 +263,7 @@ def test_bounded_acquisition_precedes_same_no_download_install(apt_commands):
         plan_entry(0).replace("a" * 64, "a" * 63),
         plan_entry(0).replace("'https:", "'file:"),
         plan_entry(0).replace("snapshot.ubuntu.com", "untrusted.example"),
+        plan_entry(0).replace("20261105T000000Z", "20261104T000000Z"),
         plan_entry(0).replace("' pkg0_", "' ../pkg0_"),
         plan_entry(0).replace(" 123 ", " -1 "),
         plan_entry(0).replace(" 123 ", " 123;touch /tmp/injected "),

@@ -20,6 +20,7 @@ MAX_PUBLIC_BYTES = 4096
 STAGES = {
     "unknown",
     "apt_index",
+    "apt_bootstrap",
     "apt_acquire",
     "apt_plan_validate",
     "apt_staging",
@@ -34,6 +35,12 @@ STAGES = {
 MARKER = re.compile(
     rb"(?:#[0-9]+ [0-9]+\.[0-9]+ )?EA_TOOLING_STAGE=(" + "|".join(sorted(STAGES - {"unknown"})).encode("ascii") + rb")"
 )
+
+
+class CommandFailed(ValueError):
+    def __init__(self, code):
+        super().__init__("execution image command failed")
+        self.exit_code = code
 
 
 def empty(category="checkpoint_unavailable") -> dict:
@@ -159,11 +166,21 @@ class Diagnostics:
                 category, status = "cancelled", "cancelled"
             elif isinstance(error, OSError):
                 category = "os_error"
-            elif isinstance(error, ValueError):
-                category = "command_failed" if hasattr(error, "exit_code") else "invalid_image"
+            elif isinstance(error, CommandFailed):
+                category = "command_failed"
+            elif (
+                isinstance(error, ValueError)
+                and not isinstance(error, json.JSONDecodeError)
+                and self.value["phase"] in {"identity", "inspect"}
+            ):
+                category = "invalid_image"
             else:
                 category = "unknown"
-        self.value.update(status=status, failure_category=category, exit_code=getattr(error, "exit_code", None))
+        self.value.update(
+            status=status,
+            failure_category=category,
+            exit_code=error.exit_code if isinstance(error, CommandFailed) else None,
+        )
         try:
             self.value.update(scan(self.output / "build.log"))
         except Exception:

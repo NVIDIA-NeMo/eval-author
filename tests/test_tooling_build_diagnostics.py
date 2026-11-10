@@ -183,6 +183,30 @@ def test_scan_is_bounded_and_never_infers_remote_causes(tmp_path, modules, paylo
     assert result["log_scan"] == ("truncated" if truncated else "complete")
 
 
+@pytest.mark.parametrize(
+    "phase,error,category",
+    [
+        ("setup", ValueError("PRIVATE unsafe execution recipe"), "unknown"),
+        ("setup", ValueError("PRIVATE unsafe execution helper"), "unknown"),
+        ("build", ValueError("PRIVATE unexpected failure"), "unknown"),
+        ("inspect", json.JSONDecodeError("PRIVATE", "PRIVATE", 0), "unknown"),
+        ("identity", ValueError("PRIVATE invalid identity"), "invalid_image"),
+        ("inspect", ValueError("PRIVATE identity mismatch"), "invalid_image"),
+        ("receipt", ValueError("PRIVATE"), "unknown"),
+    ],
+)
+def test_failure_classification_uses_phase_not_value_error_alone(tmp_path, modules, phase, error, category):
+    _, diagnostics = modules
+    recorder = diagnostics.Diagnostics(tmp_path)
+    recorder.value["phase"] = phase
+    error.exit_code = 7  # An arbitrary attribute must not impersonate CommandFailed.
+    recorder.finish(error)
+    value = json.loads((tmp_path / "build-diagnostics.json").read_text())
+    assert value["failure_category"] == category
+    assert value["exit_code"] is None
+    assert "PRIVATE" not in json.dumps(value)
+
+
 def test_checkpoint_write_failure_preserves_original_build_failure(tmp_path, modules, monkeypatch):
     builder, diagnostics = modules
     original = RuntimeError("PRIVATE original")
@@ -230,6 +254,63 @@ def test_sigterm_cancels_real_build_and_preserves_private_checkpoint(tmp_path, m
                 process.wait()
 
 
+@pytest.mark.parametrize("job_name", ["preparation-timing", "evaluate"])
+@pytest.mark.parametrize("prior_failure", [False, True])
+def test_projection_failure_preserves_subsequent_step_admission(tmp_path, job_name, prior_failure):
+    steps = yaml.safe_load((ROOT / ".github/workflows/skill-evaluation-live.yml").read_text())["jobs"][job_name][
+        "steps"
+    ]
+    projection = next(s for s in steps if "tooling_build_diagnostics.py" in s.get("run", ""))
+    output = tmp_path / ("skill-publish" if job_name == "evaluate" else "") / "tooling-build-diagnostics.json"
+    output.mkdir(parents=True)
+    shim = tmp_path / "sudo"
+    shim.write_text(
+        f"#!{sys.executable}\nimport os,sys,subprocess\n"
+        "from pathlib import Path\n"
+        "args = sys.argv[1:]\n"
+        "if args[0].startswith('--preserve-env='): args.pop(0)\n"
+        "if args[1] == 'tools/live_shard.py':\n"
+        "    with Path(os.environ['RUNNER_TEMP'], 'executed').open('a') as stream: stream.write(args[2] + '\\n')\n"
+        "    raise SystemExit(0)\n"
+        "raise SystemExit(subprocess.call([sys.executable, *args[1:]]))\n"
+    )
+    shim.chmod(0o700)
+    env = {"PATH": str(tmp_path) + os.pathsep + os.defpath, "RUNNER_TEMP": str(tmp_path)}
+    result = subprocess.run(
+        ["/bin/bash", "-e", "-o", "pipefail", "-c", projection["run"]],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 1
+    assert result.stdout == "Tooling image diagnostics: projection_failed\n"
+    assert result.stderr == ""
+    # Actions applies implicit success() to these ordinary steps; only the
+    # diagnostic failure may be forgiven, never a preceding create failure.
+    success = not prior_failure and (result.returncode == 0 or projection.get("continue-on-error") is True)
+    expected = ["runtime", "relocate", "prepare"] + (["run"] if job_name == "evaluate" else [])
+    for phase in expected:
+        step = next(s for s in steps if f"live_shard.py {phase} " in s.get("run", ""))
+        assert not any(status in step.get("if", "") for status in ("always()", "failure()", "cancelled()"))
+        if success:
+            subprocess.run(
+                ["/bin/bash", "-e", "-o", "pipefail", "-c", step["run"]],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10,
+            )
+    executed = tmp_path / "executed"
+    assert (executed.read_text().splitlines() if executed.exists() else []) == ([] if prior_failure else expected)
+    close = next(s for s in steps if "live_shard.py close " in s.get("run", ""))
+    assert "always()" in close["if"]
+    assert close.get("continue-on-error", False) is False
+
+
 def test_projection_failure_is_fixed_and_cannot_skip_fatal_cleanup(tmp_path, modules):
     steps = yaml.safe_load((ROOT / ".github/workflows/skill-evaluation-live.yml").read_text())["jobs"]["evaluate"][
         "steps"
@@ -267,7 +348,17 @@ def test_projection_failure_is_fixed_and_cannot_skip_fatal_cleanup(tmp_path, mod
 
 
 @pytest.mark.parametrize(
-    "stage", ["apt_index", "apt_acquire", "apt_install", "compose_download", "compose_verify", "versions", "complete"]
+    "stage",
+    [
+        "apt_index",
+        "apt_bootstrap",
+        "apt_acquire",
+        "apt_install",
+        "compose_download",
+        "compose_verify",
+        "versions",
+        "complete",
+    ],
 )
 def test_every_observed_marker_is_emitted_by_fixed_recipe(tmp_path, modules, stage):
     _, diagnostics = modules

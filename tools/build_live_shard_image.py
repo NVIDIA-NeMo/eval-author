@@ -15,6 +15,8 @@ import threading
 import time
 from pathlib import Path
 
+from tooling_build_diagnostics import CommandFailed
+
 RECIPE = Path(__file__).with_name("live_shard.Dockerfile")
 BUILD_SECONDS = 180
 BASE_IMAGES = {
@@ -26,12 +28,6 @@ COMPOSE = {
     "linux/amd64": ("x86_64", "db1889184726840f75c4f9c001048430d4f25b3be3cb084d3ddd762bc0aed576"),
     "linux/arm64": ("aarch64", "732e3a84c1a0f67256ce80bc2598a24546b10ca05f9faa97efceb1171ece2ef7"),
 }
-
-
-class CommandFailed(ValueError):
-    def __init__(self, code):
-        super().__init__("execution image command failed")
-        self.exit_code = code
 
 
 def require_disposable_vm():
@@ -129,15 +125,7 @@ def _build_image(output, platform, started, diagnostics):
         "PYTHONDONTWRITEBYTECODE": "1",
     }
     docker = ["docker", "--host", "unix:///var/run/docker.sock"]
-    argv = [
-        *docker,
-        "build",
-        "--force-rm",
-        "--platform",
-        platform,
-        "--iidfile",
-        str(output / "image.id"),
-    ]
+    argv = [*docker, "build", "--force-rm", "--platform", platform, "--iidfile", str(output / "image.id")]
     build_arguments = {**BASE_IMAGES, "COMPOSE_ARCH": COMPOSE[platform][0], "COMPOSE_SHA256": COMPOSE[platform][1]}
     for key, value in build_arguments.items():
         argv.extend(["--build-arg", key + "=" + value])

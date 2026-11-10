@@ -19,11 +19,15 @@ COPY --from=engine /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certific
 COPY live_shard_apt.sh /opt/live_shard_apt.sh
 # Pin the repository URI before apt has cached any Release metadata.
 # Prefer the smaller signed xz index over the snapshot's slow gzip delivery path.
+# Bootstrap USN-8996-1's APT fix with retries disabled before parallel acquisition.
 RUN printf 'Types: deb\nURIs: https://snapshot.ubuntu.com/ubuntu/%s/\nSuites: noble noble-updates noble-security\nComponents: main universe\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n' "$APT_SNAPSHOT" > /etc/apt/sources.list.d/ubuntu.sources && \
-    printf 'EA_TOOLING_STAGE=apt_index\n' && apt-get update -o APT::Update::Error-Mode=any -o Acquire::CompressionTypes::Order=xz && \
-    bash /opt/live_shard_apt.sh /var/cache/apt/archives \
+    printf 'EA_TOOLING_STAGE=apt_index\n' && apt-get update -o Acquire::Retries=0 -o APT::Update::Error-Mode=any -o Acquire::CompressionTypes::Order=xz && \
+    printf 'EA_TOOLING_STAGE=apt_bootstrap\n' && \
+    apt-get install -y --no-install-recommends -o Acquire::Retries=0 apt=2.8.4ubuntu0.1 && \
+    bash /opt/live_shard_apt.sh /var/cache/apt/archives "$APT_SNAPSHOT" \
     python3 python3-venv git curl ca-certificates bash iptables iproute2 xz-utils && \
     dpkg-query -W > /opt/execution-image-packages.txt && \
+    rm /opt/live_shard_apt.sh && \
     rm -rf /var/lib/apt/lists/*
 RUN printf 'EA_TOOLING_STAGE=compose_download\n' && curl --fail --location --silent --show-error \
     "https://github.com/docker/compose/releases/download/v5.5.1/docker-compose-linux-${COMPOSE_ARCH}" \

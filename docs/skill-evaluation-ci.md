@@ -390,20 +390,10 @@ The build itself is not retried. Permanent errors and failed hash checks remain 
 
 The diagnostic records host phase, elapsed/build/inspection seconds, process
 exit code when available, and fixed failure categories. `observed_stage` is
-only the last recognized marker in a bounded 256 KiB tail scan: apt index,
+only the last recognized marker in a bounded 256 KiB tail scan: apt index, apt bootstrap,
 apt acquisition, plan validation, staging, download, promotion, apt install,
-Compose download, Compose verification, or version checks.
-Index acquisition prefers the smaller xz representation while retaining signed
-snapshot metadata and by-hash verification. Package acquisition uses at most
-four APT-native processes, each handling a batch of
-URL/file/SHA256 triples so APT can reuse connections against the same signed
-snapshot indexes. Downloads go into a fresh `_apt`-owned private staging directory,
-not the root-owned archive cache; only after all batches succeed are files moved
-into the cache and installation run with downloads disabled. The private
-`image.json` build receipt binds
-the bundled acquisition helper with `apt_helper_sha256`, separately from the
-Dockerfile's `recipe_sha256`. The last marker does not identify a stalled
-package or establish that parallel acquisition meets the build budget.
+Compose download, Compose verification, version checks, or `complete`.
+The last marker does not identify a stalled package or prove the build met its budget.
 Markers are observations of untrusted Docker output, **not attested causes**;
 cached, absent, truncated, or unrecognized markers can leave the stage unknown.
 No network-error wording is used to infer a root cause. A process killed before
@@ -415,7 +405,8 @@ accepts only an exact typed schema from a regular, single-link file no larger
 than 4 KiB, rejecting symlinks (including ancestors), malformed JSON, duplicate
 keys, and unknown fields. Missing or invalid checkpoints produce fixed
 unavailable diagnostics, not guessed failures. A projection write failure prints
-only `projection_failed`; it cannot suppress the separate always-run cleanup.
+only `projection_failed`; it does not skip otherwise eligible runtime, preparation,
+or evaluation steps and cannot suppress the separate always-run cleanup.
 
 Aggregation accepts only matching revisions, policies, and the current run
 attempt. Use **Re-run all jobs** for a complete retry; rerunning only failed jobs
