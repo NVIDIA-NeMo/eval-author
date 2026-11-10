@@ -115,10 +115,47 @@ def test_iter_turns_follows_tree_order_and_execution_order_places_subagents():
     index = trace_view.TraceIndex(trace)
     assert index.position["nested/turn/1"] < index.position["root/turn/3"]
     assert index.span_turn["sub/tool"] == "sub/turn/2"
-    document, position = index.document({"span_id": "root/tool", "pointer": ""})
+    # A TOOL span's arguments are observed at its issuing turn; its results once the issuing
+    # agent continues after every subagent the call ran.
+    document, position = index.document({"span_id": "root/tool", "pointer": "/tool_name"})
     assert "children" not in document and position == index.position["root/turn/2"]
+    _, position = index.document({"span_id": "root/tool", "pointer": "/tool_call/results/0/content"})
+    assert position == index.position["root/turn/3"]
     with pytest.raises(trace_view.TraceLookupError, match="belongs to no trace turn"):
         index.document({"span_id": "tail"})
+    # A call its agent never follows with another turn completes after every recorded turn.
+    _, position = index.document({"span_id": "sub/tool", "pointer": "/tool_call/results/0/content"})
+    assert position == len(index.position)
+
+
+def test_subagent_named_by_a_linked_tool_result_runs_right_after_the_issuing_turn():
+    child = _agent(
+        "child",
+        [_turn("child", 1, TurnRole.USER, content="sub task"), _turn("child", 2, content="sub answer")],
+        [],
+    )
+    result = ToolResult(content="sub answer", subagent_refs=[SubagentRef(span_id="child")])
+    root = _agent(
+        "root",
+        [
+            _turn("root", 1, TurnRole.USER, content="Do it."),
+            _turn("root", 2, tool_call_span_ids=["root/tool"]),
+            _turn("root", 3, content="done"),
+        ],
+        [_tool("root/tool", result=result), child],
+    )
+    trace = Trace(id="trace", root_spans=[root], aggregate=TraceAggregate())
+    assert [turn.id for _, turn in trace_view.turns_in_execution_order(trace)] == [
+        "root/turn/1",
+        "root/turn/2",
+        "child/turn/1",
+        "child/turn/2",
+        "root/turn/3",
+    ]
+    index = trace_view.TraceIndex(trace)
+    assert index.position["root/turn/2"] < index.position["child/turn/1"] < index.position["root/turn/3"]
+    _, position = index.document({"span_id": "root/tool", "pointer": "/tool_call/results/0/content"})
+    assert position == index.position["root/turn/3"]
 
 
 def test_turn_text_and_error_status_follow_recorded_values_only():
@@ -388,16 +425,49 @@ def test_no_raw_gym_identifier_reaches_the_safe_copy(tmp_path):
     assert summary["source"]["row"] == 2
 
 
+def test_identifier_under_a_payload_key_is_scrubbed_from_every_safe_file(tmp_path):
+    raw = "req-customer-abc123"
+    tool = Span(
+        id="trajectory/step/2/tool/0",
+        kind=SpanKind.TOOL,
+        tool_name="lookup",
+        input={"query": "status"},
+        tool_call=ToolCall(call_id="call-1", results=[ToolResult(content=f"Found {raw}: active")]),
+    )
+    root = _agent(
+        "trajectory",
+        [
+            _turn("trajectory", 1, TurnRole.USER, content=f"Look up {raw}."),
+            _turn("trajectory", 2, tool_call_span_ids=[tool.id]),
+            _turn("trajectory", 3, content="It is active."),
+        ],
+        [tool],
+        input={"request_id": raw},
+    )
+    source = tmp_path / "traces.jsonl"
+    source.write_text(Trace(id="trace-1", root_spans=[root], aggregate=TraceAggregate()).model_dump_json() + "\n")
+    task_dir = _prepare(tmp_path, source, "trace")
+    assert raw in (task_dir / "private/canonical.trace.json").read_text()
+    assert raw not in _safe_text(task_dir)
+    safe = json.loads((task_dir / "safe/trace.json").read_text())
+    [agent] = safe["root_spans"]
+    assert agent["input"] == {"request_id": safe_trace.pseudonym(raw)}
+    assert agent["turns"][0]["content"] == f"Look up {safe_trace.pseudonym(raw)}."
+
+
 def test_prepare_refuses_sources_without_turns_and_live_intake(tmp_path):
     code, created = _run("init", "--root", tmp_path / ".eval-author/.working/trace", "--task-id", "no-turns")
     assert code == 0, created
     task_dir = created["task_dir"]
     source = tmp_path / "rollouts.jsonl"
-    rollout = {"ng_trajectory": {"schema_version": "1.0", "rollout_id": "r", "invocations": [], "model_calls": []}}
+    invocation = {"invocation_id": "inv-1", "conversation": [{"type": "message", "role": "user", "content": "Sum."}]}
+    rollout = {
+        "ng_trajectory": {"schema_version": "1.0", "rollout_id": "r", "task_id": "t", "invocations": [invocation]}
+    }
     source.write_text(json.dumps(rollout) + "\n")
     code, refused = _run("prepare", "--task-dir", task_dir, "--source", source, "--source-kind", "gym", "--row", 1)
     assert code == 1
-    assert "does not record turns yet" in refused["error"] or "could not load the source as gym" in refused["error"]
+    assert refused["error"] == "source kind gym does not record turns yet"
     code, refused = _run("prepare", "--task-dir", task_dir, "--source", source, "--source-kind", "intake")
     assert code == 1 and "--source-kind trace" in refused["error"]
 

@@ -223,14 +223,15 @@ def iter_turns(trace: Trace) -> Iterator[tuple[Span, Turn]]:
             yield agent, turn
 
 
-def _anchors(agent: Span) -> dict[str, str]:
-    """Spans (and subagent AGENT spans named by unlinked results) each turn of one agent issued."""
+def _anchors(agent: Span, spans: dict[str, Span]) -> dict[str, str]:
+    """Spans (and subagent AGENT spans named by its tool results) each turn of one agent issued."""
     anchors: dict[str, str] = {}
     for turn in _turns(agent):
         dispatch = [turn.dispatch_span_id] if turn.dispatch_span_id is not None else []
+        results = [result for span_id in turn.tool_call_span_ids for result in tool_results(spans[span_id])]
         for span_id in (*turn.llm_span_ids, *dispatch, *turn.tool_call_span_ids):
             anchors.setdefault(span_id, turn.id)
-        for result in turn.unlinked_results:
+        for result in (*results, *turn.unlinked_results):
             for ref in result.subagent_refs:
                 if ref.span_id is not None:
                     anchors.setdefault(ref.span_id, turn.id)
@@ -241,14 +242,14 @@ def turns_in_execution_order(trace: Trace) -> list[tuple[Span, Turn]]:
     """Every turn in the order it ran across agents.
 
     A subagent's turns follow the parent turn that issued the span the subagent AGENT
-    span hangs under (its TOOL or step span, or the unlinked result that names it).
+    span hangs under (its TOOL or step span), or the tool result that names it.
     Subagents that no parent turn issued follow all of their parent agent's turns.
     """
     from trace_ingest import SpanKind
 
     spans, parents, owners = _tree(trace)
     agents = [span for span in spans.values() if span.kind is SpanKind.AGENT]
-    anchors = {agent.id: _anchors(agent) for agent in agents}
+    anchors = {agent.id: _anchors(agent, spans) for agent in agents}
     placed: dict[str, dict[str | None, list[Span]]] = {agent.id: {} for agent in agents}
     for agent in agents:
         owner = owners[agent.id]
@@ -380,7 +381,38 @@ def suggested_tool_definitions(trace: Trace) -> dict[str, list[ToolDefinition]]:
 
 
 class TraceLookupError(ValueError):
-    """A citation names no turn or span in the trace."""
+    """A citation names no turn or span in the trace, or a span value no turn observed."""
+
+
+# TOOL span fields known once the call is issued. Every other field (results, output, error,
+# end time and the rest) is known only after the call, and any subagent it ran, completes.
+_ISSUED_FIELDS = frozenset(
+    {
+        "id",
+        "source_url",
+        "kind",
+        "start_time",
+        "input",
+        "model",
+        "llm_params",
+        "agent_id",
+        "tool_name",
+        "tool_definitions",
+    }
+)
+_ISSUED_CALL_FIELDS = frozenset(
+    {"call_id", "index", "instrumentation_alias_of", "prior_user_text", "server", "initiator"}
+)
+
+
+def _issued(pointer: object) -> bool:
+    """Whether an RFC 6901 pointer into a TOOL span's JSON reaches only fields known at issue."""
+    if not isinstance(pointer, str) or not pointer.startswith("/"):
+        return False
+    tokens = [token.replace("~1", "/").replace("~0", "~") for token in pointer[1:].split("/")]
+    if tokens[0] == "tool_call":
+        return len(tokens) > 1 and tokens[1] in _ISSUED_CALL_FIELDS
+    return tokens[0] in _ISSUED_FIELDS
 
 
 class TraceIndex:
@@ -400,8 +432,37 @@ class TraceIndex:
                 self.span_turn.setdefault(span_id, turn.id)
         self.spans: dict[str, Span] = _tree(trace)[0]
 
+    def _completed(self, span: Span, turn_id: str) -> int:
+        """The position of the issuing agent's first turn after the call and every subagent it ran.
+
+        A call that no later turn of its agent follows completes after every recorded turn.
+        """
+        from trace_ingest import SpanKind
+
+        pending = [span]
+        pending += [
+            self.spans[ref.span_id] for result in tool_results(span) for ref in result.subagent_refs if ref.span_id
+        ]
+        after = self.position[turn_id]
+        while pending:
+            current = pending.pop()
+            pending.extend(current.children)
+            if current.kind is SpanKind.AGENT:
+                after = max([after, *(self.position[turn.id] for turn in _turns(current))])
+        agent = self.turns[turn_id][0]
+        return next(
+            (self.position[turn.id] for turn in _turns(agent) if self.position[turn.id] > after), len(self.position)
+        )
+
     def document(self, reference: dict[str, Any]) -> tuple[Any, int]:
-        """The JSON of the cited turn or span (without children) and the position of its turn."""
+        """The JSON of the cited turn or span (without children) and the position from which it was observed.
+
+        A span is observed at its issuing turn, except a TOOL span's completed fields (its
+        results and output): the issuing agent observes those at its next turn after the call
+        and every subagent the call ran.
+        """
+        from trace_ingest import SpanKind
+
         if "turn_id" in reference:
             entry = self.turns.get(reference["turn_id"])
             if entry is None:
@@ -413,4 +474,7 @@ class TraceIndex:
         turn_id = self.span_turn.get(span.id)
         if turn_id is None:
             raise TraceLookupError("source span belongs to no trace turn")
-        return span.model_dump(mode="json", exclude={"children"}), self.position[turn_id]
+        position = self.position[turn_id]
+        if span.kind is SpanKind.TOOL and not _issued(reference.get("pointer")):
+            position = self._completed(span, turn_id)
+        return span.model_dump(mode="json", exclude={"children"}), position

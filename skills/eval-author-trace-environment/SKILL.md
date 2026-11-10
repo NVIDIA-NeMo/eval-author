@@ -16,7 +16,7 @@ not-for:
   - eval-author-inspect-trace (use to explain an Intake trace without creating an environment)
   - eval-author-environment (use when first-eval or task-create needs a reusable environment for its agreed cases)
 compatibility: >-
-  Python 3.12-3.13 with eval-author's requirements, including the pinned NeMo
+  Python 3.12–3.13 with eval-author's requirements, including the pinned NeMo
   Compass; Harbor and
   Docker for Harbor proof. NeMo Gym output uses the sibling eval-author-task-create
   scaffolder. Verify authoring runtimes using eval-author’s shared locator

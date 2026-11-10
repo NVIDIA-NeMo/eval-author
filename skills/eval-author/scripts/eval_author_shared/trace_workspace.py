@@ -520,7 +520,9 @@ def _prepare(args: argparse.Namespace) -> dict[str, Any]:
     suffix = ".json" if source_path.suffix.lower() == ".json" else ".jsonl"
     offsets: list[int] = []
     with scratch_directory(_workspace_repo(task_dir), prefix="trace-source-") as staging:
-        load_path = source_path
+        # Load a private copy of the bytes the summary digests, never the source path itself.
+        load_path = Path(staging) / source_path.name
+        load_path.write_bytes(source_bytes)
         if suffix == ".json":
             # The byte repair is format-agnostic and applies to whole-document JSON before any loader.
             try:
@@ -528,14 +530,12 @@ def _prepare(args: argparse.Namespace) -> dict[str, Any]:
             except UnicodeDecodeError as error:
                 raise ContractError(f"could not read the source as UTF-8: {error}") from error
             if offsets:
-                load_path = Path(staging) / source_path.name
                 load_path.write_text(repaired, encoding="utf-8")
         try:
             trace = safe_trace.load_trace(load_path, kind, row=args.row, trace_id=args.trace_id)
             image_only_turns = safe_trace.image_only_user_turns(trace, kind)
             payload = trace.model_dump(mode="json")
-            if load_path != source_path:
-                safe_trace.retarget_source_urls(payload, load_path, source_path)
+            safe_trace.retarget_source_urls(payload, load_path, source_path)
             normalizations, losses = _normalizations(offsets, safe_trace.bound_images(payload))
             payload["losses"].extend(losses)
             canonical = safe_trace.validate_payload(payload, label="canonical trace")

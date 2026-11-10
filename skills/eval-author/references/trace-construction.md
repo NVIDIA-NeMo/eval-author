@@ -58,7 +58,7 @@ Inventory required files, runtime dependencies and external state. Input hashes
 bind bytes but do not establish completeness. Keep unverified dependencies
 explicit rather than replacing their behavior with one recorded response. Use the [shared construction contract](construction-plan.md) for materialized
 inputs, cutoff, reversal evidence, controls and dependencies. Use the
-[trace source handoff](trace-input.md) for privacy, admission and environment tooling.
+[Trace source handoff](trace-input.md) for privacy, admission and environment tooling.
 
 ## Test the distinction the proposal promises
 

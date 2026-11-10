@@ -134,7 +134,7 @@ def load_trace(path: Path, kind: str, *, row: int | None = None, trace_id: str |
 
 
 def retarget_source_urls(payload: dict[str, Any], loaded: Path, original: Path) -> None:
-    """Point source links at the original file when the loader read a repaired copy."""
+    """Point source links at the original file instead of the staged copy the loader read."""
     loaded_uri, original_uri = loaded.resolve().as_uri(), original.resolve().as_uri()
 
     def retarget(value: Any) -> Any:
@@ -404,8 +404,8 @@ class _Scrubber:
     def _count(self, kind: str, amount: int = 1) -> None:
         self.counts[kind] = self.counts.get(kind, 0) + amount
 
-    # Collection: every identifier the typed fields hold, so free text can be scrubbed of it,
-    # and every string the safe copy keeps verbatim.
+    # Collection: every identifier the typed fields and the identifier keys of free-form JSON hold,
+    # so free text can be scrubbed of it, and every string the safe copy keeps verbatim.
     def _collect(self, model: str, value: Any) -> None:
         if isinstance(value, list):
             for item in value:
@@ -426,8 +426,27 @@ class _Scrubber:
                 for one in item if isinstance(item, list) else [item]:
                     if isinstance(one, str):
                         self.kept.add(one)
+            elif role in {"json", "replay_json"}:
+                self._collect_json(item, key, generic_id=role == "json")
+            elif role == "span_io":
+                self._collect_json(item, key, generic_id=value.get("kind") != "TOOL")
+            elif role == "text" and not isinstance(item, str):
+                self._collect_json(item, None, generic_id=True)
+            elif role == "result_attributes" and isinstance(item, dict):
+                self._collect_json(item.get("is_error_flags"), None, generic_id=True)
             elif role in FIELD_ROLES:
                 self._collect(role, item)
+
+    def _collect_json(self, value: Any, key: str | None, *, generic_id: bool) -> None:
+        """The strings ``json`` pseudonymizes as identifiers, found by the keys it uses."""
+        if isinstance(value, dict):
+            for name, item in value.items():
+                self._collect_json(item, name, generic_id=generic_id)
+        elif isinstance(value, list):
+            for item in value:
+                self._collect_json(item, key, generic_id=generic_id)
+        elif isinstance(value, str) and value and (key in IDENTIFIER_KEYS or (generic_id and key == "id")):
+            self.raw_ids.add(value)
 
     def _collect_values(self, value: Any) -> None:
         if isinstance(value, str) and value:

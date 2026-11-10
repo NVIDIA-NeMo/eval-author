@@ -624,3 +624,90 @@ def test_cutoff_and_reversal_follow_execution_order_across_agents(tmp_path):
     )
     assert check("trajectory/turn/1")["reversed_edit"] == 1
     check(f"{SUBAGENT}/turn/2", "descending trace order")
+
+
+def delegated_trace(root):
+    """Root turn 2 delegates to a subagent whose final answer the call returns; root turn 3 continues."""
+    from eval_author_shared.safe_trace import canonical_bytes
+    from trace_ingest import Span, SpanKind, ToolCall, ToolResult, Trace, TraceAggregate, Turn, TurnRole
+
+    subagent = Span(
+        id=SUBAGENT,
+        kind=SpanKind.AGENT,
+        turns=[
+            Turn(id=f"{SUBAGENT}/turn/1", index=1, role=TurnRole.USER, content="Report the state.\n"),
+            Turn(id=f"{SUBAGENT}/turn/2", index=2, role=TurnRole.AGENT, content="broken\n"),
+        ],
+    )
+    dispatch = Span(
+        id=DISPATCH,
+        kind=SpanKind.TOOL,
+        tool_name="task",
+        input={"prompt": "broken\n"},
+        output="broken\n",
+        tool_call=ToolCall(call_id=DISPATCH, result_count=1, results=[ToolResult(content="broken\n")]),
+        children=[subagent],
+    )
+    agent = Span(
+        id="trajectory",
+        kind=SpanKind.AGENT,
+        children=[dispatch],
+        turns=[
+            Turn(id="trajectory/turn/1", index=1, role=TurnRole.USER, content="Repair the state.\n"),
+            Turn(id="trajectory/turn/2", index=2, role=TurnRole.AGENT, tool_call_span_ids=[DISPATCH]),
+            Turn(id="trajectory/turn/3", index=3, role=TurnRole.AGENT, content="done\n"),
+        ],
+    )
+    trace = Trace(id="anon-0000000000000000", root_spans=[agent], aggregate=TraceAggregate())
+    (root / contract.TRACE_PATH).write_bytes(canonical_bytes(trace))
+    return contract.file_digest(root, contract.TRACE_PATH)
+
+
+def test_delegated_call_result_is_observed_only_after_the_call_returns(tmp_path):
+    root, manifest = workspace(tmp_path)
+    manifest["trace_sha256"] = delegated_trace(root)
+    state = manifest["starting_state"]
+    artifact = state["artifacts"][0]
+    artifact.update(basis="observed", edits=[])
+
+    def check(cutoff, source, match=None):
+        state["cutoff_turn_id"] = cutoff
+        artifact["source"] = source
+        write_contract(root, manifest)
+        if match is None:
+            return validate_contract(root)["provenance"]["basis_counts"]
+        with pytest.raises(INVALID, match=match):
+            validate_contract(root)
+
+    started, answered = f"{SUBAGENT}/turn/1", f"{SUBAGENT}/turn/2"
+    results = [{"span_id": DISPATCH, "pointer": pointer} for pointer in ("/tool_call/results/0/content", "/output")]
+    # The subagent's final answer is future evidence when the subagent starts, cited directly or as the call's result.
+    for source in ({"turn_id": answered, "pointer": "/content"}, *results):
+        check(started, source, "future evidence")
+    # The call's arguments were known when the parent issued it.
+    assert check(started, {"span_id": DISPATCH, "pointer": "/input/prompt"})["observed"] == 1
+    for source in results:
+        # The call returns after the subagent's last turn; the parent observes the result when it continues.
+        check(answered, source, "future evidence")
+        assert check("trajectory/turn/3", source)["observed"] == 1
+
+
+def test_tool_result_is_observed_at_the_issuing_agents_next_turn(tmp_path):
+    root, manifest = workspace(tmp_path)
+    manifest["trace_sha256"] = ordered_trace(root)
+    state = manifest["starting_state"]
+    artifact = state["artifacts"][0]
+    (root / artifact["path"]).write_text("fixed\n")
+    artifact.update(
+        basis="observed",
+        sha256=contract.file_digest(root, artifact["path"]),
+        source={"span_id": FIRST_EDIT, "pointer": "/tool_call/results/0/content"},
+        edits=[],
+    )
+    state["cutoff_turn_id"] = "trajectory/turn/7"
+    write_contract(root, manifest)
+    with pytest.raises(INVALID, match="future evidence"):
+        validate_contract(root)
+    state["cutoff_turn_id"] = "trajectory/turn/5"
+    write_contract(root, manifest)
+    assert validate_contract(root)["provenance"]["basis_counts"]["observed"] == 1

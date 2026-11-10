@@ -1391,6 +1391,38 @@ def test_prepare_rejects_sources_without_recorded_turns(tmp_path: Path) -> None:
     assert result["error"] == "source kind trace does not record turns yet"
 
 
+def test_prepare_digests_and_loads_the_same_source_bytes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = tmp_path / ".eval-author" / ".working" / "trace-environments"
+    code, result = _run("init", "--root", str(root), "--task-id", "replaced-source")
+    assert code == 0, result
+    task_dir = Path(result["task_dir"])
+    source = tmp_path / "source.atif.json"
+    _write_json(source, _atif())
+    original = source.read_bytes()
+    replacement = _atif()
+    replacement["steps"][0]["message"] = "A different instruction written after the source was read."
+    safe_trace = _TRACE_ENVIRONMENT.safe_trace
+    load_trace = safe_trace.load_trace
+
+    def replace_then_load(*args: Any, **kwargs: Any) -> Any:
+        _write_json(source, replacement)
+        return load_trace(*args, **kwargs)
+
+    monkeypatch.setattr(safe_trace, "load_trace", replace_then_load)
+    assert (
+        _TRACE_ENVIRONMENT.main(
+            ["prepare", "--task-dir", str(task_dir), "--source", str(source), "--source-kind", "atif"]
+        )
+        == 0
+    )
+    summary = json.loads((task_dir / "summary.json").read_text(encoding="utf-8"))
+    assert summary["source"]["original_sha256"] == "sha256:" + hashlib.sha256(original).hexdigest()
+    assert (task_dir / "private" / "source.atif.json").read_bytes() == original
+    canonical = json.loads((task_dir / "private" / "canonical.trace.json").read_text(encoding="utf-8"))
+    assert "written after the source was read" not in json.dumps(canonical)
+    assert canonical["source_url"] == source.resolve().as_uri()
+
+
 def test_prepare_selects_one_trace_of_a_larger_source_by_trace_id(tmp_path: Path) -> None:
     root = tmp_path / ".eval-author" / ".working" / "trace-environments"
     atif = tmp_path / "source.atif.json"
