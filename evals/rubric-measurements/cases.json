@@ -1,4 +1,20 @@
 {
+  "package_acceptance": [
+    {"id":"shared-valid","kind":"shared","mutation":"valid","identity_status":"pass","route_status":"pass","identity_codes":[],"route_codes":[],"cli_exit_code":0,"allowed":true},
+    {"id":"shared-missing","kind":"shared","mutation":"missing","identity_status":"unknown","route_status":"pass","identity_codes":["identity.access_missing"],"route_codes":[],"cli_exit_code":1,"allowed":false},
+    {"id":"shared-denied","kind":"shared","mutation":"denied","identity_status":"unknown","route_status":"pass","identity_codes":["identity.access_denied"],"route_codes":[],"cli_exit_code":1,"allowed":false},
+    {"id":"shared-unresolved","kind":"shared","mutation":"unresolved","identity_status":"unknown","route_status":"pass","identity_codes":["identity.access_unresolved"],"route_codes":[],"cli_exit_code":1,"allowed":false},
+    {"id":"shared-unknown-route","kind":"shared","mutation":"unknown-route","identity_status":"pass","route_status":"unknown","identity_codes":[],"route_codes":["route.dynamic_unresolved"],"cli_exit_code":1,"allowed":false},
+    {"id":"shared-wrong-scorer","kind":"shared","mutation":"wrong-scorer","identity_status":"pass","route_status":"fail","identity_codes":[],"route_codes":["route.scorer_mismatch"],"cli_exit_code":1,"allowed":false},
+    {"id":"shared-unbound-route","kind":"shared","mutation":"unbound-route","identity_status":"pass","route_status":"pass","identity_codes":[],"route_codes":[],"cli_exit_code":1,"allowed":false},
+    {"id":"shared-dependency-mismatch","kind":"shared","mutation":"dependency-mismatch","identity_status":"pass","route_status":"fail","identity_codes":[],"route_codes":["route.dependency_source_mismatch"],"cli_exit_code":1,"allowed":false},
+    {"id":"retained-approved","kind":"approval","mutation":"approved","status":"pass","codes":[],"cli_exit_code":0},
+    {"id":"retained-rejected","kind":"approval","mutation":"rejected","status":"fail","codes":["approvals.source_mismatch"],"cli_exit_code":1},
+    {"id":"config-bound-equal","kind":"configuration","mutation":"equal","comparison_status":"equal","binding_status":"run_bound","binding_reason":null,"binding_accepted":true,"cli_exit_code":0},
+    {"id":"config-run-mismatch","kind":"configuration","mutation":"run","comparison_status":"equal","binding_status":"unbound","binding_reason":"run_mismatch","binding_accepted":false,"cli_exit_code":0},
+    {"id":"config-task-mismatch","kind":"configuration","mutation":"task","comparison_status":"equal","binding_status":"unbound","binding_reason":"task_mismatch","binding_accepted":false,"cli_exit_code":0},
+    {"id":"config-digest-mismatch","kind":"configuration","mutation":"configuration_digest","comparison_status":"equal","binding_status":"unbound","binding_reason":"configuration_digest_mismatch","binding_accepted":false,"cli_exit_code":0}
+  ],
   "raw_measurements": [
     {"id":"valid","mutation":null,"measurement":"identity","status":"pass","codes":[]},
     {"id":"missing","mutation":"missing","measurement":"identity","status":"unknown","codes":["identity.access_missing"]},
@@ -14,6 +30,74 @@
     {"id":"valid-approval","mutation":null,"measurement":"approvals","status":"pass","codes":[]},
     {"id":"stale-approval","mutation":"stale-approval","measurement":"approvals","status":"fail","codes":["approvals.digest_stale"]},
     {"id":"missing-decision","mutation":"missing-decision","measurement":"approvals","status":"fail","codes":["approvals.decision_missing"]}
+  ],
+  "check_outcomes": {
+    "DISC-01-A-C01": "PASS", "DISC-01-A-C02": "PASS", "DISC-01-A-C03": "NOT_RUN",
+    "DISC-01-B-C01": "PASS", "DISC-01-B-C02": "BLOCKED", "DISC-01-B-C03": "NOT_RUN", "DISC-01-B-C04": "NOT_RUN", "DISC-01-B-C05": "NOT_RUN",
+    "DISC-01-C-C01": "PASS", "DISC-01-C-C02": "PASS", "DISC-01-C-C03": "NOT_RUN", "DISC-01-C-C04": "NOT_RUN",
+    "DISC-02-A-C01": "BLOCKED", "DISC-02-A-C02": "PARTIAL", "DISC-02-A-C03": "NOT_RUN", "DISC-02-A-C04": "NOT_RUN",
+    "DISC-02-B-C01": "PARTIAL", "DISC-02-B-C02": "PARTIAL", "DISC-02-B-C03": "NOT_RUN",
+    "DISC-03-A-C01": "BLOCKED", "DISC-03-A-C02": "BLOCKED", "DISC-03-A-C03": "NOT_RUN",
+    "AUD-02-C01": "PARTIAL", "AUD-02-C02": "NOT_RUN", "AUD-02-C03": "NOT_RUN",
+    "ENV-01-C01": "NOT_RUN", "ENV-01-C02": "BLOCKED", "ENV-01-C03": "NOT_RUN",
+    "ENV-02-A-C01": "PARTIAL", "ENV-02-A-C02": "NOT_RUN", "ENV-02-A-C03": "PARTIAL",
+    "ENV-03-C01": "PARTIAL", "ENV-03-C02": "NOT_RUN", "ENV-03-C03": "NOT_RUN",
+    "CREATE-07-C01": "PARTIAL", "CREATE-07-C02": "PARTIAL", "CREATE-07-C03": "BLOCKED", "CREATE-07-C04": "BLOCKED"
+  },
+  "check_overrides": {
+    "wrong-scorer": {"DISC-01-B-C01": "FAIL"},
+    "ambiguous-route": {"DISC-01-B-C01": "PARTIAL"},
+    "confirmed-missing": {"DISC-01-A-C02": "FAIL"},
+    "partial": {"DISC-01-B-C01": "PARTIAL", "DISC-01-C-C01": "PARTIAL", "DISC-01-C-C02": "PARTIAL"}
+  },
+  "evidence_check_overrides": {
+    "sourced_config": {"DISC-02-A-C01": "PARTIAL"},
+    "freshness": {"CREATE-07-C04": "PARTIAL"}
+  },
+  "evidence_cases": [
+    {
+      "id": "sourced-equal", "mutation": "sourced-equal", "cli_exit_code": 0,
+      "description": "Handcrafted refund task with equal selected declaration and observation files, explicitly bound to synthetic run/task/configuration identities; no native observation.",
+      "measurement": "sourced_config", "status": "equal", "differences": [], "unknowns": [],
+      "counts": {"fields": 7, "compared": 7, "equal": 7, "different": 0, "unknown": 0, "declared_sourced": 7, "observed_sourced": 7, "run_bound": 7}
+    },
+    {
+      "id": "sourced-different", "mutation": "sourced-different", "cli_exit_code": 1,
+      "description": "Handcrafted observation mutates the selected Harbor version while preserving run/task/configuration bindings; difference is not a merit judgment.",
+      "measurement": "sourced_config", "status": "different", "differences": ["/runtime_pins/harbor"], "unknowns": [],
+      "counts": {"fields": 7, "compared": 7, "equal": 6, "different": 1, "unknown": 0, "declared_sourced": 7, "observed_sourced": 7, "run_bound": 7}
+    },
+    {
+      "id": "sourced-provider-hidden", "mutation": "sourced-provider-hidden", "cli_exit_code": 1,
+      "description": "Handcrafted provider revision observation is explicitly undisclosed, never guessed equal from the declared pin.",
+      "measurement": "sourced_config", "status": "unknown", "differences": [], "unknowns": ["/runtime_pins/harbor"],
+      "counts": {"fields": 7, "compared": 6, "equal": 6, "different": 0, "unknown": 1, "declared_sourced": 7, "observed_sourced": 6, "run_bound": 6}
+    },
+    {
+      "id": "fresh-bindings", "mutation": "fresh-bindings", "cli_exit_code": 0,
+      "description": "Handcrafted retained review notes bind unchanged refund task, scorer, prompt dependency and ETHOS; a separate neighbor note stays current.",
+      "measurement": "freshness", "status": "pass", "codes": [], "affected_status": "current", "changed_dependencies": []
+    },
+    {
+      "id": "material-task-change", "mutation": "material-task-change", "cli_exit_code": 1,
+      "description": "Mutate the handcrafted task's refund instruction after retaining review bindings; only its note becomes stale, not the unchanged neighbor.",
+      "measurement": "freshness", "status": "fail", "codes": ["freshness.stale"], "affected_status": "stale", "changed_dependencies": ["task"]
+    },
+    {
+      "id": "material-scorer-change", "mutation": "material-scorer-change", "cli_exit_code": 1,
+      "description": "Mutate the handcrafted scorer's required approval check after retaining bindings; no scorer executes and the neighbor remains current.",
+      "measurement": "freshness", "status": "fail", "codes": ["freshness.stale"], "affected_status": "stale", "changed_dependencies": ["scorer"]
+    },
+    {
+      "id": "material-dependency-change", "mutation": "material-dependency-change", "cli_exit_code": 1,
+      "description": "Mutate the handcrafted selected judge-prompt dependency after retaining bindings; no judge executes and the neighbor remains current.",
+      "measurement": "freshness", "status": "fail", "codes": ["freshness.stale"], "affected_status": "stale", "changed_dependencies": ["prompt"]
+    },
+    {
+      "id": "unknown-ethos-change", "mutation": "unknown-ethos-change", "cli_exit_code": 1,
+      "description": "Mutate handcrafted ETHOS refund intent with explicitly unknown semantic impact; affected note is unresolved, never fresh or automatically regraded, while the neighbor remains current.",
+      "measurement": "freshness", "status": "unknown", "codes": ["freshness.unresolved"], "affected_status": "unresolved", "changed_dependencies": ["ethos"]
+    }
   ],
   "not_assessed": ["DISC-02-A", "DISC-02-B", "DISC-03-A", "AUD-02", "ENV-01", "ENV-02-A", "ENV-03", "CREATE-07"],
   "assessments": [

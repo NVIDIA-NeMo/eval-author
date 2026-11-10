@@ -250,3 +250,165 @@ def check_approvals(approvals: list, decisions: list, current: list) -> dict:
                     ):
                         diagnostics.append(_diagnostic("approvals.digest_stale", artifact_id))
     return finish()
+
+
+def check_sourced_approvals(root, approvals: list, decisions: list, identity: dict, sources: dict) -> dict:
+    """Bind projected decisions to selected retained JSON records, not authority.
+
+    ``identity`` is an identify() result. ``sources`` maps each projected decision
+    ID to exactly {artifact_id, pointer}; pointers use strict JSON Pointer syntax.
+    The selected value must contain the existing check_approvals decision fields
+    verbatim with no additional fields (contradictory status cannot be ignored).
+    Existing audit {digest, source} checkpoints and journey task acceptances do
+    not record substitution scope/endpoints: they cannot authorize a substitution.
+
+    Material scope is the complete identity selection minus selected decision
+    source artifacts, whose identity role must be ``decision``. Approval binding
+    IDs must equal that material selection;
+    source artifacts cannot also be substitution endpoints or material bindings.
+    Sources are supporting evidence, not recursively bound material. Every file
+    and evidence digest is rechecked through the shared bounded identity reader.
+    Evidence returns only decision_id, artifact_id, pointer and whole-file digest;
+    neither retained content nor provenance text is exported. No state is written.
+    """
+    from pathlib import Path
+
+    from eval_author_shared.task_evidence import loads
+    from rubric_configuration import _finite_tree, _pointer, _resolve
+    from rubric_identity import MAX_RECORDS, identify
+
+    diagnostics, evidence = [], []
+
+    def finish():
+        return {**_finish(diagnostics), "authority_authenticated": False, "evidence": evidence}
+
+    if (
+        not isinstance(identity, dict)
+        or not isinstance(identity.get("records"), list)
+        or identity.get("status") not in ("pass", "fail", "unknown")
+        or not isinstance(identity.get("diagnostics"), list)
+        or not isinstance(sources, dict)
+        or not all(isinstance(rows, list) for rows in (approvals, decisions))
+    ):
+        diagnostics.append(_diagnostic("approvals.input_invalid", "selection"))
+        return finish()
+    records = identity["records"]
+    for row in identity["diagnostics"]:
+        if (
+            not isinstance(row, dict)
+            or set(row) != {"code", "subject", "status"}
+            or not _text(row["code"])
+            or not _text(row["subject"])
+            or row["status"] not in ("fail", "unknown")
+        ):
+            diagnostics.append(_diagnostic("approvals.input_invalid", "selection"))
+            return finish()
+        diagnostics.append(dict(row))
+    if identity["status"] != "pass" and not diagnostics:
+        diagnostics.append(_diagnostic("approvals.identity_unresolved", "selection", identity["status"]))
+    if any(len(rows) > MAX_RECORDS for rows in (records, approvals, decisions, sources)):
+        diagnostics.append(_diagnostic("approvals.selection_limit", "selection", "unknown"))
+        return finish()
+    if not all(_approval_record(row) for row in approvals) or not all(
+        _approval_record(row, decision=True) for row in decisions
+    ):
+        diagnostics.append(_diagnostic("approvals.record_invalid", "selection"))
+        return finish()
+    try:
+        for ident, ref in sources.items():
+            if (
+                not _text(ident)
+                or not isinstance(ref, dict)
+                or set(ref) != {"artifact_id", "pointer"}
+                or not _text(ref["artifact_id"])
+            ):
+                raise ValueError("invalid source reference")
+            _pointer(ref["pointer"])
+    except ValueError:
+        diagnostics.append(_diagnostic("approvals.source_invalid", "selection"))
+        return finish()
+
+    reader = _ApprovalSources(Path(root))
+    observed = identify(Path(root), records, hasher=reader.digest)
+    diagnostics.extend(observed["diagnostics"])
+    artifacts = {row["id"]: row for row in observed["records"]}
+    supporting = {ref["artifact_id"] for ref in sources.values()}
+    material = [row for row in observed["records"] if row["id"] not in supporting]
+    raw = check_approvals(approvals, decisions, material)
+    diagnostics.extend(raw["diagnostics"])
+    decision_ids = {row["id"] for row in decisions}
+    if sources.keys() - decision_ids:
+        diagnostics.append(_diagnostic("approvals.source_unreferenced", "selection"))
+    for approval in approvals:
+        if supporting.intersection(approval["bindings"]) or supporting.intersection(approval["substitution"].values()):
+            diagnostics.append(_diagnostic("approvals.source_in_material", approval["id"]))
+    documents = {}
+    for decision in sorted(decisions, key=lambda row: row["id"]):
+        ident = decision["id"]
+        ref = sources.get(ident)
+        if ref is None:
+            diagnostics.append(_diagnostic("approvals.source_missing", ident))
+            continue
+        artifact = artifacts.get(ref["artifact_id"])
+        if artifact is None:
+            diagnostics.append(_diagnostic("approvals.source_unselected", ident))
+            continue
+        if artifact["role"] != "decision":
+            diagnostics.append(_diagnostic("approvals.source_role_invalid", ident))
+            continue
+        if artifact["access"] != "available" or artifact["digest"] is None:
+            diagnostics.append(_diagnostic("approvals.source_unavailable", ident, "unknown"))
+            continue
+        if any(row["subject"] == artifact["id"] for row in observed["diagnostics"]):
+            continue
+        try:
+            path = artifact["path"]
+            if path not in documents:
+                documents[path] = loads(reader.read(path))
+                _finite_tree(documents[path])
+            retained, found = _resolve(documents[path], ref["pointer"])
+        except (ValueError, TypeError, RecursionError):
+            diagnostics.append(_diagnostic("approvals.source_invalid", ident))
+            continue
+        if not found:
+            diagnostics.append(_diagnostic("approvals.source_pointer_missing", ident))
+        elif not isinstance(retained, dict) or not decision.keys() <= retained.keys():
+            diagnostics.append(_diagnostic("approvals.source_record_incomplete", ident, "unknown"))
+        elif not _approval_record(retained, decision=True):
+            diagnostics.append(_diagnostic("approvals.source_record_invalid", ident))
+        elif any(retained[key] != value for key, value in decision.items()):
+            diagnostics.append(_diagnostic("approvals.source_mismatch", ident))
+        else:
+            evidence.append({"decision_id": ident, **ref, "digest": artifact["digest"]})
+    return finish()
+
+
+class _ApprovalSources:
+    """Reuse one bounded snapshot for identity hashing and decision selection."""
+
+    def __init__(self, root):
+        from rubric_identity import MAX_TOTAL_BYTES
+
+        self.root = root
+        self.remaining = MAX_TOTAL_BYTES
+        self.files = {}
+
+    def read(self, path):
+        from rubric_identity import MAX_FILES, MAX_SOURCE_BYTES, _read_selected
+
+        if path not in self.files:
+            if len(self.files) >= MAX_FILES:
+                raise ValueError("approval source file limit")
+            limit = min(MAX_SOURCE_BYTES, self.remaining)
+            data, reason = _read_selected(self.root, path, limit)
+            self.remaining -= len(data) if data is not None else limit
+            self.files[path] = data, reason
+        data, reason = self.files[path]
+        if reason or data is None:
+            raise ValueError("approval source unavailable")
+        return data
+
+    def digest(self, path):
+        import hashlib
+
+        return hashlib.sha256(self.read(path.relative_to(self.root).as_posix())).hexdigest()

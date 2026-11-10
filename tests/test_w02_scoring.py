@@ -435,7 +435,7 @@ def test_changed_or_unsupported_source_bytes_cannot_award_full_credit(tmp_path, 
         record["digest"] = hashlib.sha256(replacement).hexdigest()
         record["evidence"][0]["digest"] = record["digest"]
         measurements = {"identity": identify(tmp_path, selection["artifacts"])}
-        assert measurements["identity"]["status"] == "pass"
+        assert measurements["identity"]["status"] == ("unknown" if variant == 5 else "pass")
     assert assess(measurements, selection, root=tmp_path)["DISC-01-C"]["score"] is None
 
 

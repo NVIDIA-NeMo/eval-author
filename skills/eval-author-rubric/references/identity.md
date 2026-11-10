@@ -43,6 +43,8 @@ artifact uses `access: denied` without trying the read; an unresolved selection 
 The checked-in mutation panel exercises these distinctions with actual local files.
 
 Raw measurements are named `identity`, `route`, `config`, `links`, and `approvals`.
+Explicit `sourced_config`, `freshness`, and `native` selections add their
+corresponding measurements. Absent optional selections do not establish coverage.
 They have statuses and diagnostics, not numeric scores. The eleven canonical W02
 criteria consume this evidence under their own anchors; a helper passing is not
 automatically criterion acceptance. Configuration differences require interpretation;
@@ -50,6 +52,12 @@ equality is not adequacy. Declared missing/denied access differs from a performe
 check confirming a missing material required artifact. Preserve that distinction
 when choosing a zero versus `NOT_ASSESSED`.
 `preflight_success` is always false: this consumer cannot certify a workflow.
+Every canonical item includes the complete result template and one `check_results`
+entry per canonical check. Keep the check's method, condition, evidence boundary,
+remaining gap and next action with its outcome. `PARTIAL` is not a deterministic
+pass; `NOT_RUN` review/probe checks cannot inherit helper successes. Item-level
+`measurements` uses the canonical list format; former counter maps are retained
+as `legacy_measurements`. Subject revisions use validated content digests.
 
 ## Selected artifact identity and access
 
@@ -118,6 +126,13 @@ which grader ran. `executed_scorer` stays null. Arbitrary Python/shell import an
 provider-native dispatch adapters, and runtime selection attestation are not
 implemented. A declaration of dependency closure does not prove source completeness.
 
+For package preflight, retain `dependencies` in the dispatch JSON or select
+`route.dependency_source: {artifact_id, pointer}` naming a selected JSON graph.
+The caller's dependency map must exactly match the retained map. Require both
+`status: pass` and `bound_dependency: true`; caller-only legacy maps are unbound
+even when their local traversal passes. The selected closure rejects cycles and
+duplicate edges without treating defects on an unused branch as selected evidence.
+
 ## Declared versus observed configuration
 
 Supply `declared_config` and `observed_config`, both projected from identified
@@ -128,6 +143,26 @@ permission list) for known emptiness. Exact JSON types matter; booleans and inte
 are different. Lists retain order. Output sorted JSON-pointer differences and
 unknowns without raw values; `acceptable` is always null. Review decides which
 material settings and acceptable differences apply; never include credentials.
+
+For source-backed measurements, instead select `sourced_config` with `declared`
+and `observed` objects. Their keys are public comparison JSON pointers rooted in
+the seven configuration categories; each value is
+`{"artifact_id": "selected-id", "pointer": "/source/field"}`. Select JSON or TOML
+artifacts through the common identity records. The helper reads and hashes the
+exact selected bytes, returns provenance and counts, and never exports values or
+discovers source object keys. Explicit unknowns use `state` and `reason`:
+`omitted/field_not_declared`, `inaccessible/access_denied`,
+`provider_hidden/provider_not_disclosed`, or `unobservable/not_recorded`.
+Unselected categories stay unknown and remain in the denominator.
+
+An optional `binding` contains `run` and `task` field references in the same
+artifact/pointer form, `configuration_artifact_id`, and `observations` mapping
+each observed artifact ID to its `run`, `task`, and `configuration_digest`
+pointers. Matching those selected records is an assertion binding, not native
+execution attestation. Preserve `native_attestation: false` and `acceptable: null`.
+See [the configuration producer](../../eval-author/scripts/rubric_configuration.py)
+for the accepted reason pairs and resource bounds. Descriptor-relative no-follow
+file access requires POSIX; unsupported platforms cannot claim measured access.
 
 ## Identity and reference relationships
 
@@ -141,6 +176,17 @@ acyclic. Reuse the owning ATIF evidence audit for native call/observation invent
 rather than deriving a second inventory here. Missing, duplicate, cross-run, inconsistent,
 and unresolved links must not become successful integrity checks. Relationship
 validation is not trace completeness, native execution proof, or causal attribution.
+
+For retained native records, select `native` with explicit `receipt_ids`,
+`manifest_ids`, `result_ids`, and `trace_ids` arrays of existing artifact IDs.
+[The native projection](../../eval-author/scripts/rubric_native.py) consumes
+task-evidence receipts/manifests, Harbor results and ATIF-v1.7 references through
+the existing control validator. It hashes qualified references, retains negative
+control evidence, and does not export prompts, arguments or tool outputs. It
+does not execute tasks, establish current task-tree freshness, qualify closure,
+validate every ATIF field, or traverse nested/subagent traces. Unsupported native
+formats remain unresolved. Existing control/accounting seam tests do not prove
+that the whole W01 or W05 workflow consumes the new interface.
 
 ## Scoped approval and freshness
 
@@ -160,6 +206,29 @@ receipts or infer a renewed approval. A matching decision record proves binding,
 not the human's identity or authority. Keep independent decision-source review
 and the owning workflow's native evidence verifier in place.
 
+Use `approval_sources` to bind each projected decision ID to
+`{"artifact_id": "selected-decision", "pointer": "/decisions/0"}`. The selected
+source must have role `decision`; the pointed-to retained object must match all
+decision fields exactly. Supporting decision artifacts are excluded from material
+bindings to avoid self-reference; all other selected artifacts remain required.
+Without this source mapping, raw approval comparisons establish only projected
+record consistency, not a retained decision. Existing audit checkpoints or journey
+acceptances without substitution scope and endpoints remain unresolved rather than
+being upgraded into substitution approvals. Canonical `ENV-02-A-C03` retains the
+source, scope, and freshness predicates separately from runtime adequacy and authority.
+
+Select `freshness` as an array of retained evidence entries. A source-bound entry
+has `id`, `kind: bindings`, `source` (selected artifact ID), and `pointer` to a
+retained object. That object contains `evidence: {id, digest}` and nonempty
+`dependencies`; each dependency contains `id`, historical `digest`, `revision`
+(nullable), and `impact` (`material` or `unknown`). All referenced artifacts must
+be explicitly selected. The read-only result classifies each selected evidence
+as current, stale, or unresolved and retains old/new lineage. A changed material
+dependency makes that evidence stale; unknown impact stays unresolved and unusable.
+Unchanged neighbors remain current. Do not infer ETHOS semantic equivalence,
+rewrite historical records, or treat a derived freshness report as a binding source.
+`usable` means current evidence, including negative evidence, not task acceptance.
+
 ## Calibration and handoffs
 
 Use handcrafted positive, defective, and ambiguous selections with frozen expected
@@ -170,7 +239,9 @@ a wrong route alone proves an identity defect, not successful cheating. A task
 with no detected cheat is not universally cheat-free. Semantic ambiguity stays a
 review gap unless a deterministic predicate actually establishes a contradiction.
 
-This work implements W02 measurements and criterion assessment. W01/W05 consumer
-integration is a downstream handoff, not an additional workflow implemented by
-this rubric change. W03 can reuse authority/revision links, and W04 can reuse stable
-task/run references. Do not claim those packages complete from W02 fixture results.
+The W02 acceptance panel exercises the shared selection through the W01 retained
+credit validator and W05 coverage measurement/aggregation entrypoints. The panel
+and its human-facing documentation run from a repository checkout, not a copied
+skill installation. This identity handoff does not implement the remaining
+W01/W05 packages. W03 can reuse authority/revision links, and W04 can reuse stable
+task/run references.

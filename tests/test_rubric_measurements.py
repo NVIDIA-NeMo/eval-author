@@ -152,7 +152,28 @@ def test_demo_reports_canonical_outcomes_through_actual_cli():
     unsupported = {"DISC-02-A", "DISC-02-B", "DISC-03-A", "AUD-02", "ENV-01", "ENV-02-A", "ENV-03", "CREATE-07"}
     cases = {row["id"]: row for row in report["assessments"]}
     assert cases.keys() == expected.keys()
-    assert report["counts"] == {"cases": 14, "assessments": len(expected)}
+    assert report["counts"] == {"cases": 14, "assessments": len(expected), "evidence_cases": 8}
+    assert len(report["evidence_cases"]) == 8
+    assert {case["id"] for case in report["evidence_cases"]} == {
+        "sourced-equal",
+        "sourced-different",
+        "sourced-provider-hidden",
+        "fresh-bindings",
+        "material-task-change",
+        "material-scorer-change",
+        "material-dependency-change",
+        "unknown-ethos-change",
+    }
+    assert all(case["matches_expectations"] for case in report["evidence_cases"])
+    canonical = json.loads(
+        (ROOT / "skills/eval-author-rubric/references/artifact-configuration-provenance.json").read_text()
+    )
+    check_ids = {check["id"] for item in canonical["items"] for check in item["checks"]}
+    assert report["canonical_checks_per_case"] == len(check_ids)
+    for case in report["evidence_cases"]:
+        checks = [check for item in case["observed"]["items"].values() for check in item["check_results"]]
+        assert {check["check_id"] for check in checks} == check_ids
+        assert len(checks) == len(check_ids)
     observed_values = set()
     for ident, scores in expected.items():
         case = cases[ident]
@@ -250,7 +271,13 @@ def test_declared_unavailable_task_is_not_a_confirmed_zero(tmp_path, monkeypatch
     row = json.loads(result.stdout)["items"]["DISC-01-A"]
     assert row["score"] is None
     assert row["status"] == "NOT_ASSESSED"
-    assert row["measurements"] == {"required": 1, "accessible": 0, "missing": 0, "denied": 0, "unresolved": 1}
+    assert row["legacy_measurements"] == {"required": 1, "accessible": 0, "missing": 0, "denied": 0, "unresolved": 1}
+    assert {entry["name"]: entry["value"] for entry in row["measurements"]} == {
+        "accessible": 0,
+        "missing": 0,
+        "denied": 0,
+        "unresolved": 1,
+    }
 
 
 def test_cli_consumes_reference_and_approval_checks(tmp_path, monkeypatch):
@@ -278,3 +305,55 @@ def test_cli_consumes_reference_and_approval_checks(tmp_path, monkeypatch):
     report = json.loads(result.stdout)
     assert report["measurements"]["links"]["status"] == "fail"
     assert report["measurements"]["approvals"]["status"] == "fail"
+
+
+def test_cli_accounts_for_every_canonical_check_and_result_field(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    from run_rubric_measurements import fixture
+
+    selection = fixture(tmp_path, None)
+    request = tmp_path / "selection.json"
+    request.write_text(json.dumps(selection))
+    result = subprocess.run(
+        [sys.executable, str(CLI), "--root", str(tmp_path), "--selection", str(request)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    canonical = json.loads(
+        (ROOT / "skills/eval-author-rubric/references/artifact-configuration-provenance.json").read_text()
+    )
+    assert set(report["items"]) == {item["id"] for item in canonical["items"]}
+    for definition in canonical["items"]:
+        row = report["items"][definition["id"]]
+        assert set(canonical["result_template"]) <= set(row)
+        assert {check["check_id"] for check in row["check_results"]} == {check["id"] for check in definition["checks"]}
+        assert len(row["check_results"]) == len(definition["checks"])
+        assert row["applicability_reason"]
+        assert row["next_action"]
+        if row["score"] is not None:
+            assert row["subject_id"]
+            assert row["subject_revision"]
+
+
+@pytest.mark.parametrize(
+    "helper,selection",
+    [
+        ("sourced_config", {"declared": {}, "observed": {}}),
+        ("freshness", []),
+    ],
+)
+def test_cli_consumes_selected_evidence_helpers(tmp_path, helper, selection):
+    request = tmp_path / "selection.json"
+    request.write_text(json.dumps({helper: selection}))
+    result = subprocess.run(
+        [sys.executable, str(CLI), "--root", str(tmp_path), "--selection", str(request)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1
+    report = json.loads(result.stdout)
+    assert helper in report["measurements"]
+    assert report["measurements"][helper]["status"] == "unknown"
+    assert report["preflight_success"] is False

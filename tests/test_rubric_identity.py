@@ -1,8 +1,12 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import hashlib
 import importlib.util
+import json
+import subprocess
 import sys
+import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -229,6 +233,13 @@ def test_route_ignores_untraversed_artifact_identity(tmp_path, route_selection, 
     assert result["selected"] == ["prompt", "scorer"]
 
 
+def test_raw_route_is_explicitly_unbound(tmp_path, route_selection):
+    result = load_checker().resolve_route(tmp_path, route_selection["artifacts"], route_selection["route"])
+    assert result["status"] == "pass"
+    assert result["bound_dependency"] is False
+    assert result["dependency_source"] is None
+
+
 def test_wrong_scorer_is_not_suppressed_by_unrelated_unknown(tmp_path, route_selection):
     route_selection["route"]["expected_scorer"] = "other"
     next(row for row in route_selection["artifacts"] if row["id"] == "task")["access"] = "missing"
@@ -323,3 +334,588 @@ def test_dispatch_rechecks_the_bytes_it_parses(tmp_path, monkeypatch):
     )
     assert result["status"] == "fail"
     assert result["diagnostics"][0]["code"] == "route.dispatch_changed"
+
+
+@pytest.mark.parametrize("limit_kind", ["files", "bytes", "records", "evidence"])
+def test_identity_bounds_whole_selection_before_extra_reads(tmp_path, monkeypatch, limit_kind):
+    checker = load_checker()
+    monkeypatch.setattr(checker, "MAX_FILES", 2, raising=False)
+    monkeypatch.setattr(checker, "MAX_TOTAL_BYTES", 4, raising=False)
+    monkeypatch.setattr(checker, "MAX_RECORDS", 3, raising=False)
+    monkeypatch.setattr(checker, "MAX_REFERENCES", 3, raising=False)
+    records = []
+    for index in range(4):
+        name = f"{index}.json"
+        (tmp_path / name).write_bytes(b"{}")
+        records.append(selected_record(name, b"{}", str(index)))
+    if limit_kind == "bytes":
+        monkeypatch.setattr(checker, "MAX_FILES", 8)
+    if limit_kind == "records":
+        expected = "selection_limit"
+    elif limit_kind == "evidence":
+        records[0]["evidence"] *= 4
+        records = records[:1]
+        expected = "reference_limit"
+    else:
+        records = records[:3]
+        expected = "file_limit" if limit_kind == "files" else "total_bytes_limit"
+    result = checker.identify(tmp_path, records)
+    assert result["status"] == "unknown"
+    assert any(row["code"] == "identity." + expected for row in result["diagnostics"])
+
+
+def test_identity_reuses_exact_bytes_for_duplicate_references(tmp_path, monkeypatch):
+    checker = load_checker()
+    data = b"\xff\x00\r\n"
+    (tmp_path / "selected.bin").write_bytes(data)
+    monkeypatch.setattr(checker, "MAX_TOTAL_BYTES", len(data), raising=False)
+    calls = []
+    original = checker._read_selected
+
+    def counted(*args):
+        calls.append(args[1])
+        return original(*args)
+
+    monkeypatch.setattr(checker, "_read_selected", counted)
+    record = selected_record("selected.bin", data)
+    assert checker.identify(tmp_path, [record])["status"] == "pass"
+    assert calls == ["selected.bin"]
+
+
+def test_identity_accepts_injected_snapshot_hasher(tmp_path):
+    checker = load_checker()
+    record = selected_record("not-on-disk", b"snapshot")
+    calls = []
+
+    def hasher(path):
+        calls.append(path)
+        return record["digest"]
+
+    assert checker.identify(tmp_path, [record], hasher=hasher)["status"] == "pass"
+    assert calls == [tmp_path / "not-on-disk"]
+
+
+@pytest.mark.parametrize("replacement", ["small", "oversized", "symlink"])
+def test_dispatch_reread_is_bounded_and_nofollow(tmp_path, monkeypatch, replacement):
+    checker = load_checker()
+    data = b'{"selector":"strict","routes":{"strict":"entry"}}'
+    path = tmp_path / "entry.json"
+    path.write_bytes(data)
+    record = selected_record(path.name, data, "entry")
+    record["role"] = "scorer"
+    original = checker.identify
+
+    def changed(root, records):
+        result = original(root, records)
+        if replacement == "oversized":
+            path.write_bytes(b"x" * (checker.MAX_SOURCE_BYTES + 1))
+        elif replacement == "symlink":
+            target = tmp_path / "private.json"
+            target.write_bytes(data)
+            path.unlink()
+            path.symlink_to(target)
+        return result
+
+    def unbounded(path):
+        pytest.fail("unbounded dispatch read")
+
+    monkeypatch.setattr(checker, "identify", changed)
+    monkeypatch.setattr(Path, "read_bytes", unbounded)
+    result = checker.resolve_route(
+        tmp_path,
+        [record],
+        {
+            "entrypoint": "entry",
+            "expected_scorer": "entry",
+            "dependencies": {"entry": []},
+        },
+    )
+    assert result["status"] == ("pass" if replacement == "small" else "unknown")
+    if replacement != "small":
+        assert result["diagnostics"] == [
+            {
+                "code": "route.dispatch_unresolved",
+                "subject": "entry",
+                "status": "unknown",
+            }
+        ]
+
+
+def test_identity_rejects_replaced_source_during_read(tmp_path, monkeypatch):
+    checker = load_checker()
+    data = b"original"
+    path = tmp_path / "selected.bin"
+    path.write_bytes(data)
+    original = checker.os.fstat
+    calls = 0
+
+    def replaced(descriptor):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            path.rename(tmp_path / "old-source")
+            path.write_bytes(b"replaced")
+        return original(descriptor)
+
+    monkeypatch.setattr(checker.os, "fstat", replaced)
+    result = checker.identify(tmp_path, [selected_record(path.name, data)])
+    assert result["status"] == "unknown"
+    assert result["diagnostics"] == [
+        {
+            "code": "identity.source_changed",
+            "subject": "selected",
+            "status": "unknown",
+        }
+    ]
+
+
+@pytest.mark.parametrize("race", ["file", "parent"])
+def test_identity_nofollow_survives_path_check_race(tmp_path, monkeypatch, race):
+    checker = load_checker()
+    directory = tmp_path / "selected"
+    directory.mkdir()
+    data = b"PRIVATE_SENTINEL"
+    path = directory / "file"
+    path.write_bytes(data)
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / "file").write_bytes(data)
+    original = checker.local_file
+
+    def swapped(root, relative):
+        checked = original(root, relative)
+        if race == "file":
+            path.unlink()
+            path.symlink_to(target / "file")
+        else:
+            directory.rename(tmp_path / "old")
+            directory.symlink_to(target, target_is_directory=True)
+        return checked
+
+    monkeypatch.setattr(checker, "local_file", swapped)
+    result = checker.identify(tmp_path, [selected_record("selected/file", data)])
+    assert result["status"] == "fail"
+    assert result["diagnostics"] == [
+        {
+            "code": "identity.reference_invalid",
+            "subject": "selected",
+            "status": "fail",
+        }
+    ]
+    assert "PRIVATE_SENTINEL" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("role", ["task", "scorer", "configuration", "manifest", "custom-role"])
+def test_identity_preserves_roles_and_exact_file_limit(tmp_path, monkeypatch, role):
+    checker = load_checker()
+    data = b"\xff\r\n\x00"
+    path = tmp_path / "selected.bin"
+    path.write_bytes(data)
+    record = selected_record(path.name, data)
+    record["role"] = role
+    monkeypatch.setattr(checker, "MAX_SOURCE_BYTES", len(data))
+    assert checker.identify(tmp_path, [record])["records"] == [record]
+    assert checker.identify(tmp_path, [record])["status"] == "pass"
+    path.write_bytes(data + b"x")
+    result = checker.identify(tmp_path, [record])
+    assert result["diagnostics"] == [
+        {
+            "code": "identity.source_too_large",
+            "subject": "selected",
+            "status": "unknown",
+        }
+    ]
+
+
+@pytest.mark.parametrize("source", ["missing", "directory", "fifo"])
+def test_identity_preserves_missing_and_nonregular_diagnostics(tmp_path, source):
+    checker = load_checker()
+    path = tmp_path / "selected"
+    if source == "directory":
+        path.mkdir()
+    elif source == "fifo":
+        checker.os.mkfifo(path)
+    result = checker.identify(tmp_path, [selected_record(path.name, b"")])
+    assert result["diagnostics"] == [
+        {
+            "code": "identity.artifact_missing" if source == "missing" else "identity.reference_invalid",
+            "subject": "selected",
+            "status": "unknown" if source == "missing" else "fail",
+        }
+    ]
+
+
+@pytest.mark.parametrize("replacement", ["rename", "symlink"])
+def test_identity_rejects_parent_replacement_during_read(tmp_path, monkeypatch, replacement):
+    checker = load_checker()
+    parent = tmp_path / "selected"
+    parent.mkdir()
+    path = parent / "file"
+    path.write_bytes(b"original")
+    original = checker.os.fstat
+    calls = 0
+
+    def replaced(descriptor):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            parent.rename(tmp_path / "old-parent")
+            if replacement == "rename":
+                parent.mkdir()
+                (parent / "file").write_bytes(b"replaced")
+            else:
+                parent.symlink_to(tmp_path / "old-parent", target_is_directory=True)
+        return original(descriptor)
+
+    monkeypatch.setattr(checker.os, "fstat", replaced)
+    result = checker.identify(tmp_path, [selected_record("selected/file", b"original")])
+    assert result["diagnostics"] == [
+        {
+            "code": "identity.source_changed",
+            "subject": "selected",
+            "status": "unknown",
+        }
+    ]
+
+
+@pytest.fixture
+def bound_route_selection(tmp_path):
+    graph = {"scorer": ["import"], "import": ["prompt"], "prompt": ["input"], "input": []}
+    documents = {
+        "entry": {"selector": "strict", "routes": {"strict": "scorer", "unused": "other"}, "dependencies": graph},
+        "graph": {"nested/key": {"~graph": graph}},
+        "scorer": {},
+        "import": {},
+        "prompt": {},
+        "input": {},
+    }
+    records = []
+    for key, value in documents.items():
+        data = json.dumps(value).encode()
+        (tmp_path / (key + ".json")).write_bytes(data)
+        record = selected_record(key + ".json", data, key)
+        record["role"] = key
+        records.append(record)
+    return records, {"entrypoint": "entry", "expected_scorer": "scorer", "dependencies": graph}
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_route_binds_retained_transitive_json_graph(tmp_path, bound_route_selection, explicit):
+    records, route = bound_route_selection
+    source = (
+        {"artifact_id": "graph", "pointer": "/nested~1key/~0graph"}
+        if explicit
+        else {
+            "artifact_id": "entry",
+            "pointer": "/dependencies",
+        }
+    )
+    if explicit:
+        route["dependency_source"] = source
+    result = load_checker().resolve_route(tmp_path, records, route)
+    assert result["status"] == "pass"
+    assert result["diagnostics"] == []
+    assert result["selected"] == ["import", "input", "prompt", "scorer"]
+    assert result["bound_dependency"] is True
+    assert result["dependency_source"] == {
+        **source,
+        "digest": next(row["digest"] for row in records if row["id"] == source["artifact_id"]),
+    }
+    assert result["executed_scorer"] is None
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+@pytest.mark.parametrize("mutation", ["omit_edge", "omit_node", "replace_edge", "type_confusion"])
+def test_bound_route_rejects_caller_only_graph_mutation(tmp_path, bound_route_selection, explicit, mutation):
+    records, route = bound_route_selection
+    if explicit:
+        route["dependency_source"] = {"artifact_id": "graph", "pointer": "/nested~1key/~0graph"}
+    if mutation == "omit_edge":
+        route["dependencies"]["scorer"] = []
+    elif mutation == "omit_node":
+        del route["dependencies"]["input"]
+    elif mutation == "replace_edge":
+        route["dependencies"]["scorer"] = ["prompt"]
+    else:
+        # Python equality must not admit bool/int substitution in unused data.
+        document = json.loads((tmp_path / "entry.json").read_bytes())
+        document["dependencies"]["other"] = [True]
+        refresh_route_document(tmp_path, records, "entry", document)
+        refresh_route_document(tmp_path, records, "graph", {"nested/key": {"~graph": document["dependencies"]}})
+        route["dependencies"]["other"] = [1]
+    result = load_checker().resolve_route(tmp_path, records, route)
+    assert result["status"] == "fail"
+    assert result["bound_dependency"] is False
+    assert {
+        "code": "route.dependency_source_mismatch",
+        "subject": "graph" if explicit else "entry",
+        "status": "fail",
+    } in result["diagnostics"]
+
+
+@pytest.mark.parametrize("bound", [False, True])
+@pytest.mark.parametrize("bad", ["cycle", "duplicate"])
+@pytest.mark.parametrize("selected", [False, True])
+def test_route_rejects_only_selected_bad_edges(tmp_path, bound_route_selection, bound, bad, selected):
+    records, route = bound_route_selection
+    graph = route["dependencies"]
+    key = "input" if selected else "other"
+    graph[key] = ["scorer"] if bad == "cycle" else ["prompt", "prompt"]
+    if not selected and bad == "cycle":
+        graph[key] = [key]
+    document = json.loads((tmp_path / "entry.json").read_bytes())
+    if bound:
+        document["dependencies"] = graph
+    else:
+        del document["dependencies"]
+    refresh_route_document(tmp_path, records, "entry", document)
+    result = load_checker().resolve_route(tmp_path, records, route)
+    assert result["status"] == ("fail" if selected else "pass")
+    assert result["bound_dependency"] is (bound and not selected)
+    assert result["selected"] == ["import", "input", "prompt", "scorer"]
+    if selected:
+        assert any(row["code"] == "route.dependency_" + bad for row in result["diagnostics"])
+    else:
+        assert result["diagnostics"] == []
+
+
+@pytest.mark.parametrize("other", [None, "dynamic import", ["missing"], [False]])
+def test_bound_route_ignores_unselected_malformed_branch(tmp_path, bound_route_selection, other):
+    records, route = bound_route_selection
+    route["dependencies"]["other"] = other
+    document = json.loads((tmp_path / "entry.json").read_bytes())
+    document["dependencies"] = route["dependencies"]
+    refresh_route_document(tmp_path, records, "entry", document)
+    result = load_checker().resolve_route(tmp_path, records, route)
+    assert result["status"] == "pass"
+    assert result["bound_dependency"] is True
+    assert "other" not in result["selected"]
+
+
+@pytest.mark.parametrize("bad", ["tuple", "integer_key", "oversized_edges", "oversized_closure"])
+def test_route_rejects_unsupported_or_unbounded_graph(tmp_path, bound_route_selection, monkeypatch, bad):
+    records, route = bound_route_selection
+    checker = load_checker()
+    if bad == "tuple":
+        route["dependencies"]["scorer"] = ("import",)
+    elif bad == "integer_key":
+        route["dependencies"] = {1: []}
+        refresh_route_document(tmp_path, records, "graph", {"1": []})
+        route["dependency_source"] = {"artifact_id": "graph", "pointer": ""}
+    elif bad == "oversized_edges":
+        monkeypatch.setattr(checker, "MAX_REFERENCES", 1)
+        route["dependencies"]["scorer"] = ["import", "input"]
+        document = json.loads((tmp_path / "entry.json").read_bytes())
+        document["dependencies"] = route["dependencies"]
+        refresh_route_document(tmp_path, records, "entry", document)
+    else:
+        monkeypatch.setattr(checker, "MAX_RECORDS", 2)
+    result = checker.resolve_route(tmp_path, records, route)
+    assert result["status"] != "pass"
+    assert result["bound_dependency"] is False
+
+
+@pytest.mark.parametrize("replacement", ["different", "oversized", "symlink"])
+def test_dependency_source_reread_is_hash_bound_bounded_nofollow(
+    tmp_path, bound_route_selection, monkeypatch, replacement
+):
+    records, route = bound_route_selection
+    route["dependency_source"] = {"artifact_id": "graph", "pointer": "/nested~1key/~0graph"}
+    checker = load_checker()
+    original = checker.identify
+    path = tmp_path / "graph.json"
+
+    def changed(root, selected):
+        result = original(root, selected)
+        if selected[0]["id"] == "graph":
+            if replacement == "different":
+                path.write_text("{}")
+            elif replacement == "oversized":
+                path.write_bytes(b"x" * (checker.MAX_SOURCE_BYTES + 1))
+            else:
+                path.rename(tmp_path / "private.json")
+                path.symlink_to(tmp_path / "private.json")
+        return result
+
+    monkeypatch.setattr(checker, "identify", changed)
+    result = checker.resolve_route(tmp_path, records, route)
+    assert result["bound_dependency"] is False
+    code = "route.dependency_source_changed" if replacement == "different" else "route.dependency_source_unresolved"
+    assert result["diagnostics"] == [
+        {"code": code, "subject": "graph", "status": "fail" if replacement == "different" else "unknown"}
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        None,
+        {},
+        {"artifact_id": "graph", "pointer": "/bad~2pointer"},
+        {"artifact_id": "graph", "pointer": "/missing"},
+        {"artifact_id": "graph", "pointer": "/nested~1key/~0graph/scorer/00"},
+    ],
+)
+def test_invalid_explicit_dependency_source_never_falls_back(tmp_path, bound_route_selection, source):
+    records, route = bound_route_selection
+    route["dependency_source"] = source
+    result = load_checker().resolve_route(tmp_path, records, route)
+    assert result["status"] == "fail"
+    assert result["bound_dependency"] is False
+    assert any(row["code"] == "route.dependency_source_invalid" for row in result["diagnostics"])
+
+
+@pytest.mark.parametrize("unsupported", ["tuple", "integer_key"])
+def test_bound_route_does_not_coerce_python_values_to_json(tmp_path, bound_route_selection, unsupported):
+    records, route = bound_route_selection
+    document = json.loads((tmp_path / "entry.json").read_bytes())
+    if unsupported == "tuple":
+        document["dependencies"]["other"] = ["input"]
+        route["dependencies"]["other"] = ("input",)
+    else:
+        document["dependencies"]["other"] = {"1": []}
+        route["dependencies"]["other"] = {1: []}
+    refresh_route_document(tmp_path, records, "entry", document)
+    result = load_checker().resolve_route(tmp_path, records, route)
+    assert result["status"] == "fail"
+    assert result["bound_dependency"] is False
+
+
+@pytest.mark.parametrize("source", ["entry", "graph"])
+@pytest.mark.parametrize(
+    "data",
+    [
+        b'{"scorer": [], "scorer": ["input"]}',
+        b'{"scorer": NaN}',
+        b'__import__("os").system("false")',
+        b"[" * 2000 + b"]" * 2000,
+    ],
+)
+def test_route_only_parses_supported_json_sources(tmp_path, bound_route_selection, source, data):
+    records, route = bound_route_selection
+    if source == "graph":
+        route["dependency_source"] = {"artifact_id": "graph", "pointer": ""}
+    record = next(row for row in records if row["id"] == source)
+    (tmp_path / record["path"]).write_bytes(data)
+    record["digest"] = record["evidence"][0]["digest"] = hashlib.sha256(data).hexdigest()
+    result = load_checker().resolve_route(tmp_path, records, route)
+    assert result["status"] != "pass"
+    assert result["bound_dependency"] is False
+
+
+@pytest.mark.parametrize("key", ["graph", "scorer", "import", "prompt", "input"])
+def test_bound_route_rejects_mutated_retained_source(tmp_path, bound_route_selection, key):
+    records, route = bound_route_selection
+    route["dependency_source"] = {"artifact_id": "graph", "pointer": "/nested~1key/~0graph"}
+    (tmp_path / (key + ".json")).write_text("changed without updating identity")
+    result = load_checker().resolve_route(tmp_path, records, route)
+    assert result["status"] == "fail"
+    assert result["bound_dependency"] is False
+    assert {"code": "identity.digest_mismatch", "subject": key, "status": "fail"} in result["diagnostics"]
+
+
+def test_bound_route_allows_shared_transitive_inputs(tmp_path, bound_route_selection):
+    records, route = bound_route_selection
+    route["dependencies"]["scorer"] = ["input", "import"]
+    document = json.loads((tmp_path / "entry.json").read_bytes())
+    document["dependencies"] = route["dependencies"]
+    refresh_route_document(tmp_path, records, "entry", document)
+    result = load_checker().resolve_route(tmp_path, records, route)
+    assert result["status"] == "pass"
+    assert result["bound_dependency"] is True
+    assert result["selected"] == ["import", "input", "prompt", "scorer"]
+
+
+def test_route_dispatch_parser_recursion_is_unresolved(tmp_path, bound_route_selection, monkeypatch):
+    records, route = bound_route_selection
+    checker = load_checker()
+
+    def recursion(data):
+        raise RecursionError("source exceeds parser depth")
+
+    monkeypatch.setattr(checker, "loads", recursion)
+    result = checker.resolve_route(tmp_path, records, route)
+    assert result["status"] == "unknown"
+    assert result["bound_dependency"] is False
+    assert result["diagnostics"] == [{"code": "route.dispatch_unresolved", "subject": "entry", "status": "unknown"}]
+
+
+def refresh_route_document(root, records, key, value):
+    record = next(row for row in records if row["id"] == key)
+    data = json.dumps(value).encode()
+    (root / record["path"]).write_bytes(data)
+    record["digest"] = record["evidence"][0]["digest"] = hashlib.sha256(data).hexdigest()
+
+
+def selected_record(path, data, ident="selected"):
+    sha = hashlib.sha256(data).hexdigest()
+    return {
+        "id": ident,
+        "role": "configuration",
+        "path": path,
+        "digest": sha,
+        "revision": None,
+        "access": "available",
+        "selection_origin": "explicit",
+        "source": "synthetic",
+        "evidence": [{"path": path, "digest": sha}],
+    }
+
+
+@pytest.mark.parametrize("evidence_only", [False, True])
+@pytest.mark.parametrize("unsafe", ["oversized", "symlink", "ancestor_symlink"])
+def test_cli_rejects_large_selected_sources_before_unbounded_reads(tmp_path, evidence_only, unsafe):
+    data = b'{"agent":"PRIVATE_SENTINEL' + b"x" * 1_100_000 + b'"}'
+    (tmp_path / "large.json").write_bytes(data)
+    record = selected_record("large.json", data)
+    if unsafe == "symlink":
+        (tmp_path / "large.json").rename(tmp_path / "private.json")
+        (tmp_path / "large.json").symlink_to(tmp_path / "private.json")
+    elif unsafe == "ancestor_symlink":
+        (tmp_path / "private").mkdir()
+        (tmp_path / "large.json").rename(tmp_path / "private/large.json")
+        (tmp_path / "linked").symlink_to(tmp_path / "private", target_is_directory=True)
+        record["path"] = record["evidence"][0]["path"] = "linked/large.json"
+    if evidence_only:
+        (tmp_path / "small.json").write_bytes(b"{}")
+        record.update(path="small.json", digest=hashlib.sha256(b"{}").hexdigest())
+    selection = tmp_path / "selection.json"
+    selection.write_text(
+        json.dumps(
+            {
+                "artifacts": [record],
+                "sourced_config": {
+                    "declared": {"/agent": {"artifact_id": "selected", "pointer": "/agent"}},
+                    "observed": {},
+                },
+            }
+        )
+    )
+    wrapper = textwrap.dedent("""\
+        import pathlib, runpy, sys
+        original = pathlib.Path.read_bytes
+        def guarded(path):
+            assert path.name != "large.json", "unbounded selected source read"
+            return original(path)
+        pathlib.Path.read_bytes = guarded
+        sys.argv = sys.argv[1:]
+        sys.path.insert(0, str(pathlib.Path(sys.argv[0]).parent))
+        runpy.run_path(sys.argv[0], run_name="__main__")
+    """)
+    cli = ROOT / "skills/eval-author-rubric/scripts/measure.py"
+    result = subprocess.run(
+        [sys.executable, "-c", wrapper, str(cli), "--root", str(tmp_path), "--selection", str(selection)],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert result.stderr == ""
+    assert result.returncode == 1
+    report = json.loads(result.stdout)
+    assert "PRIVATE_SENTINEL" not in result.stdout
+    expected = "unknown" if unsafe == "oversized" else "fail"
+    code = "identity.source_too_large" if unsafe == "oversized" else "identity.reference_invalid"
+    assert report["measurements"]["identity"]["status"] == expected
+    assert report["measurements"]["identity"]["diagnostics"] == [
+        {"code": code, "subject": "selected", "status": expected}
+    ]

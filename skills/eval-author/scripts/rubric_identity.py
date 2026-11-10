@@ -1,17 +1,44 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Read-only measurements of explicitly selected local evidence, not discovery."""
+"""Read-only measurements of explicitly selected local evidence, not discovery.
+
+Route dependency contract (W01/W05/package panels):
+- Keep route.entrypoint, expected_scorer, and dependencies (literal JSON mapping).
+- Optionally add dependency_source={"artifact_id": ID, "pointer": JSON_POINTER}.
+  The selected artifact must retain the JSON graph at that pointer. Without an
+  explicit source, dispatch.dependencies is used when present in entry bytes.
+- The caller mapping must exactly equal the retained mapping, including unused
+  branches; only the selected scorer closure is validated/traversed. Unsupported
+  branch shapes, missing identities, cycles, and duplicate edges on unused
+  branches do not poison an otherwise valid selected closure.
+- resolve_route always emits bound_dependency (bool) and dependency_source
+  (null or {artifact_id, pointer, digest}). bound_dependency is true only after
+  source identity, literal mapping equality, and selected closure pass. Consumers
+  MUST require route.status == "pass" AND route.bound_dependency is True for
+  package preflight/acceptance. A raw caller-only graph keeps legacy statuses and
+  diagnostics but is explicitly unbound and cannot establish package acceptance.
+- Source binding proves this finite declared JSON graph, not arbitrary Python
+  import discovery, execution, or completeness of undeclared runtime behavior.
+"""
 
 from __future__ import annotations
 
 import copy
 import hashlib
 import json
+import os
 import re
+import stat
 from pathlib import Path, PurePosixPath
 
-from eval_author_shared.task_evidence import digest, loads
+from eval_author_shared.task_evidence import loads
+
+MAX_SOURCE_BYTES = 1_048_576
+MAX_TOTAL_BYTES = 16_777_216
+MAX_FILES = 64
+MAX_RECORDS = 64
+MAX_REFERENCES = 64
 
 DIGEST = re.compile(r"[0-9a-f]{64}")
 FIELDS = {"id", "role", "path", "digest", "revision", "access", "selection_origin", "source", "evidence"}
@@ -44,11 +71,97 @@ def finish(records, diagnostics):
     return {"status": status, "records": records, "diagnostics": diagnostics}
 
 
-def identify(root: Path, records: list) -> dict:
+def _read_selected(root, relative, limit=MAX_SOURCE_BYTES):
+    descriptors = []
+    try:
+        path = local_file(root, relative)
+        absolute_root = root.absolute()
+        if ".." in absolute_root.parts:
+            return None, "reference_invalid"
+        descriptors.append(os.open(absolute_root.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW))
+        parts = (*absolute_root.parts[1:], *path.relative_to(root).parts)
+        for part in parts[:-1]:
+            descriptors.append(os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptors[-1]))
+        descriptors.append(os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptors[-1]))
+        before = os.fstat(descriptors[-1])
+        if not stat.S_ISREG(before.st_mode):
+            return None, "reference_invalid"
+        if before.st_size > limit:
+            return None, "source_too_large"
+        with os.fdopen(os.dup(descriptors[-1]), "rb") as stream:
+            data = stream.read(limit + 1)
+        after = os.fstat(descriptors[-1])
+        if len(data) > limit:
+            return None, "source_too_large"
+        if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
+            after.st_size,
+            after.st_mtime_ns,
+            after.st_ctime_ns,
+        ):
+            return None, "source_changed"
+        # Confirm the opened chain still names this source, without following
+        # replacements or comparing atime (which the read itself may advance).
+        try:
+            for index, part in enumerate(parts):
+                named = os.stat(part, dir_fd=descriptors[index], follow_symlinks=False)
+                opened = os.fstat(descriptors[index + 1])
+                if (named.st_dev, named.st_ino, named.st_mode) != (opened.st_dev, opened.st_ino, opened.st_mode):
+                    return None, "source_changed"
+        except OSError:
+            return None, "source_changed"
+        return data, None
+    except FileNotFoundError:
+        return None, "artifact_missing"
+    except PermissionError:
+        return None, "access_denied"
+    except (OSError, ValueError):
+        return None, "reference_invalid"
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
+class _Hashes:
+    def __init__(self, root, hasher):
+        self.root, self.hasher = root, hasher
+        self.files = {}
+        self.remaining = MAX_TOTAL_BYTES
+
+    def read(self, relative):
+        if relative in self.files:
+            return self.files[relative]
+        if len(self.files) >= MAX_FILES:
+            return None, "file_limit"
+        if self.hasher is None:
+            limit = min(MAX_SOURCE_BYTES, self.remaining)
+            data, reason = _read_selected(self.root, relative, limit)
+            if reason == "source_too_large" and limit < MAX_SOURCE_BYTES:
+                reason = "total_bytes_limit"
+            # Charge failed reads too: a changed/growing file consumed work.
+            self.remaining -= len(data) if data is not None else limit
+            result = (hashlib.sha256(data).hexdigest(), None) if data is not None else (None, reason)
+        else:
+            try:
+                result = self.hasher(local_file(self.root, relative)), None
+            except FileNotFoundError:
+                result = None, "artifact_missing"
+            except PermissionError:
+                result = None, "access_denied"
+            except (OSError, ValueError):
+                result = None, "reference_invalid"
+        self.files[relative] = result
+        return result
+
+
+def identify(root: Path, records: list, *, hasher=None) -> dict:
+    """Hash bounded selected bytes; injected snapshot hashers own byte limits."""
     diagnostics = []
     valid_records = []
     if not isinstance(records, list) or not records:
         return finish([], [diagnostic("identity.selection_missing", "selection", "unknown")])
+    if len(records) > MAX_RECORDS:
+        return finish([], [diagnostic("identity.selection_limit", "selection", "unknown")])
+    hashes = _Hashes(root, hasher)
     seen = set()
     for index, record in enumerate(records):
         subject = record.get("id") if isinstance(record, dict) else None
@@ -69,6 +182,9 @@ def identify(root: Path, records: list) -> dict:
         if subject in seen:
             diagnostics.append(diagnostic("identity.duplicate", subject))
         seen.add(subject)
+        if len(record["evidence"]) > MAX_REFERENCES:
+            diagnostics.append(diagnostic("identity.reference_limit", subject, "unknown"))
+            continue
         refs = [{"path": record["path"], "digest": record["digest"]}, *record["evidence"]]
         if any(
             not isinstance(ref, dict)
@@ -89,17 +205,13 @@ def identify(root: Path, records: list) -> dict:
         if not record["evidence"]:
             diagnostics.append(diagnostic("identity.evidence_missing", subject, "unknown"))
         for ref in refs:
-            try:
-                path = local_file(root, ref["path"])
-                actual = digest(path) if path.exists() else None
-                if actual is None:
-                    diagnostics.append(diagnostic("identity.artifact_missing", subject, "unknown"))
-                elif ref["digest"] is not None and actual != ref["digest"]:
-                    diagnostics.append(diagnostic("identity.digest_mismatch", subject))
-            except PermissionError:
-                diagnostics.append(diagnostic("identity.access_denied", subject, "unknown"))
-            except (OSError, ValueError):
-                diagnostics.append(diagnostic("identity.reference_invalid", subject))
+            actual, reason = hashes.read(ref["path"])
+            if reason:
+                diagnostics.append(
+                    diagnostic("identity." + reason, subject, "fail" if reason == "reference_invalid" else "unknown")
+                )
+            elif ref["digest"] is not None and actual != ref["digest"]:
+                diagnostics.append(diagnostic("identity.digest_mismatch", subject))
     # Repeated references are not independent observations.
     diagnostics = [
         dict(zip(("code", "subject", "status"), values)) for values in sorted({tuple(d.values()) for d in diagnostics})
@@ -142,13 +254,61 @@ def compare_config(declared: dict, observed: dict) -> dict:
     }
 
 
+def _route_literal(value):
+    pending = [(value, 0)]
+    nodes = 0
+    while pending:
+        item, depth = pending.pop()
+        nodes += 1
+        if nodes > 50_000 or depth > 32:
+            raise ValueError("dependency structure limit")
+        if type(item) is dict:
+            if any(type(key) is not str for key in item):
+                raise ValueError("non-JSON dependency key")
+            pending.extend((child, depth + 1) for child in item.values())
+        elif type(item) is list:
+            pending.extend((child, depth + 1) for child in item)
+        elif type(item) not in (str, int, float, bool, type(None)):
+            raise ValueError("non-JSON dependency value")
+    return json.dumps(value, sort_keys=True, allow_nan=False)
+
+
+def _route_pointer(value, path):
+    if len(path) > 1024 or (path and not path.startswith("/")) or re.search(r"~(?![01])", path):
+        raise ValueError("invalid dependency pointer")
+    for token in path.split("/")[1:]:
+        token = token.replace("~1", "/").replace("~0", "~")
+        if isinstance(value, dict) and token in value:
+            value = value[token]
+        elif (
+            isinstance(value, list)
+            and re.fullmatch(r"0|[1-9][0-9]*", token)
+            and len(token) < 10
+            and int(token) < len(value)
+        ):
+            value = value[int(token)]
+        else:
+            raise ValueError("missing dependency pointer")
+    return value
+
+
 def resolve_route(root: Path, records: list, route: dict) -> dict:
     diagnostics = []
     selected = set()
-    result = {"selected": [], "scorer": None, "executed_scorer": None}
+    result = {
+        "selected": [],
+        "scorer": None,
+        "executed_scorer": None,
+        "bound_dependency": False,
+        "dependency_source": None,
+    }
     if (
         not isinstance(route, dict)
-        or set(route) != {"entrypoint", "expected_scorer", "dependencies"}
+        or set(route)
+        not in (
+            {"entrypoint", "expected_scorer", "dependencies"},
+            {"entrypoint", "expected_scorer", "dependencies", "dependency_source"},
+        )
         or not text(route["entrypoint"])
         or not text(route["expected_scorer"])
         or not isinstance(route["dependencies"], dict)
@@ -178,11 +338,13 @@ def resolve_route(root: Path, records: list, route: dict) -> dict:
     if status != "pass" or entry is None:
         return {**finish([], diagnostics), **result}
     try:
-        data = local_file(root, entry["path"]).read_bytes()
+        data, reason = _read_selected(root, entry["path"], MAX_SOURCE_BYTES)
+        if reason:
+            return {**finish([], [diagnostic("route.dispatch_unresolved", entry["id"], "unknown")]), **result}
         if hashlib.sha256(data).hexdigest() != entry["digest"]:
             return {**finish([], [diagnostic("route.dispatch_changed", entry["id"])]), **result}
         dispatch = loads(data)
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return {**finish([], [diagnostic("route.dispatch_unresolved", entry["id"], "unknown")]), **result}
     if not isinstance(dispatch, dict) or not text(dispatch.get("selector")):
         return {**finish([], [diagnostic("route.dynamic_unresolved", entry["id"], "unknown")]), **result}
@@ -193,12 +355,70 @@ def resolve_route(root: Path, records: list, route: dict) -> dict:
     result["scorer"] = scorer
     if scorer != route["expected_scorer"]:
         diagnostics.append(diagnostic("route.scorer_mismatch", scorer))
-    pending = [scorer]
+    source = route.get("dependency_source")
+    if "dependency_source" not in route and "dependencies" in dispatch:
+        source = {"artifact_id": entry["id"], "pointer": "/dependencies"}
+    if source is not None or "dependency_source" in route:
+        if (
+            not isinstance(source, dict)
+            or set(source) != {"artifact_id", "pointer"}
+            or not text(source["artifact_id"])
+            or not isinstance(source["pointer"], str)
+        ):
+            diagnostics.append(diagnostic("route.dependency_source_invalid", "route"))
+            return {**finish([], diagnostics), **result}
+        key = source["artifact_id"]
+        if key not in by_id:
+            diagnostics.append(diagnostic("route.dependency_source_missing", key, "unknown"))
+            return {**finish([], diagnostics), **result}
+        if key == entry["id"]:
+            source_record, document = entry, dispatch
+        else:
+            source_record, status = validate(key)
+            if status != "pass" or source_record is None:
+                return {**finish([], diagnostics), **result}
+            data, reason = _read_selected(root, source_record["path"], MAX_SOURCE_BYTES)
+            if reason:
+                diagnostics.append(diagnostic("route.dependency_source_unresolved", key, "unknown"))
+                return {**finish([], diagnostics), **result}
+            if hashlib.sha256(data).hexdigest() != source_record["digest"]:
+                diagnostics.append(diagnostic("route.dependency_source_changed", key))
+                return {**finish([], diagnostics), **result}
+            try:
+                document = loads(data)
+            except (ValueError, RecursionError):
+                diagnostics.append(diagnostic("route.dependency_source_invalid", key))
+                return {**finish([], diagnostics), **result}
+        try:
+            graph = _route_pointer(document, source["pointer"])
+            if not isinstance(graph, dict):
+                raise ValueError("dependency graph must be an object")
+            matches = _route_literal(graph) == _route_literal(route["dependencies"])
+        except (ValueError, TypeError, RecursionError):
+            diagnostics.append(diagnostic("route.dependency_source_invalid", key))
+            return {**finish([], diagnostics), **result}
+        if not matches:
+            diagnostics.append(diagnostic("route.dependency_source_mismatch", key))
+            return {**finish([], diagnostics), **result}
+        result["dependency_source"] = {**source, "digest": source_record["digest"]}
+    pending = [(scorer, False)]
+    active = set()
     while pending:
-        key = pending.pop()
+        key, exiting = pending.pop()
+        if exiting:
+            active.remove(key)
+            continue
+        if key in active:
+            diagnostics.append(diagnostic("route.dependency_cycle", key))
+            continue
         if key in selected:
             continue
+        if len(selected) >= MAX_RECORDS:
+            diagnostics.append(diagnostic("route.dependency_limit", key, "unknown"))
+            break
         selected.add(key)
+        active.add(key)
+        pending.append((key, True))
         if key not in by_id:
             diagnostics.append(diagnostic("route.dependency_missing", key, "unknown"))
             continue
@@ -206,9 +426,14 @@ def resolve_route(root: Path, records: list, route: dict) -> dict:
         if key == scorer and record is not None and record["role"] != "scorer":
             diagnostics.append(diagnostic("route.scorer_role_invalid", scorer))
         dependencies = route["dependencies"].get(key)
-        if not isinstance(dependencies, list) or not all(text(item) for item in dependencies):
+        if isinstance(dependencies, list) and len(dependencies) > MAX_REFERENCES:
+            diagnostics.append(diagnostic("route.dependency_limit", key, "unknown"))
+        elif not isinstance(dependencies, list) or not all(text(item) for item in dependencies):
             diagnostics.append(diagnostic("route.dependencies_unresolved", key, "unknown"))
         else:
-            pending.extend(dependencies)
+            if len(set(dependencies)) != len(dependencies):
+                diagnostics.append(diagnostic("route.dependency_duplicate", key))
+            pending.extend((item, False) for item in reversed(dict.fromkeys(dependencies)))
     result["selected"] = sorted(selected)
+    result["bound_dependency"] = result["dependency_source"] is not None and not diagnostics
     return {**finish([], diagnostics), **result}

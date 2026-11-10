@@ -215,18 +215,44 @@ def main(argv: list[str] | None = None) -> int:
         help="JSON file of skill-authored judgments for non-tool failure-case evidence",
     )
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
+    parser.add_argument("--identity-root", type=Path, help="root of explicitly selected W02 identity artifacts")
+    parser.add_argument(
+        "--identity-selection",
+        type=Path,
+        help="opt-in local identity/route selection; does not assess rubric merit or execute a scorer",
+    )
     args = parser.parse_args(argv)
 
     try:
+        identity_preflight = _identity_preflight(args)
+        if identity_preflight is not None and not identity_preflight["measurement_allowed"]:
+            _print(
+                {"valid": None, "written": False, "error_type": "identity", "identity_preflight": identity_preflight},
+                compact=args.compact,
+            )
+            return 1
         _validate_evidence_class_args(args)
         method_names = _measurement_methods(args.measure)
         inputs = _measurement_inputs(args, method_names)
         audit = load_audit_spec(args.audit)
         pending_subject = _subject(args)
-        loaded_trace = _load_harbor_trajectory(pending_subject.trace_path)
+        if identity_preflight is None:
+            loaded_trace = _load_harbor_trajectory(pending_subject.trace_path)
+        else:
+            from rubric_identity import _read_selected
+
+            trace_path = pending_subject.trace_path.absolute()
+            _bind_identity_trace(identity_preflight, args.identity_root, trace_path)
+            raw, reason = _read_selected(trace_path.parent, trace_path.name)
+            if reason:
+                raise AuditMeasurementError("identity.measured_trace_invalid")
+            loaded_trace = _load_harbor_trajectory(pending_subject.trace_path, raw=raw)
+            _bind_identity_trace(identity_preflight, args.identity_root, pending_subject.trace_path, loaded_trace)
         _validate_judgment_trace(inputs.capability_judgments, loaded_trace, label="capability judgments")
         _validate_judgment_trace(inputs.failure_case_judgments, loaded_trace, label="failure-case judgments")
         subject_info = _finalize_subject(pending_subject, loaded_trace, evidence_class=_resolve_evidence_class(args))
+        if identity_preflight is not None:
+            identity_preflight["subject"] = {"task_id": subject_info.task_id, "run_id": subject_info.run_id}
         reports = _measure_all(
             audit=audit,
             audit_path=args.audit,
@@ -235,6 +261,9 @@ def main(argv: list[str] | None = None) -> int:
             method_names=method_names,
             inputs=inputs,
         )
+        if identity_preflight is not None:
+            for report in reports:
+                report.coverage["identity_preflight"] = identity_preflight
         _validate_reports(reports)
         written_reports = _write_reports(reports, out_dir=args.out_dir, subject=subject_info, compact=args.compact)
     except AuditEnvironmentError as exc:
@@ -262,8 +291,53 @@ def main(argv: list[str] | None = None) -> int:
     }
     if subject_info.evidence_class is not None:
         summary["evidence_class"] = subject_info.evidence_class
+    if identity_preflight is not None:
+        summary["identity_preflight"] = identity_preflight
     _print(summary, compact=args.compact)
     return 0
+
+
+def _identity_preflight(args: argparse.Namespace) -> JsonObject | None:
+    if args.identity_root is None and args.identity_selection is None:
+        return None
+    if args.identity_root is None or args.identity_selection is None:
+        raise AuditMeasurementError("--identity-root and --identity-selection must be supplied together")
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "eval-author/scripts"))
+    from eval_author_shared.task_evidence import loads
+    from rubric_identity import _read_selected, identify, resolve_route
+
+    try:
+        path = args.identity_selection.absolute()
+        raw, reason = _read_selected(path.parent, path.name)
+        if reason:
+            raise ValueError
+        selection = loads(raw)
+        if not isinstance(selection, dict):
+            raise ValueError
+    except (OSError, ValueError):
+        raise AuditMeasurementError("identity.selection_invalid") from None
+    identity = identify(args.identity_root, selection.get("artifacts", []))
+    route = resolve_route(args.identity_root, identity["records"], selection.get("route"))
+    return {
+        "identity": identity,
+        "route": route,
+        "subject": {"task_id": args.task_id, "run_id": args.run_id},
+        "measurement_allowed": identity["status"] == route["status"] == "pass"
+        and route.get("bound_dependency") is True,
+        "preflight_success": False,
+    }
+
+
+def _bind_identity_trace(
+    preflight: JsonObject, root: Path, trace_path: Path, loaded: LoadedTrace | None = None
+) -> None:
+    selected = [
+        row
+        for row in preflight["identity"]["records"]
+        if row["role"] == "trace" and (root / row["path"]).absolute() == trace_path.absolute()
+    ]
+    if len(selected) != 1 or loaded is not None and selected[0]["digest"] != loaded.content_sha256:
+        raise AuditMeasurementError("identity.measured_trace_mismatch")
 
 
 def _validate_evidence_class_args(args: argparse.Namespace) -> None:
@@ -348,17 +422,18 @@ def _load_harbor_result(path: Path) -> JsonObject:
     return payload
 
 
-def _load_harbor_trajectory(path: Path) -> LoadedTrace:
+def _load_harbor_trajectory(path: Path, *, raw: bytes | None = None) -> LoadedTrace:
     """Read ATIF through Harbor once; downstream methods receive the typed trajectory object."""
     if HARBOR_IMPORT_ERROR is not None:
         raise AuditEnvironmentError(
             "Harbor is required to read ATIF trajectories for audit measurement; "
             "install requirements.txt or run with uv --with-requirements"
         ) from HARBOR_IMPORT_ERROR
-    try:
-        raw = path.read_bytes()
-    except OSError as exc:
-        raise AuditTraceError(f"could not read Harbor ATIF trajectory at {path}: {exc}") from exc
+    if raw is None:
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            raise AuditTraceError(f"could not read Harbor ATIF trajectory at {path}: {exc}") from exc
     try:
         trajectory_model: Any = Trajectory
         trajectory = trajectory_model.model_validate_json(raw)

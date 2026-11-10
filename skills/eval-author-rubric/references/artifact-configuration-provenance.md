@@ -6,7 +6,9 @@
 **Experimental; selected-area opt-in only.** Follow the [skill gate and scope
 selection](../SKILL.md#opt-in-gate). W02 is an implementation package within
 validity, not a pillar or aggregate score. W01 and W05 are downstream handoffs,
-not current deliverables or blockers for this assessment.
+not prerequisites for running this assessment. Package acceptance separately
+requires evidence that their actual consumers use the shared validated identities;
+a passing local rubric demo does not satisfy that integration requirement.
 
 ## Canonical definitions
 
@@ -19,6 +21,13 @@ fragments, locate the entry by its original ID. Do not rewrite the source or
 replace distinct criteria with helper capability scores. Source code references
 and implementation-task descriptions are provenance, not proof of runnable
 integration or permission to execute them.
+
+Source provenance: this subset follows the supplied `Rubric.v4.json`.
+The embedded rubric in the supplied Vibe Rubric draft has the same selected
+criterion definitions and score anchors, but omits `CREATE-07-C04`, its ETHOS
+evidence entry, and `policies.ethos`. Those additions in `Rubric.v4.json` implement
+the later W02 plan's explicit ETHOS-freshness requirement. Treat them as a
+traceable augmentation, not an unchanged extraction of the draft's embedded JSON.
 
 The guidance below interprets methods and evidence; it does not replace the
 canonical definitions. Reuse [the identity helper](identity.md) for bounded

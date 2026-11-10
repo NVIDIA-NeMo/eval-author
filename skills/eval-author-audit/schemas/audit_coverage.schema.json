@@ -15,6 +15,9 @@
     "covered"
   ],
   "properties": {
+    "identity_preflight": {
+      "type": "object"
+    },
     "schema": {
       "description": "Version marker for the shared audit coverage format.",
       "const": "nemo.eval_author.audit_coverage.v1"

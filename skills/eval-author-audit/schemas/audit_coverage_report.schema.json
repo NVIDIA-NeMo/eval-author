@@ -377,6 +377,9 @@
         "method": {
           "$ref": "#/$defs/itemName"
         },
+        "identity_preflight": {
+          "type": "object"
+        },
         "item_kind": {
           "$ref": "#/$defs/itemKind"
         },
