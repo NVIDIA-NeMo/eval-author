@@ -399,8 +399,8 @@ def test_same_projection_matches_actual_accounting_subject_resolver(panel):
     spec.loader.exec_module(module)
     output = native.project_native(panel.tmp_path, panel.identity, **panel.selection)
     pending = module._subject_from_trial_dir(panel.paths["result"].parent, task_id=None, run_id=None)
-    loaded = module._load_harbor_trajectory(pending.trace_path)
-    subject = module._finalize_subject(pending, loaded, evidence_class=None)
+    loaded = module._load_trace(pending.trace_path, "atif")
+    subject = module._finalize_subject(pending, loaded, source_kind="atif", evidence_class=None)
     projected = output["subjects"][0]
     assert subject.task_id == "example"
     assert subject.run_id == "trial-1"

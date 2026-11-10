@@ -198,8 +198,8 @@ that the whole retained-credit or coverage workflow consumes this interface.
 
 ## Selected reconstruction provenance
 
-The optional `reconstruction` array selects existing candidate artifacts and ATIF
-steps. Use [rubric_reconstruction.py](../../eval-author/scripts/rubric_reconstruction.py)
+The optional `reconstruction` array selects existing candidate artifacts and retained
+Compass Trace turns. Use [rubric_reconstruction.py](../../eval-author/scripts/rubric_reconstruction.py)
 through `measure.py`; its callable is `project_reconstruction(root, artifacts, selection)`.
 No reconstruction, scorer, model, or task code runs. This measurement does not
 change canonical criterion IDs, check IDs, scores, or preflight decisions.
@@ -215,20 +215,20 @@ Each entry has exactly these fields:
   },
   "source": {"artifact_id": "summary", "pointer": "/source"},
   "trace_id": "safe-trace",
-  "step": {"pointer": "/steps/0", "step_id": 7},
-  "content": {"pointer": "/message", "encoding": "utf-8"},
+  "step": {"pointer": "/root_spans/0/turns/0", "step_id": "trajectory/turn/1"},
+  "content": {"pointer": "/content", "encoding": "utf-8"},
   "declaration": "recovered"
 }
 ```
 
 Select all four artifacts through the common identity records. Reuse the owning
 trace-environment candidate record and prepared summary. The candidate uses schema
-`nemo.eval_author.trace_environment_candidate.v2`; its selected ground-truth artifact
-binds `path`, `sha256`, and `provenance`. ATIF provenance has `kind: atif_step`,
-unique integer `step_ids`, and null `uri`, `revision`, and `source_id`.
+`nemo.eval_author.trace_environment_candidate.v3`; its selected ground-truth artifact
+binds `path`, `sha256`, and `provenance`. Current provenance has `kind: trace_turn`,
+unique string `turn_ids`, and null `uri`, `revision`, and `source_id`.
 The selected files must be `candidate.json` and `summary.json` in the same workspace
-directory. The summary uses `nemo.eval_author.trace_environment_summary.v2` or
-`nemo.eval_author.trace_environment_summary.v3`. Its `candidate` must equal
+directory. The current summary uses `nemo.eval_author.trace_environment_summary.v4`.
+Its `candidate` must equal
 `{"path": "candidate.json", **candidate}` from the selected candidate document.
 The comparison preserves JSON types, list order, and every candidate field.
 The candidate document cannot override the summary's reserved `path` field.
@@ -243,14 +243,25 @@ is relative to the summary directory. Native digests retain their `sha256:` pref
 common identity records use bare lowercase hex. Never normalize malformed paths
 or digest values.
 
-The trace uses `ATIF-v1.7`. The step pointer selects one array position; `step_id`
-must match both that step and the candidate's provenance. Every cited candidate
-step must exist exactly once. The content pointer is relative to that selected
-step. Select only a retained string whose UTF-8 bytes are the claimed file bytes.
+The current producer loads source traces through Compass and retains `safe/trace.json`
+with `schema_version: "3"`. It does not write ATIF. The selection keeps the `step`
+field name for compatibility. Its pointer selects a turn in an AGENT span under
+`/root_spans/<index>`, with optional `/children/<index>` segments, then `/turns/<index>`.
+Its string `step_id` must match that turn's `id` and the candidate's `turn_ids`.
+Every cited turn must exist exactly once across the retained AGENT spans.
+The helper reads this selected normalized structure without loading raw trace formats.
+The content pointer is relative to the selected turn. Select only a retained string
+whose UTF-8 bytes are the claimed file bytes. It never joins content parts.
 The helper preserves line endings and compares exact bytes for `recovered`.
 It does not extract file contents from command text or infer what a tool did.
 Use `content: null` when the source does not retain exact bytes. A dangling pointer
 is an error, not a declaration of unavailable evidence.
+
+Historical retained evidence remains readable: candidate v2 pairs only with summary
+v2 or v3, `kind: atif_step`, unique integer `step_ids`, and an `ATIF-v1.7` trace.
+Select `/steps/<index>` and a relative string pointer such as `/message` for that
+format. This is read-only compatibility, not support for preparing old workspaces.
+Do not mix historical and current schema families.
 
 `declaration` is `recovered`, `partial`, or `generated`. These are caller declarations,
 not semantic findings. A recovered declaration passes only when the selected
@@ -264,9 +275,12 @@ Output uses the common `status`, `records`, and `diagnostics` fields. Each recor
 contains `selection_index`, `status`, `declaration`, `artifact_digest`,
 `candidate_digest`, `source_digest`, `trace_digest`, `source_content_digest`,
 `source_step_id`, `source_step_index`, `source_proof`, and `semantic_proof: false`.
+`source_step_id` is the selected turn ID for current traces or integer step ID for
+historical ATIF. `source_step_index` is the local array position, not execution order.
 Digests and step fields stay null until checked. A valid recovered entry uses
 `source_proof: exact_selected_bytes`; all other entries retain `unknown`.
-The helper exports no paths, pointer text, session IDs, content, or exception text.
+The helper exports no artifact paths, pointer text, session IDs, content, or exception text.
+The selected safe-trace turn ID is retained verbatim.
 Diagnostic subjects use `reconstruction:<selection-index>`.
 
 Stable `reconstruction.*` diagnostics distinguish `artifact_digest_mismatch`,
@@ -284,7 +298,8 @@ entries do not erase valid neighbors or already measured artifact identities.
 The helper admits at most 64 entries and 64 artifact records. Reads share a
 64-file, 16 MiB budget, with at most 1 MiB per file and 64 evidence references per
 artifact. Failed reads consume budget. JSON structure and pointer limits reuse
-the configuration reader; traces admit at most 2,000 steps. All file reads use
+the configuration reader; current traces admit at most 2,000 spans and 2,000 turns,
+and historical traces admit at most 2,000 steps. All file reads use
 the shared descriptor-relative no-follow reader. Declared unavailable paths are
 not read by this helper, including through another selected artifact's evidence.
 These bounds cover the optional helper; other measurements retain their own bounds.

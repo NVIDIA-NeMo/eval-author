@@ -1,6 +1,6 @@
 {
   "schema": "w02-provenance-expectations-v1",
-  "boundary": "Handcrafted records. Exact selected bytes, references, configuration fields, declared freshness bindings, and selected source-step bytes only. Partial and generated declarations leave source proof unknown. No population completeness, native execution, semantic judgments, or new scores.",
+  "boundary": "Handcrafted records; reconstruction workspaces use the current init/prepare/finalize producer with a synthetic Compass Trace JSONL fixture. Exact selected bytes, references, configuration fields, declared freshness bindings, and selected retained turn strings only. Partial and generated declarations leave source proof unknown. No population completeness, native execution, semantic judgments, or new scores.",
   "defaults": {
     "cli_exit_code": 1,
     "identity": {"status": "pass", "diagnostics": []},

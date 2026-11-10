@@ -41,7 +41,7 @@ def test_reconstruction_recovered_binds_exact_source_step():
         assert row["artifact_digest"] == row["source_content_digest"]
         assert row["source_proof"] == "exact_selected_bytes"
         assert row["semantic_proof"] is False
-        assert row["source_step_id"] == 7
+        assert row["source_step_id"] == "trajectory/turn/1"
         assert row["source_step_index"] == 0
     assert case["canonical_rows_unchanged"] is True
 
@@ -70,7 +70,10 @@ def test_reconstruction_defects_preserve_known_identity_and_neighbor(suffix, sta
     row, neighbor = measurement["records"]
     assert row["status"] == status
     assert row["declaration"] == declaration
-    assert row["artifact_digest"] == case["input_digests"]["initial/private/file.json"]
+    assert (
+        row["artifact_digest"]
+        == case["input_digests"][".eval-author/.working/trace-environments/initial/private/ground-truth/file.json"]
+    )
     assert row["source_proof"] == "unknown"
     assert row["semantic_proof"] is False
     recovered = cases["reconstruction-recovered"]["report"]["measurements"]["reconstruction"]
@@ -203,7 +206,11 @@ def test_retained_demo_repeats_bytes_and_replays_cli(tmp_path):
                 assert candidate.name == "candidate.json"
                 assert summary == candidate.parent / "summary.json"
                 document = json.loads(summary.read_text())
-                assert document["schema"] == "nemo.eval_author.trace_environment_summary.v3"
+                assert document["schema"] == "nemo.eval_author.trace_environment_summary.v4"
+                assert document["candidate"]["schema"] == "nemo.eval_author.trace_environment_candidate.v3"
+                assert document["source"]["kind"] == "trace"
+                assert document["source"]["safe_path"] == "safe/trace.json"
+                assert document["source"]["trace_schema_version"] == "3"
                 assert document["candidate"] == {"path": "candidate.json", **json.loads(candidate.read_text())}
             source = records["initial-trace"]
             source_path = directory / source["path"]
@@ -216,7 +223,7 @@ def test_retained_demo_repeats_bytes_and_replays_cli(tmp_path):
                 assert hashlib.sha256(source_path.read_bytes()).hexdigest() == source["digest"]
             recovered = tmp_path / "first/reconstruction-recovered"
             for name, digest in case["input_digests"].items():
-                if name.startswith(("neighbor-", "neighbor/")):
+                if name.startswith(("neighbor-", ".eval-author/.working/trace-environments/neighbor/")):
                     assert hashlib.sha256((recovered / name).read_bytes()).hexdigest() == digest
     baseline = panel["cases"][0]["input_digests"]
     for case in panel["cases"]:

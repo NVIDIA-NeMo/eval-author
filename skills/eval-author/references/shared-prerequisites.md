@@ -703,7 +703,7 @@ On a measured resume, reassess legacy `data: not_required` and unrelated data ch
 applicable trace-availability answers or leave this prerequisite unknown.
 For task review, follow the approach-specific
 [trace prerequisite](pre-reqs/audit.md#traces-from-completed-evaluation-runs).
-Keep suite/trace selection, selected evidence access, and later parser/conversion
+Keep suite/trace selection, selected evidence access, and later trace-loading
 results in the audit scope and findings. Availability alone does not approve a
 source, complete the audit, or establish measured coverage.
 Do not mark the audit interpreter as proof of the agent's runtime requirements.

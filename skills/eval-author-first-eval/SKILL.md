@@ -15,7 +15,7 @@ triggers:
   - create an evaluation suite from scratch
 not-for:
   - eval-author (use for the shared standard and routing)
-  - eval-author-task-create (use for measured audit coverage gaps or ATIF-source tasks)
+  - eval-author-task-create (use for measured audit coverage gaps or trace-source tasks)
   - eval-author-discover (use to check an existing suite)
 compatibility: >-
   ETHOS.md is required before evaluation design and is saved and checked locally
@@ -38,9 +38,9 @@ metadata:
 
 # Eval Author: first evaluations
 
-## ATIF as a starting source
+## A recorded trace as a starting source
 
-For a user-selected ATIF trace, follow the shared [ATIF source handoff](../eval-author/references/trace-input.md).
+For a user-selected recorded trace, follow the shared [trace source handoff](../eval-author/references/trace-input.md).
 Confirm `ETHOS.md` and admit the selected source before constructing its task;
 preserve privacy decisions, provenance, and the environment-kit handoff. A rejected
 source remains a recorded outcome, not a reason to invent a replacement task.

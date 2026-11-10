@@ -522,21 +522,19 @@ def test_cli_malformed_retained_sources_cannot_crash(tmp_path, selected, source,
     assert "PRIVATE_INVALID" not in json.dumps(measurement)
 
 
-@pytest.mark.parametrize("version", [2, 3])
-def test_cli_accepts_actual_preparation_and_finalization_producer(tmp_path, version):
-    from test_trace_environment import _atif, _candidate, _historical_workspace, _run, _write_json
+@pytest.fixture
+def current_selected(tmp_path):
+    from test_trace_environment import _atif, _candidate, _run, _write_json
 
     workspace_root = tmp_path / ".eval-author/.working/trace-environments"
     code, initialized = _run("init", "--root", str(workspace_root), "--task-id", "recovered-fixture")
     assert code == 0, initialized
     root = Path(initialized["task_dir"])
-    if version == 2:
-        _historical_workspace(root)
     trace_doc = _atif()
     trace_doc["steps"][0]["message"] = "EXACT_PRIVATE_BYTES\r\n"
     source = tmp_path / "source.json"
     _write_json(source, trace_doc)
-    code, prepared = _run("prepare", "--task-dir", str(root), "--atif", str(source), "--source-kind", "atif")
+    code, prepared = _run("prepare", "--task-dir", str(root), "--source", str(source), "--source-kind", "atif")
     assert code == 0, prepared
     artifact = retain(root, "private/ground-truth/initial.txt", b"EXACT_PRIVATE_BYTES\r\n")
     (root / artifact["path"]).chmod(0o600)
@@ -553,8 +551,8 @@ def test_cli_accepts_actual_preparation_and_finalization_producer(tmp_path, vers
                     "path": artifact["path"],
                     "sha256": "sha256:" + artifact["digest"],
                     "provenance": {
-                        "kind": "atif_step",
-                        "step_ids": [1],
+                        "kind": "trace_turn",
+                        "turn_ids": ["trajectory/turn/1"],
                         "uri": None,
                         "revision": None,
                         "source_id": None,
@@ -567,7 +565,7 @@ def test_cli_accepts_actual_preparation_and_finalization_producer(tmp_path, vers
     code, finalized = _run("finalize", "--task-dir", str(root), "--status", "no_candidate")
     assert code == 0, finalized
     records = [artifact]
-    for name in ("candidate.json", "summary.json", "safe/trace.atif.json"):
+    for name in ("candidate.json", "summary.json", "safe/trace.json"):
         records.append(retain(root, name, (root / name).read_bytes()))
     selection = {
         "artifacts": records,
@@ -576,17 +574,198 @@ def test_cli_accepts_actual_preparation_and_finalization_producer(tmp_path, vers
                 "artifact_id": artifact["id"],
                 "candidate": {"artifact_id": "candidate.json", "pointer": "/ground_truth/artifacts/0"},
                 "source": {"artifact_id": "summary.json", "pointer": "/source"},
-                "trace_id": "safe/trace.atif.json",
-                "step": {"pointer": "/steps/0", "step_id": 1},
-                "content": {"pointer": "/message", "encoding": "utf-8"},
+                "trace_id": "safe/trace.json",
+                "step": {"pointer": "/root_spans/0/turns/0", "step_id": "trajectory/turn/1"},
+                "content": {"pointer": "/content", "encoding": "utf-8"},
                 "declaration": "recovered",
             }
         ],
     }
+    return root, selection
+
+
+def test_cli_accepts_actual_preparation_and_finalization_producer(current_selected):
+    root, selection = current_selected
+    summary = json.loads((root / "summary.json").read_bytes())
+    assert summary["schema"] == "nemo.eval_author.trace_environment_summary.v4"
+    assert summary["candidate"]["schema"] == "nemo.eval_author.trace_environment_candidate.v3"
+    assert summary["source"]["safe_path"] == "safe/trace.json"
     measurement = run_cli(root, selection)["measurements"]["reconstruction"]
-    assert measurement["status"] == "pass"
+    assert measurement["status"] == "pass", measurement
     assert measurement["records"][0]["source_proof"] == "exact_selected_bytes"
     assert measurement["records"][0]["semantic_proof"] is False
+
+
+@pytest.mark.parametrize("version", [2, 3])
+def test_historical_atif_summary_remains_read_only_supported(tmp_path, selected, version):
+    rewrite(
+        tmp_path,
+        selected,
+        "summary.json",
+        lambda doc: doc.update(schema=f"nemo.eval_author.trace_environment_summary.v{version}"),
+    )
+    assert run_cli(tmp_path, selected)["measurements"]["reconstruction"]["status"] == "pass"
+
+
+@pytest.mark.parametrize(
+    "mutation,code",
+    [
+        ("wrong_step", "step_mismatch"),
+        ("wrong_source", "source_trace_mismatch"),
+        ("wrong_owner", "candidate_source_mismatch"),
+        ("wrong_bytes", "content_digest_mismatch"),
+        ("duplicate", "step_ambiguous"),
+        ("uncited", "candidate_step_missing"),
+        ("legacy_summary", "source_schema_unsupported"),
+        ("foreign_turn", "step_mismatch"),
+    ],
+)
+def test_current_producer_rejects_bad_bindings_and_keeps_neighbor(current_selected, mutation, code):
+    import copy
+
+    root, selection = current_selected
+    neighbor = copy.deepcopy(selection["reconstruction"][0])
+    control_records = []
+    for record in selection["artifacts"]:
+        control_records.append(
+            retain(root, "control/" + record["path"], (root / record["path"]).read_bytes(), record["role"])
+        )
+    neighbor["artifact_id"] = "control/" + neighbor["artifact_id"]
+    neighbor["trace_id"] = "control/" + neighbor["trace_id"]
+    for key in ("candidate", "source"):
+        neighbor[key]["artifact_id"] = "control/" + neighbor[key]["artifact_id"]
+    entry = selection["reconstruction"][0]
+    if mutation == "wrong_step":
+        entry["step"]["pointer"] = "/root_spans/0/turns/1"
+    elif mutation == "wrong_source":
+        rewrite(
+            root, selection, "summary.json", lambda doc: doc["source"].update(safe_path="private/canonical.trace.json")
+        )
+    elif mutation == "wrong_owner":
+        rewrite(root, selection, "summary.json", lambda doc: doc["candidate"].update(instruction="Foreign owner"))
+    elif mutation == "legacy_summary":
+        rewrite(
+            root,
+            selection,
+            "summary.json",
+            lambda doc: doc.update(schema="nemo.eval_author.trace_environment_summary.v3"),
+        )
+    elif mutation == "uncited":
+        rewrite(
+            root,
+            selection,
+            "candidate.json",
+            lambda doc: doc["ground_truth"]["artifacts"][0]["provenance"]["turn_ids"].append("unknown-turn"),
+        )
+        bind_summary_candidate(root, selection)
+    else:
+
+        def edit(doc):
+            turns = doc["root_spans"][0]["turns"]
+            if mutation == "wrong_bytes":
+                turns[0]["content"] = "EXACT_PRIVATE_BYTES\n"
+            elif mutation == "duplicate":
+                turns.append(copy.deepcopy(turns[0]))
+            else:
+                doc["root_spans"].append({"id": "foreign", "kind": "TOOL", "turns": [copy.deepcopy(turns[0])]})
+                entry["step"]["pointer"] = "/root_spans/1/turns/0"
+
+        rewrite(root, selection, "safe/trace.json", edit)
+        trace = next(row for row in selection["artifacts"] if row["id"] == "safe/trace.json")
+        rewrite(
+            root,
+            selection,
+            "summary.json",
+            lambda doc: doc["source"].update(
+                safe_sha256="sha256:" + trace["digest"],
+                safe_size_bytes=(root / trace["path"]).stat().st_size,
+            ),
+        )
+    selection["artifacts"].extend(control_records)
+    selection["reconstruction"].append(neighbor)
+    measurement = run_cli(root, selection)["measurements"]["reconstruction"]
+    assert measurement["diagnostics"] == [
+        {"code": "reconstruction." + code, "subject": "reconstruction:0", "status": "fail"}
+    ]
+    assert measurement["records"][0]["source_proof"] == "unknown"
+    assert measurement["records"][1]["status"] == "pass"
+
+
+@pytest.mark.parametrize("declaration", ["partial", "generated"])
+@pytest.mark.parametrize("content", [None, {"pointer": "/content", "encoding": "utf-8"}])
+def test_current_producer_partial_and_generated_never_claim_recovery(current_selected, declaration, content):
+    import copy
+
+    root, selection = current_selected
+    selection["reconstruction"].append(copy.deepcopy(selection["reconstruction"][0]))
+    selection["reconstruction"][0].update(declaration=declaration, content=content)
+    measurement = run_cli(root, selection)["measurements"]["reconstruction"]
+    assert measurement["status"] == "unknown"
+    assert measurement["diagnostics"][0]["code"] == "reconstruction." + declaration + "_source_proof_unknown"
+    assert measurement["records"][0]["source_proof"] == "unknown"
+    assert measurement["records"][1]["status"] == "pass"
+
+
+@pytest.mark.parametrize(
+    "pointer", ["/root_spans/00/turns/0", "/root_spans/0/turns/-1", "/root_spans/0/children/+0/turns/0"]
+)
+def test_current_turn_pointer_must_be_canonical(current_selected, pointer):
+    root, selection = current_selected
+    selection["reconstruction"][0]["step"]["pointer"] = pointer
+    measurement = run_cli(root, selection)["measurements"]["reconstruction"]
+    assert measurement["diagnostics"][0]["code"] == "reconstruction.step_pointer_invalid"
+
+
+@pytest.mark.parametrize(
+    "mutation,status,code",
+    [
+        ("nested", "pass", None),
+        ("part", "pass", None),
+        ("joined", "fail", "content_invalid"),
+        ("span_limit", "fail", "trace_steps_invalid"),
+    ],
+)
+def test_current_selected_normalized_structure_is_bounded(current_selected, mutation, status, code):
+    root, selection = current_selected
+    entry = selection["reconstruction"][0]
+
+    def edit(doc):
+        agent = doc["root_spans"][0]
+        if mutation == "nested":
+            doc["root_spans"] = [{"id": "parent", "kind": "CHAIN", "children": [agent]}]
+            entry["step"]["pointer"] = "/root_spans/0/children/0/turns/0"
+        elif mutation == "span_limit":
+            doc["root_spans"] += [{"id": "unused", "kind": "CHAIN"}] * 2000
+        else:
+            turn = agent["turns"][0]
+            turn["content"] = [{"type": "text", "text": turn["content"]}]
+            if mutation == "part":
+                entry["content"]["pointer"] = "/content/0/text"
+
+    rewrite(root, selection, "safe/trace.json", edit)
+    trace = next(row for row in selection["artifacts"] if row["id"] == "safe/trace.json")
+    rewrite(
+        root,
+        selection,
+        "summary.json",
+        lambda doc: doc["source"].update(
+            safe_sha256="sha256:" + trace["digest"],
+            safe_size_bytes=(root / trace["path"]).stat().st_size,
+        ),
+    )
+    measurement = run_cli(root, selection)["measurements"]["reconstruction"]
+    assert measurement["status"] == status
+    assert measurement["diagnostics"] == (
+        []
+        if code is None
+        else [
+            {
+                "code": "reconstruction." + code,
+                "subject": "reconstruction:0",
+                "status": status,
+            }
+        ]
+    )
 
 
 def test_cli_missing_retained_trace_is_unknown(tmp_path, selected):

@@ -6,77 +6,90 @@
 **Experimental:** This guide is part of the
 [trace input workflow](../../eval-author/references/trace-input.md).
 
-One task per trace. Do not merge unrelated traces. Preserve the source's trace
-and span identifiers in `extra`, order steps by recorded time where available
-(otherwise retain source item order), and record every missing or lossy field under `extra.normalization.uncertainties` or
-`extra.normalization.losses`. Never invent an instruction, tool result, file,
-or final answer.
+One task per trace. Do not merge unrelated traces. `prepare` loads the source
+through the [trace loader](../../eval-author/references/trace-loading.md) into
+one NeMo Compass Trace; Eval Author never hand-converts a trace. Never invent an
+instruction, tool result, file, or final answer.
+`<skill_dir>` is the installed `eval-author-inspect-trace` directory and
+`<eval_author_dir>` the installed `eval-author` directory.
 
-## Existing ATIF
+```bash
+python <skill_dir>/scripts/trace_privacy.py prepare --task-dir <task-dir> \
+  --source <file> --source-kind <atif|mlflow|gym|trace> [--row <n>] [--trace-id <id>]
+```
 
-Use the trajectory as the canonical input. Do not relabel its ATIF version.
+The selected trace must be the only trace in the source, or the one named by
+`--trace-id` (the trace loader's
+[selection](../../eval-author/references/trace-loading.md#source-kinds)). Its
+root agent must record turns, including a user turn with text. Otherwise
+`prepare` fails with `source kind <kind> does not record turns yet` or names the
+missing user turn.
+
+## ATIF
+
+Pass an existing ATIF file with `--source-kind atif`, such as a Harbor trial's
+`agent/trajectory.json`. Do not relabel its ATIF version.
 
 ## NeMo Gym
 
-Read and follow the `gym-to-atif` skill. NeMo Gym-native records use Responses-style
-messages and tools, not ATIF. Its adapter converts one bounded record or an
-explicitly selected JSONL line. Retain the raw NeMo Gym record and conversion
-receipt privately under the task workspace; pass the derived ATIF to
-`prepare --source-kind gym`.
-
-For a rollout carrying `ng_trajectory`, ATIF conversion still uses the Responses
-envelope. The sibling NeMo Compass loader retains attachment evidence separately;
-its normalized output is not ATIF. Attachment-only exports do not currently
-enter this workflow. See the [NeMo Gym output example](../../eval-author-environment/references/gym-output.md#start-from-a-rollout-with-ng_trajectory).
-
-For NeMo Gym's Harbor bridge, prefer the explicitly supplied original ATIF instead
-of a lossy reverse conversion. Its bytes/version remain unchanged; prepare it
-with `--source-kind atif`. Never automatically follow the source paths recorded
-inside NeMo Gym metadata. Image serialization, unknown fields, and incomplete
-history must remain explicit—not silently treated as equivalent text evidence.
+Pass a NeMo Gym rollout record with `--source-kind gym`; for JSONL, `--row`
+selects the one-based JSONL line. Responses rollout envelopes record turns;
+`ng_trajectory` rollouts do not and are refused. Never automatically follow the
+source paths recorded inside NeMo Gym metadata.
 
 ## MLflow
 
-Read and follow the `mlflow-to-atif` skill. Put its owner-private output under
-the task workspace and use the emitted `.atif.json` file as the canonical input.
+Pass an exported MLflow trace with `--source-kind mlflow`.
 
-## Intake
+## Intake and OpenTelemetry
 
-Resolve the CLI exactly as `eval-author-inspect-trace` specifies. Read one exact
-trace and every detailed span into owner-private JSON files:
+`prepare --source-kind intake` is refused. Load the Intake selection first with
+the [trace loader](../../eval-author/references/trace-loading.md#source-kinds),
+narrowing with `--session-id`; records that share a session merge into one trace.
+Prepare its output with `--trace-id` when it holds several traces:
 
 ```bash
-umask 077
-nemo intake traces get --output-format=json --workspace="WORKSPACE" --mode=detailed "TRACE_ID" > <task-dir>/private/intake-trace.json
-nemo intake spans list --output-format=json --workspace="WORKSPACE" --filter.trace-id="TRACE_ID" --mode=detailed --sort=started_at --all-pages > <task-dir>/private/intake-spans.json
+python <eval_author_dir>/scripts/trace_loading.py --source-kind intake ... \
+  --output-dir <private-dir>
+python <skill_dir>/scripts/trace_privacy.py prepare --task-dir <task-dir> \
+  --source <private-dir>/traces.normalized.jsonl --source-kind trace [--trace-id <id>]
 ```
 
-Require every returned span's `trace_id` to match the selected trace. Convert
-those records to ATIF: root input becomes the user instruction; model output
-becomes agent steps; each tool span becomes a paired tool call and observation;
-errors and unmapped attributes remain cited in `extra.intake`. If there is no
-complete human instruction, record no_candidate.
+The trace loader does not read OpenTelemetry directly; ingest OpenTelemetry
+traces into Intake first.
 
-## OpenTelemetry
+## Workspace files and bounded normalization
 
-Prefer an existing Intake trace produced from the telemetry and use the Intake
-path above. For a bounded JSON OTLP export, map the root and descendant spans
-directly using the same rules, preserving trace IDs, span IDs, parent IDs,
-timestamps, status, and semantic attributes under `extra.otel`. Do not parse
-protobuf bytes, contact a collector, or ingest remote data in this flow. If the
-export cannot establish parentage or a human instruction, record no_candidate
-instead of guessing.
+`prepare` accepts at most 128 MiB of exact source bytes and writes:
 
-## Canonical verification and bounded normalization
+| File | Content |
+|---|---|
+| `private/source.<kind>.json` or `.jsonl` | Exact source bytes, hashed |
+| `private/canonical.trace.json` | The loaded Compass Trace as canonical JSON, at most 25 MiB |
+| `safe/trace.json` | The scrubbed Trace, which still validates, at most 25 MiB |
+| `safe/privacy.json`, `private/privacy-audit.json` | Scrub counts and findings as JSON paths into the safe Trace |
 
-Before continuing, verify the canonical file has one ATIF v1.0-v1.7 object,
-one-based sequential step IDs, at least one user step, and resolvable tool-call
-references. The helper accepts at most 128 MiB of exact source bytes and
-produces canonical and safe files of at most 25 MiB. It may make only two
-bounded normalizations: insert a missing JSON escape when the parser-implicated
-quote immediately follows a provider-redaction placeholder; and convert
-string-encoded ATIF image objects into image parts while omitting encoded
-binary data, including image metadata embedded in text fields. Every operation,
-offset, count, and loss is recorded in the canonical ATIF and summary. Exact
-source bytes remain unchanged and hashed. Reject unrelated JSON damage instead
-of repairing it heuristically.
+`summary.json` records the source kind, loader distribution/version/revision,
+trace schema version, row, and path, SHA-256 and size of each file. Eval Author
+makes only two bounded normalizations, each recorded as a `Trace.losses` entry:
+`provider_redaction_quote_escaped` inserts a missing JSON escape when the
+parser-implicated quote immediately follows a provider-redaction placeholder,
+and `image_data_omitted` omits encoded image bytes. Reject unrelated JSON damage
+instead of repairing it heuristically.
+
+## Safe copy
+
+The safe Trace replaces images with an `[image omitted]` text part and audio
+with `[audio omitted]`, drops Trace and Span attributes, sets model token ids to
+null, and keeps only `is_error_status`/`is_error_flags` on tool results.
+Identifiers become consistent `anon-<sha256[:16]>` pseudonyms, including
+identifier-like keys in tool payloads and raw identifier values repeated in free
+text, unless the safe copy keeps that value in clear elsewhere, such as an agent
+name. Loader-positional
+span and turn ids such as `trajectory/turn/2` or `gym/response/...` are kept;
+other span and turn ids keep only their positional suffix (`anon-…/turn/2`).
+Secret-named keys become `<redacted:secret>`; text is redacted for emails, SSNs,
+phone numbers, IPv4 addresses, home paths, bearer tokens, private keys and
+internal hosts. A Compass field the scrubber does not classify makes `prepare`
+fail rather than pass through unscrubbed. A user turn holding only images blocks
+the source with `image_only_user_instruction:<safe turn id>`.

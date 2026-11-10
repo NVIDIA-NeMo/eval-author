@@ -96,7 +96,7 @@ identify the existing suite format and check Python 3.11 or newer with PyYAML an
 jsonschema for audit tooling; skip evaluation runner, Docker, live service, and
 agent credential probes. Confirm that traces from completed evaluation runs exist
 before proceeding to Ethos. Unknown or missing availability leaves setup incomplete.
-Check trace conversion and parser requirements only
+Check trace-loader requirements only
 after the audit selects its evidence. Ask only about unresolved findings after
 the pass. Do not install, read unselected traces, or execute agents. Distinguish
 observed checks from user-confirmed answers and from end-to-end suite readiness.
@@ -168,11 +168,11 @@ appears.
   only as unknown in scope: this does not establish readiness. Reassess applicable
   trace-availability evidence, preserve provenance, and keep setup blocked until
   availability is confirmed
-- After the audit selects local ATIF evidence, check the Harbor trajectory
-  parser for measurement, including when the evidence was converted from NeMo Gym;
-  do not check a NeMo Gym runner or launch Harbor jobs
-- The required conversion tool or parser is absent for selected audit evidence:
-  explain the blocked conversion or measurement, retain the selection, and
+- After the audit selects local ATIF, MLflow, or NeMo Gym evidence, check the NeMo
+  Compass trace loader for measurement; do not check Harbor or a NeMo Gym runner,
+  convert the evidence to ATIF, or launch Harbor jobs
+- The trace loader is absent for selected audit evidence:
+  explain the blocked measurement, retain the selection, and
   preserve Ethos and agreed independent specification work without installing
   dependencies or claiming measured coverage
 

@@ -33,13 +33,83 @@ def write_json(path, value):
         stream.write(encoded(value))
 
 
+def prepare_reconstruction(root, prefix):
+    sys.path.insert(0, str(ROOT / "skills/eval-author/scripts"))
+    from eval_author_shared import trace_workspace
+
+    workspace = root / ".eval-author/.working/trace-environments"
+    initialized = trace_workspace._init(argparse.Namespace(root=workspace, task_id=prefix))
+    task_dir = Path(initialized["task_dir"])
+    source = ROOT / "evals/rubric-measurements/w02-reconstruction.trace.jsonl"
+    content = json.loads(source.read_bytes())["root_spans"][0]["turns"][0]["content"]
+    trace_workspace._prepare(
+        argparse.Namespace(
+            task_dir=task_dir,
+            source=source,
+            source_kind="trace",
+            row=None,
+            trace_id=None,
+        )
+    )
+    artifact = task_dir / "private/ground-truth/file.json"
+    artifact.parent.mkdir(mode=0o700)
+    artifact.write_bytes(content.encode("utf-8"))
+    artifact.chmod(0o600)
+    write_json(
+        task_dir / "candidate.json",
+        {
+            "schema": trace_workspace.CANDIDATE_SCHEMA,
+            "status": "no_candidate",
+            "decision_basis": "safe_trace_only",
+            "instruction": None,
+            "requirements": [],
+            "verification_mode": None,
+            "evidence_turns": ["trajectory/turn/1"],
+            "uncertainties": ["Synthetic comparison only."],
+            "reason_codes": ["missing_outcome"],
+            "software_requirements": [],
+            "ground_truth": {
+                "availability": "available",
+                "use": "comparison_only",
+                "absence_reason": None,
+                "artifacts": [
+                    {
+                        "kind": "fixture",
+                        "path": "private/ground-truth/file.json",
+                        "sha256": "sha256:" + sha(artifact),
+                        "provenance": {
+                            "kind": "trace_turn",
+                            "turn_ids": ["trajectory/turn/1"],
+                            "uri": None,
+                            "revision": None,
+                            "source_id": None,
+                        },
+                        "notes": "Synthetic exact retained string.",
+                    }
+                ],
+            },
+        },
+    )
+    trace_workspace._finalize(
+        argparse.Namespace(
+            task_dir=task_dir,
+            status="no_candidate",
+            reason=[],
+            worked_well=[],
+            did_not_work=[],
+        )
+    )
+    return task_dir
+
+
 def build_selection(root, mutation):
     records = {}
 
     def select(ident, role, value, revision="v1", relative_path=None):
         path = root / (relative_path or f"{ident}-{revision}.json")
         path.parent.mkdir(parents=True, exist_ok=True)
-        write_json(path, value)
+        if value is not None:
+            write_json(path, value)
         digest = sha(path)
         records[ident] = {
             "id": ident,
@@ -183,78 +253,30 @@ def build_selection(root, mutation):
     reconstruction: list[dict[str, Any]] = []
     if mutation.startswith("reconstruction-"):
         for prefix in ("initial", "neighbor"):
-            artifact = select(
-                prefix + "-file",
-                "input",
-                {"balance": 17, "currency": "synthetic"},
-                relative_path=f"{prefix}/private/file.json",
-            )
-            trace = select(
-                prefix + "-trace",
-                "trace",
-                {
-                    "schema_version": "ATIF-v1.7",
-                    "session_id": "handcrafted-source-steps",
-                    "steps": [
-                        {"step_id": 7, "message": (root / artifact["path"]).read_text()},
-                        {"step_id": 8, "message": "A different synthetic ledger state\n"},
-                    ],
-                },
-                relative_path=f"{prefix}/safe/trace.atif.json",
-            )
-            candidate = select(
-                prefix + "-candidate",
-                "candidate",
-                {
-                    "schema": "nemo.eval_author.trace_environment_candidate.v2",
-                    "state_basis": "recorded",
-                    "ground_truth": {
-                        "artifacts": [
-                            {
-                                "kind": "fixture",
-                                "path": "private/file.json",
-                                "sha256": "sha256:" + artifact["digest"],
-                                "provenance": {
-                                    "kind": "atif_step",
-                                    "step_ids": [7],
-                                    "uri": None,
-                                    "revision": None,
-                                    "source_id": None,
-                                },
-                            }
-                        ],
-                    },
-                },
-                relative_path=f"{prefix}/candidate.json",
-            )
-            source = select(
-                prefix + "-summary",
-                "evidence",
-                {
-                    "schema": "nemo.eval_author.trace_environment_summary.v3",
-                    "candidate": {"path": "candidate.json", **json.loads((root / candidate["path"]).read_text())},
-                    "source": {
-                        "safe_path": "safe/trace.atif.json",
-                        "safe_sha256": "sha256:" + trace["digest"],
-                        "safe_size_bytes": (root / trace["path"]).stat().st_size,
-                    },
-                },
-                relative_path=f"{prefix}/summary.json",
-            )
+            task_dir = prepare_reconstruction(root, prefix)
+            artifact, trace, candidate, source = [
+                select(prefix + suffix, role, None, relative_path=(task_dir / name).relative_to(root).as_posix())
+                for suffix, role, name in (
+                    ("-file", "input", "private/ground-truth/file.json"),
+                    ("-trace", "trace", "safe/trace.json"),
+                    ("-candidate", "candidate", "candidate.json"),
+                    ("-summary", "evidence", "summary.json"),
+                )
+            ]
             reconstruction.append(
                 {
                     "artifact_id": artifact["id"],
                     "candidate": {"artifact_id": candidate["id"], "pointer": "/ground_truth/artifacts/0"},
                     "source": {"artifact_id": source["id"], "pointer": "/source"},
                     "trace_id": trace["id"],
-                    "step": {"pointer": "/steps/0", "step_id": 7},
-                    "content": {"pointer": "/message", "encoding": "utf-8"},
+                    "step": {"pointer": "/root_spans/0/turns/0", "step_id": "trajectory/turn/1"},
+                    "content": {"pointer": "/content", "encoding": "utf-8"},
                     "declaration": "recovered",
                 }
             )
         entry = reconstruction[0]
         if mutation == "reconstruction-wrong-step":
-            entry["step"]["pointer"] = "/steps/1"
+            entry["step"]["pointer"] = "/root_spans/0/turns/1"
         elif mutation == "reconstruction-source-bytes-changed":
             with (root / records["initial-trace"]["path"]).open("ab") as stream:
                 stream.write(b"\n")

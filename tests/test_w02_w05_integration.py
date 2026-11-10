@@ -263,8 +263,26 @@ def test_changed_dependency_projection_cannot_authorize_measurement(tmp_path):
     assert not result["written"] and not (tmp_path / "measurements").exists()
 
 
-def test_actual_measurement_consumes_common_identity_before_aggregation(tmp_path):
+@pytest.mark.parametrize("source_kind", ["atif", "mlflow", "gym", "trace"])
+def test_actual_measurement_consumes_common_identity_before_aggregation(tmp_path, monkeypatch, source_kind):
+    from test_trace_loading import MLFLOW_FIXTURE, SCRIPT, gym_record
+
     audit, path, selection, args = selected_measurement(tmp_path)
+    trace_path = tmp_path / "trace.json"
+    if source_kind == "mlflow":
+        trace_path.write_bytes(MLFLOW_FIXTURE.read_bytes())
+    elif source_kind == "gym":
+        trace_path.write_text(json.dumps(gym_record()))
+    elif source_kind == "trace":
+        monkeypatch.syspath_prepend(str(SCRIPT.parent))
+        import trace_loading
+
+        [trace] = trace_loading.load_traces(trace_path, "atif")
+        trace_path.write_text(trace.model_dump_json() + "\n")
+    digest = hashlib.sha256(trace_path.read_bytes()).hexdigest()
+    selection["artifacts"][0].update(digest=digest, evidence=[{"path": trace_path.name, "digest": digest}])
+    path.write_text(json.dumps(selection))
+    args.extend(["--source-kind", source_kind])
     code, result, stderr = _run_json_script(
         _AUDIT_MEASURE, *args, "--identity-root", str(tmp_path), "--identity-selection", str(path)
     )
@@ -282,7 +300,10 @@ def test_actual_measurement_consumes_common_identity_before_aggregation(tmp_path
     assert coverage["subject"]["task_id"] == "task:/stable"
     assert coverage["subject"]["run_id"] == "run:/stable"
     assert coverage["binding"]["trace_sha256"] == selection["artifacts"][0]["digest"]
-    assert coverage["covered"] == ["customer.lookup"]
+    assert coverage["schema"] == "nemo.eval_author.audit_coverage.v2"
+    assert coverage["subject"]["trace_format"] == "nemo-compass-trace"
+    assert coverage["subject"]["source_kind"] == source_kind
+    assert coverage["covered"] == (["customer.lookup"] if source_kind in {"atif", "trace"} else [])
     aggregate = tmp_path / "aggregate.json"
     code, summary, stderr = _run_json_script(
         _AUDIT_REPORT,
@@ -562,7 +583,7 @@ def test_unselected_trace_is_rejected_before_opening_or_parsing(tmp_path, monkey
     def forbidden(*args, **kwargs):
         pytest.fail("Unselected trace must not reach the native parser")
 
-    monkeypatch.setitem(main.__globals__, "_load_harbor_trajectory", forbidden)
+    monkeypatch.setitem(main.__globals__, "_load_trace", forbidden)
     assert main([*args, "--identity-root", str(tmp_path), "--identity-selection", str(path)]) == 1
     result = json.loads(capsys.readouterr().out)
     assert result["error"] == "identity.measured_trace_mismatch"
@@ -611,7 +632,7 @@ def test_selected_trace_uses_shared_explicit_trace_limit(tmp_path, size):
     assert code == 0 and stderr == "", result
 
 
-@pytest.mark.parametrize("damage", ["symlink", "oversize"])
+@pytest.mark.parametrize("damage", ["symlink", "oversize", "changed-bytes"])
 def test_selected_trace_replacement_after_identity_is_rejected_before_parsing(tmp_path, damage, monkeypatch, capsys):
     import runpy
 
@@ -627,6 +648,8 @@ def test_selected_trace_replacement_after_identity_is_rejected_before_parsing(tm
             target = tmp_path / "replacement.json"
             trace.rename(target)
             trace.symlink_to(target)
+        elif damage == "changed-bytes":
+            trace.write_bytes(trace.read_bytes().replace(b"customer.lookup", b"customer.update"))
         else:
             with trace.open("ab") as stream:
                 limit = module["identity_module"]().artifact_byte_limit({"role": "trace"})
@@ -634,9 +657,15 @@ def test_selected_trace_replacement_after_identity_is_rejected_before_parsing(tm
         return subject
 
     monkeypatch.setitem(main.__globals__, "_subject", replace_after_identity)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Changed selected bytes must not reach Compass")
+
+    monkeypatch.setitem(main.__globals__, "_load_trace", forbidden)
     assert main([*args, "--identity-root", str(tmp_path), "--identity-selection", str(path)]) == 1
     result = json.loads(capsys.readouterr().out)
-    assert result["error"] == "identity.measured_trace_invalid"
+    expected = "identity.measured_trace_mismatch" if damage == "changed-bytes" else "identity.measured_trace_invalid"
+    assert result["error"] == expected
     assert not result["written"] and not (tmp_path / "measurements").exists()
 
 

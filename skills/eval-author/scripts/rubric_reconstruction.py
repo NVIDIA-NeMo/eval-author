@@ -144,9 +144,15 @@ def _entry(entry):
     _require(entry["source"]["pointer"] == "/source", "source_pointer_invalid")
     step = entry["step"]
     _require(isinstance(step, dict) and set(step) == {"pointer", "step_id"}, "step_invalid")
-    _require(type(step["step_id"]) is int, "step_invalid")
+    _require(type(step["step_id"]) is int or text(step["step_id"]), "step_invalid")
+    position = r"(0|[1-9][0-9]{0,8})"
+    pattern = (
+        rf"/root_spans/{position}(/children/{position})*/turns/{position}"
+        if text(step["step_id"])
+        else rf"/steps/{position}"
+    )
     _require(
-        isinstance(step["pointer"], str) and re.fullmatch(r"/steps/(0|[1-9][0-9]{0,8})", step["pointer"]),
+        isinstance(step["pointer"], str) and re.fullmatch(pattern, step["pointer"]),
         "step_pointer_invalid",
     )
     content = entry["content"]
@@ -160,6 +166,25 @@ def _entry(entry):
         raise _Issue("content_pointer_invalid") from None
 
 
+def _trace_turns(document):
+    pending = document.get("root_spans")
+    _require(isinstance(pending, list), "trace_steps_invalid")
+    pending = list(pending)
+    turns, visited = [], 0
+    while pending:
+        span = pending.pop()
+        visited += 1
+        _require(visited <= 2000 and isinstance(span, dict), "trace_steps_invalid")
+        children = span.get("children", [])
+        _require(isinstance(children, list) and len(children) + len(pending) <= 2000, "trace_steps_invalid")
+        pending.extend(children)
+        if span.get("kind") == "AGENT":
+            recorded = span.get("turns", [])
+            _require(isinstance(recorded, list) and len(recorded) + len(turns) <= 2000, "trace_steps_invalid")
+            turns.extend(recorded)
+    return turns
+
+
 def _project(sources, entry, row):
     _entry(entry)
     row["declaration"] = entry["declaration"]
@@ -167,8 +192,10 @@ def _project(sources, entry, row):
     row["artifact_digest"] = artifact["digest"]
     candidate, candidate_doc, _ = sources.document(entry["candidate"]["artifact_id"], "candidate")
     row["candidate_digest"] = candidate["digest"]
+    current = candidate_doc.get("schema") == "nemo.eval_author.trace_environment_candidate.v3"
     _require(
-        candidate_doc.get("schema") == "nemo.eval_author.trace_environment_candidate.v2", "candidate_schema_unsupported"
+        current or candidate_doc.get("schema") == "nemo.eval_author.trace_environment_candidate.v2",
+        "candidate_schema_unsupported",
     )
     _require(candidate_doc.get("state_basis", "recorded") in ("recorded", "reconstructed"), "candidate_state_invalid")
     _require(
@@ -181,17 +208,21 @@ def _project(sources, entry, row):
     expected_path = (Path(candidate["path"]).parent / _relative(retained.get("path"), "candidate")).as_posix()
     _require(expected_path == artifact["path"], "candidate_artifact_mismatch")
     provenance = retained.get("provenance")
+    ids_key = "turn_ids" if current else "step_ids"
     _require(
-        isinstance(provenance, dict) and set(provenance) == {"kind", "step_ids", "uri", "revision", "source_id"},
+        isinstance(provenance, dict) and set(provenance) == {"kind", ids_key, "uri", "revision", "source_id"},
         "candidate_provenance_invalid",
     )
-    step_ids = provenance["step_ids"]
+    step_ids = provenance[ids_key]
     _require(
-        provenance["kind"] == "atif_step" and all(provenance[k] is None for k in ("uri", "revision", "source_id")),
+        provenance["kind"] == ("trace_turn" if current else "atif_step")
+        and all(provenance[k] is None for k in ("uri", "revision", "source_id")),
         "candidate_provenance_invalid",
     )
     _require(
-        isinstance(step_ids, list) and 0 < len(step_ids) <= MAX_RECORDS and all(type(s) is int for s in step_ids),
+        isinstance(step_ids, list)
+        and 0 < len(step_ids) <= MAX_RECORDS
+        and all(text(s) if current else type(s) is int for s in step_ids),
         "candidate_provenance_invalid",
     )
     _require(len(step_ids) == len(set(step_ids)) and entry["step"]["step_id"] in step_ids, "candidate_step_mismatch")
@@ -199,7 +230,11 @@ def _project(sources, entry, row):
     row["source_digest"] = source["digest"]
     _require(
         source_doc.get("schema")
-        in ("nemo.eval_author.trace_environment_summary.v2", "nemo.eval_author.trace_environment_summary.v3"),
+        in (
+            ("nemo.eval_author.trace_environment_summary.v4",)
+            if current
+            else ("nemo.eval_author.trace_environment_summary.v2", "nemo.eval_author.trace_environment_summary.v3")
+        ),
         "source_schema_unsupported",
     )
     _require(
@@ -225,19 +260,29 @@ def _project(sources, entry, row):
     )
     expected_path = (Path(source["path"]).parent / _relative(binding.get("safe_path"), "source")).as_posix()
     _require(expected_path == trace["path"], "source_trace_mismatch")
-    _require(trace_doc.get("schema_version") == "ATIF-v1.7", "trace_schema_unsupported")
-    steps = trace_doc.get("steps")
+    _require(trace_doc.get("schema_version") == ("3" if current else "ATIF-v1.7"), "trace_schema_unsupported")
+    steps = _trace_turns(trace_doc) if current else trace_doc.get("steps")
+    id_key = "id" if current else "step_id"
     _require(isinstance(steps, list) and len(steps) <= 2000, "trace_steps_invalid")
-    _require(all(isinstance(item, dict) and type(item.get("step_id")) is int for item in steps), "trace_steps_invalid")
-    counts = Counter(item["step_id"] for item in steps)
+    _require(
+        all(
+            isinstance(item, dict) and (text(item.get(id_key)) if current else type(item.get(id_key)) is int)
+            for item in steps
+        ),
+        "trace_steps_invalid",
+    )
+    counts = Counter(item[id_key] for item in steps)
     _require(all(counts[ident] > 0 for ident in step_ids), "candidate_step_missing")
     _require(all(counts[ident] == 1 for ident in step_ids), "step_ambiguous")
     step = _at(trace_doc, entry["step"]["pointer"], "step")
     _require(
-        isinstance(step, dict) and type(step.get("step_id")) is int and step["step_id"] == entry["step"]["step_id"],
+        isinstance(step, dict)
+        and (text(step.get(id_key)) if current else type(step.get(id_key)) is int)
+        and step[id_key] == entry["step"]["step_id"]
+        and any(step is item for item in steps),
         "step_mismatch",
     )
-    row["source_step_id"] = step["step_id"]
+    row["source_step_id"] = step[id_key]
     row["source_step_index"] = int(entry["step"]["pointer"].rsplit("/", 1)[1])
     if entry["content"] is not None:
         content = _at(step, entry["content"]["pointer"], "content")
