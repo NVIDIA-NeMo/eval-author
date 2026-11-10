@@ -100,7 +100,7 @@ Report only the status supported by retained evidence.
 | Review criterion | Assessment |
 | --- | --- |
 | Cases and associated traces are discoverable without a follow-up question | The README handoff can address this. Its behavior still needs authoring-workflow validation; native viewers do not create the handoff automatically. |
-| Cases and traces are readable without manually formatting JSONL | Harbor supports its native artifacts. The bundled reader presents selected NeMo Gym records and ATIF, MLflow, or NeMo Gym traces, with missing, malformed, and unsupported evidence identified. |
+| Cases and traces are readable without manually formatting JSONL | Harbor supports its native artifacts. The bundled reader presents selected NeMo Gym records, and ATIF, MLflow, or NeMo Gym traces loaded as NeMo Compass Traces, with missing, malformed, and unsupported evidence identified. |
 | Review uses a supported workflow without building a custom UI | Harbor has a reusable native workflow. The bundled reader supplies a reusable offline HTML report for the formats its viewer does not accept; users do not need to build a UI. |
 | Logging sufficiency and any viewer scope are documented | Logging and links address discovery and context. The bounded reader below addresses the formats that still needed presentation. |
 

@@ -149,8 +149,8 @@ traces reopen check review and dependent measurement and findings. Changes to
 report content or its supporting evidence also reopen findings review. Saved
 progress therefore reflects the current inputs when you resume.
 
-Coverage measurement compares that specification with recorded traces (ATIF,
-MLflow, NeMo Gym, or normalized NeMo Compass traces), each a structured record
+Coverage measurement compares that specification with recorded traces
+(normalized NeMo Compass traces, or ATIF, MLflow, or NeMo Gym traces), each a structured record
 of an agent's interaction. Measurements are saved
 under `.eval-author/audit-measurements/`. **Coverage measurements (JSON)**
 (`.eval-author/audit-coverage-report.json`) is the file of generated results

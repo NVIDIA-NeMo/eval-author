@@ -7,8 +7,10 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
+import os
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -35,6 +37,7 @@ SELECT_ONE = (
     "measure one trace: select it with eval-author's trace_loading.py --row or --trace-id, "
     "then pass its traces.normalized.jsonl with --source-kind trace"
 )
+INSTALL_HINT = "(install requirements.txt or run with uv --with-requirements)"
 SCHEMAS_DIR = Path(__file__).resolve().parents[2] / "schemas"
 COVERAGE_SCHEMA_PATH = SCHEMAS_DIR / "audit_coverage.schema.json"
 CAPABILITY_JUDGMENTS_SCHEMA_PATH = SCHEMAS_DIR / "audit_capability_judgments.schema.json"
@@ -398,27 +401,26 @@ def _load_trace(path: Path, source_kind: str) -> LoadedTrace:
     try:
         trace_loading.check_installation()
         import trace_ingest.loaders  # noqa: F401  # fail as an environment error, not mid-load
-    except (trace_loading.TraceLoadError, ImportError) as exc:
-        raise AuditEnvironmentError(
-            f"audit measurement reads traces with NeMo Compass: {exc} "
-            "(install requirements.txt or run with uv --with-requirements)"
-        ) from exc
+    except trace_loading.TraceLoadError as exc:
+        raise AuditEnvironmentError(f"audit measurement reads traces with NeMo Compass: {exc} {INSTALL_HINT}") from exc
+    except ImportError as exc:
+        raise AuditEnvironmentError(f"audit measurement reads traces with NeMo Compass {INSTALL_HINT}") from exc
     if source_kind == "gym" and path.suffix.lower() != ".json":
         raise AuditTraceError(f"{path} is NeMo Gym JSONL; {SELECT_ONE}")
     try:
-        raw = path.read_bytes()
-        traces = trace_loading.load_traces(path, source_kind)
-        # The loader reads the file itself; a matching reread binds the digest to what it loaded.
-        unchanged = path.read_bytes() == raw
-    except OSError as exc:
-        raise AuditTraceError(f"could not read trace at {path}: {exc}") from exc
-    except ValueError as exc:
+        # Third-party diagnostics may contain trace values; keep CLI output content-free.
+        with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
+            traces, digest = trace_loading.load_snapshot(path, source_kind)
+    except trace_loading.TraceLoadError as exc:
+        # These messages name the failed check, never trace content.
         raise AuditTraceError(f"{path} is not a loadable {source_kind} trace: {exc}") from exc
-    if not unchanged:
-        raise AuditTraceError(f"{path} changed while it was being loaded")
+    except OSError as exc:
+        raise AuditTraceError(f"could not read trace at {path}") from exc
+    except Exception as exc:
+        raise AuditTraceError(f"{path} is not a loadable {source_kind} trace") from exc
     if len(traces) != 1:
         raise AuditTraceError(f"{path} holds {len(traces)} traces; {SELECT_ONE}")
-    return LoadedTrace(trace=traces[0], content_sha256=hashlib.sha256(raw).hexdigest())
+    return LoadedTrace(trace=traces[0], content_sha256=digest.removeprefix("sha256:"))
 
 
 def _finalize_subject(

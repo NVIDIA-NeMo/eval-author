@@ -15,6 +15,7 @@ import contextlib
 import hashlib
 import importlib.metadata
 import json
+import math
 import os
 import shutil
 import tempfile
@@ -160,7 +161,7 @@ def _load_atif(source: Path) -> list[Trace]:
 
 def _strict_json(raw: bytes | str) -> Any:
     """Parse JSON, refusing non-finite numbers and repeated object keys."""
-    return json.loads(raw, parse_constant=_reject_constant, object_pairs_hook=_unique_keys)
+    return json.loads(raw, parse_constant=_reject_constant, parse_float=_finite_float, object_pairs_hook=_unique_keys)
 
 
 def _check_jsonl_keys(source: Path) -> None:
@@ -176,6 +177,13 @@ def _check_jsonl_keys(source: Path) -> None:
 
 def _reject_constant(value: str) -> Any:
     raise TraceLoadError(f"non-finite JSON number {value}")
+
+
+def _finite_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise TraceLoadError("non-finite JSON number")
+    return number
 
 
 def _unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -283,15 +291,43 @@ def _write_private(path: Path, data: bytes) -> None:
         stream.write(data)
 
 
-def _copy_private(source: Path, path: Path) -> str:
-    """Copy ``source`` to a new private file in chunks and return the digest of the bytes copied."""
+def _snapshot(source: Path, directory: Path, kind: str) -> tuple[Path, str]:
+    """Copy ``source`` into ``directory`` as a new private file; return it and the digest of the bytes copied.
+
+    ATIF and Gym loaders choose whole-file JSON (".json") or JSONL by suffix; the copy keeps it.
+    """
+    suffix = ".json" if source.suffix.lower() == ".json" else ".jsonl"
+    path = directory / f"source.{kind}{suffix}"
     digest = hashlib.sha256()
     with source.open("rb") as reader, path.open("xb") as writer:
         os.chmod(writer.name, 0o600)
         while chunk := reader.read(1024 * 1024):
             digest.update(chunk)
             writer.write(chunk)
-    return "sha256:" + digest.hexdigest()
+    return path, "sha256:" + digest.hexdigest()
+
+
+def load_snapshot(source: Path, source_kind: str, **load_kwargs: Any) -> tuple[list[Trace], str]:
+    """Load a private snapshot of ``source``; return its traces and the ``sha256:`` digest of the bytes loaded.
+
+    Traces and spans cite ``source``, not the deleted snapshot.
+    """
+    from trace_ingest.source_links import file_source_url
+
+    with tempfile.TemporaryDirectory() as staging:
+        directory = Path(staging)
+        directory.chmod(0o700)
+        snapshot, digest = _snapshot(source, directory, source_kind)
+        traces = load_traces(snapshot, source_kind, **load_kwargs)
+        staged, original = file_source_url(snapshot), file_source_url(source)
+    pending: list[Any] = list(traces)
+    while pending:
+        item = pending.pop()
+        url = item.source_url
+        if url is not None and (url == staged or url.startswith(staged + "#")):
+            item.source_url = original + url[len(staged) :]
+        pending.extend(item.root_spans if hasattr(item, "root_spans") else item.children)
+    return traces, digest
 
 
 def _json_bytes(value: Any) -> bytes:
@@ -325,24 +361,14 @@ def write_load(args: argparse.Namespace) -> dict[str, Any]:
     intake = _intake_selection(args)
     if intake is None and args.input is None:
         raise TraceLoadError("--input is required")
-    copy: Path | None = None
-    if args.input is not None:
-        # ATIF and Gym loaders choose whole-file JSON (".json") or JSONL by suffix; the copy keeps it.
-        suffix = ".json" if args.input.suffix.lower() == ".json" else ".jsonl"
-        copy = Path(f"source.{kind}{suffix}")
     output: Path = args.output_dir
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
     try:
         output.chmod(0o700)
         # Load the private copy, so the recorded digest covers exactly the bytes loaded.
-        source_sha256 = {copy.name: _copy_private(args.input, output / copy)} if copy is not None else {}
+        copy, source_sha256 = _snapshot(args.input, output, kind) if args.input is not None else (None, None)
         traces = load_traces(
-            output / copy if copy is not None else None,
-            kind,
-            max_traces=args.max_traces,
-            row=args.row,
-            intake=intake,
-            trace_id=args.trace_id,
+            copy, kind, max_traces=args.max_traces, row=args.row, intake=intake, trace_id=args.trace_id
         )
         normalized = "".join(trace.model_dump_json() + "\n" for trace in traces).encode()
         _write_private(output / "traces.normalized.jsonl", normalized)
@@ -351,7 +377,7 @@ def write_load(args: argparse.Namespace) -> dict[str, Any]:
             "source_kind": kind,
             "loader": LOADER,
             "trace_schema_version": traces[0].schema_version,
-            "source_sha256": source_sha256,
+            "source_sha256": {copy.name: source_sha256} if copy is not None else {},
             "normalized_sha256": _sha256(normalized),
             "trace_count": len(traces),
             "max_traces": args.max_traces,

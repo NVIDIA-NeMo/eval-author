@@ -3,11 +3,14 @@
 
 """Audit measurement reads non-ATIF sources through the shared Compass loader."""
 
+import hashlib
+import importlib
 import json
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from audit_fixtures import bound_audit
 from test_trace_loading import ATIF_FIXTURE, mlflow_record, second_mlflow_record
 from test_trace_loading import SCRIPT as TRACE_LOADING
@@ -87,3 +90,38 @@ def test_atif_run_id_is_the_same_measured_directly_or_after_loading(tmp_path: Pa
     assert direct.returncode == loaded.returncode == 0, direct.stdout + loaded.stdout
     run_ids = {json.loads(result.stdout)["run_id"] for result in (direct, loaded)}
     assert run_ids == {json.loads(ATIF_FIXTURE.read_text())["session_id"]}
+
+
+def test_measured_trace_and_digest_come_from_the_same_bytes(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(MEASURE.parent))
+    monkeypatch.syspath_prepend(str(TRACE_LOADING.parent))
+    measure_module = importlib.import_module("measure")
+    trace_loading = importlib.import_module("trace_loading")
+    source = tmp_path / "export.json"
+    first = json.dumps({"traces": [mlflow_record()]})
+    source.write_text(first)
+    real_load = trace_loading.load_traces
+
+    def replace_then_load(*args, **kwargs):
+        source.write_text(json.dumps({"traces": [second_mlflow_record()]}))
+        return real_load(*args, **kwargs)
+
+    monkeypatch.setattr(trace_loading, "load_traces", replace_then_load)
+    loaded = measure_module._load_trace(source, "mlflow")
+    assert loaded.trace.id == "tr-synthetic-ci"
+    assert loaded.content_sha256 == hashlib.sha256(first.encode()).hexdigest()
+    assert loaded.trace.source_url == source.resolve().as_uri()
+
+
+@pytest.mark.parametrize("field", ["root_spans", "id"])
+def test_malformed_trace_error_is_content_free(tmp_path: Path, field: str) -> None:
+    audit = bound_audit(tmp_path, "lookup")
+    load("--source-kind", "mlflow", "--input", MLFLOW_EXPORT, "--output-dir", tmp_path / "loaded")
+    record = json.loads((tmp_path / "loaded/traces.normalized.jsonl").read_text())
+    record[field] = "PRIVATE_TRACE_SENTINEL" if field == "root_spans" else ["PRIVATE_TRACE_SENTINEL"]
+    trace = tmp_path / "malformed.jsonl"
+    trace.write_text(json.dumps(record) + "\n")
+    result = measure(audit, trace, "trace", tmp_path / "measured")
+    assert result.returncode == 1
+    assert json.loads(result.stdout)["error_type"] == "trace"
+    assert "PRIVATE_TRACE_SENTINEL" not in result.stdout + result.stderr

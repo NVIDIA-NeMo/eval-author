@@ -309,6 +309,67 @@ def test_mlflow_export_renders_instruction_and_tool_name(tmp_path):
     assert "Tool result 1 · is_error: None" in spans
 
 
+def canonical_trace(tmp_path, record):
+    sys.path.insert(0, str(SCRIPT.parent))
+    try:
+        import trace_loading
+    finally:
+        sys.path.remove(str(SCRIPT.parent))
+    [trace] = trace_loading.load_traces(write_json(tmp_path / "loss.atif.json", record), "atif")
+    return write_json(tmp_path / "source.trace.json", trace.model_dump(mode="json"))
+
+
+def test_retained_trace_losses_are_rendered_with_location_and_missing_evidence_attention(tmp_path):
+    record = atif_record()
+    del record["steps"][1]["observation"]["results"][0]["extra"]
+    record["steps"][1]["observation"]["results"][0]["subagent_trajectory_ref"] = [
+        {"trajectory_id": "SYNTHETIC_MISSING_SUBAGENT"}
+    ]
+    output = tmp_path / "review"
+    summary, report = read_report(
+        invoke(canonical_trace(tmp_path, record), output, format="trace", rows=None, role="source"), output
+    )
+    losses = report.section("losses")
+    assert "unresolved_subagent_ref" in losses
+    assert "SYNTHETIC_MISSING_SUBAGENT" in losses
+    assert "span_id" in losses and "turn_id" in losses
+    assert "Missing evidence" in losses
+    assert summary["status"] == "attention"
+    assert summary["issues"] == 1
+
+
+def test_aggregated_llm_calls_are_a_counting_note_not_missing_evidence(tmp_path):
+    record = atif_record()
+    del record["steps"][1]["observation"]["results"][0]["extra"]
+    record["steps"][1]["llm_call_count"] = 3
+    output = tmp_path / "review"
+    summary, report = read_report(
+        invoke(canonical_trace(tmp_path, record), output, format="trace", rows=None, role="source"), output
+    )
+    losses = report.section("losses")
+    assert "llm_calls_aggregated" in losses
+    assert "Counting note" in losses
+    assert "Missing evidence" not in losses
+    assert (summary["status"], summary["issues"]) == ("ok", 0)
+
+
+def test_copied_context_turns_and_their_tool_blocks_are_marked(tmp_path):
+    reports = {}
+    for copied in (False, True):
+        record = atif_record()
+        record["steps"][1]["is_copied_context"] = copied
+        source = write_json(tmp_path / f"{copied}.atif.json", record)
+        output = tmp_path / f"review-{copied}"
+        _summary, report = read_report(invoke(source, output, format="atif", rows=None, role="source"), output)
+        reports[copied] = report.section("spans")
+    assert reports[False] != reports[True]
+    assert "Copied context" not in reports[False]
+    spans = reports[True]
+    assert spans.count("Copied context") == 2
+    assert spans.index("Copied context") < spans.index("SYNTHETIC_RECORDED_MESSAGE")
+    assert spans.index("TOOL · read_fixture") < spans.rindex("Copied context") < spans.index("SYNTHETIC_TOOL_ARGUMENT")
+
+
 @pytest.mark.parametrize("format", ["gym-jsonl", "atif", "mlflow"])
 def test_missing_explicit_input_produces_honest_review_artifact(tmp_path, format):
     output = tmp_path / "review"

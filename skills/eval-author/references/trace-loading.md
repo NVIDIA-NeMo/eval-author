@@ -47,7 +47,8 @@ any other version, a Git, local or editable install, and the older
 `--trace-id ID`, for any kind, keeps only the trace with that `id` (an MLflow
 trace ID, an ATIF `trajectory_id` or, without one, the loader's `atif-` digest
 ID, a merged `session:<id>`, or a NeMo Gym rollout ID) and fails unless exactly
-one trace matches. Any input that repeats a JSON object key is rejected, and so
+one trace matches. Any input that repeats a JSON object key or holds a number
+too large to represent (such as `1e400`) is rejected, and so
 is a selected trace whose run Compass loaded only in part: a session missing
 records (`merge_incomplete`), an ATIF trajectory that continues in another file
 (`continued_trajectory_not_followed`), or any loss code this Compass pin does

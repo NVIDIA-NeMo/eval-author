@@ -87,8 +87,13 @@ each turn followed by the spans it names. Each span shows its kind, tool or span
 name, model, start and end times, input and output, recorded error, and each tool
 result with its `is_error` flag (`None` when the source recorded no usable flag);
 a tool span's output that repeats its result is shown once, as the result. Span
-attributes, tool definitions, and token counts stay under expandable fields. It
-is not a provider schema validator: a file the pinned loader rejects is reported
+attributes, tool definitions, and token counts stay under expandable fields.
+Turns recorded as copied context, and their tool spans, carry a copied-context
+notice. Each retained trace loss is listed with its code, span and turn, and
+recorded detail; a loss that means missing evidence (such as an unresolved
+subagent reference) adds an attention notice, while `llm_calls_aggregated` is
+shown as a counting note only. It is not a provider schema validator: a file
+the pinned loader rejects is reported
 as a malformed or unsupported record without its content. Images and external
 attachments are never fetched or displayed, and continuation or source paths are
 never followed.

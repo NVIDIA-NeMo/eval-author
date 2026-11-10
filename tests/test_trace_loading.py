@@ -531,6 +531,44 @@ def test_repeated_json_key_is_refused_not_collapsed(loading, kind, suffix, tmp_p
         loading.load_traces(source, kind)
 
 
+def _numbered_source(loading, kind: str, suffix: str, number: str, directory: Path) -> Path:
+    """A source carrying ``number`` as a raw JSON token in a free-form field."""
+    if kind == "atif":
+        record = json.loads(ATIF_FIXTURE.read_text())
+        record["extra"] = {"review_number": "NUMBER"}
+        text = json.dumps(record, indent=2 if suffix == ".json" else None)
+    else:
+        [trace] = loading.load_traces(MLFLOW_FIXTURE, "mlflow")
+        record = trace.model_dump(mode="json", exclude_none=True)
+        record["attributes"] = {**record.get("attributes", {}), "review_number": "NUMBER"}
+        text = json.dumps(record)
+    source = directory / f"source{suffix}"
+    source.write_text(text.replace('"NUMBER"', number) + "\n")
+    return source
+
+
+@pytest.mark.parametrize(("kind", "suffix"), [("atif", ".json"), ("atif", ".jsonl"), ("trace", ".jsonl")])
+def test_overflowing_json_number_is_refused_not_nulled(loading, kind, suffix, tmp_path):
+    source = _numbered_source(loading, kind, suffix, "1e400", tmp_path)
+    with pytest.raises(loading.TraceLoadError, match="^non-finite JSON number$"):
+        loading.load_traces(source, kind)
+
+
+def test_large_finite_json_number_keeps_its_value(loading, tmp_path):
+    [trace] = loading.load_traces(_numbered_source(loading, "trace", ".jsonl", "1e300", tmp_path), "trace")
+    assert trace.attributes["review_number"] == 1e300
+    atif = _numbered_source(loading, "atif", ".json", "1e300", tmp_path)
+    assert len(loading.load_traces(atif, "atif")) == 1
+
+
+def test_load_snapshot_digests_the_bytes_it_loads_and_cites_the_source(loading, tmp_path):
+    source = tmp_path / "rollouts.jsonl"
+    source.write_text('{"unrelated":"private"}\n' + json.dumps(gym_record()) + "\n")
+    [trace], digest = loading.load_snapshot(source, "gym", row=2)
+    assert digest == "sha256:" + hashlib.sha256(source.read_bytes()).hexdigest()
+    assert trace.source_url == source.resolve().as_uri() + "#L2"
+
+
 def _with_losses(directory: Path, *losses: list[dict]) -> Path:
     """A normalized source holding one copy of the MLflow fixture trace per entry of ``losses``."""
     first = directory / "first"

@@ -29,6 +29,9 @@ if TYPE_CHECKING:
     from trace_ingest import Trace
 
 TRACE_FORMATS = ("atif", "mlflow", "gym", "trace")
+# Loss codes that note how calls were counted; every other loss marks missing evidence.
+COUNTING_LOSSES = frozenset({"llm_calls_aggregated"})
+COPIED_NOTICE = '<p class="notice">Copied context (as recorded): not written in this run.</p>'
 
 MAX_SOURCE_BYTES = 32 * 1024 * 1024
 MAX_SELECTED_BYTES = 8 * 1024 * 1024
@@ -261,20 +264,40 @@ class Renderer:
         if not pending:
             body += self.problem("Trace has no spans.")
         blocks = ""
+        copied: set[str] = set()
         while pending:
             item, value, depth = pending.pop()
             if item == "turn":
+                if value.get("authorship") == "copied_context":
+                    copied.update(value.get("tool_call_span_ids") or [])
                 blocks += self.turn(value, depth)
                 continue
-            blocks += self.span(value, depth)
+            blocks += self.span(value, depth, copied=value.get("id") in copied)
             pending.extend(reversed(conversation_order(value, depth + 1)))
         body += section("spans", "Spans (depth-first, turns in conversation order)", blocks)
+        if dump.get("losses"):
+            body += section("losses", "Recorded trace losses", self.losses(dump["losses"]))
         if dump.get("attributes"):
             body += section("metadata", "Trace attributes", fields(dump["attributes"]))
         return body
 
+    def losses(self, losses: list[dict]) -> str:
+        body = ""
+        for loss in losses:
+            code = loss.get("code")
+            if code in COUNTING_LOSSES:
+                rendered = (
+                    '<p class="notice">Counting note: recorded calls were aggregated; no evidence is missing.</p>'
+                )
+            else:
+                rendered = self.problem("Missing evidence: the source or loader did not keep this part of the run.")
+            location = {k: loss[k] for k in ("span_id", "turn_id") if loss.get(k) is not None}
+            rendered += fields({**location, "detail": loss.get("detail") or {}})
+            body += f'<div class="message"><h4>{escape(code)}</h4>{rendered}</div>'
+        return body
+
     def turn(self, turn: dict, depth: int) -> str:
-        rendered = ""
+        rendered = COPIED_NOTICE if turn.get("authorship") == "copied_context" else ""
         content = turn.get("content")
         if content is not None:
             rendered += text(content) if isinstance(content, str) else fields(content)
@@ -288,11 +311,12 @@ class Renderer:
         label = f"Turn {turn.get('index')} · {turn.get('role')}"
         return indented(depth, label, rendered)
 
-    def span(self, span: dict, depth: int) -> str:
+    def span(self, span: dict, depth: int, *, copied: bool = False) -> str:
         attributes = span.get("attributes") or {}
         name = span.get("tool_name") or attributes.get("name") or ""
         label = f"{span.get('kind', 'UNKNOWN')} · {name}" if name else str(span.get("kind", "UNKNOWN"))
-        rendered = fields({k: span[k] for k in ("id", "model", "start_time", "end_time") if span.get(k) is not None})
+        rendered = COPIED_NOTICE if copied else ""
+        rendered += fields({k: span[k] for k in ("id", "model", "start_time", "end_time") if span.get(k) is not None})
         call = span.get("tool_call") or {}
         results = call.get("results") or []
         for key, title in (("input", "Input"), ("output", "Output")):
