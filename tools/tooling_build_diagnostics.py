@@ -32,9 +32,7 @@ STAGES = {
     "complete",
 }
 MARKER = re.compile(
-    rb"(?:#[0-9]+ [0-9]+\.[0-9]+ )?EA_TOOLING_STAGE=("
-    + "|".join(sorted(STAGES - {"unknown"})).encode("ascii")
-    + rb")"
+    rb"(?:#[0-9]+ [0-9]+\.[0-9]+ )?EA_TOOLING_STAGE=(" + "|".join(sorted(STAGES - {"unknown"})).encode("ascii") + rb")"
 )
 
 
