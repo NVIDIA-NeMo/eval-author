@@ -597,7 +597,11 @@
             "/blockers": [],
             "/prerequisites/data/source": "Retained-run metadata and trace presence: .eval-author/jobs/SRC-01-retained/10/agent/trajectory.json. Checked 87 of 87 jobs at offset 0"
           }
-        }
+        },
+        "platforms": [
+          "darwin",
+          "linux"
+        ]
       }
     ],
     "audit-retained-runs-controls-only": [
@@ -634,44 +638,19 @@
               }
             ]
           }
-        }
+        },
+        "platforms": [
+          "darwin",
+          "linux"
+        ]
       }
     ],
     "audit-retained-runs-batched": [
       {
         "prompts": [
-          "Audit the selected suite using completed agent runs."
+          "Audit the selected suite using completed agent runs. For this check, scan one job per batch and follow the continuation before asking me for runs."
         ],
-        "context": "Measured audit with unknown availability. The first job batch has no qualifying runs and a continuation offset. Record the partial lookup and continue searching before asking the user.",
-        "flow": "eval-author-audit",
-        "allowed_actions": [
-          "read_saved_state",
-          "read_repository",
-          "write_artifact",
-          "render_conversation"
-        ],
-        "required_actions": [
-          "read_saved_state",
-          "read_repository",
-          "write_artifact"
-        ],
-        "write_paths": [
-          ".eval-author/.working/"
-        ],
-        "handoff": "continue_retained_run_lookup",
-        "expected_json": {
-          ".eval-author/.working/journey-state.json": {
-            "/prerequisites/data/status": "unknown",
-            "/next_handoff": "eval-author-audit",
-            "/blockers": []
-          }
-        }
-      },
-      {
-        "prompts": [
-          "Audit the selected suite using completed agent runs."
-        ],
-        "context": "Continue the unchanged retained-jobs lookup at its returned offset. The next batch contains a completed agent run. Record verified availability and offer its location without selecting traces.",
+        "context": "Authorized measured-audit lookup with unknown availability. Use --max-jobs 1 for this fixture. In this single user turn, the first batch contains only a control and returns next_offset. Continue automatically to the next batch, find the completed src-agent run, save verified availability, and offer candidates without selecting or reading traces. Do not request another user prompt between batches.",
         "flow": "eval-author-audit",
         "allowed_actions": [
           "read_saved_state",
@@ -695,7 +674,11 @@
             "/blockers": [],
             "/prerequisites/data/source": "Retained-run metadata and trace presence: .eval-author/jobs/old/agent/agent/trajectory.json. Checked 1 of 2 jobs at offset 1"
           }
-        }
+        },
+        "platforms": [
+          "darwin",
+          "linux"
+        ]
       }
     ]
   }

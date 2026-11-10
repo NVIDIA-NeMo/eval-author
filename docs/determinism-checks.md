@@ -464,6 +464,11 @@ stability nor typed-fact retention establishes task quality.
 four documented assistants (Codex, Claude Code, Cursor, Pi), both checkout and
 copied installations, and macOS/Linux/Windows, with two repetitions. Missing
 cells cannot be removed to improve the denominator.
+Contracts may declare `platforms` when a scenario needs a platform capability.
+The planner includes only those platforms for that scenario. Descriptor-safe
+retained-run cases cover macOS and Linux. Unsupported hosts report unknown
+availability instead of using unsafe file access. Continuation batches in these
+cases stay within one user turn and one planned prompt.
 
 ```bash
 uv run --locked python tools/workflow_matrix.py > /tmp/workflow-matrix.json

@@ -301,11 +301,18 @@ The helper checks only `jobs/<job>/<trial>/result.json` and presence of
 open trajectories. Its 200-job batch limit counts job directories, not files or
 trials. When `next_offset` is present, continue with `--offset <next_offset>`
 before asking the user for missing runs. Reuse prior batch candidates and errors.
+Follow continuation batches within the same user turn. A batch boundary is not
+a user checkpoint.
 Keep availability verified if any batch found a qualifying run. A later empty
 batch must not overwrite that evidence with an unknown status.
 Restart the lookup if job ordering changes between batches. A partial lookup
 can establish availability from a qualifying candidate, but cannot establish
 absence. Record checked jobs, continuation bounds, and errors.
+If a job disappears or a directory changes, retain other qualifying candidates
+and report the incomplete inventory. The helper uses checked directory handles
+for both metadata reads and trajectory presence. If that safe access is unavailable
+on the host, it returns unknown availability with a capability error instead of
+falling back to path-based reads.
 
 Consume the JSON result in memory. Its `state_update` records observed `data`
 status and source paths for that batch through the existing state-only update
