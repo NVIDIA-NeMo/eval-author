@@ -49,7 +49,9 @@ def test_actual_create_producer_through_yaml_projection(tmp_path, monkeypatch, m
             if mode == "cancelled":
                 raise KeyboardInterrupt("PRIVATE interruption")
             program = (
-                "print('#7 0.10 EA_TOOLING_STAGE=apt_install', flush=True); print('PRIVATE sentinel', flush=True); "
+                "print('#7 0.10 EA_TOOLING_STAGE=apt_promote uptime=100.00', flush=True); "
+                "print('#7 0.11 EA_TOOLING_STAGE=apt_install uptime=100.10', flush=True); "
+                "print('PRIVATE sentinel', flush=True); "
             )
             if mode == "timeout":
                 program += "import time; time.sleep(20)"
@@ -105,6 +107,10 @@ def test_actual_create_producer_through_yaml_projection(tmp_path, monkeypatch, m
         == {"success": "none", "timeout": "timeout", "cancelled": "cancelled", "failure": "command_failed"}[mode]
     )
     assert value["observed_stage"] == ("unknown" if mode == "cancelled" else "apt_install")
+    if mode != "cancelled":
+        assert value["completed_stage_seconds"] == {"apt_promote": 0.1}
+        assert value["open_stage"] == "apt_install"
+        assert "apt_install" not in value["completed_stage_seconds"]
     assert value["build_seconds"] >= 0
     if mode == "success":
         assert value["inspect_seconds"] >= 0
@@ -353,7 +359,12 @@ def test_projection_failure_is_fixed_and_cannot_skip_fatal_cleanup(tmp_path, mod
         "apt_index",
         "apt_bootstrap",
         "apt_acquire",
+        "apt_plan_validate",
+        "apt_staging",
+        "apt_download",
+        "apt_promote",
         "apt_install",
+        "apt_cleanup",
         "compose_download",
         "compose_verify",
         "versions",
@@ -364,10 +375,164 @@ def test_every_observed_marker_is_emitted_by_fixed_recipe(tmp_path, modules, sta
     _, diagnostics = modules
     recipe = (ROOT / "tools/live_shard.Dockerfile").read_text() + (ROOT / "tools/live_shard_apt.sh").read_text()
     marker = "EA_TOOLING_STAGE=" + stage
-    assert f"printf '{marker}\\n'" in recipe
+    assert f"printf '{marker} uptime=%s\\n'" in recipe
     log = tmp_path / "build.log"
-    log.write_text(f"#8 1.234 {marker}\n")
+    log.write_text(f"#8 1.234 {marker} uptime=100.00\n")
     assert diagnostics.scan(log)["observed_stage"] == stage
+
+
+def test_stage_timing_separates_completed_install_from_open_cleanup(tmp_path, modules):
+    _, diagnostics = modules
+    log = tmp_path / "build.log"
+    log.write_text(
+        "PRIVATE\n"
+        "EA_TOOLING_STAGE=apt_download uptime=1000.00\n"
+        "#7 0.10 EA_TOOLING_STAGE=apt_promote uptime=1120.00\n"
+        "EA_TOOLING_STAGE=apt_install uptime=1121.00\n"
+        "EA_TOOLING_STAGE=apt_cleanup uptime=1124.50\n"
+    )
+    value = diagnostics.scan(log)
+    assert value["stage_timing_status"] == "observed"
+    assert value["timing_origin_stage"] == "apt_download"
+    assert value["stage_start_offsets_seconds"] == {
+        "apt_download": 0.0,
+        "apt_promote": 120.0,
+        "apt_install": 121.0,
+        "apt_cleanup": 124.5,
+    }
+    assert value["completed_stage_seconds"] == {"apt_download": 120.0, "apt_promote": 1.0, "apt_install": 3.5}
+    assert value["open_stage"] == "apt_cleanup"
+    assert "apt_cleanup" not in value["completed_stage_seconds"]
+    assert "PRIVATE" not in json.dumps(value)
+
+
+@pytest.mark.parametrize("token", ["NaN", "inf", "-1.00", "1e9", "1", "1.234", "9" * 1000, "1000000000.00", "PRIVATE"])
+def test_invalid_marker_timing_is_fixed_unavailable(tmp_path, modules, token):
+    _, diagnostics = modules
+    log = tmp_path / "build.log"
+    log.write_text(f"EA_TOOLING_STAGE=apt_install uptime={token}\n")
+    value = diagnostics.scan(log)
+    assert value["stage_timing_status"] == "invalid"
+    assert value["stage_start_offsets_seconds"] == {}
+    assert value["completed_stage_seconds"] == {}
+    assert value["open_stage"] == "unknown"
+    assert "PRIVATE" not in json.dumps(value)
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "EA_TOOLING_STAGE=apt_install uptime=100.00\n",
+        "EA_TOOLING_STAGE=apt_cleanup uptime=99.00\n",
+        "EA_TOOLING_STAGE=apt_promote uptime=101.00\n",
+        "EA_TOOLING_STAGE=apt_cleanup uptime=86501.00\n",
+        "EA_TOOLING_STAGE=apt_cleanup\n",
+        "EA_TOOLING_STAGE=apt_cleanup uptime=101.00 extra\n",
+    ],
+)
+def test_ambiguous_marker_sequence_drops_all_timing(tmp_path, modules, suffix):
+    _, diagnostics = modules
+    log = tmp_path / "build.log"
+    log.write_text("EA_TOOLING_STAGE=apt_install uptime=100.00\n" + suffix)
+    value = diagnostics.scan(log)
+    assert value["stage_timing_status"] == "invalid"
+    assert value["completed_stage_seconds"] == {}
+
+
+@pytest.mark.parametrize("number", [True, -1, float("nan"), float("inf"), 86400.01, 10**1000, "PRIVATE"])
+@pytest.mark.parametrize("field", ["stage_start_offsets_seconds", "completed_stage_seconds"])
+def test_public_timing_numbers_are_strict_and_bounded(tmp_path, modules, number, field):
+    _, diagnostics = modules
+    value = diagnostics.empty()
+    value.update(stage_timing_status="observed", timing_origin_stage="apt_install", open_stage="apt_install")
+    value[field] = {"apt_install": number}
+    with pytest.raises(ValueError):
+        diagnostics.project(value)
+
+
+@pytest.mark.parametrize("case", ["duplicate", "name", "precision", "inconsistent"])
+def test_timing_checkpoint_rejects_untrusted_nested_fields(tmp_path, modules, case):
+    _, diagnostics = modules
+    log = tmp_path / "build.log"
+    log.write_text("EA_TOOLING_STAGE=apt_install uptime=100.00\nEA_TOOLING_STAGE=apt_cleanup uptime=101.00\n")
+    value = {**diagnostics.empty(), **diagnostics.scan(log)}
+    if case == "name":
+        value["completed_stage_seconds"]["PRIVATE"] = 1
+    elif case == "precision":
+        value["stage_start_offsets_seconds"]["apt_cleanup"] = 1.001
+        value["completed_stage_seconds"]["apt_install"] = 1.0
+    elif case == "inconsistent":
+        value["completed_stage_seconds"]["apt_install"] = 2
+    raw = json.dumps(value)
+    if case == "duplicate":
+        raw = raw.replace('"apt_install": 0.0', '"apt_install": 0.0, "apt_install": 0.0')
+    source = tmp_path / "source.json"
+    source.write_text(raw)
+    output = tmp_path / "public.json"
+    diagnostics.publish(source, output)
+    assert json.loads(output.read_text()) == diagnostics.empty("checkpoint_invalid")
+
+
+@pytest.mark.parametrize("case", ["symlink", "ancestor", "fifo", "hardlink"])
+def test_timed_log_scan_keeps_nofollow_regular_boundary(tmp_path, modules, case):
+    _, diagnostics = modules
+    real = tmp_path / "real"
+    real.mkdir()
+    log = real / "log"
+    log.write_text("EA_TOOLING_STAGE=apt_install uptime=100.00\n")
+    source = tmp_path / "source"
+    if case == "symlink":
+        source.symlink_to(log)
+    elif case == "ancestor":
+        source.symlink_to(real, target_is_directory=True)
+        source /= "log"
+    elif case == "fifo":
+        os.mkfifo(source)
+    else:
+        os.link(log, source)
+    with pytest.raises((OSError, ValueError)):
+        diagnostics.scan(source)
+
+
+def test_full_stage_projection_fits_existing_public_bound(tmp_path, modules):
+    _, diagnostics = modules
+    log = tmp_path / "build.log"
+    log.write_text(
+        "".join(
+            f"EA_TOOLING_STAGE={stage} uptime={100 + index}.00\n" for index, stage in enumerate(diagnostics.STAGE_ORDER)
+        )
+    )
+    value = {**diagnostics.empty(), **diagnostics.scan(log)}
+    assert diagnostics.project(value) == value
+    assert len(json.dumps(value).encode()) < diagnostics.MAX_PUBLIC_BYTES == 4096
+    source = tmp_path / "source.json"
+    diagnostics.write(source, value, 0o600)
+    output = tmp_path / "public.json"
+    diagnostics.publish(source, output)
+    assert json.loads(output.read_text()) == value
+
+
+def test_old_checkpoint_has_no_invented_timing(tmp_path, modules):
+    _, diagnostics = modules
+    value = {key: val for key, val in diagnostics.empty().items() if key not in diagnostics.empty_timing()}
+    value["schema_version"] = 1
+    assert diagnostics.project(value) == diagnostics.empty()
+
+
+def test_tail_origin_is_not_build_origin_and_gaps_are_not_completed_stages(tmp_path, modules):
+    _, diagnostics = modules
+    log = tmp_path / "build.log"
+    log.write_bytes(
+        b"PRIVATE\n" * 40000 + b"EA_TOOLING_STAGE=apt_install uptime=100.00\nEA_TOOLING_STAGE=complete uptime=110.00\n"
+    )
+    value = diagnostics.scan(log)
+    assert value["log_scan"] == "truncated"
+    assert value["timing_origin_stage"] == "apt_install"
+    assert value["stage_start_offsets_seconds"] == {"apt_install": 0.0, "complete": 10.0}
+    assert value["completed_stage_seconds"] == {}
+    assert value["open_stage"] == "unknown"
+    docs = (ROOT / "docs/skill-evaluation-ci.md").read_text()
+    assert "not the build clock origin" in docs
 
 
 def test_oversized_integer_is_invalid_checkpoint_not_projection_failure(tmp_path, modules, capsys):

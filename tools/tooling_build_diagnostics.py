@@ -17,8 +17,7 @@ from live_agent_diagnostics import directory, read_regular
 
 MAX_SCAN_BYTES = 262_144
 MAX_PUBLIC_BYTES = 4096
-STAGES = {
-    "unknown",
+STAGE_ORDER = (
     "apt_index",
     "apt_bootstrap",
     "apt_acquire",
@@ -27,13 +26,17 @@ STAGES = {
     "apt_download",
     "apt_promote",
     "apt_install",
+    "apt_cleanup",
     "compose_download",
     "compose_verify",
     "versions",
     "complete",
-}
+)
+STAGES = {"unknown", *STAGE_ORDER}
 MARKER = re.compile(
-    rb"(?:#[0-9]+ [0-9]+\.[0-9]+ )?EA_TOOLING_STAGE=(" + "|".join(sorted(STAGES - {"unknown"})).encode("ascii") + rb")"
+    rb"(?:#[0-9]+ [0-9]+\.[0-9]+ )?EA_TOOLING_STAGE=("
+    + "|".join(sorted(STAGES - {"unknown"})).encode("ascii")
+    + rb")(?: uptime=(.*))?"
 )
 
 
@@ -43,9 +46,20 @@ class CommandFailed(ValueError):
         self.exit_code = code
 
 
+def empty_timing(status="unavailable"):
+    return dict(
+        stage_timing_status=status,
+        timing_origin_stage="unknown",
+        stage_start_offsets_seconds={},
+        completed_stage_seconds={},
+        open_stage="unknown",
+    )
+
+
 def empty(category="checkpoint_unavailable") -> dict:
     return dict(
-        schema_version=1,
+        schema_version=2,
+        **empty_timing(),
         status="unavailable",
         failure_category=category,
         phase="unknown",
@@ -60,6 +74,10 @@ def empty(category="checkpoint_unavailable") -> dict:
 
 
 def project(value):
+    if isinstance(value, dict) and type(value.get("schema_version")) is int and value["schema_version"] == 1:
+        if set(value) != set(empty()) - set(empty_timing()):
+            raise ValueError("invalid build diagnostics")
+        value = {**value, "schema_version": 2, **empty_timing()}
     if not isinstance(value, dict) or set(value) != set(empty()):
         raise ValueError("invalid build diagnostics")
     enums = {
@@ -77,9 +95,12 @@ def project(value):
         },
         "phase": {"unknown", "setup", "build", "identity", "inspect", "receipt"},
         "observed_stage": STAGES,
+        "timing_origin_stage": STAGES,
+        "open_stage": STAGES - {"complete"},
+        "stage_timing_status": {"unavailable", "invalid", "observed"},
         "log_scan": {"unavailable", "complete", "truncated"},
     }
-    if type(value["schema_version"]) is not int or value["schema_version"] != 1:
+    if type(value["schema_version"]) is not int or value["schema_version"] != 2:
         raise ValueError("invalid build diagnostics")
     for key, allowed in enums.items():
         if not isinstance(value[key], str) or value[key] not in allowed:
@@ -95,6 +116,37 @@ def project(value):
         raise ValueError("invalid build diagnostics")
     if type(value["scanned_bytes"]) is not int or not 0 <= value["scanned_bytes"] <= MAX_SCAN_BYTES:
         raise ValueError("invalid build diagnostics")
+    starts = value["stage_start_offsets_seconds"]
+    completed = value["completed_stage_seconds"]
+    for mapping in (starts, completed):
+        if not isinstance(mapping, dict) or not set(mapping) <= set(STAGE_ORDER):
+            raise ValueError("invalid build diagnostics")
+        for number in mapping.values():
+            if (
+                type(number) not in (float, int)
+                or not 0 <= number <= 86400
+                or not math.isfinite(number)
+                or round(number, 2) != number
+            ):
+                raise ValueError("invalid build diagnostics")
+    if value["stage_timing_status"] != "observed":
+        if any(value[key] != expected for key, expected in empty_timing(value["stage_timing_status"]).items()):
+            raise ValueError("invalid build diagnostics")
+    else:
+        ordered = [stage for stage in STAGE_ORDER if stage in starts]
+        if not ordered or value["timing_origin_stage"] != ordered[0] or starts[ordered[0]] != 0:
+            raise ValueError("invalid build diagnostics")
+        if any(starts[left] > starts[right] for left, right in zip(ordered, ordered[1:])):
+            raise ValueError("invalid build diagnostics")
+        expected = {
+            left: round(starts[right] - starts[left], 2)
+            for left, right in zip(ordered, ordered[1:])
+            if STAGE_ORDER.index(right) == STAGE_ORDER.index(left) + 1
+        }
+        if completed != expected or value["open_stage"] != (ordered[-1] if ordered[-1] != "complete" else "unknown"):
+            raise ValueError("invalid build diagnostics")
+        if value["observed_stage"] != ordered[-1]:
+            raise ValueError("invalid build diagnostics")
     return dict(value)
 
 
@@ -131,11 +183,49 @@ def scan(path):
     if offset:
         lines = lines[1:]
     stage = "unknown"
+    starts = {}
+    seen = set()
+    invalid = False
+    untimed = False
     for line in lines[:-1]:
         match = MARKER.fullmatch(line)
         if match:
             stage = match[1].decode("ascii")
-    return dict(observed_stage=stage, log_scan="truncated" if offset else "complete", scanned_bytes=len(raw))
+            token = match[2]
+            if token is None:
+                untimed = True
+            elif not re.fullmatch(rb"[0-9]{1,9}\.[0-9]{2}", token):
+                invalid = True
+            else:
+                number = float(token)
+                if stage in seen or (
+                    starts
+                    and (
+                        STAGE_ORDER.index(stage) <= STAGE_ORDER.index(next(reversed(starts)))
+                        or number < starts[next(reversed(starts))]
+                        or number - next(iter(starts.values())) > 86400
+                    )
+                ):
+                    invalid = True
+                if not invalid:
+                    starts[stage] = number
+            seen.add(stage)
+    invalid = invalid or bool(starts and untimed)
+    timing = empty_timing("invalid" if invalid else "unavailable")
+    if starts and not invalid:
+        origin = next(iter(starts))
+        timing.update(
+            stage_timing_status="observed",
+            timing_origin_stage=origin,
+            stage_start_offsets_seconds={name: round(value - starts[origin], 2) for name, value in starts.items()},
+            completed_stage_seconds={
+                left: round(starts[right] - starts[left], 2)
+                for left, right in zip(starts, list(starts)[1:])
+                if STAGE_ORDER.index(right) == STAGE_ORDER.index(left) + 1
+            },
+            open_stage=stage if stage != "complete" else "unknown",
+        )
+    return dict(observed_stage=stage, log_scan="truncated" if offset else "complete", scanned_bytes=len(raw), **timing)
 
 
 class Diagnostics:

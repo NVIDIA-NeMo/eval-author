@@ -394,6 +394,27 @@ only the last recognized marker in a bounded 256 KiB tail scan: apt index, apt b
 apt acquisition, plan validation, staging, download, promotion, apt install,
 Compose download, Compose verification, version checks, or `complete`.
 The last marker does not identify a stalled package or prove the build met its budget.
+
+Schema version 2 adds `stage_timing_status` (`observed`, `unavailable`, or
+`invalid`), `timing_origin_stage`, `stage_start_offsets_seconds`,
+`completed_stage_seconds`, and `open_stage`. Fixed recipe markers sample Linux
+`/proc/uptime`; only offsets and durations (0–86400 seconds, centisecond precision)
+are published, never absolute uptime or raw log text. Maps contain only the fixed
+stage names above, plus `apt_cleanup`, emitted immediately after successful
+`apt-get --no-download install` and before helper/recipe cleanup. Durations require
+both starts of adjacent recipe stages; a missing boundary is not bridged.
+`open_stage` has no observed closing boundary, not a measured interrupted-stage
+duration; `complete` clears it to `unknown`. Process failure/timeout is reported
+separately. Even a successful process does not invent a missing closing marker.
+
+The first retained marker is **not the build clock origin**. Its offset is zero;
+image pulls, earlier COPY work, evicted markers, and time after the final marker
+remain unmeasured. Do not subtract these offsets from host `build_seconds` to
+claim an interrupted install duration. A truncated tail can still provide local
+stage durations, not total budget attribution. Duplicate, backwards, malformed,
+out-of-range or mixed timed/untimed marker sequences discard timing as `invalid`.
+Old schema-1 checkpoints and untimed logs remain readable with timing unavailable.
+`apt_cleanup` also includes the intervening layer export before Compose starts.
 Markers are observations of untrusted Docker output, **not attested causes**;
 cached, absent, truncated, or unrecognized markers can leave the stage unknown.
 No network-error wording is used to infer a root cause. A process killed before

@@ -3,6 +3,7 @@
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -61,7 +62,7 @@ if Path(sys.argv[0]).name == "apt-get":
     archive = Path(next(arg.split("=", 1)[1] for arg in args if arg.startswith("Dir::Cache::archives=")))
     for destination in json.loads(state.read_text())["finished"]:
         assert (archive / Path(destination).name).read_bytes() == b"synthetic package"
-    sys.exit(0)
+    sys.exit(int(os.environ.get("APT_TEST_INSTALL_EXIT", "0")))
 def start(value):
     value["active"] += 1
     value["peak"] = max(value["peak"], value["active"])
@@ -246,14 +247,17 @@ def test_bounded_acquisition_precedes_same_no_download_install(apt_commands):
             assert digest == "SHA256:" + "a" * 64
             assert Path(destination).parent.parent == archive
             assert url.endswith(Path(destination).name)
-    assert result.stdout.splitlines() == [
+    assert [line.split(" uptime=")[0] for line in result.stdout.splitlines()] == [
         "EA_TOOLING_STAGE=apt_acquire",
         "EA_TOOLING_STAGE=apt_plan_validate",
         "EA_TOOLING_STAGE=apt_staging",
         "EA_TOOLING_STAGE=apt_download",
         "EA_TOOLING_STAGE=apt_promote",
         "EA_TOOLING_STAGE=apt_install",
+        "EA_TOOLING_STAGE=apt_cleanup",
     ]
+    for line in result.stdout.splitlines():
+        assert re.fullmatch(r"EA_TOOLING_STAGE=[a-z_]+ uptime=(?:[0-9]{1,9}\.[0-9]{2})?", line)
 
 
 @pytest.mark.parametrize(
@@ -299,6 +303,14 @@ def test_acquisition_failure_never_installs_or_retries(apt_commands, failure):
     assert not list(archive.iterdir())
     if failure == "first_batch":
         assert len(state["finished"]) == 9
+
+
+def test_failed_install_does_not_emit_cleanup_start(apt_commands):
+    run, _ = apt_commands
+    result, _ = run(APT_TEST_INSTALL_EXIT="7")
+    assert result.returncode == 7
+    assert "EA_TOOLING_STAGE=apt_install uptime=" in result.stdout
+    assert "EA_TOOLING_STAGE=apt_cleanup" not in result.stdout
 
 
 def test_empty_transaction_does_not_launch_downloader(apt_commands):
