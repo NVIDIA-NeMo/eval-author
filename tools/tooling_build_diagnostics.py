@@ -118,8 +118,10 @@ def project(value):
         raise ValueError("invalid build diagnostics")
     starts = value["stage_start_offsets_seconds"]
     completed = value["completed_stage_seconds"]
+    if not isinstance(starts, dict) or not isinstance(completed, dict):
+        raise ValueError("invalid build diagnostics")
     for mapping in (starts, completed):
-        if not isinstance(mapping, dict) or not set(mapping) <= set(STAGE_ORDER):
+        if not set(mapping) <= set(STAGE_ORDER):
             raise ValueError("invalid build diagnostics")
         for number in mapping.values():
             if (
