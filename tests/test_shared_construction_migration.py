@@ -232,7 +232,8 @@ def test_qualification_without_legacy_skill_or_workspace_orchestration(tmp_path)
     expected = helpers.validate(root, jobs)
     installed = tmp_path / "installed"
     shutil.copytree(ROOT / "skills/eval-author/scripts/eval_author_shared", installed / "eval_author_shared")
-    shutil.copy2(ROOT / "skills/eval-author/scripts/working_paths.py", installed / "working_paths.py")
+    for name in ("working_paths.py", "trace_loading.py"):
+        shutil.copy2(ROOT / "skills/eval-author/scripts" / name, installed / name)
     script = r"""
 import json, sys
 from pathlib import Path
@@ -262,8 +263,8 @@ print(json.dumps(result, sort_keys=True))
         [sys.executable, "-I", "-c", script, str(installed), str(root), json.dumps(jobs, default=str)],
         capture_output=True,
         text=True,
-        check=True,
     )
+    assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout) == expected
     # The same isolated implementation rejects altered retained proof.
     receipt = jobs["oracle"][0] / "task__trial/result.json"

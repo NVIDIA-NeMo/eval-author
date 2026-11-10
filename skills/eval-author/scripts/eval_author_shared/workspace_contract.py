@@ -15,6 +15,7 @@ import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from trace_loading import LOADER
 from working_paths import scratch_directory
 
 from .fixture_compiler import (  # noqa: E402
@@ -249,8 +250,7 @@ def _valid_source(source: Any) -> bool:
         and source.get("canonical_path") == CANONICAL_TRACE_PATH
         and source.get("safe_path") == SAFE_TRACE_PATH
         and isinstance(loader, dict)
-        and set(loader) == {"distribution", "version", "revision"}
-        and all(isinstance(value, str) for value in loader.values())
+        and loader == LOADER
         and isinstance(source.get("trace_schema_version"), str)
         and (source.get("row") is None or (type(source["row"]) is int and source["row"] >= 1))
         and all(
