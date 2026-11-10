@@ -54,7 +54,9 @@ for ((worker=0; worker<4; worker++)); do
         batch+=("${jobs[i]}" "$staging/${jobs[i+1]}" "${jobs[i+2]}")
     done
     if (( ${#batch[@]} )); then
-        apt-helper -o Acquire::Retries=0 download-file "${batch[@]}" &
+        # Retry transient acquisition failures once within the existing build cap.
+        # APT retains hash validation and rejects permanent acquisition errors.
+        apt-helper -o Acquire::Retries=1 download-file "${batch[@]}" &
         pids+=("$!")
     fi
 done

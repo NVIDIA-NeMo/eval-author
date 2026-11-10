@@ -384,13 +384,15 @@ Both preparation timing and evaluation shard artifacts include the exact
 the same allowlisted diagnostic fields to the CI log immediately after create,
 before inference credentials are passed. It is independent of final cleanup:
 cleanup failure remains fatal and still prevents staging evaluation results.
-The 180-second tooling-build cap, remaining-time image inspection, and no-retry
-policy are unchanged.
+The 180-second tooling-build cap and remaining-time image inspection are unchanged.
+APT may retry a transient package-download failure once within that budget.
+The build itself is not retried. Permanent errors and failed hash checks remain fatal.
 
 The diagnostic records host phase, elapsed/build/inspection seconds, process
 exit code when available, and fixed failure categories. `observed_stage` is
 only the last recognized marker in a bounded 256 KiB tail scan: apt index,
-apt acquisition, apt install, Compose download, Compose verification, or version checks.
+apt acquisition, plan validation, staging, download, promotion, apt install,
+Compose download, Compose verification, or version checks.
 Index acquisition prefers the smaller xz representation while retaining signed
 snapshot metadata and by-hash verification. Package acquisition uses at most
 four APT-native processes, each handling a batch of

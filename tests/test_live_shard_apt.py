@@ -103,6 +103,63 @@ def plan_entry(index):
     )
 
 
+@pytest.mark.parametrize("failure", ["transient", "permanent", "hash"])
+def test_native_apt_retries_only_transient_downloads(tmp_path, failure):
+    import hashlib
+    import http.server
+    import threading
+
+    helper = Path("/usr/lib/apt/apt-helper")
+    if not helper.is_file():
+        pytest.skip("native APT required")
+    payload = b"synthetic package bytes"
+    requests = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            requests.append(self.path)
+            code = 503 if failure == "transient" and len(requests) == 1 else 200
+            if failure == "permanent":
+                code = 404
+            self.send_response(code)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, format, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    output = tmp_path / "package.deb"
+    digest = hashlib.sha256(b"wrong" if failure == "hash" else payload).hexdigest()
+    try:
+        result = subprocess.run(
+            [
+                str(helper),
+                "-o",
+                "Acquire::Retries=1",
+                "download-file",
+                f"http://127.0.0.1:{server.server_port}/package.deb",
+                str(output),
+                f"SHA256:{digest}",
+            ],
+            env={"PATH": os.defpath, "HOME": str(tmp_path)},
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+    assert len(requests) == (2 if failure == "transient" else 1), result.stderr
+    assert (result.returncode == 0) == (failure == "transient"), result.stderr
+    if failure == "transient":
+        assert output.read_bytes() == payload
+
+
 def test_bounded_acquisition_precedes_same_no_download_install(apt_commands):
     run, archive = apt_commands
     result, state = run()
@@ -122,7 +179,7 @@ def test_bounded_acquisition_precedes_same_no_download_install(apt_commands):
     assert len(downloads) == 4
     assert sorted((len(args) - 3) // 3 for args in downloads) == [2, 2, 2, 3]
     for args in downloads:
-        assert args[:3] == ["-o", "Acquire::Retries=0", "download-file"]
+        assert args[:3] == ["-o", "Acquire::Retries=1", "download-file"]
         for url, destination, digest in zip(args[3::3], args[4::3], args[5::3]):
             assert digest == "SHA256:" + "a" * 64
             assert Path(destination).parent.parent == archive
