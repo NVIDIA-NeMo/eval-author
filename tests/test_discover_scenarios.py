@@ -188,14 +188,16 @@ def test_explicit_root_rejects_symlink_ancestor_before_cleanup(scenarios, monkey
     assert sentinel.read_text() == "keep"
 
 
-def test_explicit_root_rejects_writable_ancestor_before_creation(scenarios, monkeypatch, tmp_path):
-    parent = tmp_path / "shared"
-    parent.mkdir(mode=0o777)
-    parent.chmod(0o777)
+@pytest.mark.parametrize("mode", [0o777, 0o775])
+def test_explicit_root_rejects_writable_ancestor_before_creation(scenarios, monkeypatch, tmp_path, mode):
+    parent = tmp_path / "shared\nancestor"
+    parent.mkdir(mode=mode)
+    parent.chmod(mode)
     root = parent / "new"
     monkeypatch.setenv("W", str(root))
-    with pytest.raises(SystemExit, match="ancestor"):
+    with pytest.raises(SystemExit, match="ancestor") as error:
         scenarios.prepare_work_dir()
+    assert repr(str(parent)) in str(error.value)
     assert not root.exists()
 
 

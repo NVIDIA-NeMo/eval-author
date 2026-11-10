@@ -71,7 +71,22 @@ def test_failed_dependency_install_never_builds_source(monkeypatch):
 def test_install_drops_credentials_and_resolver_overrides(monkeypatch):
     module = installer()
     calls = []
-    for name in ("OPENAI_API_KEY", "INFERENCE_HUB_API_KEY", "UV_NO_VERIFY_HASHES", "UV_OVERRIDE", "PYTHONPATH"):
+    for name in (
+        "OPENAI_API_KEY",
+        "INFERENCE_HUB_API_KEY",
+        "UV_NO_VERIFY_HASHES",
+        "UV_OVERRIDE",
+        "PYTHONPATH",
+        "HTTPS_PROXY",
+        "HTTP_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+        "https_proxy",
+        "http_proxy",
+        "SSL_CERT_FILE",
+        "UV_NATIVE_TLS",
+        "UV_SYSTEM_CERTS",
+    ):
         monkeypatch.setenv(name, "must-not-reach-installer")
     monkeypatch.setattr(module.subprocess, "run", lambda argv, **kw: calls.append(kw["env"]))
     module.install("/fresh/bin/python", "tier2")
@@ -153,13 +168,16 @@ def test_llm_profiles_pin_reviewed_security_override():
 
     module = installer()
     for extra in ("tier2", "tier3"):
-        text = (module.LOCKS / f"{extra}.txt").read_text()
-        assert "litellm==1.101.3 \\" in text
-        assert "--overrides tools/evaluator-locks/llm-overrides.in" in text
+        text = (module.LOCKS / f"{extra}.txt").read_text().replace("\\\n", " ")
+        requirements = [
+            Requirement(line.split("--hash=")[0].strip())
+            for line in text.splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
+        assert [str(r.specifier) for r in requirements if r.name == "litellm"] == ["==1.101.3"]
     source = (module.LOCKS / "llm-overrides.in").read_text()
     requirements = [Requirement(line) for line in source.splitlines() if line and not line.startswith("#")]
     assert [str(requirement) for requirement in requirements] == ["litellm==1.101.3"]
-    assert "<1.94.0.dev0" in source and "metadata" in source
 
 
 def policy_distributions(module, *, litellm="1.101.3", requirement=None, revision=None):
@@ -301,6 +319,127 @@ def test_compatibility_policy_rejects_broad_overrides(tmp_path, monkeypatch, ove
     monkeypatch.setattr(module, "LOCKS", tmp_path)
     with pytest.raises(RuntimeError, match="override"):
         module.validate_environment("tier2", policy_distributions(module))
+
+
+def test_lock_refresh_checks_all_profiles_without_upgrading_or_writing(tmp_path, monkeypatch):
+    import refresh_evaluator_locks as refresh
+
+    inputs = tmp_path / "inputs"
+    inputs.mkdir()
+    module = installer()
+    for path in module.LOCKS.iterdir():
+        (inputs / path.name).write_bytes(path.read_bytes())
+    before = {p.name: p.read_bytes() for p in inputs.iterdir()}
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return refresh.subprocess.CompletedProcess(argv, 0, "uv 0.12.3\n", "")
+
+    monkeypatch.setenv("HTTPS_PROXY", "https://user:credential@proxy.invalid")
+    monkeypatch.setenv("UV_OVERRIDE", "unreviewed.in")
+    monkeypatch.setattr(refresh.subprocess, "run", run)
+    refresh.refresh_locks(check=True, locks=inputs)
+    assert {p.name: p.read_bytes() for p in inputs.iterdir()} == before
+    compile_calls = calls[1:]
+    assert len(compile_calls) == 3
+    for extra, (argv, kwargs) in zip(module.EXTRAS, compile_calls, strict=True):
+        assert argv[:3] == ["uv", "pip", "compile"]
+        assert "--upgrade" not in argv and "--upgrade-package" not in argv
+        assert "--generate-hashes" in argv and "--universal" in argv
+        assert argv[argv.index("--only-binary") + 1] == ":all:"
+        assert argv[argv.index("--python-version") + 1] == "3.12"
+        assert argv[-2:] == ["-o", f"tools/evaluator-locks/{extra}.txt"]
+        assert ("--overrides" in argv) == (extra != "security")
+        assert kwargs["cwd"] != ROOT
+        assert "HTTPS_PROXY" not in kwargs["env"] and "UV_OVERRIDE" not in kwargs["env"]
+        assert kwargs["check"] is True
+
+
+@pytest.mark.parametrize("check", [True, False])
+def test_lock_refresh_stages_changes_and_detects_drift(tmp_path, monkeypatch, check):
+    import refresh_evaluator_locks as refresh
+
+    for path in installer().LOCKS.iterdir():
+        (tmp_path / path.name).write_bytes(path.read_bytes())
+    before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
+
+    def run(argv, **kwargs):
+        if argv[1:] != ["--version"]:
+            output = kwargs["cwd"] / argv[-1]
+            output.write_text(output.read_text() + "# changed\n")
+        return refresh.subprocess.CompletedProcess(argv, 0, "uv 0.12.3\n", "")
+
+    monkeypatch.setattr(refresh.subprocess, "run", run)
+    if check:
+        with pytest.raises(RuntimeError, match="locks differ"):
+            refresh.refresh_locks(check=True, locks=tmp_path)
+        assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == before
+    else:
+        refresh.refresh_locks(locks=tmp_path)
+        for extra in refresh.EXTRAS:
+            assert (tmp_path / f"{extra}.txt").read_bytes() == before[f"{extra}.txt"] + b"# changed\n"
+
+
+def test_failed_lock_compile_leaves_all_tracked_locks_unchanged(tmp_path, monkeypatch):
+    import refresh_evaluator_locks as refresh
+
+    for path in installer().LOCKS.iterdir():
+        (tmp_path / path.name).write_bytes(path.read_bytes())
+    before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
+
+    def run(argv, **kwargs):
+        if argv[-1].endswith("tier2.txt"):
+            raise refresh.subprocess.CalledProcessError(1, argv)
+        if argv[-1].endswith("security.txt"):
+            (kwargs["cwd"] / argv[-1]).write_text("# changed\n")
+        return refresh.subprocess.CompletedProcess(argv, 0, "uv 0.12.3\n", "")
+
+    monkeypatch.setattr(refresh.subprocess, "run", run)
+    with pytest.raises(refresh.subprocess.CalledProcessError):
+        refresh.refresh_locks(locks=tmp_path)
+    assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == before
+
+
+def test_lock_refresh_rejects_wrong_uv_and_upgrades_in_check_mode(monkeypatch):
+    import refresh_evaluator_locks as refresh
+
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        return refresh.subprocess.CompletedProcess(argv, 0, "uv 0.11.19\n", "")
+
+    monkeypatch.setattr(refresh.subprocess, "run", run)
+    with pytest.raises(ValueError, match="cannot upgrade"):
+        refresh.refresh_locks(check=True, upgrades=("wheel==1",))
+    assert not calls
+    with pytest.raises(RuntimeError, match="requires uv"):
+        refresh.refresh_locks()
+    assert calls == [["uv", "--version"]]
+
+
+def test_targeted_lock_upgrade_keeps_a_reproducible_header(tmp_path, monkeypatch):
+    import shlex
+
+    import refresh_evaluator_locks as refresh
+
+    for path in installer().LOCKS.iterdir():
+        (tmp_path / path.name).write_bytes(path.read_bytes())
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        return refresh.subprocess.CompletedProcess(argv, 0, "uv 0.12.3\n", "")
+
+    monkeypatch.setattr(refresh.subprocess, "run", run)
+    refresh.refresh_locks(upgrades=("wheel==0.47.0",), locks=tmp_path)
+    for argv in calls[1:]:
+        assert argv[argv.index("--upgrade-package") + 1] == "wheel==0.47.0"
+        assert "--upgrade" not in argv
+        header = shlex.split(argv[argv.index("--custom-compile-command") + 1])
+        assert "--upgrade-package" not in header and "--custom-compile-command" not in header
+        assert header[-2:] == argv[-2:]
 
 
 def test_unknown_profile_fails_before_install(monkeypatch):

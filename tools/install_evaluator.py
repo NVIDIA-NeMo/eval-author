@@ -14,6 +14,10 @@ from patched_opencode_runtime import EVALUATOR_REVISION
 
 LOCKS = Path(__file__).resolve().parent / "evaluator-locks"
 EXTRAS = ("security", "tier2", "tier3")
+# Repins must review the version/provenance and exact requirement below together
+# with patched_opencode_runtime.EVALUATOR_REVISION, all profile .in files and
+# llm-overrides.in; then regenerate locks and exercise every installed extra.
+# Even after the upstream cap changes, retain active-extra dependency validation.
 
 
 def validate_environment(extra: str, distributions=None) -> None:
@@ -99,16 +103,22 @@ def validate_environment(extra: str, distributions=None) -> None:
         )
 
 
-def install(python: str, extra: str) -> None:
-    if extra not in EXTRAS:
-        raise ValueError("unsupported evaluator extra")
-    # Do not inherit provider credentials or uv index/override/build settings.
+def installation_environment() -> dict[str, str]:
+    # Intentionally exclude proxy/CA/TLS settings as well as provider credentials
+    # and uv overrides: proxy URLs can contain credentials and CA settings change trust.
     env = {
         name: os.environ[name]
         for name in ("PATH", "HOME", "TMPDIR", "UV_CACHE_DIR", "UV_PYTHON_INSTALL_DIR")
         if name in os.environ
     }
     env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_TERMINAL_PROMPT="0")
+    return env
+
+
+def install(python: str, extra: str) -> None:
+    if extra not in EXTRAS:
+        raise ValueError("unsupported evaluator extra")
+    env = installation_environment()
     common = ["uv", "pip", "install", "--python", python, "--no-config"]
     subprocess.run(
         [*common, "--require-hashes", "--only-binary", ":all:", "--requirements", str(LOCKS / f"{extra}.txt")],

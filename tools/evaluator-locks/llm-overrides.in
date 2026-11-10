@@ -11,5 +11,6 @@
 # Tests without credentials exercised the evaluator's Bedrock invoke/converse
 # calls and Harbor's LiteLLM calls. They mocked only provider HTTP.
 # These tests do not establish live-model compatibility.
-# Regenerate tier2.txt/tier3.txt with their recorded uv pip compile commands.
+# Use make refresh-evaluator-locks; review targeted updates with
+# tools/refresh_evaluator_locks.py --upgrade-package package==version.
 litellm==1.101.3

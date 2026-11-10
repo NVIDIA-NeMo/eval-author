@@ -48,7 +48,6 @@ jobs:
           export PATH="$UV_TOOL_BIN_DIR:$PATH"
           uv venv --python 3.12 "$RUNNER_TEMP/static-evaluator"
           python tools/install_evaluator.py --python "$RUNNER_TEMP/static-evaluator/bin/python" --extra security
-          echo "$RUNNER_TEMP/static-evaluator/bin" >> "$GITHUB_PATH"
           uv tool install --python 3.12 semgrep==1.177.0
           curl --fail --location --silent --show-error https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz --output "$RUNNER_TEMP/gitleaks_8.30.1_linux_x64.tar.gz"
           curl --fail --location --silent --show-error https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_checksums.txt --output "$RUNNER_TEMP/gitleaks-checksums.txt"
@@ -57,7 +56,7 @@ jobs:
           tar -xzf gitleaks_8.30.1_linux_x64.tar.gz -C "$UV_TOOL_BIN_DIR" gitleaks
       - name: Scan Eval Author and ethos skills
         if: ${{ !cancelled() }}
-        run: python tools/collect_skill_evaluations.py --output "$RUNNER_TEMP/skill-evaluations"
+        run: python tools/collect_skill_evaluations.py --evaluator "$RUNNER_TEMP/static-evaluator/bin/skillevaluator" --output "$RUNNER_TEMP/skill-evaluations"
       - name: Stage full native reports for private retention
         if: ${{ always() && github.event.repository.private == true }}
         run: python tools/stage_skill_reports.py --source "$RUNNER_TEMP/skill-evaluations" --output "$RUNNER_TEMP/skill-evaluations-reports"
@@ -145,6 +144,10 @@ jobs:
           echo "$OSV_SCANNER_SHA256  $RUNNER_TEMP/osv-scanner" | sha256sum --check -
           chmod +x "$RUNNER_TEMP/osv-scanner"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Check evaluator lock drift
+        if: matrix.python-version == '3.12'
+        run: make check-evaluator-locks
 
       - name: Check runtime policy
         run: uv run --locked python tools/check_runtime_policy.py

@@ -87,10 +87,11 @@ def test_runtime_installs_each_job_with_managed_python_and_keyless_env(shard, mo
     import json
 
     from collect_skill_evaluations import EVALUATOR_REVISION
+    from install_evaluator import EVALUATOR_REVISION as INSTALLED_REVISION
     from patched_opencode_runtime import EVALUATOR_REVISION as GUARDED_REVISION
 
     module, root, events, phase = shard
-    assert module.EVALUATOR_REVISION == GUARDED_REVISION == EVALUATOR_REVISION
+    assert INSTALLED_REVISION == GUARDED_REVISION == EVALUATOR_REVISION
     config_path = root / "control/phase.json"
     config = json.loads(config_path.read_text())
     config["check"] = check

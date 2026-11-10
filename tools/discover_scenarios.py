@@ -96,13 +96,13 @@ def checked_ancestry(path: Path) -> Path:
             # macOS exposes its system temporary roots through root-owned aliases.
             if sys.platform == "darwin" and str(parent) in {"/tmp", "/var"} and info.st_uid == 0:
                 return checked_ancestry(parent.resolve() / path.relative_to(parent))
-            sys.exit("Work directory ancestor must not be a symlink.")
+            sys.exit(f"Work directory ancestor must not be a symlink: {str(parent)!r}")
         if (
             not stat.S_ISDIR(info.st_mode)
             or info.st_uid not in {0, os.getuid()}
             or (info.st_mode & 0o022 and not info.st_mode & stat.S_ISVTX)
         ):
-            sys.exit("Work directory ancestor is not safely owned or writable.")
+            sys.exit(f"Work directory ancestor is not safely owned or writable: {str(parent)!r}")
     return path
 
 

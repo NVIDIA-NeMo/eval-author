@@ -19,9 +19,6 @@ from pathlib import Path
 from live_agent_diagnostics import read_regular
 from live_shard_boundary import attach_boundary, close_boundary, create_boundary, execute_in_boundary, handoff_boundary
 from patched_opencode_runtime import (
-    EVALUATOR_REVISION as EVALUATOR_REVISION,
-)
-from patched_opencode_runtime import (
     LIVE_EXECUTION_SECONDS,
     LIVE_HANDOFF_SECONDS,
     PREPARATION_TIMEOUT_SECONDS,

@@ -45,7 +45,7 @@ def test_ci_evaluation_is_advisory_and_always_attempts_artifact_upload():
 def test_static_and_live_installs_match_the_reported_evaluator_revision(monkeypatch):
     root = Path(__file__).resolve().parents[1]
     monkeypatch.syspath_prepend(str(root / "tools"))
-    import live_shard
+    from install_evaluator import EVALUATOR_REVISION
 
     assert collector.EVALUATOR_REVISION == "3fd2cf57e4a2af01f282e001f7515b6e76f18ec7"
     for filename, job_name, step_name in (
@@ -56,16 +56,20 @@ def test_static_and_live_installs_match_the_reported_evaluator_revision(monkeypa
         install = next(step["run"] for step in workflow["jobs"][job_name]["steps"] if step.get("name") == step_name)
         if filename == "skill-evaluation-live.yml":
             assert 'tools/live_shard.py runtime --root "$RUNNER_TEMP/live-shard"' in install
-            assert live_shard.EVALUATOR_REVISION == collector.EVALUATOR_REVISION
+            assert EVALUATOR_REVISION == collector.EVALUATOR_REVISION
         else:
-            from install_evaluator import EVALUATOR_REVISION
-
             assert EVALUATOR_REVISION == collector.EVALUATOR_REVISION
             assert (
                 'tools/install_evaluator.py --python "$RUNNER_TEMP/static-evaluator/bin/python" --extra security'
                 in install
             )
-            assert 'echo "$RUNNER_TEMP/static-evaluator/bin" >> "$GITHUB_PATH"' in install
+            assert 'echo "$RUNNER_TEMP/static-evaluator/bin" >> "$GITHUB_PATH"' not in install
+            scan = next(
+                step["run"]
+                for step in workflow["jobs"][job_name]["steps"]
+                if step.get("name") == "Scan Eval Author and ethos skills"
+            )
+            assert '--evaluator "$RUNNER_TEMP/static-evaluator/bin/skillevaluator"' in scan
             assert "uv tool install --python 3.12 'skillevaluator" not in install
 
 
@@ -138,7 +142,8 @@ def test_malformed_report_does_not_pass(value):
     assert collector.summarize(value, 0)["status"] == "incomplete"
 
 
-def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch):
+@pytest.mark.parametrize("evaluator", ["skillevaluator", "/isolated/runtime/bin/skillevaluator"])
+def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch, evaluator):
     repo = tmp_path / "repo"
     repo.mkdir()
     for root, name in (("skills", "eval-author"), ("skills", "new-sub-skill"), ("team-skills/ethos", "ethos-write")):
@@ -161,6 +166,7 @@ def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch
     monkeypatch.setattr(collector.subprocess, "run", version)
 
     def execute(argv, cwd, env, log, timeout):
+        assert argv[0] == evaluator
         assert "--no-llm" in argv and "--no-dedup" in argv
         assert argv[argv.index("--tiers") + 1] == "1"
         assert "security" not in argv[argv.index("--checks") + 1].split(",")
@@ -175,7 +181,8 @@ def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch
     monkeypatch.setenv("SECRET_PROVIDER_KEY", "PRIVATE-SENTINEL")
     monkeypatch.setattr(collector, "execute", execute)
     out = tmp_path / "results"
-    result = collector.collect(repo, out, "skillevaluator", 5)
+    result = collector.collect(repo, out, evaluator, 5)
+    assert set(result["tool_versions"]) == {"skillevaluator", "semgrep", "gitleaks"}
     assert [row["skill"] for row in result["skills"]] == ["eval-author", "new-sub-skill", "ethos-write"]
     assert result["skills"][-1]["path"] == "team-skills/ethos/ethos-write"
     assert result["counts"] == {"incomplete": 1, "passed": 2}
@@ -193,6 +200,9 @@ def test_unit_test_job_installs_public_dependencies_without_secrets():
     checkout = next(step for step in job["steps"] if step.get("uses", "").startswith("actions/checkout@"))
     assert checkout["with"]["persist-credentials"] is False
     assert any(step.get("run") == "uv sync --locked" for step in job["steps"])
+    drift = next(step for step in job["steps"] if step.get("name") == "Check evaluator lock drift")
+    assert drift["run"] == "make check-evaluator-locks"
+    assert drift["if"] == "matrix.python-version == '3.12'"
 
 
 @pytest.mark.parametrize("interrupt_at", ["plan", "version", "first_scan", "second_scan"])
