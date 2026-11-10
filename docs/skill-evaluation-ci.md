@@ -384,7 +384,7 @@ Both preparation timing and evaluation shard artifacts include the exact
 the same allowlisted diagnostic fields to the CI log immediately after create,
 before inference credentials are passed. It is independent of final cleanup:
 cleanup failure remains fatal and still prevents staging evaluation results.
-The 180-second tooling-build cap and remaining-time image inspection are unchanged.
+The tooling build has a 360-second cap. Image inspection uses the remaining time.
 APT may retry a transient package-download failure once within that budget.
 The build itself is not retried. Permanent errors and failed hash checks remain fatal.
 

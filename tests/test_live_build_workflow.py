@@ -160,7 +160,7 @@ def test_production_and_pr_share_contained_phase_runner_and_close_before_publish
             phase: next(s for s in steps if f"tools/live_shard.py {phase} " in s.get("run", ""))
             for phase in ("create", "runtime", "relocate", "prepare", "close")
         }
-        assert [phases[p]["timeout-minutes"] for p in ("create", "runtime", "relocate", "prepare")] == [4, 5, 1, 15]
+        assert [phases[p]["timeout-minutes"] for p in ("create", "runtime", "relocate", "prepare")] == [7, 5, 1, 15]
         assert [steps.index(phases[p]) for p in ("create", "runtime", "relocate", "prepare", "close")] == sorted(
             steps.index(s) for s in phases.values()
         )

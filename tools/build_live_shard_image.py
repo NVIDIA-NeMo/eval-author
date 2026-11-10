@@ -18,7 +18,7 @@ from pathlib import Path
 from tooling_build_diagnostics import CommandFailed
 
 RECIPE = Path(__file__).with_name("live_shard.Dockerfile")
-BUILD_SECONDS = 180
+BUILD_SECONDS = 360
 BASE_IMAGES = {
     "BASE_IMAGE": "ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852",
     "DOCKER_IMAGE": "docker:29.7.2-dind@sha256:3ef33f2e220b79ed3ef3b99d81746f06f306cd6340e2cb7331d17ae996e74cb6",

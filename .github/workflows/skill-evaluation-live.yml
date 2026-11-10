@@ -173,7 +173,7 @@ jobs:
           path: ${{ runner.temp }}/downloaded-opencode
       - name: Create disposable shard boundary and pinned execution image
         id: boundary
-        timeout-minutes: 4
+        timeout-minutes: 7
         run: &create-boundary >-
           sudo --preserve-env=EA_LIVE_JOB_DEADLINE,GITHUB_ACTIONS,RUNNER_ENVIRONMENT,SHARD_TIER,SHARD_CHECK,SHARD_SKILL
           python3 tools/live_shard.py create --root "$RUNNER_TEMP/live-shard"
@@ -322,7 +322,7 @@ jobs:
         if: matrix.check == 'live' && matrix.id != 'none'
         with: *binary-download
       - name: Create disposable shard boundary and pinned execution image
-        timeout-minutes: 4
+        timeout-minutes: 7
         if: matrix.id != 'none'
         run: *create-boundary
       - name: Publish only allowlisted tooling build diagnostics

@@ -51,7 +51,7 @@ def test_build_uses_pinned_inputs_private_context_and_verified_image(tmp_path, m
         assert "synthetic-must-not-forward" not in json.dumps(env)
         assert "DOCKER_HOST" not in env and "DOCKER_CONTEXT" not in env
         assert argv[:3] == ["docker", "--host", "unix:///var/run/docker.sock"]
-        assert 0 < timeout <= 180
+        assert 0 < timeout <= 360
         calls.append(argv)
         if "build" in argv:
             assert "--force-rm" in argv
@@ -116,7 +116,7 @@ def test_build_preserves_legacy_compatible_argv_and_builder_selection(tmp_path, 
             "DOCKER_CONFIG": str(output / "home/.docker"),
             "PYTHONDONTWRITEBYTECODE": "1",
         }
-        assert log == output / "build.log" and timeout == 180 and capture is False
+        assert log == output / "build.log" and timeout == 360 and capture is False
         raise stopped
 
     monkeypatch.setattr(builder, "command", command)
