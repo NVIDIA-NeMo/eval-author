@@ -43,7 +43,7 @@ artifact uses `access: denied` without trying the read; an unresolved selection 
 The checked-in mutation panel exercises these distinctions with actual local files.
 
 Raw measurements are named `identity`, `route`, `config`, `links`, and `approvals`.
-Explicit `sourced_config`, `freshness`, and `native` selections add their
+Explicit `sourced_config`, `freshness`, `native`, and `reconstruction` selections add their
 corresponding measurements. Absent optional selections do not establish coverage.
 They have statuses and diagnostics, not numeric scores. The eleven canonical W02
 criteria consume this evidence under their own anchors; a helper passing is not
@@ -187,6 +187,100 @@ does not execute tasks, establish current task-tree freshness, qualify closure,
 validate every ATIF field, or traverse nested/subagent traces. Unsupported native
 formats remain unresolved. Existing control/accounting seam tests do not prove
 that the whole W01 or W05 workflow consumes the new interface.
+
+## Selected reconstruction provenance
+
+The optional `reconstruction` array selects existing candidate artifacts and ATIF
+steps. Use [rubric_reconstruction.py](../../eval-author/scripts/rubric_reconstruction.py)
+through `measure.py`; its callable is `project_reconstruction(root, artifacts, selection)`.
+No reconstruction, scorer, model, or task code runs. This measurement does not
+change canonical criterion IDs, check IDs, scores, or preflight decisions.
+
+Each entry has exactly these fields:
+
+```json
+{
+  "artifact_id": "initial-file",
+  "candidate": {
+    "artifact_id": "candidate",
+    "pointer": "/ground_truth/artifacts/0"
+  },
+  "source": {"artifact_id": "summary", "pointer": "/source"},
+  "trace_id": "safe-trace",
+  "step": {"pointer": "/steps/0", "step_id": 7},
+  "content": {"pointer": "/message", "encoding": "utf-8"},
+  "declaration": "recovered"
+}
+```
+
+Select all four artifacts through the common identity records. Reuse the owning
+trace-environment candidate record and prepared summary. The candidate uses schema
+`nemo.eval_author.trace_environment_candidate.v2`; its selected ground-truth artifact
+binds `path`, `sha256`, and `provenance`. ATIF provenance has `kind: atif_step`,
+unique integer `step_ids`, and null `uri`, `revision`, and `source_id`.
+The selected files must be `candidate.json` and `summary.json` in the same workspace
+directory. The summary uses `nemo.eval_author.trace_environment_summary.v2` or
+`nemo.eval_author.trace_environment_summary.v3`. Its `candidate` must equal
+`{"path": "candidate.json", **candidate}` from the selected candidate document.
+The comparison preserves JSON types, list order, and every candidate field.
+The candidate document cannot override the summary's reserved `path` field.
+This follows the owning producer's
+[`_finalize` and `_check` bindings](../../eval-author/scripts/eval_author_shared/trace_workspace.py).
+The helper does not validate candidate semantics, privacy review, or environment readiness.
+A prepared summary without an embedded candidate cannot establish this binding.
+Artifact paths in the candidate are relative to its directory. The source pointer must be `/source`.
+The selected summary source binds
+`safe_path`, `safe_sha256`, and `safe_size_bytes` to the selected trace. Its path
+is relative to the summary directory. Native digests retain their `sha256:` prefix;
+common identity records use bare lowercase hex. Never normalize malformed paths
+or digest values.
+
+The trace uses `ATIF-v1.7`. The step pointer selects one array position; `step_id`
+must match both that step and the candidate's provenance. Every cited candidate
+step must exist exactly once. The content pointer is relative to that selected
+step. Select only a retained string whose UTF-8 bytes are the claimed file bytes.
+The helper preserves line endings and compares exact bytes for `recovered`.
+It does not extract file contents from command text or infer what a tool did.
+Use `content: null` when the source does not retain exact bytes. A dangling pointer
+is an error, not a declaration of unavailable evidence.
+
+`declaration` is `recovered`, `partial`, or `generated`. These are caller declarations,
+not semantic findings. A recovered declaration passes only when the selected
+bindings and bytes match. Partial and generated declarations keep `source_proof:
+unknown`, even when their known artifact digest matches selected content. An
+optional content pointer can measure known source bytes for either declaration;
+it does not assert equality with the resulting artifact. The candidate's existing
+`state_basis` remains `recorded` or `reconstructed` and does not establish recovery.
+
+Output uses the common `status`, `records`, and `diagnostics` fields. Each record
+contains `selection_index`, `status`, `declaration`, `artifact_digest`,
+`candidate_digest`, `source_digest`, `trace_digest`, `source_content_digest`,
+`source_step_id`, `source_step_index`, `source_proof`, and `semantic_proof: false`.
+Digests and step fields stay null until checked. A valid recovered entry uses
+`source_proof: exact_selected_bytes`; all other entries retain `unknown`.
+The helper exports no paths, pointer text, session IDs, content, or exception text.
+Diagnostic subjects use `reconstruction:<selection-index>`.
+
+Stable `reconstruction.*` diagnostics distinguish `artifact_digest_mismatch`,
+`candidate_digest_mismatch`, `source_digest_mismatch`, `trace_digest_mismatch`,
+`candidate_artifact_mismatch`, `candidate_source_mismatch`, `source_schema_unsupported`, `source_trace_mismatch`,
+`candidate_step_mismatch`, `candidate_step_missing`, `step_missing`, `step_mismatch`,
+`step_ambiguous`, and `content_digest_mismatch`. Unselected references use
+`<role>_not_selected`. Declared unavailable artifacts use `<role>_access_missing`,
+`<role>_access_denied`, or `<role>_access_unresolved`. Missing content uses
+`content_unavailable`; partial and generated entries use
+`partial_source_proof_unknown` and `generated_source_proof_unknown`.
+Malformed fields produce fixed diagnostics instead of raw exceptions. Failed
+entries do not erase valid neighbors or already measured artifact identities.
+
+The helper admits at most 64 entries and 64 artifact records. Reads share a
+64-file, 16 MiB budget, with at most 1 MiB per file and 64 evidence references per
+artifact. Failed reads consume budget. JSON structure and pointer limits reuse
+the configuration reader; traces admit at most 2,000 steps. All file reads use
+the shared descriptor-relative no-follow reader. Declared unavailable paths are
+not read by this helper, including through another selected artifact's evidence.
+These bounds cover the optional helper; other measurements retain their own bounds.
+A complete selected manifest still does not prove a runnable environment.
 
 ## Scoped approval and freshness
 

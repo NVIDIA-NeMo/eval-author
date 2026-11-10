@@ -11,10 +11,14 @@ from pathlib import Path
 from eval_author_shared import task_evidence as native
 from rubric_configuration import MAX_FILES, _read_file
 from rubric_configuration import MAX_SOURCE_BYTES as MAX_SOURCE_BYTES
-from rubric_identity import DIGEST, diagnostic, finish, identify, local_file, text
+from rubric_identity import DIGEST, SelectedAccess, diagnostic, finish, identify, local_file, text
 
 
 class FreshnessError(ValueError):
+    pass
+
+
+class _Unavailable(Exception):
     pass
 
 
@@ -24,11 +28,15 @@ def _require(condition):
 
 
 class _Snapshots:
-    def __init__(self, root):
+    def __init__(self, root, artifacts=()):
         self.root = root
+        self.access = SelectedAccess(artifacts)
         self.files = {}
 
     def read(self, relative):
+        reason = self.access.reason(relative)
+        if reason:
+            raise _Unavailable(reason)
         if relative not in self.files:
             _require(len(self.files) < MAX_FILES)
             local_file(self.root, relative)
@@ -113,6 +121,9 @@ def _native_control(root, entry, selected, validate, row, snapshots):
 
         def read(self, path):
             path = self.path(path)
+            reason = snapshots.access.reason(path.relative_to(root).as_posix())
+            if reason:
+                raise _Unavailable(reason)
             matches = [
                 ident
                 for ident, candidates in selected.items()
@@ -187,9 +198,9 @@ def check_freshness(root, artifacts, evidence):
     """
     diagnostics, records = [], []
     root = Path(root).absolute()
-    snapshots = _Snapshots(root)
     if not isinstance(artifacts, list) or not isinstance(evidence, list):
         return {**finish([], [diagnostic("freshness.input_invalid", "selection")]), "criterion_3": "not_assessed"}
+    snapshots = _Snapshots(root, artifacts)
     selected = {}
     for artifact in artifacts:
         if isinstance(artifact, dict) and text(artifact.get("id")):
@@ -245,6 +256,8 @@ def check_freshness(root, artifacts, evidence):
             row["usable"] = row["status"] == "current"
             if not row["usable"]:
                 diagnostics.append(diagnostic("freshness." + row["status"], ident, "unknown" if unresolved else "fail"))
+        except _Unavailable:
+            diagnostics.append(diagnostic("freshness.unresolved", ident, "unknown"))
         except (OSError, ValueError, KeyError, TypeError, RecursionError):
             diagnostics.append(diagnostic("freshness.binding_invalid", ident))
         records.append(row)

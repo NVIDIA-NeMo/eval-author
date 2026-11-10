@@ -70,6 +70,123 @@ def test_unavailable_artifacts_never_pass(tmp_path, access):
     assert result["diagnostics"] == [{"code": "identity.access_" + access, "subject": "task-1", "status": "unknown"}]
 
 
+@pytest.mark.parametrize("access", ["missing", "denied", "unresolved"])
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("direct", [False, True])
+@pytest.mark.parametrize("snapshot", [False, True])
+def test_identity_never_reads_selected_unavailable_aliases(tmp_path, monkeypatch, access, reverse, direct, snapshot):
+    checker = load_checker()
+    data = b"PRIVATE_SENTINEL"
+    (tmp_path / "private.bin").write_bytes(data)
+    (tmp_path / "neighbor.bin").write_bytes(b"neighbor")
+    unavailable = selected_record("private.bin", data, "unavailable")
+    unavailable["access"] = access
+    alias = (
+        selected_record("private.bin", data, "alias")
+        if direct
+        else selected_record("neighbor.bin", b"neighbor", "alias")
+    )
+    alias["evidence"] = [{"path": "private.bin", "digest": unavailable["digest"]}]
+    neighbor = selected_record("neighbor.bin", b"neighbor", "neighbor")
+    records = [alias, neighbor, unavailable] if reverse else [unavailable, neighbor, alias]
+    calls = []
+    original = checker._read_selected
+
+    def read(root, relative, limit):
+        calls.append(relative)
+        return original(root, relative, limit)
+
+    def hasher(path):
+        calls.append(path.name)
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    monkeypatch.setattr(checker, "_read_selected", read)
+    result = checker.identify(tmp_path, records, hasher=hasher if snapshot else None)
+    assert calls == ["neighbor.bin"]
+    assert result["status"] == "unknown"
+    assert result["records"] == records
+    assert result["diagnostics"] == [
+        {"code": "identity.access_" + access, "subject": subject, "status": "unknown"}
+        for subject in ("alias", "unavailable")
+    ]
+
+
+@pytest.mark.parametrize("mutation", ["extra", "evidence", "digest", "limit"])
+def test_malformed_unavailable_metadata_cannot_restore_alias_access(tmp_path, monkeypatch, mutation):
+    checker = load_checker()
+    unavailable = selected_record("private.bin", b"private", "unavailable")
+    unavailable["access"] = "denied"
+    if mutation == "extra":
+        unavailable["extra"] = True
+    elif mutation == "evidence":
+        unavailable["evidence"] = None
+    elif mutation == "digest":
+        unavailable["digest"] = []
+    else:
+        unavailable["evidence"] *= checker.MAX_REFERENCES + 1
+
+    def unexpected(*args):
+        pytest.fail("unavailable selection reached the filesystem")
+
+    monkeypatch.setattr(checker, "local_file", unexpected)
+    result = checker.identify(tmp_path, [selected_record("private.bin", b"private", "alias"), unavailable])
+    assert {"code": "identity.access_denied", "subject": "alias", "status": "unknown"} in result["diagnostics"]
+    assert result["status"] != "pass"
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_conflicting_unavailable_aliases_have_stable_diagnostics(tmp_path, monkeypatch, reverse):
+    checker = load_checker()
+    records = [selected_record("private.bin", b"private", access) for access in ("missing", "denied", "unresolved")]
+    for record in records:
+        record["access"] = record["id"]
+    records.append(selected_record("private.bin", b"private", "alias"))
+    if reverse:
+        records.reverse()
+
+    def unexpected(*args):
+        pytest.fail("unavailable selection reached the filesystem")
+
+    monkeypatch.setattr(checker, "local_file", unexpected)
+    result = checker.identify(tmp_path, records)
+    assert result["status"] == "unknown"
+    assert result["diagnostics"] == [
+        {"code": "identity.access_" + access, "subject": subject, "status": "unknown"}
+        for subject, access in (
+            ("alias", "denied"),
+            ("denied", "denied"),
+            ("missing", "missing"),
+            ("unresolved", "unresolved"),
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [None, True, 7, {}, [], "", ".", "./private", "a/../private", "a//private", "/private", "private/", "private\x00"],
+)
+@pytest.mark.parametrize("access", ["available", "denied"])
+@pytest.mark.parametrize("evidence_only", [False, True])
+def test_identity_validates_relative_references_without_filesystem_access(
+    tmp_path, monkeypatch, path, access, evidence_only
+):
+    checker = load_checker()
+    record = selected_record("private", b"private")
+    record["access"] = access
+    if evidence_only:
+        record["evidence"][0]["path"] = path
+    else:
+        record["path"] = path
+
+    def unexpected(*args):
+        pytest.fail("invalid reference reached the filesystem")
+
+    monkeypatch.setattr(checker, "local_file", unexpected)
+    result = checker.identify(tmp_path, [record])
+    assert result["records"] == []
+    assert result["diagnostics"] == [{"code": "identity.reference_invalid", "subject": "selected", "status": "fail"}]
+
+
 def test_invalid_evidence_digest_does_not_pass(tmp_path):
     checker = load_checker()
     path = tmp_path / "task.json"
@@ -317,8 +434,8 @@ def test_dispatch_rechecks_the_bytes_it_parses(tmp_path, monkeypatch):
     }
     original = checker.identify
 
-    def changed_after_identity(root, records):
-        result = original(root, records)
+    def changed_after_identity(root, records, **kwargs):
+        result = original(root, records, **kwargs)
         path.write_text('{"selector":"other","routes":{"other":"entry"}}')
         return result
 
@@ -405,8 +522,8 @@ def test_dispatch_reread_is_bounded_and_nofollow(tmp_path, monkeypatch, replacem
     record["role"] = "scorer"
     original = checker.identify
 
-    def changed(root, records):
-        result = original(root, records)
+    def changed(root, records, **kwargs):
+        result = original(root, records, **kwargs)
         if replacement == "oversized":
             path.write_bytes(b"x" * (checker.MAX_SOURCE_BYTES + 1))
         elif replacement == "symlink":
@@ -725,8 +842,8 @@ def test_dependency_source_reread_is_hash_bound_bounded_nofollow(
     original = checker.identify
     path = tmp_path / "graph.json"
 
-    def changed(root, selected):
-        result = original(root, selected)
+    def changed(root, selected, **kwargs):
+        result = original(root, selected, **kwargs)
         if selected[0]["id"] == "graph":
             if replacement == "different":
                 path.write_text("{}")
@@ -860,6 +977,161 @@ def selected_record(path, data, ident="selected"):
         "source": "synthetic",
         "evidence": [{"path": path, "digest": sha}],
     }
+
+
+@pytest.mark.parametrize("access", ["missing", "denied", "unresolved"])
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("direct", [False, True])
+def test_cli_identity_never_opens_selected_unavailable_alias(tmp_path, access, reverse, direct):
+    data = b"PRIVATE_SENTINEL"
+    (tmp_path / "private.bin").write_bytes(data)
+    (tmp_path / "neighbor.bin").write_bytes(b"neighbor")
+    unavailable = selected_record("private.bin", data, "unavailable")
+    unavailable["access"] = access
+    alias = (
+        selected_record("private.bin", data, "alias")
+        if direct
+        else selected_record("neighbor.bin", b"neighbor", "alias")
+    )
+    alias["evidence"] = [{"path": "private.bin", "digest": unavailable["digest"]}]
+    artifacts = [alias, unavailable] if reverse else [unavailable, alias]
+    selection = tmp_path / "selection.json"
+    selection.write_text(json.dumps({"artifacts": artifacts}))
+    wrapper = textwrap.dedent("""\
+        import pathlib, runpy, sys
+        def guard(event, args):
+            if event == "open" and isinstance(args[0], str):
+                assert pathlib.PurePath(args[0]).name != "private.bin", "unavailable source opened"
+        sys.addaudithook(guard)
+        sys.argv = sys.argv[1:]
+        sys.path.insert(0, str(pathlib.Path(sys.argv[0]).parent))
+        runpy.run_path(sys.argv[0], run_name="__main__")
+    """)
+    cli = ROOT / "skills/eval-author-rubric/scripts/measure.py"
+    result = subprocess.run(
+        [sys.executable, "-B", "-c", wrapper, str(cli), "--root", str(tmp_path), "--selection", str(selection)],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert result.stderr == ""
+    assert result.returncode == 1
+    assert "PRIVATE_SENTINEL" not in result.stdout
+    identity = json.loads(result.stdout)["measurements"]["identity"]
+    assert identity["status"] == "unknown"
+    assert identity["diagnostics"] == [
+        {"code": "identity.access_" + access, "subject": subject, "status": "unknown"}
+        for subject in ("alias", "unavailable")
+    ]
+
+
+@pytest.mark.parametrize("consumer", ["route", "sourced_config"])
+@pytest.mark.parametrize("access", ["missing", "denied", "unresolved"])
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("direct", [False, True])
+def test_cli_readers_never_open_selected_unavailable_alias(tmp_path, consumer, access, reverse, direct):
+    data = (
+        b'{"selector":"default","routes":{"default":"scorer"},"dependencies":{"scorer":[]},"agent":"PRIVATE_SENTINEL"}'
+    )
+    (tmp_path / "private.json").write_bytes(data)
+    (tmp_path / "alias.json").write_bytes(data)
+    (tmp_path / "neighbor.json").write_bytes(b'{"agent":"neighbor"}')
+    unavailable = dict(selected_record("private.json", data, "unavailable"), access=access)
+    alias = selected_record("private.json" if direct else "alias.json", data, "alias")
+    alias["evidence"] = [{"path": "private.json", "digest": unavailable["digest"]}]
+    neighbor = selected_record("neighbor.json", b'{"agent":"neighbor"}', "scorer")
+    neighbor["role"] = "scorer"
+    artifacts = [alias, unavailable, neighbor] if reverse else [unavailable, alias, neighbor]
+    if consumer == "route":
+        choice = {"entrypoint": "alias", "expected_scorer": "scorer", "dependencies": {"scorer": []}}
+    else:
+        fields = {
+            "/agent": {"artifact_id": "alias", "pointer": "/agent"},
+            "/provider": {"artifact_id": "scorer", "pointer": "/agent"},
+        }
+        choice = {"declared": fields, "observed": fields}
+    selection = tmp_path / "selection.json"
+    selection.write_text(json.dumps({"artifacts": artifacts, consumer: choice}))
+    result = audited_rubric_cli(tmp_path, selection, "private.json")
+    assert result.stderr == ""
+    assert result.returncode == 1
+    assert "PRIVATE_SENTINEL" not in result.stdout
+    measurements = json.loads(result.stdout)["measurements"]
+    assert len(measurements["identity"]["records"]) == 3
+    assert not any(row["subject"] == "scorer" for row in measurements["identity"]["diagnostics"])
+    report = measurements[consumer]
+    assert report["status"] == "unknown"
+    if consumer == "route":
+        assert report["bound_dependency"] is False
+        assert report["diagnostics"] == [{"code": "identity.access_" + access, "subject": "alias", "status": "unknown"}]
+    else:
+        assert report["fields"]["/agent"]["status"] == "unknown"
+        assert report["fields"]["/provider"]["status"] == "equal"
+        assert report["counts"]["compared"] == 1
+
+
+@pytest.mark.parametrize("consumer", ["approvals", "native", "scoring"])
+@pytest.mark.parametrize("access", ["missing", "denied", "unresolved"])
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("direct", [False, True])
+def test_cli_downstream_readers_respect_full_identity_selection(tmp_path, consumer, access, reverse, direct):
+    from test_rubric_approval_sources import fixture
+
+    approvals, decisions, identity, sources = fixture(tmp_path)
+    records = identity["records"]
+    selected = records[-1]
+    choice = {"approvals": approvals, "decisions": decisions, "approval_sources": sources}
+    if consumer == "native":
+        choice = {"native": {"receipt_ids": [], "manifest_ids": [], "result_ids": [], "trace_ids": [selected["id"]]}}
+    elif consumer == "scoring":
+        choice = {
+            "w02_scope": {"task_artifacts": {"source": selected["id"], "required": ["task"], "unresolved_material": []}}
+        }
+    private = tmp_path / "private.json"
+    private.write_bytes((tmp_path / selected["path"]).read_bytes())
+    records.append(dict(selected, id="unavailable", path=private.name, access=access))
+    selected["evidence"] = [{"path": private.name, "digest": selected["digest"]}]
+    if direct:
+        selected["path"] = private.name
+    if reverse:
+        records.reverse()
+    selection = tmp_path / "selection.json"
+    selection.write_text(json.dumps({"artifacts": records, **choice}))
+    completed = audited_rubric_cli(tmp_path, selection, private.name)
+    assert completed.stderr == ""
+    assert completed.returncode == 1
+    report = json.loads(completed.stdout)
+    assert len(report["measurements"]["identity"]["records"]) == len(records)
+    assert report["measurements"]["identity"]["status"] == "unknown"
+    if consumer == "approvals":
+        assert report["measurements"]["approvals"]["evidence"] == []
+        assert report["measurements"]["approvals"]["status"] != "pass"
+    elif consumer == "native":
+        assert report["measurements"]["native"]["bindings"] == []
+        assert report["measurements"]["native"]["status"] != "pass"
+    else:
+        assert report["items"]["DISC-01-A"]["score"] is None
+
+
+def audited_rubric_cli(root, selection, forbidden):
+    wrapper = textwrap.dedent("""\
+        import pathlib, runpy, sys
+        forbidden = sys.argv.pop(1)
+        def guard(event, args):
+            if event == "open" and isinstance(args[0], str):
+                assert pathlib.PurePath(args[0]).name != forbidden, "unavailable source opened"
+        sys.addaudithook(guard)
+        sys.argv = sys.argv[1:]
+        sys.path.insert(0, str(pathlib.Path(sys.argv[0]).parent))
+        runpy.run_path(sys.argv[0], run_name="__main__")
+    """)
+    cli = ROOT / "skills/eval-author-rubric/scripts/measure.py"
+    return subprocess.run(
+        [sys.executable, "-B", "-c", wrapper, forbidden, str(cli), "--root", str(root), "--selection", str(selection)],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
 
 
 @pytest.mark.parametrize("evidence_only", [False, True])

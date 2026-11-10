@@ -17,6 +17,7 @@ from rubric_freshness import check_freshness  # noqa: E402
 from rubric_identity import compare_config, finish, identify, resolve_route, text  # noqa: E402
 from rubric_links import check_approvals, check_links, check_sourced_approvals  # noqa: E402
 from rubric_native import project_native  # noqa: E402
+from rubric_reconstruction import project_reconstruction  # noqa: E402
 from w02_report import build_report  # noqa: E402
 from w02_scoring import assess  # noqa: E402
 
@@ -64,6 +65,8 @@ def measure(root, selection):
             selected_config["observed"],
             binding=selected_config.get("binding"),
         )
+    if "reconstruction" in selection:
+        measurements["reconstruction"] = project_reconstruction(root, artifacts, selection["reconstruction"])
     if "freshness" in selection:
         measurements["freshness"] = check_freshness(root, artifacts, selection["freshness"])
     if "native" in selection:

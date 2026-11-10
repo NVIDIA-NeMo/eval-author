@@ -1,0 +1,108 @@
+{
+  "schema": "w02-provenance-expectations-v1",
+  "boundary": "Handcrafted records. Exact selected bytes, references, configuration fields, declared freshness bindings, and selected source-step bytes only. Partial and generated declarations leave source proof unknown. No population completeness, native execution, semantic judgments, or new scores.",
+  "defaults": {
+    "cli_exit_code": 1,
+    "identity": {"status": "pass", "diagnostics": []},
+    "links": {"status": "pass", "diagnostics": []},
+    "sourced_config": {"status": "equal", "differences": [], "unknowns": []},
+    "freshness": {
+      "status": "pass",
+      "diagnostics": [],
+      "records": {
+        "generation-record": {"status": "current", "usable": true, "changed_dependencies": []},
+        "subset-record": {"status": "current", "usable": true, "changed_dependencies": []},
+        "calibration-record": {"status": "current", "usable": true, "changed_dependencies": []},
+        "neighbor-record": {"status": "current", "usable": true, "changed_dependencies": []}
+      }
+    }
+  },
+  "cases": [
+    {"id": "generation-valid", "overrides": {}},
+    {"id": "candidate-replaced", "overrides": {
+      "freshness": {"status": "fail", "diagnostics": [{"code": "freshness.stale", "subject": "generation-record", "status": "fail"}], "records": {"generation-record": {"status": "stale", "usable": false, "changed_dependencies": ["candidate-kept"]}}}
+    }},
+    {"id": "validation-dangling", "overrides": {
+      "links": {"status": "fail", "diagnostics": [{"code": "links.target_missing", "subject": "validation-absent", "status": "fail"}]}
+    }},
+    {"id": "generator-configuration-revision-mismatch", "overrides": {
+      "sourced_config": {"status": "different", "differences": ["/runtime_pins/generator"], "unknowns": []},
+      "freshness": {"status": "fail", "diagnostics": [{"code": "freshness.stale", "subject": "generation-record", "status": "fail"}], "records": {"generation-record": {"status": "stale", "usable": false, "changed_dependencies": ["generator-config"]}}}
+    }},
+    {"id": "selected-set-membership-changed", "overrides": {
+      "freshness": {"status": "fail", "diagnostics": [{"code": "freshness.stale", "subject": "calibration-record", "status": "fail"}, {"code": "freshness.stale", "subject": "subset-record", "status": "fail"}], "records": {
+        "subset-record": {"status": "stale", "usable": false, "changed_dependencies": ["selected-set"]},
+        "calibration-record": {"status": "stale", "usable": false, "changed_dependencies": ["selected-set"]}
+      }}
+    }},
+    {"id": "calibration-current", "overrides": {}},
+    {"id": "calibration-dataset-changed", "overrides": {
+      "freshness": {"status": "fail", "diagnostics": [{"code": "freshness.stale", "subject": "calibration-record", "status": "fail"}], "records": {"calibration-record": {"status": "stale", "usable": false, "changed_dependencies": ["dataset"]}}}
+    }},
+    {"id": "calibration-scorer-changed", "overrides": {
+      "freshness": {"status": "fail", "diagnostics": [{"code": "freshness.stale", "subject": "calibration-record", "status": "fail"}], "records": {"calibration-record": {"status": "stale", "usable": false, "changed_dependencies": ["scorer-spec"]}}}
+    }},
+    {"id": "calibration-runtime-changed", "overrides": {
+      "freshness": {"status": "fail", "diagnostics": [{"code": "freshness.stale", "subject": "calibration-record", "status": "fail"}], "records": {"calibration-record": {"status": "stale", "usable": false, "changed_dependencies": ["runtime-spec"]}}}
+    }},
+    {"id": "compatibility-unknown", "overrides": {
+      "freshness": {"status": "unknown", "diagnostics": [{"code": "freshness.unresolved", "subject": "calibration-record", "status": "unknown"}], "records": {"calibration-record": {"status": "unresolved", "usable": false, "changed_dependencies": ["compatibility-note"]}}}
+    }},
+    {"id": "reconstruction-recovered", "overrides": {
+      "reconstruction": {
+        "status": "pass", "diagnostics": [],
+        "records": [
+          {"status": "pass", "declaration": "recovered", "source_proof": "exact_selected_bytes", "semantic_proof": false},
+          {"status": "pass", "declaration": "recovered", "source_proof": "exact_selected_bytes", "semantic_proof": false}
+        ]
+      }
+    }},
+    {"id": "reconstruction-wrong-step", "overrides": {
+      "reconstruction": {
+        "status": "fail", "diagnostics": [{"code": "reconstruction.step_mismatch", "subject": "reconstruction:0", "status": "fail"}],
+        "records": [
+          {"status": "fail", "declaration": "recovered", "source_proof": "unknown", "semantic_proof": false},
+          {"status": "pass", "declaration": "recovered", "source_proof": "exact_selected_bytes", "semantic_proof": false}
+        ]
+      }
+    }},
+    {"id": "reconstruction-source-bytes-changed", "overrides": {
+      "identity": {"status": "fail", "diagnostics": [{"code": "identity.digest_mismatch", "subject": "initial-trace", "status": "fail"}]},
+      "reconstruction": {
+        "status": "fail", "diagnostics": [{"code": "reconstruction.trace_digest_mismatch", "subject": "reconstruction:0", "status": "fail"}],
+        "records": [
+          {"status": "fail", "declaration": "recovered", "source_proof": "unknown", "semantic_proof": false},
+          {"status": "pass", "declaration": "recovered", "source_proof": "exact_selected_bytes", "semantic_proof": false}
+        ]
+      }
+    }},
+    {"id": "reconstruction-partial", "overrides": {
+      "reconstruction": {
+        "status": "unknown", "diagnostics": [{"code": "reconstruction.partial_source_proof_unknown", "subject": "reconstruction:0", "status": "unknown"}],
+        "records": [
+          {"status": "unknown", "declaration": "partial", "source_proof": "unknown", "semantic_proof": false},
+          {"status": "pass", "declaration": "recovered", "source_proof": "exact_selected_bytes", "semantic_proof": false}
+        ]
+      }
+    }},
+    {"id": "reconstruction-generated", "overrides": {
+      "reconstruction": {
+        "status": "unknown", "diagnostics": [{"code": "reconstruction.generated_source_proof_unknown", "subject": "reconstruction:0", "status": "unknown"}],
+        "records": [
+          {"status": "unknown", "declaration": "generated", "source_proof": "unknown", "semantic_proof": false},
+          {"status": "pass", "declaration": "recovered", "source_proof": "exact_selected_bytes", "semantic_proof": false}
+        ]
+      }
+    }},
+    {"id": "reconstruction-source-unavailable", "overrides": {
+      "identity": {"status": "unknown", "diagnostics": [{"code": "identity.access_missing", "subject": "initial-trace", "status": "unknown"}]},
+      "reconstruction": {
+        "status": "unknown", "diagnostics": [{"code": "reconstruction.trace_access_missing", "subject": "reconstruction:0", "status": "unknown"}],
+        "records": [
+          {"status": "unknown", "declaration": "recovered", "source_proof": "unknown", "semantic_proof": false},
+          {"status": "pass", "declaration": "recovered", "source_proof": "exact_selected_bytes", "semantic_proof": false}
+        ]
+      }
+    }}
+  ]
+}

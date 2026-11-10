@@ -20,7 +20,7 @@ import stat
 import tomllib
 from pathlib import Path
 
-from rubric_identity import CONFIG_FIELDS, identify, local_file
+from rubric_identity import CONFIG_FIELDS, SelectedAccess, identify, local_file
 
 MAX_SOURCE_BYTES = 1_048_576
 MAX_FILES = 64
@@ -148,10 +148,14 @@ def _finite_tree(value):
 class _Sources:
     def __init__(self, root, records):
         self.root, self.records = root, records
+        self.access = SelectedAccess(records)
         self.files = {}
         self.sources = {}
 
     def read(self, path):
+        reason = self.access.reason(path)
+        if reason:
+            return None, "artifact_missing" if reason == "access_missing" else reason
         if path not in self.files:
             if len(self.files) >= MAX_FILES:
                 return None, "file_limit"

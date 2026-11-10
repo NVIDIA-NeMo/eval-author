@@ -49,13 +49,17 @@ def text(value):
     return isinstance(value, str) and bool(value.strip())
 
 
-def local_file(root, value):
-    if not text(value):
+def _relative_path(value):
+    if not text(value) or "\x00" in value:
         raise ValueError("invalid path")
     relative = PurePosixPath(value)
     if relative.is_absolute() or ".." in relative.parts or relative.as_posix() != value or value == ".":
         raise ValueError("invalid path")
-    path = root / relative
+    return relative
+
+
+def local_file(root, value):
+    path = root / _relative_path(value)
     if any(part.is_symlink() for part in (path, *path.parents)):
         raise ValueError("symlink path")
     return path
@@ -121,13 +125,36 @@ def _read_selected(root, relative, limit=MAX_SOURCE_BYTES):
             os.close(descriptor)
 
 
+class SelectedAccess:
+    """Keep full-selection access restrictions when a reader selects a subset."""
+
+    def __init__(self, records):
+        self.unavailable = {}
+        for record in records:
+            if not isinstance(record, dict) or record.get("access") not in ("missing", "denied", "unresolved"):
+                continue
+            try:
+                path = _relative_path(record.get("path")).as_posix()
+            except ValueError:
+                continue
+            self.unavailable[path] = min(record["access"], self.unavailable.get(path, record["access"]))
+
+    def reason(self, relative):
+        access = self.unavailable.get(relative)
+        return "access_" + access if access else None
+
+
 class _Hashes:
-    def __init__(self, root, hasher):
+    def __init__(self, root, hasher, access):
         self.root, self.hasher = root, hasher
+        self.access = access
         self.files = {}
         self.remaining = MAX_TOTAL_BYTES
 
     def read(self, relative):
+        reason = self.access.reason(relative)
+        if reason:
+            return None, reason
         if relative in self.files:
             return self.files[relative]
         if len(self.files) >= MAX_FILES:
@@ -153,7 +180,7 @@ class _Hashes:
         return result
 
 
-def identify(root: Path, records: list, *, hasher=None) -> dict:
+def identify(root: Path, records: list, *, hasher=None, access=None) -> dict:
     """Hash bounded selected bytes; injected snapshot hashers own byte limits."""
     diagnostics = []
     valid_records = []
@@ -161,7 +188,7 @@ def identify(root: Path, records: list, *, hasher=None) -> dict:
         return finish([], [diagnostic("identity.selection_missing", "selection", "unknown")])
     if len(records) > MAX_RECORDS:
         return finish([], [diagnostic("identity.selection_limit", "selection", "unknown")])
-    hashes = _Hashes(root, hasher)
+    hashes = _Hashes(root, hasher, access or SelectedAccess(records))
     seen = set()
     for index, record in enumerate(records):
         subject = record.get("id") if isinstance(record, dict) else None
@@ -194,6 +221,12 @@ def identify(root: Path, records: list, *, hasher=None) -> dict:
             and (not isinstance(ref["digest"], str) or not DIGEST.fullmatch(ref["digest"]))
             for offset, ref in enumerate(refs)
         ):
+            diagnostics.append(diagnostic("identity.reference_invalid", subject))
+            continue
+        try:
+            for ref in refs:
+                _relative_path(ref["path"])
+        except ValueError:
             diagnostics.append(diagnostic("identity.reference_invalid", subject))
             continue
         valid_records.append(copy.deepcopy(record))
@@ -316,6 +349,9 @@ def resolve_route(root: Path, records: list, route: dict) -> dict:
         return {**finish([], [diagnostic("route.invalid", "route")]), **result}
     if not isinstance(records, list):
         return {**finish([], identify(root, records)["diagnostics"]), **result}
+    if len(records) > MAX_RECORDS:
+        return {**finish([], [diagnostic("identity.selection_limit", "selection", "unknown")]), **result}
+    access = SelectedAccess(records)
     by_id = {}
     for row in records:
         if isinstance(row, dict) and text(row.get("id")):
@@ -323,7 +359,7 @@ def resolve_route(root: Path, records: list, route: dict) -> dict:
 
     def validate(key):
         candidates = by_id[key]
-        identity = identify(root, candidates)
+        identity = identify(root, candidates, access=access)
         diagnostics.extend(identity["diagnostics"])
         if len(candidates) != 1:
             duplicate = diagnostic("identity.duplicate", key)

@@ -522,6 +522,34 @@ def native_selection(panel):
     return artifacts, choice
 
 
+@pytest.mark.parametrize("target", ["receipt", "manifest", "native-result"])
+@pytest.mark.parametrize("direct", [False, True])
+def test_cli_native_freshness_keeps_unavailable_alias_unknown(native_panel, target, direct):
+    from test_rubric_identity import audited_rubric_cli
+
+    artifacts, choice = native_selection(native_panel)
+    alias = next(row for row in artifacts if row["id"] == target)
+    private = native_panel.tmp_path / "private.json"
+    private.write_bytes((native_panel.tmp_path / alias["path"]).read_bytes())
+    denied_path = alias["path"] if direct else private.name
+    artifacts.append(dict(alias, id="denied", path=denied_path, access="denied"))
+    if direct:
+        for record in artifacts[:3]:
+            if record is not alias and Path(record["path"]).name == Path(denied_path).name:
+                artifacts.append(dict(record, id="denied-" + record["id"], access="denied"))
+    if not direct:
+        alias["evidence"] = [{"path": private.name, "digest": alias["digest"]}]
+    selection = native_panel.tmp_path / "selection.json"
+    selection.write_text(json.dumps({"artifacts": artifacts, "freshness": [choice]}))
+    completed = audited_rubric_cli(native_panel.tmp_path, selection, Path(denied_path).name)
+    assert completed.stderr == ""
+    assert completed.returncode == 1
+    report = json.loads(completed.stdout)["measurements"]["freshness"]
+    assert report["status"] == "unknown"
+    assert report["diagnostics"] == [{"code": "freshness.unresolved", "subject": "receipt", "status": "unknown"}]
+    assert report["records"][0]["usable"] is False
+
+
 def test_native_without_task_file_closure_never_discovers(native_panel, monkeypatch):
     artifacts, choice = native_selection(native_panel)
     unselected = native_panel.task / "unselected-private.txt"
@@ -734,6 +762,44 @@ def test_unknown_impact_changed_binding_remains_unresolved(tmp_path, role):
     assert report["status"] == "unknown"
     assert report["records"][0]["status"] == "unresolved"
     assert report["records"][0]["usable"] is False
+
+
+@pytest.mark.parametrize("target", ["dependency", "source", "result"])
+@pytest.mark.parametrize("access", ["missing", "denied", "unresolved"])
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("direct", [False, True])
+def test_cli_freshness_never_opens_selected_unavailable_alias(tmp_path, target, access, reverse, direct):
+    from test_rubric_identity import audited_rubric_cli
+
+    dep = artifact(tmp_path, "dep", {})
+    result = artifact(tmp_path, "result", {}, role="result")
+    source, choice = binding_source(tmp_path, result, [dep])
+    neighbor = artifact(tmp_path, "neighbor", {}, role="result")
+    neighbor_dep = artifact(tmp_path, "neighbor-dep", {})
+    neighbor_source, neighbor_choice = binding_source(tmp_path, neighbor, [neighbor_dep])
+    alias = {"dependency": dep, "source": source, "result": result}[target]
+    private = tmp_path / "private.json"
+    private.write_bytes((tmp_path / alias["path"]).read_bytes())
+    unavailable = dict(alias, id="unavailable", path=private.name, access=access)
+    alias["evidence"] = [{"path": private.name, "digest": alias["digest"]}]
+    if direct:
+        alias["path"] = private.name
+    artifacts = [unavailable, dep, result, source, neighbor, neighbor_dep, neighbor_source]
+    if reverse:
+        artifacts.reverse()
+    selection = tmp_path / "selection.json"
+    selection.write_text(json.dumps({"artifacts": artifacts, "freshness": [choice, neighbor_choice]}))
+    completed = audited_rubric_cli(tmp_path, selection, "private.json")
+    assert completed.stderr == ""
+    assert completed.returncode == 1
+    report = json.loads(completed.stdout)["measurements"]["freshness"]
+    assert report["status"] == "unknown"
+    assert report["diagnostics"] == [{"code": "freshness.unresolved", "subject": "result", "status": "unknown"}]
+    rows = {row["id"]: row for row in report["records"]}
+    assert rows["result"]["status"] == "unresolved"
+    assert rows["result"]["usable"] is False
+    assert rows["neighbor"]["status"] == "current"
+    assert rows["neighbor"]["usable"] is True
 
 
 def test_revision_only_change_is_stale_and_report_cannot_replace_source(tmp_path):

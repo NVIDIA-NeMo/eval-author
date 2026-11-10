@@ -12,6 +12,7 @@ Developer tools in `tools/` are not included in skill-only installations.
 | [Workflow scope](#workflow-scope) | Reviewed actions, writes and handoffs match a request contract. |
 | [Discovery comparisons](#discovery-comparisons) | Repeated discovery reports agree under frozen inputs. |
 | [Rubric identity measurements](#rubric-identity-measurements) | Handcrafted mutations produce exact scoped identity diagnostics and scores. |
+| [W02 provenance demo](#w02-provenance-demo) | Selected source bytes, record links, and revision changes produce expected diagnostics. |
 | [Audit and task evidence](#audit-and-task-evidence) | Acceptance still matches its retained source and execution evidence. |
 | [Verifier-cheat panel](#verifier-cheat-panel) | Real Harbor controls distinguish a sound grader from a planted vulnerable grader. |
 | [Live anti-cheat experiment](#live-anti-cheat-experiment) | Model-backed Harbor task attempts separate real behavior from vulnerable reward signals. |
@@ -185,6 +186,42 @@ means failed/unknown raw predicates or comparisons still requiring review. Exit 
 means invalid input. Exit 0 does not mean every canonical item is assessed or that
 native preflight passed. Configuration acceptability remains unassessed.
 Keep selections and output private because they can contain local evidence locations.
+
+## W02 provenance demo
+
+Run the separate provenance panel from the checkout:
+
+```bash
+uv run --locked python tools/run_w02_provenance_demo.py --format text
+uv run --locked python tools/run_w02_provenance_demo.py --run-dir /absolute/path/to/new-demo-directory
+```
+
+The first command prints expected and observed outcomes. The second retains the
+synthetic inputs, selections, CLI reports, and `panel.json` for inspection and
+replay. The output directory must not exist. Without `--run-dir`, temporary inputs
+are removed after the run. JSON is the default output format.
+
+The panel checks selected generation records, candidate changes, validation
+references, configuration bindings, and selected-set changes. Calibration cases
+check retained dependencies on dataset, scorer, and runtime revisions. They do
+not fit a calibration model or decide whether calibration transfers.
+
+Reconstruction cases bind candidate files to their owning prepared summary and
+selected trace steps. Exact source bytes can support a recovered declaration.
+Wrong steps and changed bytes fail. Partial, generated, and unavailable sources
+retain unknown source proof. These checks do not reconstruct a workspace or
+establish that it can run.
+
+Expectations are authored separately in
+`evals/rubric-measurements/w02-provenance.json`. Each case invokes the real rubric
+CLI and checks its diagnostics and exit status. Relevant mutations also check
+that an unaffected neighbor remains current. The panel verifies unchanged input
+bytes and retains every canonical criterion and check in the reports.
+
+These cases add deterministic evidence checks, not scoring anchors. Their scores
+remain null. Supplied failed and rejected candidates retain their identities and
+reasons, but this does not establish that every attempt was recorded or that each
+reason is valid. The fixtures execute no generator, scorer, model, or native task.
 
 ## Verifier-cheat panel
 
