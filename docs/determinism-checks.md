@@ -141,6 +141,9 @@ the runner's private temporary directory and are not artifacts. Do not extend th
 upload path to a directory or wildcard. The model credential stays on the host,
 not in the task container. Private local evidence must be reviewed before sharing.
 Provisioning failures retain a planning fallback, not completed measurements.
+Cells can include an optional `request_diagnostic` with the last request state,
+HTTP error status, and attempt count. It excludes provider messages, headers,
+and request IDs. An `in-flight` state does not identify why a request stopped.
 Runner loss or cancellation can prevent publication even with an always-run
 upload step; an absent artifact is not evidence of a successful experiment.
 

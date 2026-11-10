@@ -29,6 +29,13 @@ interrupted measurements remain visible without being counted as passes. Public
 summaries contain aggregate results; raw reports and baseline review materials
 remain private.
 
+For a failed Ratchet subprocess or an HTTP error, an optional `diagnostic` object
+records a fixed stage/category and bounded `exit_code` or `http_status` (the other
+field is null). It contains no response bodies, commands, paths, or exception text.
+These observations do not establish the underlying cause; other failures retain
+the generic incomplete reason. Older summaries without diagnostics cannot recover
+the lost cause.
+
 ## CI
 
 PRs run a plan without inference. Live comparisons run on `main` pushes, daily,

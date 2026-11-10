@@ -251,7 +251,15 @@ def model_session(tmp_path, monkeypatch):
 
         def respond(request):
             requests.append(json.loads(request.content))
+            receipt = json.loads((agent.logs_dir / "receipt.json").read_text())
+            assert receipt["request_diagnostic"] == {
+                "state": "in-flight",
+                "http_status": None,
+                "attempts": len(requests),
+            }
             reply = replies[min(len(requests) - 1, len(replies) - 1)]
+            if isinstance(reply, Exception):
+                raise reply
             if isinstance(reply, int):
                 return httpx.Response(reply, json={"error": {"message": "PRIVATE_PROVIDER_ERROR"}})
             message = {"role": "assistant", "content": "done"}
@@ -278,7 +286,8 @@ def model_session(tmp_path, monkeypatch):
             return client(**kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
 
         monkeypatch.setattr(openai, "AsyncOpenAI", factory)
-        return module.LiveAgent(logs_dir=tmp_path, task="ledger", arm="normal"), requests, options
+        agent = module.LiveAgent(logs_dir=tmp_path, task="ledger", arm="normal")
+        return agent, requests, options
 
     return module, start
 
@@ -316,6 +325,7 @@ def test_transient_provider_error_can_recover_with_bounded_attempts(model_sessio
     assert requests[0] == requests[1]
     assert options[0]["max_retries"] == 0
     assert agent.receipt["finish"] == "stop" and agent.receipt["tokens"] == 3
+    assert agent.receipt["request_diagnostic"] == {"state": "response", "http_status": None, "attempts": 2}
 
 
 @pytest.mark.parametrize("status,attempts", [(429, 3), (503, 3), (400, 1), (401, 1)])
@@ -327,7 +337,89 @@ def test_provider_failures_are_bounded_and_sanitized(model_session, status, atte
     assert caught.value.__suppress_context__
     assert len(requests) == attempts
     assert agent.receipt["usage_status"] == "partial_observed_not_total_billed"
+    assert agent.receipt["request_diagnostic"] == {
+        "state": "http-error",
+        "http_status": status,
+        "attempts": attempts,
+    }
+    runner = load("request_diagnostic_runner", SCRIPT)
+    cell = next(row for row in runner.cells("live", 2) if row["arm"] == "normal")
+    assert runner.observation(agent.receipt, cell)["request_diagnostic"] == agent.receipt["request_diagnostic"]
     assert "PRIVATE" not in json.dumps(agent.receipt)
+
+
+@pytest.mark.parametrize("kind,state", [("ConnectError", "connection-error"), ("ReadTimeout", "timeout")])
+def test_transport_diagnostic_is_typed_not_message_derived(model_session, kind, state):
+    import httpx
+
+    _, start = model_session
+    agent, requests, _ = start([getattr(httpx, kind)("PRIVATE_PROVIDER_ERROR")])
+    with pytest.raises(RuntimeError, match="^provider request failed$"):
+        asyncio.run(agent.run("repair", None, None))
+    assert len(requests) == 1
+    assert agent.receipt["request_diagnostic"] == {"state": state, "http_status": None, "attempts": 1}
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        [],
+        {},
+        {"state": "PRIVATE"},
+        {"state": "http-error", "http_status": True, "attempts": 1},
+        {"state": "http-error", "http_status": 600, "attempts": 1},
+        {"state": "http-error", "http_status": 401, "attempts": True},
+        {"state": "http-error", "http_status": 401, "attempts": 15},
+        {"state": "response", "http_status": 401, "attempts": 1},
+        {"state": "response", "http_status": None, "attempts": 1, "message": "PRIVATE"},
+    ],
+)
+def test_request_diagnostic_rejects_untyped_or_private_fields(value):
+    runner = load("diagnostic_runner", SCRIPT)
+    assert runner.request_diagnostic(value) is None
+
+
+def test_http_failure_survives_real_receipt_to_public_checkpoint(checkpoint_run, model_session, monkeypatch):
+    runner, comparator, output, private, snapshots = checkpoint_run
+    _, start = model_session
+    original_check = runner.native_check
+
+    def execute(command, log, env, timeout):
+        if "--job-name" not in command:
+            return
+        cell_id = int(command[command.index("--job-name") + 1])
+        cell = runner.cells("live", 2)[cell_id - 1]
+        if cell["arm"] not in runner.ARMS:
+            return
+        agent, requests, _ = start([401])
+        agent.task, agent.arm = cell["task"], cell["arm"]
+        agent.receipt.update(task_id=cell["task_id"], arm=cell["arm"])
+        agent.logs_dir = private / "jobs" / str(cell_id) / "trial/agent"
+        with pytest.raises(RuntimeError, match="^provider request failed$"):
+            asyncio.run(agent.run(runner.panel().TASKS[cell["task"]]["instruction"], None, None))
+        assert len(requests) == 1
+
+    def check(job, cell):
+        if cell["arm"] in runner.ARMS:
+            # Harbor records an errored trial; absent native completion cannot score.
+            runner.require(False)
+        return original_check(job, cell)
+
+    monkeypatch.setattr(runner, "execute", execute)
+    monkeypatch.setattr(runner, "native_check", check)
+    assert runner.run("live", output, private) == 2
+    summary = snapshots[-1]
+    assert summary["completed"] == 6 and summary["incomplete"] == 8
+    assert summary["controls_healthy"] and summary["reason"] == "invalid-native-evidence"
+    for row in summary["cells"][6:]:
+        assert row["observed_turns"] == row["observed_tokens"] == row["observed_tool_calls"] == 0
+        assert row["observed_models"] == []
+        assert row["request_diagnostic"] == {"state": "http-error", "http_status": 401, "attempts": 1}
+        assert "trusted" not in row and "weak" not in row
+    for snapshot in snapshots:
+        comparator.validate(snapshot)
+    assert "PRIVATE" not in "".join(path.read_text() for path in output.iterdir())
 
 
 def test_retry_backoff_cannot_extend_request_deadline(model_session, monkeypatch):
