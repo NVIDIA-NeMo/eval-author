@@ -5,6 +5,7 @@
 
 import importlib.util
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -42,10 +43,57 @@ def test_ci_evaluation_is_advisory_and_always_attempts_artifact_upload():
     assert stage["if"] == "always()" and "skill-fallback" in stage["run"]
 
 
+@pytest.mark.parametrize("trace_exit,rest_exit", [(0, 0), (1, 0), (0, 1)])
+def test_ci_parallel_tests_wait_for_both_and_propagate_failure(tmp_path, trace_exit, rest_exit):
+    root = Path(__file__).resolve().parents[1]
+    job = yaml.safe_load((root / ".github/workflows/ci.yml").read_text())["jobs"]["test"]
+    step = next(step for step in job["steps"] if step.get("name") == "Run tests in two parallel groups")
+    assert job["timeout-minutes"] == 20
+    assert job["strategy"]["matrix"]["python-version"] == ["3.12", "3.13"]
+    uv = tmp_path / "uv"
+    uv.write_text(
+        "#!/bin/bash\n"
+        'if [[ " $* " == *" --ignore=tests/test_trace_environment.py "* ]]; then\n'
+        "  group=rest; other=trace; code=$REST_EXIT\n"
+        'elif [[ " $* " == *" tests/test_trace_environment.py "* ]]; then\n'
+        "  group=trace; other=rest; code=$TRACE_EXIT\n"
+        "else exit 99; fi\n"
+        'printf "%s\\n" "$@" > "$RUNNER_TEMP/$group.args"\n'
+        'touch "$RUNNER_TEMP/$group.started"\n'
+        "for i in {1..100}; do\n"
+        '  if test -f "$RUNNER_TEMP/$other.started"; then\n'
+        '    if test "$group" = rest; then sleep 0.3; fi\n'
+        '    touch "$RUNNER_TEMP/$group.finished"; exit "$code"\n'
+        "  fi\n"
+        "  sleep 0.01\n"
+        "done\nexit 98\n"
+    )
+    uv.chmod(0o700)
+    result = subprocess.run(
+        ["bash", "-e", "-c", step["run"]],
+        env={
+            **os.environ,
+            "PATH": f"{tmp_path}:{os.environ['PATH']}",
+            "RUNNER_TEMP": str(tmp_path),
+            "TRACE_EXIT": str(trace_exit),
+            "REST_EXIT": str(rest_exit),
+        },
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=10,
+    )
+    assert result.returncode == (1 if trace_exit or rest_exit else 0)
+    for group in ("trace", "rest"):
+        assert (tmp_path / f"{group}.finished").exists()
+        args = (tmp_path / f"{group}.args").read_text().splitlines()
+        assert args[:4] == ["run", "--locked", "pytest", "-q"]
+        assert "-rs" in args and "--durations=10" in args
+
+
 def test_static_and_live_installs_match_the_reported_evaluator_revision(monkeypatch):
     root = Path(__file__).resolve().parents[1]
     monkeypatch.syspath_prepend(str(root / "tools"))
-    import live_shard
+    from install_evaluator import EVALUATOR_REVISION
 
     assert collector.EVALUATOR_REVISION == "3fd2cf57e4a2af01f282e001f7515b6e76f18ec7"
     for filename, job_name, step_name in (
@@ -56,9 +104,21 @@ def test_static_and_live_installs_match_the_reported_evaluator_revision(monkeypa
         install = next(step["run"] for step in workflow["jobs"][job_name]["steps"] if step.get("name") == step_name)
         if filename == "skill-evaluation-live.yml":
             assert 'tools/live_shard.py runtime --root "$RUNNER_TEMP/live-shard"' in install
-            assert live_shard.EVALUATOR_REVISION == collector.EVALUATOR_REVISION
+            assert EVALUATOR_REVISION == collector.EVALUATOR_REVISION
         else:
-            assert f"git+https://github.com/NVIDIA/SkillEvaluator.git@{collector.EVALUATOR_REVISION}" in install
+            assert EVALUATOR_REVISION == collector.EVALUATOR_REVISION
+            assert (
+                'tools/install_evaluator.py --python "$RUNNER_TEMP/static-evaluator/bin/python" --extra security'
+                in install
+            )
+            assert 'echo "$RUNNER_TEMP/static-evaluator/bin" >> "$GITHUB_PATH"' not in install
+            scan = next(
+                step["run"]
+                for step in workflow["jobs"][job_name]["steps"]
+                if step.get("name") == "Scan Eval Author and ethos skills"
+            )
+            assert '--evaluator "$RUNNER_TEMP/static-evaluator/bin/skillevaluator"' in scan
+            assert "uv tool install --python 3.12 'skillevaluator" not in install
 
 
 def test_only_skillspector_security_is_skipped():
@@ -130,7 +190,8 @@ def test_malformed_report_does_not_pass(value):
     assert collector.summarize(value, 0)["status"] == "incomplete"
 
 
-def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch):
+@pytest.mark.parametrize("evaluator", ["skillevaluator", "/isolated/runtime/bin/skillevaluator"])
+def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch, evaluator):
     repo = tmp_path / "repo"
     repo.mkdir()
     for root, name in (("skills", "eval-author"), ("skills", "new-sub-skill"), ("team-skills/ethos", "ethos-write")):
@@ -153,6 +214,7 @@ def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch
     monkeypatch.setattr(collector.subprocess, "run", version)
 
     def execute(argv, cwd, env, log, timeout):
+        assert argv[0] == evaluator
         assert "--no-llm" in argv and "--no-dedup" in argv
         assert argv[argv.index("--tiers") + 1] == "1"
         assert "security" not in argv[argv.index("--checks") + 1].split(",")
@@ -167,7 +229,8 @@ def test_scans_every_skill_and_preserves_failed_collection(tmp_path, monkeypatch
     monkeypatch.setenv("SECRET_PROVIDER_KEY", "PRIVATE-SENTINEL")
     monkeypatch.setattr(collector, "execute", execute)
     out = tmp_path / "results"
-    result = collector.collect(repo, out, "skillevaluator", 5)
+    result = collector.collect(repo, out, evaluator, 5)
+    assert set(result["tool_versions"]) == {"skillevaluator", "semgrep", "gitleaks"}
     assert [row["skill"] for row in result["skills"]] == ["eval-author", "new-sub-skill", "ethos-write"]
     assert result["skills"][-1]["path"] == "team-skills/ethos/ethos-write"
     assert result["counts"] == {"incomplete": 1, "passed": 2}
@@ -185,6 +248,9 @@ def test_unit_test_job_installs_public_dependencies_without_secrets():
     checkout = next(step for step in job["steps"] if step.get("uses", "").startswith("actions/checkout@"))
     assert checkout["with"]["persist-credentials"] is False
     assert any(step.get("run") == "uv sync --locked" for step in job["steps"])
+    drift = next(step for step in job["steps"] if step.get("name") == "Check evaluator lock drift")
+    assert drift["run"] == "make check-evaluator-locks"
+    assert drift["if"] == "matrix.python-version == '3.12'"
 
 
 @pytest.mark.parametrize("interrupt_at", ["plan", "version", "first_scan", "second_scan"])

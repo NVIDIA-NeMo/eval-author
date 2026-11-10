@@ -34,6 +34,13 @@ commit-check: ## Check HEAD's message (override COMMIT_MSG for a prepared messag
 	fi; \
 	uv run --locked pre-commit run --hook-stage commit-msg --commit-msg-filename "$$message_file"
 
+.PHONY: refresh-evaluator-locks check-evaluator-locks
+refresh-evaluator-locks: ## Recompile evaluator locks without upgrading existing pins; review the diff
+	uv run --locked python tools/refresh_evaluator_locks.py
+
+check-evaluator-locks: ## Recompile seeded locks in scratch and fail on drift (requires uv 0.12.3)
+	uv run --locked python tools/refresh_evaluator_locks.py --check
+
 SEMANTIC_SUITE ?= evals/semantic/pilot.json
 SEMANTIC_RUNTIME ?=
 SEMANTIC_OUTPUT ?=
