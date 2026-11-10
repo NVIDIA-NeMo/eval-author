@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+- case_id: registry-hello
+  agent: {path: agent.yml}
+  tasks: {path: dataset.yml}
+- case_id: pinned-hello
+  agent: {path: agent.yml}
+  tasks: {path: git-task.yml}

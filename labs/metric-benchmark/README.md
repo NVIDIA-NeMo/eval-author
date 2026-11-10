@@ -13,8 +13,10 @@ mutation testing.
 will grow, change, and may be dropped as we learn. We believe in building in plain
 sight.
 
-Prep happens outside this repository. The benchmark consumes prepared case
-examples, fixed task-subset manifests, and a YAML experiment configuration.
+The benchmark consumes prepared case examples, fixed task-subset manifests, and
+a YAML experiment configuration. The experimental
+[input preparation tool](docs/tools.md#prepare-remote-inputs) downloads Harbor
+registry datasets or pinned Git tasks into that format.
 
 The architecture has three phases: external prep, execution, and score analysis.
 Execution and score analysis comprise four executable stages, each exposed as a
@@ -32,7 +34,7 @@ See the [architecture](docs/architecture.md) and [stage descriptions](docs/stage
 for how the experiment works.
 
 The [experiment runner guide](docs/run-experiment.md) covers end-to-end
-execution. Start with the [prepared smoke example](docs/run-experiment.md#small-prepared-smoke-benchmark)
+execution. Start with the [prepared smoke example](docs/run-experiment.md#try-the-bundled-smoke-example)
 to exercise the pipeline locally without model credentials.
 
 For preparing bundles, use the [benchmark format specification](docs/benchmark-format.md).

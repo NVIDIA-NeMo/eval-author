@@ -309,6 +309,7 @@ you need to create, validate, or run Harbor tasks.
 | Operation | Requirements |
 | --- | --- |
 | Read repository docs or explicitly request case planning only | Your coding agent and repository access. No evaluation runtime is required for this scoped work. |
+| Prepare remote inputs for the experimental metric benchmark | Use the repository environment and Git; see [input preparation](../labs/metric-benchmark/docs/tools.md#prepare-remote-inputs) for network and execution prerequisites. |
 | Start full creation or improvement onboarding | The selected supported NeMo Gym or Harbor runtime, verified before Ethos and case planning. |
 | Run the discovery helper | Python 3.11+. Harbor configs/tasks need Harbor importable by that interpreter; native NeMo Gym manifests need a NeMo Gym v0.6.0+ CLI. Execution checks need the selected backend and task dependencies; Docker is needed for Docker-backed tasks. |
 | Build first evals with native NeMo Gym | NeMo Gym v0.6.0+ in its separate Python 3.13.14+ environment; no audit report required. See [first evals](first-evals.md). Execution needs the actual agent integration and configured model access. |

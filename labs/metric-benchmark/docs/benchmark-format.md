@@ -93,6 +93,56 @@ there is no `kind` field on these entries. The inventory is derived from this
 manifest and is not repeated in the experiment. Adding a directory does not add
 a task. Preparation must materialize archives or remote datasets first.
 
+### Remote task sources (experimental proof of concept)
+
+Authored task manifests can select a Harbor JSON-registry dataset:
+
+```yaml
+dataset:
+  name: terminal-bench
+  version: "2.0"
+```
+
+The entire dataset is selected. An explicit release version is required; `latest`
+and `head` are rejected. Omit `registry` to use Harbor's default JSON registry, or
+add `registry: {url: https://example.org/registry.json}` inside `dataset`. This
+prototype supports Git-backed entries in JSON registries, not Harbor Hub package
+datasets. The task manifest contains either `dataset` or `tasks`, never both.
+
+An explicit task list can mix existing local entries with individual Git tasks:
+
+```yaml
+tasks:
+  - task_id: hello-world
+    revision: 1
+    source:
+      git_url: https://github.com/laude-institute/harbor.git
+      git_commit_id: ec6618290a90aa4ba2cfd08bd91b2f8a1afa760a
+      path: examples/tasks/hello-world
+```
+
+`source` replaces the local `path` field on a remote entry. Its path is relative
+to the Git repository and its commit must be a full 40-character lowercase SHA.
+An optional entry-level `sha256` verifies the downloaded task directory using the
+existing content-pin rules. HTTP(S) Git URLs are supported; `file://` is also
+accepted for local Git fixtures. URL credentials must come from the environment,
+not embedded user/password fields.
+
+These are preparation inputs. The stage loaders, signer, and experiment runner
+continue to consume the explicit local task format above. Run
+[input preparation](tools.md#prepare-remote-inputs) first; it resolves upstream
+Git refs in registry entries to immutable commits, downloads the tasks, and
+produces a separate signed experiment bundle. Case names and analysis settings
+are preserved. Registry task names become task IDs; dataset-generated integer
+task revisions start at `1`. The exact upstream version, commit, and content
+hashes are retained separately rather than encoded as an integer revision.
+
+The design keeps resolution explicit so execution and saved-result analysis do
+not query a potentially changed registry. Reuse the prepared bundle to repeat an
+experiment; prepare a new output and increment the benchmark revision when
+adopting changed upstream inputs. The prototype's remaining scope is described
+with the [preparation commands](tools.md#prototype-boundaries).
+
 ## Execution: `execution.yml`
 
 ```yaml
