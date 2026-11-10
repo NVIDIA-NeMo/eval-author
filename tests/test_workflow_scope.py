@@ -7,6 +7,7 @@ import copy
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -281,11 +282,34 @@ def test_retained_lookup_contract_rejects_missing_evidence_or_wrong_state(mutati
 
 
 def retained_module():
-    spec = importlib.util.spec_from_file_location("retained_runs", ROOT / "skills/eval-author/scripts/retained_runs.py")
+    spec = importlib.util.spec_from_file_location(
+        "retained_runs_library", ROOT / "skills/eval-author/scripts/eval_author_shared/retained_runs.py"
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_retained_cli_works_from_copied_scripts_without_site_packages(tmp_path):
+    installed = tmp_path / "installed"
+    shutil.copytree(ROOT / "skills/eval-author/scripts", installed, ignore=shutil.ignore_patterns("__pycache__"))
+    repo = tmp_path / "repo"
+    retained_trial(repo, "job/trial")
+    command = [
+        sys.executable,
+        "-I",
+        "-S",
+        str(installed / "retained_runs.py"),
+        "--repo",
+        str(repo),
+        "--agent",
+        "src-agent",
+    ]
+    result = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True, check=True)
+    observed = json.loads(result.stdout)
+    assert observed["state_update"]["prerequisites"]["data"]["status"] == "verified"
+    assert observed["candidates"][0]["trace"] == ".eval-author/jobs/job/trial/agent/trajectory.json"
 
 
 def test_lookup_reads_only_metadata_and_prioritizes_known_tasks(tmp_path, monkeypatch):

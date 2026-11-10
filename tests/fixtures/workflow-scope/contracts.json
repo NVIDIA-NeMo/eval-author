@@ -430,8 +430,8 @@
     "audit-known-repo-no-state": [
       {
         "prompts": [
-          "Audit this repository\u2019s existing evals.",
-          "Find gaps in this repository\u2019s evaluation coverage."
+          "Audit this repository’s existing evals.",
+          "Find gaps in this repository’s evaluation coverage."
         ],
         "context": "Explicit full audit; repository path is known, but no prior decisions or journey state exist. A metadata-only state lookup finds no saved context and must not initialize it.",
         "flow": "eval-author-audit",
@@ -450,7 +450,7 @@
     "audit-invalid-saved-state": [
       {
         "prompts": [
-          "Continue this repository\u2019s audit."
+          "Continue this repository’s audit."
         ],
         "context": "Explicit audit; known repository contains malformed or foreign-repository journey state. The metadata-only lookup cannot establish valid context. Preserve state and explain recovery; no artifact inspection or new onboarding state.",
         "flow": "eval-author-audit",

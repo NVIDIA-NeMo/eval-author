@@ -281,7 +281,9 @@ Only creation of required ancestor directories is implicit, never deletion or
 permission changes. Both write attempts and snapshot differences are checked.
 Follow-up snapshots must form an unbroken chain.
 
-A contract can also declare `expected_json`, mapping an artifact path to JSON
+These saved-state assertions check workflow correctness. They do not establish
+that an agent repeats the same decisions or produces identical conversations.
+A contract can declare `expected_json`, mapping an artifact path to JSON
 pointers and expected values. Supply the saved UTF-8 text in the turn's
 `artifact_contents` mapping. The checker verifies its hash against the after
 snapshot before checking values. Missing contents make evidence incomplete.
