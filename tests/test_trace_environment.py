@@ -1336,6 +1336,44 @@ def test_prepare_preserves_original_and_writes_text_only_redacted_trace(tmp_path
     assert audit["safe_sha256"] == source_record["safe_sha256"]
 
 
+def test_prepared_release_loader_provenance_passes_privacy_review(tmp_path: Path) -> None:
+    task_dir, _ = _workspace(tmp_path)
+    summary = json.loads((task_dir / "summary.json").read_text())
+    assert summary["source"]["loader"] == {"distribution": "nemo-compass", "version": "0.2.1"}
+
+    code, result = _run(
+        "review-privacy", "--task-dir", str(task_dir), "--reviewer-kind", "agent", "--note", "Synthetic data reviewed."
+    )
+
+    assert code == 0, result
+
+
+@pytest.mark.parametrize(
+    "loader",
+    [
+        {},
+        {"distribution": "nemo-compass"},
+        {"distribution": "other", "version": "0.2.1"},
+        {"distribution": "nemo-compass", "version": "0.2.0"},
+        {"distribution": "nemo-compass", "version": 0.2},
+        {"distribution": "nemo-compass", "version": "0.2.1", "revision": "unbound"},
+    ],
+)
+def test_privacy_review_rejects_unbound_loader_provenance(tmp_path: Path, loader: dict) -> None:
+    task_dir, _ = _workspace(tmp_path)
+    path = task_dir / "summary.json"
+    summary = json.loads(path.read_text())
+    summary["source"]["loader"] = loader
+    _write_json(path, summary)
+
+    code, result = _run(
+        "review-privacy", "--task-dir", str(task_dir), "--reviewer-kind", "agent", "--note", "Synthetic data reviewed."
+    )
+
+    assert code == 1
+    assert result["error"] == "summary source does not match the versioned task workspace contract"
+
+
 def test_scrub_drops_attributes_and_pseudonymizes_source_identifiers(tmp_path: Path) -> None:
     source = tmp_path / "source.atif.json"
     _write_json(source, _atif())
