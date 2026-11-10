@@ -232,23 +232,24 @@ the CLI summary and each per-method `coverage.json` include `identity_preflight`
   revisions, and stable diagnostics.
 - `route` retains the declared scorer and dependency checks. `executed_scorer`
   stays null: resolving a declaration is not evidence that this scorer ran.
-- `subject` keeps the measured `task_id` and `run_id`, including IDs taken from
-  native trial metadata when no override was supplied.
+- `subject` keeps the measured `task_id` and `run_id`, including IDs from
+  native trial metadata when you supply no override.
 - `measurement_allowed` means the selected identity and source-bound declared
   route passed the gate. The measured trace must also match its selected path
-  and digest before coverage is written.
-- `preflight_success` remains false even for a successful coverage measurement;
-  this envelope does not certify workflow readiness, task quality, or rubric
+  and digest before the CLI writes coverage.
+- `preflight_success` remains false even for a successful coverage measurement.
+  This envelope does not certify workflow readiness, task quality, or rubric
   criteria.
 
 The aggregate Coverage measurements (JSON) preserves the envelope in each
 `input_reports` entry alongside that input's subject and coverage accounting.
 Aggregation rejects unresolved or inconsistent envelopes rather than upgrading
-them into passing evidence. This is validation of retained measurement data,
-not fresh native execution attestation. Ordinary reports without the opt-in
-fields remain supported. Identity failures leave coverage unmeasured, not 0%,
-and do not erase earlier output files; do not present an older result as the
-failed attempt's measurement.
+them into passing evidence. It validates retained measurement data without
+attesting to a fresh native execution. Ordinary reports without the opt-in
+fields remain supported.
+
+Identity failures leave coverage unmeasured, not 0%. They do not erase earlier
+output files. Do not present an older result as the failed attempt's measurement.
 
 ## Trace workflows
 

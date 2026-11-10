@@ -44,15 +44,18 @@ uv run --locked python tools/run_rubric_measurements.py
 ```
 
 The default output is `rubric-mutation-panel-v3` JSON. It preserves the existing
-14 raw-measurement regressions and five canonical score variants, and adds eight
-source-configuration/freshness variants in `evidence_cases`. Both assessment
-panels invoke the actual measurement CLI, not mocked helper outputs. Each includes
+14 raw-measurement regressions and five canonical score variants. It adds eight
+variants for source configuration and freshness in `evidence_cases`. Both
+assessment panels invoke the actual measurement CLI without mocking helper outputs.
+Each includes
 independently authored expected outcomes, observed items and raw measurements,
 input identity, CLI exit code, and whether expectations matched. All cases check
-the complete canonical result fields and all 38 check IDs; CLI cases additionally
+the complete canonical result fields and all 38 check IDs. CLI cases also
 compare every check outcome with the panel's explicit expectation map. Counts
-separate `cases`, `assessments`, and `evidence_cases`. The panel exits nonzero on
-an unexpected outcome, not merely because it correctly detects a planted defect.
+separate `cases`, `assessments`, and `evidence_cases`.
+
+The panel exits nonzero on an unexpected outcome. Correctly detecting a planted
+defect does not cause a nonzero exit.
 It also checks that CLI assessment leaves the selected input bytes unchanged.
 
 | Variant | DISC-01-A | DISC-01-B | DISC-01-C |
@@ -63,14 +66,17 @@ It also checks that CLI assessment leaves the selected input bytes unchanged.
 | Confirmed missing task file | 0 | 2 | 2 |
 | Partial inventory and dependency route | 1 | 1 | 1 |
 
-`null` means `NOT_ASSESSED`, never zero. The other eight canonical criteria remain
-null in every variant. No level 3 is awarded: the handcrafted retained review is
-not independent corroboration. Inventories cover only declared local references
-and known grading branches; they do not establish arbitrary-code dependency
-closure, solver permissions, provider compatibility, or grading correctness.
+`null` means `NOT_ASSESSED`, never zero. W02 is complete against its acceptance
+tests. The other eight canonical criteria remain null in every variant because
+the required review and native evidence is missing. The handcrafted retained
+review is not independent corroboration, so no variant earns level 3.
+
+Inventories cover only declared local references and known grading branches.
+They do not establish arbitrary-code dependency closure, solver permissions,
+provider compatibility, or grading correctness.
 The partial review preserves its unresolved material dependency instead of
-certifying completeness. The confirmed-missing variant actually removes the task
-file before the checker reads it; a caller's missing-access declaration alone
+certifying completeness. The confirmed-missing variant removes the task
+file before the checker reads it. A caller's missing-access declaration alone
 remains unknown.
 
 The additional variants use explicitly handcrafted refund-task inputs, JSON
@@ -80,45 +86,50 @@ configuration records, and retained review notes, never native receipts:
 | --- | --- |
 | Sourced equal | Seven selected fields equal and bound to synthetic run/task/configuration identities. |
 | Sourced different | Only `/runtime_pins/harbor` differs. |
-| Sourced provider-hidden | That pin is unknown with reason `provider_not_disclosed`; six fields remain comparable. |
+| Sourced provider-hidden | That pin is unknown with reason `provider_not_disclosed`. Six fields remain comparable. |
 | Fresh bindings | Refund note and independently bound neighbor note are current. |
 | Material task change | Refund note is stale after changing its instruction. |
 | Material scorer change | Refund note is stale after changing its approval check. |
 | Material dependency change | Refund note is stale after changing its selected judge prompt. |
-| Unknown ETHOS change | Refund note is unresolved after changing intent; semantic impact is not guessed. |
+| Unknown ETHOS change | Refund note is unresolved after changing intent. Semantic impact remains unknown. |
 
-Every freshness variant also checks the unaffected neighbor remains current and
-usable, and compares old/new lineage against the retained binding and current
-selected bytes. Materiality is explicitly declared for the task, scorer and
-prompt; ETHOS impact is unknown. These bindings cover only the selected
-references, not an inferred complete dependency graph. A current note is usable
-**for review**, not proof of a passing task. Stale notes are not rewritten or
-regraded. No fabricated reward or native-success receipt is used.
+Every freshness variant also checks that the unaffected neighbor remains current
+and usable. Each compares old and new lineage against the retained binding and
+current selected bytes. The inputs explicitly declare materiality for the task,
+scorer and prompt. ETHOS impact is unknown. These bindings cover only the selected
+references, not an inferred complete dependency graph.
 
-The added measurements do not earn new numeric criterion credit: all eight retain
-`2/2/2` on the already supported inventory/path criteria and null elsewhere.
-Source equality is not configuration acceptability, native attestation or fair
-comparison; run-bound fields here are selected-record assertions. Deterministic
-checks retain `PARTIAL` or `BLOCKED` wherever their complete evidence requirement
-is unmet, even when a helper passes. Human review, LLM judging, and probes remain
-`NOT_RUN`; provider validation and solver-permission execution remain blocked.
-The raw sourced/freshness detail is not a new score anchor or a claim that all
-38 checks passed.
+A current note is usable
+**for review**, not proof of a passing task. The demo does not rewrite or regrade
+stale notes, use fabricated rewards, or use native-success receipts.
+
+All eight added measurements retain `2/2/2` on the already supported inventory/path
+criteria and null elsewhere. They earn no new numeric criterion credit.
+Source equality does not establish configuration acceptability, native attestation
+or fair comparison. Run-bound fields here assert only what the selected records say.
+
+When complete evidence is missing, deterministic checks retain `PARTIAL` or
+`BLOCKED`, even when a helper passes. Human review, LLM judging, and probes remain
+`NOT_RUN`. Provider validation and solver-permission execution remain blocked.
+The raw details about sources and freshness do not add a score anchor or claim
+that all 38 checks passed.
 
 The wrong-scorer variant changes an explicit JSON selector to a weak route that
 names only a claimed-success check. This is a **weak-route defect, not demonstrated
 exploitation**: no scorer, solver, cheat, model, or native task executes. These are
-synthetic local selections, not customer tasks. W01/W05 CLI integration is measured
-separately in [package acceptance](#package-acceptance-same-command) below.
+synthetic local selections, not customer tasks.
+[Package acceptance](#package-acceptance-same-command) measures W01/W05 CLI integration separately.
 The existing native verifier-cheat panel below remains the executed cheat control.
-Temporary inputs are removed after each case; redirect default JSON stdout if you
-need to retain the report. That report is not a retained executable task package.
+
+The demo removes temporary inputs after each case. If you need to retain the
+report, redirect default JSON stdout. That report is not a retained executable
+task package.
 
 ### Package acceptance (same command)
 
 The separate `package_acceptance` section runs 14 additional CLI cases with its
-own counts and pass/fail status; the original `counts` and three panels above are
-unchanged. Expectations live in `evals/rubric-measurements/cases.json`, not in
+own counts and pass/fail status. The original `counts` and three panels above are
+unchanged. Expectations come from `evals/rubric-measurements/cases.json`, not
 observed output or imported test fixtures. An unexpected package outcome also
 makes the overall command exit nonzero.
 
@@ -129,17 +140,19 @@ digests, diagnostics, and exit codes. The valid case checks retained W01 control
 classification and W05 coverage's trace digest and identity envelope. Missing,
 denied, unresolved, unknown-route, wrong-scorer, caller-only dependency mapping,
 and source/mapping contradiction cases cannot become successful measurements.
-The valid route binds its dependency graph to selected dispatch JSON bytes;
-that finite declaration is not arbitrary-code dependency closure.
+The valid route binds its dependency graph to selected dispatch JSON bytes.
+That finite declaration does not establish arbitrary-code dependency closure.
 
-Two cases run the rubric CLI with `approval_sources`: an exact retained approved
-decision passes, while a retained denial contradicting the caller's approval
-projection fails. This checks retained content, not the decision author's identity
-or authority. Four more cases separate configuration comparison from binding:
-equal values with valid run/task/configuration binding, and equal values with each
-binding independently mismatched. The latter remain `equal` and may exit zero
-from the rubric CLI, but `binding_accepted` is false with the exact mismatch reason;
-the panel checks that rejection separately rather than promoting equality.
+Two cases run the rubric CLI with `approval_sources`. An exact retained approved
+decision passes. A retained denial fails when it contradicts the caller's approval
+projection. These cases check retained content, not the decision author's identity
+or authority. Four more cases separate configuration comparison from binding.
+They test equal values with valid run/task/configuration binding, then equal
+values with each binding independently mismatched.
+
+The mismatched cases remain `equal` and may exit zero from the rubric CLI.
+However, `binding_accepted` is false with the exact mismatch reason.
+The panel checks that rejection separately rather than treating equality as accepted binding.
 
 These are explicitly synthetic, native-shaped receipt/ATIF **parser fixtures**,
 not captured native executions. Package acceptance is local CLI integration,
@@ -149,14 +162,16 @@ or end-to-end conversational workflow acceptance. `runtime_acceptance` stays
 `workflow_integration: false` denotes that unmeasured full workflow boundary.
 The older panels above still contain no native-shaped receipts.
 
-Every package case verifies all fixture input bytes are unchanged, including its
-selection; only W05's dedicated output subtree may be created. Temporary roots
-never enter the package fixture's retained identities, so repeat command JSON is
-byte-identical on unchanged source and runtime. The regression test runs the full
-command twice and compares stdout. Package subprocesses use a private scratch
-HOME and credential-free environment; no scorer, task, model, or network call is
-launched. Temporary packages and outputs are removed; retain stdout for review,
-not as an executable or independently attested task package.
+Every package case verifies that all fixture input bytes remain unchanged,
+including its selection. Only W05's dedicated output subtree may be created.
+Temporary roots never enter the package fixture's retained identities.
+Thus, repeated commands produce byte-identical JSON when source and runtime are
+unchanged. The regression test runs the full command twice and compares stdout.
+
+Package subprocesses use a private scratch HOME and credential-free environment.
+They launch no scorer, task, model, or network call. The panel removes temporary
+packages and outputs. Retain stdout for review, not as an executable or
+independently attested task package.
 
 For an explicitly selected private package, the installed rubric provides:
 
@@ -166,10 +181,10 @@ python skills/eval-author-rubric/scripts/measure.py \
 ```
 
 It emits `rubric-measurements-v2` JSON without modifying workflow state. Exit 1
-means failed/unknown raw predicates or comparisons still requiring review; exit 2
+means failed/unknown raw predicates or comparisons still requiring review. Exit 2
 means invalid input. Exit 0 does not mean every canonical item is assessed or that
 native preflight passed. Configuration acceptability remains unassessed.
-Keep selections and output private; they can contain local evidence locations.
+Keep selections and output private because they can contain local evidence locations.
 
 ## Verifier-cheat panel
 
