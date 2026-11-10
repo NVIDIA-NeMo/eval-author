@@ -5,6 +5,7 @@
 
 import importlib.util
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -40,6 +41,53 @@ def test_ci_evaluation_is_advisory_and_always_attempts_artifact_upload():
     assert fallback < install
     stage = next(step for step in steps if step.get("name") == "Stage aggregate even after failure")
     assert stage["if"] == "always()" and "skill-fallback" in stage["run"]
+
+
+@pytest.mark.parametrize("trace_exit,rest_exit", [(0, 0), (1, 0), (0, 1)])
+def test_ci_parallel_tests_wait_for_both_and_propagate_failure(tmp_path, trace_exit, rest_exit):
+    root = Path(__file__).resolve().parents[1]
+    job = yaml.safe_load((root / ".github/workflows/ci.yml").read_text())["jobs"]["test"]
+    step = next(step for step in job["steps"] if step.get("name") == "Run tests in two parallel groups")
+    assert job["timeout-minutes"] == 20
+    assert job["strategy"]["matrix"]["python-version"] == ["3.12", "3.13"]
+    uv = tmp_path / "uv"
+    uv.write_text(
+        "#!/bin/bash\n"
+        'if [[ " $* " == *" --ignore=tests/test_trace_environment.py "* ]]; then\n'
+        "  group=rest; other=trace; code=$REST_EXIT\n"
+        'elif [[ " $* " == *" tests/test_trace_environment.py "* ]]; then\n'
+        "  group=trace; other=rest; code=$TRACE_EXIT\n"
+        "else exit 99; fi\n"
+        'printf "%s\\n" "$@" > "$RUNNER_TEMP/$group.args"\n'
+        'touch "$RUNNER_TEMP/$group.started"\n'
+        "for i in {1..100}; do\n"
+        '  if test -f "$RUNNER_TEMP/$other.started"; then\n'
+        '    if test "$group" = rest; then sleep 0.3; fi\n'
+        '    touch "$RUNNER_TEMP/$group.finished"; exit "$code"\n'
+        "  fi\n"
+        "  sleep 0.01\n"
+        "done\nexit 98\n"
+    )
+    uv.chmod(0o700)
+    result = subprocess.run(
+        ["bash", "-e", "-c", step["run"]],
+        env={
+            **os.environ,
+            "PATH": f"{tmp_path}:{os.environ['PATH']}",
+            "RUNNER_TEMP": str(tmp_path),
+            "TRACE_EXIT": str(trace_exit),
+            "REST_EXIT": str(rest_exit),
+        },
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=10,
+    )
+    assert result.returncode == (1 if trace_exit or rest_exit else 0)
+    for group in ("trace", "rest"):
+        assert (tmp_path / f"{group}.finished").exists()
+        args = (tmp_path / f"{group}.args").read_text().splitlines()
+        assert args[:4] == ["run", "--locked", "pytest", "-q"]
+        assert "-rs" in args and "--durations=10" in args
 
 
 def test_static_and_live_installs_match_the_reported_evaluator_revision(monkeypatch):

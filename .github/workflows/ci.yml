@@ -162,7 +162,18 @@ jobs:
       - name: Type check
         run: uv run --locked ty check --python-version ${{ matrix.python-version }}
       - run: uv run --locked ruff format --check .
-      - run: uv run --locked pytest -q -rs
+      - name: Run tests in two parallel groups
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          uv run --locked pytest -q -rs --durations=10 tests/test_trace_environment.py --basetemp="$RUNNER_TEMP/pytest-trace" &
+          trace_pid=$!
+          uv run --locked pytest -q -rs --durations=10 --ignore=tests/test_trace_environment.py --basetemp="$RUNNER_TEMP/pytest-rest" &
+          rest_pid=$!
+          status=0
+          wait "$trace_pid" || status=1
+          wait "$rest_pid" || status=1
+          exit "$status"
   verifier-cheats:
     if: >-
       github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' ||
