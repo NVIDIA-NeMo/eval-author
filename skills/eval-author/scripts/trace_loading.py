@@ -31,6 +31,7 @@ LOADER = {"distribution": "nemo-compass", "version": "0.2.1"}
 TRACE_SCHEMA_VERSION = "3"
 RECEIPT_SCHEMA = "nemo.eval_author.trace_load.v2"
 SOURCE_KINDS = ("atif", "mlflow", "gym", "intake", "trace")
+DEFAULT_MAX_TRACES = 1000
 MAX_RECORD_BYTES = 128 * 1024 * 1024
 # Compass losses that leave every recorded step of the run loaded. The trace keeps them, so
 # consumers still see a subagent Compass could not resolve (it never reads external ATIF
@@ -49,6 +50,10 @@ _SHADOWING = ("trace-ingest", "insight-agent")
 
 class TraceLoadError(ValueError):
     """A source cannot be loaded into Compass traces under eval-author's bounds."""
+
+
+class TraceLimitError(TraceLoadError):
+    """A source holds more traces than ``max_traces``."""
 
 
 def pinned_requirement() -> str:
@@ -83,7 +88,7 @@ def load_traces(
     source: Path | None,
     source_kind: str,
     *,
-    max_traces: int = 1000,
+    max_traces: int = DEFAULT_MAX_TRACES,
     row: int | None = None,
     intake: dict[str, Any] | None = None,
     trace_id: str | None = None,
@@ -113,7 +118,7 @@ def load_traces(
         else:
             traces = _load_trace_file(source)
     if len(traces) > max_traces:
-        raise TraceLoadError("source contains more than max_traces traces")
+        raise TraceLimitError("source contains more than max_traces traces")
     if not traces:
         raise TraceLoadError("source contains no traces")
     if trace_id is not None:
@@ -210,7 +215,7 @@ def _load_mlflow(source: Path, max_traces: int) -> list[Trace]:
     traces = list(loader.load())
     description = loader.describe()
     if description["truncated"]:
-        raise TraceLoadError("source contains more than max_traces traces")
+        raise TraceLimitError("source contains more than max_traces traces")
     if description["continuation_token_present"] or description["unresolved_parent_count"]:
         raise TraceLoadError("MLflow export is incomplete")
     return traces
@@ -416,7 +421,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--started-after", type=_aware, help="Intake window start, ISO 8601 with timezone")
     parser.add_argument("--started-before", type=_aware, help="Intake window end, ISO 8601 with timezone")
     parser.add_argument("--session-id", help="Load only this Intake session")
-    parser.add_argument("--max-traces", type=int, default=1000, help="Reject larger sources instead of truncating")
+    parser.add_argument(
+        "--max-traces", type=int, default=DEFAULT_MAX_TRACES, help="Reject larger sources instead of truncating"
+    )
     parser.add_argument("--output-dir", required=True, type=Path, help="New private directory to create")
     return parser
 

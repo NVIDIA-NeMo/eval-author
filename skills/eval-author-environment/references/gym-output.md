@@ -6,8 +6,7 @@
 `<skill_dir>` is the installed `eval-author-environment` directory.
 
 **Experimental.** Use this extension when NeMo Gym is the selected output provider.
-Any source that `prepare` accepts can produce a NeMo Gym task; until the trace
-workspace reads NeMo Compass Traces that means ATIF only (see
+Any source that `prepare` accepts can produce a NeMo Gym task (see
 [sources](../../eval-author-inspect-trace/references/sources.md)). Follow [Prepare and review](../../eval-author/references/trace-input.md#prepare-and-review)
 and [Decide admission and prepare tools](../../eval-author/references/trace-input.md#decide-admission-and-prepare-tools), including privacy review, tool-access decisions,
 ground-truth and software inventories, and task-create's `candidate_admission.py --task-dir <task-dir>`. A proposal may
@@ -29,22 +28,19 @@ Preserve authored suite and task documentation outside generated markers.
 
 ## Start from a NeMo Gym rollout
 
-`prepare` reads ATIF only until the trace workspace reads NeMo Compass Traces.
-A NeMo Gym run enters this workflow through its retained original Harbor ATIF:
+Prepare the selected rollout directly. Responses rollout envelopes record turns;
+`ng_trajectory` rollouts do not yet, and prepare refuses them. If the same run
+also recorded an ATIF trajectory, prepare that with `--source-kind atif`;
+otherwise report the rollout as not yet usable as a trace source:
 
 ```bash
 python <skill_dir>/../eval-author-inspect-trace/scripts/trace_privacy.py prepare \
-  --task-dir <task-dir> --atif <private-harbor-job/agent/trajectory.json> \
-  --source-kind atif
+  --task-dir <task-dir> --source <private-rollouts.jsonl> --source-kind gym --row <n>
 ```
 
-NeMo Gym-native Responses records and `ng_trajectory` attachments cannot enter
-`prepare` yet. To retain normalized evidence for the same rollout, run the
-[trace loader](../../eval-author/references/trace-loading.md) with
-`--source-kind gym` on the selected row and keep its output under
-`private/ng-evidence/`. Do not manufacture ATIF or a Responses envelope to
-bypass this boundary. Continue shared privacy review and candidacy before
-scaffolding.
+`--row` is the one-based JSONL line of the selected rollout. Do not manufacture
+ATIF or a Responses envelope to bypass this boundary. Continue shared privacy
+review and candidacy before scaffolding.
 
 ## Native workspace and scaffold
 
@@ -104,7 +100,7 @@ without changing its intended capability** in the
 Use this workspace's `gym/` in place of that guide's audit draft directory.
 Replace every example grader, expected answer, and verifier case. Map each
 candidate requirement to an observable verifier assertion and a negative
-control. Retain the trace step IDs and reconstruction assumptions in the report.
+control. Retain the cited safe-trace turn ids and reconstruction assumptions in the report.
 
 For observed tools, preserve the reviewed `real`, `mock`, or `none` decisions:
 
@@ -214,4 +210,4 @@ report, and exact rerun instructions. The optional Helix packaging guide can
 prepare a separate private package when selected, but it does not authorize
 publication or upload. Never export the entire trace workspace.
 
-When adapting call-fixture v2 cases, preserve optional boolean `is_error`: `true` must replay an error outcome, `false` an explicitly successful outcome, and absence means unrecorded rather than success.
+When adapting call-fixture v3 cases, preserve optional boolean `is_error`: `true` must replay an error outcome, `false` an explicitly successful outcome, and absence means unrecorded rather than success.
