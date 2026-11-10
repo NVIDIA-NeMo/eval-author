@@ -232,6 +232,9 @@ the CLI summary and each per-method `coverage.json` include `identity_preflight`
   revisions, and stable diagnostics.
 - `route` retains the declared scorer and dependency checks. `executed_scorer`
   stays null: resolving a declaration is not evidence that this scorer ran.
+- `route_request` retains the selection used to resolve that route. Aggregation
+  and retained-report verification recompute the route from the selected files
+  and reject an envelope that disagrees with the result.
 - `subject` keeps the measured `task_id` and `run_id`, including IDs from
   native trial metadata when you supply no override.
 - `measurement_allowed` means the selected identity and source-bound declared
@@ -247,6 +250,9 @@ Aggregation rejects unresolved or inconsistent envelopes rather than upgrading
 them into passing evidence. It validates retained measurement data without
 attesting to a fresh native execution. Ordinary reports without the opt-in
 fields remain supported.
+
+Identity-aware reports without `route_request` must be measured again before
+aggregation. A route envelope alone cannot establish its source binding.
 
 Identity failures leave coverage unmeasured, not 0%. They do not erase earlier
 output files. Do not present an older result as the failed attempt's measurement.

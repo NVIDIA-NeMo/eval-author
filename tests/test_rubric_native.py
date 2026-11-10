@@ -147,6 +147,116 @@ def run_rubric_cli(panel, selection):
     )
 
 
+def test_null_trace_retains_native_control_without_trace_graph(panel):
+    panel.receipt["trace"] = None
+    records = panel.seal()["records"]
+    # seal refreshes trace hashes, so bind the producer-shaped null receipt last.
+    panel.receipt["trace_sha256"] = None
+    panel.paths["receipt"].write_text(json.dumps(panel.receipt))
+    for record in records:
+        if record["id"] == "receipt":
+            record["digest"] = hashlib.sha256(panel.paths["receipt"].read_bytes()).hexdigest()
+            record["evidence"][0]["digest"] = record["digest"]
+    from rubric_identity import identify
+
+    selected = identify(panel.tmp_path, [row for row in records if row["id"] != "trace"])
+    output = adapter().project_native(panel.tmp_path, selected, **{**panel.selection, "trace_ids": []})
+    assert output["status"] == "unknown"
+    assert output["controls"][0]["classification"] == "false_rejection"
+    assert output["subjects"][0]["trace"] is None
+    assert output["subjects"][0]["trace_sha256"] is None
+    assert {node["role"] for node in output["nodes"]} == {"task", "run"}
+    assert output["link_check"]["status"] == "pass"
+
+
+def test_native_trace_between_default_and_explicit_limit_is_supported(panel):
+    panel.trace["private_padding"] = "x" * 1_048_576
+    selected = panel.seal()
+    output = adapter().project_native(panel.tmp_path, selected, **panel.selection)
+    assert output["status"] == "unknown"
+    assert output["link_check"]["status"] == "pass"
+    assert output["subjects"][0]["trace_sha256"] == panel.receipt["trace_sha256"]
+    assert "private_padding" not in json.dumps(output)
+
+
+@pytest.mark.parametrize("access", ["missing", "denied", "unresolved"])
+def test_native_respects_unavailable_full_selection_alias(panel, access):
+    unavailable = dict(
+        next(row for row in panel.identity["records"] if row["id"] == "trace"), id="unavailable", access=access
+    )
+    panel.identity["records"].append(unavailable)
+    output = adapter().project_native(panel.tmp_path, panel.identity, **panel.selection)
+    assert not any(row["id"] == "trace" for row in output["bindings"])
+    assert {"code": "native.access_" + access, "subject": "trace", "status": "unknown"} in output["diagnostics"]
+
+
+def test_manifest_missing_controls_uses_historical_shared_validation(panel, monkeypatch):
+    native = adapter()
+    inspected = []
+    original = native.audit.inspect_manifest
+
+    def observed(*args, **kwargs):
+        rows = original(*args, **kwargs)
+        inspected.extend(rows)
+        return rows
+
+    monkeypatch.setattr(native.audit, "inspect_manifest", observed)
+    output = native.project_native(panel.tmp_path, panel.identity, **panel.selection)
+    assert inspected == [
+        {
+            "path": "evidence/manifest.json",
+            "task": "tasks/example",
+            "classification": "unproven",
+            "reason": "Declared controls have no retained receipts",
+            "cases": ["incorrect", "empty"],
+        }
+    ]
+    codes = {row["code"] for row in output["diagnostics"]}
+    assert "native.controls_missing" in codes
+    assert "native.manifest_unproven" not in codes
+    assert output["status"] == "unknown"
+    assert output["task_freshness"] == "unknown"
+    assert output["native_execution"] is False
+
+
+def test_complete_historical_manifest_does_not_promote_native_pass(panel, monkeypatch):
+    from rubric_identity import identify
+
+    records = {"manifest": panel.identity["records"][0]}
+    selection = {"manifest_ids": ["manifest"], "receipt_ids": [], "result_ids": [], "trace_ids": []}
+    panel.result["verifier_result"]["rewards"]["reward"] = 1
+    panel.receipt["status"] = "passed"
+    for case in ("reference", "incorrect", "empty"):
+        panel.receipt["case"] = case
+        panel.receipt["native_run_id"] = panel.result["id"] = case
+        panel.result["trial_name"] = case
+        panel.trace["session_id"] = panel.trace["trajectory_id"] = case
+        for role in ("receipt", "result", "trace"):
+            panel.paths[role] = panel.paths[role].with_name(case + ".json")
+        panel.receipt.update(result=str(panel.paths["result"]), trace=str(panel.paths["trace"]))
+        for record in panel.seal()["records"]:
+            if record["id"] != "manifest":
+                role = record["id"]
+                record["id"] = case + "-" + role
+                records[record["id"]] = record
+                selection[role + "_ids"].append(record["id"])
+    selected = identify(panel.tmp_path, list(records.values()))
+    (panel.task / "verify.py").write_text("raise AssertionError('CHANGED TASK MUST NEVER EXECUTE')\n")
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Historical validation must not scan or execute the current task")
+
+    monkeypatch.setattr(panel.task_evidence, "task_digest", forbidden)
+    monkeypatch.setattr(panel.task_evidence, "run", forbidden)
+    output = adapter().project_native(panel.tmp_path, selected, **selection)
+    assert {row["classification"] for row in output["controls"]} == {"passed"}
+    assert len(output["controls"]) == 3
+    assert {row["code"] for row in output["diagnostics"]} == {"native.task_freshness_unmeasured"}
+    assert output["status"] == "unknown"
+    assert output["task_freshness"] == "unknown"
+    assert output["native_execution"] is False
+
+
 def test_cli_retains_failed_control_and_native_references(panel):
     result = run_rubric_cli(panel, {"artifacts": panel.identity["records"], "native": panel.selection})
     report = json.loads(result.stdout)
@@ -440,25 +550,28 @@ def test_falsy_malformed_native_containers_not_treated_as_absent(panel):
     assert "native.reference_invalid" in {row["code"] for row in output["diagnostics"]}
 
 
-def test_root_symlink_is_not_an_authorized_read_root(panel):
+def test_trusted_root_alias_matches_resolved_root(panel):
     alias = panel.tmp_path / "alias"
     alias.symlink_to(panel.tmp_path, target_is_directory=True)
-    output = adapter().project_native(alias, panel.identity, **panel.selection)
-    assert output["status"] == "fail"
-    assert output["bindings"] == []
+    native = adapter()
+    assert native.project_native(alias, panel.identity, **panel.selection) == native.project_native(
+        panel.tmp_path, panel.identity, **panel.selection
+    )
 
 
 def test_total_budget_stops_before_reading_next_artifact(panel, monkeypatch):
     native = adapter()
     monkeypatch.setattr(native, "MAX_TOTAL_BYTES", 1)
     opened = []
-    original = native.os.open
+    import rubric_identity
+
+    original = rubric_identity.os.open
 
     def observe(path, *args, **kwargs):
         opened.append(str(path))
         return original(path, *args, **kwargs)
 
-    monkeypatch.setattr(native.os, "open", observe)
+    monkeypatch.setattr(rubric_identity.os, "open", observe)
     output = native.project_native(panel.tmp_path, panel.identity, **panel.selection)
     assert output["status"] == "fail"
     assert len([path for path in opened if path.endswith(".json")]) <= 1
@@ -493,7 +606,9 @@ def test_conflicting_native_bindings_fail_without_payloads(panel, damage):
 
 def test_read_only_atime_change_does_not_invalidate_selected_bytes(panel, monkeypatch):
     native = adapter()
-    original = native.os.fstat
+    import rubric_identity
+
+    original = rubric_identity.os.fstat
     count = 0
 
     def observed(fd):
@@ -502,9 +617,9 @@ def test_read_only_atime_change_does_not_invalidate_selected_bytes(panel, monkey
         count += 1
         fields = list(value)
         fields[7] += count
-        return native.os.stat_result(fields)
+        return rubric_identity.os.stat_result(fields)
 
-    monkeypatch.setattr(native.os, "fstat", observed)
+    monkeypatch.setattr(rubric_identity.os, "fstat", observed)
     output = native.project_native(panel.tmp_path, panel.identity, **panel.selection)
     assert output["link_check"]["status"] == "pass"
 

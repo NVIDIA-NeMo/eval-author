@@ -12,6 +12,38 @@ ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "skills/eval-author-rubric/scripts/measure.py"
 
 
+PANEL_RUNS = pytest.StashKey[tuple]()
+
+
+@pytest.fixture(scope="session")
+def rubric_panel_runs(tmp_path_factory, pytestconfig):
+    if PANEL_RUNS in pytestconfig.stash:
+        return pytestconfig.stash[PANEL_RUNS]
+    home = tmp_path_factory.mktemp("rubric-panel-home")
+    command = [sys.executable, "-B", str(ROOT / "tools/run_rubric_measurements.py")]
+    runs = tuple(
+        subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+            cwd=home,
+            env={"HOME": str(home), "PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+        for _ in range(2)
+    )
+    pytestconfig.stash[PANEL_RUNS] = runs
+    return runs
+
+
+@pytest.fixture(scope="session")
+def rubric_panel(rubric_panel_runs):
+    first, _ = rubric_panel_runs
+    assert first.stderr == ""
+    return json.loads(first.stdout)
+
+
 @pytest.mark.parametrize("location", ["record", "evidence", "path", "unavailable-evidence"])
 def test_cli_omits_invalid_artifact_payloads(tmp_path, monkeypatch, location):
     monkeypatch.syspath_prepend(str(ROOT / "tools"))
@@ -41,6 +73,29 @@ def test_cli_omits_invalid_artifact_payloads(tmp_path, monkeypatch, location):
     assert identity["status"] == "fail"
     assert "task" not in {row["id"] for row in identity["records"]}
     assert len(identity["records"]) == len(selection["artifacts"]) - 1
+
+
+def test_cli_root_alias_preserves_complete_assessment(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    from run_rubric_measurements import fixture
+
+    root = tmp_path / "real"
+    root.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(root, target_is_directory=True)
+    request = tmp_path / "selection.json"
+    request.write_text(json.dumps(fixture(root, None)))
+    reports = []
+    for path in (root, alias):
+        result = subprocess.run(
+            [sys.executable, "-B", str(CLI), "--root", str(path), "--selection", str(request)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert not result.stderr
+        reports.append(json.loads(result.stdout))
+    assert reports[0] == reports[1]
 
 
 def test_measurement_cli_emits_unknowns_without_certifying_preflight(tmp_path):
@@ -110,12 +165,8 @@ def test_cli_sanitizes_output_serialization_failure(tmp_path, monkeypatch, capsy
     assert json.loads(output.out)["code"] == "selection.invalid"
 
 
-def test_mutation_panel_matches_independent_expectations():
-    runner = ROOT / "tools/run_rubric_measurements.py"
-    assert runner.is_file(), "Handcrafted rubric mutation panel is not implemented"
-    result = subprocess.run([sys.executable, str(runner)], capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr
-    report = json.loads(result.stdout)
+def test_mutation_panel_matches_independent_expectations(rubric_panel):
+    report = rubric_panel
     assert report["status"] == "passed"
     assert report["measurement"] == "synthetic-local-mutations"
     assert report["counts"]["cases"] == len(report["cases"])
@@ -135,11 +186,8 @@ def test_mutation_panel_matches_independent_expectations():
     } <= {row["id"] for row in report["cases"]}
 
 
-def test_demo_reports_canonical_outcomes_through_actual_cli():
-    runner = ROOT / "tools/run_rubric_measurements.py"
-    result = subprocess.run([sys.executable, str(runner)], capture_output=True, text=True)
-    assert result.returncode == 0, result.stdout + result.stderr
-    report = json.loads(result.stdout)
+def test_demo_reports_canonical_outcomes_through_actual_cli(rubric_panel):
+    report = rubric_panel
     assert len(report["cases"]) == 14
     expected = {
         "valid": (2, 2, 2),
@@ -203,29 +251,101 @@ def test_demo_reports_canonical_outcomes_through_actual_cli():
     assert report["workflow_integration"] is False
 
 
-def test_demo_text_summary_is_concise_and_keeps_limits():
-    result = subprocess.run(
-        [sys.executable, str(ROOT / "tools/run_rubric_measurements.py"), "--format", "text"],
-        capture_output=True,
-        text=True,
-    )
+def test_demo_text_summary_is_concise_and_keeps_limits(rubric_panel, monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    from run_rubric_measurements import summary
+
+    result = subprocess.CompletedProcess([], 0, stdout=summary(rubric_panel))
     assert result.stdout.startswith("W02 handcrafted assessment demo:")
     assert "DISC-01-A" in result.stdout
     assert "DISC-01-B" in result.stdout
     assert "DISC-01-C" in result.stdout
-    assert "weak-route defect, not demonstrated exploitation" in result.stdout
+    if rubric_panel["status"] == "passed":
+        assert "weak-route defect, not demonstrated exploitation" in result.stdout
+    else:
+        assert "Mismatched cases" in result.stdout
     assert "null = NOT_ASSESSED" in result.stdout
     assert "No native execution" in result.stdout
     assert len(result.stdout.splitlines()) < 20
 
 
-def test_demo_output_is_byte_identical_across_runs():
-    command = [sys.executable, str(ROOT / "tools/run_rubric_measurements.py")]
-    first = subprocess.run(command, capture_output=True, text=True)
-    second = subprocess.run(command, capture_output=True, text=True)
+def test_demo_output_is_byte_identical_across_runs(rubric_panel_runs):
+    first, second = rubric_panel_runs
     assert first.returncode == second.returncode == 0
     assert first.stdout == second.stdout
     assert first.stderr == second.stderr == ""
+
+
+@pytest.mark.parametrize("panel", ["cases", "assessments", "evidence_cases", "package_acceptance"])
+def test_demo_summary_reports_mismatches_without_success_claims(rubric_panel, monkeypatch, panel):
+    from copy import deepcopy
+
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    from run_rubric_measurements import summary
+
+    report = deepcopy(rubric_panel)
+    rows = report[panel]["cases"] if panel == "package_acceptance" else report[panel]
+    rows[0]["matches_expectations"] = False
+    rows[-1]["matches_expectations"] = False
+    report["status"] = "failed"
+    text = summary(report)
+    assert f"Mismatched cases ({panel}): {rows[0]['id']}, {rows[-1]['id']}" in text
+    claims = {
+        "cases": "wrong routes cannot succeed",
+        "assessments": "Scores are bounded 0/1/2",
+        "evidence_cases": "neighbor stays current",
+        "package_acceptance": "wrong routes cannot succeed",
+    }
+    assert claims[panel] not in text
+
+
+def test_demo_isolates_every_cli_call(monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    import run_rubric_measurements as demo
+
+    real_run = subprocess.run
+    calls = []
+    monkeypatch.setenv("DEMO_PRIVATE_CREDENTIAL", "must-not-leak")
+
+    def isolated_run(command, **kwargs):
+        assert "-B" in command
+        assert 0 < kwargs["timeout"] <= 30
+        assert kwargs["env"] == {
+            "HOME": str(kwargs["cwd"]),
+            "PATH": "/usr/bin:/bin",
+            "PYTHONDONTWRITEBYTECODE": "1",
+        }
+        assert Path(kwargs["env"]["HOME"]).is_dir()
+        calls.append(command)
+        return real_run(command, **kwargs)
+
+    real_loads = demo.loads
+
+    def selected_cases(value):
+        data = real_loads(value)
+        if "raw_measurements" in data:
+            data["raw_measurements"] = []
+            data["assessments"] = data["assessments"][:1]
+            data["evidence_cases"] = data["evidence_cases"][:1]
+            data["package_acceptance"] = []
+        return data
+
+    monkeypatch.setattr(demo, "loads", selected_cases)
+    monkeypatch.setattr(demo.subprocess, "run", isolated_run)
+    demo.run_panel()
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("mutation", [None, "wrong-scorer", "partial", "missing-dependency"])
+def test_demo_route_dependencies_match_retained_dispatch(tmp_path, monkeypatch, mutation):
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    from run_rubric_measurements import fixture
+
+    selection = fixture(tmp_path, mutation)
+    entry = next(row for row in selection["artifacts"] if row["id"] == "entry")
+    retained = json.loads((tmp_path / entry["path"]).read_text())
+    assert retained.get("dependencies") == selection["route"]["dependencies"]
+    assert retained.get("expected_scorer") == selection["route"]["expected_scorer"]
 
 
 def test_valid_demo_has_source_bound_inventories_and_retained_review(tmp_path, monkeypatch):

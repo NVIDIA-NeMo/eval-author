@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from eval_author_shared.task_evidence import loads
-from rubric_identity import local_file
+from rubric_identity import _read_selected
 
 ITEM_LIMITATIONS = {
     "DISC-01-A": "Required task-artifact selection and source-bound access evidence are needed.",
@@ -70,88 +70,136 @@ def _source_json(root, record):
     if root is None or record is None:
         return None
     try:
-        path = local_file(root, record["path"])
-        if not path.is_file():
+        data, reason = _read_selected(root, record["path"])
+        if reason:
             return None
-        with path.open("rb") as stream:
-            data = stream.read(1024 * 1024 + 1)
         # Hash the parsed bytes, not a separate read that could observe a swap.
-        if len(data) > 1024 * 1024 or hashlib.sha256(data).hexdigest() != record["digest"]:
+        if hashlib.sha256(data).hexdigest() != record["digest"]:
             return None
         value = loads(data)
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def classify_inventory(item_id, scope, records, diagnostics, root, valid=None):
+    if not isinstance(scope, dict):
+        return None
+    required = scope.get("required")
+    unresolved = scope.get("unresolved_material")
+    if (
+        not isinstance(scope.get("source"), str)
+        or not scope["source"]
+        or not isinstance(required, list)
+        or not required
+        or not all(isinstance(ident, str) and ident for ident in required)
+        or len(set(required)) != len(required)
+        or not isinstance(unresolved, list)
+        or not all(isinstance(ref, str) and ref for ref in unresolved)
+    ):
+        return None
+    source = _checked_record(records, diagnostics, scope.get("source"))
+    if source and valid is not None and source["id"] not in valid:
+        source = None
+    kind = "task_artifacts" if item_id == "DISC-01-A" else "grading_dependencies"
+    document = _source_json(root, source)
+    source_bound = document is not None and document.get(kind) == {
+        "required": required,
+        "unresolved_material": unresolved,
+    }
+    roles = (
+        {"task", "instructions", "input", "fixture", "metadata", "task_input", "task_metadata"}
+        if item_id == "DISC-01-A"
+        else {"scorer", "dependency", "test", "expected_result", "dataset", "judge_prompt", "rubric", "configuration"}
+    )
+    observed, access = [], []
+    invalid_origins = False
+    for ident in required:
+        candidates = records.get(ident, [])
+        record = candidates[0] if len(candidates) == 1 else None
+        state = "unresolved"
+        if record:
+            observed.append(record)
+            bound = bool(
+                source
+                and record.get("source") == source["path"]
+                and record.get("role") in roles
+                and record.get("selection_origin")
+            )
+            invalid_origins |= not bound
+            if bound and _checked_record(records, diagnostics, ident) and (valid is None or ident in valid):
+                state = "accessible"
+            elif bound:
+                codes = {d["code"] for d in diagnostics if d["subject"] == ident}
+                # A secondary evidence read failure does not prove the artifact is missing.
+                exact = record.get("evidence") and all(
+                    ref.get("path") == record.get("path") for ref in record["evidence"]
+                )
+                if record.get("access") == "available" and exact:
+                    if "identity.artifact_missing" in codes:
+                        state = "missing"
+                    elif "identity.access_denied" in codes:
+                        state = "denied"
+        access.append(
+            {
+                "id": ident,
+                "access": state,
+                "digest": record.get("digest") if record else None,
+                "declared_access": record.get("access") if record else None,
+            }
+        )
+    counts = {
+        "required": len(required),
+        **{
+            state: sum(row["access"] == state for row in access)
+            for state in ("accessible", "missing", "denied", "unresolved")
+        },
+    }
+    return {
+        "source": source,
+        "source_bound": source_bound,
+        "required": required,
+        "unresolved_material": unresolved,
+        "records": observed,
+        "access": access,
+        "counts": counts,
+        "invalid_origins": invalid_origins,
+        "origins_bound": not invalid_origins and len(observed) == len(required),
+    }
 
 
 def _inventory(row, scope, records, diagnostics, root):
     if not isinstance(scope, dict):
         return
     row["evidence_strength"] = "E0"
-    unresolved = scope.get("unresolved_material")
-    if not isinstance(unresolved, list) or not all(isinstance(ref, str) and ref for ref in unresolved):
+    inventory = classify_inventory(row["item_id"], scope, records, diagnostics, root)
+    if inventory is None or inventory["source"] is None:
         return
-    source = _checked_record(records, diagnostics, scope.get("source"))
-    required = scope.get("required")
-    if not source or not isinstance(required, list) or not required:
-        return
-    if not all(isinstance(ident, str) and ident for ident in required) or len(set(required)) != len(required):
-        return
-    roles = (
-        {"task", "instructions", "input", "fixture", "metadata", "task_input", "task_metadata"}
-        if row["item_id"] == "DISC-01-A"
-        else {"scorer", "dependency", "test", "expected_result", "dataset", "judge_prompt", "rubric", "configuration"}
-    )
-    for ident in required:
-        candidates = records.get(ident, [])
-        if len(candidates) == 1 and (
-            candidates[0].get("role") not in roles
-            or candidates[0].get("source") != source["path"]
-            or not candidates[0].get("selection_origin")
-        ):
-            row["limitations"].append("Required artifact role/reference origin is not bound to the selected source.")
-            return
-    counts = {"required": len(required), "accessible": 0, "missing": 0, "denied": 0, "unresolved": 0}
-    for ident in required:
-        if _checked_record(records, diagnostics, ident):
-            counts["accessible"] += 1
-            continue
-        candidates = records.get(ident, [])
-        codes = {d["code"] for d in diagnostics if d["subject"] == ident}
-        record = candidates[0] if len(candidates) == 1 else {}
-        # identify() reports the artifact ID, not the failing reference. A
-        # secondary evidence read failure cannot prove the artifact is missing.
-        exact_reference = record.get("evidence") and all(
-            ref.get("path") == record.get("path") for ref in record["evidence"]
-        )
-        attempted = record.get("access") == "available" and exact_reference
-        if attempted and "identity.artifact_missing" in codes:
-            counts["missing"] += 1
-        elif attempted and "identity.access_denied" in codes:
-            counts["denied"] += 1
-        else:
-            counts["unresolved"] += 1
+    counts = inventory["counts"]
     row["measurements"] = counts
     row["evidence_strength"] = "E2"
-    row["evidence_refs"] = [source["id"], *required]
-    if counts["missing"] or counts["denied"]:
-        _score(row, 0, row["evidence_refs"])
-    elif counts["accessible"] and counts["unresolved"]:
-        _score(row, 1, row["evidence_refs"])
-    elif counts["accessible"] == len(required):
-        document = _source_json(root, source)
-        kind = "task_artifacts" if row["item_id"] == "DISC-01-A" else "grading_dependencies"
-        if document is not None and document.get(kind) == {"required": required, "unresolved_material": unresolved}:
-            _score(row, 1 if unresolved else 2, row["evidence_refs"])
-        else:
-            row["limitations"].append("Supported inventory source does not substantiate the selected projection.")
-    row["limitations"] += [
+    row["evidence_refs"] = [inventory["source"]["id"], *inventory["required"]]
+    row["limitations"] = [
         "Only the explicitly declared required inventory was measured; no undeclared dependency closure or independent review is established.",
         "Reviewer file access does not establish solver permissions, grader correctness or runtime readiness.",
     ]
+    if not inventory["source_bound"]:
+        row["limitations"].append("Supported inventory source does not substantiate the selected projection.")
+    elif inventory["invalid_origins"]:
+        row["limitations"].append("Required artifact role/reference origin is not bound to the selected source.")
+    elif counts["missing"] or counts["denied"]:
+        _score(row, 0, row["evidence_refs"])
+    elif counts["accessible"] and counts["unresolved"]:
+        _score(row, 1, row["evidence_refs"])
+    elif counts["accessible"] == counts["required"]:
+        _score(row, 1 if inventory["unresolved_material"] else 2, row["evidence_refs"])
 
 
-def _route(row, measurement, selection, records, diagnostics):
+def route_is_bound(measurement):
+    return measurement.get("status") == "pass" and measurement.get("bound_dependency") is True
+
+
+def _route(row, measurement, selection, records, diagnostics, root):
     if not isinstance(selection, dict):
         return
     row["evidence_strength"] = "E0"
@@ -162,11 +210,17 @@ def _route(row, measurement, selection, records, diagnostics):
     codes = {d["code"] for d in measurement.get("diagnostics", [])}
     refs = [entry["id"], scorer]
     if "route.scorer_mismatch" in codes and scorer != selection.get("expected_scorer"):
-        _score(row, 0, refs)
-    elif codes & {"route.dependencies_unresolved", "route.dependency_missing", "route.scorer_role_invalid"}:
+        document = _source_json(root, entry)
+        if document is not None and document.get("expected_scorer") == selection.get("expected_scorer"):
+            _score(row, 0, refs)
+    elif measurement.get("dependency_source") and codes & {
+        "route.dependencies_unresolved",
+        "route.dependency_missing",
+        "route.scorer_role_invalid",
+    }:
         _score(row, 1, refs)
     elif (
-        measurement.get("status") == "pass"
+        route_is_bound(measurement)
         and not codes
         and scorer == selection.get("expected_scorer")
         and scorer in measurement.get("selected", [])
@@ -232,7 +286,7 @@ def assess(measurements, selection, root: Path | None = None):
         rows["DISC-02-A"]["evidence_strength"] = "E0"
     if selection.get("observed_config"):
         rows["DISC-02-B"]["evidence_strength"] = "E0"
-    _route(rows["DISC-01-B"], measurements.get("route", {}), selection.get("route"), records, diagnostics)
+    _route(rows["DISC-01-B"], measurements.get("route", {}), selection.get("route"), records, diagnostics, root)
     if any(d["code"] == "identity.digest_mismatch" for d in diagnostics):
         rows["CREATE-07"]["limitations"].append(
             "A mismatched digest alone does not show incompatible results were silently combined; material change impact and reuse disposition are unknown."

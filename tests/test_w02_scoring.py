@@ -71,6 +71,17 @@ def inventory_packet():
     return {"identity": {"status": "pass", "records": records, "diagnostics": []}}, selection
 
 
+def bind_inventory_source(tmp_path, selection):
+    import hashlib
+
+    scope = selection["w02_scope"]["task_artifacts"]
+    record = next(row for row in selection["artifacts"] if row["id"] == scope["source"])
+    path = tmp_path / record["path"]
+    path.write_text(json.dumps({"task_artifacts": {key: scope[key] for key in ("required", "unresolved_material")}}))
+    record["digest"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    record["evidence"][0]["digest"] = record["digest"]
+
+
 def test_selected_task_access_without_source_bytes_cannot_establish_completeness():
     measurements, selection = inventory_packet()
     row = assess(measurements, selection)["DISC-01-A"]
@@ -88,29 +99,31 @@ def test_scope_assertions_without_measured_source_are_e0_not_numeric():
     assert row["evidence_strength"] == "E0"
 
 
-def test_confirmed_missing_required_task_is_zero_but_declared_missing_is_unknown():
+def test_confirmed_missing_required_task_is_zero_but_declared_missing_is_unknown(tmp_path):
     measurements, selection = inventory_packet()
     measurements["identity"]["diagnostics"] = [
         {"code": "identity.artifact_missing", "subject": "task", "status": "unknown"}
     ]
-    row = assess(measurements, selection)["DISC-01-A"]
+    bind_inventory_source(tmp_path, selection)
+    row = assess(measurements, selection, root=tmp_path)["DISC-01-A"]
     assert (row["score"], row["evidence_strength"]) == (0, "E2")
     assert row["measurements"]["missing"] == 1
     measurements["identity"]["records"][1]["access"] = "missing"
     measurements["identity"]["diagnostics"][0]["code"] = "identity.access_missing"
-    row = assess(measurements, selection)["DISC-01-A"]
+    row = assess(measurements, selection, root=tmp_path)["DISC-01-A"]
     assert row["score"] is None
     assert row["measurements"]["unresolved"] == 1
 
 
-def test_readable_subset_with_known_identity_gap_is_partial_not_full():
+def test_readable_subset_with_known_identity_gap_is_partial_not_full(tmp_path):
     measurements, selection = inventory_packet()
     measurements["identity"]["records"].append(artifact("input", "fixture"))
     selection["w02_scope"]["task_artifacts"]["required"].append("input")
     measurements["identity"]["diagnostics"] = [
         {"code": "identity.digest_mismatch", "subject": "input", "status": "fail"}
     ]
-    row = assess(measurements, selection)["DISC-01-A"]
+    bind_inventory_source(tmp_path, selection)
+    row = assess(measurements, selection, root=tmp_path)["DISC-01-A"]
     assert (row["score"], row["evidence_strength"]) == (1, "E2")
     assert row["measurements"]["unresolved"] == 1
 
@@ -124,36 +137,53 @@ def test_missing_evidence_reference_does_not_prove_required_artifact_missing():
     assert assess(measurements, selection)["DISC-01-A"]["score"] is None
 
 
-def route_packet():
+def route_packet(tmp_path, monkeypatch, *, expected="scorer", dependencies=None):
+    import hashlib
+
+    monkeypatch.syspath_prepend(str(ROOT / "skills/eval-author/scripts"))
+    from rubric_identity import identify, resolve_route
+
+    dependencies = {"scorer": []} if dependencies is None else dependencies
     records = [artifact("dispatch", "configuration"), artifact("scorer", "scorer")]
-    measurements = {
-        "identity": {"status": "pass", "records": records, "diagnostics": []},
-        "route": {"status": "pass", "scorer": "scorer", "selected": ["scorer"], "diagnostics": []},
+    payloads = {
+        "dispatch": {
+            "selector": "fixed",
+            "routes": {"fixed": "scorer"},
+            "dependencies": dependencies,
+            "expected_scorer": expected,
+        },
+        "scorer": {"fixture": True},
     }
+    for record in records:
+        path = tmp_path / record["path"]
+        path.write_text(json.dumps(payloads[record["id"]]))
+        record["digest"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        record["evidence"][0]["digest"] = record["digest"]
     selection = {
         "artifacts": records,
-        "route": {"entrypoint": "dispatch", "expected_scorer": "scorer", "dependencies": {"scorer": []}},
+        "route": {"entrypoint": "dispatch", "expected_scorer": expected, "dependencies": dependencies},
+    }
+    measurements = {
+        "identity": identify(tmp_path, records),
+        "route": resolve_route(tmp_path, records, selection["route"]),
     }
     return measurements, selection
 
 
-def test_explicit_resolved_route_meets_bounded_two_not_runtime_readiness():
-    measurements, selection = route_packet()
-    rows = assess(measurements, selection)
+def test_explicit_resolved_route_meets_bounded_two_not_runtime_readiness(tmp_path, monkeypatch):
+    measurements, selection = route_packet(tmp_path, monkeypatch)
+    rows = assess(measurements, selection, root=tmp_path)
     assert (rows["DISC-01-B"]["score"], rows["DISC-01-B"]["evidence_strength"]) == (2, "E2")
     assert rows["DISC-03-A"]["score"] is None
 
 
-def test_wrong_selected_scorer_is_zero_and_ambiguity_is_partial():
-    measurements, selection = route_packet()
-    measurements["route"]["diagnostics"] = [{"code": "route.scorer_mismatch", "subject": "scorer", "status": "fail"}]
-    selection["route"]["expected_scorer"] = "other"
-    assert assess(measurements, selection)["DISC-01-B"]["score"] == 0
-    measurements["route"]["diagnostics"][0]["code"] = "route.dependencies_unresolved"
-    selection["route"]["expected_scorer"] = "scorer"
-    assert assess(measurements, selection)["DISC-01-B"]["score"] == 1
+def test_wrong_selected_scorer_is_zero_and_ambiguity_is_partial(tmp_path, monkeypatch):
+    measurements, selection = route_packet(tmp_path, monkeypatch, expected="other")
+    assert assess(measurements, selection, root=tmp_path)["DISC-01-B"]["score"] == 0
+    measurements, selection = route_packet(tmp_path, monkeypatch, dependencies={})
+    assert assess(measurements, selection, root=tmp_path)["DISC-01-B"]["score"] == 1
     measurements["route"]["scorer"] = None
-    assert assess(measurements, selection)["DISC-01-B"]["score"] is None
+    assert assess(measurements, selection, root=tmp_path)["DISC-01-B"]["score"] is None
 
 
 def test_grading_dependencies_need_source_bound_completeness_review(tmp_path):
@@ -236,7 +266,12 @@ def test_demo_real_local_helpers(tmp_path, monkeypatch, variant, task_score, rou
     payloads = {
         "scope": {"task_artifacts": {"required": ["task"], "unresolved_material": []}},
         "task": {"instruction": "Return a fixed demo answer."},
-        "dispatch": {"selector": "selected", "routes": {"selected": "scorer"}},
+        "dispatch": {
+            "selector": "selected",
+            "routes": {"selected": "scorer"},
+            "dependencies": {"scorer": []},
+            "expected_scorer": "other" if variant == "wrong-scorer" else "scorer",
+        },
         "scorer": {"scoring": "demo-only"},
     }
     if variant == "dynamic":
@@ -276,24 +311,26 @@ def test_demo_real_local_helpers(tmp_path, monkeypatch, variant, task_score, rou
 
 
 @pytest.mark.parametrize("declared", [True, False])
-def test_denied_declaration_is_not_a_measured_read_failure(declared):
+def test_denied_declaration_is_not_a_measured_read_failure(declared, tmp_path):
     measurements, selection = inventory_packet()
     if declared:
         measurements["identity"]["records"][1]["access"] = "denied"
     measurements["identity"]["diagnostics"] = [
         {"code": "identity.access_denied", "subject": "task", "status": "unknown"}
     ]
-    assert assess(measurements, selection)["DISC-01-A"]["score"] == (None if declared else 0)
+    bind_inventory_source(tmp_path, selection)
+    assert assess(measurements, selection, root=tmp_path)["DISC-01-A"]["score"] == (None if declared else 0)
 
 
-def test_defect_precedes_readable_partial_inventory():
+def test_defect_precedes_readable_partial_inventory(tmp_path):
     measurements, selection = inventory_packet()
     measurements["identity"]["records"].append(artifact("input", "fixture"))
     selection["w02_scope"]["task_artifacts"]["required"].append("input")
     measurements["identity"]["diagnostics"] = [
         {"code": "identity.artifact_missing", "subject": "input", "status": "unknown"}
     ]
-    assert assess(measurements, selection)["DISC-01-A"]["score"] == 0
+    bind_inventory_source(tmp_path, selection)
+    assert assess(measurements, selection, root=tmp_path)["DISC-01-A"]["score"] == 0
 
 
 def test_review_source_must_be_a_review_of_the_selected_inventory():
@@ -451,6 +488,119 @@ def test_unmeasured_materiality_assertion_cannot_establish_partial_content_findi
     measurements, selection = inventory_packet()
     selection["w02_scope"]["task_artifacts"]["unresolved_material"] = ["asserted gap"]
     assert assess(measurements, selection)["DISC-01-A"]["score"] is None
+
+
+@pytest.mark.parametrize("kind,item", [("task_artifacts", "DISC-01-A"), ("grading_dependencies", "DISC-01-C")])
+@pytest.mark.parametrize("state", ["missing", "partial"])
+def test_unbacked_inventory_cannot_assign_negative_or_partial_merit(tmp_path, kind, item, state):
+    selection = source_selection(tmp_path)
+    scope = selection["w02_scope"].pop("grading_dependencies")
+    selection["w02_scope"][kind] = scope
+    if kind == "task_artifacts":
+        selection["artifacts"][1]["role"] = "task"
+    if state == "missing":
+        scope["required"] = ["typo"]
+        selection["artifacts"].append(artifact("typo", "task" if kind == "task_artifacts" else "test"))
+    else:
+        scope["required"].append("unrecorded")
+    result = run_cli(tmp_path, selection)
+    assert result.stderr == ""
+    row = json.loads(result.stdout)["items"][item]
+    assert (row["status"], row["score"]) == ("NOT_ASSESSED", None)
+
+
+@pytest.mark.parametrize("name", ["scope", "review"])
+def test_deep_source_json_retains_unknown_without_traceback(tmp_path, monkeypatch, name):
+    import hashlib
+
+    monkeypatch.syspath_prepend(str(ROOT / "skills/eval-author/scripts"))
+    from rubric_identity import identify
+
+    selection = source_selection(tmp_path)
+    data = b'{"nested":' + b"[" * 10000 + b"0" + b"]" * 10000 + b"}"
+    (tmp_path / (name + ".json")).write_bytes(data)
+    record = next(row for row in selection["artifacts"] if row["id"] == name)
+    record["digest"] = hashlib.sha256(data).hexdigest()
+    record["evidence"][0]["digest"] = record["digest"]
+    measurements = {"identity": identify(tmp_path, selection["artifacts"])}
+    assert measurements["identity"]["status"] == "pass"
+    assert assess(measurements, selection, root=tmp_path)["DISC-01-C"]["score"] is None
+    result = run_cli(tmp_path, selection)
+    assert result.stderr == ""
+    assert json.loads(result.stdout)["items"]["DISC-01-C"]["score"] is None
+
+
+@pytest.mark.parametrize("replacement", ["symlink", "fifo"])
+def test_source_read_rejects_replacement_after_path_validation(tmp_path, monkeypatch, replacement):
+    import os
+
+    monkeypatch.syspath_prepend(str(ROOT / "skills/eval-author/scripts"))
+    monkeypatch.syspath_prepend(str(SCRIPT.parent))
+    import rubric_identity
+    import w02_scoring
+
+    selection = source_selection(tmp_path)
+    record = selection["artifacts"][0]
+    path = tmp_path / record["path"]
+    target = tmp_path / "replacement.json"
+    target.write_bytes(path.read_bytes())
+    original = rubric_identity.local_file
+
+    def replace_after_validation(root, relative):
+        selected = original(root, relative)
+        if selected == path:
+            path.unlink()
+            if replacement == "symlink":
+                path.symlink_to(target)
+            else:
+                os.mkfifo(path)
+        return selected
+
+    monkeypatch.setattr(rubric_identity, "local_file", replace_after_validation)
+    if hasattr(w02_scoring, "local_file"):
+        monkeypatch.setattr(w02_scoring, "local_file", replace_after_validation)
+    assert w02_scoring._source_json(tmp_path, record) is None
+
+
+@pytest.mark.parametrize("replacement", ["symlink", "fifo"])
+def test_source_read_never_opens_replacement_after_regular_file_probe(tmp_path, monkeypatch, replacement):
+    import os
+    import signal
+
+    monkeypatch.syspath_prepend(str(ROOT / "skills/eval-author/scripts"))
+    monkeypatch.syspath_prepend(str(SCRIPT.parent))
+    import w02_scoring
+
+    selection = source_selection(tmp_path)
+    record = selection["artifacts"][0]
+    path = tmp_path / record["path"]
+    target = tmp_path / "replacement.json"
+    target.write_bytes(path.read_bytes())
+    original = Path.is_file
+
+    def replace_after_probe(selected):
+        regular = original(selected)
+        if selected == path:
+            path.unlink()
+            if replacement == "symlink":
+                path.symlink_to(target)
+            else:
+                os.mkfifo(path)
+        return regular
+
+    def timeout(signum, frame):
+        raise AssertionError("source read blocked on a replacement FIFO")
+
+    monkeypatch.setattr(Path, "is_file", replace_after_probe)
+    previous = signal.signal(signal.SIGALRM, timeout)
+    try:
+        signal.alarm(2)
+        result = w02_scoring._source_json(tmp_path, record)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
+    assert result == json.loads(target.read_text())
+    assert not path.is_symlink()
 
 
 def run_cli(tmp_path, selection):

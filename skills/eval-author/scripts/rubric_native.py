@@ -7,14 +7,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import stat
 from collections import Counter
 from pathlib import Path
 
 import audit_verifier_evidence as audit
 from eval_author_shared import task_evidence
-from rubric_identity import DIGEST, FIELDS, diagnostic, finish, text
+from rubric_identity import DIGEST, FIELDS, SelectedAccess, artifact_byte_limit, diagnostic, finish, read_selected, text
 from rubric_links import check_links
 
 MAX_ARTIFACTS = 64
@@ -38,28 +36,8 @@ def _ref(role, *parts):
 
 
 def _read(root, record, limit):
-    relative = Path(record["path"])
-    _require(not relative.is_absolute() and ".." not in relative.parts and relative.as_posix() == record["path"])
-    _require(relative.parts and record["path"] != ".")
-    absolute_root = root.absolute()
-    _require(".." not in absolute_root.parts)
-    fd = os.open(absolute_root.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    try:
-        # Opening only the root leaf would still follow replaced ancestors.
-        for component in (*absolute_root.parts[1:], *relative.parts[:-1]):
-            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
-            os.close(fd)
-            fd = child
-        file_fd = os.open(relative.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
-        with os.fdopen(file_fd, "rb") as stream:
-            before = os.fstat(stream.fileno())
-            _require(stat.S_ISREG(before.st_mode) and before.st_size <= limit)
-            raw = stream.read(limit + 1)
-            after = os.fstat(stream.fileno())
-            stable = ("st_dev", "st_ino", "st_mode", "st_size", "st_mtime_ns", "st_ctime_ns")
-            _require(len(raw) <= limit and all(getattr(before, key) == getattr(after, key) for key in stable))
-    finally:
-        os.close(fd)
+    raw, reason = read_selected(root, record["path"], limit)
+    _require(reason is None)
     _require(hashlib.sha256(raw).hexdigest() == record["digest"])
     return raw
 
@@ -211,14 +189,12 @@ def project_native(
     ):
         issue("identity_invalid")
         return output()
+    access = SelectedAccess(identity["records"])
     indexed = {}
     for record in identity["records"]:
         if isinstance(record, dict) and text(record.get("id")):
             indexed.setdefault(record["id"], []).append(record)
-    root = Path(root).absolute()
-    if any(part.is_symlink() for part in (root, *root.parents)):
-        issue("root_invalid")
-        return output()
+    root = Path(root).resolve()
     snapshots, objects, records, total = {}, {}, {}, 0
     for ident in selected:
         candidates = indexed.get(ident, [])
@@ -228,7 +204,11 @@ def project_native(
             )
             continue
         record = candidates[0]
-        allowance = min(MAX_BYTES, MAX_TOTAL_BYTES - total)
+        reason = access.reason(record.get("path")) if isinstance(record.get("path"), str) else None
+        if reason:
+            issue(reason, ident, "unknown")
+            continue
+        allowance = min(MAX_BYTES, artifact_byte_limit(record), MAX_TOTAL_BYTES - total)
         if allowance <= 0:
             issue("total_limit", ident)
             continue
@@ -320,20 +300,22 @@ def project_native(
                 nodes.append({"id": task_ref, "role": "task"})
             nodes.append({"id": run_ref, "role": "run"})
             links.append({"source": run_ref, "target": task_ref, "relation": "task"})
-            trace_path = review.path(receipt["trace"])
-            _require(trace_path in trace_paths)
-            consumed_paths.add(trace_path)
-            trace = review.object(trace_path)
-            trace_sha = hashlib.sha256(review.read(trace_path)).hexdigest()
-            _require(trace_sha == receipt.get("trace_sha256"))
-            if trace_sha in seen_traces:
-                issue("trace_reused", ident)
-            seen_traces.add(trace_sha)
-            trace_id = trace.get("trajectory_id") or trace.get("session_id")
-            _require(text(trace_id))
-            trace_ref = _ref("trace", run_ref, trace_id)
-            nodes.append({"id": trace_ref, "role": "trace"})
-            links.append({"source": trace_ref, "target": run_ref, "relation": "run"})
+            trace_ref = trace_sha = None
+            if receipt["trace"] is not None:
+                trace_path = review.path(receipt["trace"])
+                _require(trace_path in trace_paths)
+                consumed_paths.add(trace_path)
+                trace = review.object(trace_path)
+                trace_sha = hashlib.sha256(review.read(trace_path)).hexdigest()
+                _require(trace_sha == receipt.get("trace_sha256"))
+                if trace_sha in seen_traces:
+                    issue("trace_reused", ident)
+                seen_traces.add(trace_sha)
+                trace_id = trace.get("trajectory_id") or trace.get("session_id")
+                _require(text(trace_id))
+                trace_ref = _ref("trace", run_ref, trace_id)
+                nodes.append({"id": trace_ref, "role": "trace"})
+                links.append({"source": trace_ref, "target": run_ref, "relation": "run"})
             subjects.append(
                 {
                     "receipt": ident,
@@ -346,7 +328,8 @@ def project_native(
                     "accounting_run": _ref("accounting_run", native["trial_name"]),
                 }
             )
-            _trace_graph(trace, trace_ref, run_ref, nodes, links, issue)
+            if trace_ref is not None:
+                _trace_graph(trace, trace_ref, run_ref, nodes, links, issue)
         except (OSError, ValueError, TypeError, KeyError, RecursionError, OverflowError):
             issue("reference_invalid", ident)
     for path, ident in manifest_paths.items():
@@ -355,20 +338,16 @@ def project_native(
             _require(manifest.get("schema") in (task_evidence.SCHEMA, task_evidence.MANIFEST_SCHEMA))
             _require(isinstance(manifest.get("task_sha256"), str) and DIGEST.fullmatch(manifest["task_sha256"]))
             task_evidence.validate_contract(manifest["contract"])
-            missing = [
-                case
-                for case, definition in manifest["contract"]["cases"].items()
-                if definition["kind"] not in {"agent", "diagnostic"}
-                and not any(
-                    row.get("manifest") == path.relative_to(root).as_posix() and row.get("case") == case
-                    for row in consumer_rows
-                )
-            ]
-            if missing:
-                issue("controls_missing", ident, "unknown")
-            rows = audit.inspect_manifest(review, path, manifest, {review.path(manifest["task_dir"])}, consumer_rows)
-            if rows:
-                issue("manifest_unproven", ident, "unknown")
+            rows = audit.inspect_manifest(
+                review,
+                path,
+                manifest,
+                {review.path(manifest["task_dir"])},
+                consumer_rows,
+                verify_historical=True,
+            )
+            for row in rows:
+                issue("controls_missing" if row.get("cases") else "manifest_unproven", ident, "unknown")
         except (OSError, ValueError, TypeError, KeyError, RecursionError, OverflowError):
             issue("manifest_invalid", ident)
     # Sealed bytes alone do not establish a selected native reference.

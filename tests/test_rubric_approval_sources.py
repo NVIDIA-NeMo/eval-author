@@ -62,10 +62,44 @@ def fixture(root):
     )
 
 
+@pytest.mark.parametrize(
+    "damage,reason", [("missing", "artifact_missing"), ("denied", "access_denied"), ("large", "source_too_large")]
+)
+def test_sourced_approvals_preserve_unavailable_read_reasons(tmp_path, monkeypatch, damage, reason):
+    data = fixture(tmp_path)
+    path = tmp_path / "decision.json"
+    if damage == "missing":
+        path.unlink()
+    elif damage == "large":
+        path.write_bytes(b" " * (identity.MAX_SOURCE_BYTES + 1))
+    else:
+        original = identity.os.open
+
+        def deny(name, *args, **kwargs):
+            if name == "decision.json":
+                raise PermissionError("PRIVATE-ERROR")
+            return original(name, *args, **kwargs)
+
+        monkeypatch.setattr(identity.os, "open", deny)
+    result = links.check_sourced_approvals(tmp_path, *data)
+    assert result["status"] == "unknown"
+    assert {"code": "identity." + reason, "subject": "decision", "status": "unknown"} in result["diagnostics"]
+    assert "PRIVATE-ERROR" not in json.dumps(result)
+
+
+def test_missing_approval_sources_leave_budget_for_available_neighbor(tmp_path):
+    reader = links._ApprovalSources(tmp_path)
+    for index in range(17):
+        with pytest.raises(identity.SelectedReadError) as caught:
+            reader.read(f"missing-{index}.json")
+        assert caught.value.reason == "artifact_missing"
+    (tmp_path / "valid.json").write_bytes(b"{}")
+    assert reader.read("valid.json") == b"{}"
+
+
 def test_retained_decision_binds_exact_content_without_authenticating_authority(tmp_path):
     data = fixture(tmp_path)
     before = copy.deepcopy(data)
-    assert hasattr(links, "check_sourced_approvals"), "Caller projections must be checked against retained decisions"
     result = links.check_sourced_approvals(tmp_path, *data)
     assert result["status"] == "pass", result
     assert result["diagnostics"] == []
@@ -174,7 +208,7 @@ def test_projected_fields_cannot_contradict_retained_decision(tmp_path, field, v
 def test_invalid_pointer_syntax_fails_without_reading(tmp_path, pointer, monkeypatch):
     approvals, decisions, selected, sources = fixture(tmp_path)
     sources["d1"]["pointer"] = pointer
-    monkeypatch.setattr(identity, "_read_selected", lambda *_: pytest.fail("Invalid pointer must not read"))
+    monkeypatch.setattr(identity, "read_selected", lambda *_: pytest.fail("Invalid pointer must not read"))
     result = links.check_sourced_approvals(tmp_path, approvals, decisions, selected, sources)
     assert result["status"] == "fail"
     assert "approvals.source_invalid" in {row["code"] for row in result["diagnostics"]}
@@ -294,14 +328,14 @@ def test_invalid_retained_json_never_passes(tmp_path, payload):
 def test_selected_files_are_read_once_and_not_discovered(tmp_path, monkeypatch):
     data = fixture(tmp_path)
     (tmp_path / "unselected.json").write_text("must never be opened")
-    read = identity._read_selected
+    read = identity.read_selected
     calls = []
 
     def spy(root, path, limit):
         calls.append(path)
         return read(root, path, limit)
 
-    monkeypatch.setattr(identity, "_read_selected", spy)
+    monkeypatch.setattr(identity, "read_selected", spy)
     assert links.check_sourced_approvals(tmp_path, *data)["status"] == "pass"
     assert sorted(calls) == sorted(row["path"] for row in data[2]["records"])
 

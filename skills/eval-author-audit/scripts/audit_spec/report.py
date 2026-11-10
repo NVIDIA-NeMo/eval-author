@@ -11,7 +11,6 @@ import copy
 import hashlib
 import json
 import os
-import re
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -20,6 +19,7 @@ from typing import Any, TypeAlias
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from _identity import identity_module  # noqa: E402
 from _markdown import AuditMarkdownError  # noqa: E402
 from _schema import ITEM_KINDS as AUDIT_ITEM_KINDS  # noqa: E402
 from _schema import AuditEnvironmentError, AuditSpecError, item_counts, load_audit_spec  # noqa: E402
@@ -409,8 +409,7 @@ def _validate_coverage_matches_audit(
 
 
 def _validate_selected_trace(coverage: JsonObject, *, artifact_path: Callable[[str], Path]) -> None:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "eval-author/scripts"))
-    from rubric_identity import identify
+    identity_api = identity_module()
 
     binding = coverage.get("binding")
     if not isinstance(binding, dict):
@@ -435,47 +434,14 @@ def _validate_selected_trace(coverage: JsonObject, *, artifact_path: Callable[[s
         root = artifact_path(str(original)).parent
         for _ in parts[1:]:
             root = root.parent
-        if identify(root, records) == coverage["identity_preflight"]["identity"]:
+        if identity_api.identify(root, records) == coverage["identity_preflight"]["identity"]:
             matching.append(root)
     if len(matching) != 1:
         raise AuditCoverageInputError("identity evidence does not match measured trace sources")
     preflight = coverage["identity_preflight"]
-    route = preflight["route"]
-    source = route.get("dependency_source")
-    selected = route.get("selected")
-    by_id = {row["id"]: row for row in records}
     if (
-        set(preflight) != {"identity", "route", "subject", "measurement_allowed", "preflight_success"}
-        or set(route)
-        != {
-            "status",
-            "records",
-            "diagnostics",
-            "selected",
-            "scorer",
-            "executed_scorer",
-            "bound_dependency",
-            "dependency_source",
-        }
-        or route.get("records") != []
-        or route.get("executed_scorer") is not None
-        or not isinstance(selected, list)
-        or not selected
-        or any(not isinstance(key, str) or key not in by_id for key in selected)
-        or selected != sorted(set(selected))
-        or not isinstance(route.get("scorer"), str)
-        or route["scorer"] not in selected
-        or by_id[route["scorer"]]["role"] != "scorer"
-        or not isinstance(source, dict)
-        or set(source) != {"artifact_id", "pointer", "digest"}
-        or not isinstance(source["artifact_id"], str)
-        or source["artifact_id"] not in by_id
-        or source["digest"] != by_id[source["artifact_id"]]["digest"]
-        or not isinstance(source["pointer"], str)
-        or len(source["pointer"]) > 1024
-        or source["pointer"]
-        and not source["pointer"].startswith("/")
-        or re.search(r"~(?![01])", source["pointer"])
+        set(preflight) != {"identity", "route", "route_request", "subject", "measurement_allowed", "preflight_success"}
+        or identity_api.resolve_route(matching[0], records, preflight.get("route_request")) != preflight["route"]
     ):
         raise AuditCoverageInputError("inconsistent measured identity route envelope")
 

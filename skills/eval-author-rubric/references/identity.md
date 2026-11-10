@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# W02 measurement helper contract
+# Artifact, configuration, and provenance measurement contract
 
 These experimental P1 / validity measurements check explicit local selections.
 They do not discover artifacts or prove semantic completeness, mock fidelity,
@@ -36,6 +36,12 @@ or `unresolved`. Non-available records retain explicit unknowns; the checker doe
 not probe denied locations. Available means readable by this checker, not by the
 solver role. Remote artifact adapters and solver-role access checks remain unmeasured.
 
+Resolve the selected root once at entry. The shared reader rejects symlinks below
+that root and checks that the opened directory chain did not change during the
+read. Identity reads allow 2,000,000 bytes for a `trace` artifact and 1 MiB for
+other artifacts, within the 16 MiB total budget. Optional measurements can impose
+smaller limits, including the reconstruction limits below.
+
 For example, valid task evidence keeps its selected path and measured digest;
 a missing artifact has `access: missing`, null digest and empty evidence; a denied
 artifact uses `access: denied` without trying the read; an unresolved selection uses
@@ -45,7 +51,7 @@ The checked-in mutation panel exercises these distinctions with actual local fil
 Raw measurements are named `identity`, `route`, `config`, `links`, and `approvals`.
 Explicit `sourced_config`, `freshness`, `native`, and `reconstruction` selections add their
 corresponding measurements. Absent optional selections do not establish coverage.
-They have statuses and diagnostics, not numeric scores. The eleven canonical W02
+They have statuses and diagnostics, not numeric scores. The eleven canonical
 criteria consume this evidence under their own anchors; a helper passing is not
 automatically criterion acceptance. Configuration differences require interpretation;
 equality is not adequacy. Declared missing/denied access differs from a performed
@@ -126,12 +132,14 @@ which grader ran. `executed_scorer` stays null. Arbitrary Python/shell import an
 provider-native dispatch adapters, and runtime selection attestation are not
 implemented. A declaration of dependency closure does not prove source completeness.
 
-For package preflight, retain `dependencies` in the dispatch JSON or select
+For package preflight or full `DISC-01-B` credit, retain `dependencies` in the dispatch JSON or select
 `route.dependency_source: {artifact_id, pointer}` naming a selected JSON graph.
 The caller's dependency map must exactly match the retained map. Require both
 `status: pass` and `bound_dependency: true`; caller-only legacy maps are unbound
 even when their local traversal passes. The selected closure rejects cycles and
 duplicate edges without treating defects on an unused branch as selected evidence.
+A wrong-scorer zero also requires `expected_scorer` in the retained dispatch JSON
+to match the selection. A caller-only expectation cannot establish that defect.
 
 ## Declared versus observed configuration
 
@@ -186,7 +194,7 @@ control evidence, and does not export prompts, arguments or tool outputs. It
 does not execute tasks, establish current task-tree freshness, qualify closure,
 validate every ATIF field, or traverse nested/subagent traces. Unsupported native
 formats remain unresolved. Existing control/accounting seam tests do not prove
-that the whole W01 or W05 workflow consumes the new interface.
+that the whole retained-credit or coverage workflow consumes this interface.
 
 ## Selected reconstruction provenance
 
@@ -333,9 +341,9 @@ a wrong route alone proves an identity defect, not successful cheating. A task
 with no detected cheat is not universally cheat-free. Semantic ambiguity stays a
 review gap unless a deterministic predicate actually establishes a contradiction.
 
-The W02 acceptance panel exercises the shared selection through the W01 retained
-credit validator and W05 coverage measurement/aggregation entrypoints. The panel
-and its human-facing documentation run from a repository checkout, not a copied
-skill installation. This identity handoff does not implement the remaining
-W01/W05 packages. W03 can reuse authority/revision links, and W04 can reuse stable
-task/run references.
+The acceptance panel exercises the shared selection through the retained-credit
+validator and coverage measurement/aggregation entrypoints. The panel and its
+human-facing documentation run from a repository checkout, not a copied skill
+installation. This identity handoff does not implement the full retained-credit
+or coverage workflows. Authority reviews can reuse authority/revision links.
+Task and run consumers can reuse stable references.

@@ -72,6 +72,147 @@ def selected_measurement(tmp_path):
     return audit, path, selection, args
 
 
+@pytest.mark.parametrize("consumer", ["measure", "report"])
+def test_identity_consumer_requires_installed_sibling(tmp_path, consumer):
+    import shutil
+
+    audit, path, _, args = selected_measurement(tmp_path)
+    code, measured, stderr = _run_json_script(
+        _AUDIT_MEASURE, *args, "--identity-root", str(tmp_path), "--identity-selection", str(path)
+    )
+    assert code == 0, stderr or measured
+    installed = tmp_path / "skills/eval-author-audit"
+    shutil.copytree(_AUDIT_MEASURE.parents[2], installed, ignore=shutil.ignore_patterns("__pycache__"))
+    if consumer == "measure":
+        script = installed / "scripts/audit_spec/measure.py"
+        argv = [*args, "--identity-root", str(tmp_path), "--identity-selection", str(path)]
+    else:
+        script = installed / "scripts/audit_spec/report.py"
+        argv = [
+            "--audit",
+            str(audit),
+            "--coverage",
+            measured["measurements"][0]["coverage"],
+            "--out",
+            str(tmp_path / "report.json"),
+        ]
+    code, result, stderr = _run_json_script(script, *argv)
+    assert stderr == ""
+    assert code == 2 and result["error_type"] == "environment", result
+    assert "Install the sibling eval-author skill" in result["error"]
+    assert not result["written"]
+
+
+@pytest.mark.parametrize("consumer", ["measure", "report"])
+def test_identity_consumer_does_not_grow_sibling_import_path(tmp_path, consumer):
+    import runpy
+    import sys
+
+    audit, path, _, args = selected_measurement(tmp_path)
+    script = _AUDIT_MEASURE if consumer == "measure" else _AUDIT_REPORT
+    module = runpy.run_path(str(script))
+    if consumer == "measure":
+        import argparse
+
+        arguments = argparse.Namespace(identity_root=tmp_path, identity_selection=path, task_id="task", run_id="run")
+
+        def run():
+            return module["_identity_preflight"](arguments)
+    else:
+        code, result, stderr = _run_json_script(
+            _AUDIT_MEASURE, *args, "--identity-root", str(tmp_path), "--identity-selection", str(path)
+        )
+        assert code == 0, stderr or result
+        coverage = json.loads(Path(result["measurements"][0]["coverage"]).read_text())
+
+        def run():
+            return module["_validate_selected_trace"](coverage, artifact_path=Path)
+
+    sibling = str(script.resolve().parents[3] / "eval-author/scripts")
+    run()
+    before = sys.path.count(sibling)
+    run()
+    assert sys.path.count(sibling) == before
+
+
+@pytest.mark.parametrize("schema_name", ["audit_coverage.schema.json", "audit_coverage_report.schema.json"])
+def test_coverage_schema_requires_route_request_in_identity_envelope(schema_name):
+    from jsonschema import Draft202012Validator
+
+    schema = json.loads((_AUDIT_MEASURE.parents[2] / "schemas" / schema_name).read_text())
+    envelope = (
+        schema["properties"]["identity_preflight"]
+        if schema_name == "audit_coverage.schema.json"
+        else schema["$defs"]["inputReport"]["properties"]["identity_preflight"]
+    )
+    validator = Draft202012Validator(envelope)
+    assert list(validator.iter_errors({}))
+    assert list(validator.iter_errors({"route_request": None}))
+    assert list(validator.iter_errors({"route_request": {}}))
+
+
+@pytest.mark.parametrize("root_form", ["relative-parent", "dotdot", "symlink"])
+def test_measurement_normalizes_identity_root_at_entry(tmp_path, root_form):
+    import os
+
+    _, path, _, args = selected_measurement(tmp_path)
+    if root_form == "relative-parent":
+        root = Path(os.path.relpath(tmp_path))
+    elif root_form == "dotdot":
+        (tmp_path / "child").mkdir()
+        root = tmp_path / "child/.."
+    else:
+        root = tmp_path / "alias"
+        root.symlink_to(tmp_path, target_is_directory=True)
+    code, result, stderr = _run_json_script(
+        _AUDIT_MEASURE, *args, "--identity-root", str(root), "--identity-selection", str(path)
+    )
+    assert code == 0 and stderr == "", result
+    assert result["written"] and result["identity_preflight"]["measurement_allowed"]
+
+
+def test_measurement_rejects_symlinks_below_normalized_root(tmp_path):
+    _, path, selection, args = selected_measurement(tmp_path)
+    alias = tmp_path / "alias.json"
+    alias.symlink_to(tmp_path / "trace.json")
+    selection["artifacts"][0]["path"] = alias.name
+    selection["artifacts"][0]["evidence"][0]["path"] = alias.name
+    path.write_text(json.dumps(selection))
+    args[args.index("--trace") + 1] = str(alias)
+    code, result, stderr = _run_json_script(
+        _AUDIT_MEASURE, *args, "--identity-root", str(tmp_path), "--identity-selection", str(path)
+    )
+    assert code == 1 and stderr == "" and not result["written"]
+    assert result["identity_preflight"]["identity"]["status"] == "fail"
+
+
+@pytest.mark.parametrize("damage", ["extra", "missing-artifacts", "missing-route"])
+def test_measurement_requires_exact_identity_selection_keys(tmp_path, damage):
+    _, path, selection, args = selected_measurement(tmp_path)
+    if damage == "extra":
+        selection["unexpected"] = True
+    else:
+        selection.pop(damage.removeprefix("missing-"))
+    path.write_text(json.dumps(selection))
+    code, result, stderr = _run_json_script(
+        _AUDIT_MEASURE, *args, "--identity-root", str(tmp_path), "--identity-selection", str(path)
+    )
+    assert code == 1 and stderr == "", result
+    assert result["error"] == "identity.selection_invalid" and not result["written"]
+
+
+def test_identity_help_describes_root_without_internal_workflow_label(capsys):
+    import runpy
+
+    main = runpy.run_path(str(_AUDIT_MEASURE))["main"]
+    with pytest.raises(SystemExit) as exit_info:
+        main(["--help"])
+    assert exit_info.value.code == 0
+    help_text = capsys.readouterr().out
+    assert "W02" not in help_text
+    assert "paths are relative to" in " ".join(help_text.split())
+
+
 def test_unbound_dependency_claim_cannot_authorize_measurement(tmp_path):
     _, path, selection, args = selected_measurement(tmp_path)
     dispatch_path = tmp_path / "dispatch.json"
@@ -220,6 +361,13 @@ def test_selected_aggregate_preserves_nested_source_root_and_evidence(tmp_path, 
         ("identity.records.0.path", "nested/../trace.json"),
         ("identity.records.0.role", "scorer"),
         ("route", None),
+        ("route_request", None),
+        ("route_request", {}),
+        ("route_request", []),
+        ("route_request", {"entrypoint": "dispatch", "expected_scorer": "scorer", "dependencies": {}, "extra": True}),
+        ("route_request.expected_scorer", "other-scorer"),
+        ("route_request.dependencies", {"scorer": []}),
+        ("route_request.dependency_source", {"artifact_id": "dispatch", "pointer": "/does/not/exist"}),
         ("route.records", None),
         ("route.records", [{}]),
         ("route.selected", "scorer"),
@@ -248,8 +396,34 @@ def test_selected_trace_identity_cannot_be_laundered(tmp_path, operation, mutati
     _tampered_selected_report(tmp_path, operation, mutation=mutation)
 
 
+@pytest.mark.parametrize("operation", ["aggregate", "verify-existing"])
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("route.scorer", "other-scorer"),
+        ("route.selected", ["scorer"]),
+        ("route.dependency_source.pointer", "/does/not/exist"),
+    ],
+)
+def test_saved_route_is_recomputed_from_current_sources(tmp_path, operation, field, value):
+    _tampered_selected_report(tmp_path, operation, field=field, value=value)
+
+
 def _tampered_selected_report(tmp_path, operation, *, mutation=None, field=None, value=None):
-    audit, path, _, args = selected_measurement(tmp_path)
+    audit, path, selection, args = selected_measurement(tmp_path)
+    if field == "route.scorer" and value == "other-scorer":
+        other = json.loads(json.dumps(selection["artifacts"][2]))
+        other["id"] = "other-scorer"
+        selection["artifacts"].append(other)
+        graph = {"scorer": ["trace", "other-scorer"], "other-scorer": [], "trace": []}
+        selection["route"]["dependencies"] = graph
+        dispatch_path = tmp_path / "dispatch.json"
+        dispatch = json.loads(dispatch_path.read_text())
+        dispatch["dependencies"] = graph
+        dispatch_path.write_text(json.dumps(dispatch))
+        digest = hashlib.sha256(dispatch_path.read_bytes()).hexdigest()
+        selection["artifacts"][1].update(digest=digest, evidence=[{"path": dispatch_path.name, "digest": digest}])
+        path.write_text(json.dumps(selection))
     code, result, stderr = _run_json_script(
         _AUDIT_MEASURE, *args, "--identity-root", str(tmp_path), "--identity-selection", str(path)
     )
@@ -286,7 +460,10 @@ def _tampered_selected_report(tmp_path, operation, *, mutation=None, field=None,
     before = aggregate.read_bytes() if aggregate.exists() else None
     code, result, stderr = _run_json_script(_AUDIT_REPORT, *report_args)
     assert code == 1 and stderr == "", result
-    assert result["error_type"] == "coverage_input" and not result["written"]
+    expected_error = (
+        "coverage_report" if operation == "verify-existing" and field == "route_request" else "coverage_input"
+    )
+    assert result["error_type"] == expected_error and not result["written"]
     assert "identity" in result["error"]
     assert (aggregate.read_bytes() if aggregate.exists() else None) == before
 
@@ -392,6 +569,48 @@ def test_unselected_trace_is_rejected_before_opening_or_parsing(tmp_path, monkey
     assert not result["written"]
 
 
+@pytest.mark.parametrize("size", [1_048_577, "limit", "over-limit"])
+def test_selected_trace_uses_shared_explicit_trace_limit(tmp_path, size):
+    import runpy
+
+    identity_api = runpy.run_path(str(_AUDIT_MEASURE))["identity_module"]()
+    limit = identity_api.artifact_byte_limit({"role": "trace"})
+    assert limit > 1_048_576
+    size = limit if size == "limit" else limit + 1 if size == "over-limit" else size
+    audit, path, selection, args = selected_measurement(tmp_path)
+    trace = tmp_path / "trace.json"
+    with trace.open("ab") as stream:
+        stream.write(b" " * (size - trace.stat().st_size))
+    digest = hashlib.sha256(trace.read_bytes()).hexdigest()
+    selection["artifacts"][0].update(digest=digest, evidence=[{"path": trace.name, "digest": digest}])
+    path.write_text(json.dumps(selection))
+    code, result, stderr = _run_json_script(
+        _AUDIT_MEASURE, *args, "--identity-root", str(tmp_path), "--identity-selection", str(path)
+    )
+    assert stderr == ""
+    if size > limit:
+        assert code == 1 and not result["written"]
+        assert any(
+            row["code"] == "identity.source_too_large"
+            for row in result["identity_preflight"]["identity"]["diagnostics"]
+        )
+        return
+    assert code == 0 and result["written"], result
+    aggregate = tmp_path / "aggregate.json"
+    code, result, stderr = _run_json_script(
+        _AUDIT_REPORT,
+        "--audit",
+        str(audit),
+        "--coverage",
+        result["measurements"][0]["coverage"],
+        "--out",
+        str(aggregate),
+    )
+    assert code == 0 and stderr == "", result
+    code, result, stderr = _run_json_script(_AUDIT_REPORT, "--verify-existing", str(aggregate))
+    assert code == 0 and stderr == "", result
+
+
 @pytest.mark.parametrize("damage", ["symlink", "oversize"])
 def test_selected_trace_replacement_after_identity_is_rejected_before_parsing(tmp_path, damage, monkeypatch, capsys):
     import runpy
@@ -410,7 +629,8 @@ def test_selected_trace_replacement_after_identity_is_rejected_before_parsing(tm
             trace.symlink_to(target)
         else:
             with trace.open("ab") as stream:
-                stream.write(b" " * (1_048_577 - trace.stat().st_size))
+                limit = module["identity_module"]().artifact_byte_limit({"role": "trace"})
+                stream.write(b" " * (limit + 1 - trace.stat().st_size))
         return subject
 
     monkeypatch.setitem(main.__globals__, "_subject", replace_after_identity)

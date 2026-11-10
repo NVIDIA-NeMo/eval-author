@@ -1,21 +1,12 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-import json
-import subprocess
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
+from test_rubric_measurements import rubric_panel as rubric_panel
+from test_rubric_measurements import rubric_panel_runs as rubric_panel_runs
 
 
-def test_one_command_package_acceptance_is_repeatable_and_separate():
-    command = [sys.executable, "-B", str(ROOT / "tools/run_rubric_measurements.py")]
-    first = subprocess.run(command, capture_output=True, text=True, check=False)
-    second = subprocess.run(command, capture_output=True, text=True, check=False)
-    assert first.returncode == second.returncode == 0, first.stderr + second.stderr
-    assert first.stdout == second.stdout
-    report = json.loads(first.stdout)
+def test_one_command_package_acceptance_is_separate(rubric_panel):
+    report = rubric_panel
     assert report["counts"] == {"cases": 14, "assessments": 5, "evidence_cases": 8}
     package = report["package_acceptance"]
     assert package["status"] == "passed"

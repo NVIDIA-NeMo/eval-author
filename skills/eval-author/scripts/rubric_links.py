@@ -274,8 +274,7 @@ def check_sourced_approvals(root, approvals: list, decisions: list, identity: di
     from pathlib import Path
 
     from eval_author_shared.task_evidence import loads
-    from rubric_configuration import _finite_tree, _pointer, _resolve
-    from rubric_identity import MAX_RECORDS, identify
+    from rubric_identity import MAX_RECORDS, identify, pointer_tokens, resolve_pointer, validate_json_tree
 
     diagnostics, evidence = [], []
 
@@ -323,12 +322,13 @@ def check_sourced_approvals(root, approvals: list, decisions: list, identity: di
                 or not _text(ref["artifact_id"])
             ):
                 raise ValueError("invalid source reference")
-            _pointer(ref["pointer"])
+            pointer_tokens(ref["pointer"])
     except ValueError:
         diagnostics.append(_diagnostic("approvals.source_invalid", "selection"))
         return finish()
 
-    reader = _ApprovalSources(Path(root))
+    root = Path(root).resolve()
+    reader = _ApprovalSources(root)
     observed = identify(Path(root), records, hasher=reader.digest)
     diagnostics.extend(observed["diagnostics"])
     artifacts = {row["id"]: row for row in observed["records"]}
@@ -365,8 +365,8 @@ def check_sourced_approvals(root, approvals: list, decisions: list, identity: di
             path = artifact["path"]
             if path not in documents:
                 documents[path] = loads(reader.read(path))
-                _finite_tree(documents[path])
-            retained, found = _resolve(documents[path], ref["pointer"])
+                validate_json_tree(documents[path])
+            retained, found = resolve_pointer(documents[path], ref["pointer"])
         except (ValueError, TypeError, RecursionError):
             diagnostics.append(_diagnostic("approvals.source_invalid", ident))
             continue
@@ -394,18 +394,20 @@ class _ApprovalSources:
         self.files = {}
 
     def read(self, path):
-        from rubric_identity import MAX_FILES, MAX_SOURCE_BYTES, _read_selected
+        from rubric_identity import MAX_FILES, MAX_SOURCE_BYTES, SelectedReadError, read_charge, read_selected
 
         if path not in self.files:
             if len(self.files) >= MAX_FILES:
-                raise ValueError("approval source file limit")
+                raise SelectedReadError("file_limit")
             limit = min(MAX_SOURCE_BYTES, self.remaining)
-            data, reason = _read_selected(self.root, path, limit)
-            self.remaining -= len(data) if data is not None else limit
+            data, reason = read_selected(self.root, path, limit)
+            self.remaining -= read_charge(data, reason, limit)
+            if reason == "source_too_large" and limit < MAX_SOURCE_BYTES:
+                reason = "total_bytes_limit"
             self.files[path] = data, reason
         data, reason = self.files[path]
         if reason or data is None:
-            raise ValueError("approval source unavailable")
+            raise SelectedReadError(reason or "reference_invalid")
         return data
 
     def digest(self, path):

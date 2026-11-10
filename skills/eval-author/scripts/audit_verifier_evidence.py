@@ -40,16 +40,16 @@ class Review:
 
     def read(self, path: Path) -> bytes:
         path = self.path(path)
-        if not any(path.is_relative_to(root) for root in self.roots):
+        if self.identity is None and not any(path.is_relative_to(root) for root in self.roots):
             raise EvidenceScopeError(f"Select the evidence source before reading: {path}")
         if self.identity is not None:
-            from rubric_identity import _read_selected
+            from rubric_identity import artifact_byte_limit, read_selected
 
             relative = path.relative_to(self.repo).as_posix()
             matches = [record for record in self.identity["records"] if record["path"] == relative]
             if not matches:
                 raise EvidenceScopeError("identity.reference_unselected")
-            raw, reason = _read_selected(self.repo, relative)
+            raw, reason = read_selected(self.repo, relative, min(artifact_byte_limit(record) for record in matches))
             if reason:
                 raise ValueError("identity." + reason)
             if any(hashlib.sha256(raw).hexdigest() != record["digest"] for record in matches):
@@ -163,7 +163,15 @@ def inspect_receipt(
     return row
 
 
-def inspect_manifest(review: Review, path: Path, manifest: dict, tasks: set[Path], rows: list[dict]) -> list[dict]:
+def inspect_manifest(
+    review: Review,
+    path: Path,
+    manifest: dict,
+    tasks: set[Path],
+    rows: list[dict],
+    *,
+    verify_historical: bool = False,
+) -> list[dict]:
     row = {"path": path.relative_to(review.repo).as_posix(), "classification": "unproven"}
     try:
         task = review.path(manifest["task_dir"])
@@ -171,7 +179,7 @@ def inspect_manifest(review: Review, path: Path, manifest: dict, tasks: set[Path
             return []
         row["task"] = task.relative_to(review.repo).as_posix()
         task_evidence.validate_contract(manifest["contract"])
-        if review.task_digest(task) != manifest.get("task_sha256"):
+        if not verify_historical and review.task_digest(task) != manifest.get("task_sha256"):
             row.update(classification="stale", reason="This manifest describes an earlier task revision")
             return [row]
         missing = [
@@ -259,15 +267,15 @@ def check(
 ) -> dict:
     preflight = {}
     identity = None
+    repo = repo.resolve()
     if selection is not None:
-        from rubric_identity import identify, resolve_route
+        from rubric_identity import identify, resolve_route, validate_identity_selection
 
         if content is not None or evidence_dirs or source_roots:
             raise ValueError("An explicit selection cannot be combined with content or evidence directories")
-        if not isinstance(selection, dict) or set(selection) != {"artifacts", "route"}:
-            raise ValueError("Select artifacts and a declared route")
+        validate_identity_selection(selection)
         identity = identify(repo, selection["artifacts"])
-        route = resolve_route(repo, identity["records"], selection["route"])
+        route = resolve_route(repo, selection["artifacts"], selection["route"])
         preflight = {
             "identity": identity,
             "route": route,

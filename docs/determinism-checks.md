@@ -12,7 +12,7 @@ Developer tools in `tools/` are not included in skill-only installations.
 | [Workflow scope](#workflow-scope) | Reviewed actions, writes and handoffs match a request contract. |
 | [Discovery comparisons](#discovery-comparisons) | Repeated discovery reports agree under frozen inputs. |
 | [Rubric identity measurements](#rubric-identity-measurements) | Handcrafted mutations produce exact scoped identity diagnostics and scores. |
-| [W02 provenance demo](#w02-provenance-demo) | Selected source bytes, record links, and revision changes produce expected diagnostics. |
+| [Provenance demo](#w02-provenance-demo) | Selected source bytes, record links, and revision changes produce expected diagnostics. |
 | [Audit and task evidence](#audit-and-task-evidence) | Acceptance still matches its retained source and execution evidence. |
 | [Verifier-cheat panel](#verifier-cheat-panel) | Real Harbor controls distinguish a sound grader from a planted vulnerable grader. |
 | [Live anti-cheat experiment](#live-anti-cheat-experiment) | Model-backed Harbor task attempts separate real behavior from vulnerable reward signals. |
@@ -29,7 +29,7 @@ that presentation guarantee does not establish deterministic workflow execution.
 
 ## Rubric identity measurements
 
-The experimental W02 demo assesses source-bound task access (`DISC-01-A`),
+The experimental rubric demo assesses source-bound task access (`DISC-01-A`),
 explicit grading-path identification (`DISC-01-B`), and grading-dependency access
 with a retained completeness review (`DISC-01-C`). Raw identity, route,
 configuration, relationship, and approval measurements remain separate from
@@ -44,9 +44,9 @@ uv run --locked python tools/run_rubric_measurements.py --format text
 uv run --locked python tools/run_rubric_measurements.py
 ```
 
-The default output is `rubric-mutation-panel-v3` JSON. It preserves the existing
-14 raw-measurement regressions and five canonical score variants. It adds eight
-variants for source configuration and freshness in `evidence_cases`. Both
+The default output is `rubric-mutation-panel-v3` JSON. It contains 14 raw-measurement
+regressions, five canonical score variants, and eight source configuration and
+freshness variants in `evidence_cases`. Both
 assessment panels invoke the actual measurement CLI without mocking helper outputs.
 Each includes
 independently authored expected outcomes, observed items and raw measurements,
@@ -55,8 +55,9 @@ the complete canonical result fields and all 38 check IDs. CLI cases also
 compare every check outcome with the panel's explicit expectation map. Counts
 separate `cases`, `assessments`, and `evidence_cases`.
 
-The panel exits nonzero on an unexpected outcome. Correctly detecting a planted
-defect does not cause a nonzero exit.
+The panel exits nonzero on an unexpected outcome. The text summary lists mismatched
+case IDs and omits success claims when any case mismatches. Correctly detecting a
+planted defect does not cause a nonzero exit.
 It also checks that CLI assessment leaves the selected input bytes unchanged.
 
 | Variant | DISC-01-A | DISC-01-B | DISC-01-C |
@@ -67,9 +68,8 @@ It also checks that CLI assessment leaves the selected input bytes unchanged.
 | Confirmed missing task file | 0 | 2 | 2 |
 | Partial inventory and dependency route | 1 | 1 | 1 |
 
-`null` means `NOT_ASSESSED`, never zero. W02 is complete against its acceptance
-tests. The other eight canonical criteria remain null in every variant because
-the required review and native evidence is missing. The handcrafted retained
+`null` means `NOT_ASSESSED`, never zero. The other eight canonical criteria remain
+null in every variant because the required review and native evidence is missing. The handcrafted retained
 review is not independent corroboration, so no variant earns level 3.
 
 Inventories cover only declared local references and known grading branches.
@@ -80,8 +80,8 @@ certifying completeness. The confirmed-missing variant removes the task
 file before the checker reads it. A caller's missing-access declaration alone
 remains unknown.
 
-The additional variants use explicitly handcrafted refund-task inputs, JSON
-configuration records, and retained review notes, never native receipts:
+The source configuration and freshness variants use handcrafted refund-task inputs,
+JSON configuration records, and retained review notes. They use no native receipts:
 
 | Variant | Expected bounded observation |
 | --- | --- |
@@ -104,8 +104,7 @@ A current note is usable
 **for review**, not proof of a passing task. The demo does not rewrite or regrade
 stale notes, use fabricated rewards, or use native-success receipts.
 
-All eight added measurements retain `2/2/2` on the already supported inventory/path
-criteria and null elsewhere. They earn no new numeric criterion credit.
+All eight measurements retain `2/2/2` on the inventory/path criteria and null elsewhere. They earn no numeric credit on other criteria.
 Source equality does not establish configuration acceptability, native attestation
 or fair comparison. Run-bound fields here assert only what the selected records say.
 
@@ -119,7 +118,8 @@ The wrong-scorer variant changes an explicit JSON selector to a weak route that
 names only a claimed-success check. This is a **weak-route defect, not demonstrated
 exploitation**: no scorer, solver, cheat, model, or native task executes. These are
 synthetic local selections, not customer tasks.
-[Package acceptance](#package-acceptance-same-command) measures W01/W05 CLI integration separately.
+[Package acceptance](#package-acceptance-same-command) measures retained-credit and
+identity-aware coverage CLI integration separately.
 The existing native verifier-cheat panel below remains the executed cheat control.
 
 The demo removes temporary inputs after each case. If you need to retain the
@@ -129,16 +129,16 @@ task package.
 ### Package acceptance (same command)
 
 The separate `package_acceptance` section runs 14 additional CLI cases with its
-own counts and pass/fail status. The original `counts` and three panels above are
-unchanged. Expectations come from `evals/rubric-measurements/cases.json`, not
+own counts and pass/fail status, separate from the three panels above.
+Expectations come from `evals/rubric-measurements/cases.json`, not
 observed output or imported test fixtures. An unexpected package outcome also
 makes the overall command exit nonzero.
 
 Eight cases send **the same selection file** through both actual consumers:
 `audit_verifier_evidence.py --selection` and audit `measure.py
 --identity-root --identity-selection`. They compare complete identity records,
-digests, diagnostics, and exit codes. The valid case checks retained W01 control
-classification and W05 coverage's trace digest and identity envelope. Missing,
+digests, diagnostics, and exit codes. The valid case checks retained-credit control
+classification and coverage's trace digest and identity envelope. Missing,
 denied, unresolved, unknown-route, wrong-scorer, caller-only dependency mapping,
 and source/mapping contradiction cases cannot become successful measurements.
 The valid route binds its dependency graph to selected dispatch JSON bytes.
@@ -161,10 +161,10 @@ not task merit, provider compatibility, solver permissions, anti-cheat success,
 or end-to-end conversational workflow acceptance. `runtime_acceptance` stays
 `not_measured`, `merit_acceptance` stays `not_assessed`, and the existing top-level
 `workflow_integration: false` denotes that unmeasured full workflow boundary.
-The older panels above still contain no native-shaped receipts.
+The three rubric panels contain no native-shaped receipts.
 
 Every package case verifies that all fixture input bytes remain unchanged,
-including its selection. Only W05's dedicated output subtree may be created.
+including its selection. Only coverage's dedicated output subtree may be created.
 Temporary roots never enter the package fixture's retained identities.
 Thus, repeated commands produce byte-identical JSON when source and runtime are
 unchanged. The regression test runs the full command twice and compares stdout.
@@ -187,7 +187,9 @@ means invalid input. Exit 0 does not mean every canonical item is assessed or th
 native preflight passed. Configuration acceptability remains unassessed.
 Keep selections and output private because they can contain local evidence locations.
 
-## W02 provenance demo
+<a id="w02-provenance-demo"></a>
+
+## Provenance demo
 
 Run the separate provenance panel from the checkout:
 

@@ -27,6 +27,115 @@ def load_checker():
     return module
 
 
+def test_identity_accepts_trusted_root_alias_but_not_child_alias(tmp_path):
+    checker = load_checker()
+    root = tmp_path / "physical"
+    root.mkdir()
+    (root / "source.json").write_bytes(b"{}")
+    alias = tmp_path / "alias"
+    alias.symlink_to(root, target_is_directory=True)
+    record = selected_record("source.json", b"{}")
+    assert checker.identify(alias, [record])["status"] == "pass"
+    (root / "child.json").symlink_to(root / "source.json")
+    assert checker.identify(alias, [selected_record("child.json", b"{}")])["status"] == "fail"
+
+
+def test_public_reader_and_selection_envelope(tmp_path):
+    checker = load_checker()
+    (tmp_path / "source.json").write_bytes(b"{}")
+    assert checker.read_selected(tmp_path, "source.json") == (b"{}", None)
+    validate = checker.validate_identity_selection
+    valid = {"artifacts": [], "route": {}}
+    assert validate(valid) is None
+    for invalid in (
+        None,
+        [],
+        {},
+        {**valid, "extra": True},
+        {"artifacts": {}, "route": {}},
+        {"artifacts": [], "route": []},
+    ):
+        with pytest.raises(ValueError):
+            validate(invalid)
+
+
+def test_failed_opens_do_not_exhaust_total_byte_budget(tmp_path):
+    checker = load_checker()
+    records = [selected_record(f"missing-{i}.json", b"{}", f"missing-{i}") for i in range(17)]
+    (tmp_path / "valid.json").write_bytes(b"{}")
+    records.append(selected_record("valid.json", b"{}", "valid"))
+    result = checker.identify(tmp_path, records)
+    assert not any(row["subject"] == "valid" for row in result["diagnostics"])
+
+
+@pytest.mark.parametrize("role,expected", [("trace", "pass"), ("configuration", "unknown")])
+def test_explicit_trace_budget_is_shared_with_identity(tmp_path, role, expected):
+    checker = load_checker()
+    data = b" " * (checker.MAX_SOURCE_BYTES + 1)
+    (tmp_path / "large.json").write_bytes(data)
+    record = dict(selected_record("large.json", data), role=role)
+    assert checker.identify(tmp_path, [record])["status"] == expected
+    if role == "trace":
+        assert checker.artifact_byte_limit(record) == 2_000_000
+
+
+@pytest.mark.parametrize("consumer", ["configuration", "native"])
+def test_consumers_reject_parent_replacement_during_read(tmp_path, monkeypatch, consumer):
+    import os
+
+    import rubric_configuration
+    import rubric_native
+
+    parent = tmp_path / "selected"
+    parent.mkdir()
+    (parent / "file.json").write_bytes(b"{}")
+    original = os.fstat
+    calls = 0
+
+    def replaced(descriptor):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            parent.rename(tmp_path / "old-parent")
+            parent.mkdir()
+            (parent / "file.json").write_bytes(b"{}")
+        return original(descriptor)
+
+    monkeypatch.setattr(os, "fstat", replaced)
+    if consumer == "configuration":
+        assert rubric_configuration._read_file(tmp_path, "selected/file.json") == (None, "source_changed")
+    else:
+        with pytest.raises(ValueError):
+            rubric_native._read(tmp_path, selected_record("selected/file.json", b"{}"), 100)
+
+
+@pytest.mark.parametrize("pointer", ["", "/items/0", "/~0~1", "/bad~2", "/" + "x" * 1024, "/bad\nkey", "/items/00"])
+def test_pointer_consumers_share_strict_syntax(pointer):
+    import rubric_configuration
+    import rubric_freshness
+
+    checker = load_checker()
+    value = {"items": [3], "~/": 4, "bad\nkey": 5, "x" * 1024: 6}
+    results = []
+    for resolve in (checker._route_pointer, rubric_freshness._binding_pointer):
+        try:
+            results.append((resolve(value, pointer), True))
+        except (ValueError, KeyError):
+            results.append((None, False))
+    try:
+        results.append(rubric_configuration._resolve(value, pointer))
+    except ValueError:
+        results.append((None, False))
+    assert results[0] == results[1] == results[2]
+
+
+def test_tree_consumers_reject_non_json_object_keys():
+    import rubric_configuration
+
+    with pytest.raises(ValueError):
+        rubric_configuration._finite_tree({1: "invalid"})
+
+
 def test_selected_artifact_identity_is_measured_without_discovery(tmp_path):
     from eval_author_shared.task_evidence import digest
 
@@ -351,6 +460,15 @@ def test_route_ignores_untraversed_artifact_identity(tmp_path, route_selection, 
 
 
 def test_raw_route_is_explicitly_unbound(tmp_path, route_selection):
+    entry = next(row for row in route_selection["artifacts"] if row["id"] == route_selection["route"]["entrypoint"])
+    path = tmp_path / entry["path"]
+    dispatch = json.loads(path.read_bytes())
+    dispatch.pop("dependencies", None)
+    raw = json.dumps(dispatch).encode()
+    path.write_bytes(raw)
+    entry["digest"] = hashlib.sha256(raw).hexdigest()
+    entry["evidence"] = [{"path": entry["path"], "digest": entry["digest"]}]
+    route_selection["route"].pop("dependency_source", None)
     result = load_checker().resolve_route(tmp_path, route_selection["artifacts"], route_selection["route"])
     assert result["status"] == "pass"
     assert result["bound_dependency"] is False

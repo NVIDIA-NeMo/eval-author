@@ -68,6 +68,30 @@ def run_selected(panel, selected):
     return panel.audit.check(panel.tmp_path, panel.report, [panel.task], [], [], selection=selected)
 
 
+def test_selected_credit_normalizes_trusted_root(panel, selected, monkeypatch):
+    shared = importlib.import_module("rubric_identity")
+    original = shared.identify
+    alias = panel.tmp_path.parent / (panel.tmp_path.name + "-alias")
+    alias.symlink_to(panel.tmp_path, target_is_directory=True)
+
+    def check_root(root, artifacts, **kwargs):
+        assert root == panel.tmp_path.resolve()
+        return original(root, artifacts, **kwargs)
+
+    monkeypatch.setattr(shared, "identify", check_root)
+    result = panel.audit.check(alias, panel.report, [panel.task], [], [], selection=selected)
+    assert result["preflight_success"] is True
+
+
+def test_selected_reader_reports_unselected_reference(panel, selected):
+    shared = importlib.import_module("rubric_identity")
+    identity = shared.identify(panel.tmp_path, selected["artifacts"])
+    review = panel.audit.Review(panel.tmp_path, [], identity=identity)
+    review.roots = [review.path(record["path"]) for record in identity["records"]]
+    with pytest.raises(panel.audit.EvidenceScopeError, match="^identity.reference_unselected$"):
+        review.read(panel.tmp_path / "unselected.json")
+
+
 def test_unbound_dependency_claim_cannot_authorize_credit_preflight(panel, selected):
     path = panel.tmp_path / "dispatch.json"
     dispatch = json.loads(path.read_text())
@@ -236,7 +260,7 @@ def test_selected_credit_path_retains_existing_rejections(panel, selected, damag
 
 def test_unselected_linked_native_result_is_not_discovered(panel, selected):
     selected["artifacts"] = [record for record in selected["artifacts"] if record["id"] != "forged-success-result"]
-    with pytest.raises(panel.audit.EvidenceScopeError, match="Select the evidence source"):
+    with pytest.raises(panel.audit.EvidenceScopeError, match="^identity.reference_unselected$"):
         run_selected(panel, selected)
 
 
@@ -261,7 +285,7 @@ def test_ordinary_audit_does_not_run_rubric_preflight(panel, monkeypatch):
 
 def test_access_lost_after_preflight_cannot_be_promoted_by_explaining_finding(panel, selected, monkeypatch):
     shared = importlib.import_module("rubric_identity")
-    original = shared._read_selected
+    original = shared.read_selected
     target = "runs/forged-success.json"
     reads = 0
 
@@ -274,7 +298,7 @@ def test_access_lost_after_preflight_cannot_be_promoted_by_explaining_finding(pa
         return original(root, relative, *args)
 
     panel.findings(panel.records / "forged-success.json")
-    monkeypatch.setattr(shared, "_read_selected", lose_access)
+    monkeypatch.setattr(shared, "read_selected", lose_access)
     result = run_selected(panel, selected)
     assert result["valid"]  # Findings accounting is not preflight acceptance.
     assert result["preflight_success"] is False

@@ -13,20 +13,15 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
-import os
 import re
-import stat
 import tomllib
 from pathlib import Path
 
-from rubric_identity import CONFIG_FIELDS, SelectedAccess, identify, local_file
+from rubric_identity import CONFIG_FIELDS, SelectedAccess, identify, pointer_tokens, resolve_pointer, validate_json_tree
 
 MAX_SOURCE_BYTES = 1_048_576
 MAX_FILES = 64
 MAX_FIELDS = 256
-MAX_NODES = 50_000
-MAX_DEPTH = 32
 UNKNOWN_REASONS = {
     "omitted": {"field_not_selected", "field_not_declared"},
     "inaccessible": {"access_denied", "artifact_missing", "access_unresolved"},
@@ -46,11 +41,10 @@ def _unknown(state, reason, provenance=None):
 
 
 def _pointer(value):
-    if not isinstance(value, str) or len(value) > 1024 or (value and not value.startswith("/")):
-        raise ValueError("invalid configuration selection")
-    if re.search(r"~(?![01])", value) or any(ord(char) < 32 for char in value):
-        raise ValueError("invalid configuration selection")
-    return [token.replace("~1", "/").replace("~0", "~") for token in value.split("/")[1:]]
+    try:
+        return pointer_tokens(value)
+    except ValueError:
+        raise ValueError("invalid configuration selection") from None
 
 
 def _reference(ref):
@@ -79,43 +73,10 @@ def _selection(selection):
 
 
 def _read_file(root, relative):
-    descriptors = []
-    try:
-        path = local_file(root, relative)
-        absolute_root = root.absolute()
-        if ".." in absolute_root.parts:
-            return None, "invalid_source_path"
-        descriptors.append(os.open(absolute_root.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW))
-        # O_NOFOLLOW on the final root alone does not protect its ancestors.
-        for part in (*absolute_root.parts[1:], *path.relative_to(root).parts[:-1]):
-            descriptors.append(os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptors[-1]))
-        descriptors.append(os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptors[-1]))
-        before = os.fstat(descriptors[-1])
-        if not stat.S_ISREG(before.st_mode):
-            return None, "not_regular_file"
-        if before.st_size > MAX_SOURCE_BYTES:
-            return None, "source_too_large"
-        with os.fdopen(os.dup(descriptors[-1]), "rb") as stream:
-            data = stream.read(MAX_SOURCE_BYTES + 1)
-        after = os.fstat(descriptors[-1])
-        if len(data) > MAX_SOURCE_BYTES:
-            return None, "source_too_large"
-        if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
-            after.st_size,
-            after.st_mtime_ns,
-            after.st_ctime_ns,
-        ):
-            return None, "source_changed"
-        return data, None
-    except FileNotFoundError:
-        return None, "artifact_missing"
-    except PermissionError:
-        return None, "access_denied"
-    except (OSError, ValueError):
-        return None, "invalid_source_path"
-    finally:
-        for descriptor in reversed(descriptors):
-            os.close(descriptor)
+    from rubric_identity import read_selected
+
+    data, reason = read_selected(root, relative, MAX_SOURCE_BYTES)
+    return data, "invalid_source_path" if reason == "reference_invalid" else reason
 
 
 def _pairs(pairs):
@@ -128,21 +89,7 @@ def _pairs(pairs):
 
 
 def _finite_tree(value):
-    pending = [(value, 0)]
-    nodes = 0
-    while pending:
-        item, depth = pending.pop()
-        nodes += 1
-        if nodes > MAX_NODES or depth > MAX_DEPTH:
-            raise ValueError("source structure limit")
-        if isinstance(item, dict):
-            pending.extend((child, depth + 1) for child in item.values())
-        elif isinstance(item, list):
-            pending.extend((child, depth + 1) for child in item)
-        elif (
-            type(item) not in (str, int, float, bool, type(None)) or isinstance(item, float) and not math.isfinite(item)
-        ):
-            raise ValueError("nonfinite or unsupported source value")
+    validate_json_tree(value)
 
 
 class _Sources:
@@ -219,19 +166,7 @@ class _Sources:
 
 
 def _resolve(value, pointer):
-    for token in _pointer(pointer):
-        if isinstance(value, dict) and token in value:
-            value = value[token]
-        elif (
-            isinstance(value, list)
-            and re.fullmatch(r"0|[1-9][0-9]*", token)
-            and len(token) < 10
-            and int(token) < len(value)
-        ):
-            value = value[int(token)]
-        else:
-            return None, False
-    return value, True
+    return resolve_pointer(value, pointer)
 
 
 def _incomplete(value):
@@ -257,8 +192,19 @@ def _extract(sources, reference):
     if not found:
         return _unknown("omitted", "pointer_missing", provenance)
     if _incomplete(value):
-        return _unknown("unobservable", "empty_value", provenance)
+        _, report = _unknown("unobservable", "empty_value", provenance)
+        return value, report
     return value, {"state": "sourced", "reason": None, "provenance": provenance, "claim_limit": None}
+
+
+def _known_difference(left, right):
+    if any(v is None or isinstance(v, str) and not v.strip() or isinstance(v, dict) and not v for v in (left, right)):
+        return False
+    if isinstance(left, dict) and isinstance(right, dict):
+        return any(_known_difference(left.get(key), right.get(key)) for key in left.keys() | right.keys())
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) != len(right) or any(_known_difference(a, b) for a, b in zip(left, right))
+    return type(left) is not type(right) or left != right
 
 
 def _equal(left, right):
@@ -352,7 +298,7 @@ def compare_sourced_config(root: Path, records: list, declared: dict, observed: 
             paths.add("/" + category)
     if len(paths) > MAX_FIELDS:
         raise ValueError("invalid configuration selection")
-    sources = _Sources(Path(root), records)
+    sources = _Sources(Path(root).resolve(), records)
     fields: dict[str, dict] = {}
     for path in sorted(paths):
         left, left_report = _extract(sources, declared.get(path))
@@ -364,7 +310,13 @@ def compare_sourced_config(root: Path, records: list, declared: dict, observed: 
             if binding is not None and (left is None or right is None)
             else _binding(sources, binding, declared.get(path), observed.get(path))
         )
-        status = "unknown" if left is None or right is None else "equal" if _equal(left, right) else "different"
+        status = (
+            "different"
+            if _known_difference(left, right)
+            else "unknown"
+            if _incomplete(left) or _incomplete(right)
+            else "equal"
+        )
         fields[path] = {"declared": left_report, "observed": right_report, "status": status}
     counts = {
         "fields": len(fields),

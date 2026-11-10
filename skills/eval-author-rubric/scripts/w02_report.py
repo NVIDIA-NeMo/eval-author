@@ -24,7 +24,7 @@ from pathlib import Path
 
 from eval_author_shared.task_evidence import loads
 from rubric_identity import identify, resolve_route
-from w02_scoring import _checked_record, _observations, _source_json
+from w02_scoring import _checked_record, _observations, classify_inventory, route_is_bound
 
 CANONICAL = Path(__file__).resolve().parents[1] / "references/artifact-configuration-provenance.json"
 INVENTORIES = {"DISC-01-A": "task_artifacts", "DISC-01-C": "grading_dependencies"}
@@ -82,43 +82,23 @@ def _observed(check, helper, value, refs, diagnostics, boundary, outcome="PARTIA
 
 
 def _inventory(check, item_id, measurements, selection, root, records, valid):
-    kind = INVENTORIES[item_id]
-    scope = selection.get("w02_scope", {}).get(kind)
-    if not isinstance(scope, dict):
+    scope = selection.get("w02_scope", {}).get(INVENTORIES[item_id])
+    inventory = classify_inventory(
+        item_id, scope, records, measurements.get("identity", {}).get("diagnostics", []), root, valid=valid
+    )
+    if inventory is None:
         return
-    required = scope.get("required")
+    source = inventory["source"]
     source_id = scope.get("source")
-    if not isinstance(source_id, str) or not isinstance(required, list) or not required:
-        return
-    if not all(isinstance(ident, str) and ident for ident in required) or len(set(required)) != len(required):
-        return
-    source = valid.get(source_id)
-    document = _source_json(root, source)
-    projection = {"required": required, "unresolved_material": scope.get("unresolved_material")}
-    source_bound = document is not None and document.get(kind) == projection
+    required = inventory["required"]
+    source_bound = inventory["source_bound"]
+    observed = inventory["records"]
     diagnostics = _diagnostics(measurements, "identity", set([source_id, *required]))
-    observed = [candidates[0] for ident in required if len(candidates := records.get(ident, [])) == 1]
     if check["id"].endswith("C01"):
         if source is None:
             check["diagnostic_refs"] = diagnostics
             return
-        roles = (
-            {"task", "instructions", "input", "fixture", "metadata", "task_input", "task_metadata"}
-            if kind == "task_artifacts"
-            else {
-                "scorer",
-                "dependency",
-                "test",
-                "expected_result",
-                "dataset",
-                "judge_prompt",
-                "rubric",
-                "configuration",
-            }
-        )
-        origins_bound = len(observed) == len(required) and all(
-            record["source"] == source["path"] and record["role"] in roles for record in observed
-        )
+        origins_bound = inventory["origins_bound"]
         _observed(
             check,
             "identity",
@@ -129,28 +109,13 @@ def _inventory(check, item_id, measurements, selection, root, records, valid):
             "PASS" if source_bound and origins_bound else "PARTIAL",
         )
     elif measurements.get("identity"):
-        access = []
-        by_id = {record["id"]: record for record in observed}
-        for ident in required:
-            record = by_id.get(ident)
-            if record is None:
-                access.append({"id": ident, "access": "unresolved", "digest": None, "declared_access": None})
-                continue
-            record_diagnostics = [diagnostic for diagnostic in diagnostics if diagnostic["subject"] == ident]
-            exact_reference = record["evidence"] and all(ref["path"] == record["path"] for ref in record["evidence"])
-            codes = {diagnostic["code"] for diagnostic in record_diagnostics}
-            outcome = "accessible" if ident in valid else "unresolved"
-            if record["access"] == "available" and exact_reference:
-                if "identity.artifact_missing" in codes:
-                    outcome = "missing"
-                elif "identity.access_denied" in codes:
-                    outcome = "denied"
-            access.append(
-                {"id": ident, "access": outcome, "digest": record["digest"], "declared_access": record["access"]}
-            )
-        outcome = "FAIL" if any(record["access"] in {"missing", "denied"} for record in access) else "PARTIAL"
-        if source_bound and len(access) == len(required) and all(record["access"] == "accessible" for record in access):
-            outcome = "PASS"
+        access = inventory["access"]
+        outcome = "PARTIAL"
+        if source_bound and not inventory["invalid_origins"]:
+            if any(record["access"] in {"missing", "denied"} for record in access):
+                outcome = "FAIL"
+            elif all(record["access"] == "accessible" for record in access):
+                outcome = "PASS"
         _observed(
             check,
             "identity",
@@ -652,7 +617,7 @@ def _helper_check(check, item_id, measurements, selection, root, records, valid,
         if not isinstance(entry, str) or entry not in valid:
             check["diagnostic_refs"] = _diagnostics(measurements, "route")
             return
-        outcome = "PASS" if route.get("status") == "pass" else "FAIL" if route.get("status") == "fail" else "PARTIAL"
+        outcome = "PASS" if route_is_bound(route) else "FAIL" if route.get("status") == "fail" else "PARTIAL"
         current_route = resolve_route(Path(root), selection.get("artifacts", []), selected)
         if route != current_route or (
             outcome == "PASS" and (not route.get("selected") or any(ident not in valid for ident in route["selected"]))

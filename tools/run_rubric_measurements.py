@@ -67,6 +67,14 @@ def fixture(root, mutation):
         "unresolved_material": copy.deepcopy(scope["grading_dependencies"]["unresolved_material"]),
         "complete": mutation != "partial",
     }
+    dependencies = {"scorer": ["prompt"], "other": [], "prompt": []}
+    if mutation == "partial":
+        dependencies["scorer"].append("absent")
+    if mutation == "missing-dependency":
+        dependencies["scorer"] = ["absent"]
+    entry: dict[str, Any] = files["entry"]
+    entry["dependencies"] = copy.deepcopy(dependencies)
+    entry["expected_scorer"] = "scorer"
     records = []
     for name, value in files.items():
         path = root / (name + ".json")
@@ -108,11 +116,6 @@ def fixture(root, mutation):
     observed = copy.deepcopy(config)
     if mutation == "config-difference":
         observed["runtime_pins"]["harbor"] = "different"
-    dependencies = {"scorer": ["prompt"], "other": [], "prompt": []}
-    if mutation == "partial":
-        dependencies["scorer"].append("absent")
-    if mutation == "missing-dependency":
-        dependencies["scorer"] = ["absent"]
     bindings = {row["id"]: row["digest"] for row in records}
     approval: dict = {
         "id": "approval",
@@ -761,20 +764,14 @@ def run_panel():
             before = {path.name: digest(path) for path in root.iterdir()}
             request = root / "selection.json"
             request.write_text(json.dumps(selection, sort_keys=True, allow_nan=False))
-            process = subprocess.run(
-                [
-                    sys.executable,
-                    str(ROOT / "skills/eval-author-rubric/scripts/measure.py"),
-                    "--root",
-                    str(root),
-                    "--selection",
-                    str(request),
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
+            code, report, error = package_cli(
+                root,
+                "skills/eval-author-rubric/scripts/measure.py",
+                "--root",
+                root,
+                "--selection",
+                request,
             )
-            report = loads(process.stdout)
             expected_items = {
                 **case.get("items", baseline_items),
                 **{key: {"score": None, "status": "NOT_ASSESSED"} for key in cases["not_assessed"]},
@@ -786,8 +783,8 @@ def run_panel():
                 **cases["evidence_check_overrides"].get(case.get("measurement"), {}),
             }
             matches = (
-                process.returncode == case["cli_exit_code"]
-                and not process.stderr
+                code == case["cli_exit_code"]
+                and not error
                 and before == {path.name: digest(path) for path in root.iterdir() if path != request}
                 and canonical_checks(report, definitions, expected_checks)
                 and set(observed_items) == set(expected_items)
@@ -808,7 +805,7 @@ def run_panel():
                     "expected_items": expected_items,
                     "expected_checks": expected_checks,
                     "observed": report,
-                    "cli_exit_code": process.returncode,
+                    "cli_exit_code": code,
                     "selection_digest": fingerprint(selection),
                     "matches_expectations": matches,
                 }
@@ -838,6 +835,13 @@ def run_panel():
 
 
 def summary(result):
+    panels = {
+        "cases": result["cases"],
+        "assessments": result["assessments"],
+        "evidence_cases": result["evidence_cases"],
+        "package_acceptance": result["package_acceptance"]["cases"],
+    }
+    mismatches = {name: [row["id"] for row in rows if not row["matches_expectations"]] for name, rows in panels.items()}
     lines = [
         f"W02 handcrafted assessment demo: {result['status']}",
         f"Raw measurement regressions: {sum(row['matches_expectations'] for row in result['cases'])}/{len(result['cases'])} matched",
@@ -851,16 +855,23 @@ def summary(result):
     lines.extend(
         [
             f"Sourced config/freshness: {sum(row['matches_expectations'] for row in result['evidence_cases'])}/{len(result['evidence_cases'])} matched; {result['canonical_checks_per_case']} canonical check IDs per case.",
-            "Config equality/difference is not merit; stale evidence is unusable; ETHOS impact stays unresolved; neighbor stays current.",
-            "null = NOT_ASSESSED; the other eight criteria remain null in every variant.",
-            "Scores are bounded 0/1/2; no 3 without independent corroboration.",
-            "Wrong scorer: weak-route defect, not demonstrated exploitation.",
+            "null = NOT_ASSESSED.",
             "No native execution or solver attempts; full workflow/runtime acceptance remains unmeasured.",
             f"Package acceptance: {result['package_acceptance']['status']}; {result['package_acceptance']['counts']['matched']}/{result['package_acceptance']['counts']['cases']} CLI cases matched; inputs unchanged: {all(row['inputs_unchanged'] for row in result['package_acceptance']['cases'])}.",
-            "W01/W05 consume the same selected records; unavailable identities and unknown/wrong routes cannot succeed.",
-            "Retained approvals are source-checked; equal config with mismatched run/task/digest remains unbound, not accepted.",
         ]
     )
+    if any(mismatches.values()):
+        lines.extend(f"Mismatched cases ({name}): {', '.join(ids)}" for name, ids in mismatches.items() if ids)
+    else:
+        lines.extend(
+            [
+                "Config equality/difference is not merit; stale evidence is unusable; ETHOS impact stays unresolved; neighbor stays current.",
+                "Scores are bounded 0/1/2; the other eight criteria remain null; no 3 without independent corroboration.",
+                "Wrong scorer: weak-route defect, not demonstrated exploitation.",
+                "Retained-credit and coverage consumers use the same selected records; unavailable identities and unknown/wrong routes cannot succeed.",
+                "Retained approvals are source-checked; equal config with mismatched run/task/digest remains unbound, not accepted.",
+            ]
+        )
     return "\n".join(lines)
 
 

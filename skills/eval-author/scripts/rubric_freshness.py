@@ -4,14 +4,13 @@
 """Read-only, selected evidence freshness; no discovery or score assignment."""
 
 import hashlib
-import re
 from collections import Counter
 from pathlib import Path
 
 from eval_author_shared import task_evidence as native
 from rubric_configuration import MAX_FILES, _read_file
 from rubric_configuration import MAX_SOURCE_BYTES as MAX_SOURCE_BYTES
-from rubric_identity import DIGEST, SelectedAccess, diagnostic, finish, identify, local_file, text
+from rubric_identity import DIGEST, SelectedAccess, diagnostic, finish, identify, local_file, resolve_pointer, text
 
 
 class FreshnessError(ValueError):
@@ -55,24 +54,14 @@ def _load(root, artifact, snapshots=None):
 
 
 def _binding_pointer(value, path):
-    _require(isinstance(path, str) and path.startswith("/") and not re.search(r"~(?![01])", path))
-    for token in path[1:].split("/"):
-        token = token.replace("~1", "/").replace("~0", "~")
-        if isinstance(value, list):
-            # Native pointers use int(), which normalizes non-RFC array tokens.
-            _require(re.fullmatch(r"0|[1-9][0-9]*", token) is not None)
-            index = int(token)
-            _require(index < len(value))
-            value = value[index]
-        else:
-            _require(isinstance(value, dict))
-            value = value[token]
+    value, found = resolve_pointer(value, path)
+    _require(found)
     return value
 
 
 def _bound_dependencies(root, entry, selected, validate, snapshots):
     _require(set(entry) == {"id", "kind", "source", "pointer"} and entry["kind"] == "bindings")
-    _require(text(entry["source"]) and text(entry["pointer"]))
+    _require(text(entry["source"]))
     result, result_status = validate(entry["id"])
     source, source_status = validate(entry["source"])
     _require(result_status == source_status == "pass")
@@ -145,12 +134,12 @@ def _native_control(root, entry, selected, validate, row, snapshots):
     except (AttributeError, OverflowError):
         # Shared native validation assumes object agents and float-sized numbers.
         raise FreshnessError("invalid selected native control") from None
-    classification = checked["classification"]
-    _require(classification in ("passed", "false_rejection", "failed_control", "stale"))
+    classification = checked.get("historical_classification", checked["classification"])
+    _require(classification in ("passed", "false_rejection", "failed_control"))
 
     previous = manifest["task_sha256"]
     _require(isinstance(previous, str) and DIGEST.fullmatch(previous))
-    row["native_classification"] = checked.get("historical_classification", classification)
+    row["native_classification"] = classification
     row["lineage"] = [
         {
             "id": entry["task_dir"],
@@ -197,7 +186,7 @@ def check_freshness(root, artifacts, evidence):
     ``criterion_3`` stays ``not_assessed`` even when all bindings are current.
     """
     diagnostics, records = [], []
-    root = Path(root).absolute()
+    root = Path(root).resolve()
     if not isinstance(artifacts, list) or not isinstance(evidence, list):
         return {**finish([], [diagnostic("freshness.input_invalid", "selection")]), "criterion_3": "not_assessed"}
     snapshots = _Snapshots(root, artifacts)

@@ -1,18 +1,18 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Artifact, configuration, and provenance (W02)
+# Artifact, configuration, and provenance
 
 **Experimental; selected-area opt-in only.** Follow the [skill gate and scope
-selection](../SKILL.md#opt-in-gate). W02 is an implementation package within
-validity, not a pillar or aggregate score. W01 and W05 are downstream handoffs,
-not prerequisites for running this assessment. Package acceptance separately
-requires evidence that their actual consumers use the shared validated identities;
-a passing local rubric demo does not satisfy that integration requirement.
+selection](../SKILL.md#opt-in-gate). This area belongs to validity, not a separate
+pillar. Retained-credit checks and identity-aware coverage are separate consumers,
+not prerequisites for this assessment. Integration tests must show that these
+consumers use the shared validated identities. A passing local rubric demo does
+not establish that integration.
 
 ## Canonical definitions
 
-The [frozen Rubric v4 W02 subset](artifact-configuration-provenance.json) is the
+The [canonical Rubric v4 subset](artifact-configuration-provenance.json) is the
 single source for the 11 criterion IDs, original questions, applicability,
 measurements, 38 checks, 44 score anchors, evidence requirements, and boundaries.
 Read each selected `items` entry in full before assessment. Links below use JSON
@@ -26,7 +26,7 @@ Source provenance: this subset follows the supplied `Rubric.v4.json`.
 The embedded rubric in the supplied Vibe Rubric draft has the same selected
 criterion definitions and score anchors, but omits `CREATE-07-C04`, its ETHOS
 evidence entry, and `policies.ethos`. Those additions in `Rubric.v4.json` implement
-the later W02 plan's explicit ETHOS-freshness requirement. Treat them as a
+the explicit ETHOS-freshness requirement. Treat them as a
 traceable augmentation, not an unchanged extraction of the draft's embedded JSON.
 
 The guidance below interprets methods and evidence; it does not replace the
@@ -40,12 +40,12 @@ JSON `result_template` fields: subject/revision, applicability, assessment and
 execution states, score or null, evidence strength, measurements with units and
 denominators, check results, qualifications, evidence and approval references,
 findings, remaining gaps, and next action. This is a response/private-note
-projection, not a new native receipt format. No aggregate W02 score is permitted.
+projection, not a new native receipt format. No aggregate score is permitted.
 
 Every source check must be accounted for within each selected criterion: record
 its original check ID, condition, method, evidence, and outcome, or an explicit
 not-run, blocked, unresolved, or condition-not-applicable reason. Conditional or
-optional methods do not require every stage to run. An area-wide W02 assessment
+optional methods do not require every stage to run. An area-wide assessment
 accounts for all 11 criteria; an explicit subset accounts only for the selected
 IDs. Retain unsupported portions rather than silently dropping them.
 

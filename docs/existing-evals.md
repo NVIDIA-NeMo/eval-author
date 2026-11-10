@@ -255,7 +255,10 @@ measurement. This verifies the selected declaration, not arbitrary code imports
 or which scorer executed.
 
 Selection files must be regular local files, at most 1 MiB, with no symlink
-traversal. If selected evidence is missing, denied, unresolved, or invalid, the
+traversal. Selected trace files can contain at most 2,000,000 bytes. Other selected
+artifacts retain the 1 MiB limit, within a 16 MiB identity-read budget. Root aliases
+are resolved at entry; symlinks below that root remain invalid.
+If selected evidence is missing, denied, unresolved, or invalid, the
 command exits nonzero without writing new coverage. It does not produce zero
 coverage. Without either identity flag, ordinary coverage measurement is unchanged and does not
 activate rubric assessment. See [identity-aware coverage results](results.md#identity-aware-coverage-results)

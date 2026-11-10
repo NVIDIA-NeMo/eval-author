@@ -15,7 +15,6 @@ sys.path.insert(0, str(SCRIPTS))
 
 def checker():
     path = SCRIPTS / "rubric_configuration.py"
-    assert path.is_file(), "sourced configuration measurement is not implemented"
     spec = importlib.util.spec_from_file_location("rubric_configuration", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -43,6 +42,25 @@ def artifact(root, name, content, *, role="configuration", suffix=".json"):
 
 def ref(artifact_id, pointer):
     return {"artifact_id": artifact_id, "pointer": pointer}
+
+
+@pytest.mark.parametrize(
+    "observed,status",
+    [
+        ({"model": "b", "stop": None}, "different"),
+        ({"model": "a", "stop": None}, "unknown"),
+        ({"stop": None}, "unknown"),
+    ],
+)
+def test_known_nested_difference_survives_unknown_neighbors(tmp_path, observed, status):
+    records = [artifact(tmp_path, "declared", {"model": "a", "stop": None}), artifact(tmp_path, "observed", observed)]
+    result = checker().compare_sourced_config(
+        tmp_path, records, {"/agent": ref("declared", "")}, {"/agent": ref("observed", "")}
+    )
+    assert result["fields"]["/agent"]["status"] == status
+    assert result["differences"] == (["/agent"] if status == "different" else [])
+    assert "model" not in json.dumps(result)
+    assert "stop" not in json.dumps(result)
 
 
 def test_extracts_selected_fields_without_disclosing_values(tmp_path):
@@ -134,8 +152,8 @@ def test_explicit_empty_permission_lists_are_sourced(tmp_path, content, suffix):
         ('tool_permissions = [[], "read"]\n', "different", None),
         ("[tool_permissions]\n", "unknown", "empty_value"),
         ('tool_permissions = "  "\n', "unknown", "empty_value"),
-        ('tool_permissions = [[], ""]\n', "unknown", "empty_value"),
-        ('tool_permissions = [{allow = [], unknown = ""}]\n', "unknown", "empty_value"),
+        ('tool_permissions = [[], ""]\n', "different", "empty_value"),
+        ('tool_permissions = [{allow = [], unknown = ""}]\n', "different", "empty_value"),
         ("unrelated = []\n", "unknown", "pointer_missing"),
     ],
 )
@@ -269,7 +287,7 @@ def test_rejects_ambiguous_nonfinite_or_executable_sources(tmp_path, content, su
         ("unresolved", "access_unresolved"),
         ("no_digest", "digest_unresolved"),
         ("symlink", "invalid_source_path"),
-        ("directory", "not_regular_file"),
+        ("directory", "invalid_source_path"),
         ("evidence_changed", "evidence_digest_mismatch"),
         ("no_evidence", "evidence_missing"),
     ],
@@ -375,9 +393,11 @@ def test_root_ancestor_swap_never_reads_outside_root(tmp_path, monkeypatch):
     outside = tmp_path / "outside"
     (outside / "root").mkdir(parents=True)
     artifact(outside / "root", "source", {"agent": "same"})
-    original = module.local_file
+    import rubric_identity
+
+    original = rubric_identity.local_file
     reads = []
-    real_fdopen = module.os.fdopen
+    real_fdopen = rubric_identity.os.fdopen
 
     def swap(root, relative):
         path = original(root, relative)
@@ -389,8 +409,8 @@ def test_root_ancestor_swap_never_reads_outside_root(tmp_path, monkeypatch):
         reads.append(True)
         return real_fdopen(*args, **kwargs)
 
-    monkeypatch.setattr(module, "local_file", swap)
-    monkeypatch.setattr(module.os, "fdopen", track)
+    monkeypatch.setattr(rubric_identity, "local_file", swap)
+    monkeypatch.setattr(rubric_identity.os, "fdopen", track)
     result = module.compare_sourced_config(root, [record], {"/agent": ref("source", "/agent")}, {})
     assert result["fields"]["/agent"]["declared"]["reason"] == "invalid_source_path"
     assert reads == []

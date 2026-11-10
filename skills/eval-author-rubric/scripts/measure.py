@@ -23,6 +23,7 @@ from w02_scoring import assess  # noqa: E402
 
 
 def measure(root, selection):
+    root = Path(root).resolve(strict=True)
     json.dumps(selection, allow_nan=False)
     if not isinstance(selection, dict):
         raise ValueError("selection must be an object")

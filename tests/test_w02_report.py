@@ -66,7 +66,7 @@ def packet(tmp_path):
     payloads = {
         "inventory": {"task_artifacts": {"required": ["task"], "unresolved_material": []}},
         "task": {"instruction": "Synthetic local fixture"},
-        "dispatch": {"selector": "fixed", "routes": {"fixed": "scorer"}},
+        "dispatch": {"selector": "fixed", "routes": {"fixed": "scorer"}, "dependencies": {"scorer": []}},
         "scorer": {"fixture": True},
     }
     records = []
@@ -103,6 +103,111 @@ def measured(selection, tmp_path):
         "identity": identify(tmp_path, selection["artifacts"]),
         "route": resolve_route(tmp_path, selection["artifacts"], selection["route"]),
     }
+
+
+@pytest.mark.parametrize("consumer", ["score", "check"])
+def test_caller_only_dependency_graph_cannot_pass(modules, tmp_path, consumer):
+    import hashlib
+
+    report, assess = modules
+    selection = packet(tmp_path)
+    path = tmp_path / "dispatch.json"
+    document = json.loads(path.read_text())
+    del document["dependencies"]
+    path.write_text(json.dumps(document))
+    record = next(row for row in selection["artifacts"] if row["id"] == "dispatch")
+    record["digest"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    record["evidence"][0]["digest"] = record["digest"]
+    measurements = measured(selection, tmp_path)
+    assert measurements["route"]["status"] == "pass"
+    assert measurements["route"]["bound_dependency"] is False
+    items = assess(measurements, selection, root=tmp_path)
+    if consumer == "score":
+        assert items["DISC-01-B"]["score"] is None
+    else:
+        row = report.build_report(items, measurements, selection, tmp_path)["DISC-01-B"]
+        assert row["check_results"][0]["outcome"] == "PARTIAL"
+
+
+def test_caller_expected_scorer_cannot_establish_wrong_scorer_merit(modules, tmp_path):
+    report, assess = modules
+    selection = packet(tmp_path)
+    selection["route"]["expected_scorer"] = "caller-typo"
+    measurements = measured(selection, tmp_path)
+    assert any(row["code"] == "route.scorer_mismatch" for row in measurements["route"]["diagnostics"])
+    row = assess(measurements, selection, root=tmp_path)["DISC-01-B"]
+    assert (row["status"], row["score"]) == ("NOT_ASSESSED", None)
+
+
+@pytest.mark.parametrize("mutation", ["role", "source"])
+def test_inventory_access_cannot_pass_unbound_required_records(modules, tmp_path, mutation):
+    report, assess = modules
+    selection = packet(tmp_path)
+    record = selection["artifacts"][1]
+    record[mutation] = "scorer" if mutation == "role" else "unrelated.json"
+    measurements = measured(selection, tmp_path)
+    assert measurements["identity"]["status"] == "pass"
+    items = assess(measurements, selection, root=tmp_path)
+    assert items["DISC-01-A"]["score"] is None
+    row = report.build_report(items, measurements, selection, tmp_path)["DISC-01-A"]
+    assert row["check_results"][1]["outcome"] == "PARTIAL"
+    assert row["check_results"][1]["evidence"][0]["value"][0]["access"] == "unresolved"
+
+
+def test_scored_inventory_replaces_unmet_default_gap(modules, tmp_path):
+    report, assess = modules
+    selection = packet(tmp_path)
+    measurements = measured(selection, tmp_path)
+    items = assess(measurements, selection, root=tmp_path)
+    row = report.build_report(items, measurements, selection, tmp_path)["DISC-01-A"]
+    assert row["score"] == 2
+    stale = "Required task-artifact selection and source-bound access evidence are needed."
+    assert stale not in row["limitations"]
+    assert stale not in row["remaining_gaps"]
+    assert any("undeclared" in gap for gap in row["limitations"])
+    assert any("solver permissions" in gap for gap in row["limitations"])
+
+
+def test_inventory_access_revalidates_current_bytes(modules, tmp_path):
+    report, assess = modules
+    selection = packet(tmp_path)
+    measurements = measured(selection, tmp_path)
+    items = assess(measurements, selection, root=tmp_path)
+    (tmp_path / "task.json").write_text("changed after measurement")
+    row = report.build_report(items, measurements, selection, tmp_path)["DISC-01-A"]
+    check = row["check_results"][1]
+    assert check["outcome"] == "PARTIAL"
+    assert check["evidence"][0]["value"][0]["access"] == "unresolved"
+
+
+def test_caller_only_dependency_gap_cannot_assign_partial_merit(modules, tmp_path):
+    report, assess = modules
+    selection = packet(tmp_path)
+    selection["route"]["dependencies"] = {}
+    # Remove the retained graph so only the caller claims a missing edge list.
+    import hashlib
+
+    path = tmp_path / "dispatch.json"
+    document = json.loads(path.read_text())
+    del document["dependencies"]
+    path.write_text(json.dumps(document))
+    record = next(row for row in selection["artifacts"] if row["id"] == "dispatch")
+    record["digest"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    record["evidence"][0]["digest"] = record["digest"]
+    measurements = measured(selection, tmp_path)
+    assert any(row["code"] == "route.dependencies_unresolved" for row in measurements["route"]["diagnostics"])
+    assert assess(measurements, selection, root=tmp_path)["DISC-01-B"]["score"] is None
+
+
+@pytest.mark.parametrize("source", [[], {}, None, 1])
+def test_malformed_inventory_source_stays_blocked(modules, tmp_path, source):
+    report, assess = modules
+    selection = packet(tmp_path)
+    selection["w02_scope"]["task_artifacts"]["source"] = source
+    measurements = measured(selection, tmp_path)
+    rows = report.build_report(assess(measurements, selection, root=tmp_path), measurements, selection, tmp_path)
+    assert rows["DISC-01-A"]["score"] is None
+    assert all(check["outcome"] != "PASS" for check in rows["DISC-01-A"]["check_results"])
 
 
 def test_selected_identity_and_bounded_helper_checks(modules, tmp_path):

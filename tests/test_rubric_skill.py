@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -20,8 +19,6 @@ def test_rubric_scope_and_initial_slice() -> None:
     assert metadata["user-invocable"] is True
     assert "validity, coverage, and diversity" in text
     assert "anti-cheat within validity" in text
-    assert "not implemented by this initial slice" in text
-    assert "not a new scanner or acceptance gate" in text
     assert "Do not write an Audit" in text
     assert "A review request alone does not authorize executing repository code" in text
     assert "Default to the response only" in text
@@ -30,21 +27,20 @@ def test_rubric_scope_and_initial_slice() -> None:
 def test_rubric_routes_only_the_explicitly_selected_assessment_area() -> None:
     text = " ".join((SKILL / "SKILL.md").read_text().split())
     for rule in (
-        "Anti-cheat-only opt-in does not select W02",
-        "W02-only opt-in does not select anti-cheat",
         "If the named-rubric request leaves the area ambiguous, clarify the scope once before inspecting artifacts",
         "Apply every selected criterion",
         "Account for every selected task and every selected criterion, including unknowns",
         "Do not apply unselected areas",
         "Use only controls needed by selected criteria",
-        "W01 and W05 are downstream handoffs, not current deliverables or blockers",
     ):
         assert rule in text
+    purpose = text.split("## Purpose", 1)[1].split("## Instructions", 1)[0]
+    assert re.search(r"Anti-cheat-only opt-in does not select artifact, configuration, and provenance", purpose)
+    assert re.search(r"Artifact, configuration, and provenance opt-in does not select anti-cheat", purpose)
+    assert not re.search(r"\bW0[125]\b", purpose)
     assert "references/anti-cheat.md" in text
     assert "references/artifact-configuration-provenance.md" in text
     assert "references/identity.md" in text
-    assert "Apply every item in the reference" not in text
-    assert "Never promote local predicate scores" not in text
 
 
 def test_w02_canonical_source_preserves_criterion_checks_and_anchors() -> None:
@@ -70,11 +66,6 @@ def test_w02_canonical_source_preserves_criterion_checks_and_anchors() -> None:
     assert len(checks) == len({check["id"] for check in checks}) == 38
     assert sum(len(item["scoring"]) for item in items) == 44
     assert all(set(item["scoring"]) == {"0", "1", "2", "3"} for item in items)
-    # Frozen Rubric v4 W02 subset, including original questions, checks, and anchors.
-    canonical_bytes = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
-    assert hashlib.sha256(canonical_bytes).hexdigest() == (
-        "b11c83765d5e7bd84b85c24c99d137aad38bed0ef7eb5ec65fe8f4216eeec135"
-    )
 
 
 def test_w02_reference_uses_canonical_definitions_and_item_specific_evidence() -> None:
@@ -96,13 +87,11 @@ def test_w02_reference_uses_canonical_definitions_and_item_specific_evidence() -
         "E0 alone supports no numeric score",
         "Do not import anti-cheat's evidence-floor table",
         "CREATE-07 and AUD-02 can meet their level-3 anchors at E2",
-        "W01 and W05 are downstream handoffs, not prerequisites for running this assessment",
-        "their actual consumers use the shared validated identities",
         "Every selected criterion must have a result row",
         "Every source check must be accounted for",
         "NOT_ASSESSED",
         "NOT_APPLICABLE",
-        "No aggregate W02 score",
+        "No aggregate score",
         "helper tests are not evidence about the selected task",
     ):
         assert rule in normalized

@@ -35,6 +35,7 @@ from pathlib import Path, PurePosixPath
 from eval_author_shared.task_evidence import loads
 
 MAX_SOURCE_BYTES = 1_048_576
+MAX_TRACE_BYTES = 2_000_000
 MAX_TOTAL_BYTES = 16_777_216
 MAX_FILES = 64
 MAX_RECORDS = 64
@@ -59,9 +60,13 @@ def _relative_path(value):
 
 
 def local_file(root, value):
-    path = root / _relative_path(value)
-    if any(part.is_symlink() for part in (path, *path.parents)):
-        raise ValueError("symlink path")
+    root = Path(root).absolute()
+    relative = _relative_path(value)
+    path = root
+    for part in relative.parts:
+        path = path / part
+        if path.is_symlink():
+            raise ValueError("symlink path")
     return path
 
 
@@ -75,9 +80,30 @@ def finish(records, diagnostics):
     return {"status": status, "records": records, "diagnostics": diagnostics}
 
 
+def validate_identity_selection(selection):
+    """Validate the shared selection envelope; identity and route validate content."""
+    if (
+        not isinstance(selection, dict)
+        or set(selection) != {"artifacts", "route"}
+        or not isinstance(selection["artifacts"], list)
+        or not isinstance(selection["route"], dict)
+    ):
+        raise ValueError("Select artifacts and a declared route")
+
+
 def _read_selected(root, relative, limit=MAX_SOURCE_BYTES):
+    return read_selected(root, relative, limit)
+
+
+def read_selected(root, relative, limit=MAX_SOURCE_BYTES):
+    """Read bounded regular bytes under a root resolved once by the caller.
+
+    Keep the resolved path unchanged between reads so replacement symlinks fail.
+    Directory descriptors pin the full chain and are rechecked after the read.
+    """
     descriptors = []
     try:
+        root = Path(root).absolute()
         path = local_file(root, relative)
         absolute_root = root.absolute()
         if ".." in absolute_root.parts:
@@ -144,9 +170,30 @@ class SelectedAccess:
         return "access_" + access if access else None
 
 
+def artifact_byte_limit(record):
+    return MAX_TRACE_BYTES if record.get("role") == "trace" else MAX_SOURCE_BYTES
+
+
+def read_charge(data, reason, limit):
+    if data is not None:
+        return len(data)
+    return limit if reason in {"source_changed", "source_too_large"} else 0
+
+
+class SelectedReadError(ValueError):
+    def __init__(self, reason):
+        self.reason = reason
+        super().__init__("selected source unavailable")
+
+
 class _Hashes:
-    def __init__(self, root, hasher, access):
+    def __init__(self, root, hasher, access, records):
         self.root, self.hasher = root, hasher
+        self.limits = {}
+        for record in records:
+            if isinstance(record, dict) and isinstance(record.get("path"), str):
+                path = record["path"]
+                self.limits[path] = min(self.limits.get(path, MAX_TRACE_BYTES), artifact_byte_limit(record))
         self.access = access
         self.files = {}
         self.remaining = MAX_TOTAL_BYTES
@@ -160,16 +207,18 @@ class _Hashes:
         if len(self.files) >= MAX_FILES:
             return None, "file_limit"
         if self.hasher is None:
-            limit = min(MAX_SOURCE_BYTES, self.remaining)
+            source_limit = self.limits.get(relative, MAX_SOURCE_BYTES)
+            limit = min(source_limit, self.remaining)
             data, reason = _read_selected(self.root, relative, limit)
-            if reason == "source_too_large" and limit < MAX_SOURCE_BYTES:
+            self.remaining -= read_charge(data, reason, limit)
+            if reason == "source_too_large" and limit < source_limit:
                 reason = "total_bytes_limit"
-            # Charge failed reads too: a changed/growing file consumed work.
-            self.remaining -= len(data) if data is not None else limit
             result = (hashlib.sha256(data).hexdigest(), None) if data is not None else (None, reason)
         else:
             try:
                 result = self.hasher(local_file(self.root, relative)), None
+            except SelectedReadError as exc:
+                result = None, exc.reason
             except FileNotFoundError:
                 result = None, "artifact_missing"
             except PermissionError:
@@ -182,13 +231,14 @@ class _Hashes:
 
 def identify(root: Path, records: list, *, hasher=None, access=None) -> dict:
     """Hash bounded selected bytes; injected snapshot hashers own byte limits."""
+    root = Path(root).resolve()
     diagnostics = []
     valid_records = []
     if not isinstance(records, list) or not records:
         return finish([], [diagnostic("identity.selection_missing", "selection", "unknown")])
     if len(records) > MAX_RECORDS:
         return finish([], [diagnostic("identity.selection_limit", "selection", "unknown")])
-    hashes = _Hashes(root, hasher, access or SelectedAccess(records))
+    hashes = _Hashes(root, hasher, access or SelectedAccess(records), records)
     seen = set()
     for index, record in enumerate(records):
         subject = record.get("id") if isinstance(record, dict) else None
@@ -288,6 +338,11 @@ def compare_config(declared: dict, observed: dict) -> dict:
 
 
 def _route_literal(value):
+    validate_json_tree(value)
+    return json.dumps(value, sort_keys=True, allow_nan=False)
+
+
+def validate_json_tree(value):
     pending = [(value, 0)]
     nodes = 0
     while pending:
@@ -303,14 +358,19 @@ def _route_literal(value):
             pending.extend((child, depth + 1) for child in item)
         elif type(item) not in (str, int, float, bool, type(None)):
             raise ValueError("non-JSON dependency value")
-    return json.dumps(value, sort_keys=True, allow_nan=False)
+    json.dumps(value, allow_nan=False)
 
 
-def _route_pointer(value, path):
-    if len(path) > 1024 or (path and not path.startswith("/")) or re.search(r"~(?![01])", path):
-        raise ValueError("invalid dependency pointer")
-    for token in path.split("/")[1:]:
-        token = token.replace("~1", "/").replace("~0", "~")
+def pointer_tokens(value):
+    if not isinstance(value, str) or len(value) > 1024 or (value and not value.startswith("/")):
+        raise ValueError("invalid JSON pointer")
+    if re.search(r"~(?![01])", value) or any(ord(char) < 32 for char in value):
+        raise ValueError("invalid JSON pointer")
+    return [token.replace("~1", "/").replace("~0", "~") for token in value.split("/")[1:]]
+
+
+def resolve_pointer(value, pointer):
+    for token in pointer_tokens(pointer):
         if isinstance(value, dict) and token in value:
             value = value[token]
         elif (
@@ -321,11 +381,19 @@ def _route_pointer(value, path):
         ):
             value = value[int(token)]
         else:
-            raise ValueError("missing dependency pointer")
+            return None, False
+    return value, True
+
+
+def _route_pointer(value, path):
+    value, found = resolve_pointer(value, path)
+    if not found:
+        raise ValueError("missing dependency pointer")
     return value
 
 
 def resolve_route(root: Path, records: list, route: dict) -> dict:
+    root = Path(root).resolve()
     diagnostics = []
     selected = set()
     result = {

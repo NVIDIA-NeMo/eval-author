@@ -26,6 +26,7 @@ else:
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from _identity import identity_module  # noqa: E402
 from _markdown import AuditMarkdownError  # noqa: E402
 from _schema import AuditEnvironmentError, AuditSpecError, item_counts, load_audit_spec  # noqa: E402
 from _values import EVIDENCE_CLASS_ORDER, harbor_evidence_class_from_result, optional_string  # noqa: E402
@@ -215,7 +216,9 @@ def main(argv: list[str] | None = None) -> int:
         help="JSON file of skill-authored judgments for non-tool failure-case evidence",
     )
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
-    parser.add_argument("--identity-root", type=Path, help="root of explicitly selected W02 identity artifacts")
+    parser.add_argument(
+        "--identity-root", type=Path, help="root directory that --identity-selection paths are relative to"
+    )
     parser.add_argument(
         "--identity-selection",
         type=Path,
@@ -239,11 +242,12 @@ def main(argv: list[str] | None = None) -> int:
         if identity_preflight is None:
             loaded_trace = _load_harbor_trajectory(pending_subject.trace_path)
         else:
-            from rubric_identity import _read_selected
-
+            identity_api = identity_module()
             trace_path = pending_subject.trace_path.absolute()
             _bind_identity_trace(identity_preflight, args.identity_root, trace_path)
-            raw, reason = _read_selected(trace_path.parent, trace_path.name)
+            raw, reason = identity_api.read_selected(
+                trace_path.parent, trace_path.name, identity_api.artifact_byte_limit({"role": "trace"})
+            )
             if reason:
                 raise AuditMeasurementError("identity.measured_trace_invalid")
             loaded_trace = _load_harbor_trajectory(pending_subject.trace_path, raw=raw)
@@ -302,25 +306,25 @@ def _identity_preflight(args: argparse.Namespace) -> JsonObject | None:
         return None
     if args.identity_root is None or args.identity_selection is None:
         raise AuditMeasurementError("--identity-root and --identity-selection must be supplied together")
-    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "eval-author/scripts"))
+    args.identity_root = args.identity_root.resolve()
+    identity_api = identity_module()
     from eval_author_shared.task_evidence import loads
-    from rubric_identity import _read_selected, identify, resolve_route
 
     try:
         path = args.identity_selection.absolute()
-        raw, reason = _read_selected(path.parent, path.name)
+        raw, reason = identity_api.read_selected(path.parent, path.name)
         if reason:
             raise ValueError
         selection = loads(raw)
-        if not isinstance(selection, dict):
-            raise ValueError
+        identity_api.validate_identity_selection(selection)
     except (OSError, ValueError):
         raise AuditMeasurementError("identity.selection_invalid") from None
-    identity = identify(args.identity_root, selection.get("artifacts", []))
-    route = resolve_route(args.identity_root, identity["records"], selection.get("route"))
+    identity = identity_api.identify(args.identity_root, selection["artifacts"])
+    route = identity_api.resolve_route(args.identity_root, identity["records"], selection["route"])
     return {
         "identity": identity,
         "route": route,
+        "route_request": selection["route"],
         "subject": {"task_id": args.task_id, "run_id": args.run_id},
         "measurement_allowed": identity["status"] == route["status"] == "pass"
         and route.get("bound_dependency") is True,

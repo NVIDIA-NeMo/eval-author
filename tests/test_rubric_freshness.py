@@ -163,7 +163,7 @@ def test_native_result_over_source_limit_is_rejected(native_panel):
 def test_source_swap_after_path_check_never_reads_outside_root(tmp_path, monkeypatch, placement, seam):
     import os
 
-    import rubric_configuration
+    import rubric_identity
 
     module = checker()
     root = tmp_path / "parent" / "root"
@@ -206,7 +206,7 @@ def test_source_swap_after_path_check_never_reads_outside_root(tmp_path, monkeyp
         assert (info.st_dev, info.st_ino) not in outside_inodes
         return original_fdopen(fd, *args, **kwargs)
 
-    monkeypatch.setattr(module if seam == "freshness" else rubric_configuration, "local_file", swap_after_check)
+    monkeypatch.setattr(module if seam == "freshness" else rubric_identity, "local_file", swap_after_check)
     monkeypatch.setattr(Path, "open", track_open)
     monkeypatch.setattr(os, "fdopen", track_fdopen)
     with pytest.raises(ValueError):
@@ -568,6 +568,22 @@ def test_native_without_task_file_closure_never_discovers(native_panel, monkeypa
     assert row["lineage"][0]["new"]["digest"] is None
     assert row["changed_dependencies"] == []
     assert "PRIVATE-SENTINEL" not in json.dumps(report)
+
+
+def test_diagnostic_native_receipt_cannot_supply_control_freshness(native_panel):
+    manifest = json.loads(native_panel.manifest.read_text())
+    manifest["contract"]["cases"]["diagnostic"] = dict(manifest["contract"]["cases"]["reference"], kind="diagnostic")
+    native_panel.write(native_panel.manifest, manifest)
+    receipt = native_panel.records / "reference.json"
+    retained = json.loads(receipt.read_text())
+    retained["case"] = "diagnostic"
+    retained["manifest_sha256"] = native_panel.evidence.digest(native_panel.manifest)
+    native_panel.write(receipt, retained)
+    artifacts, choice = native_selection(native_panel)
+    report = checker().check_freshness(native_panel.tmp_path, artifacts, [choice])
+    assert report["status"] == "fail"
+    assert report["diagnostics"] == [{"code": "freshness.binding_invalid", "subject": "receipt", "status": "fail"}]
+    assert "native_classification" not in report["records"][0]
 
 
 def test_selected_native_control_uses_existing_read_only_validator(native_panel, monkeypatch):
