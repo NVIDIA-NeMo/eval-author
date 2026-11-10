@@ -139,30 +139,30 @@ wheels = [
 
 [[package]]
 name = "boto3"
-version = "1.43.95"
+version = "1.43.125"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "botocore" },
     { name = "jmespath" },
     { name = "s3transfer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/eb/ed/9d4d4e7d4b874c16f7b3a886efe3e45801e0f9ebb60058adf1bb69cb2073/boto3-1.43.95.tar.gz", hash = "sha256:9d71f299111e1f4e8c28f573a1b7c0555fe40d2147fe9bef852a02bd57cbde60", size = 112666, upload-time = "2026-09-15T19:23:49.395Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f2/c2/9285c749ca49c213ad90aa239884d0c5cbbdc58f02c4c44bcc4a3bf59023/boto3-1.43.125.tar.gz", hash = "sha256:5a635a0fbbd51f319e465b809cf043668705defbb9dddaf26ae66747f70b2a49", size = 112651, upload-time = "2026-11-05T20:24:13.843Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/66/6e/9c6fb58b1cdddf13b3e9edc94e0c6e08fff456355f6e097684d6117aa8d4/boto3-1.43.95-py3-none-any.whl", hash = "sha256:c906921c4f9ab41e9587af6586f072c8f2be6979e8bde2ec26aa443bb1745019", size = 140026, upload-time = "2026-09-15T19:23:47.563Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/12/1e295c564a8319e6e27353c4c849ec31b0e3857b2614c36c7cc050ca1b9c/boto3-1.43.125-py3-none-any.whl", hash = "sha256:101fe3ee99664e671efb9af65c8e98ec0bceddf6de922ea89685da4adc8c6907", size = 140043, upload-time = "2026-11-05T20:24:12.048Z" },
 ]
 
 [[package]]
 name = "botocore"
-version = "1.43.95"
+version = "1.43.125"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jmespath" },
     { name = "python-dateutil" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/db/2c/0031468b521eefed325a3da2d6576e068aab95837af0c96effea6438851c/botocore-1.43.95.tar.gz", hash = "sha256:779588da32bd48a7bb0c097da4bcb747260e86d2bfc507369dca56f1450e0722", size = 16106887, upload-time = "2026-09-15T19:23:44.23Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ad/57/6d638614c940c73a750b8a4203989b3edbde5ff7f83cd9031e65cb97d69b/botocore-1.43.125.tar.gz", hash = "sha256:e3ae5ebbfa8033015958a9cb16cef67a0592902ca8afb46ef06e8ae77475183f", size = 16520959, upload-time = "2026-11-05T20:24:08.59Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e9/77/7ce7c937b31903f1402e478fdc97f98e727656fcea3cb54e74f1ca55793e/botocore-1.43.95-py3-none-any.whl", hash = "sha256:0fda26d16c7c7bf7082c421390a817b696f98a43d3da7c43dbbb093f76662876", size = 15800616, upload-time = "2026-09-15T19:23:41.228Z" },
+    { url = "https://files.pythonhosted.org/packages/3a/c1/0dca9a7ea362219b1e98f7fa8aebca1c19f6516eb91792b82595d7b79dc0/botocore-1.43.125-py3-none-any.whl", hash = "sha256:e3969c8191d3435440037310187d324f37c00da53987ea31df2eceff19a2795a", size = 16223768, upload-time = "2026-11-05T20:24:04.594Z" },
 ]
 
 [[package]]
@@ -885,12 +885,9 @@ dependencies = [
 
 [package.optional-dependencies]
 audit = [
-    { name = "harbor" },
+    { name = "nemo-compass", extra = ["mlflow"] },
     { name = "pydantic" },
     { name = "pyyaml" },
-]
-mlflow = [
-    { name = "mlflow-skinny" },
 ]
 trace-loaders = [
     { name = "nemo-compass", extra = ["mlflow"] },
@@ -911,22 +908,21 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "harbor", marker = "extra == 'audit'", specifier = ">=0.16.1" },
     { name = "jsonschema", specifier = ">=4.23" },
     { name = "markdown-it-py", specifier = ">=4,<5" },
-    { name = "mlflow-skinny", marker = "extra == 'mlflow'", specifier = ">=3.6,<4" },
-    { name = "nemo-compass", extras = ["mlflow"], marker = "extra == 'trace-loaders'", specifier = "==0.1.0" },
+    { name = "nemo-compass", extras = ["mlflow"], marker = "extra == 'audit'", specifier = "==0.2.1" },
+    { name = "nemo-compass", extras = ["mlflow"], marker = "extra == 'trace-loaders'", specifier = "==0.2.1" },
     { name = "pydantic", marker = "extra == 'audit'", specifier = ">=2" },
     { name = "pyyaml", marker = "extra == 'audit'", specifier = ">=6.0" },
     { name = "referencing", specifier = ">=0.28.4" },
 ]
-provides-extras = ["audit", "mlflow", "trace-loaders"]
+provides-extras = ["audit", "trace-loaders"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "harbor", specifier = "==0.24.0" },
     { name = "mcp", specifier = ">=1.29,<2" },
-    { name = "nemo-compass", extras = ["mlflow"], specifier = "==0.1.0" },
+    { name = "nemo-compass", extras = ["mlflow"], specifier = "==0.2.1" },
     { name = "pre-commit", specifier = ">=4,<5" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pytest", specifier = ">=9.0.3" },
@@ -937,33 +933,39 @@ dev = [
 
 [[package]]
 name = "litellm"
-version = "1.101.3"
+version = "1.108.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
     { name = "boto3" },
+    { name = "certifi" },
     { name = "click" },
     { name = "fastuuid" },
-    { name = "httpx" },
+    { name = "filelock" },
+    { name = "httpx", extra = ["http2"] },
+    { name = "huggingface-hub" },
     { name = "importlib-metadata" },
     { name = "jinja2" },
     { name = "jsonschema" },
     { name = "openai" },
+    { name = "packaging" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "tiktoken" },
     { name = "tokenizers" },
+    { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3d/12/54976093fe391c8cd504cf412b2c5e31c092aba62da5032e7bae6576d548/litellm-1.101.3.tar.gz", hash = "sha256:bd077c39d408b5b52682e165ed94e5c69e9fd62e2c1ab67b701c9de99a3adee0", size = 17493598, upload-time = "2026-09-29T23:11:57.483Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2a/1e/ffa920bca1ee09bf8b8c089888f0ffd7b0653c8a5dd7ce95c19b633c8d5b/litellm-1.108.4.tar.gz", hash = "sha256:192974c6a17ef20ddbc3851f2151cdb0ad81eb8b67bf043cc90cea8714bbed83", size = 21465884, upload-time = "2026-11-09T22:57:03.391Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/01/14/80899608e2f65afefddda17ea3a4aaa3841f2c42723ef3ea3cc82e6f20bd/litellm-1.101.3-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:d8e37c8b2c2a5e01fe7b79dd12cd2e38be5e9729951bfd741cc59cf8f907e192", size = 23827637, upload-time = "2026-09-29T23:11:33.903Z" },
-    { url = "https://files.pythonhosted.org/packages/08/7a/bece30ebfac0092050087317de794720bb16edd7432da13b5b01016adfb1/litellm-1.101.3-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:e5143a62f8a3250b9ead1b7e344d179d4d20631143cd4a94a5753c30fa5423c7", size = 23485079, upload-time = "2026-09-29T23:11:37.27Z" },
-    { url = "https://files.pythonhosted.org/packages/7e/4e/43389b1d1bf120f85473cf79f90478d1b7b29e4bca952bb11e4d4fd4d973/litellm-1.101.3-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:b69d7721266851d4832946c80004eb7d01fb770f37b8323cc665c05ac5e58d78", size = 23618308, upload-time = "2026-09-29T23:11:40.847Z" },
-    { url = "https://files.pythonhosted.org/packages/96/d7/232b70b9870876d991c05895ed1777145c7ba77953d628eed1bda9527679/litellm-1.101.3-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:f6d4781771a209b74162d3f44ac7f894974ed61184702cdc5903442916869cf2", size = 23995104, upload-time = "2026-09-29T23:11:44.116Z" },
-    { url = "https://files.pythonhosted.org/packages/57/0c/1b8a7702c5c29de6daa1a4aec562db2cceeb0e864729f96ad57fe382939f/litellm-1.101.3-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:5b77a3cff91305d8ab8e831ea0ef97ddf306f18b5f4b32a9469599ff8b623c76", size = 23693641, upload-time = "2026-09-29T23:11:47.839Z" },
-    { url = "https://files.pythonhosted.org/packages/af/67/96a84db042704ac540269a91f178cc004a38a2dd62a549d42a2afed6233b/litellm-1.101.3-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:9a34f0b753c635c30889673e3611a07be2b51a7f5b1fdd2e53dac6e9ec74974e", size = 24092963, upload-time = "2026-09-29T23:11:50.997Z" },
-    { url = "https://files.pythonhosted.org/packages/17/87/c3b162ee995729812c7662805bd2f6d7c4c2fb9cc145e2b280d3dfd4bbc5/litellm-1.101.3-cp310-abi3-win_amd64.whl", hash = "sha256:eb7bdb640b1e9d6db2813491282b5238778516032c04bc6cb93d0f41b3aa17b4", size = 23895231, upload-time = "2026-09-29T23:11:54.446Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/61/7dea0ad7bfd8415e7916f8fb37a663b61a1e558205e136b5eab3b342f012/litellm-1.108.4-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:08e56d2f17c69e7df053fdde45fa3a536d685021b036e68813b52c6f2ad43131", size = 36501280, upload-time = "2026-11-09T22:56:38.121Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/60/24e4f460f534c4e619def2ac170ffbd5478e80d8c8f410cfa21999aa6515/litellm-1.108.4-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:2a815ddc987b18382b799c230a1ce43111a1c2f915dd79c9a4759009b1ec5e4c", size = 35812361, upload-time = "2026-11-09T22:56:42.265Z" },
+    { url = "https://files.pythonhosted.org/packages/ac/3c/57bdb20df4c37a5835b348d377ee8af87a363758bebdee9f577c7e215df7/litellm-1.108.4-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:e3d907c211651f0a0dc86b50480cef65076f4538c388a557766ac04c5257b236", size = 36308756, upload-time = "2026-11-09T22:56:45.9Z" },
+    { url = "https://files.pythonhosted.org/packages/62/64/bf5eebf56b5f1d95ce70ebb2bf1036e8e31acc2864f86cbcf6e795ed360c/litellm-1.108.4-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:d51df0a967fb271c943994f8f1e941982d3ceff538298dc2134dcb03ef01b86a", size = 36999649, upload-time = "2026-11-09T22:56:50.31Z" },
+    { url = "https://files.pythonhosted.org/packages/20/33/6f8fcfc2c5d4e61646c087a790d39705bf5878d00e7ad3cff6198598ad2e/litellm-1.108.4-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:ad7c68fea674141f3a9ec8b4a0441a0c1007cb0e689b23c59878e60f50c7c807", size = 36445716, upload-time = "2026-11-09T22:56:53.63Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/fc/125fe7e4ceda8d9a6469f143e42499be3a52d3b8611c26964bef5ce21d2b/litellm-1.108.4-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:913d2bc64477cf5f62159a02eff353e8cc2f48da41758550bfabf39892e896c3", size = 37077338, upload-time = "2026-11-09T22:56:57.072Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/96/f8c8f74939c9a424fd4ffa0af0ea4b040c2d349ed5c4035887512a2d85e0/litellm-1.108.4-cp310-abi3-win_amd64.whl", hash = "sha256:09ebd0b793b942277660c8f2e9dce90efddf88222231d85cdec0b78114a2aaeb", size = 37949824, upload-time = "2026-11-09T22:57:00.207Z" },
 ]
 
 [[package]]
@@ -1148,7 +1150,7 @@ wheels = [
 
 [[package]]
 name = "nemo-compass"
-version = "0.1.0"
+version = "0.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -1167,7 +1169,7 @@ dependencies = [
     { name = "tokenizers" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fe/ee/76faf85ebcabc83d4234f135aeab6730e4c369b0e423697ec479596e12e4/nemo_compass-0.1.0-py3-none-any.whl", hash = "sha256:6b50a6cc8b13991af5dce5469f5eb8e97103e77f3d59e6f2b90d8a9b4762a0a4", size = 4597979, upload-time = "2026-10-19T23:44:39.516Z" },
+    { url = "https://files.pythonhosted.org/packages/15/dd/1b9e56d64c242504e61a9b9a8216fbb00b7de01057095093da7093ad03b0/nemo_compass-0.2.1-py3-none-any.whl", hash = "sha256:9768aa054570258985a30faa3131787bc67ffe7729742ac6b58a5fe5e3eb6aee", size = 4669390, upload-time = "2026-11-06T17:25:51.229Z" },
 ]
 
 [package.optional-dependencies]

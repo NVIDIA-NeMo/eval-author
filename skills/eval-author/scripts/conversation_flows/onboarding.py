@@ -18,11 +18,11 @@ import journey_state
 from conversation_formatting import checklist as format_checklist
 from conversation_formatting import link, literal, mapping, text
 
-from . import first_eval, first_eval_templates
+from . import audit_templates, first_eval, first_eval_templates
 from . import onboarding_templates as copy
 
 JOURNEYS = (None, *shared.JOURNEYS)
-PREVIEWS = {"audit_opening", "orientation", "goal_selected", "prerequisites"}
+PREVIEWS = {"audit_mode", "audit_opening", "orientation", "goal_selected", "prerequisites"}
 STAGES = PREVIEWS | {
     "audit_welcome",
     "audit_entry_failure",
@@ -63,6 +63,8 @@ def checklist(journey: str, state: dict | None = None, *, audit: dict | None = N
 
 def recorded_status(state: dict, key: str) -> str:
     """Summarize a composite display row without replacing checklist readiness rules."""
+    if key == "traces" and audit_state.traces_unused(state):
+        return "not_required"
     statuses = {state["prerequisites"].get(item, {}).get("status", "unknown") for item in ROW_PREREQUISITES[key]}
     for status in ("missing", "unknown", "confirmed", "verified"):
         if status in statuses:
@@ -77,6 +79,9 @@ def canonical_blocker(state: dict, blocker: dict) -> dict | None:
 
 
 def prerequisite_table(journey: str, facts: dict, *, state: dict | None = None, checking: bool = False) -> str:
+    selected_mode = (
+        audit_state.mode(state) if state is not None else audit_state.check_kind(facts.get("audit_mode", "measured"))
+    )
     rows = copy.AUDIT_ROWS if journey == "audit" else copy.AUTHORING_ROWS
     supplied = mapping(facts.get("rows", {}), "rows", {key for key, _ in rows})
     labels = {**shared.STATUS_LABELS, "checking": "Checking"} if checking else shared.STATUS_LABELS
@@ -84,9 +89,18 @@ def prerequisite_table(journey: str, facts: dict, *, state: dict | None = None, 
     for key, label in rows:
         default = {"status": "unknown", "findings": copy.TRACE_FINDING} if checking and key == "traces" else {}
         record = mapping(supplied.get(key, default), f"rows.{key}", {"status", "findings", "source", "links"})
+        task_review = journey == "audit" and selected_mode == "task_review" and key == "traces"
+        if task_review:
+            if key in supplied and "status" in record and record["status"] != "not_required":
+                raise ValueError("Task review does not require trace availability")
+            record = {
+                "status": "not_required",
+                "findings": audit_templates.TASK_REVIEW_UNMEASURED,
+                "source": "Selected audit approach",
+            }
         selected = record.get("status", "checking" if checking else "unknown")
         trace_copy = None
-        if key == "traces" and state is not None:
+        if key == "traces" and state is not None and not task_review:
             trace_copy = next(
                 (canonical_blocker(state, item) for item in state["blockers"] if item["id"] == "data"), None
             )
@@ -96,7 +110,11 @@ def prerequisite_table(journey: str, facts: dict, *, state: dict | None = None, 
                     raise ValueError("rows.traces.status conflicts with the saved trace availability blocker")
         if selected not in labels:
             raise ValueError(f"Unknown prerequisite status: {selected}")
-        if selected == "not_required" and key not in {"environment", "services_data", "agent_access"}:
+        if (
+            selected == "not_required"
+            and key not in {"environment", "services_data", "agent_access"}
+            and not task_review
+        ):
             raise ValueError(f"{key} is required for this journey")
         if selected not in {"unknown", "checking"}:
             saved_source = (
@@ -322,7 +340,11 @@ def prerequisite_failure(payload: dict) -> str:
         raise ValueError("Select create, audit, or expand")
     if payload.get("ready") is not True:
         raise ValueError("Wait for the user's readiness reply before checking prerequisites")
-    facts = mapping(payload.get("facts"), "prerequisite failure facts", {"rows", "state_error"})
+    facts = mapping(
+        payload.get("facts"),
+        "prerequisite failure facts",
+        {"rows", "state_error"} | ({"audit_mode"} if journey == "audit" else set()),
+    )
     error = failure_text(facts, "state_error")
     paragraphs = [
         copy.PREREQUISITE_RESULTS_INTRO,
@@ -346,19 +368,23 @@ def render(payload: dict) -> str:
         if set(payload) - allowed:
             raise ValueError("Only prerequisite previews accept row facts; previews never accept saved state")
         journey = payload.get("journey")
-        if stage == "audit_opening":
+        if stage in {"audit_opening", "audit_mode"}:
             if journey != "audit":
                 raise ValueError("Audit opening requires journey audit")
             if payload.get("ready", False) is not False:
                 raise ValueError("Audit opening does not establish readiness")
-            return copy.AUDIT_OPENING_NOTICE + "\n"
+            return (audit_templates.mode_prompt() if stage == "audit_mode" else copy.AUDIT_OPENING_NOTICE) + "\n"
         if journey not in shared.JOURNEYS and not (stage == "orientation" and journey is None):
             raise ValueError("Select create, audit, or expand")
         if stage == "prerequisites":
             assert isinstance(journey, str)
             if payload.get("ready") is not True:
                 raise ValueError("Wait for the user's readiness reply before checking prerequisites")
-            facts = mapping(payload.get("facts", {}), "prerequisite preview facts", {"rows"})
+            facts = mapping(
+                payload.get("facts", {}),
+                "prerequisite preview facts",
+                {"rows"} | ({"audit_mode"} if journey == "audit" else set()),
+            )
             paragraphs = [copy.PREREQUISITE_PROGRESS_INTRO, prerequisite_table(journey, facts, checking=True)]
         elif journey is None:
             paragraphs = [copy.WELCOME, copy.GOAL_QUESTION, "\n".join(f"- {choice}" for choice in copy.GOAL_CHOICES)]
@@ -366,7 +392,7 @@ def render(payload: dict) -> str:
             paragraphs = [
                 copy.WELCOME_WITH_CHECKLIST if stage == "orientation" else copy.GOAL_INTROS[journey],
                 checklist(journey),
-                copy.READY,
+                audit_templates.mode_prompt() if journey == "audit" else copy.READY,
             ]
         return "\n\n".join(paragraphs) + "\n"
 

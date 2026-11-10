@@ -38,7 +38,10 @@ through the existing state helper before rendering stateful responses.
 
 Classify a full-audit request using the bounded metadata lookup in the
 [entry procedure](shared-prerequisites.md#return-to-an-audit), without assistant
-narration. Fresh entry goes directly to orientation. For a separate request with
+narration. Fresh entry goes directly to orientation and its audit-approach choice.
+New audits with reusable shared context use the
+[approach procedure](shared-prerequisites.md#choose-the-audit-approach) before checks.
+For a separate request with
 reusable saved context, publish the canonical
 [`audit_opening`](conversations/onboarding.md#audit-opening) in commentary before
 state writes or repository inspection, then continue in the same turn.

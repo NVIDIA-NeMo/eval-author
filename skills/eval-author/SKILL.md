@@ -7,7 +7,8 @@ description: >-
   For fresh full workflows, read this skill, show its rendered orientation,
   and end the turn before repository work. Scoped utilities keep their scope.
   Explicit full audits quietly check bounded saved context before choosing an
-  introduction. Returning audits reuse applicable prerequisites and confirmed Ethos. Separate returning requests get
+  introduction. New audits choose task review or add run measurement before checks.
+  Returning audits reuse applicable prerequisites and confirmed Ethos. Separate returning requests get
   a brief acknowledgment, then continue without another readiness pause.
   Build first evals from ETHOS.md, work on existing suites, inspect a NeMo Intake
   run, or derive a trace environment (experimental). Owns the evidence standard
@@ -42,8 +43,6 @@ not-for:
   - eval-author-trace-environment (experimental; use only when explicitly requested or continuing its existing workspace)
   - eval-author-environment (use after an authoring sub-flow hands over its cases to build and prove their task environment)
   - nemo-intake (use to instrument agents, ingest telemetry, or query Intake outside Eval Author)
-  - mlflow-to-atif (use to convert MLflow traces into canonical ATIF files)
-  - gym-to-atif (use to convert NeMo Gym Responses traces into canonical ATIF files)
   - nemo-experimentalist (use to run insight-driven optimization end to end, which drives the Eval Author agent itself)
   - nemo-evaluator (use to run an existing benchmark rather than work on a repository's own suite)
 compatibility: >-
@@ -52,7 +51,8 @@ compatibility: >-
   Discovery, audit, and task creation use the local checkout.
   Task execution requires the selected NeMo Gym or Harbor runtime and may require Docker and provider
   credentials. Trace inspection requires the nemo CLI, an explicit workspace,
-  and read access to configured Intake.
+  and read access to configured Intake. Trace loading requires Python 3.12–3.13
+  and NeMo Compass 0.2.1 from requirements.txt.
 maturity: alpha
 license: Apache-2.0
 user-invocable: true
@@ -81,16 +81,21 @@ below for NeMo Gym and Harbor, including direct invocations of their skills.
 For an explicit full-audit request, first follow
 [Return to an audit](references/shared-prerequisites.md#return-to-an-audit).
 It owns saved-context classification, returning openings, and direct continuation. Fresh
-requests retain the opening below.
+requests retain the opening below. Before checks on a new audit, follow
+[Choose the audit approach](references/shared-prerequisites.md#choose-the-audit-approach).
+Saved authoring context alone does not select an audit approach.
 
-The first final response to a new shared flow is orientation only. Determine the
+The first final response to a new shared flow is orientation only, including the
+approach choice for a new audit. An explicitly requested audit approach reuses
+that choice and proceeds to its prerequisite preview. Determine the
 goal from the user's request and conversation already available, without inspecting the
 repository. Render `orientation` using the pure conversation renderer, with the
 known journey or no journey for goal selection, and use its Markdown as the
 entire final visible response. The unknown-goal opening uses the shorter welcome
 without a checklist introduction. **End the turn immediately after that response.**
 When the user selects a goal, render `goal_selected` with that journey and end
-the turn again. Selecting a goal does not establish readiness or start checks.
+the turn again. For audit, this asks for the approach. Selecting a goal alone
+does not establish readiness or start checks.
 
 Before either orientation response, read only the entry skill, this core skill,
 the [conversation rendering contract](references/conversation-rendering.md), and
@@ -98,6 +103,8 @@ the [onboarding reference](references/conversations/onboarding.md) as needed.
 An explicit full audit may also load the linked audit-entry procedure and perform
 its metadata-only lookup without narration. Only reusable saved context allows
 its no-input `audit_opening` before continuation. Fresh audits omit that opening.
+The same bounded entry procedure permits stateless `audit_mode` when a new
+audit can reuse shared context but still needs an approach choice.
 Apart from those exceptions, the only permitted command is this renderer's
 no-input preview mode:
 
@@ -109,10 +116,10 @@ Replace the journey with `audit` or `expand`, or omit it for an undecided reques
 Use `--stage goal_selected --journey <selected-journey>` after goal selection.
 The renderer may load its own source dependencies, but must not inspect repository
 files or saved state, validate Ethos, check prerequisites, write files, or delegate
-work. Apart from the audit opening and entry lookup, no other helper commands are allowed before readiness. This also applies
+work. Apart from audit opening, approach choice, and entry lookup, no other helper commands are allowed before readiness or an explicit audit-approach answer. This also applies
 to direct first-eval and full-audit invocations.
 
-After the actual readiness reply, follow the
+After the actual readiness reply, or the chosen audit approach, follow the
 [shared prerequisite procedure](references/shared-prerequisites.md#check-the-agent-and-setup).
 It owns the check sequence, state-failure handling, transition into Ethos, and
 final response for fresh flows, prerequisite resumes, goal switches, and direct
@@ -124,7 +131,7 @@ instead of repeating orientation.
 | Build first evals | `eval-author-first-eval`; confirm reuse of any saved design on a fresh request before continuing its unfinished stage |
 | Audit coverage, gaps, and improvement opportunities | `eval-author-audit`, continuing with eval and trace selection |
 | Improve or expand evals | Preserve the expansion goal and use the expansion handoff below; an audit is optional |
-| Create a task from a recorded interaction | [Task-create ATIF source mode](../eval-author-task-create/SKILL.md#atif-source-mode), or [first-eval](../eval-author-first-eval/SKILL.md#atif-as-a-starting-source) for a new suite; use the [shared ATIF handoff](references/trace-input.md), without requiring an audit gap |
+| Create a task from a recorded interaction | [Task-create trace source mode](../eval-author-task-create/SKILL.md#trace-source-mode), or [first-eval](../eval-author-first-eval/SKILL.md#a-recorded-trace-as-a-starting-source) for a new suite; use the [shared trace handoff](references/trace-input.md), without requiring an audit gap |
 | Explicit trace-environment request or existing workspace continuation | [Trace environment](../eval-author-trace-environment/SKILL.md); retain existing artifacts and the compatibility workflow |
 
 Acceptance of the first-evaluation flow's [audit invitation](references/conversations/first-eval.md#blockers-and-the-audit-invitation)
@@ -136,8 +143,8 @@ When the goal is unclear, use `orientation` without a journey. Its shorter
 welcome and canonical goal choices ask only for the unresolved goal; reuse known
 context.
 
-Explicit inventory, planning-only, readiness, repair, trace inspection, supported NeMo Gym or MLflow
-trace conversion, trace-derived authoring, explicitly opted-in experimental rubric,
+Explicit inventory, planning-only, readiness, repair, trace inspection, trace
+loading, trace-derived authoring, explicitly opted-in experimental rubric,
 proposal-only, and audit
 generate/validate/measure/aggregate requests keep their
 scope. Explanation-only requests do not start a workflow. Scoped operations reuse
@@ -224,7 +231,7 @@ The authority depends on the sub-flow:
   real-agent runs close the selected gap; reference controls do not measure agent ability.
 - For trace inspection, Intake establishes what happened. Local source code can
   explain behavior, but it can't replace recorded trace evidence.
-- For experimental trace-derived environments, canonical ATIF establishes the request.
+- For experimental trace-derived environments, the canonical Compass trace establishes the request.
   Harbor's NOP and Oracle runs or NeMo Gym's native validation and repeated controls
   establish the generated task's behavior within the reported proof limits.
 
@@ -274,9 +281,14 @@ dataset improvements from those findings across tools, capabilities, and failure
 cases while preserving their measured or unmeasured status. Proposal-only
 requests stop there. Its audit-gap task-creation mode consumes only actionable
 tool gaps and uses the selected NeMo Gym or Harbor native scaffolder rather than guessing a task
-layout. Its ATIF source mode instead applies privacy and candidate admission without
+layout. Its trace source mode instead applies privacy and candidate admission without
 requiring an audit gap. For a requested full workflow, proceed from audit to proposals even when
 there are no eligible tool gaps; an audit-only request ends with the findings.
+
+Sub-flows that read provider traces load them through the shared
+`scripts/trace_loading.py`, which normalizes ATIF, MLflow, NeMo Gym, and Intake
+evidence into NeMo Compass traces; Eval Author never converts traces into ATIF.
+Read [Trace loading](references/trace-loading.md) before running it.
 
 ## Select the evaluation provider
 
@@ -292,12 +304,12 @@ has the final say and can override the default or request a provider change.
 All flows that need a runtime use the shared
 [runtime locator and policy](references/runtime-prerequisites.md#runtime-prerequisite-checks).
 Use `--flow authoring` for creation/improvement prerequisites, first-eval,
-task-create, environment, and trace-derived authoring; `--flow discovery` for
-readiness; `--provider harbor --flow audit` for selected ATIF measurement.
-Creation and improvement require an available supported runtime before Ethos.
-Audit entry checks its Python tooling without probing an evaluation runner.
-This does not add runtime requirements to explicitly scoped file-only inventory,
-planning-only, or provider-independent audit work. Keep the selected Python/CLI pair
+task-create, environment, and trace-derived authoring and `--flow discovery` for
+readiness. Creation and improvement require an available supported runtime before Ethos.
+Audit needs no provider runtime or Harbor: measurement reads traces through NeMo
+Compass from the audit skill's `requirements.txt`. This does not add runtime
+requirements to explicitly scoped file-only inventory, planning-only, or audit
+work. Keep the selected Python/CLI pair
 and recorded version; missing setup or ambiguity never authorizes a provider switch.
 
 Select the output provider independently of the evidence source: a NeMo Gym trace
@@ -357,7 +369,7 @@ user, not to you.
   `.eval-author/.working/`; `eval-author-audit` writes only
   requested audit artifacts; `eval-author-task-create` writes only drafts,
   proposals, job outputs, and measurements there; `eval-author-trace-environment`
-  writes only private, gitignored task workspaces there. For the shared ATIF flow,
+  writes only private, gitignored task workspaces there. For the shared trace flow,
   inspect-trace, task-create and environment also write their owned artifacts
   inside the selected private `.eval-author/.working/trace-inputs/` workspace.
   `eval-author-first-eval` writes plans, drafts, configs, and jobs there and uses

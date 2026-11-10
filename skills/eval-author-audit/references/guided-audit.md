@@ -13,6 +13,13 @@ in [audit_templates.py](../../eval-author/scripts/conversation_flows/audit_templ
 For returning-audit entry, follow
 [Return to an audit](../../eval-author/references/shared-prerequisites.md#return-to-an-audit).
 
+Reuse the saved `scopes.audit.mode` chosen at entry. `task_review` inspects
+existing tasks against confirmed Ethos and can finish without traces. `measured`
+includes that same task review plus coverage measurement from selected recorded
+runs. A legacy lifecycle without a mode remains measured. Follow the core's
+[approach procedure](../../eval-author/references/shared-prerequisites.md#choose-the-audit-approach)
+for a new choice or an explicit change.
+
 ## Decisions and progress
 
 Complete authorized work, explain the result and limits, and link its artifacts.
@@ -69,10 +76,16 @@ verifier, or trace bytes reopen check review and all dependent measurement and
 findings. A change only to
 the findings report reopens findings review. Record findings acceptance in state
 without rewriting the report merely to mark it accepted. Acceptance can complete
-a fully measured audit while the next action remains undecided; improvement
-requires its own explicit user answer.
+a task review or fully measured audit while the next action remains undecided.
+Improvement requires its own explicit user answer.
 
 ## 1. Confirm evals and traces
+
+For task review, only eval selection applies. After the suite answer, leave a
+new lifecycle's trace selection pending and its trace file list empty, then
+continue to section 2. Do not ask for traces, enumerate them, convert them, or
+read retained measurements. Keep any earlier run selections as history.
+The trace-selection procedure in this section applies to measured audits.
 
 Inputs: the evaluations to audit, or the user's statement that none exist, and
 the source and location of any traces to use. Reuse paths and answers from the
@@ -135,7 +148,7 @@ ask which to use before reading them.
 
 This rule also applies to tracing runtime tool names while drafting audit items,
 opening traces referenced by a report, and implicit trace scans inside discovery
-or conversion tools. Before presenting a missing-source question, inspect named
+or trace-loading tools. Before presenting a missing-source question, inspect named
 agent docs, selected eval definitions, or a tool registry within the current
 milestone as useful, excluding run logs, trajectories, and trace directories
 until source selection is settled. After asking the source question, end the
@@ -148,15 +161,17 @@ first; do not batch a broad inventory alongside loading these instructions.
 If the location is unknown, ask the next focused source question rather than searching the checkout, home
 directory, platform accounts, or unrelated jobs for candidate traces.
 
-Once selected, inspect only that source and prepare its traces with the existing
-loaders and converters. Use local ATIF directly, including ATIF in Harbor trials.
-Prepare Gym JSON or explicitly selected JSONL rows with
-[`gym-to-atif`](../../gym-to-atif/SKILL.md), preserving its original-ATIF preference,
-receipts, and losses. Use [`mlflow-to-atif`](../../mlflow-to-atif/SKILL.md) for complete
-local `Trace.to_dict()` exports. For a selected MLflow record, check the complete
-export for pagination and unique trace IDs before passing that record through
-`--input -`; retain its original export and exact ID. Do not fetch remote traces,
-query Intake, or generate runs to fill gaps.
+Once selected, inspect only that source and load its traces through the shared
+[trace loader](../../eval-author/references/trace-loading.md); never convert
+them to ATIF. `measure.py` measures exactly one trace per file. Measure a local
+ATIF trajectory directly, including ATIF in Harbor trials, and a source file that
+holds exactly one trace with its own `--source-kind`. For a complete local MLflow
+`Trace.to_dict()` export, an ATIF JSONL file, or a NeMo Gym rollouts JSONL file
+that holds several traces, load each selected trace with the loader's
+`--trace-id ID` (or `--row N` for a NeMo Gym row) into its own output directory,
+then measure its `traces.normalized.jsonl` with `--source-kind trace`. Record
+that selector as the record's exact selector. Do not fetch remote traces, query
+Intake, or generate runs to fill gaps.
 
 For selected local traces, reuse the saved `lifecycle.selection_manifest` on
 resume. For a new manifest, use
@@ -168,19 +183,19 @@ before check approval and set lifecycle `selection_manifest` to its
 repository-relative path. Leave it null when traces are unavailable.
 Record each original source path and digest,
 format, exact record selector, explicit suite/task/run mapping with its provenance,
-evidence class, required methods, conversion options, and exclusions with reasons.
+evidence class, required methods, loading options, and exclusions with reasons.
 Keep original files in `trace_files`. Never infer mappings from filenames or
 trajectory IDs. When a suite/task/run mapping is missing or ambiguous, retain
 the candidates and leave trace selection pending until the user resolves it.
 Keep this manifest stable during execution. Changed selections must reopen check review.
 
 Retain preparation outcomes separately: for each selection link its source and
-record to prepared ATIF, conversion metadata/losses, and measurement artifacts, or
+record to its loaded trace and `loading.json` receipt and measurement artifacts, or
 record the missing, failed, or excluded outcome and reason. Include this outcome
 record and the prepared files, receipts, and native results as `{path, digest}`
 references in `measurement.evidence`. Before measurement or reuse, verify the
 original bytes and selected record, mapping, and retained references. Changed
-originals require preparation again even when prepared ATIF is unchanged.
+originals require preparation again even when loaded traces are unchanged.
 
 When the selected run folder is missing, render the concrete limitation and
 replacement-source or independent-work choice through `audit_blockers`. Preserve
@@ -243,12 +258,24 @@ examined and measured when selected, but their coverage is evidence about those
 runs and cannot complete the existing-suite audit lifecycle. Include first-eval
 creation as a supported next action in findings review.
 
-If required traces are unavailable, pause the full audit. Continue
+For task review, approval of the checks permits task analysis and findings,
+with every run-coverage dimension unmeasured. Do not fabricate a deferred
+measurement record. Task mappings describe intended behavior, not demonstrated
+execution. If no evaluations exist, report that limit and offer first-eval
+creation instead of claiming task review is complete. Continue to section 4
+after the authorized review work. Measured audits use section 3.
+
+If required traces are unavailable for a measured audit, pause that audit. Continue
 specification-only work only if the user explicitly requests it. Unresolved
 tool names remain open questions; do not invent names, silently omit material
 behaviors, or call a partial specification complete.
 
 ## 3. Measure coverage
+
+This milestone applies only to measured audits. Report the selected run count
+and relevant trace-size limits at the existing source/check review so the user
+can narrow the scope. Longer traces, more runs, and behavioral judgments
+increase token usage. Do not promise a fixed token or price estimate.
 
 Inputs: the reviewed, validated specification and usable records from the
 user-confirmed source. Explain which trace set and measurement methods will be
@@ -266,7 +293,7 @@ Only mapped agent-under-test runs from selected suites can establish suite
 coverage; production runs and task controls cannot substitute for them. Retain
 their evidence roles and unresolved selections in the report. Use only applicable
 coverage files from the retained outcomes and verify the aggregate before saving
-measurement; conversion success alone does not complete measurement.
+measurement; loading success alone does not complete measurement.
 
 Complete when the agreed measurement scope has been processed and aggregated
 successfully, even when coverage is low. If some inputs fail, report only the
@@ -302,7 +329,9 @@ Then go over it with the user. Lead with what was established: proposed checks,
 partial measurement, or coverage measured over a named set of traces. Explain
 the findings, their evidence and limits, link the Audit coverage report, and
 leave deferred milestones visible. Supporting evidence belongs in the report.
-A specification-only outcome is useful planning work, not a completed measurement.
+A task review can complete after findings acceptance while run coverage remains
+unmeasured. A specification-only outcome within a measured audit is useful
+planning work, not a completed measurement.
 Distinguish items not measured from measured items lacking evidence; neither automatically means
 the dataset needs another test. Keep the [artifact names](coverage-report.md#artifact-names)
 consistent: approving the proposed checks and reviewing the Audit coverage

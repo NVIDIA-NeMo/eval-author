@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-SCENARIO_SCHEMA = "nemo.eval_author.trace_environment_mcp_scenario.v1"
+SCENARIO_SCHEMA = "nemo.eval_author.trace_environment_mcp_scenario.v2"
 
 
 def _canonical_json(value: Any) -> str:

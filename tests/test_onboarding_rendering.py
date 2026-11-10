@@ -73,6 +73,48 @@ def presentation(onboarding, stage):
     return {"stage": stage, "state": state, "revision": state["revision"], "facts": facts}
 
 
+@pytest.mark.parametrize("stage", ["orientation", "goal_selected", "audit_mode"])
+def test_new_audit_collects_approach_without_readiness_or_repository_access(onboarding, monkeypatch, stage):
+    state_helper, renderer, _, _, _ = onboarding
+
+    def no_io(*_args, **_kwargs):
+        pytest.fail("The initial approach choice must not inspect or save repository context")
+
+    monkeypatch.setattr(Path, "open", no_io)
+    monkeypatch.setattr(state_helper, "now", no_io)
+    output = renderer.render({"stage": stage, "journey": "audit"})
+    assert "How would you like to audit your evaluations?" in output
+    assert "Review tasks only" in output
+    assert "Full review with measured evaluation runs" in output
+    assert "Uses additional tokens." in output
+    assert "Ready to get started?" not in output
+    if stage == "audit_mode":
+        assert "Welcome" not in output and "- [ ]" not in output
+
+
+def test_task_review_preview_exempts_traces_without_claiming_they_exist(onboarding):
+    _, renderer, _, _, _ = onboarding
+    output = renderer.render(
+        {"stage": "prerequisites", "journey": "audit", "ready": True, "facts": {"audit_mode": "task_review"}}
+    )
+    assert "| Traces from completed evaluation runs | Not needed now |" in output
+    assert "unmeasured" in output and "Confirmed by you" not in output
+
+
+def test_task_review_results_ignore_historical_trace_blocker(onboarding):
+    _, renderer, _, state, _ = onboarding
+    state["journey"] = "audit"
+    state["scopes"]["audit"] = {"mode": {"kind": "task_review", "source": "User selected task review"}}
+    state["blockers"] = [{"id": "data", "phase": "setup", "message": "Earlier measured audit lacked traces"}]
+    state["prerequisites"]["data"] = {"status": "missing", "source": "Earlier availability answer"}
+    output = renderer.render(
+        {"stage": "prerequisite_results", "state": state, "revision": state["revision"], "facts": {}}
+    )
+    assert "| Traces from completed evaluation runs | Not needed now |" in output
+    assert "### Blockers" not in output
+    assert "prerequisites for reviewing ETHOS.md are complete" in output
+
+
 def test_unblocked_results_keep_recommendations_before_next_steps(onboarding, monkeypatch):
     state_helper, renderer, shared, state, _ = onboarding
     payload = presentation(onboarding, "results")

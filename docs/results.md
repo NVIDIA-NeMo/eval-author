@@ -100,7 +100,8 @@ outcomes. See [Build your first evaluations](first-evals.md).
 Start with the html report or the README.md for artifact paths and commands. Harbor
 tasks and recorded jobs use its native local viewer. Report links target the
 Harbor 0.24.0 viewer; refresh the report after upgrading to regenerate trial links.
-For NeMo Gym JSONL and standalone ATIF, Eval Author includes an offline reader that creates a private `report.html`
+For NeMo Gym JSONL and ATIF, MLflow, or NeMo Gym traces, Eval Author includes an
+offline reader that creates a private `report.html`
 you can open directly in a browser; see [Local review](../skills/eval-author/references/local-review.md)
 for commands and supported formats.
 
@@ -119,6 +120,12 @@ gitignored workspace as the evidence. Do not publish it merely because it is
 readable in a browser.
 
 ## Coverage audits
+
+Each audit records its approach. A task review checks existing tasks, fixtures,
+and verifiers against intended behavior. A measured audit includes that review
+and adds coverage analysis from selected recorded runs. See
+[Audit coverage](existing-evals.md#audit-coverage) for the initial choice and
+token tradeoff.
 
 The Audit coverage report is the only document you review; other outputs support
 internal validation, measurement, and saved progress:
@@ -165,8 +172,8 @@ The Audit coverage report explains what those results mean. Journey state saves
 a measurement summary and references its evidence; failed inputs and missing
 methods keep measurement partial.
 
-Saved audit evidence links original traces and selected suite runs to prepared
-traces, conversion limits, and measurements. Journey state references the saved
+Saved audit evidence links original traces and selected suite runs to loaded
+traces, their `loading.json` receipts, and measurements. Journey state references the saved
 selection manifest. New manifests use
 `.eval-author/.working/audit/selection-manifest.json`, outside the source
 locations. Resumed audits keep their saved manifest path. Changing the original
@@ -179,6 +186,11 @@ pending. Deferral is recorded only after your explicit choice of independent wor
 The unchecked **Measure coverage** step states the reason inline,
 for example “deferred — selected trace
 directory is missing,” so the limitation remains visible in later reviews.
+
+A task review deliberately leaves run coverage unmeasured. It can complete after
+you accept its findings, without a measurement JSON file or a deferred step.
+The incomplete-measurement rules above apply to measured audits. Resuming either
+approach preserves its choice and reviews changed inputs before reusing results.
 
 A covered item has supporting evidence under the audit's declared criteria.
 An uncovered item may lack evidence in the measured traces, or its evidence type
@@ -225,9 +237,9 @@ A generated candidate can still have an unproven environment or unresolved
 software requirements. Read those limits before attempting execution or
 [sharing a task](traces.md#sharing-generated-tasks).
 
-Converting a trace to ATIF, the Agent Trajectory Interchange Format, produces a
-structured record for downstream tools. Conversion alone does not measure
-coverage or validate a runnable evaluation task.
+Loading a trace into a NeMo Compass `Trace` produces a structured record for
+downstream tools. Loading alone does not measure coverage or validate a
+runnable evaluation task.
 
 ## Saved output
 
@@ -258,7 +270,6 @@ Workflows may stop before producing every artifact when prerequisites are missin
 | Coverage audit | The four artifacts listed under [Coverage audits](#coverage-audits), plus supporting evidence in `.eval-author/audit-measurements/` |
 | Intake trace inspection | `.eval-author/traces/` |
 | Trace-derived environments (**experimental**) | A private, gitignored workspace per task under `.eval-author/.working/trace-environments/`, with a root `README.md` for generated-case review and reruns; generated batches also have a collection-root guide. No-candidate outcomes do not create a suite guide. |
-| MLflow conversion | One `.atif.json` file per trace in the private output directory you select. |
 
 [Choose another workflow](../README.md#choose-your-journey) or review
 [runtime requirements](getting-started.md#requirements).

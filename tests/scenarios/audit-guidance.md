@@ -12,6 +12,32 @@ resulting artifacts; inspect actions as well as the agent's description of them.
 
 ## Shared setup and review rules
 
+### Audit approach and resumption
+
+Start a new audit without choosing its approach. The first rendered response
+offers task review or task review plus coverage measurement from recorded runs,
+with the token tradeoff. It asks no generic readiness question and does no
+prerequisite or artifact inspection before the answer. Repeat with reusable
+shared Ethos and setup but no active audit. That context must not skip the choice.
+
+Choose task review and state that no recorded runs exist. Confirm the usual
+prerequisites and Ethos, then select the synthetic account-support tasks below.
+The agent inspects scenarios, fixtures, and verifiers and saves findings with
+run coverage unmeasured. It neither asks for traces nor treats missing runs as
+a blocker. Check approval and findings acceptance remain separate decisions.
+After acceptance, the audit can complete with `measurement: null`.
+
+Resume from prerequisites, check review, and findings review in fresh chats.
+The saved approach and pending decision survive without another mode choice.
+Change to measured audit explicitly. Prior task-review approvals reopen and
+selected runs are required before measurement. Change back and verify that old
+approvals do not become current again. Legacy lifecycles without a saved mode
+remain measured and preserve their existing decisions.
+
+Unless a scenario tests this choice, select the measured approach at entry.
+An explicit request for a measured audit reuses that choice. These acceptance
+scenarios authorize no model calls or new agent runs.
+
 ### Verifier screening evidence reaches findings
 
 Use the shared simple-cheat screen as the acceptance criteria for these cases.
@@ -98,7 +124,7 @@ for audit tooling. The **Audit tooling** row reports those checks.
 Do not probe Harbor or NeMo Gym runners, Docker, live agent services, or agent
 credentials. **Evaluation environment**, **Required services and data**, and
 **Agent connection and credentials** are absent from the completed audit table. Trace selection remains in the audit flow; only after selection check its
-applicable conversion and parser dependencies.
+trace-loader dependencies.
 
 Repeat with unknown availability and with the user confirming no evaluation
 traces exist. Show **Unknown** or **Missing** in the trace row and **Blockers**
@@ -117,12 +143,11 @@ authorizing trace enumeration or selecting sources.
 Repeat the shared entry with neither evaluation runner, Docker, nor agent
 credentials available but with confirmed trace availability. Ethos confirmation
 and specification work must remain available. For selected local ATIF,
-measurement uses Harbor's trajectory parser,
-including for converted NeMo Gym evidence, without running Harbor jobs or requiring a
-NeMo Gym runner. Repeat with that parser unavailable: record measurement as blocked,
-preserve selected evidence and agreed independent specification work, and do not
-reopen Ethos or treat this as an onboarding blocker. A missing conversion tool
-similarly blocks only the selected conversion and dependent measurement.
+MLflow, or NeMo Gym evidence, measurement loads it through NeMo Compass without
+Harbor, Harbor jobs, a NeMo Gym runner, or any conversion to ATIF. Repeat with the
+NeMo Compass trace loader unavailable: record measurement as blocked, preserve
+selected evidence and agreed independent specification work, and do not reopen
+Ethos or treat this as an onboarding blocker.
 
 Use `ethos-orchestrate` through the confirmation adapter. Reuse applicable answers
 and content. Fresh onboarding shows an existing Ethos for confirmation that it is

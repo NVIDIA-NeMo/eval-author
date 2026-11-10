@@ -9,10 +9,11 @@ from pathlib import Path
 
 import pytest
 from test_audit_binding import measured as native_measurement
-from test_audit_state import reviewed, selected
-from test_gym_to_atif import rollout
+from test_audit_state import reviewed, selected, task_review
 from test_journey_state import ethos_ready, setup_ready
-from test_skill_contract import _AUDIT_REPORT, _MLFLOW_TO_ATIF, _mlflow_export, _run_json_script, _write_atif_trace
+from test_skill_contract import _AUDIT_REPORT, _run_json_script, _write_atif_trace
+from test_trace_loading import SCRIPT as TRACE_LOADING
+from test_trace_loading import gym_record, mlflow_record
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 
@@ -50,6 +51,117 @@ def start_lifecycle(modules, repo):
         },
         expected_revision=saved["revision"],
     )
+
+
+@pytest.mark.parametrize("kind", ["task_review", "measured"])
+def test_approach_is_saved_before_artifact_reads_and_reused_on_resume(modules, tmp_path, monkeypatch, kind):
+    state, audit = modules
+    saved = state.initialize(tmp_path, agent="support", journey="audit", state_only=True)
+    decision = {"kind": kind, "source": "User selected this approach in reply 2"}
+    patch = {"scopes": {"audit": {"mode": decision}}}
+    monkeypatch.setattr(state, "_file_digest", forbidden)
+    monkeypatch.setattr(audit, "observe", forbidden)
+    with pytest.raises(ValueError, match="expected-revision"):
+        state.update(tmp_path, patch, state_only=True)
+    with pytest.raises(ValueError, match="State changed"):
+        state.update(tmp_path, patch, state_only=True, expected_revision=saved["revision"] - 1)
+    updated = state.update(tmp_path, patch, state_only=True, expected_revision=saved["revision"])
+    resumed = state.initialize(tmp_path, journey="audit", state_only=True)
+    assert resumed["scopes"]["audit"]["mode"] == decision
+    assert audit.record(updated) is None and audit.mode(resumed) == kind
+    assert not state.checklist(resumed, state_only=True)[0]["complete"]
+
+
+@pytest.mark.parametrize(
+    "decision", [None, {}, {"kind": "task_review", "source": ""}, {"kind": "unknown", "source": "User reply"}]
+)
+def test_invalid_approach_cannot_be_saved(modules, tmp_path, decision):
+    state, _ = modules
+    saved = state.initialize(tmp_path, agent="support", journey="audit", state_only=True)
+    before = state.state_path(tmp_path).read_bytes()
+    with pytest.raises(ValueError):
+        state.update(
+            tmp_path, {"scopes": {"audit": {"mode": decision}}}, state_only=True, expected_revision=saved["revision"]
+        )
+    assert state.state_path(tmp_path).read_bytes() == before
+
+
+@pytest.mark.parametrize("kind", ["task_review", "measured"])
+def test_trace_prerequisite_and_blocker_follow_the_saved_approach(modules, tmp_path, kind):
+    state, _ = modules
+    saved = setup_ready(state, tmp_path, journey="audit", setup=None)
+    updated = state.update(
+        tmp_path,
+        {
+            "scopes": {"audit": {"mode": {"kind": kind, "source": "User approach choice"}}},
+            "prerequisites": {"data": {"status": "missing", "source": "No saved runs"}},
+            "blockers": [{"id": "data", "phase": "setup", "message": "No saved runs"}],
+        },
+        state_only=True,
+        expected_revision=saved["revision"],
+    )
+    assert state.checklist(updated, state_only=True)[0]["complete"] == (kind == "task_review")
+    assert bool(state.active_blockers(updated, state_only=True)) == (kind == "measured")
+    assert updated["prerequisites"]["data"]["source"] == "No saved runs"
+
+
+def test_task_review_completion_and_approach_changes_survive_restart(modules, tmp_path):
+    state, audit = modules
+    saved = ready(modules, tmp_path)
+    _, lifecycle, _ = task_review(audit)
+    for name in [*lifecycle["suite_files"], lifecycle["specification"]]:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("Inspected task input")
+    saved = state.update(
+        tmp_path,
+        {
+            "scopes": {
+                "audit": {
+                    "mode": {"kind": "task_review", "source": "User selected task review"},
+                    "lifecycle": lifecycle,
+                }
+            }
+        },
+        expected_revision=saved["revision"],
+    )
+    lifecycle["checks_approval"] = {
+        "digest": audit.progress(tmp_path, saved)["checks_digest"],
+        "source": "User approved checks",
+    }
+    saved = state.update(tmp_path, {"scopes": {"audit": {"lifecycle": lifecycle}}}, expected_revision=saved["revision"])
+    report = tmp_path / ".eval-author/audit-coverage-report.md"
+    report.write_text("Task review findings. Run coverage is unmeasured.")
+    lifecycle["findings"] = {
+        "report": {"path": report.relative_to(tmp_path).as_posix(), "digest": state.digest(report.read_bytes())},
+        "source": "Presented report",
+    }
+    saved = state.update(tmp_path, {"scopes": {"audit": {"lifecycle": lifecycle}}}, expected_revision=saved["revision"])
+    lifecycle["findings_review"] = {
+        "digest": audit.progress(tmp_path, saved)["findings_digest"],
+        "source": "User accepted findings",
+    }
+    saved = state.update(
+        tmp_path,
+        {"scopes": {"audit": {"lifecycle": lifecycle}}, "journey_status": {"audit": "complete"}},
+        expected_revision=saved["revision"],
+    )
+    resumed = state.initialize(tmp_path, journey="audit")
+    assert audit.progress(tmp_path, resumed)["complete"]
+    assert state.view(resumed)["checklist"][2]["complete"]
+    assert audit.record(resumed)["measurement"] is None
+    for kind in ("measured", "task_review"):
+        resumed = state.update(
+            tmp_path,
+            {"scopes": {"audit": {"mode": {"kind": kind, "source": f"User switched to {kind}"}}}},
+            state_only=True,
+            expected_revision=resumed["revision"],
+        )
+        progress = audit.progress(tmp_path, resumed)
+        assert not progress["complete"] and not progress["checks_approved"]
+        assert resumed["journey_status"]["audit"] == "in_progress"
+        assert audit.record(resumed)["suite_files"] == lifecycle["suite_files"]
+        assert report.read_text() == "Task review findings. Run coverage is unmeasured."
 
 
 def test_typed_audit_updates_require_current_revision_and_preserve_scope_siblings(modules, tmp_path):
@@ -504,32 +616,32 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
         trace = source
     else:
         if format == "gym":
-            source.write_text("invalid unselected row\n" + json.dumps(rollout()) + "\n")
+            source.write_text("invalid unselected row\n" + json.dumps(gym_record()) + "\n")
             if scenario == "failed_selection":
                 source.write_text(source.read_text() + "{}\n")
             selector = 2
-            converter = SCRIPTS.parents[1] / "gym-to-atif/scripts/gym_to_atif.py"
-            arguments = ["--input", str(source), "--row", str(selector)]
+            arguments = ["--source-kind", "gym", "--input", str(source), "--row", str(selector)]
         else:
-            payload = _mlflow_export()
+            payload = {"traces": [mlflow_record()]}
             payload["traces"].append({"info": {"trace_id": "unselected"}, "data": "invalid unselected trace"})
             source.write_text(json.dumps(payload))
-            selector = "tr-fixture"
+            selector = "tr-synthetic-ci"
             selected_trace = tmp_path / "selected.json"
             selected_trace.write_text(
-                json.dumps(next(t for t in payload["traces"] if t["info"]["trace_id"] == selector))
+                json.dumps({"traces": [next(t for t in payload["traces"] if t["info"]["trace_id"] == selector)]})
             )
-            converter = _MLFLOW_TO_ATIF
-            arguments = ["--input", str(selected_trace), "--agent-name", "example-agent"]
-        code, result, stderr = _run_json_script(converter, *arguments, "--output-dir", str(prepared))
+            arguments = ["--source-kind", "mlflow", "--input", str(selected_trace)]
+        code, result, stderr = _run_json_script(TRACE_LOADING, *arguments, "--output-dir", str(prepared))
         assert code == 0, stderr or result
-        trace = prepared / "trace.atif.json" if format == "gym" else Path(result["files"][0])
+        trace = prepared / "traces.normalized.jsonl"
         if scenario == "failed_selection":
             code, failed, stderr = _run_json_script(
-                converter, "--input", str(source), "--row", "3", "--output-dir", str(prepared / "failed")
+                TRACE_LOADING,
+                *["--source-kind", "gym", "--input", str(source), "--row", "3"],
+                *["--output-dir", str(prepared / "failed")],
             )
             assert code == 2 and failed["status"] == "error", stderr or failed
-            assert not (prepared / "failed/trace.atif.json").exists()
+            assert not (prepared / "failed").exists()
     selection = {
         "path": source.relative_to(tmp_path).as_posix(),
         "source_digest": state.digest(source.read_bytes()),
@@ -542,7 +654,11 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
         "evidence_class": "agent_under_test",
     }
     specification, trace, judgments, aggregate = native_measurement(
-        tmp_path, trace=trace, run_id=selection["run_id"], include_unrelated=scenario == "shared_output"
+        tmp_path,
+        trace=trace,
+        source_kind="atif" if format == "atif" else "trace",
+        run_id=selection["run_id"],
+        include_unrelated=scenario == "shared_output",
     )
     aggregate_payload = json.loads(aggregate.read_text())
     coverage_paths = [Path(row["path"]) for row in aggregate_payload["binding"]["inputs"]]

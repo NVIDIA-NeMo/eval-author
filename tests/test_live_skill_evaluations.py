@@ -617,6 +617,64 @@ def tier3_candidate(live):
     return ci, report, copy.deepcopy(report), copy.deepcopy(row)
 
 
+@pytest.mark.parametrize("layout", ["baseline", "nested_negative", "workflow"])
+def test_uploaded_shard_layout_reaches_real_aggregate(tmp_path, monkeypatch, tier3_candidate, layout):
+    import glob
+    import io
+    import os
+    import zipfile
+
+    ci, candidate, base, row = tier3_candidate
+    candidate["ci_shard"] = ci.job_id(row)
+    base["policy"]["models_resolved"] = True
+    base["observations"][0].update(status="incomplete", reason="job_report_unavailable")
+    monkeypatch.setenv("GITHUB_RUN_ID", "123")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    # The fixture omits Markdown-only fields; discovery and validation stay real.
+    monkeypatch.setattr(ci, "persist_report", lambda report, out: (out / ci.SUMMARY).write_text(json.dumps(report)))
+    jobs = yaml.safe_load((ROOT / ".github/workflows/skill-evaluation-live.yml").read_text())["jobs"]
+    upload = next(s for s in jobs["evaluate"]["steps"] if s.get("uses", "").startswith("actions/upload-artifact@"))
+    assert upload["uses"] == "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+    patterns = upload["with"]["path"].replace("${{ runner.temp }}", str(tmp_path)).splitlines()
+    summary_pattern = next(p for p in patterns if p.endswith("live-skillevaluator-summary.*"))
+    if layout == "baseline":
+        patterns = [summary_pattern]
+    elif layout == "nested_negative":
+        patterns = [summary_pattern, str(tmp_path / "tooling-build-diagnostics.json")]
+    summary = Path(summary_pattern).parent / ci.SUMMARY
+    summary.parent.mkdir()
+    summary.write_text(json.dumps(candidate))
+    for pattern in patterns:
+        if not glob.has_magic(pattern):
+            Path(pattern).write_text('{"schema_version": 1}')
+    # Pinned upload action roots multiple search paths at their LCA; download
+    # preserves those relative archive names, not the original source folders.
+    search_paths = [str(Path(p).parent) if glob.has_magic(p) else p for p in patterns]
+    archive_root = Path(os.path.commonpath(search_paths))
+    source = tmp_path / "downloaded"
+    artifact_name = (
+        upload["with"]["name"]
+        .replace("${{ github.run_id }}", "123")
+        .replace("${{ github.run_attempt }}", "1")
+        .replace("${{ matrix.id }}", ci.job_id(row))
+    )
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as bundle:
+        for path in sorted({p for pattern in patterns for p in glob.glob(pattern)}):
+            bundle.write(path, Path(path).relative_to(archive_root))
+    with zipfile.ZipFile(archive) as bundle:
+        bundle.extractall(source / artifact_name)
+    output = tmp_path / "aggregate"
+    output.mkdir()
+    (output / ci.SUMMARY).write_text(json.dumps(base))
+    result = ci.merge(SimpleNamespace(command="aggregate", source=source, output=output))
+    if layout == "nested_negative":
+        assert result["observations"][0]["reason"] == "job_report_unavailable"
+        assert (source / artifact_name / "skill-publish" / ci.SUMMARY).is_file()
+    else:
+        assert result["observations"][0] == row
+
+
 @pytest.mark.parametrize(
     "with_score,without_score,lift",
     [(0, 0, 0), (0, 1, -1), (1, 0, 1), (None, 0, None), (0, None, None), (None, None, None)],
@@ -1097,7 +1155,6 @@ def test_seed_datasets_are_bounded_and_have_negative_cases(live):
     for path in (
         "skills/eval-author",
         "skills/eval-author-first-eval",
-        "skills/mlflow-to-atif",
         "skills/eval-author-task-create",
         "skills/eval-author-environment",
         "skills/eval-author-rubric",
@@ -1414,35 +1471,3 @@ def test_progress_heartbeat_does_not_stream_raw_logs(live, tmp_path, monkeypatch
     assert live.execute_with_progress([], tmp_path, {}, tmp_path / "console.log", 1800) == (1, None)
     text = capsys.readouterr().out
     assert "starting" in text and "running" in text and "finished" in text and "1800s" in text
-
-
-@pytest.mark.parametrize("fixture,exit_code", [("valid.json", 0), ("missing-instruction.json", 1)])
-def test_converter_seed_evidence_matches_expected_behavior(tmp_path, fixture, exit_code):
-    skill = ROOT / "skills/mlflow-to-atif"
-    output = tmp_path / "converted"
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(skill / "scripts/convert_mlflow_to_atif.py"),
-            "--input",
-            str(skill / "evals/files" / fixture),
-            "--output-dir",
-            str(output),
-            "--agent-name",
-            "fixture-agent",
-            "--agent-version",
-            "1.0",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == exit_code, result.stderr
-    trajectories = list(output.glob("*.atif.json"))
-    if exit_code:
-        assert not trajectories
-    else:
-        assert len(trajectories) == 1
-        assert json.loads(trajectories[0].read_text())["schema_version"] == "ATIF-v1.7"
-        assert output.stat().st_mode & 0o777 == 0o700
-        assert trajectories[0].stat().st_mode & 0o777 == 0o600
