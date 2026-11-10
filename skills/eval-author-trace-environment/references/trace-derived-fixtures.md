@@ -285,8 +285,9 @@ verify that it discovers and calls the mock. Retain its trace and the mock audit
 log privately. Check a recorded input, an unseen input, and an unknown function
 through the client. The repository's protocol integration tests exercise the
 installed Harbor writers plus a real MCP client process; those tests are not a
-substitute for an agent/image-specific run. Obtain approval for model spend when
-it has not already been requested. If unavailable, report that integration as
+substitute for an agent/image-specific run. Follow the shared
+[model-call policy](../../eval-author/references/shared-prerequisites.md#model-calls-for-requested-work).
+If unavailable, report that integration as
 unproven rather than equating a direct server invocation with agent access.
 
 For `real`, the existing environment construction path supplies the software,
@@ -329,7 +330,7 @@ completeness, and actual Harbor registration followed by the same MCP
 discovery/call checks for Codex, Claude Code, and Mistral Vibe. It also covers
 custom import-path resolution and unverified versus unsupported integrations.
 The live Codex test below is one optional harness-specific execution example,
-not a requirement to use Codex. It never silently spends on a model:
+not a requirement to use Codex. Use it when live model execution is part of the requested work:
 
 ```bash
 TRACE_FIXTURE_LIVE_CODEX=1 \
