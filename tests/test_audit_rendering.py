@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 from test_audit_resume_rendering import presentation
-from test_audit_state import approved, measured, reviewed, selected
+from test_audit_state import approved, measured, reviewed, selected, task_review
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 FIXTURES = Path(__file__).resolve().parent / "fixtures/audit-conversations"
@@ -35,6 +35,59 @@ def state_at(modules, milestone):
     payload["facts"]["audit_observations"] = observed
     payload["state"]["journey_status"]["audit"] = "complete" if milestone == "reviewed" else "in_progress"
     return payload
+
+
+@pytest.mark.parametrize("has_tasks", [False, True])
+def test_task_review_resume_reaches_findings_without_requesting_traces(modules, has_tasks):
+    payload = presentation(modules)
+    domain_state, lifecycle, observed = task_review(modules[1])
+    payload["state"]["scopes"] = domain_state["scopes"]
+    payload["facts"]["audit_observations"] = observed
+    if not has_tasks:
+        lifecycle["suites"] = {
+            "status": "none",
+            "paths": [],
+            "candidates": [],
+            "exclusions": [],
+            "source": "User confirmed no tasks exist",
+        }
+        lifecycle["suite_files"] = []
+    lifecycle["checks_approval"] = {
+        "digest": progress(payload, modules)["checks_digest"],
+        "source": "User approves checks",
+    }
+    payload["stage"] = "audit_findings"
+    payload["facts"].update(
+        conclusion="The task misses an authorization check.",
+        findings=[
+            {
+                "kind": "missing_scenario",
+                "label": "Missing authorization scenario",
+                "evidence": "The inspected cases contain no access-denied fixture.",
+            }
+        ],
+        limits=["Run coverage is unmeasured."],
+        recommendations=[],
+        report_action="created",
+    )
+    report_links(payload, modules, findings=True)
+    remember_question(payload, modules)
+    payload["stage"] = "audit_resume"
+    output = modules[2].render(payload)
+    assert "Review tasks only" in output and "unmeasured" in output
+    assert "Which traces" not in output and "deferred" not in output
+    lifecycle["findings_review"] = {
+        "digest": progress(payload, modules)["findings_digest"],
+        "source": "User accepts findings",
+    }
+    lifecycle["pending"] = None
+    payload["facts"] = {"audit_observations": observed, "links": payload["facts"]["links"]}
+    payload["facts"]["links"].pop("findings")
+    output = modules[2].render(payload)
+    assert ("audit is complete" in output) == has_tasks
+    if not has_tasks:
+        assert "No evaluation tasks were available" in output and "full measured audit" not in output
+    assert not progress(payload, modules)["measurement_complete"]
 
 
 def domain(payload, modules):
