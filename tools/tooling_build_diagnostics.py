@@ -21,6 +21,10 @@ STAGES = {
     "unknown",
     "apt_index",
     "apt_acquire",
+    "apt_plan_validate",
+    "apt_staging",
+    "apt_download",
+    "apt_promote",
     "apt_install",
     "compose_download",
     "compose_verify",
@@ -28,7 +32,9 @@ STAGES = {
     "complete",
 }
 MARKER = re.compile(
-    rb"(?:#[0-9]+ [0-9]+\.[0-9]+ )?EA_TOOLING_STAGE=(apt_index|apt_acquire|apt_install|compose_download|compose_verify|versions|complete)"
+    rb"(?:#[0-9]+ [0-9]+\.[0-9]+ )?EA_TOOLING_STAGE=("
+    + "|".join(sorted(STAGES - {"unknown"})).encode("ascii")
+    + rb")"
 )
 
 

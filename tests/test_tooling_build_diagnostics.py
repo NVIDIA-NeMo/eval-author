@@ -167,6 +167,10 @@ def test_invalid_source_is_replaced_by_fixed_safe_unavailable(tmp_path, modules,
         (b"EA_TOOLING_STAGE=apt_index\n" + b"PRIVATE\n" * 40000, "unknown", True),
         (b"PRIVATE\n" * 40000 + b"#8 2.34 EA_TOOLING_STAGE=versions\n", "versions", True),
         (b"EA_TOOLING_STAGE=apt_install", "unknown", False),
+        (b"EA_TOOLING_STAGE=apt_plan_validate\n", "apt_plan_validate", False),
+        (b"EA_TOOLING_STAGE=apt_download\n", "apt_download", False),
+        (b"EA_TOOLING_STAGE=apt_promote\n", "apt_promote", False),
+        (b"EA_TOOLING_STAGE=apt_staging\n", "apt_staging", False),
     ],
 )
 def test_scan_is_bounded_and_never_infers_remote_causes(tmp_path, modules, payload, stage, truncated):

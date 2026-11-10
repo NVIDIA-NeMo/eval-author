@@ -127,7 +127,14 @@ def test_bounded_acquisition_precedes_same_no_download_install(apt_commands):
             assert digest == "SHA256:" + "a" * 64
             assert Path(destination).parent.parent == archive
             assert url.endswith(Path(destination).name)
-    assert result.stdout.splitlines() == ["EA_TOOLING_STAGE=apt_acquire", "EA_TOOLING_STAGE=apt_install"]
+    assert result.stdout.splitlines() == [
+        "EA_TOOLING_STAGE=apt_acquire",
+        "EA_TOOLING_STAGE=apt_plan_validate",
+        "EA_TOOLING_STAGE=apt_staging",
+        "EA_TOOLING_STAGE=apt_download",
+        "EA_TOOLING_STAGE=apt_promote",
+        "EA_TOOLING_STAGE=apt_install",
+    ]
 
 
 @pytest.mark.parametrize(
