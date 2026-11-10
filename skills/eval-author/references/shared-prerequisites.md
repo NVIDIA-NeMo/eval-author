@@ -278,12 +278,43 @@ lookup evidence when nothing relevant has changed. Do not apply this lookup to
 task review, a pending opening/approach choice, an explicit no-trace answer, or
 a request whose explicit source bounds exclude this directory.
 
-Use bounded directory listings that include hidden and ignored paths. Default
-repository searches often omit `.eval-author/`. Inspect only saved run metadata
-and trace-file presence under this root, without opening trace contents. Keep
-the lookup to 5 directory levels and 200 entries. Record the bounds, checked
-paths, and any truncation or access failure. Do not follow symlinks outside the
-root or broaden to the checkout, home directory, or remote services.
+List the top-level job directories first, including hidden and ignored paths.
+Prioritize names matching known selected-suite tasks, then newest directory
+modification time, with names breaking ties. These are search hints. Verify
+identity and completion from run metadata before offering candidates.
+
+For Harbor trials, use the read-only helper:
+
+```bash
+python3 -B <skill_dir>/scripts/retained_runs.py --repo <repo> \
+  --agent <agent-identifier-from-run-metadata> --task <known-task-name>
+```
+
+Use the actual runner agent identifier, not the agent's product/display name.
+If it is unknown, omit `--agent` first to inventory candidate identifiers and
+match them against the agent configuration before rerunning with that identifier.
+This inventory alone leaves availability unknown. Do not ask the user for an
+identifier before checking retained metadata and the known configuration.
+Repeat `--task` for known task names, or omit it when suite scope is unresolved.
+The helper checks only `jobs/<job>/<trial>/result.json` and presence of
+`jobs/<job>/<trial>/agent/trajectory.json`. It does not traverse trial logs or
+open trajectories. Its 200-job batch limit counts job directories, not files or
+trials. When `next_offset` is present, continue with `--offset <next_offset>`
+before asking the user for missing runs. Reuse prior batch candidates and errors.
+Keep availability verified if any batch found a qualifying run. A later empty
+batch must not overwrite that evidence with an unknown status.
+Restart the lookup if job ordering changes between batches. A partial lookup
+can establish availability from a qualifying candidate, but cannot establish
+absence. Record checked jobs, continuation bounds, and errors.
+
+Consume the JSON result in memory. Its `state_update` records observed `data`
+status and source paths for that batch through the existing state-only update
+command. Prefer a qualifying batch's verified update when combining batches. Apply
+it only within the authorized measured-audit lookup, preserving user answers and
+existing selected sources. Keep `candidates` available for the later source
+question. They are not a selected corpus. Other documented run layouts need
+the same targeted metadata/presence checks and explicit bounds. Do not follow
+symlinks outside the root or broaden to the checkout, home, or remote services.
 
 For each candidate, check the run metadata for completion, the evaluated agent
 and task/suite, and an associated trace path such as a Harbor trial's

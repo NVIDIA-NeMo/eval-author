@@ -281,6 +281,14 @@ Only creation of required ancestor directories is implicit, never deletion or
 permission changes. Both write attempts and snapshot differences are checked.
 Follow-up snapshots must form an unbroken chain.
 
+A contract can also declare `expected_json`, mapping an artifact path to JSON
+pointers and expected values. Supply the saved UTF-8 text in the turn's
+`artifact_contents` mapping. The checker verifies its hash against the after
+snapshot before checking values. Missing contents make evidence incomplete.
+Wrong values or text that does not match the snapshot fail the check. The
+retained-run cases execute the lookup and save real journey state to test
+availability, batching, and controls without claiming live agent acceptance.
+
 ### Interpreting results
 
 Exit 0 means supplied normalized evidence passes its contract; exit 1 means

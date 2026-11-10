@@ -252,9 +252,14 @@ the user chooses which set to use.
 Repeat with an absent or empty root, scores without trajectories, an incomplete
 run, Oracle/nop controls only, another agent's runs, unreadable or ambiguous
 metadata, a symlink outside the root, and a lookup that reaches its entry/depth
-limit. None establishes completed-run trace availability. The response names
+limit without a qualifying candidate. None establishes completed-run trace availability. The response names
 the checked bounds and unresolved limits without claiming global absence.
 It asks only for the missing availability or source information.
+
+Repeat with 87 jobs, 613 trials, and more than 5,000 total entries. Place the
+relevant task in an older job beyond the first 200 filesystem entries. The
+targeted lookup finds it without traversing logs or opening trajectories.
+With more than 200 jobs, follow continuation batches before asking for runs.
 
 Repeat with task review, explicit trace absence, and explicit source bounds
 outside `.eval-author/jobs/`. No default-root lookup occurs in these cases.

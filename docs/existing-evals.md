@@ -108,6 +108,8 @@ progress and resumes the audit.
 For measured audits, Eval Author checks `.eval-author/jobs/` for completed agent
 runs when trace availability is unresolved. It checks run metadata and trace-file
 presence, then offers relevant candidates when you select audit sources.
+It checks known task matches first, then newer jobs, and continues in batches
+when needed. Logs and other trial files do not consume the job search budget.
 It reads trace contents only after you select the source. An empty or incomplete
 lookup leaves availability unresolved rather than proving no traces exist.
 

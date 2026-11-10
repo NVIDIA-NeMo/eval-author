@@ -430,8 +430,8 @@
     "audit-known-repo-no-state": [
       {
         "prompts": [
-          "Audit this repository’s existing evals.",
-          "Find gaps in this repository’s evaluation coverage."
+          "Audit this repository\u2019s existing evals.",
+          "Find gaps in this repository\u2019s evaluation coverage."
         ],
         "context": "Explicit full audit; repository path is known, but no prior decisions or journey state exist. A metadata-only state lookup finds no saved context and must not initialize it.",
         "flow": "eval-author-audit",
@@ -450,7 +450,7 @@
     "audit-invalid-saved-state": [
       {
         "prompts": [
-          "Continue this repository’s audit."
+          "Continue this repository\u2019s audit."
         ],
         "context": "Explicit audit; known repository contains malformed or foreign-repository journey state. The metadata-only lookup cannot establish valid context. Preserve state and explain recovery; no artifact inspection or new onboarding state.",
         "flow": "eval-author-audit",
@@ -566,6 +566,136 @@
           ".eval-author/.working/"
         ],
         "handoff": "review_ethos"
+      }
+    ],
+    "audit-retained-runs-found": [
+      {
+        "prompts": [
+          "Audit the selected suite using completed agent runs."
+        ],
+        "context": "Authorized measured-audit retained-run lookup for the known src-agent and selected SRC-01 task. Trace availability is unknown. Check retained jobs, record verified availability, and prepare candidates for the later audit source-selection step without selecting or reading traces. Other onboarding steps are outside this capture.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_saved_state",
+          "read_repository",
+          "write_artifact",
+          "render_conversation"
+        ],
+        "required_actions": [
+          "read_saved_state",
+          "read_repository",
+          "write_artifact"
+        ],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "select_audit_trace_source",
+        "expected_json": {
+          ".eval-author/.working/journey-state.json": {
+            "/prerequisites/data/status": "verified",
+            "/next_handoff": "eval-author-audit",
+            "/blockers": [],
+            "/prerequisites/data/source": "Retained-run metadata and trace presence: .eval-author/jobs/SRC-01-retained/10/agent/trajectory.json. Checked 87 of 87 jobs at offset 0"
+          }
+        }
+      }
+    ],
+    "audit-retained-runs-controls-only": [
+      {
+        "prompts": [
+          "Audit the selected suite using completed agent runs."
+        ],
+        "context": "Measured audit with unknown availability. Retained jobs contain only oracle and nop control runs. Check metadata, leave availability unknown, and ask for agent-run availability without reading trajectories.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_saved_state",
+          "read_repository",
+          "write_artifact",
+          "render_conversation"
+        ],
+        "required_actions": [
+          "read_saved_state",
+          "read_repository",
+          "write_artifact"
+        ],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "audit_prerequisite_blocker",
+        "expected_json": {
+          ".eval-author/.working/journey-state.json": {
+            "/prerequisites/data/status": "unknown",
+            "/next_handoff": "eval-author",
+            "/blockers": [
+              {
+                "id": "data",
+                "phase": "setup",
+                "message": "Retained jobs have no qualifying agent runs"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "audit-retained-runs-batched": [
+      {
+        "prompts": [
+          "Audit the selected suite using completed agent runs."
+        ],
+        "context": "Measured audit with unknown availability. The first job batch has no qualifying runs and a continuation offset. Record the partial lookup and continue searching before asking the user.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_saved_state",
+          "read_repository",
+          "write_artifact",
+          "render_conversation"
+        ],
+        "required_actions": [
+          "read_saved_state",
+          "read_repository",
+          "write_artifact"
+        ],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "continue_retained_run_lookup",
+        "expected_json": {
+          ".eval-author/.working/journey-state.json": {
+            "/prerequisites/data/status": "unknown",
+            "/next_handoff": "eval-author-audit",
+            "/blockers": []
+          }
+        }
+      },
+      {
+        "prompts": [
+          "Audit the selected suite using completed agent runs."
+        ],
+        "context": "Continue the unchanged retained-jobs lookup at its returned offset. The next batch contains a completed agent run. Record verified availability and offer its location without selecting traces.",
+        "flow": "eval-author-audit",
+        "allowed_actions": [
+          "read_saved_state",
+          "read_repository",
+          "write_artifact",
+          "render_conversation"
+        ],
+        "required_actions": [
+          "read_saved_state",
+          "read_repository",
+          "write_artifact"
+        ],
+        "write_paths": [
+          ".eval-author/.working/"
+        ],
+        "handoff": "select_audit_trace_source",
+        "expected_json": {
+          ".eval-author/.working/journey-state.json": {
+            "/prerequisites/data/status": "verified",
+            "/next_handoff": "eval-author-audit",
+            "/blockers": [],
+            "/prerequisites/data/source": "Retained-run metadata and trace presence: .eval-author/jobs/old/agent/agent/trajectory.json. Checked 1 of 2 jobs at offset 1"
+          }
+        }
       }
     ]
   }
