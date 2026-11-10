@@ -209,7 +209,7 @@ def test_identity_help_describes_root_without_internal_workflow_label(capsys):
         main(["--help"])
     assert exit_info.value.code == 0
     help_text = capsys.readouterr().out
-    assert "W02" not in help_text
+    assert "W" + "02" not in help_text
     assert "paths are relative to" in " ".join(help_text.split())
 
 

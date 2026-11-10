@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Offline W02 byte/reference demo. No native execution or semantic assessment."""
+"""Offline rubric byte/reference demo. No native execution or semantic assessment."""
 
 import argparse
 import copy
@@ -16,7 +16,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI = ROOT / "skills/eval-author-rubric/scripts/measure.py"
-EXPECTATIONS = ROOT / "evals/rubric-measurements/w02-provenance.json"
+EXPECTATIONS = ROOT / "evals/rubric-measurements/provenance.json"
 CANONICAL = ROOT / "skills/eval-author-rubric/references/artifact-configuration-provenance.json"
 
 
@@ -40,7 +40,7 @@ def prepare_reconstruction(root, prefix):
     workspace = root / ".eval-author/.working/trace-environments"
     initialized = trace_workspace._init(argparse.Namespace(root=workspace, task_id=prefix))
     task_dir = Path(initialized["task_dir"])
-    source = ROOT / "evals/rubric-measurements/w02-reconstruction.trace.jsonl"
+    source = ROOT / "evals/rubric-measurements/reconstruction.trace.jsonl"
     content = json.loads(source.read_bytes())["root_spans"][0]["turns"][0]["content"]
     trace_workspace._prepare(
         argparse.Namespace(
@@ -119,7 +119,7 @@ def build_selection(root, mutation):
             "revision": revision,
             "access": "available",
             "selection_origin": "explicit",
-            "source": "handcrafted:w02-provenance-selection",
+            "source": "handcrafted:rubric-provenance-selection",
             "evidence": [{"path": path.relative_to(root).as_posix(), "digest": digest}],
         }
         return records[ident]
@@ -419,7 +419,7 @@ def run_panel(root):
     rows = [run_case(root / case["id"], case, expectations["defaults"], definitions) for case in expectations["cases"]]
     matched = sum(row["matches_expectations"] is True for row in rows)
     return {
-        "schema": "w02-provenance-demo-v1",
+        "schema": "rubric-provenance-demo-v1",
         "status": "passed" if matched == len(rows) else "failed",
         "counts": {"cases": len(rows), "matched": matched},
         "expectations_digest": sha(EXPECTATIONS),
@@ -434,7 +434,7 @@ def run_panel(root):
 
 
 def summary(result):
-    lines = [f"W02 provenance demo: {result['status']}", "Case | expected | observed | match"]
+    lines = [f"Rubric provenance demo: {result['status']}", "Case | expected | observed | match"]
     for case in result["cases"]:
 
         def compact(value):
@@ -462,7 +462,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         if args.run_dir is None:
-            with tempfile.TemporaryDirectory(prefix="w02-provenance-") as directory:
+            with tempfile.TemporaryDirectory(prefix="rubric-provenance-") as directory:
                 result = run_panel(Path(directory).resolve())
         else:
             root = args.run_dir.absolute()

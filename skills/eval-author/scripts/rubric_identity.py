@@ -3,7 +3,7 @@
 
 """Read-only measurements of explicitly selected local evidence, not discovery.
 
-Route dependency contract (W01/W05/package panels):
+Route dependency contract (retained-credit, coverage, and package panels):
 - Keep route.entrypoint, expected_scorer, and dependencies (literal JSON mapping).
 - Optionally add dependency_source={"artifact_id": ID, "pointer": JSON_POINTER}.
   The selected artifact must retain the JSON graph at that pointer. Without an

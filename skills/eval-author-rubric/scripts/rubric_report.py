@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Canonical W02 projection; helper outcomes never assign criterion merit.
+"""Canonical rubric projection; helper outcomes never assign criterion merit.
 
 ``build_report(items, measurements, selection, root)`` returns item-ID-keyed
 rows. ``items`` is the existing assess() decision mapping (or an explicit
@@ -24,7 +24,7 @@ from pathlib import Path
 
 from eval_author_shared.task_evidence import loads
 from rubric_identity import identify, resolve_route
-from w02_scoring import _checked_record, _observations, classify_inventory, route_is_bound
+from rubric_scoring import _checked_record, _observations, classify_inventory, route_is_bound
 
 CANONICAL = Path(__file__).resolve().parents[1] / "references/artifact-configuration-provenance.json"
 INVENTORIES = {"DISC-01-A": "task_artifacts", "DISC-01-C": "grading_dependencies"}
@@ -53,7 +53,7 @@ def _subject(valid, selection, item_id):
         return tasks[0]
     if tasks:
         return None
-    scope = selection.get("w02_scope", {}).get(INVENTORIES.get(item_id), {})
+    scope = selection.get("rubric_scope", {}).get(INVENTORIES.get(item_id), {})
     reference = scope.get("source") if isinstance(scope, dict) else None
     if not isinstance(reference, str):
         route = selection.get("route")
@@ -82,7 +82,7 @@ def _observed(check, helper, value, refs, diagnostics, boundary, outcome="PARTIA
 
 
 def _inventory(check, item_id, measurements, selection, root, records, valid):
-    scope = selection.get("w02_scope", {}).get(INVENTORIES[item_id])
+    scope = selection.get("rubric_scope", {}).get(INVENTORIES[item_id])
     inventory = classify_inventory(
         item_id, scope, records, measurements.get("identity", {}).get("diagnostics", []), root, valid=valid
     )
@@ -644,7 +644,7 @@ def build_report(items, measurements, selection, root):
     definitions = loads(CANONICAL.read_bytes())
     known = {item["id"] for item in definitions["items"]}
     if not isinstance(items, dict) or not items.keys() <= known:
-        raise ValueError("unknown W02 item")
+        raise ValueError("unknown rubric item")
     records, valid = _validated(measurements, selection, root)
     verified = _verified_helpers(measurements, selection, root)
     rows = {}

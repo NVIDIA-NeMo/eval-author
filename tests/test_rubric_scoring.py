@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "skills/eval-author-rubric/scripts/w02_scoring.py"
+SCRIPT = ROOT / "skills/eval-author-rubric/scripts/rubric_scoring.py"
 IDS = (
     "DISC-01-A",
     "DISC-01-B",
@@ -28,8 +28,8 @@ IDS = (
 
 def assess(measurements, selection, root=None):
     sys.path.insert(0, str(ROOT / "skills/eval-author/scripts"))
-    assert SCRIPT.is_file(), "canonical W02 assessment is not implemented"
-    spec = importlib.util.spec_from_file_location("w02_scoring", SCRIPT)
+    assert SCRIPT.is_file(), "canonical rubric assessment is not implemented"
+    spec = importlib.util.spec_from_file_location("rubric_scoring", SCRIPT)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -67,14 +67,14 @@ def artifact(ident, role="task", access="available"):
 def inventory_packet():
     records = [artifact("scope", "manifest"), artifact("task")]
     scope = {"required": ["task"], "source": "scope", "unresolved_material": []}
-    selection = {"artifacts": records, "w02_scope": {"task_artifacts": scope}}
+    selection = {"artifacts": records, "rubric_scope": {"task_artifacts": scope}}
     return {"identity": {"status": "pass", "records": records, "diagnostics": []}}, selection
 
 
 def bind_inventory_source(tmp_path, selection):
     import hashlib
 
-    scope = selection["w02_scope"]["task_artifacts"]
+    scope = selection["rubric_scope"]["task_artifacts"]
     record = next(row for row in selection["artifacts"] if row["id"] == scope["source"])
     path = tmp_path / record["path"]
     path.write_text(json.dumps({"task_artifacts": {key: scope[key] for key in ("required", "unresolved_material")}}))
@@ -118,7 +118,7 @@ def test_confirmed_missing_required_task_is_zero_but_declared_missing_is_unknown
 def test_readable_subset_with_known_identity_gap_is_partial_not_full(tmp_path):
     measurements, selection = inventory_packet()
     measurements["identity"]["records"].append(artifact("input", "fixture"))
-    selection["w02_scope"]["task_artifacts"]["required"].append("input")
+    selection["rubric_scope"]["task_artifacts"]["required"].append("input")
     measurements["identity"]["diagnostics"] = [
         {"code": "identity.digest_mismatch", "subject": "input", "status": "fail"}
     ]
@@ -188,7 +188,7 @@ def test_wrong_selected_scorer_is_zero_and_ambiguity_is_partial(tmp_path, monkey
 
 def test_grading_dependencies_need_source_bound_completeness_review(tmp_path):
     selection = source_selection(tmp_path)
-    scope = selection["w02_scope"]["grading_dependencies"]
+    scope = selection["rubric_scope"]["grading_dependencies"]
     scope.pop("review_source")
     assert json.loads(run_cli(tmp_path, selection).stdout)["items"]["DISC-01-C"]["score"] is None
     scope["review_source"] = "review"
@@ -234,7 +234,7 @@ def test_assessment_does_not_mutate_measurements_or_selection():
 @pytest.mark.parametrize("required", [[{}], [True], "task", [], ["task", "task"]])
 def test_invalid_required_declaration_cannot_score(required):
     measurements, selection = inventory_packet()
-    selection["w02_scope"]["task_artifacts"]["required"] = required
+    selection["rubric_scope"]["task_artifacts"]["required"] = required
     assert assess(measurements, selection)["DISC-01-A"]["score"] is None
 
 
@@ -293,7 +293,7 @@ def test_demo_real_local_helpers(tmp_path, monkeypatch, variant, task_score, rou
             "expected_scorer": "other" if variant == "wrong-scorer" else "scorer",
             "dependencies": {"scorer": []},
         },
-        "w02_scope": {"task_artifacts": {"required": ["task"], "source": "scope", "unresolved_material": []}},
+        "rubric_scope": {"task_artifacts": {"required": ["task"], "source": "scope", "unresolved_material": []}},
     }
     if variant in ("missing", "declared-missing"):
         (tmp_path / "task.json").unlink()
@@ -325,7 +325,7 @@ def test_denied_declaration_is_not_a_measured_read_failure(declared, tmp_path):
 def test_defect_precedes_readable_partial_inventory(tmp_path):
     measurements, selection = inventory_packet()
     measurements["identity"]["records"].append(artifact("input", "fixture"))
-    selection["w02_scope"]["task_artifacts"]["required"].append("input")
+    selection["rubric_scope"]["task_artifacts"]["required"].append("input")
     measurements["identity"]["diagnostics"] = [
         {"code": "identity.artifact_missing", "subject": "input", "status": "unknown"}
     ]
@@ -337,8 +337,8 @@ def test_review_source_must_be_a_review_of_the_selected_inventory():
     measurements, selection = inventory_packet()
     records = measurements["identity"]["records"]
     records[1]["role"] = "test"
-    scope = selection["w02_scope"].pop("task_artifacts")
-    selection["w02_scope"]["grading_dependencies"] = scope
+    scope = selection["rubric_scope"].pop("task_artifacts")
+    selection["rubric_scope"]["grading_dependencies"] = scope
     scope["review_source"] = "scope"
     assert assess(measurements, selection)["DISC-01-C"]["score"] is None
 
@@ -351,7 +351,7 @@ def test_source_only_declared_configuration_is_assertion_not_numeric():
 
 def test_invalid_materiality_review_cannot_be_interpreted_as_complete():
     measurements, selection = inventory_packet()
-    selection["w02_scope"]["task_artifacts"]["unresolved_material"] = "none"
+    selection["rubric_scope"]["task_artifacts"]["unresolved_material"] = "none"
     assert assess(measurements, selection)["DISC-01-A"]["score"] is None
 
 
@@ -381,7 +381,7 @@ def source_selection(tmp_path, inventory=None, review=None):
         records.append(record)
     return {
         "artifacts": records,
-        "w02_scope": {
+        "rubric_scope": {
             "grading_dependencies": {
                 "required": ["task"],
                 "source": "scope",
@@ -423,7 +423,7 @@ def test_cli_review_contents_must_substantiate_completeness(tmp_path, review):
 def test_cli_inventory_projection_cannot_hide_source_requirements(tmp_path, kind, item, inventory):
     selection = source_selection(tmp_path, inventory=inventory)
     if kind == "task_artifacts":
-        selection["w02_scope"][kind] = selection["w02_scope"].pop("grading_dependencies")
+        selection["rubric_scope"][kind] = selection["rubric_scope"].pop("grading_dependencies")
         selection["artifacts"][1]["role"] = "task"
     result = run_cli(tmp_path, selection)
     assert result.returncode == 1
@@ -437,7 +437,7 @@ def test_cli_inventory_projection_cannot_hide_source_requirements(tmp_path, kind
 def test_cli_supported_source_projection_permits_full_credit(tmp_path, kind, item):
     selection = source_selection(tmp_path)
     if kind == "task_artifacts":
-        selection["w02_scope"][kind] = selection["w02_scope"].pop("grading_dependencies")
+        selection["rubric_scope"][kind] = selection["rubric_scope"].pop("grading_dependencies")
         selection["artifacts"][1]["role"] = "task"
     result = run_cli(tmp_path, selection)
     assert result.returncode == 1  # Other raw helpers remain unknown.
@@ -479,14 +479,14 @@ def test_changed_or_unsupported_source_bytes_cannot_award_full_credit(tmp_path, 
 def test_measured_materiality_gap_retains_partial_credit(tmp_path):
     inventory = {"required": ["task"], "unresolved_material": ["unresolved reference"]}
     selection = source_selection(tmp_path, inventory=inventory)
-    selection["w02_scope"]["grading_dependencies"]["unresolved_material"] = inventory["unresolved_material"]
+    selection["rubric_scope"]["grading_dependencies"]["unresolved_material"] = inventory["unresolved_material"]
     row = json.loads(run_cli(tmp_path, selection).stdout)["items"]["DISC-01-C"]
     assert (row["score"], row["evidence_strength"]) == (1, "E2")
 
 
 def test_unmeasured_materiality_assertion_cannot_establish_partial_content_finding():
     measurements, selection = inventory_packet()
-    selection["w02_scope"]["task_artifacts"]["unresolved_material"] = ["asserted gap"]
+    selection["rubric_scope"]["task_artifacts"]["unresolved_material"] = ["asserted gap"]
     assert assess(measurements, selection)["DISC-01-A"]["score"] is None
 
 
@@ -494,8 +494,8 @@ def test_unmeasured_materiality_assertion_cannot_establish_partial_content_findi
 @pytest.mark.parametrize("state", ["missing", "partial"])
 def test_unbacked_inventory_cannot_assign_negative_or_partial_merit(tmp_path, kind, item, state):
     selection = source_selection(tmp_path)
-    scope = selection["w02_scope"].pop("grading_dependencies")
-    selection["w02_scope"][kind] = scope
+    scope = selection["rubric_scope"].pop("grading_dependencies")
+    selection["rubric_scope"][kind] = scope
     if kind == "task_artifacts":
         selection["artifacts"][1]["role"] = "task"
     if state == "missing":
@@ -537,7 +537,7 @@ def test_source_read_rejects_replacement_after_path_validation(tmp_path, monkeyp
     monkeypatch.syspath_prepend(str(ROOT / "skills/eval-author/scripts"))
     monkeypatch.syspath_prepend(str(SCRIPT.parent))
     import rubric_identity
-    import w02_scoring
+    import rubric_scoring
 
     selection = source_selection(tmp_path)
     record = selection["artifacts"][0]
@@ -557,9 +557,9 @@ def test_source_read_rejects_replacement_after_path_validation(tmp_path, monkeyp
         return selected
 
     monkeypatch.setattr(rubric_identity, "local_file", replace_after_validation)
-    if hasattr(w02_scoring, "local_file"):
-        monkeypatch.setattr(w02_scoring, "local_file", replace_after_validation)
-    assert w02_scoring._source_json(tmp_path, record) is None
+    if hasattr(rubric_scoring, "local_file"):
+        monkeypatch.setattr(rubric_scoring, "local_file", replace_after_validation)
+    assert rubric_scoring._source_json(tmp_path, record) is None
 
 
 @pytest.mark.parametrize("replacement", ["symlink", "fifo"])
@@ -569,7 +569,7 @@ def test_source_read_never_opens_replacement_after_regular_file_probe(tmp_path, 
 
     monkeypatch.syspath_prepend(str(ROOT / "skills/eval-author/scripts"))
     monkeypatch.syspath_prepend(str(SCRIPT.parent))
-    import w02_scoring
+    import rubric_scoring
 
     selection = source_selection(tmp_path)
     record = selection["artifacts"][0]
@@ -595,7 +595,7 @@ def test_source_read_never_opens_replacement_after_regular_file_probe(tmp_path, 
     previous = signal.signal(signal.SIGALRM, timeout)
     try:
         signal.alarm(2)
-        result = w02_scoring._source_json(tmp_path, record)
+        result = rubric_scoring._source_json(tmp_path, record)
     finally:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, previous)
@@ -615,17 +615,17 @@ def run_cli(tmp_path, selection):
 
 
 @pytest.mark.parametrize("scope", [None, [], True, "private-invalid-scope"])
-def test_cli_rejects_nonobject_w02_scope_without_traceback(tmp_path, scope):
-    result = run_cli(tmp_path, {"w02_scope": scope})
+def test_cli_rejects_nonobject_rubric_scope_without_traceback(tmp_path, scope):
+    result = run_cli(tmp_path, {"rubric_scope": scope})
     assert result.returncode == 2
     assert result.stderr == ""
     assert json.loads(result.stdout)["code"] == "selection.invalid"
     with pytest.raises(ValueError):
-        assess({}, {"w02_scope": scope})
+        assess({}, {"rubric_scope": scope})
 
 
 @pytest.mark.parametrize("source", [[], {}, 1, None])
 def test_malformed_source_id_does_not_crash_or_award_score(source):
     measurements, selection = inventory_packet()
-    selection["w02_scope"]["task_artifacts"]["source"] = source
+    selection["rubric_scope"]["task_artifacts"]["source"] = source
     assert assess(measurements, selection)["DISC-01-A"]["score"] is None

@@ -19,13 +19,13 @@ CANONICAL = SCRIPTS.parent / "references/artifact-configuration-provenance.json"
 def modules(monkeypatch):
     monkeypatch.syspath_prepend(str(ROOT / "skills/eval-author/scripts"))
     monkeypatch.syspath_prepend(str(SCRIPTS))
-    path = SCRIPTS / "w02_report.py"
+    path = SCRIPTS / "rubric_report.py"
     assert path.is_file(), "canonical per-check report is not implemented"
-    spec = importlib.util.spec_from_file_location("w02_report", path)
+    spec = importlib.util.spec_from_file_location("rubric_report", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    from w02_scoring import assess
+    from rubric_scoring import assess
 
     return module, assess
 
@@ -92,7 +92,7 @@ def packet(tmp_path):
         "subject_id": "forged-subject",
         "subject_revision": "forged-revision",
         "route": {"entrypoint": "dispatch", "expected_scorer": "scorer", "dependencies": {"scorer": []}},
-        "w02_scope": {"task_artifacts": {"source": "inventory", "required": ["task"], "unresolved_material": []}},
+        "rubric_scope": {"task_artifacts": {"source": "inventory", "required": ["task"], "unresolved_material": []}},
     }
 
 
@@ -203,7 +203,7 @@ def test_caller_only_dependency_gap_cannot_assign_partial_merit(modules, tmp_pat
 def test_malformed_inventory_source_stays_blocked(modules, tmp_path, source):
     report, assess = modules
     selection = packet(tmp_path)
-    selection["w02_scope"]["task_artifacts"]["source"] = source
+    selection["rubric_scope"]["task_artifacts"]["source"] = source
     measurements = measured(selection, tmp_path)
     rows = report.build_report(assess(measurements, selection, root=tmp_path), measurements, selection, tmp_path)
     assert rows["DISC-01-A"]["score"] is None
@@ -399,7 +399,7 @@ def test_canonical_method_changes_cannot_inherit_deterministic_passes(modules, t
 
 def test_unknown_criterion_is_rejected_and_explicit_subset_is_preserved(modules, tmp_path):
     report, assess = modules
-    with pytest.raises(ValueError, match="unknown W02 item"):
+    with pytest.raises(ValueError, match="unknown rubric item"):
         report.build_report({"made-up": {}}, {}, {}, tmp_path)
     items = assess({}, {})
     rows = report.build_report({"ENV-01": items["ENV-01"]}, {}, {}, tmp_path)

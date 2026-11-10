@@ -256,7 +256,7 @@ def test_demo_text_summary_is_concise_and_keeps_limits(rubric_panel, monkeypatch
     from run_rubric_measurements import summary
 
     result = subprocess.CompletedProcess([], 0, stdout=summary(rubric_panel))
-    assert result.stdout.startswith("W02 handcrafted assessment demo:")
+    assert result.stdout.startswith("Rubric handcrafted assessment demo:")
     assert "DISC-01-A" in result.stdout
     assert "DISC-01-B" in result.stdout
     assert "DISC-01-C" in result.stdout
@@ -355,13 +355,13 @@ def test_valid_demo_has_source_bound_inventories_and_retained_review(tmp_path, m
     selection = fixture(tmp_path, None)
     records = {row["id"]: row for row in selection["artifacts"]}
     for name in ("task_artifacts", "grading_dependencies"):
-        scope = selection["w02_scope"][name]
+        scope = selection["rubric_scope"][name]
         source = records[scope["source"]]
         inventory = json.loads((tmp_path / source["path"]).read_text())[name]
         assert inventory["required"] == scope["required"]
         assert inventory["unresolved_material"] == scope["unresolved_material"] == []
         assert all(records[ident]["source"] == source["path"] for ident in scope["required"])
-    scope = selection["w02_scope"]["grading_dependencies"]
+    scope = selection["rubric_scope"]["grading_dependencies"]
     review = records[scope["review_source"]]
     assert review["role"] == "review"
     assert review["source"] == records[scope["source"]]["path"]

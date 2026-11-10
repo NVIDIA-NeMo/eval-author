@@ -1203,7 +1203,9 @@ def test_cli_downstream_readers_respect_full_identity_selection(tmp_path, consum
         choice = {"native": {"receipt_ids": [], "manifest_ids": [], "result_ids": [], "trace_ids": [selected["id"]]}}
     elif consumer == "scoring":
         choice = {
-            "w02_scope": {"task_artifacts": {"source": selected["id"], "required": ["task"], "unresolved_material": []}}
+            "rubric_scope": {
+                "task_artifacts": {"source": selected["id"], "required": ["task"], "unresolved_material": []}
+            }
         }
     private = tmp_path / "private.json"
     private.write_bytes((tmp_path / selected["path"]).read_bytes())

@@ -7,6 +7,17 @@ Eval Author saves reports and evaluation artifacts in the repository you are
 working on. Start with the report for your requested workflow, and read its
 limitations before deciding what to change.
 
+## Experimental rubric artifacts
+
+Rubric selections use `rubric_scope` for source-backed inventories. Package demo
+observations use `retained_credit`, `retained_credit_controls`, and `coverage` to
+identify their consumers. The provenance panel uses `rubric-provenance-demo-v1`
+with `rubric-provenance-expectations-v1` expectations; the version remains 1.
+Update integrations to these current names and rebuild older demo outputs rather
+than relying on former field or schema names; no compatibility aliases are kept.
+See the [rubric measurements](determinism-checks.md#rubric-identity-measurements)
+and [provenance demo](determinism-checks.md#provenance-demo) for commands.
+
 ## Case and run catalog
 
 The case and run catalog can be found in `.eval-author/report.html` and the

@@ -31,16 +31,16 @@ def test_one_command_package_acceptance_is_separate(rubric_panel):
     for name in ("valid", "missing", "denied", "unresolved", "unknown-route"):
         observed = rows["shared-" + name]["observed"]
         assert observed["same_identity_records"]
-        assert observed["w01"]["identity"] == observed["w05"]["identity"]
-        assert observed["w05"]["preflight_success"] is False
-        assert observed["w01"]["preflight_success"] is (name == "valid")
-        assert observed["w05"]["measurement_allowed"] is (name == "valid")
-    assert rows["shared-valid"]["observed"]["w05"]["route"]["bound_dependency"] is True
+        assert observed["retained_credit"]["identity"] == observed["coverage"]["identity"]
+        assert observed["coverage"]["preflight_success"] is False
+        assert observed["retained_credit"]["preflight_success"] is (name == "valid")
+        assert observed["coverage"]["measurement_allowed"] is (name == "valid")
+    assert rows["shared-valid"]["observed"]["coverage"]["route"]["bound_dependency"] is True
     for name in ("unbound-route", "dependency-mismatch"):
         observed = rows["shared-" + name]["observed"]
-        assert observed["w01"]["preflight_success"] is False
-        assert observed["w05"]["measurement_allowed"] is False
-        assert observed["w05"]["route"]["bound_dependency"] is False
+        assert observed["retained_credit"]["preflight_success"] is False
+        assert observed["coverage"]["measurement_allowed"] is False
+        assert observed["coverage"]["route"]["bound_dependency"] is False
     assert rows["retained-approved"]["observed"]["status"] == "pass"
     assert rows["retained-rejected"]["observed"]["status"] == "fail"
     for name in ("run", "task", "digest"):

@@ -75,7 +75,7 @@ pass. Do not turn content identity into an ownership or confidentiality claim.
 
 ## Source-backed inventory assessment
 
-`w02_scope`, when present, must be an object; other JSON types produce the sanitized
+`rubric_scope`, when present, must be an object; other JSON types produce the sanitized
 `selection.invalid` CLI response (exit 2, empty stderr). Its optional `task_artifacts`
 and `grading_dependencies` objects contain `source` (selected inventory artifact ID),
 `required` (nonempty distinct artifact IDs), and `unresolved_material` (string gaps).

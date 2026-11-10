@@ -135,7 +135,7 @@ def fixture(root, mutation):
         links = []
     return {
         "artifacts": records,
-        "w02_scope": scope,
+        "rubric_scope": scope,
         "route": {"entrypoint": "entry", "expected_scorer": "scorer", "dependencies": dependencies},
         "declared_config": config,
         "observed_config": observed,
@@ -158,7 +158,7 @@ def selected_file(root, selection, ident, role, value):
             "revision": None,
             "access": "available",
             "selection_origin": "explicit",
-            "source": "handcrafted:w02-demo",
+            "source": "handcrafted:rubric-demo",
         }
         selection["artifacts"].append(record)
     record.update(digest=digest(path), evidence=[{"path": path.name, "digest": digest(path)}])
@@ -528,7 +528,7 @@ def shared_package_case(root, case):
     request = root / "selection.json"
     request.write_text(json.dumps(selection, sort_keys=True))
     before = package_inputs(root)
-    w01_code, w01, w01_error = package_cli(
+    retained_credit_code, retained_credit, retained_credit_error = package_cli(
         root,
         "skills/eval-author/scripts/audit_verifier_evidence.py",
         "--repo",
@@ -540,7 +540,7 @@ def shared_package_case(root, case):
         "--selection",
         request,
     )
-    w05_code, w05, w05_error = package_cli(
+    coverage_code, coverage, coverage_error = package_cli(
         root,
         "skills/eval-author-audit/scripts/audit_spec/measure.py",
         "--audit",
@@ -560,41 +560,48 @@ def shared_package_case(root, case):
         "--identity-selection",
         request,
     )
-    preflight = w05["identity_preflight"]
-    same = w01["identity"] == preflight["identity"] and w01["identity"]["records"] == selection["artifacts"]
+    preflight = coverage["identity_preflight"]
+    same = (
+        retained_credit["identity"] == preflight["identity"]
+        and retained_credit["identity"]["records"] == selection["artifacts"]
+    )
     trace_binding = None
-    if case["allowed"] and w05.get("measurements"):
-        coverage = loads(Path(w05["measurements"][0]["coverage"]).read_text())
+    if case["allowed"] and coverage.get("measurements"):
+        coverage_report = loads(Path(coverage["measurements"][0]["coverage"]).read_text())
         trace_binding = (
-            coverage["identity_preflight"] == preflight
-            and coverage["binding"]["trace_sha256"] == digest(root / "trace.json")
-            and coverage["covered"] == ["customer.lookup"]
+            coverage_report["identity_preflight"] == preflight
+            and coverage_report["binding"]["trace_sha256"] == digest(root / "trace.json")
+            and coverage_report["covered"] == ["customer.lookup"]
         )
     after = package_inputs(root)
     unchanged = before == {key: value for key, value in after.items() if not key.startswith("output/")}
     observed = {
         "same_identity_records": same,
-        "w01": {key: w01[key] for key in ("identity", "route", "preflight_success", "valid")},
-        "w05": preflight,
-        "cli_exit_codes": [w01_code, w05_code],
+        "retained_credit": {key: retained_credit[key] for key in ("identity", "route", "preflight_success", "valid")},
+        "coverage": preflight,
+        "cli_exit_codes": [retained_credit_code, coverage_code],
         "coverage_binding_verified": trace_binding,
-        "w01_controls": sorted(row["classification"] for row in w01["controls"]),
+        "retained_credit_controls": sorted(row["classification"] for row in retained_credit["controls"]),
         "outputs_written": (root / "output").exists(),
     }
     matches = (
         same
-        and not w01_error
-        and not w05_error
-        and w01_code == w05_code == case["cli_exit_code"]
-        and w01["preflight_success"] is case["allowed"]
-        and w01["valid"] is case["allowed"]
+        and not retained_credit_error
+        and not coverage_error
+        and retained_credit_code == coverage_code == case["cli_exit_code"]
+        and retained_credit["preflight_success"] is case["allowed"]
+        and retained_credit["valid"] is case["allowed"]
         and preflight["measurement_allowed"] is case["allowed"]
         and preflight["preflight_success"] is False
         and observed["outputs_written"] is case["allowed"]
-        and (trace_binding is True if case["allowed"] else not w01["controls"])
-        and (observed["w01_controls"] == ["agent_run", "passed", "passed", "passed"] if case["allowed"] else True)
+        and (trace_binding is True if case["allowed"] else not retained_credit["controls"])
+        and (
+            observed["retained_credit_controls"] == ["agent_run", "passed", "passed", "passed"]
+            if case["allowed"]
+            else True
+        )
     )
-    for envelope in (w01, preflight):
+    for envelope in (retained_credit, preflight):
         for key in ("identity", "route"):
             matches &= (
                 envelope[key]["status"] == case[key + "_status"]
@@ -690,7 +697,7 @@ def rubric_package_case(root, case):
 def package_acceptance(cases):
     rows = []
     for case in cases:
-        with tempfile.TemporaryDirectory(prefix="w02-package-") as directory:
+        with tempfile.TemporaryDirectory(prefix="rubric-package-") as directory:
             root = Path(directory).resolve()
             run = shared_package_case if case["kind"] == "shared" else rubric_package_case
             observed, selection, unchanged, matches = run(root, case)
@@ -843,7 +850,7 @@ def summary(result):
     }
     mismatches = {name: [row["id"] for row in rows if not row["matches_expectations"]] for name, rows in panels.items()}
     lines = [
-        f"W02 handcrafted assessment demo: {result['status']}",
+        f"Rubric handcrafted assessment demo: {result['status']}",
         f"Raw measurement regressions: {sum(row['matches_expectations'] for row in result['cases'])}/{len(result['cases'])} matched",
         "Variant | DISC-01-A | DISC-01-B | DISC-01-C | expected match",
     ]

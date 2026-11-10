@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNNER = ROOT / "tools/run_w02_provenance_demo.py"
-EXPECTATIONS = ROOT / "evals/rubric-measurements/w02-provenance.json"
+RUNNER = ROOT / "tools/run_rubric_provenance_demo.py"
+EXPECTATIONS = ROOT / "evals/rubric-measurements/provenance.json"
 
 
 def invoke(*args):
@@ -82,7 +82,7 @@ def test_reconstruction_defects_preserve_known_identity_and_neighbor(suffix, sta
 
 
 def test_generation_demo_uses_cli_and_preserves_canonical_rows():
-    assert RUNNER.is_file(), "The independent W02 provenance demo is missing"
+    assert RUNNER.is_file(), "The independent rubric provenance demo is missing"
     process = invoke()
     assert process.returncode == 0, process.stdout + process.stderr
     assert process.stderr == ""

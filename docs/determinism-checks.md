@@ -12,7 +12,7 @@ Developer tools in `tools/` are not included in skill-only installations.
 | [Workflow scope](#workflow-scope) | Reviewed actions, writes and handoffs match a request contract. |
 | [Discovery comparisons](#discovery-comparisons) | Repeated discovery reports agree under frozen inputs. |
 | [Rubric identity measurements](#rubric-identity-measurements) | Handcrafted mutations produce exact scoped identity diagnostics and scores. |
-| [Provenance demo](#w02-provenance-demo) | Selected source bytes, record links, and revision changes produce expected diagnostics. |
+| [Provenance demo](#provenance-demo) | Selected source bytes, record links, and revision changes produce expected diagnostics. |
 | [Audit and task evidence](#audit-and-task-evidence) | Acceptance still matches its retained source and execution evidence. |
 | [Verifier-cheat panel](#verifier-cheat-panel) | Real Harbor controls distinguish a sound grader from a planted vulnerable grader. |
 | [Live anti-cheat experiment](#live-anti-cheat-experiment) | Model-backed Harbor task attempts separate real behavior from vulnerable reward signals. |
@@ -187,15 +187,13 @@ means invalid input. Exit 0 does not mean every canonical item is assessed or th
 native preflight passed. Configuration acceptability remains unassessed.
 Keep selections and output private because they can contain local evidence locations.
 
-<a id="w02-provenance-demo"></a>
-
 ## Provenance demo
 
 Run the separate provenance panel from the checkout:
 
 ```bash
-uv run --locked python tools/run_w02_provenance_demo.py --format text
-uv run --locked python tools/run_w02_provenance_demo.py --run-dir /absolute/path/to/new-demo-directory
+uv run --locked python tools/run_rubric_provenance_demo.py --format text
+uv run --locked python tools/run_rubric_provenance_demo.py --run-dir /absolute/path/to/new-demo-directory
 ```
 
 The first command prints expected and observed outcomes. The second retains the
@@ -215,7 +213,7 @@ retain unknown source proof. These checks do not reconstruct a workspace or
 establish that it can run.
 
 Expectations are authored separately in
-`evals/rubric-measurements/w02-provenance.json`. Each case invokes the real rubric
+`evals/rubric-measurements/provenance.json`. Each case invokes the real rubric
 CLI and checks its diagnostics and exit status. Relevant mutations also check
 that an unaffected neighbor remains current. The panel verifies unchanged input
 bytes and retains every canonical criterion and check in the reports.

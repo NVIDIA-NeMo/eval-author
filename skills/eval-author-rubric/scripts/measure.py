@@ -18,8 +18,8 @@ from rubric_identity import compare_config, finish, identify, resolve_route, tex
 from rubric_links import check_approvals, check_links, check_sourced_approvals  # noqa: E402
 from rubric_native import project_native  # noqa: E402
 from rubric_reconstruction import project_reconstruction  # noqa: E402
-from w02_report import build_report  # noqa: E402
-from w02_scoring import assess  # noqa: E402
+from rubric_report import build_report  # noqa: E402
+from rubric_scoring import assess  # noqa: E402
 
 
 def measure(root, selection):

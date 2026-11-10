@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Conservative canonical W02 assessment over deterministic measurements.
+"""Conservative canonical rubric assessment over deterministic measurements.
 
 ``assess(measurements, selection, root=None)`` returns eleven item-ID-keyed rows,
 never an aggregate. Measurements come from the identity/route/config/links/approvals
@@ -252,9 +252,9 @@ def assess(measurements, selection, root: Path | None = None):
         for ident, candidates in records.items()
         if len(candidates) == 1 and sum(record == candidates[0] for record in selected) == 1
     }
-    scope = selection.get("w02_scope", {})
+    scope = selection.get("rubric_scope", {})
     if not isinstance(scope, dict):
-        raise ValueError("w02_scope must be an object")
+        raise ValueError("rubric_scope must be an object")
     _inventory(rows["DISC-01-A"], scope.get("task_artifacts"), records, diagnostics, root)
     dependency_scope = scope.get("grading_dependencies")
     _inventory(rows["DISC-01-C"], dependency_scope, records, diagnostics, root)

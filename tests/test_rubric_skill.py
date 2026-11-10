@@ -10,6 +10,23 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills/eval-author-rubric"
+PLANNING_TICKET = re.compile(r"(?<![a-z0-9])" + "w" + r"(?:0[1-9]|1[01])(?![a-z0-9])", re.IGNORECASE)
+
+
+def test_authored_sources_use_descriptive_names_not_planning_tickets() -> None:
+    extensions = {".py", ".md", ".json", ".jsonl", ".yaml", ".yml", ".toml", ".txt", ".html", ".sh"}
+    paths = [*ROOT.glob("*.md")]
+    for directory in ("skills", "tools", "evals", "docs", "tests"):
+        paths.extend(path for path in (ROOT / directory).rglob("*") if path.is_file() and path.suffix in extensions)
+    violations = []
+    for path in sorted(paths):
+        relative = path.relative_to(ROOT).as_posix()
+        if PLANNING_TICKET.search(relative):
+            violations.append(relative)
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if PLANNING_TICKET.search(line):
+                violations.append(f"{relative}:{number}")
+    assert not violations, "Planning-ticket identifiers remain:\n" + "\n".join(violations)
 
 
 def test_rubric_scope_and_initial_slice() -> None:
@@ -37,13 +54,13 @@ def test_rubric_routes_only_the_explicitly_selected_assessment_area() -> None:
     purpose = text.split("## Purpose", 1)[1].split("## Instructions", 1)[0]
     assert re.search(r"Anti-cheat-only opt-in does not select artifact, configuration, and provenance", purpose)
     assert re.search(r"Artifact, configuration, and provenance opt-in does not select anti-cheat", purpose)
-    assert not re.search(r"\bW0[125]\b", purpose)
+    assert not PLANNING_TICKET.search(purpose)
     assert "references/anti-cheat.md" in text
     assert "references/artifact-configuration-provenance.md" in text
     assert "references/identity.md" in text
 
 
-def test_w02_canonical_source_preserves_criterion_checks_and_anchors() -> None:
+def test_rubric_canonical_source_preserves_criterion_checks_and_anchors() -> None:
     source = SKILL / "references/artifact-configuration-provenance.json"
     assert source.is_file()
     data = json.loads(source.read_text())
@@ -68,7 +85,7 @@ def test_w02_canonical_source_preserves_criterion_checks_and_anchors() -> None:
     assert all(set(item["scoring"]) == {"0", "1", "2", "3"} for item in items)
 
 
-def test_w02_reference_uses_canonical_definitions_and_item_specific_evidence() -> None:
+def test_rubric_reference_uses_canonical_definitions_and_item_specific_evidence() -> None:
     reference = SKILL / "references/artifact-configuration-provenance.md"
     assert reference.is_file()
     text = reference.read_text()
