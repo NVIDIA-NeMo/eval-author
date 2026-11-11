@@ -20,6 +20,7 @@ MAX_PUBLIC_BYTES = 4096
 STAGE_ORDER = (
     "apt_index",
     "apt_bootstrap",
+    "apt_full_index",
     "apt_acquire",
     "apt_plan_validate",
     "apt_staging",
