@@ -5,6 +5,9 @@
 set -euo pipefail
 export LC_ALL=C
 
+# Observation only: preserve bootstrap's fail-closed status and existing CI cap.
+timeout --kill-after=1s 25s bash "$(dirname "${BASH_SOURCE[0]}")/diagnose_native_apt_https.sh" 2>/dev/null || :
+
 root=$1
 mkdir -m 700 "$root"
 root=$(cd "$root" && pwd -P)

@@ -358,7 +358,14 @@ state = Path(os.environ["APT_TEST_STATE"])
 calls = json.loads(state.read_text())
 calls.append([name, args])
 state.write_text(json.dumps(calls))
-if name == "dpkg":
+if name == "curl":
+    sys.exit(28)
+elif name == "timeout":
+    assert args[:3] == ["--kill-after=1s", "25s", "bash"]
+    if os.environ.get("APT_TEST_DIAGNOSTIC_FAIL"):
+        sys.exit(124)
+    os.execv("/bin/bash", ["bash", *args[3:]])
+elif name == "dpkg":
     assert args == ["--print-architecture"]
     print("amd64")
 elif name == "dpkg-query":
@@ -390,7 +397,7 @@ else:
 """
     )
     fake.chmod(0o755)
-    for name in ("dpkg", "dpkg-query", "dpkg-deb"):
+    for name in ("dpkg", "dpkg-query", "dpkg-deb", "curl", "timeout"):
         (binary / name).symlink_to(fake)
     root = tmp_path / "private-apt"
 
@@ -405,6 +412,24 @@ else:
         return result, json.loads(state.read_text()), root
 
     return run
+
+
+@pytest.mark.parametrize("diagnostic_failure", [False, True])
+@pytest.mark.parametrize("bootstrap_failure", ["", "update", "download"])
+def test_native_diagnostic_is_bounded_prebootstrap_and_preserves_status(
+    native_bootstrap_commands, diagnostic_failure, bootstrap_failure
+):
+    result, calls, root = native_bootstrap_commands(
+        APT_TEST_DIAGNOSTIC_FAIL="1" if diagnostic_failure else "", APT_TEST_FAIL=bootstrap_failure
+    )
+    assert result.returncode == (7 if bootstrap_failure else 0)
+    assert calls[0] == ["timeout", ["--kill-after=1s", "25s", "bash", str(ROOT / "tools/diagnose_native_apt_https.sh")]]
+    assert [name for name, _ in calls].count("curl") == (0 if diagnostic_failure else 4)
+    if bootstrap_failure:
+        assert not any(name == "dpkg-deb" for name, _ in calls)
+        assert not (root / "usr").exists()
+        if bootstrap_failure == "update":
+            assert sum(name == "apt-get" for name, _ in calls) == 1
 
 
 def test_native_bootstrap_isolates_fixed_apt_from_vulnerable_host(native_bootstrap_commands):
