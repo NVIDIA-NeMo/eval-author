@@ -32,10 +32,13 @@ See the [architecture](docs/architecture.md) and [stage descriptions](docs/stage
 for how the experiment works.
 
 The [experiment runner guide](docs/run-experiment.md) covers end-to-end
-execution. Start with the [prepared smoke example](docs/run-experiment.md#small-prepared-smoke-benchmark)
+execution. Start with the [prepared smoke example](docs/run-experiment.md#try-the-bundled-smoke-example)
 to exercise the pipeline locally without model credentials.
 
 For preparing bundles, use the [benchmark format specification](docs/benchmark-format.md).
 For execution outputs, use the [results format specification](docs/results-format.md).
 
 See [benchmark tools](docs/tools.md) for the command guides and configuration-loading API.
+
+For the reusable case-example layout, see the
+[case example format](../case-examples/docs/benchmark-format.md).
