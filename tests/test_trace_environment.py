@@ -1200,6 +1200,46 @@ The human reviewer confirmed that this fixture accurately represents the recorde
         assert code == 0, result
 
 
+def _ready_static_environment(task_dir: Path) -> None:
+    """Create the real task, candidate, construction and reproducibility, without proof jobs."""
+    _ready_environment(task_dir, setup_only=True)
+    if not (task_dir / "candidate.json").exists():
+        _candidate(task_dir)
+    _construction(task_dir)
+    _record_reproducibility(task_dir)
+
+
+def test_ready_static_environment_creates_no_proof_jobs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    task_dir, _ = _workspace(tmp_path)
+    calls = {"record-run-inputs": 0, "qualification": 0}
+    original_run = _run
+    original_receipt = _qualification_receipt
+
+    def counted_run(*args: str) -> tuple[int, dict[str, Any]]:
+        if args[0] == "record-run-inputs":
+            calls["record-run-inputs"] += 1
+        return original_run(*args)
+
+    def counted_receipt(task_dir: Path, trial: Path, *, reached: bool) -> None:
+        calls["qualification"] += 1
+        original_receipt(task_dir, trial, reached=reached)
+
+    monkeypatch.setitem(globals(), "_run", counted_run)
+    monkeypatch.setitem(globals(), "_qualification_receipt", counted_receipt)
+    _ready_static_environment(task_dir)
+
+    assert calls == {"record-run-inputs": 0, "qualification": 0}
+    assert not (task_dir / "private/jobs").exists()
+    assert not (task_dir / "validation.json").exists()
+    assert (task_dir / "candidate.json").is_file()
+    assert (task_dir / _TRACE_ENVIRONMENT.construction.PATH).is_file()
+    assert (task_dir / "task/tests/qualification-probes.json").is_file()
+    report = json.loads((task_dir / "reproducibility.json").read_text(encoding="utf-8"))
+    assert report["file_count"] == 9
+    assert report["portability"]["state"] == "image_pinned_recipe"
+    assert report == _TRACE_ENVIRONMENT._derive_reproducibility(task_dir)
+
+
 def test_init_creates_private_gitignored_workspace(tmp_path: Path) -> None:
     root = tmp_path / ".eval-author" / ".working" / "trace-environments"
 
@@ -1927,7 +1967,7 @@ def test_ready_candidate_requires_substantive_readme_sections(tmp_path: Path) ->
 def test_reproducibility_records_complete_task_tree_and_portability(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
     _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
 
     report = json.loads((task_dir / "reproducibility.json").read_text(encoding="utf-8"))
 
@@ -1957,7 +1997,7 @@ def test_reproducibility_digest_covers_executable_bits(tmp_path: Path) -> None:
 def test_reproducibility_retains_failed_contamination_evidence(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
     _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     target = task_dir / "task/environment/.git/config"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text('[remote "origin"]\n', encoding="utf-8")
@@ -1994,7 +2034,7 @@ def test_candidate_requires_no_network_agent_environment(tmp_path: Path) -> None
 def test_reproducibility_rejects_solution_file_in_agent_context(tmp_path: Path) -> None:
     task_dir, _ = _workspace(tmp_path)
     _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     (task_dir / "task" / "environment" / "answer.sh").write_bytes(
         (task_dir / "task" / "solution" / "solve.sh").read_bytes()
     )
@@ -3027,7 +3067,7 @@ def test_builtin_agent_cannot_be_declared_control(tmp_path: Path, agent: str, ar
 )
 def test_portability_tracks_external_copy_sources(tmp_path: Path, copy_source: str, pinned: bool) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     (task_dir / "task/environment/Dockerfile").write_text(
         f'FROM scratch AS builder\nFROM scratch\nCOPY --from="{copy_source}" /tool /tool\n'
     )
@@ -3052,7 +3092,7 @@ def test_portability_tracks_external_copy_sources(tmp_path: Path, copy_source: s
 )
 def test_portability_tracks_multiple_run_mounts(tmp_path: Path, source: str, pinned: bool, internal: bool) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     (task_dir / "task/environment/Dockerfile").write_text(
         "FROM scratch AS builder\nFROM scratch\n"
         "RUN --mount=type=bind,from=builder,target=/local \\\n"
@@ -3074,7 +3114,7 @@ def test_portability_inventories_dockerfile_frontend(
     tmp_path: Path, reference: str, pinned: bool, location: str
 ) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     (task_dir / f"task/{location}/Dockerfile").write_text(f"# syntax={reference}\nFROM scratch\n")
     _record_reproducibility(task_dir)
     report = json.loads((task_dir / "reproducibility.json").read_text())
@@ -3089,7 +3129,7 @@ def test_portability_inventories_dockerfile_frontend(
 @pytest.mark.parametrize("prefix", ["\n", "# ordinary comment\n", "FROM scratch\n"])
 def test_portability_ignores_inactive_syntax_comments(tmp_path: Path, prefix: str) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     (task_dir / "task/environment/Dockerfile").write_text(prefix + "# syntax=docker/dockerfile:1\nFROM scratch\n")
     _record_reproducibility(task_dir)
     report = json.loads((task_dir / "reproducibility.json").read_text())
@@ -3103,7 +3143,7 @@ def test_portability_ignores_inactive_syntax_comments(tmp_path: Path, prefix: st
 @pytest.mark.parametrize("pinned", [True, False])
 def test_portability_tracks_configured_images(tmp_path: Path, location: str, pinned: bool) -> None:
     task_dir, _ = _workspace(tmp_path)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
     path = task_dir / "task/task.toml"
     config = path.read_text()
     image = "example.invalid/runtime@sha256:" + "b" * 64 if pinned else "example.invalid/runtime:latest"
