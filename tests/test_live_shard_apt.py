@@ -342,23 +342,160 @@ def test_snapshot_argument_selects_exact_transaction(apt_commands):
     assert len(state["finished"]) == 1
 
 
+@pytest.fixture
+def native_bootstrap_commands(tmp_path):
+    binary = tmp_path / "bin"
+    binary.mkdir()
+    state = tmp_path / "native.json"
+    state.write_text("[]")
+    fake = binary / "apt-get"
+    fake.write_text(
+        f"#!{sys.executable}\n"
+        + """import json, os, sys
+from pathlib import Path
+name, args = Path(sys.argv[0]).name, sys.argv[1:]
+state = Path(os.environ["APT_TEST_STATE"])
+calls = json.loads(state.read_text())
+calls.append([name, args])
+state.write_text(json.dumps(calls))
+if name == "dpkg":
+    assert args == ["--print-architecture"]
+    print("amd64")
+elif name == "dpkg-query":
+    print("2.8.3")
+elif name == "apt-get":
+    phase = "update" if "update" in args else "download"
+    if os.environ.get("APT_TEST_FAIL") == phase:
+        sys.exit(7)
+    if phase == "download":
+        for package in ("apt", "libapt-pkg6.0t64"):
+            Path(f"{package}_2.8.4ubuntu0.1_amd64.deb").write_bytes(b"synthetic archive")
+elif name == "dpkg-deb":
+    if args[0] == "--show":
+        package = Path(args[2]).name.split("_")[0]
+        print(package)
+        print(os.environ.get("APT_TEST_VERSION", "2.8.4ubuntu0.1"))
+        print("amd64")
+    else:
+        assert args[0] == "--extract"
+        root = Path(args[2])
+        (root / "usr/lib/apt/methods").mkdir(parents=True, exist_ok=True)
+        (root / "usr/lib/x86_64-linux-gnu").mkdir(parents=True, exist_ok=True)
+        (root / "usr/lib/x86_64-linux-gnu/libapt-pkg.so.6.0").touch()
+        helper = root / "usr/lib/apt/apt-helper"
+        helper.write_text("#!/bin/sh\\nprintf 'apt 2.8.4 (amd64)\\\\n'\\n")
+        helper.chmod(0o755)
+else:
+    raise AssertionError(name)
+"""
+    )
+    fake.chmod(0o755)
+    for name in ("dpkg", "dpkg-query", "dpkg-deb"):
+        (binary / name).symlink_to(fake)
+    root = tmp_path / "private-apt"
+
+    def run(**changes):
+        result = subprocess.run(
+            ["/bin/bash", str(ROOT / "tools/bootstrap_native_apt.sh"), str(root)],
+            env={"PATH": str(binary) + os.pathsep + os.defpath, "APT_TEST_STATE": str(state), **changes},
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return result, json.loads(state.read_text()), root
+
+    return run
+
+
+def test_native_bootstrap_isolates_fixed_apt_from_vulnerable_host(native_bootstrap_commands):
+    result, calls, root = native_bootstrap_commands()
+    assert result.returncode == 0, result.stderr
+    assert not any(name == "dpkg-query" for name, _ in calls)
+    apt_calls = [args for name, args in calls if name == "apt-get"]
+    assert len(apt_calls) == 2
+    assert all("Acquire::Retries=0" in args for args in apt_calls)
+    assert apt_calls[1][-3:] == ["download", "apt=2.8.4ubuntu0.1", "libapt-pkg6.0t64=2.8.4ubuntu0.1"]
+    assert all("install" not in args and "upgrade" not in args for args in apt_calls)
+    assert all(f"Dir::Etc::sourcelist={root}/ubuntu.sources" in args for args in apt_calls)
+    assert all("Dir::Etc::sourceparts=-" in args for args in apt_calls)
+    assert "Suites: noble-security\nComponents: main\n" in (root / "ubuntu.sources").read_text()
+    assert "Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg" in (root / "ubuntu.sources").read_text()
+    assert (root / "usr/lib/apt/apt-helper").is_file()
+
+
+@pytest.mark.parametrize("failure", ["update", "download"])
+def test_native_bootstrap_failed_acquisition_never_extracts(native_bootstrap_commands, failure):
+    result, calls, root = native_bootstrap_commands(APT_TEST_FAIL=failure)
+    assert result.returncode == 7
+    assert not any(name == "dpkg-deb" for name, _ in calls)
+    assert not (root / "usr").exists()
+
+
+@pytest.mark.parametrize("version", ["2.8.3", "", "2.8.4ubuntu0.2"])
+def test_native_bootstrap_rejects_unexpected_archive_before_extraction(native_bootstrap_commands, version):
+    result, calls, root = native_bootstrap_commands(APT_TEST_VERSION=version)
+    assert result.returncode != 0
+    assert not any(name == "dpkg-deb" and args[0] == "--extract" for name, args in calls)
+    assert not (root / "usr").exists()
+
+
+def test_ci_bootstraps_private_apt_before_both_python_test_groups():
+    import yaml
+
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    job = workflow["jobs"]["test"]
+    assert job["strategy"]["matrix"]["python-version"] == ["3.12", "3.13"]
+    bootstrap = next(step for step in job["steps"] if "bootstrap_native_apt.sh" in step.get("run", ""))
+    tests = next(step for step in job["steps"] if step.get("name") == "Run tests in two parallel groups")
+    assert job["steps"].index(bootstrap) < job["steps"].index(tests)
+    assert bootstrap["run"] == 'bash tools/bootstrap_native_apt.sh "$RUNNER_TEMP/native-apt"'
+    assert bootstrap["timeout-minutes"] == 3
+    assert tests["env"]["EVAL_AUTHOR_NATIVE_APT_ROOT"] == "${{ runner.temp }}/native-apt"
+
+
+@pytest.fixture(scope="session")
+def native_apt():
+    private = os.environ.get("EVAL_AUTHOR_NATIVE_APT_ROOT")
+    helper = Path(private) / "usr/lib/apt/apt-helper" if private else Path("/usr/lib/apt/apt-helper")
+    if not helper.is_file():
+        if private or os.environ.get("GITHUB_ACTIONS") == "true":
+            pytest.fail("native APT bootstrap required on CI")
+        pytest.skip("native APT required")
+    env = {}
+    if private:
+        architecture = subprocess.check_output(["dpkg", "--print-architecture"], text=True, timeout=10).strip()
+        triplet = {"amd64": "x86_64-linux-gnu", "arm64": "aarch64-linux-gnu"}[architecture]
+        env["LD_LIBRARY_PATH"] = str(Path(private) / "usr/lib" / triplet)
+        assert (Path(env["LD_LIBRARY_PATH"]) / "libapt-pkg.so.6.0").is_file()
+        for package in ("apt", "libapt-pkg6.0t64"):
+            archive = Path(private) / "archives" / f"{package}_2.8.4ubuntu0.1_{architecture}.deb"
+            metadata = subprocess.check_output(
+                ["dpkg-deb", "--show", "--showformat=${Package}\n${Version}\n${Architecture}", str(archive)],
+                text=True,
+                timeout=10,
+            ).strip()
+            assert metadata == f"{package}\n2.8.4ubuntu0.1\n{architecture}"
+        version = subprocess.check_output([str(helper), "--version"], env=env, text=True, timeout=10).strip()
+        assert version == f"apt 2.8.4 ({architecture})"
+    else:
+        for package in ("apt", "libapt-pkg6.0t64"):
+            installed = subprocess.run(
+                ["dpkg-query", "-W", "-f=${Version}", package], capture_output=True, text=True, timeout=10
+            )
+            assert installed.returncode == 0 and installed.stdout, "patched APT and libapt required"
+            floor = subprocess.run(["dpkg", "--compare-versions", installed.stdout, "ge", "2.8.4ubuntu0.1"], timeout=10)
+            assert floor.returncode == 0, "patched APT and libapt required for native retry test"
+    return helper, env
+
+
 @pytest.mark.parametrize("failure", ["transient", "permanent", "hash"])
-def test_native_apt_retries_only_transient_downloads(tmp_path, failure):
+def test_native_apt_retries_only_transient_downloads(tmp_path, failure, native_apt):
     import hashlib
     import http.server
     import threading
 
-    helper = Path("/usr/lib/apt/apt-helper")
-    if not helper.is_file():
-        pytest.skip("native APT required")
-    for package in ("apt", "libapt-pkg6.0t64"):
-        installed = subprocess.run(
-            ["dpkg-query", "-W", "-f=${Version}", package], capture_output=True, text=True, timeout=10
-        )
-        if installed.returncode != 0 or not installed.stdout:
-            pytest.fail("patched APT and libapt required for native retry test")
-        floor = subprocess.run(["dpkg", "--compare-versions", installed.stdout, "ge", "2.8.4ubuntu0.1"], timeout=10)
-        assert floor.returncode == 0, "patched APT and libapt required for native retry test"
+    helper, native_env = native_apt
+    method_options = ["-o", f"Dir::Bin::methods={helper.parent / 'methods'}"]
     payload = b"synthetic package bytes"
     requests = []
 
@@ -385,6 +522,7 @@ def test_native_apt_retries_only_transient_downloads(tmp_path, failure):
         result = subprocess.run(
             [
                 str(helper),
+                *method_options,
                 "-o",
                 "Acquire::Retries=1",
                 "download-file",
@@ -392,7 +530,7 @@ def test_native_apt_retries_only_transient_downloads(tmp_path, failure):
                 str(output),
                 f"SHA256:{digest}",
             ],
-            env={"PATH": os.defpath, "HOME": str(tmp_path)},
+            env={"PATH": os.defpath, "HOME": str(tmp_path), **native_env},
             capture_output=True,
             text=True,
             timeout=20,

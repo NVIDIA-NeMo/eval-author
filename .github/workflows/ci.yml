@@ -162,9 +162,14 @@ jobs:
       - name: Type check
         run: uv run --locked ty check --python-version ${{ matrix.python-version }}
       - run: uv run --locked ruff format --check .
+      - name: Acquire isolated patched APT for native retry tests
+        timeout-minutes: 3
+        run: bash tools/bootstrap_native_apt.sh "$RUNNER_TEMP/native-apt"
+
       - name: Run tests in two parallel groups
         env:
           PYTHONDONTWRITEBYTECODE: "1"
+          EVAL_AUTHOR_NATIVE_APT_ROOT: ${{ runner.temp }}/native-apt
         run: |
           uv run --locked pytest -q -rs --durations=10 tests/test_trace_environment.py --basetemp="$RUNNER_TEMP/pytest-trace" &
           trace_pid=$!
