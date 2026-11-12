@@ -1167,6 +1167,7 @@ The human reviewer confirmed that this fixture accurately represents the recorde
         _write_json(
             trial / "result.json",
             {
+                "id": f"trial-{job_number}{run_suffix}",
                 "task_checksum": checksum,
                 "verifier_environment_mode": mode,
                 "verifier_result": {"rewards": {"reward": reward}},
@@ -2932,6 +2933,189 @@ def test_missing_pre_run_inputs_rejects_proof(tmp_path: Path) -> None:
     code, result = _record_existing_jobs(task_dir)
     assert code == 1
     assert "record-run-inputs is required" in result["error"]
+
+
+_PROOF_JOBS = ("nop-1", "nop-2", "oracle-1", "oracle-2", "negative-1", "alternative-1")
+
+
+def _run_inputs_path(task_dir: Path, job: str) -> Path:
+    return task_dir / "private/run-inputs" / (hashlib.sha256(f"private/jobs/{job}".encode()).hexdigest() + ".json")
+
+
+def _revise(task_dir: Path, change: str) -> None:
+    """Change the proved task, then record the bounded repair and the new revision."""
+    verifier = task_dir / "task/tests/test.sh"
+    if change in ("tests", "outside_tests"):
+        verifier.write_text(verifier.read_text().replace("# Fixture check:", "# Tightened fixture check:"))
+    if change == "outside_tests":
+        (task_dir / "task/instruction.md").write_text("Repair the fixture and keep its name.\n")
+    elif change == "construction":
+        path = task_dir / _TRACE_ENVIRONMENT.construction.PATH
+        document = json.loads(path.read_text())
+        document["probes"][0]["timeout_seconds"] = 3
+        _write_json(path, document)
+        (task_dir / "task/tests/qualification-probes.json").write_text(json.dumps(document["probes"]))
+    code, result = _run(
+        "record-repair",
+        "--task-dir",
+        str(task_dir),
+        "--reason-code",
+        "verifier_defect",
+        "--note",
+        "Tighten the fixture check after reviewing the retained jobs.",
+    )
+    assert code == 0, result
+    _record_reproducibility(task_dir)
+
+
+def _regrade(task_dir: Path, source: str, name: str) -> tuple[int, dict[str, Any]]:
+    """Record a regrade, then retain the job `harbor jobs regrade` writes: the source agent run, graded again."""
+    code, result = _run(
+        "record-regrade-inputs",
+        "--task-dir",
+        str(task_dir),
+        "--source-job-dir",
+        f"private/jobs/{source}",
+        "--job-dir",
+        f"private/jobs/{name}",
+    )
+    if code == 0:
+        source_trial = task_dir / "private/jobs" / source / "task__trial"
+        recorded = json.loads((source_trial / "result.json").read_text())
+        trial = task_dir / "private/jobs" / name / "task__regraded"
+        shutil.copytree(source_trial / "verifier", trial / "verifier")
+        origin = {"action": "regrade", "type": "local", "trial_id": recorded["id"], "path": str(source_trial)}
+        _write_json(
+            trial / "result.json",
+            {
+                **recorded,
+                "id": f"{name}-trial",
+                "task_checksum": Task(task_dir / "task").checksum,
+                "config": {**recorded["config"], "job_id": f"{name}-job", "source_trial": origin},
+            },
+        )
+    return code, result
+
+
+def _record_jobs(task_dir: Path, jobs: list[str]) -> tuple[int, dict[str, Any]]:
+    args = [arg for job in jobs for arg in (f"--{job.split('-', 1)[0]}-job-dir", f"private/jobs/{job}")]
+    return _run("record-validation", "--task-dir", str(task_dir), *args, "--harbor-version", "0.24.0")
+
+
+def test_tests_only_change_is_proven_by_regrading_retained_jobs(tmp_path: Path) -> None:
+    task_dir, _ = _workspace(tmp_path)
+    _ready_environment(task_dir)
+    _revise(task_dir, "tests")
+    for job in _PROOF_JOBS:
+        code, result = _regrade(task_dir, job, f"{job}-regraded")
+        assert code == 0, result
+
+    code, result = _record_jobs(task_dir, [f"{job}-regraded" for job in _PROOF_JOBS])
+
+    assert code == 0 and result["passed"], result
+    validation = json.loads((task_dir / "validation.json").read_text())
+    runs = [run for arm_runs in validation["runs"].values() for run in arm_runs]
+    assert len(runs) == len(_PROOF_JOBS)
+    for run in runs:
+        regrade = run["regrade"]
+        assert run["job_dir"] == regrade["source_job_dir"] + "-regraded"
+        assert regrade["source_tests_tree_sha256"] != regrade["tests_tree_sha256"]
+    _review_privacy(task_dir, reviewer_kind="human")
+    code, result = _run("finalize", "--task-dir", str(task_dir), "--status", "candidate", "--human-reviewed")
+    assert code == 0, result
+    code, check = _run("check", "--task-dir", str(task_dir))
+    assert code == 0, check
+
+
+@pytest.mark.parametrize(
+    "change,error",
+    [
+        ("outside_tests", "outside tests/ changed"),
+        ("construction", "construction contract changed"),
+        ("unchanged", "tests/ is unchanged"),
+    ],
+)
+def test_regrade_requires_a_tests_only_change(tmp_path: Path, change: str, error: str) -> None:
+    task_dir, _ = _workspace(tmp_path)
+    _ready_environment(task_dir)
+    _revise(task_dir, change)
+    code, result = _regrade(task_dir, "nop-1", "nop-1-regraded")
+    assert code == 1
+    assert error in result["error"]
+    assert not _run_inputs_path(task_dir, "nop-1-regraded").exists()
+
+
+@pytest.mark.parametrize(
+    "problem,error",
+    [
+        ("missing", "regrade source pre-run inputs must be a regular file"),
+        ("legacy", "predates tests/ digests"),
+        ("regraded", "not a regraded one"),
+        ("tampered", "regrade inputs differ from their source job"),
+    ],
+)
+def test_regrade_requires_the_genuine_fresh_source_receipt(tmp_path: Path, problem: str, error: str) -> None:
+    task_dir, _ = _workspace(tmp_path)
+    _ready_environment(task_dir)
+    _revise(task_dir, "tests")
+    source = _run_inputs_path(task_dir, "nop-1")
+    receipt = json.loads(source.read_text())
+    if problem == "regraded":
+        assert _regrade(task_dir, "nop-1", "nop-1-first")[0] == 0
+        code, result = _regrade(task_dir, "nop-1-first", "nop-1-regraded")
+    elif problem == "tampered":
+        for job in _PROOF_JOBS:
+            assert _regrade(task_dir, job, f"{job}-regraded")[0] == 0
+        _write_json(source, {**receipt, "task_tree_sha256": "sha256:" + "0" * 64})
+        code, result = _record_jobs(task_dir, [f"{job}-regraded" for job in _PROOF_JOBS])
+    else:
+        if problem == "missing":
+            source.unlink()
+        else:
+            del receipt["tests_tree_sha256"], receipt["task_tree_without_tests_sha256"]
+            _write_json(source, {**receipt, "schema": "nemo.eval_author.trace_environment_run_input.v3"})
+        code, result = _regrade(task_dir, "nop-1", "nop-1-regraded")
+    assert code == 1 and error in result["error"]
+    assert not (task_dir / "validation.json").exists()
+
+
+def test_one_retained_job_backs_only_one_regraded_proof_run(tmp_path: Path) -> None:
+    task_dir, _ = _workspace(tmp_path)
+    _ready_environment(task_dir)
+    _revise(task_dir, "tests")
+    for job in _PROOF_JOBS:
+        assert _regrade(task_dir, job, f"{job}-regraded")[0] == 0
+    code, result = _regrade(task_dir, "nop-1", "nop-1-regraded")
+    assert code == 1 and "fresh job name" in result["error"]
+    assert _regrade(task_dir, "nop-1", "nop-1-again")[0] == 0
+
+    code, result = _record_jobs(task_dir, ["nop-1-again", *(f"{job}-regraded" for job in _PROOF_JOBS)])
+
+    assert code == 1 and "can back only one proof run" in result["error"]
+
+
+def test_regraded_custom_control_stays_bound_to_its_declared_source(tmp_path: Path) -> None:
+    task_dir, _ = _workspace(tmp_path)
+    _ready_environment(task_dir)
+    _revise(task_dir, "tests")
+    for job in _PROOF_JOBS:
+        assert _regrade(task_dir, job, f"{job}-regraded")[0] == 0
+    (task_dir / "private/negative_agent.py").write_text("# Changed implementation\n")
+
+    code, result = _record_jobs(task_dir, [f"{job}-regraded" for job in _PROOF_JOBS])
+
+    assert code == 1 and "control source or recorded agent differs" in result["error"]
+
+
+def test_run_input_v3_receipts_still_prove_fresh_jobs(tmp_path: Path) -> None:
+    task_dir, _ = _workspace(tmp_path)
+    _ready_environment(task_dir, record_validation=False)
+    for path in (task_dir / "private/run-inputs").glob("*.json"):
+        receipt = json.loads(path.read_text())
+        del receipt["tests_tree_sha256"], receipt["task_tree_without_tests_sha256"]
+        _write_json(path, {**receipt, "schema": "nemo.eval_author.trace_environment_run_input.v3"})
+    code, result = _record_existing_jobs(task_dir)
+    assert code == 0 and result["passed"], result
 
 
 @pytest.mark.parametrize(

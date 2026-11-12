@@ -589,8 +589,15 @@ fresh run. An explicit repair may update the current manifest in place, carrying
 its repair count and requiring fresh controls and agent evidence. It resets
 registrations for the old manifest while leaving native results untouched;
 source control owns version history. Do not otherwise delete failed entries to
-obtain acceptance. This is
-local integrity/accounting, not a tamper-proof execution attestation.
+obtain acceptance. When a repair changed only a Harbor task's `tests/`,
+`run --regrade-of <receipt>` may instead record a `harbor trial regrade` of a
+trial from the previous revision. The receipt's `regrade` record binds the
+source receipt and trial and the old and new `tests/` digests, and each source
+trial backs one regraded receipt. Trace workspaces use `record-regrade-inputs`
+with `harbor jobs regrade`, and `validation.json` marks each regraded run with
+its source job and `tests/` digests. The tests change still counts as one repair.
+NeMo Gym evidence has no regrade path. This is local integrity/accounting, not a
+tamper-proof execution attestation.
 
 `task_pipeline.py verify` rebuilds bound before/after aggregates and requires the
 same denominator, matching trace/run identities, coverage in every repetition,

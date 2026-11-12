@@ -80,8 +80,9 @@ exceptions, or checksums.
 
 Failed proof remains technical evidence, and a fixable defect starts the
 bounded repair loop: `record-repair` with a reason code, then a fresh manifest
-and proof set (at most three repairs). Do not weaken the verifier to make
-Oracle pass.
+and proof set (at most three repairs). When the repair changed only `tests/`,
+regrade the retained jobs as `environment-integrity.md` describes instead of
+rerunning them. Do not weaken the verifier to make Oracle pass.
 
 If Harbor or Docker is missing, technical status is `not_run` and the environment
 is `unproven`; do not describe it as ready. The integrity reference defines the

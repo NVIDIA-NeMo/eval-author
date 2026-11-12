@@ -32,6 +32,9 @@ SCHEMA = "nemo.eval_author.task_evidence.v1"
 MANIFEST_SCHEMA = "nemo.eval_author.task_evidence.v2"
 REPAIR_STATE_SCHEMA = "nemo.eval_author.repair_state.v1"
 IGNORED = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache"}
+# A Harbor manifest's digests of everything outside tests/ and of tests/ alone; equal outside
+# tests/ means recorded trials may be regraded instead of rerun.
+_TESTS_SPLIT = ("task_without_tests_sha256", "tests_sha256")
 
 
 class EvidenceError(ValueError):
@@ -81,7 +84,7 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def task_digest(task: Path) -> str:
+def _task_entries(task: Path) -> list[list[Any]]:
     if not task.is_dir() or task.is_symlink():
         raise EvidenceError("task must be a directory, not a symlink")
     entries = []
@@ -94,7 +97,29 @@ def task_digest(task: Path) -> str:
         entries.append([str(relative), path.stat().st_mode & 0o777, digest(path) if path.is_file() else None])
     if not entries:
         raise EvidenceError("task is empty")
+    return entries
+
+
+def _entries_digest(entries: list[list[Any]]) -> str:
     return hashlib.sha256(json.dumps(entries).encode()).hexdigest()
+
+
+def task_digest(task: Path) -> str:
+    return _entries_digest(_task_entries(task))
+
+
+def _task_digests(task: Path) -> dict[str, str]:
+    """The full digest plus the split a tests-only regrade compares."""
+    entries = _task_entries(task)
+    tests: list[list[Any]] = []
+    others: list[list[Any]] = []
+    for entry in entries:
+        (tests if Path(entry[0]).parts[0] == "tests" else others).append(entry)
+    return {
+        "task_sha256": _entries_digest(entries),
+        "task_without_tests_sha256": _entries_digest(others),
+        "tests_sha256": _entries_digest(tests),
+    }
 
 
 def pointer(value: Any, path: str) -> Any:
@@ -199,6 +224,7 @@ def prepare(
         fresh(output, task)
     repair_count = 0
     registrations = []
+    previous_revision = None
     if previous:
         old = read(previous)
         if old.get("schema") not in (SCHEMA, MANIFEST_SCHEMA) or old.get("task_dir") != str(task.resolve()):
@@ -212,6 +238,12 @@ def prepare(
         repair_count = _manifest_repair_count(old) + 1
         if repair_count > 3:
             raise EvidenceError("three-repair budget exhausted; retain the unresolved task")
+        if all(key in old for key in _TESTS_SPLIT):
+            previous_revision = {
+                "manifest_sha256": digest(previous),
+                **{key: old[key] for key in ("task_sha256", *_TESTS_SPLIT)},
+                "construction_sha256": _construction_sha256(old),
+            }
         if replacing:
             ledger = Path(str(output.resolve()) + ".attempts")
             if ledger.is_symlink() or (ledger.exists() and (not ledger.is_dir() or old.get("attempts") != str(ledger))):
@@ -239,11 +271,12 @@ def prepare(
     from .construction import bind
 
     construction = bind(construction_plan, task, contract) if construction_plan else {"status": "unmeasured"}
+    digests = _task_digests(task)
     manifest = {
         "schema": MANIFEST_SCHEMA,
         "construction": construction,
         "task_dir": str(task.resolve()),
-        "task_sha256": task_digest(task),
+        "task_sha256": digests["task_sha256"],
         "contract": contract,
         "repair_count": repair_count,
         "attempts": str(output.resolve()) + ".attempts",
@@ -257,6 +290,9 @@ def prepare(
             raise EvidenceError("Harbor preparation needs the Harbor Python runtime used for execution") from exc
 
         manifest["harbor_task_checksum"] = Task(task.resolve()).checksum
+        manifest.update({key: digests[key] for key in _TESTS_SPLIT})
+        if previous_revision is not None:
+            manifest["previous_revision"] = previous_revision
     if contract["provider"] == "gym":
         from .gym_evidence import snapshot
 
@@ -328,6 +364,96 @@ def native_identity(native: dict[str, Any], manifest: dict[str, Any]) -> str:
     return identity
 
 
+def _construction_sha256(manifest: dict[str, Any]) -> str | None:
+    construction = manifest.get("construction")
+    return construction.get("sha256") if isinstance(construction, dict) else None
+
+
+def _agent_fields(config: Any) -> tuple[Any, ...] | None:
+    agent = config.get("agent") if isinstance(config, dict) else None
+    if not isinstance(agent, dict):
+        return None
+    # Identity only: Harbor re-serializes other agent settings, such as redacted env.
+    return agent.get("name"), agent.get("import_path"), agent.get("model_name")
+
+
+def _require_regrade_of(regraded: dict[str, Any], source: dict[str, Any], error_type=EvidenceError) -> None:
+    """Harbor names the trial a regrade replays and carries that trial's agent configuration."""
+    config = regraded.get("config")
+    origin = config.get("source_trial") if isinstance(config, dict) else None
+    agent = _agent_fields(config)
+    if (
+        not isinstance(origin, dict)
+        or origin.get("action") != "regrade"
+        or not isinstance(source.get("id"), str)
+        or not source["id"]
+        or origin.get("trial_id") != source["id"]
+        or agent is None
+        or agent != _agent_fields(source.get("config"))
+    ):
+        raise error_type("regraded Harbor trial must name its source trial and keep that trial's agent")
+
+
+def _regrade_base(manifest: dict[str, Any]) -> dict[str, Any]:
+    """The previous revision whose recorded Harbor trials this tests-only revision may regrade."""
+    if manifest["contract"]["provider"] != "harbor":
+        raise EvidenceError("only Harbor trials can be regraded; repeat NeMo Gym runs")
+    base = manifest.get("previous_revision")
+    if not isinstance(base, dict):
+        raise EvidenceError(
+            "regrade needs a repair prepared with --previous from a manifest that records tests/ digests; "
+            "run fresh trials"
+        )
+    if base.get("task_without_tests_sha256") != manifest.get("task_without_tests_sha256"):
+        raise EvidenceError("files outside tests/ changed since the previous revision; run fresh trials")
+    if base.get("tests_sha256") == manifest.get("tests_sha256"):
+        raise EvidenceError("tests/ is unchanged since the previous revision; regrade applies only to tests changes")
+    if base.get("construction_sha256") != _construction_sha256(manifest):
+        raise EvidenceError("construction plan changed since the previous revision; run fresh trials")
+    return base
+
+
+def _regrade_source(base: dict[str, Any], case_id: str, purpose: str, path: Path) -> tuple[dict, dict]:
+    source = read(path)
+    if (
+        source.get("schema") != SCHEMA
+        or source.get("returncode") != 0
+        or source.get("status") not in ("passed", "behavior_failed")
+    ):
+        raise EvidenceError("regrade source must be a completed trial receipt; rerun failed or interrupted attempts")
+    require_binding(
+        source.get("manifest_sha256"),
+        base.get("manifest_sha256"),
+        "regrade source must be a receipt of the previous task revision",
+    )
+    if source.get("case") != case_id or source.get("purpose") != purpose:
+        raise EvidenceError("regrade must keep the source receipt's case and purpose")
+    result = Path(source["result"])
+    require_binding(digest(result), source.get("result_sha256"), "regrade source native result changed")
+    if source.get("trace") is not None:
+        require_binding(digest(Path(source["trace"])), source.get("trace_sha256"), "regrade source trace changed")
+    return source, read(result)
+
+
+def _regrade_record(
+    manifest: dict[str, Any], base: dict[str, Any], path: Path, source_native: dict[str, Any]
+) -> dict[str, Any]:
+    return {
+        "source_receipt": str(path.resolve()),
+        "source_receipt_sha256": digest(path),
+        "source_trial_id": source_native.get("id"),
+        "previous_manifest_sha256": base["manifest_sha256"],
+        "tests_sha256_before": base["tests_sha256"],
+        "tests_sha256_after": manifest["tests_sha256"],
+    }
+
+
+def _check_regraded(native: dict, source: dict, source_native: dict, trace: Path | None) -> None:
+    _require_regrade_of(native, source_native)
+    if trace is not None:
+        require_binding(digest(trace), source.get("trace_sha256"), "regraded trial must carry the source agent trace")
+
+
 def run(
     manifest_path: Path,
     case_id: str,
@@ -339,6 +465,7 @@ def run(
     timeout: int = 1800,
     purpose: str = "closure",
     gym_source: Path | None = None,
+    regrade_of: Path | None = None,
 ) -> dict[str, Any]:
     manifest = manifest_at(manifest_path)
     if timeout <= 0:
@@ -351,6 +478,11 @@ def run(
         raise EvidenceError("purpose must be baseline or closure")
     if purpose == "closure" and case["kind"] == "agent" and trace is None:
         raise EvidenceError("agent evidence requires a fresh trace")
+    regrade = None
+    if regrade_of is not None:
+        base = _regrade_base(manifest)
+        regrade_source, regrade_native = _regrade_source(base, case_id, purpose, regrade_of)
+        regrade = _regrade_record(manifest, base, regrade_of, regrade_native)
     paths = [output, result] + ([trace] if trace is not None else [])
     if len({p.resolve() for p in paths}) != len(paths):
         raise EvidenceError("receipt, native result, and trace must have distinct paths")
@@ -382,6 +514,8 @@ def run(
         "trace": str(trace.resolve()) if trace else None,
         "status": "infrastructure_error",
     }
+    if regrade is not None:
+        receipt["regrade"] = regrade
     attempts = Path(manifest.get("attempts", ""))
     if not manifest.get("attempts"):
         raise EvidenceError("unbound legacy manifest; prepare a new revision before execution")
@@ -414,6 +548,8 @@ def run(
 
             write_new(result, build(source, manifest, case, purpose, trace))
         native = read(result)
+        if regrade is not None:
+            _check_regraded(native, regrade_source, regrade_native, trace)
         _validate_control(native, manifest["contract"], case)
         receipt["native_run_id"] = native_identity(native, manifest)
         receipt["result_sha256"] = digest(result)
@@ -449,6 +585,7 @@ def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]
     seen_traces = set()
     seen_trace_contents = set()
     seen_native_runs = set()
+    seen_regrade_sources = set()
     agents = {}
     contract: dict[str, Any] = {}
     for path in paths:
@@ -484,6 +621,19 @@ def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]
         if native_run_id != receipt.get("native_run_id") or native_run_id in seen_native_runs:
             raise EvidenceError("native run identity is changed or reused")
         seen_native_runs.add(native_run_id)
+        regrade = receipt.get("regrade")
+        if regrade is not None:
+            # A regrade replays one recorded trial; it must still bind that trial and a tests-only revision.
+            source_path = Path(regrade["source_receipt"])
+            base = _regrade_base(manifest)
+            source, source_native = _regrade_source(base, case_id, "closure", source_path)
+            _check_regraded(native, source, source_native, Path(receipt["trace"]) if receipt.get("trace") else None)
+            if (
+                regrade != _regrade_record(manifest, base, source_path, source_native)
+                or source_native["id"] in seen_regrade_sources
+            ):
+                raise EvidenceError("regrade record changed or its source trial backs another receipt")
+            seen_regrade_sources.add(source_native["id"])
         if not assertions(native, case["health"]) or not assertions(native, case["checks"]):
             raise EvidenceError("native evidence does not satisfy declared health and behavior checks")
         run_id = receipt.get("run_id")
@@ -561,6 +711,11 @@ def main() -> int:
     execute.add_argument("--timeout", type=int, default=1800)
     execute.add_argument("--purpose", choices=("baseline", "closure"), default="closure")
     execute.add_argument("--gym-source", type=Path)
+    execute.add_argument(
+        "--regrade-of",
+        type=Path,
+        help="previous-revision receipt whose Harbor trial this `harbor trial regrade` command regrades",
+    )
     execute.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     try:
@@ -581,6 +736,7 @@ def main() -> int:
                 args.timeout,
                 args.purpose,
                 args.gym_source,
+                args.regrade_of,
             )
         print(json.dumps(payload, indent=2))
         return 0 if payload.get("status", "passed") == "passed" else 1
@@ -886,11 +1042,8 @@ def _record_repair(args: argparse.Namespace) -> dict[str, Any]:
         "repair": progress["count"],
         "repairs_remaining": _workspace._MAX_REPAIRS - progress["count"],
         "reason_code": progress["reason_code"],
-        "next": (
-            "activate the repaired contract, then record-reproducibility, then a fresh proof set"
-            if progress["requires_activation"]
-            else "record-reproducibility, then a fresh proof set"
-        ),
+        "next": ("activate the repaired contract, then " if progress["requires_activation"] else "")
+        + "record-reproducibility, then a fresh proof set, or regraded jobs if only tests/ changed",
     }
 
 
@@ -990,9 +1143,9 @@ def _proof_control(task_dir: Path, agent: str, source: Path, rationale: str, *, 
     }
 
 
-def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
-    task_dir = _workspace._ensure_task_dir(args.task_dir)
-    job_dir = args.job_dir if args.job_dir.is_absolute() else task_dir / args.job_dir
+def _future_job_dir(task_dir: Path, value: Path) -> tuple[Path, Path]:
+    """A proof job Harbor has not created yet, under private/, and its pre-run receipt path."""
+    job_dir = value if value.is_absolute() else task_dir / value
     if job_dir.is_symlink():
         raise _workspace.ContractError("future Harbor job directory must not be a symlink")
     job_dir = job_dir.resolve()
@@ -1009,6 +1162,20 @@ def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
     output = _run_input_path(task_dir, job_dir)
     if output.exists():
         raise _workspace.ContractError("run inputs already recorded; use a fresh job name")
+    return job_dir, output
+
+
+def _tests_split(task_dir: Path) -> dict[str, str]:
+    task = task_dir / "task"
+    return {
+        "tests_tree_sha256": _workspace._task_tree_info(task / "tests")["task_tree_sha256"],
+        "task_tree_without_tests_sha256": _workspace._task_tree_info(task, exclude="tests")["task_tree_sha256"],
+    }
+
+
+def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
+    task_dir = _workspace._ensure_task_dir(args.task_dir)
+    job_dir, output = _future_job_dir(task_dir, args.job_dir)
     reproducibility = _workspace._validate_reproducibility(task_dir)
     context = _construction_context(task_dir)
     control_id = getattr(args, "control_id", None)
@@ -1033,6 +1200,7 @@ def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
         "arm": args.arm,
         "job_dir": job_dir.relative_to(task_dir).as_posix(),
         "task_tree_sha256": reproducibility["task_tree_sha256"],
+        **_tests_split(task_dir),
         "task_checksum": _harbor_task_checksum(task_dir),
         # `negative_control` records the control of every custom arm.
         "negative_control": control,
@@ -1050,15 +1218,8 @@ def _record_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def _validate_run_inputs(
-    task_dir: Path, job_dir: Path, arm: str, result: dict[str, Any], task_digest: str, checksum: str
-) -> dict[str, Any]:
-    path = _run_input_path(task_dir, job_dir)
-    receipt = _workspace._load_object(
-        path, label="pre-run inputs (record-run-inputs is required before every Harbor job)"
-    )
-    context = _construction_context(task_dir)
-    keys = {
+_RUN_INPUT_KEYS = frozenset(
+    {
         "schema",
         "arm",
         "job_dir",
@@ -1069,21 +1230,127 @@ def _validate_run_inputs(
         "control_id",
         "construction_path",
     }
-    if set(receipt) != keys or receipt.get("schema") != _workspace.RUN_INPUT_SCHEMA:
+)
+
+
+def _check_run_inputs(receipt: dict[str, Any]) -> dict[str, Any]:
+    expected = {
+        _workspace.RUN_INPUT_SCHEMA: _RUN_INPUT_KEYS | {"tests_tree_sha256", "task_tree_without_tests_sha256"},
+        _workspace.LEGACY_RUN_INPUT_SCHEMA: _RUN_INPUT_KEYS,
+    }.get(receipt.get("schema"))
+    if expected is None or set(receipt) != expected:
         raise _workspace.ContractError("run inputs do not match the versioned contract")
+    return receipt
+
+
+def _regrade_inputs(
+    task_dir: Path, job_dir: Path, source_job: str | Path, task_digest: str, checksum: str, context: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Derive a regraded job's receipt from its fresh source job and the current tests-only revision."""
+    source_dir, source_result_path, source_result = _job_result(task_dir, source_job, arm="regrade source")
+    source_path = _run_input_path(task_dir, source_dir)
+    source = _workspace._load_object(source_path, label="regrade source pre-run inputs")
+    if source.get("schema") == _workspace.REGRADE_INPUT_SCHEMA:
+        raise _workspace.ContractError("regrade the original fresh Harbor job, not a regraded one")
+    if source.get("schema") == _workspace.LEGACY_RUN_INPUT_SCHEMA:
+        raise _workspace.ContractError("regrade source predates tests/ digests; fresh Harbor jobs are required")
+    _check_run_inputs(source)
+    if source["job_dir"] != source_dir.relative_to(task_dir).as_posix():
+        raise _workspace.ContractError("regrade source inputs identify a different Harbor job")
+    if source["construction_path"] != context["canonical_path"] or source["construction_sha256"] != context["sha256"]:
+        raise _workspace.ContractError("construction contract changed since the source job; fresh jobs required")
+    current = _tests_split(task_dir)
+    if source["task_tree_without_tests_sha256"] != current["task_tree_without_tests_sha256"]:
+        raise _workspace.ContractError("files outside tests/ changed since the source job; fresh jobs required")
+    if source["tests_tree_sha256"] == current["tests_tree_sha256"]:
+        raise _workspace.ContractError("tests/ is unchanged since the source job; cite the source job instead")
+    if source_result.get("exception_info") is not None or source_result.get("task_checksum") != source["task_checksum"]:
+        raise _workspace.ContractError("regrade source must be an exception-free result of its recorded task")
+    receipt = {
+        "schema": _workspace.REGRADE_INPUT_SCHEMA,
+        "arm": source["arm"],
+        "job_dir": job_dir.relative_to(task_dir).as_posix(),
+        "source_job_dir": source["job_dir"],
+        "source_run_inputs_sha256": _workspace._sha256_file(source_path),
+        "source_result_sha256": _workspace._sha256_file(source_result_path),
+        "source_task_tree_sha256": source["task_tree_sha256"],
+        "source_tests_tree_sha256": source["tests_tree_sha256"],
+        "task_tree_sha256": task_digest,
+        "tests_tree_sha256": current["tests_tree_sha256"],
+        "task_tree_without_tests_sha256": current["task_tree_without_tests_sha256"],
+        "task_checksum": checksum,
+    }
+    return receipt, source, source_result
+
+
+def _record_regrade_inputs(args: argparse.Namespace) -> dict[str, Any]:
+    task_dir = _workspace._ensure_task_dir(args.task_dir)
+    job_dir, output = _future_job_dir(task_dir, args.job_dir)
+    reproducibility = _workspace._validate_reproducibility(task_dir)
+    receipt, _, _ = _regrade_inputs(
+        task_dir,
+        job_dir,
+        args.source_job_dir,
+        reproducibility["task_tree_sha256"],
+        _harbor_task_checksum(task_dir),
+        _construction_context(task_dir),
+    )
+    _workspace._mkdir_private(output.parent)
+    _workspace._write_bytes_once(output, (json.dumps(receipt, indent=2, sort_keys=True) + "\n").encode())
+    return {
+        "task_dir": str(task_dir),
+        "arm": receipt["arm"],
+        "run_inputs": str(output),
+        "source_job_dir": receipt["source_job_dir"],
+        "tests_tree_sha256": receipt["tests_tree_sha256"],
+        "source_tests_tree_sha256": receipt["source_tests_tree_sha256"],
+    }
+
+
+def _validate_run_inputs(
+    task_dir: Path, job_dir: Path, arm: str, result: dict[str, Any], task_digest: str, checksum: str
+) -> tuple[dict[str, Any], str | None]:
+    """Bind one proof job to its pre-run receipt; a regraded job binds through its fresh source job's receipt."""
+    path = _run_input_path(task_dir, job_dir)
+    receipt = _workspace._load_object(
+        path, label="pre-run inputs (record-run-inputs is required before every Harbor job)"
+    )
+    context = _construction_context(task_dir)
+    regrade = None
+    if receipt.get("schema") == _workspace.REGRADE_INPUT_SCHEMA:
+        if not isinstance(receipt.get("source_job_dir"), str):
+            raise _workspace.ContractError("regrade inputs do not match the versioned contract")
+        expected, inputs, source_result = _regrade_inputs(
+            task_dir, job_dir, receipt["source_job_dir"], task_digest, checksum, context
+        )
+        if receipt != expected:
+            raise _workspace.ContractError(
+                "regrade inputs differ from their source job or the current task; regrade the source job again"
+            )
+        _require_regrade_of(result, source_result, _workspace.ContractError)
+        inputs_job = task_dir / receipt["source_job_dir"]
+        regrade = {
+            "source_job_dir": receipt["source_job_dir"],
+            "source_job_id": source_result["config"].get("job_id"),
+            "source_run_inputs_sha256": receipt["source_run_inputs_sha256"],
+            "source_tests_tree_sha256": receipt["source_tests_tree_sha256"],
+            "tests_tree_sha256": receipt["tests_tree_sha256"],
+        }
+    else:
+        inputs, inputs_job = _check_run_inputs(receipt), job_dir
     require_binding(
-        receipt["construction_path"],
+        inputs["construction_path"],
         context["canonical_path"],
         "pre-run construction path changed",
         _workspace.ContractError,
     )
     require_binding(
-        receipt["construction_sha256"],
+        inputs["construction_sha256"],
         context["sha256"],
         "pre-run construction contract changed; fresh jobs required",
         _workspace.ContractError,
     )
-    control_id = receipt["control_id"]
+    control_id = inputs["control_id"]
     if arm in construction.CUSTOM_ARMS:
         if (
             not isinstance(control_id, str)
@@ -1093,9 +1360,9 @@ def _validate_run_inputs(
             raise _workspace.ContractError("pre-run control differs from construction contract")
     elif control_id is not None:
         raise _workspace.ContractError("built-in arms must not identify custom controls")
-    if receipt["arm"] != arm or receipt["job_dir"] != job_dir.relative_to(task_dir).as_posix():
+    if inputs["arm"] != arm or inputs["job_dir"] != inputs_job.relative_to(task_dir).as_posix():
         raise _workspace.ContractError("run inputs identify a different Harbor job or proof arm")
-    if receipt["task_tree_sha256"] != task_digest or receipt["task_checksum"] != checksum:
+    if regrade is None and (inputs["task_tree_sha256"] != task_digest or inputs["task_checksum"] != checksum):
         raise _workspace.ContractError(
             "pre-run task snapshot differs from the current task; fresh Harbor jobs are required"
         )
@@ -1107,7 +1374,7 @@ def _validate_run_inputs(
     )
     config = result.get("config")
     identity = _agent_identity(config.get("agent") if isinstance(config, dict) else None)
-    control = receipt["negative_control"]
+    control = inputs["negative_control"]
     if arm in construction.CUSTOM_ARMS:
         if not isinstance(control, dict) or set(control) != {"agent", "source_path", "source_sha256", "rationale"}:
             raise _workspace.ContractError(f"{arm} run inputs require retained control source and rationale")
@@ -1122,11 +1389,14 @@ def _validate_run_inputs(
             )
     elif control is not None or identity != arm:
         raise _workspace.ContractError(f"{arm} Harbor result must identify the {arm} agent")
-    return {
+    run = {
         "agent": identity,
         "run_inputs_path": path.relative_to(task_dir).as_posix(),
         "run_inputs_sha256": _workspace._sha256_file(path),
     }
+    if regrade is not None:
+        run["regrade"] = regrade
+    return run, control_id
 
 
 def _arm_from_result(task_dir: Path, job_dir: Path, result_path: Path, result: dict[str, Any]) -> dict[str, Any]:
@@ -1186,7 +1456,7 @@ def _validation_from_jobs(
             label = f"{arm} run {index}"
             job_dir, result_path, result = _job_result(task_dir, value, arm=label)
             trials.append(result)
-            run_inputs = _validate_run_inputs(
+            run_inputs, control_id = _validate_run_inputs(
                 task_dir, job_dir, arm, result, reproducibility["task_tree_sha256"], checksum
             )
             checks = _job_check_rows(job_dir)
@@ -1194,11 +1464,8 @@ def _validation_from_jobs(
             run = {**_arm_from_result(task_dir, job_dir, result_path, result), **run_inputs}
             if checks is not None:
                 run["checks"] = checks
-            receipt = _workspace._load_object(_run_input_path(task_dir, job_dir), label="run inputs")
             try:
-                run["construction_execution"] = construction.execution(
-                    task_dir, result_path, context, receipt["control_id"]
-                )
+                run["construction_execution"] = construction.execution(task_dir, result_path, context, control_id)
             except (ValueError, OSError, KeyError, TypeError, RecursionError) as error:
                 raise _workspace.ContractError("missing, malformed or stale construction execution evidence") from error
             runs[arm].append(run)
@@ -1228,6 +1495,13 @@ def _validation_from_jobs(
     job_ids = [run["job_id"] for arm_runs in runs.values() for run in arm_runs]
     require_distinct(job_dirs, "validation Harbor job directories must be distinct", _workspace.ContractError)
     require_distinct(job_ids, "validation Harbor config.job_id values must be distinct", _workspace.ContractError)
+    # A regraded job replays its source job's agent run, so each recorded run backs at most one proof run.
+    origins = [
+        Path(run["regrade"]["source_job_dir"] if "regrade" in run else run["job_dir"])
+        for arm_runs in runs.values()
+        for run in arm_runs
+    ]
+    require_distinct(origins, "a Harbor job and its regrades can back only one proof run", _workspace.ContractError)
     checksums = {trial.get("task_checksum") for trial in trials}
     retained_checksum = next(iter(checksums))
     if (
@@ -1363,7 +1637,8 @@ def _validate_validation(task_dir: Path) -> dict[str, Any]:
             "construction_execution",
         }
         for value in values:
-            if not isinstance(value, dict) or set(value) != required_run_keys:
+            # Only regraded runs carry `regrade`; rederivation below confirms it matches the evidence.
+            if not isinstance(value, dict) or set(value) - {"regrade"} != required_run_keys:
                 raise _workspace.ContractError(f"validation.runs.{arm} fields do not match the versioned contract")
     derived = _validation_from_jobs(
         task_dir,

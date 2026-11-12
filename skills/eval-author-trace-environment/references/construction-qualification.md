@@ -223,7 +223,8 @@ rows. No additional CLI or authoring agent is introduced.
 
 ## Status and compatibility
 
-New `init` workspaces use summary v4, run-input v3 and validation v7. Summary v4
+New `init` workspaces use summary v4, run-input v4 (v3 receipts still prove
+fresh jobs but cannot be regraded) and validation v7. Summary v4
 requires the manifest; deleting it fails validation. This is an edit-detection
 tripwire, not tamper-proof storage. `finalize`, `check` and publication rederive
 proof from retained results and execution receipts. Changed/missing evidence

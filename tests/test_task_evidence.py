@@ -343,6 +343,89 @@ def test_fresh_controls_pass_after_in_place_repair_without_removing_native_resul
     assert all(path.is_file() for path in original)
 
 
+TRIALS = [
+    ("reference", "reference", "oracle", 1),
+    ("incorrect", "incorrect", "wrong-answer", 0),
+    ("empty", "empty", "nop", 0),
+    ("agent", "repeat-1", "example-agent", 1),
+    ("agent", "repeat-2", "example-agent", 1),
+]
+
+
+def harbor_trial(tmp_path, manifest, case, run_id, agent, reward, regrade_of=None):
+    """Record one Harbor-shaped trial; `regrade_of` replays that receipt's trial as `harbor trial regrade` does."""
+    result = tmp_path / f"{run_id}-result.json"
+    receipt = tmp_path / f"{run_id}-receipt.json"
+    trace = tmp_path / f"{run_id}-trajectory.json" if case == "agent" else None
+    native = {"id": f"{run_id}-trial", "rollout_id": run_id, "reward": reward, "error": None}
+    native["config"] = {"agent": {"name": agent}}
+    trajectory = json.dumps({"session_id": run_id})
+    if regrade_of is not None:
+        source = evidence.read(regrade_of)
+        native["config"]["source_trial"] = {
+            "action": "regrade",
+            "trial_id": evidence.read(Path(source["result"]))["id"],
+        }
+        if trace:
+            trajectory = Path(source["trace"]).read_text()
+    code = f"from pathlib import Path; Path({str(result)!r}).write_text({json.dumps(native)!r})"
+    if trace:
+        code += f"; Path({str(trace)!r}).write_text({trajectory!r})"
+    evidence.run(manifest, case, run_id, receipt, result, trace, [sys.executable, "-c", code], regrade_of=regrade_of)
+    return receipt
+
+
+def revise_after_trials(tmp_path, prepared, change):
+    task, contract, manifest = prepared
+    sources = [harbor_trial(tmp_path, manifest, *trial) for trial in TRIALS]
+    (task / "tests").mkdir()
+    (task / "tests/test.sh").write_text("#!/bin/sh\nexit 0\n")
+    if change == "outside_tests":
+        (task / "instruction.md").write_text("Read the record and return its rounded total.")
+    evidence.prepare(task, contract, manifest, manifest, "verifier_defect: tighten the total check")
+    return sources
+
+
+def regrade_all(tmp_path, manifest, sources):
+    return [
+        harbor_trial(tmp_path, manifest, case, f"{run_id}-regraded", agent, reward, source)
+        for (case, run_id, agent, reward), source in zip(TRIALS, sources)
+    ]
+
+
+def test_tests_only_repair_regrades_recorded_trials(tmp_path, prepared):
+    manifest = prepared[2]
+    sources = revise_after_trials(tmp_path, prepared, "tests")
+    regraded = regrade_all(tmp_path, manifest, sources)
+
+    assert len(evidence.verify_receipts(regraded, "cover-read")) == 2
+    current = evidence.manifest_at(manifest)
+    assert current["repair_count"] == 1
+    for path, source in zip(regraded, sources):
+        record = evidence.read(path)["regrade"]
+        assert record["source_receipt"] == str(source.resolve())
+        assert record["tests_sha256_before"] != record["tests_sha256_after"] == current["tests_sha256"]
+
+
+def test_regrade_is_refused_when_files_outside_tests_change(tmp_path, prepared):
+    sources = revise_after_trials(tmp_path, prepared, "outside_tests")
+    with pytest.raises(evidence.EvidenceError, match="outside tests/"):
+        harbor_trial(tmp_path, prepared[2], "reference", "reference-regraded", "oracle", 1, sources[0])
+
+
+@pytest.mark.parametrize("mutation", ["reuse", "tamper"])
+def test_regraded_receipt_binds_one_unchanged_source(tmp_path, prepared, mutation):
+    manifest = prepared[2]
+    sources = revise_after_trials(tmp_path, prepared, "tests")
+    regraded = regrade_all(tmp_path, manifest, sources)
+    if mutation == "reuse":
+        regraded.append(harbor_trial(tmp_path, manifest, "reference", "reference-again", "oracle", 1, sources[0]))
+    else:
+        write(sources[0], {**evidence.read(sources[0]), "cwd": str(tmp_path / "elsewhere")})
+    with pytest.raises(evidence.EvidenceError, match="regrade record changed"):
+        evidence.verify_receipts(regraded, "cover-read")
+
+
 def test_partial_registration_disposal_cannot_hide_a_failed_attempt_during_repair(tmp_path, prepared, monkeypatch):
     task, contract, manifest = prepared
     receipts = complete(tmp_path, manifest)

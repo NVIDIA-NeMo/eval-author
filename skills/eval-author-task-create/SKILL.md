@@ -112,9 +112,9 @@ with the selected runtime's Python; Harbor preparation imports Harbor.
 
 | Script | Purpose | Arguments |
 |---|---|---|
-| `scripts/task_evidence.py` | Record current-revision native controls and agent runs | `prepare --task-dir --contract --out`; `run --manifest --case --run-id --result --out [--trace] -- <command>` |
+| `scripts/task_evidence.py` | Record current-revision native controls and agent runs | `prepare --task-dir --contract --out`; `run --manifest --case --run-id --result --out [--trace] [--regrade-of <receipt>] -- <command>` |
 | `scripts/candidate_admission.py` | Check trace candidacy, privacy and tool-access gates | `--task-dir [--out <private-receipt>]` |
-| `scripts/task_evidence.py workspace` | Retain trace-workspace evidence and finalize/check its status | `<probe\|record-run-inputs\|record-validation\|record-repair\|finalize\|check> --task-dir`; use `<command> --help` |
+| `scripts/task_evidence.py workspace` | Retain trace-workspace evidence and finalize/check its status | `<probe\|record-run-inputs\|record-regrade-inputs\|record-validation\|record-repair\|finalize\|check> --task-dir`; use `<command> --help` |
 | `scripts/task_pipeline.py` | Select, scaffold, and verify one audit-gap task | `select --report`; `scaffold --report --target` plus task metadata; `verify --before --after --target --evidence` |
 
 The three deterministic commands have these verdicts:
@@ -394,8 +394,8 @@ TRIALS="$PWD/.eval-author/jobs/<task-slug>"
 Continue only when the receipt reports `passed`, with no exception and reward
 1.0. Record the incorrect and empty controls separately the same way, choosing their agents as described
 in [Review the verifier before running](../eval-author/references/task-validation.md#review-the-verifier-before-running).
-Fix the task, solution, or verifier when Oracle fails; do not weaken the verifier
-merely to make it pass.
+Fix the task, solution, or verifier when Oracle fails; do not weaken the verifier merely to make it pass.
+After a tests-only repair, [regrade recorded trials](../eval-author/references/task-validation.md#regrade-after-a-tests-only-change).
 
 ## Step 6: run the real agent twice
 
