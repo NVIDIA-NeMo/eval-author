@@ -8,6 +8,7 @@ from __future__ import annotations
 import copy
 import re
 from pathlib import Path, PurePosixPath
+from typing import Any
 
 from first_eval_state import fingerprint
 
@@ -65,7 +66,7 @@ def new_record() -> dict:
 
 # Keys added after audits were first saved. Every reader goes through record(), so a record
 # saved before a key existed is completed once here instead of in each place that reads it.
-OPTIONAL_KEYS = {"selection_manifest": None, "findings_final": None}
+OPTIONAL_KEYS: dict[str, Any] = {"selection_manifest": None, "findings_final": None}
 
 
 def record(state: dict) -> dict | None:
