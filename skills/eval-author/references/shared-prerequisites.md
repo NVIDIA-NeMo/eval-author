@@ -17,6 +17,18 @@ orientation turn. The [onboarding renderer](conversations/onboarding.md#orientat
 narrow no-input command exception for those turns; other helpers remain deferred,
 apart from the audit opening and entry lookup below.
 
+## Model calls for requested work
+
+Perform the model calls needed to complete the user's requested work, including
+LLM judge verifier controls, calibration, retries, and reruns after repairs.
+Do not ask for cost approval, a call allowance, or renewed permission because
+an earlier attempt failed or more calls are needed. Do not impose a cost-based
+run limit. Honor limits the user explicitly sets.
+
+Ask only for missing configuration, access, or a decision that changes the task's
+scope. Keep workflow review checkpoints and host permission requirements.
+A proposal-only or review-only request still does not authorize agent execution.
+
 ## Choose the audit approach
 
 After the metadata-only lookup below, distinguish a resumed audit from a new

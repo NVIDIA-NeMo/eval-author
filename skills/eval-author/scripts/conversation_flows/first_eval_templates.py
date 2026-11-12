@@ -121,7 +121,7 @@ SUITE_REVIEW_STATUS = (
 )
 SUITE_QUESTION = "Do these tasks look good? Approve the suite or tell me what to change before we choose how to run it."
 SETTINGS_INTRO = "Here are the settings for running the approved tasks."
-SETTINGS_LABELS = ("Attempts", "Validation", "Time/cost limits", "Open questions")
+SETTINGS_LABELS = ("Attempts", "Validation", "User-specified limits", "Open questions")
 NO_OPEN_QUESTIONS = "None."
 CHECKS_PASSED = (
     "The verifiers have already passed their checks. I’ll reuse those saved results; "
@@ -189,8 +189,7 @@ MISSING_REVIEW_BLOCKER = (
 )
 INCOMPLETE_EXECUTION_BLOCKER = (
     "- **Complete the agreed evaluations:** Task validation or the selected executions remain unfinished. "
-    "**Needed:** Resolve the unfinished work listed above, reusing applicable approval and obtaining "
-    "authorization before additional paid work."
+    "**Needed:** Resolve the unfinished work listed above, reusing applicable approval and execution scope."
 )
 SUITE_REVIEW_BLOCKER = (
     "- **Review the suite:** Current suite approval has not been recorded. "
