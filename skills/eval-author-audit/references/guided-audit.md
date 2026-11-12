@@ -64,7 +64,11 @@ Native scripts establish measurement correctness; the lifecycle checks retained 
 Save the generated report, content, and input bindings in `findings` using the
 [report binding rules](coverage-report.md#review-and-bindings) and bind
 Current recorded findings are reviewed automatically; no user acceptance or
-`findings_review` record is needed. Bind
+`findings_review` record is needed. A task review records the checks report as
+`findings` before it analyzes the tasks, so approving the checks does not finish it.
+After the analysis, save the final report in `findings`, then record
+`findings_final: {digest, source}` with the digest of that report. No user prompt is
+involved. Rewriting the report reopens the finalization. Bind
 `next_action: {kind, findings_digest, source}` to `audit.findings_digest` only
 when the user selects it. Answering a next-action question clears `pending` and
 `pending_question`; save both before any journey switch. Mark the audit

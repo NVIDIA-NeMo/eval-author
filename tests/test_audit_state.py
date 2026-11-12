@@ -545,6 +545,11 @@ def test_task_review_finishes_without_traces_or_deferred_measurement(audit):
     report = {"path": ".eval-author/audit-coverage-report.md", "digest": audit.fingerprint("Task findings")}
     value["findings"] = {"report": report, "source": "Presented inspected task findings"}
     observed["files"][report["path"]] = report["digest"]
+    # The preliminary checks report is recorded as findings, so approving the checks cannot finish the audit.
+    preliminary = audit.derive(state, observed)
+    assert preliminary["stage"] == "findings_review" and not preliminary["complete"]
+    assert not preliminary["findings_reviewed"]
+    value["findings_final"] = {"digest": report["digest"], "source": "Finished the task analysis"}
     progress = audit.derive(state, observed)
     assert progress["stage"] == "next_action" and progress["complete"] and progress["findings_reviewed"]
     resumed = audit.derive(json.loads(json.dumps(state)), observed)
@@ -656,3 +661,18 @@ def test_saved_audit_without_mode_defaults_to_unmeasured_task_review(audit):
     assert not progress["complete"]
     assert audit.traces_unused(state)
     assert state == before
+
+
+def test_finalization_is_bound_to_the_current_findings_report(audit):
+    state, value, observed = task_review(audit)
+    value["checks_approval"] = {"digest": audit.derive(state, observed)["checks_digest"], "source": "User approval"}
+    report = {"path": ".eval-author/audit-coverage-report.md", "digest": audit.fingerprint("Checks report")}
+    value["findings"] = {"report": report, "source": "Presented the checks"}
+    observed["files"][report["path"]] = report["digest"]
+    value["findings_final"] = {"digest": report["digest"], "source": "Finished the task analysis"}
+    assert audit.derive(state, observed)["complete"]
+    revised = {"path": report["path"], "digest": audit.fingerprint("Revised report")}
+    value["findings"] = {"report": revised, "source": "Rewrote the report"}
+    observed["files"][revised["path"]] = revised["digest"]
+    progress = audit.derive(state, observed)
+    assert progress["stage"] == "findings_review" and not progress["complete"]

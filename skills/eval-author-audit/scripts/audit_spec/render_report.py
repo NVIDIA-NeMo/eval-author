@@ -424,7 +424,7 @@ def history_lines(model: content.Content, covered: set[str], measured: set[str],
             if result[key]
         ]
         lines += [layout.COPY["scope_changed"].format(changes=" ".join(names)), ""]
-    runs = sorted(row["subject"]["run_id"] for row in inputs)
+    runs = sorted({row["subject"]["run_id"] for row in inputs})
     if status != "method" and earlier["runs"] != runs:
         lines += [layout.COPY["runs_changed"].format(before=len(earlier["runs"]), after=len(runs)), ""]
     return lines

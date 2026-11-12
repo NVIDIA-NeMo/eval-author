@@ -9,7 +9,7 @@ statements, tables, evidence citations, links, numbering, and definitions are
 computed or come from fixed copy in `scripts/audit_spec/report_layout.py`.
 
 This guide follows the report from top to bottom. Each section lists what the
-renderer writes, which fields you author, and an example. Read it with the
+renderer writes and, where the section has any, the fields you author, with an example. Read it with the
 [worked content example](../examples/report-content.json) and the
 [content schema](../schemas/report_content.schema.json). The
 [report workflow](coverage-report.md) covers validation, rendering, and review.
@@ -91,9 +91,8 @@ Capabilities covered, Coverage ratio, and Coverage basis. A sentence above it na
 the audit it compares with, or says `No comparable previous audit` for a first audit,
 in which case the Previous audit cells read `No previous audit` and the Change cells read `Not compared`.
 A changed declared scope or measurement method fills the Change cells with an explanation instead of a difference.
-
-**You author:** nothing. Every value is computed from the specification, the task mappings, and
-the saved audit history.
+Every value is computed from the specification, the task mappings, and the saved audit history, so this section has no
+content field to write.
 
 **Avoid:** adding a second coverage table, such as one with only a Current audit column, or restating
 the counts in prose. The report has exactly one Evaluation coverage table.

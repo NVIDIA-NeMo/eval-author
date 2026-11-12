@@ -57,6 +57,7 @@ def new_record() -> dict:
         "measurement": None,
         "findings": None,
         "findings_review": None,
+        "findings_final": None,
         "next_action": None,
         "pending": None,
     }
@@ -119,7 +120,7 @@ def _decision(value) -> None:
 
 def validate(value: dict) -> None:
     try:
-        value = {"selection_manifest": None, **value}
+        value = {"selection_manifest": None, "findings_final": None, **value}
         _fields(value, " ".join(new_record()))
         if type(value["schema_version"]) is not int or value["schema_version"] != 1:
             raise ValueError("Unsupported audit lifecycle version")
@@ -153,7 +154,7 @@ def validate(value: dict) -> None:
         for key in ("specification", "selection_manifest"):
             if value[key] is not None:
                 _path(value[key])
-        for key in ("checks_approval", "findings_review"):
+        for key in ("checks_approval", "findings_review", "findings_final"):
             if value[key] is not None:
                 _decision(value[key])
         measurement = value["measurement"]
@@ -380,8 +381,12 @@ def derive(state: dict, observed: dict) -> dict | None:
                 "evidence": {ref["path"]: files.get(ref["path"]) for ref in (measurement or {}).get("evidence", [])},
             }
         )
+    # A task review has no measurement to mark the end of analysis. The preliminary checks report is
+    # recorded as findings before analysis, so only a finalization bound to the report's digest completes it.
+    final = value["findings_final"]
+    finalized = bool(task_review and findings and final and final["digest"] == findings["report"]["digest"])
     # Current findings count as reviewed without a user decision; only the next action is the user's to choose.
-    reviewed = bool((task_review or measured or current_partial or deferred) and findings_digest)
+    reviewed = bool((finalized or measured or current_partial or deferred) and findings_digest)
     action_current = bool(
         reviewed and value["next_action"] and value["next_action"]["findings_digest"] == findings_digest
     )
@@ -428,6 +433,7 @@ def derive(state: dict, observed: dict) -> dict | None:
         "measurement_complete": measured,
         "findings_digest": findings_digest,
         "findings_reviewed": reviewed,
+        "findings_final_current": finalized,
         "next_action_current": action_current,
         "complete": reviewed and (measured or task_review and value["suites"]["status"] == "selected"),
     }
@@ -451,11 +457,11 @@ def transition(repo, previous: dict, updated: dict) -> dict | None:
     # Current scope bounds also apply when checking the previously saved approval.
     prior = derive(previous, observed) if before else None
     assert current is not None
-    for field in ("checks_approval", "measurement", "findings_review", "next_action", "pending"):
+    for field in ("checks_approval", "measurement", "findings_review", "findings_final", "next_action", "pending"):
         value = after[field]
         if value is None or value == (before or {}).get(field):
             continue
-        if current["changed_task_bindings"] and field in {"measurement", "findings_review", "next_action"}:
+        if current["changed_task_bindings"] and field in {"measurement", "findings_review", "findings_final", "next_action"}:
             raise ValueError(
                 "Tasks recorded in the findings changed after approval: "
                 + ", ".join(current["changed_task_bindings"])
@@ -472,6 +478,11 @@ def transition(repo, previous: dict, updated: dict) -> dict | None:
                 raise ValueError("Bind measurement to the approved audit inputs")
             if value["status"] == "complete" and not current["measurement_complete"]:
                 raise ValueError("Completed measurement requires current selected evidence")
+        if field == "findings_final":
+            if mode(updated) != "task_review":
+                raise ValueError("Only a task review records a findings finalization")
+            if not current["findings_final_current"]:
+                raise ValueError("Bind the finalization to the digest of the current findings report")
         if field == "findings_review" and not current["findings_reviewed"]:
             raise ValueError("Review current findings from complete, partial, or explicitly deferred measurement")
         if field == "next_action" and not current["next_action_current"]:

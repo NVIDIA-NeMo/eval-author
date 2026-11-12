@@ -233,6 +233,15 @@ def recommendation_section(facts: dict) -> str | None:
     return copy.RECOMMENDATIONS_HEADING + "\n\n" + "\n".join(lines)
 
 
+def closing_status(lifecycle: dict, audit: dict) -> str:
+    """A task review without tasks is finished for what it can review, not an unfinished measured audit."""
+    if audit["complete"]:
+        return copy.AUDIT_COMPLETE
+    if audit["mode"] == "task_review" and lifecycle["suites"]["status"] != "selected":
+        return copy.TASK_REVIEW_NO_TASKS
+    return copy.AUDIT_LIMITED
+
+
 def render_findings(state: dict, lifecycle: dict, audit: dict, facts: dict) -> list[str]:
     findings = rows(facts.get("findings"), "findings")
     if not findings:
@@ -256,7 +265,7 @@ def render_findings(state: dict, lifecycle: dict, audit: dict, facts: dict) -> l
     parts.extend([scope(state, lifecycle), measurement_status(lifecycle, audit)])
     if limits := bullet_section(copy.LIMITS_HEADING, facts.get("limits"), "evidence limits"):
         parts.append(limits)
-    parts.append(copy.AUDIT_COMPLETE if audit["complete"] else copy.AUDIT_LIMITED)
+    parts.append(closing_status(lifecycle, audit))
     if recommended := recommendation_section(facts):
         parts.extend([recommended, copy.NEXT_OFFER])
     return parts
@@ -348,11 +357,7 @@ def render(payload: dict) -> str:
     else:
         parts = [
             copy.REVIEW_ACCEPTED,
-            copy.AUDIT_COMPLETE
-            if audit["complete"]
-            else copy.TASK_REVIEW_NO_TASKS
-            if audit["mode"] == "task_review"
-            else copy.AUDIT_LIMITED,
+            closing_status(lifecycle, audit),
             report_link(state, lifecycle, facts),
         ]
         if not audit["complete"]:

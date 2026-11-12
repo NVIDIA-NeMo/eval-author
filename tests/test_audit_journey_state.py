@@ -143,6 +143,11 @@ def test_task_review_completion_and_approach_changes_survive_restart(modules, tm
         "source": "Presented report",
     }
     saved = state.update(tmp_path, {"scopes": {"audit": {"lifecycle": lifecycle}}}, expected_revision=saved["revision"])
+    # Interruption right after the report is saved leaves the review open.
+    saved = state.initialize(tmp_path, journey="audit")
+    assert not audit.progress(tmp_path, saved)["complete"]
+    lifecycle["findings_final"] = {"digest": lifecycle["findings"]["report"]["digest"], "source": "Finished the analysis"}
+    saved = state.update(tmp_path, {"scopes": {"audit": {"lifecycle": lifecycle}}}, expected_revision=saved["revision"])
     saved = state.update(
         tmp_path,
         {"scopes": {"audit": {"lifecycle": lifecycle}}, "journey_status": {"audit": "complete"}},

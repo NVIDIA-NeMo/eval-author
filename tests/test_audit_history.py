@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,8 +21,8 @@ def history(monkeypatch):
     return importlib.import_module("history")
 
 
-def kind(items, covered, basis="demonstrated"):
-    return {"items": items, "covered": covered, "basis": basis}
+def kind(items, covered, basis="demonstrated", criteria="same"):
+    return {"items": items, "covered": covered, "basis": basis, "criteria": criteria}
 
 
 def make(history, audit_id, *, agent="support", at="2026-11-01T10:00:00+00:00", capability=None):
@@ -71,9 +72,13 @@ def test_zero_denominators_have_no_ratio_or_relative_change(history):
 def test_summary_uses_runs_once_measured_and_mappings_before(history):
     items = [{"name": "a", "kind": "capability"}, {"name": "b", "kind": "capability"}, {"name": "t", "kind": "tool"}]
     kinds = history.summarize(items, covered={"a"}, measured={"capability"}, mapped={"a", "b", "t"})
-    assert kinds["capability"] == {"items": ["a", "b"], "covered": 1, "basis": "demonstrated"}
-    assert kinds["tool"] == {"items": ["t"], "covered": 1, "basis": "mapped"}
-    assert kinds["failure_case"] == {"items": [], "covered": 0, "basis": "mapped"}
+    assert {key: kinds["capability"][key] for key in ("items", "covered", "basis")} == {
+        "items": ["a", "b"],
+        "covered": 1,
+        "basis": "demonstrated",
+    }
+    assert (kinds["tool"]["items"], kinds["tool"]["covered"], kinds["tool"]["basis"]) == (["t"], 1, "mapped")
+    assert (kinds["failure_case"]["items"], kinds["failure_case"]["covered"]) == ([], 0)
 
 
 def test_saving_the_same_audit_twice_keeps_the_first_snapshot(history, tmp_path):
@@ -114,3 +119,65 @@ def test_snapshot_dates_come_from_the_recorded_time(history):
     )
     assert value["recorded_at"] == "2026-11-09T12:00:00+00:00" and value["runs"] == ["r1", "r2"]
     assert value["audit_id"] == "c" and value["dirty"] is True
+
+
+def item(name, **fields):
+    return {"name": name, "kind": "capability", "expected_behavior": "one source", **fields}
+
+
+def test_changed_criteria_with_the_same_names_are_not_comparable(history):
+    before = history.summarize([item("a")], {"a"}, {"capability"}, set())["capability"]
+    after = history.summarize([item("a", expected_behavior="two independent sources")], {"a"}, {"capability"}, set())[
+        "capability"
+    ]
+    result = history.compare(after, before)
+    assert result["status"] == "scope" and result["added"] == result["removed"] == []
+
+
+def test_provenance_notes_do_not_change_the_criteria(history):
+    before = history.summarize([item("a")], set(), set(), set())["capability"]
+    after = history.summarize([item("a", source_refs=["README.md"])], set(), set(), set())["capability"]
+    assert history.compare(after, before)["status"] == "comparable"
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        lambda row: row.pop("commit"),
+        lambda row: row.pop("runs"),
+        lambda row: row.update(runs="r1"),
+        lambda row: row.update(dirty="no"),
+        lambda row: row["kinds"]["tool"].update(covered="2"),
+        lambda row: row["kinds"]["tool"].update(basis="guessed"),
+        lambda row: row["kinds"]["tool"].pop("criteria"),
+    ],
+)
+def test_snapshots_missing_consumed_fields_are_skipped(history, tmp_path, damage):
+    history.save(tmp_path, make(history, "one"))
+    broken = make(history, "two")
+    damage(broken)
+    (tmp_path / history.HISTORY_DIR / "two.json").write_text(json.dumps(broken))
+    assert [row["audit_id"] for row in history.load(tmp_path)] == ["one"]
+
+
+def test_a_retained_audit_keeps_its_original_baseline(history):
+    rows = [
+        make(history, "a", at="2026-10-01T00:00:00+00:00"),
+        make(history, "b", at="2026-10-01T00:00:01+00:00"),
+    ]
+    assert history.previous(rows, "support", "a") is None
+    assert history.previous(rows, "support", "b")["audit_id"] == "a"
+    assert history.previous(rows, "support", "new")["audit_id"] == "b"
+
+
+def test_snapshot_counts_each_run_once(history):
+    value = history.snapshot(
+        agent="support",
+        kinds={},
+        runs=["same-run", "same-run"],
+        identity={"commit": "abc", "dirty": False},
+        content_sha256="c",
+        report_sha256="r",
+        now=datetime(2026, 11, 9, tzinfo=timezone.utc),
+    )
+    assert value["runs"] == ["same-run"]

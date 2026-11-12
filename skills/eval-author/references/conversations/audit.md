@@ -37,7 +37,8 @@ provenance through a revision-checked update:
 | `audit_checks` | `checks_review` | `audit.checks_digest` |
 
 Current findings need no decision checkpoint: once the report, content, and inputs
-are recorded and current, `audit.findings_reviewed` is true and `audit_findings`
+are recorded and current, and a task review has recorded `findings_final` for that report,
+`audit.findings_reviewed` is true and `audit_findings`
 renders without a question. An optional next-action question uses
 `pending.stage: "next_action"` and the current `audit.findings_digest`. Measurement has no decision checkpoint or
 entry in `checkpoint_digests`. Never save `pending.stage: "measurement"`.

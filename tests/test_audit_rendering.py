@@ -71,10 +71,20 @@ def test_task_review_resume_reaches_findings_without_requesting_traces(modules, 
         report_action="created",
     )
     report_links(payload, modules, findings=True)
+    # Approved checks with only the preliminary report must not announce completion.
+    assert not progress(payload, modules)["findings_reviewed"] and not progress(payload, modules)["complete"]
+    with pytest.raises(ValueError, match="Record current findings"):
+        modules[2].render(payload)
+    lifecycle["findings_final"] = {
+        "digest": lifecycle["findings"]["report"]["digest"],
+        "source": "Finished the task analysis",
+    }
     assert progress(payload, modules)["findings_reviewed"]
     output = modules[2].render(payload)
     assert "Review tasks only" in output and "unmeasured" in output
     assert "Which traces" not in output and "deferred" not in output and "?" not in output
+    assert ("No evaluation tasks were available" in output) == (not has_tasks)
+    assert "full measured audit" not in output
     payload["stage"] = "audit_resume"
     payload["facts"] = {"audit_observations": observed, "links": payload["facts"]["links"]}
     payload["facts"]["links"].pop("findings")

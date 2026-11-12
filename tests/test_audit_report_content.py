@@ -1059,13 +1059,17 @@ def render_text(audit_report):
     return renderer.render(load(audit_report))[0].decode()
 
 
-def save_snapshot(audit_report, audit_id, *, items=None, covered=1, basis="mapped", at="2026-10-01T00:00:00+00:00"):
+def save_snapshot(
+    audit_report, audit_id, *, items=None, covered=1, basis="mapped", at="2026-10-01T00:00:00+00:00", criteria=None
+):
     history = history_module(audit_report)
     _, _, root = audit_report
     model = load(audit_report)
     names = items if items is not None else [row["name"] for row in model.spec["items"] if row["kind"] == "capability"]
-    kinds = {name: {"items": [], "covered": 0, "basis": basis} for name in history.KINDS}
-    kinds["capability"] = {"items": names, "covered": covered, "basis": basis}
+    rows = [row for row in model.spec["items"] if row["kind"] == "capability"]
+    criteria = history.criteria_fingerprint(rows) if criteria is None else criteria
+    kinds = {name: {"items": [], "covered": 0, "basis": basis, "criteria": criteria} for name in history.KINDS}
+    kinds["capability"] = {"items": names, "covered": covered, "basis": basis, "criteria": criteria}
     history.save(
         root,
         {
@@ -1154,4 +1158,30 @@ def test_record_writes_one_snapshot_and_report_refresh_writes_none(audit_report)
     assert len(saved) == 1 and saved[0]["audit_id"] == load(audit_report).digest
     assert saved[0]["kinds"]["capability"]["basis"] == "mapped"
     renderer.refresh(load(audit_report))
+    assert len(history.load(root)) == 1
+
+
+def test_changed_criteria_with_the_same_names_suppress_the_coverage_change(audit_report):
+    save_snapshot(audit_report, "earlier", covered=0, criteria="an-earlier-expectation")
+    text = render_text(audit_report)
+    assert "Not compared: declared scope changed" in text and "percentage points" not in text
+
+
+def test_a_snapshot_missing_consumed_fields_does_not_stop_the_report(audit_report):
+    history = history_module(audit_report)
+    _, _, root = audit_report
+    save_snapshot(audit_report, "earlier", covered=0)
+    path = history.path_for(root, "earlier")
+    broken = json.loads(path.read_text())
+    del broken["commit"]
+    path.write_text(json.dumps(broken))
+    assert "No comparable previous audit" in render_text(audit_report)
+
+
+def test_recording_accepts_the_documented_relative_repository(audit_report, monkeypatch):
+    _, renderer, root = audit_report
+    renderer.refresh(load(audit_report))
+    monkeypatch.chdir(root)
+    history = history_module(audit_report)
+    assert history.main(["--repo", ".", "--content", "report-content.json"]) == 0
     assert len(history.load(root)) == 1

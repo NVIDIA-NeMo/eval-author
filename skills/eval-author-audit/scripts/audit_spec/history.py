@@ -6,28 +6,70 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, NonNegativeInt, ValidationError
 
 HISTORY_DIR = ".eval-author/.working/audit/history"
 VERSION = 1
 KINDS = ("capability", "tool", "failure_case")
 
 
+class KindSnapshot(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    items: list[str]
+    covered: NonNegativeInt
+    basis: Literal["demonstrated", "mapped"]
+    criteria: str
+
+
+class Snapshot(BaseModel):
+    """Every field the report renderer reads, so a malformed record is skipped instead of crashing a later report."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    version: Literal[1]
+    audit_id: str
+    agent: str
+    recorded_at: str
+    commit: str
+    dirty: bool
+    content_sha256: str
+    report_sha256: str
+    runs: list[str]
+    kinds: dict[Literal["capability", "tool", "failure_case"], KindSnapshot]
+
+
+def criteria_fingerprint(rows: list[dict]) -> str:
+    """Digest of what each item requires, so a changed expectation is not mistaken for unchanged scope."""
+    # Provenance notes say where an item came from, not what it requires.
+    defining = sorted(
+        ({key: value for key, value in row.items() if key != "source_refs"} for row in rows),
+        key=lambda row: row["name"],
+    )
+    return hashlib.sha256(json.dumps(defining, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
 def summarize(items: list[dict], covered: set[str], measured: set[str], mapped: set[str]) -> dict:
     """Per-kind declared items and covered count, from run evidence once measured, else from task mappings."""
     kinds = {}
     for kind in KINDS:
-        names = sorted(row["name"] for row in items if row["kind"] == kind)
+        rows = [row for row in items if row["kind"] == kind]
+        names = sorted(row["name"] for row in rows)
         demonstrated = kind in measured
         hits = covered if demonstrated else mapped
         kinds[kind] = {
             "items": names,
             "covered": sum(name in hits for name in names),
             "basis": "demonstrated" if demonstrated else "mapped",
+            "criteria": criteria_fingerprint(rows),
         }
     return kinds
 
@@ -45,7 +87,8 @@ def snapshot(
         "dirty": identity["dirty"],
         "content_sha256": content_sha256,
         "report_sha256": report_sha256,
-        "runs": sorted(runs),
+        # Measurement inputs are per kind, so one run can appear several times.
+        "runs": sorted(set(runs)),
         "kinds": kinds,
     }
 
@@ -66,19 +109,6 @@ def save(repo: Path, value: dict) -> bool:
     return True
 
 
-def _valid(value: object) -> bool:
-    return (
-        isinstance(value, dict)
-        and value.get("version") == VERSION
-        and all(isinstance(value.get(key), str) for key in ("audit_id", "agent", "recorded_at"))
-        and isinstance(value.get("kinds"), dict)
-        and all(
-            isinstance(value["kinds"].get(kind), dict) and {"items", "covered", "basis"} <= set(value["kinds"][kind])
-            for kind in KINDS
-        )
-    )
-
-
 def load(repo: Path) -> list[dict]:
     """Retained snapshots, skipping files that are not readable snapshots."""
     found = []
@@ -87,17 +117,24 @@ def load(repo: Path) -> list[dict]:
             value = json.loads(path.read_text())
         except (OSError, ValueError):
             continue
-        if _valid(value):
-            found.append(value)
+        try:
+            found.append(Snapshot.model_validate(value).model_dump())
+        except ValidationError:
+            continue
     return found
 
 
 def previous(snapshots: list[dict], agent: str, audit_id: str) -> dict | None:
-    """The latest other audit of the same agent, ordered by recorded time."""
-    earlier = [row for row in snapshots if row["agent"] == agent and row["audit_id"] != audit_id]
-    if not earlier:
-        return None
-    return max(earlier, key=lambda row: (row["recorded_at"], row["audit_id"]))
+    """The audit before this one for the same agent, ordered by recorded time.
+
+    An audit that is already retained keeps its original baseline, so refreshing it after a later
+    audit was saved does not reverse the comparison.
+    """
+    same = [row for row in snapshots if row["agent"] == agent]
+    order = lambda row: (row["recorded_at"], row["audit_id"])  # noqa: E731
+    own = next((row for row in same if row["audit_id"] == audit_id), None)
+    earlier = [row for row in same if row["audit_id"] != audit_id and (own is None or order(row) < order(own))]
+    return max(earlier, key=order) if earlier else None
 
 
 def ratio(covered: int, total: int) -> float | None:
@@ -114,7 +151,7 @@ def compare(current: dict, earlier: dict) -> dict:
     removed = sorted(set(earlier["items"]) - set(current["items"]))
     if current["basis"] != earlier["basis"]:
         status = "method"
-    elif added or removed:
+    elif added or removed or current["criteria"] != earlier["criteria"]:
         status = "scope"
     else:
         status = "comparable"
@@ -138,14 +175,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--content", type=Path, default=Path(".eval-author/.working/audit/report-content.json"))
     args = parser.parse_args(argv)
+    # Content paths are checked for containment against an absolute root, so a relative --repo must be resolved first.
+    repo = args.repo.resolve()
     sys.path.insert(0, str(Path(__file__).parent))
     import report_content as content
 
     renderer = content.load_module("audit_markdown_renderer", Path(__file__).with_name("render_report.py"))
 
     try:
-        model = content.load(args.content, args.repo)
-        report = content.local(args.repo, renderer.OUTPUT)
+        model = content.load(args.content, repo)
+        report = content.local(repo, renderer.OUTPUT)
         covered, measured, inputs = renderer.measurements(model)
         value = snapshot(
             agent=model.spec["agent"],
@@ -161,14 +200,14 @@ def main(argv: list[str] | None = None) -> int:
             report_sha256=content.sha(content.read_bytes(report)),
             now=datetime.now(timezone.utc),
         )
-        recorded = save(args.repo, value)
+        recorded = save(repo, value)
     except (content.ContentError, OSError, ValueError) as exc:
         message = exc.errors if isinstance(exc, content.ContentError) else str(exc)
         print(json.dumps({"recorded": False, "errors": message}, indent=2))
         return 1
     print(
         json.dumps(
-            {"recorded": recorded, "audit_id": value["audit_id"], "path": str(path_for(args.repo, value["audit_id"]))},
+            {"recorded": recorded, "audit_id": value["audit_id"], "path": str(path_for(repo, value["audit_id"]))},
             indent=2,
         )
     )
