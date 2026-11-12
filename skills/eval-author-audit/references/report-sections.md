@@ -89,7 +89,7 @@ the coverage limit each appear twice, and the task name becomes a link.
 columns Current audit, Previous audit, and Change and the rows Capabilities,
 Capabilities covered, Coverage ratio, and Coverage basis. A sentence above it names
 the audit it compares with, or says `No comparable previous audit` for a first audit,
-in which case the Previous audit cells read `No previous audit` and the Change cells read `Not compared`.
+in which case the Previous audit cells read `-` and the Change cells read `Not compared`.
 A changed declared scope or measurement method fills the Change cells with an explanation instead of a difference.
 Every value is computed from the specification, the task mappings, and the saved audit history, so this section has no
 content field to write.

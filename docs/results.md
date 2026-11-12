@@ -211,7 +211,7 @@ changed declared scope or measurement method is explained and its coverage
 change is not compared, so a larger scope never reads as better performance.
 The report has one Evaluation coverage table, with Current audit, Previous audit,
 and Change columns. The first audit shows `No comparable previous audit` above the
-same table, with `No previous audit` and `Not compared` in its Previous audit and
+same table, with `-` and `Not compared` in its Previous audit and
 Change columns. History stays in your checkout.
 
 A covered item has supporting evidence under the audit's declared criteria.
