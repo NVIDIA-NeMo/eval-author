@@ -461,7 +461,12 @@ def transition(repo, previous: dict, updated: dict) -> dict | None:
         value = after[field]
         if value is None or value == (before or {}).get(field):
             continue
-        if current["changed_task_bindings"] and field in {"measurement", "findings_review", "findings_final", "next_action"}:
+        if current["changed_task_bindings"] and field in {
+            "measurement",
+            "findings_review",
+            "findings_final",
+            "next_action",
+        }:
             raise ValueError(
                 "Tasks recorded in the findings changed after approval: "
                 + ", ".join(current["changed_task_bindings"])
