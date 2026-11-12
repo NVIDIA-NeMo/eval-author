@@ -1224,7 +1224,7 @@ def test_suite_review_is_a_linked_deterministic_checkpoint_before_execution_choi
         "Your evaluation suite is ready for review: 2 tasks; 2 distinct input examples. "
         "It follows your approved design and confirmed `ETHOS.md`.\n\n"
         f"Review your tasks in the [HTML report’s Tasks view](<{root}/.eval-author/report.html#cases>) "
-        f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
+        f"or [suite README](<{root}/.eval-author/README.md>).\n\n"
         "| Task | Expected outcome | Verifier |\n|---|---|---|\n"
         "| **refund** - Respect policy | Correct disposition | **Custom code + LLMaJ** Pass at 1 when the refund state and reply both match policy, otherwise score 0. |\n"
         "| **reject** - Respect policy | Correct disposition | **Custom code** Pass at 1 when the request is rejected and state stays unchanged, otherwise score 0. |\n\n"
@@ -1578,7 +1578,7 @@ def test_review_leads_with_grounding_and_action_before_item_summaries(creation, 
         "Your first task, **refund**, is ready for review. "
         "It follows your approved design and confirmed `ETHOS.md`.\n\n"
         f"Review your first task in the [HTML report’s Tasks view](<{root}/.eval-author/report.html#cases>) "
-        f"or [mirrored README](<{root}/.eval-author/README.md>).\n\n"
+        f"or [suite README](<{root}/.eval-author/README.md>).\n\n"
     )
     positions = [
         output.index(label) for label in ("| Task |", "| **refund** -", "**Status:**", "**Verifier limitation:**")
@@ -2113,10 +2113,10 @@ def test_results_preserve_exact_attempt_rerun_and_final_audit_invitation(creatio
     assert "/refund-1/result.json>)" in output and "README.md#rerun-evaluations>)" in output
     assert "unknown" in output
     assert (copy.AUDIT_QUESTION in output) == (decision == "pending")
-    assert output.count("[HTML report]") == output.count("[mirrored README]") == 1
+    assert output.count("[HTML report]") == output.count("[suite README]") == 1
     assert "Review your evaluations in" not in output
     assert f"[HTML report](<{state['repository']}/.eval-author/report.html>)" in output
-    assert f"[mirrored README](<{state['repository']}/.eval-author/README.md>)" in output
+    assert f"[suite README](<{state['repository']}/.eval-author/README.md>)" in output
     review = "Review your native Gym runs" if provider == "gym" else "Review your runs"
     assert ("its **Runs** view currently supports Harbor runs only" in output) == (provider == "gym")
     if provider == "harbor":

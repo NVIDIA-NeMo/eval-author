@@ -99,7 +99,7 @@ FIRST_REVIEW_INTRO = (
 )
 FIRST_REVIEW_ACTION = "Review your first task in the {report} or {readme}."
 FIRST_REVIEW_REPORT_LABEL = "HTML report’s Tasks view"
-FIRST_REVIEW_README_LABEL = "mirrored README"
+FIRST_REVIEW_README_LABEL = "suite README"
 FIRST_QUESTION = (
     "Does this represent the behavior you want to test, and would its verifier assess the agent fairly? "
     "Approve the first task or tell me what to change before I build the remaining tasks."
@@ -194,7 +194,7 @@ INCOMPLETE_EXECUTION_BLOCKER = (
 )
 SUITE_REVIEW_BLOCKER = (
     "- **Review the suite:** Current suite approval has not been recorded. "
-    "**Needed:** Review the authored tasks in the HTML report or mirrored README, then approve the suite or request changes."
+    "**Needed:** Review the authored tasks in the HTML report or suite README, then approve the suite or request changes."
 )
 JOB_ERRORS = (
     "Retained jobs with execution errors: {runs}. Successful attempts from these jobs count only where their "

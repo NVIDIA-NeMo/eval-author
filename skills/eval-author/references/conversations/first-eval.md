@@ -268,7 +268,7 @@ receipt under `receipts.<step>` only after that checkpoint succeeds, with
 results. Preparation retains the actual environment files and starting data;
 environment checking retains successful smoke/reset evidence; grading retains
 the authored reference and grader files; artifacts retains the finalized task
-README, HTML report, and Markdown mirror. Use scoped file digests, so adding a
+README, HTML report, and Markdown reports. Use scoped file digests, so adding a
 grader does not invalidate environment preparation. Failed or merely started
 checks never receive a completion receipt. Preserve their logs and keep the
 step in progress or explain its blocker.
@@ -343,7 +343,7 @@ The checklist never supplies validation evidence or agent performance claims.
 
 When every agreed task is authored, its environment is proven, the
 [pre-review validation gate](#grader-validation-before-authored-task-review)
-passes, and the refreshed HTML report and Markdown mirror are current, render
+passes, and the refreshed HTML report and Markdown reports are current, render
 `first_eval_review_suite`.
 Use its grounding in the approved design and `ETHOS.md`, leading review links,
 task summaries, honest validation/execution status, limitations, and final
@@ -581,10 +581,10 @@ that reply's source. The existing handoff state controls entering the audit.
 | `first_eval_validation_setup` | Saved design approval and inspected grading requirements. Show known validation setup and ask only missing judge configuration, access, or bounded validation authorization before any task creation. Ready setup continues without an extra approval pause. |
 | `first_eval_prepare_first` | Previously saved design approval and ready validation setup; initial provider explanation and compact build checklist. Author exactly one task in its permanent directory, prove its environment before writing its grader, and satisfy the pre-review validation gate before returning for review. No target-agent execution checklist is required for local authoring. |
 | `first_eval_build_progress` | Saved approved first-task build activity and fresh observations; the same fixed checklist with short completed, active, pending, or blocked statuses. Use commentary during work, without adding narration or requesting approval. |
-| `first_eval_review_first` | Current first-task files, saved environment proof, complete current verifier validation, and refreshed HTML and Markdown artifacts. Lead with the approved task's stable ID and grounding in `ETHOS.md`, then link the HTML report's Tasks view or mirrored README. Follow with one authored task row from the saved report, a verifier limitation, and separate environment, verifier-validation, and execution status. Link the task README and end with the first-task approval question. |
+| `first_eval_review_first` | Current first-task files, saved environment proof, complete current verifier validation, and refreshed HTML and Markdown artifacts. Lead with the approved task's stable ID and grounding in `ETHOS.md`, then link the HTML report's Tasks view or suite README. Follow with one authored task row from the saved report, a verifier limitation, and separate environment, verifier-validation, and execution status. Link the task README and end with the first-task approval question. |
 | `first_eval_prepare_remaining` | Saved approval of the current first-task revision and environment proof. Initial explanation and skill-labeled checklist for building the remainder, checking environments, validating all graders, and refreshing artifacts. |
 | `first_eval_remaining_progress` | Current remaining-build activity after first-task approval; compact checklist with evidence-derived task counts, responsible skills, short statuses, and current build blockers. |
-| `first_eval_review_suite` | Every authored task's current environment and complete verifier-validation evidence plus current report artifacts. Ground the summary in the approved design and `ETHOS.md`, link the HTML Tasks view or mirrored README, show one authored row per saved task in proposal order, summarize current validation/execution evidence, and end with the explicit suite-approval question. No run settings or run-only blockers. |
+| `first_eval_review_suite` | Every authored task's current environment and complete verifier-validation evidence plus current report artifacts. Ground the summary in the approved design and `ETHOS.md`, link the HTML Tasks view or suite README, show one authored row per saved task in proposal order, summarize current validation/execution evidence, and end with the explicit suite-approval question. No run settings or run-only blockers. |
 | `first_eval_execution_settings` | Current authored-suite approval, when actual agent execution is being prepared. Display attempts, validation work, time/cost limits, and open questions, plus relevant run blockers. Do not repeat agent/model or task/example inventory bullets. This display never supplies spending authorization. |
 | `first_eval_ready_to_run` | Current suite approval, validation of every selected task, and a saved applicable settings display. Explain that graders accepted the known correct results and rejected the incorrect results tested; this validates grading rather than measuring agent performance. Announce execution only with applicable explicit authorization, access, and no blocking dependency; otherwise ask one focused question about the missing setting or authorization. |
 | `first_eval_run_progress` | Observed native launch or queued status with current authorized selection and digest-bound current status evidence. Render the standard checklist without skill labels, evidence-derived completed/planned attempts, recorded execution errors, and only actually observed activity. No run-only approval pause or inferred activity. |
@@ -676,7 +676,7 @@ Later runs do not replace that saved review identity. Inspect the actual attempt
 before supplying its input, actions, and grading explanation; configured identity
 alone does not establish the observed backend model or model health.
 
-First-task and full-suite review put their report and mirrored README links in the leading
+First-task and full-suite review put their report and suite README links in the leading
 review action, before the item summaries. Do not append the generic report footer
 or routine skill-pause explanation to that rendering; separately required host
 attribution still applies. Incomplete results use the single canonical closing
@@ -687,7 +687,7 @@ Follow [suite review guidance](../suite-readme.md); do not duplicate artifact li
 
 Completed creation results use the flow template's linked run-review guidance
 after the substantive results and completed checklist, immediately before any
-pending audit invitation. Link the verified HTML report and mirrored README
+pending audit invitation. Link the verified HTML report and suite README
 once each in that guidance; do not append the generic report footer. Keep this
 guidance when an accepted or declined invitation is no longer shown.
 
