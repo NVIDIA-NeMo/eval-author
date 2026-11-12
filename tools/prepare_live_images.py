@@ -7,7 +7,7 @@ import argparse
 import os
 from pathlib import Path
 
-from patched_opencode_runtime import LIVE_JOB_DEADLINE_ENV, preparation_failure, prepare_images
+from patched_opencode_runtime import LIVE_JOB_DEADLINE_ENV, PREPARATION_WORKERS, preparation_failure, prepare_images
 
 
 def main():
@@ -21,6 +21,7 @@ def main():
     parser.add_argument(
         "--private-diagnostics", type=Path, help="new private Docker failure file outside source; never upload"
     )
+    parser.add_argument("--workers", type=int, choices=PREPARATION_WORKERS, default=None)
     args = parser.parse_args()
     if any(os.environ.get(key) for key in ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP")):
         parser.error("conflicting Python instrumentation")
@@ -38,6 +39,7 @@ def main():
             args.output.resolve(),
             args.binary_manifest.resolve(),
             timing_checkpoint=args.timing_checkpoint,
+            **({"workers": args.workers} if args.workers is not None else {}),
             **({"private_diagnostics": args.private_diagnostics} if args.private_diagnostics is not None else {}),
         )
     except Exception as error:

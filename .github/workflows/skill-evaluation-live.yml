@@ -14,6 +14,15 @@ on:
         description: Run live evaluation on main
         type: boolean
         default: false
+      prep_benchmark:
+        description: Benchmark credential-free full Audit preparation (requires run_live=false)
+        type: boolean
+        default: false
+      prep_workers:
+        description: Preparation workers for prep_benchmark only; dispatch runs sequentially
+        type: choice
+        options: ['1', '2', '4', '8']
+        default: '1'
       tier:
         description: Tiers to evaluate
         type: choice
@@ -70,6 +79,7 @@ jobs:
   authorize:
     needs: plan
     if: >-
+      !inputs.prep_benchmark &&
       vars.SKILL_EVALUATION_LIVE_ENABLED == 'true' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' ||
@@ -198,8 +208,20 @@ jobs:
       - name: Prepare full skills/eval-author-audit dataset without models
         id: prepare
         timeout-minutes: 15
+        env:
+          PREP_BENCHMARK: ${{ github.event_name == 'workflow_dispatch' && inputs.prep_benchmark && !inputs.run_live }}
+          PREP_WORKERS: ${{ inputs.prep_workers || '1' }}
         run: |
-          sudo python3 tools/live_shard.py prepare --root "$RUNNER_TEMP/live-shard" --timing-checkpoint "$RUNNER_TEMP/preparation-operation-timing.json"
+          if test "$PREP_BENCHMARK" = true; then
+            case "$PREP_WORKERS" in
+              1|2|4|8) ;;
+              *) echo 'invalid preparation worker selection' >&2; exit 1 ;;
+            esac
+            printf 'Credential-free full Audit preparation benchmark; workers: %s.\n' "$PREP_WORKERS" >> "$GITHUB_STEP_SUMMARY"
+            sudo python3 tools/live_shard.py prepare --root "$RUNNER_TEMP/live-shard" --timing-checkpoint "$RUNNER_TEMP/preparation-operation-timing.json" --workers "$PREP_WORKERS"
+          else
+            sudo python3 tools/live_shard.py prepare --root "$RUNNER_TEMP/live-shard" --timing-checkpoint "$RUNNER_TEMP/preparation-operation-timing.json"
+          fi
       - name: Summarize hosted preparation timing without raw payloads
         timeout-minutes: 1
         if: always()
@@ -374,7 +396,7 @@ jobs:
   aggregate:
     needs: [plan, authorize, evaluate]
     if: >-
-      always() && vars.SKILL_EVALUATION_LIVE_ENABLED == 'true' &&
+      always() && !inputs.prep_benchmark && vars.SKILL_EVALUATION_LIVE_ENABLED == 'true' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' ||
        (github.event_name == 'workflow_dispatch' && inputs.run_live))

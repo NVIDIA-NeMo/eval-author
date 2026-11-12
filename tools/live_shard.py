@@ -23,6 +23,7 @@ from patched_opencode_runtime import (
     LIVE_HANDOFF_SECONDS,
     PREPARATION_TIMEOUT_SECONDS,
     PREPARATION_TIMING_MAX_BYTES,
+    PREPARATION_WORKERS,
     validate_preparation_timing,
 )
 
@@ -61,7 +62,11 @@ def parse_args(argv=None):
     parser.add_argument("--platform", choices=("linux/amd64", "linux/arm64"), default="linux/amd64")
     parser.add_argument("--download", type=Path)
     parser.add_argument("--timing-checkpoint", type=Path)
-    return parser.parse_args(argv)
+    parser.add_argument("--workers", type=int, choices=PREPARATION_WORKERS, default=None)
+    args = parser.parse_args(argv)
+    if args.workers is not None and args.phase != "prepare":
+        parser.error("--workers is only supported for prepare")
+    return args
 
 
 def publish_timing(root, output):
@@ -250,6 +255,8 @@ def _run_phase(args):
             ]
             if args.timing_checkpoint:
                 argv.extend(["--timing-checkpoint", str(workspace / "preparation-operation-timing.json")])
+            if args.workers is not None:
+                argv.extend(["--workers", str(args.workers)])
             execute(argv, "prepare")
         elif args.phase == "run":
             if not math.isfinite(config["deadline"]) or config["deadline"] - time.monotonic() <= RUN_PHASE_SECONDS:
