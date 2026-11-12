@@ -152,6 +152,25 @@ nemo intake spans get --output-format=json --workspace="WORKSPACE" "SPAN_ID"
 Require the returned `trace_id` to equal the selected trace ID. Otherwise,
 discard the span and report the mismatch. Don't recreate payload-length flags.
 
+When the error-status selection returns no spans, don't conclude that the trace
+had no errors. Some producers mark every tool span successful even when the tool
+failed. Read bounded previews of every tool span:
+
+```bash
+nemo intake spans list --output-format=json --workspace="WORKSPACE" --filter.trace-id="TRACE_ID" --filter.kind=TOOL --mode=preview --sort=started_at --all-pages
+```
+
+Treat a tool result as failure evidence when it shows error or exception text
+such as `Error`, `Traceback`, or `Exception`, a non-zero exit code, a non-zero
+`exit_code` field, or a crash message. Exit code 0 is still a failure when the
+output shows the tool or the program it ran crashed. Read the exact payload only
+when a preview is ambiguous or truncated.
+
+In the report and the explanation to the user, state which method found
+failures: span status, tool-result text, or both. If neither found any, say that
+neither span status nor tool-result text showed failures. Never report "no
+errors" from the status selection alone.
+
 ## Read evaluator evidence
 
 Collect unique session IDs from the summary spans. Query each relevant session:
