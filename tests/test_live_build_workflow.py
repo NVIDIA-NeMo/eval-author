@@ -70,7 +70,111 @@ def test_download_finishes_before_any_idle_boundary_lease(job_name):
     clock = next(s for s in steps if "EA_LIVE_JOB_DEADLINE=" in s.get("run", ""))
     assert steps.index(clock) < steps.index(download) < steps.index(create)
     assert download["timeout-minutes"] == 2
-    assert download["with"]["name"] == "patched-opencode-linux-amd64-${{ github.run_id }}-${{ github.run_attempt }}"
+    assert download["with"]["name"] == "${{ steps.binary-transport.outputs.name }}"
+
+
+@pytest.mark.parametrize("job_name", ["preparation-timing", "evaluate"])
+@pytest.mark.parametrize("producer_attempt,consumer_attempt", [(1, 1), (2, 2), (1, 2)])
+def test_exact_producer_output_survives_selective_rerun(tmp_path, job_name, producer_attempt, consumer_attempt):
+    jobs = workflow()["jobs"]
+    producer = jobs["build-opencode"]
+    emit = next(s for s in producer["steps"] if s.get("id") == "binary-transport")
+    assert emit.get("if", "success()") == "success()"
+    upload = next(
+        s for s in producer["steps"] if s.get("name") == "Retain verified binary and strict transport manifest"
+    )
+    assert producer["steps"].index(upload) < producer["steps"].index(emit)
+    context = {
+        "github.run_id": "43261221307",
+        "github.run_attempt": str(producer_attempt),
+        "github.sha": "a" * 40,
+        "matrix.platform": "linux/amd64",
+    }
+    output = tmp_path / "producer-output"
+    result = subprocess.run(
+        ["/bin/bash", "-e", "-o", "pipefail", "-c", emit["run"]],
+        cwd=ROOT,
+        env={
+            "PATH": os.defpath,
+            "GITHUB_OUTPUT": str(output),
+            **{key: render_expression(value, context) for key, value in emit["env"].items()},
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    values = dict(line.split("=", 1) for line in output.read_text().splitlines())
+    context.update({f"steps.binary-transport.outputs.{key}": value for key, value in values.items()})
+    context.update(
+        {
+            f"needs.build-opencode.outputs.{key}": render_expression(value, context)
+            for key, value in producer["outputs"].items()
+        }
+    )
+    name = f"patched-opencode-linux-amd64-43261221307-{producer_attempt}"
+    assert render_expression(upload["with"]["name"], context) == name
+    context["github.run_attempt"] = str(consumer_attempt)
+    consumer = next(s for s in jobs[job_name]["steps"] if s.get("id") == "binary-transport")
+    result, bound = run_transport_validation(tmp_path, consumer, context)
+    assert result.returncode == 0, result.stderr
+    context.update({f"steps.binary-transport.outputs.{key}": value for key, value in bound.items()})
+    download = next(s for s in jobs[job_name]["steps"] if s.get("uses", "").startswith("actions/download-artifact@"))
+    assert render_expression(download["with"]["name"], context) == name
+    assert jobs[job_name]["steps"].index(consumer) < jobs[job_name]["steps"].index(download)
+    if job_name == "evaluate":
+        assert consumer["if"] == download["if"]
+
+
+def render_expression(text, context):
+    return re.sub(r"\$\{\{\s*(.*?)\s*\}\}", lambda match: str(context[match[1]]), text)
+
+
+def run_transport_validation(tmp_path, step, context):
+    output = tmp_path / "consumer-output"
+    result = subprocess.run(
+        ["/bin/bash", "-e", "-o", "pipefail", "-c", step["run"]],
+        cwd=ROOT,
+        env={
+            "PATH": os.defpath,
+            "GITHUB_OUTPUT": str(output),
+            **{key: render_expression(value, context) for key, value in step["env"].items()},
+        },
+        capture_output=True,
+        text=True,
+    )
+    values = dict(line.split("=", 1) for line in output.read_text().splitlines()) if output.exists() else {}
+    return result, values
+
+
+@pytest.mark.parametrize("job_name", ["preparation-timing", "evaluate"])
+@pytest.mark.parametrize(
+    "name,revision",
+    [
+        ("", "a" * 40),
+        ("patched-opencode-linux-amd64-999-1", "a" * 40),
+        ("patched-opencode-linux-arm64-43261221307-1", "a" * 40),
+        ("patched-opencode-linux-amd64-43261221307-3", "a" * 40),
+        ("patched-opencode-linux-amd64-43261221307-0", "a" * 40),
+        ("patched-opencode-linux-amd64-43261221307-01", "a" * 40),
+        ("patched-opencode-linux-amd64-43261221307-1", "b" * 40),
+        ("patched-opencode-linux-amd64-43261221307-1", ""),
+        ("$(touch INJECTED)", "a" * 40),
+    ],
+)
+def test_missing_or_foreign_producer_output_fails_closed(tmp_path, job_name, name, revision):
+    step = next(s for s in workflow()["jobs"][job_name]["steps"] if s.get("id") == "binary-transport")
+    context = {
+        "github.run_id": "43261221307",
+        "github.run_attempt": "2",
+        "github.sha": "a" * 40,
+        "needs.build-opencode.outputs.artifact-name": name,
+        "needs.build-opencode.outputs.source-revision": revision,
+    }
+    result, bound = run_transport_validation(tmp_path, step, context)
+    assert result.returncode != 0
+    assert bound == {}
+    assert result.stdout == ""
+    assert result.stderr == "invalid producer artifact binding\n"
 
 
 def test_keyless_pr_timing_uses_real_audit_production_preparation():
