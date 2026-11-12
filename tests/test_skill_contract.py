@@ -135,6 +135,8 @@ _AUDIT_CAPABILITIES_DETAILS_JSON_SCHEMA = _AUDIT_DIR / "schemas" / "audit_capabi
 _AUDIT_FAILURE_CASE_JUDGMENTS_JSON_SCHEMA = _AUDIT_DIR / "schemas" / "audit_failure_case_judgments.schema.json"
 _AUDIT_FAILURE_CASES_DETAILS_JSON_SCHEMA = _AUDIT_DIR / "schemas" / "audit_failure_cases_details.schema.json"
 _AUDIT_TOOL_CALLS_DETAILS_JSON_SCHEMA = _AUDIT_DIR / "schemas" / "audit_tool_calls_details.schema.json"
+_AUDIT_CODE_PROVENANCE_JSON_SCHEMA = _AUDIT_DIR / "schemas" / "audit_code_provenance.schema.json"
+_AUDIT_CODE_PROVENANCE_EXAMPLE = _AUDIT_DIR / "examples" / "schemas" / "code_provenance.json"
 _AUDIT_TOOL_CALLS_COVERAGE_EXAMPLE = _AUDIT_DIR / "examples" / "schemas" / "tool_calls.coverage.json"
 _AUDIT_CAPABILITIES_COVERAGE_EXAMPLE = _AUDIT_DIR / "examples" / "schemas" / "capabilities.coverage.json"
 _AUDIT_CAPABILITY_JUDGMENTS_EXAMPLE = _AUDIT_DIR / "examples" / "schemas" / "capability_judgments.json"
@@ -1467,6 +1469,7 @@ def test_every_audit_spec_path_the_skill_or_reference_readme_names_exists() -> N
         "scripts/audit_spec/generate.py",
         "scripts/audit_spec/measure.py",
         "scripts/audit_spec/report.py",
+        "scripts/audit_spec/provenance.py",
         "scripts/audit_spec/validate.py",
         "scripts/audit_spec/_schema.py",
         "scripts/audit_spec/_markdown.py",
@@ -1484,6 +1487,7 @@ def test_every_audit_spec_path_the_skill_or_reference_readme_names_exists() -> N
         "schemas/audit_coverage.schema.json",
         "schemas/audit_coverage_report.schema.json",
         "schemas/audit_tool_calls_details.schema.json",
+        "schemas/audit_code_provenance.schema.json",
         "examples/schemas/capability_judgments.json",
         "examples/schemas/capabilities.coverage.json",
         "examples/schemas/capabilities.details.json",
@@ -1493,6 +1497,7 @@ def test_every_audit_spec_path_the_skill_or_reference_readme_names_exists() -> N
         "examples/schemas/failure_cases.details.json",
         "examples/schemas/tool_calls.coverage.json",
         "examples/schemas/tool_calls.details.json",
+        "examples/schemas/code_provenance.json",
         "requirements.txt",
         "templates/audit.md",
         "schemas/report_content.schema.json",
@@ -1797,6 +1802,7 @@ def test_audit_measurement_json_schemas_are_valid(schema_path: Path) -> None:
         (_AUDIT_TOOL_CALLS_DETAILS_JSON_SCHEMA, _AUDIT_TOOL_CALLS_DETAILS_EXAMPLE),
         (_AUDIT_CAPABILITIES_DETAILS_JSON_SCHEMA, _AUDIT_CAPABILITIES_DETAILS_EXAMPLE),
         (_AUDIT_FAILURE_CASES_DETAILS_JSON_SCHEMA, _AUDIT_FAILURE_CASES_DETAILS_EXAMPLE),
+        (_AUDIT_CODE_PROVENANCE_JSON_SCHEMA, _AUDIT_CODE_PROVENANCE_EXAMPLE),
     ),
 )
 def test_audit_measurement_schema_examples_validate(schema_path: Path, example_path: Path) -> None:

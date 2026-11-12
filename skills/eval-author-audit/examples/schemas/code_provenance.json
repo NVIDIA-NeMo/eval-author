@@ -1,0 +1,62 @@
+{
+  "schema": "nemo.eval_author.audit_code_provenance.v1",
+  "subject": {
+    "trace": ".harbor/runs/account-recovery/trials/trial-001/agent/trajectory.json",
+    "trace_format": "nemo-compass-trace",
+    "source_kind": "atif",
+    "task_id": "account-recovery",
+    "run_id": "trial-001"
+  },
+  "totals": {
+    "tool_call_count": 4,
+    "authored_lines": 12,
+    "copied_lines": 5,
+    "copied_share": 0.4167,
+    "matched_lines_by_source": {
+      "skills": 5,
+      "system-prompt": 1
+    }
+  },
+  "tool_calls": [
+    {
+      "tool": "bash",
+      "span_id": "trajectory/step/3/tool/0",
+      "tool_call_id": "call-3",
+      "trace_id": "trial-001",
+      "authored_lines": 9,
+      "copied_lines": 5,
+      "matched_lines_by_source": {
+        "skills": 5,
+        "system-prompt": 1
+      }
+    },
+    {
+      "tool": "python",
+      "span_id": "trajectory/subagent/0/step/2/tool/0",
+      "tool_call_id": "sub-call-2",
+      "trace_id": "trial-001",
+      "authored_lines": 3,
+      "copied_lines": 0,
+      "matched_lines_by_source": {}
+    }
+  ],
+  "binding": {
+    "trace_sha256": "9f2c1d0e8b7a6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d",
+    "sources": [
+      {
+        "name": "skills",
+        "path": "/work/support-agent/skills",
+        "kind": "directory",
+        "sha256": "0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9",
+        "file_count": 7
+      },
+      {
+        "name": "system-prompt",
+        "path": "/work/support-agent/prompts/system.md",
+        "kind": "file",
+        "sha256": "f9e8d7c6b5a4938271605f4e3d2c1b0af9e8d7c6b5a4938271605f4e3d2c1b0a",
+        "file_count": 1
+      }
+    ]
+  }
+}

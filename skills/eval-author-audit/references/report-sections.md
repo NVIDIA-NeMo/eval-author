@@ -83,6 +83,16 @@ the coverage limit each appear twice, and the task name becomes a link.
 >
 > Coverage was not measured for this audit because the audit measurement step was not run. Some tasks also lack runs that could be used to measure results. All findings come from inspecting the verifier code and the task files.
 
+### Code provenance
+
+**The renderer writes:** a Code provenance table under Evaluation coverage, one
+row per run, only when the aggregate includes code provenance. Every cell is
+computed. You author nothing for it.
+
+Don't restate its numbers or call a share a pass or fail. Mention it in a
+finding only when it changes what the evidence shows, such as a task an agent
+can pass by pasting an example from its skills.
+
 ## Advisories
 
 An advisory is a `verifier_cheating` finding with status `confirmed` or

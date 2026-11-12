@@ -24,6 +24,8 @@ from _markdown import AuditMarkdownError  # noqa: E402
 from _schema import ITEM_KINDS as AUDIT_ITEM_KINDS  # noqa: E402
 from _schema import AuditEnvironmentError, AuditSpecError, item_counts, load_audit_spec  # noqa: E402
 from _values import EVIDENCE_CLASS_ORDER, dedupe_names, subject_evidence_class  # noqa: E402
+from provenance import OUTPUT_NAME as PROVENANCE_NAME  # noqa: E402
+from provenance import PROVENANCE_SCHEMA_PATH, ProvenanceSourceError, source_digest  # noqa: E402
 
 JsonObject: TypeAlias = dict[str, Any]
 
@@ -44,7 +46,7 @@ class AuditCoverageReportError(ValueError):
 
 @dataclass(frozen=True)
 class CoverageInput:
-    """One validated input coverage file and its filesystem path."""
+    """One validated input file (coverage or code provenance) and its filesystem path."""
 
     path: Path
     payload: JsonObject
@@ -62,6 +64,13 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         help="directory to scan recursively for coverage.json files; repeatable",
     )
+    parser.add_argument("--provenance", type=Path, action="append", help="code provenance.json file; repeatable")
+    parser.add_argument(
+        "--provenance-dir",
+        type=Path,
+        action="append",
+        help=f"directory to scan recursively for {PROVENANCE_NAME} files; repeatable",
+    )
     parser.add_argument("--out", type=Path, help="coverage report JSON file to write")
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
     args = parser.parse_args(argv)
@@ -76,7 +85,13 @@ def main(argv: list[str] | None = None) -> int:
         audit = load_audit_spec(args.audit)
         coverage_paths = _coverage_paths(files=args.coverage, dirs=args.coverage_dir)
         coverage_inputs = [_load_coverage(path) for path in coverage_paths]
-        report = _aggregate(audit=audit, audit_path=args.audit, coverage_inputs=coverage_inputs)
+        provenance_paths = _coverage_paths(
+            files=args.provenance, dirs=args.provenance_dir, label="provenance", filename=PROVENANCE_NAME
+        )
+        provenance_inputs = [_load_provenance(path) for path in provenance_paths]
+        report = _aggregate(
+            audit=audit, audit_path=args.audit, coverage_inputs=coverage_inputs, provenance_inputs=provenance_inputs
+        )
         _validate_report(report)
         _write_report(report, out=args.out, compact=args.compact)
     except AuditEnvironmentError as exc:
@@ -121,21 +136,29 @@ def main(argv: list[str] | None = None) -> int:
         "uncovered_count": report["coverage"]["overall"]["uncovered_count"],
         "uncovered": report["uncovered"],
     }
+    if provenance_inputs:
+        summary["provenance_input_count"] = len(provenance_inputs)
     _print(summary, compact=args.compact)
     return 0
 
 
-def _coverage_paths(*, files: list[Path] | None, dirs: list[Path] | None) -> list[Path]:
-    """Resolve explicit coverage files and recursively discovered coverage files."""
+def _coverage_paths(
+    *,
+    files: list[Path] | None,
+    dirs: list[Path] | None,
+    label: str = "coverage",
+    filename: str = "coverage.json",
+) -> list[Path]:
+    """Resolve explicit input files and recursively discovered files; only coverage is required."""
     paths: list[Path] = []
     for path in files or []:
         if not path.is_file():
-            raise AuditCoverageInputError(f"coverage file does not exist: {path}")
+            raise AuditCoverageInputError(f"{label} file does not exist: {path}")
         paths.append(path)
     for directory in dirs or []:
         if not directory.is_dir():
-            raise AuditCoverageInputError(f"coverage directory does not exist: {directory}")
-        paths.extend(sorted(directory.rglob("coverage.json")))
+            raise AuditCoverageInputError(f"{label} directory does not exist: {directory}")
+        paths.extend(sorted(directory.rglob(filename)))
 
     deduped: list[Path] = []
     seen: set[Path] = set()
@@ -146,25 +169,36 @@ def _coverage_paths(*, files: list[Path] | None, dirs: list[Path] | None) -> lis
         seen.add(resolved)
         deduped.append(path)
 
-    if not deduped:
+    if not deduped and label == "coverage":
         raise AuditCoverageInputError("no coverage.json files found; pass --coverage or --coverage-dir")
+    if not deduped and dirs:
+        raise AuditCoverageInputError(f"no {filename} files found under --{label}-dir")
     return deduped
 
 
 def _load_coverage(path: Path) -> CoverageInput:
     """Load and validate one per-trace coverage.json file."""
+    return _load_input(path, label="coverage", schema_path=COVERAGE_SCHEMA_PATH)
+
+
+def _load_provenance(path: Path) -> CoverageInput:
+    """Load and validate one per-trace code provenance file."""
+    return _load_input(path, label="provenance", schema_path=PROVENANCE_SCHEMA_PATH)
+
+
+def _load_input(path: Path, *, label: str, schema_path: Path) -> CoverageInput:
     try:
         raw = path.read_bytes()
         payload = json.loads(raw)
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise AuditCoverageInputError(f"could not read coverage file at {path}: {exc}") from exc
+        raise AuditCoverageInputError(f"could not read {label} file at {path}: {exc}") from exc
     if not isinstance(payload, dict):
-        raise AuditCoverageInputError(f"coverage file at {path} must be a JSON object")
+        raise AuditCoverageInputError(f"{label} file at {path} must be a JSON object")
 
     _validate_json(
         payload,
-        schema_path=COVERAGE_SCHEMA_PATH,
-        label=f"coverage input {path}",
+        schema_path=schema_path,
+        label=f"{label} input {path}",
         error_type=AuditCoverageInputError,
     )
     return CoverageInput(path=path, payload=payload, raw_sha256=hashlib.sha256(raw).hexdigest())
@@ -175,6 +209,7 @@ def _aggregate(
     audit: JsonObject,
     audit_path: Path,
     coverage_inputs: list[CoverageInput],
+    provenance_inputs: list[CoverageInput] | None = None,
     artifact_path: Callable[[str], Path] = Path,
 ) -> JsonObject:
     """Aggregate coverage; headline fields use the agent-under-test bucket when labeled."""
@@ -274,7 +309,46 @@ def _aggregate(
             "audit_sha256": hashlib.sha256(json.dumps(audit, sort_keys=True).encode()).hexdigest(),
             "inputs": [{"path": str(entry.path.resolve()), "sha256": entry.raw_sha256} for entry in coverage_inputs],
         }
+    if provenance_inputs:
+        if "binding" not in report:
+            raise AuditCoverageInputError("code provenance requires bound coverage measurements")
+        report["provenance"] = _provenance_reports(coverage_inputs, provenance_inputs, artifact_path=artifact_path)
+        report["binding"]["provenance"] = [
+            {"path": str(entry.path.resolve()), "sha256": entry.raw_sha256} for entry in provenance_inputs
+        ]
     return report
+
+
+def _provenance_reports(
+    coverage_inputs: list[CoverageInput],
+    provenance_inputs: list[CoverageInput],
+    *,
+    artifact_path: Callable[[str], Path],
+) -> list[JsonObject]:
+    """Accept provenance only for measured traces whose bytes and sources are unchanged; coverage is untouched."""
+    measured = {entry.payload["binding"]["trace_sha256"] for entry in coverage_inputs}
+    seen: set[str] = set()
+    reports = []
+    for entry in provenance_inputs:
+        payload = entry.payload
+        binding = payload["binding"]
+        trace_sha256 = binding["trace_sha256"]
+        if trace_sha256 not in measured:
+            raise AuditCoverageInputError(f"{entry.path}: code provenance trace is not an aggregated measurement")
+        if trace_sha256 in seen:
+            raise AuditCoverageInputError(f"{entry.path}: duplicate code provenance for one trace")
+        seen.add(trace_sha256)
+        if _digest(artifact_path(payload["subject"]["trace"])) != trace_sha256:
+            raise AuditCoverageInputError(f"{entry.path}: code provenance trace digest changed")
+        for source in binding["sources"]:
+            try:
+                current = source_digest(artifact_path(source["path"]))
+            except (OSError, ProvenanceSourceError) as exc:
+                raise AuditCoverageInputError(f"{entry.path}: cannot read code provenance source: {exc}") from exc
+            if current != source["sha256"]:
+                raise AuditCoverageInputError(f"{entry.path}: code provenance source {source['name']!r} changed")
+        reports.append({"path": str(entry.path.resolve()), "subject": payload["subject"], "totals": payload["totals"]})
+    return reports
 
 
 def _digest(path: Path) -> str:
@@ -306,13 +380,30 @@ def verify_existing(path: Path) -> dict:
             inputs.append(_load_coverage(source))
         if not inputs or len({entry.path.resolve() for entry in inputs}) != len(inputs):
             raise AuditCoverageInputError("distinct coverage inputs are required")
-        rebuilt = _aggregate(audit=audit, audit_path=audit_path, coverage_inputs=inputs, artifact_path=artifact_path)
+        provenance_inputs = []
+        for entry in binding.get("provenance", []):
+            source = artifact_path(entry["path"])
+            if _digest(source) != entry["sha256"]:
+                raise AuditCoverageInputError("code provenance digest changed")
+            provenance_inputs.append(_load_provenance(source))
+        rebuilt = _aggregate(
+            audit=audit,
+            audit_path=audit_path,
+            coverage_inputs=inputs,
+            provenance_inputs=provenance_inputs,
+            artifact_path=artifact_path,
+        )
         # Location is a retrieval hint, not an evidence identity. Preserve the
         # original measurement bytes and compare the report at its current location.
         expected = copy.deepcopy(report)
         expected["binding"].pop("artifacts", None)
         expected["audit"]["path"] = str(audit_path.resolve())
-        for entry in expected["binding"]["inputs"] + expected["input_reports"]:
+        for entry in (
+            expected["binding"]["inputs"]
+            + expected["input_reports"]
+            + expected["binding"].get("provenance", [])
+            + expected.get("provenance", [])
+        ):
             entry["path"] = str(artifact_path(entry["path"]).resolve())
         for warning in expected["warnings"]:
             if "coverage" in warning:
@@ -657,6 +748,11 @@ def _write_report(report: JsonObject, *, out: Path, compact: bool) -> None:
             coverage = _load_coverage(Path(entry["path"])).payload
             paths.add(coverage["subject"]["trace"])
             paths.update(judgment["path"] for judgment in coverage["binding"].get("judgments", []))
+        for entry in report["binding"].get("provenance", []):
+            paths.add(entry["path"])
+            provenance = _load_provenance(Path(entry["path"])).payload
+            paths.add(provenance["subject"]["trace"])
+            paths.update(source["path"] for source in provenance["binding"]["sources"])
         # Retaining the same relative layout makes the evidence portable without
         # rewriting measurements (and invalidating their byte digests).
         artifacts = {}

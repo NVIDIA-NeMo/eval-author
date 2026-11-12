@@ -307,6 +307,8 @@ def _measurement(model: Content, identifier: str):
         selected(payload["subject"]["trace"])
         for judgment in payload.get("binding", {}).get("judgments", []):
             selected(judgment["path"])
+    for entry in binding.get("provenance", []):
+        selected(decode(read_bytes(selected(entry["path"])))["subject"]["trace"])
     module = load_module("audit_content_aggregation", Path(__file__).with_name("report.py"))
     module.verify_existing(path)
     model.aggregate = aggregate

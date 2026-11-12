@@ -422,6 +422,19 @@ The script validates `coverage.json` against `schemas/audit_coverage.schema.json
 and validates `details.json` against the selected method's details schema before
 writing. Use the next step to aggregate coverage across tasks and runs.
 
+### Optional: Measure Code Provenance
+
+If the agent's skills or prompts contain example code, or the Ethos says it must author
+code itself, count tool-call code lines also found verbatim in user-confirmed sources it
+could read. Report each source's copied share as evidence, never a pass or fail; coverage is
+unchanged. Trace options match Step 4; add `--provenance-dir` in Step 5 ([rules](scripts/audit_spec/README.md#code-provenance)).
+
+```bash
+uv run --with-requirements <skill_dir>/requirements.txt <skill_dir>/scripts/audit_spec/provenance.py \
+  --trial-dir <trial-dir> --source skills=<agent>/skills --source prompt=<agent>/system.md \
+  --out-dir .eval-author/audit-measurements
+```
+
 ### Step 5: Aggregate Coverage Reports
 
 After measuring one or more traces, aggregate the per-trace `coverage.json`
@@ -502,6 +515,7 @@ ATIF, MLflow, NeMo Gym, or normalized trace input loaded through NeMo Compass, v
 | `scripts/audit_spec/generate.py` | Create, reconcile, replace, or preview `.eval-author/audit.md` from `ETHOS.md` and reviewed item proposals |
 | `scripts/audit_spec/measure.py` | Measure one ATIF/MLflow/NeMo Gym/normalized trace or Harbor trial directory against `audit.md` and write coverage/details files for each selected method |
 | `scripts/audit_spec/report.py` | Aggregate per-trace `coverage.json` files into one coverage report with uncovered audit items |
+| `scripts/audit_spec/provenance.py` | Optionally count authored tool-call code lines that also appear in the agent's declared skills or prompts |
 | `scripts/audit_spec/report_content.py` | Validate authored report content and source bindings |
 | `scripts/audit_spec/render_report.py` | Render the generated, read-only Markdown audit |
 | `scripts/audit_spec/report_layout.py` | Define fixed report headings, tables, and copy |

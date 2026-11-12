@@ -183,6 +183,14 @@ The Audit coverage report explains what those results mean. Journey state saves
 a measurement summary and references its evidence; failed inputs and missing
 methods keep measurement partial.
 
+When an agent's skills or system prompt contain example code, you can ask Eval
+Author to also measure code provenance. For each selected run it counts the code
+lines written in tool-call arguments that also appear verbatim in the sources you
+name, such as a skills directory or prompt file, and reports the copied share per
+source next to coverage in `provenance.json`. The Audit coverage report then shows
+a Code provenance table under Evaluation coverage. It is evidence for your review,
+not a pass or fail result, and it never changes coverage.
+
 Saved audit evidence links original traces and selected suite runs to loaded
 traces, their `loading.json` receipts, and measurements. Journey state references the saved
 selection manifest. New manifests use

@@ -18,9 +18,14 @@ JsonObject: TypeAlias = dict[str, Any]
 
 def collect_tool_calls(trace: Trace) -> list[JsonObject]:
     """Return every named TOOL span in depth-first order, including nested agent spans."""
+    return [call for call, _ in collect_tool_call_inputs(trace)]
+
+
+def collect_tool_call_inputs(trace: Trace) -> list[tuple[JsonObject, Any]]:
+    """Return each `collect_tool_calls` record paired with its span's recorded input (the call arguments)."""
     from trace_ingest import SpanKind
 
-    calls: list[JsonObject] = []
+    calls: list[tuple[JsonObject, Any]] = []
     trace_id = optional_string(trace.id)
     stack: list[Span] = list(reversed(trace.root_spans))
     while stack:
@@ -37,7 +42,7 @@ def collect_tool_calls(trace: Trace) -> list[JsonObject]:
             call["tool_call_id"] = tool_call_id
         if trace_id is not None:
             call["trace_id"] = trace_id
-        calls.append(call)
+        calls.append((call, span.input))
     return calls
 
 

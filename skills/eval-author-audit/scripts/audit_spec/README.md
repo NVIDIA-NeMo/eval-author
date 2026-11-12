@@ -79,6 +79,7 @@ Current assumptions:
 | `scripts/audit_spec/generate.py` | Create, reconcile, replace, or preview `.eval-author/audit.md` from `ETHOS.md` and reviewed item proposals |
 | `scripts/audit_spec/measure.py` | Measure one ATIF/MLflow/Gym/normalized trace or Harbor trial directory against `audit.md` and write coverage/details files for each selected method |
 | `scripts/audit_spec/report.py` | Aggregate per-trace `coverage.json` files into one coverage report with uncovered audit items |
+| `scripts/audit_spec/provenance.py` | Count code lines authored in trace tool-call arguments that also appear in declared sources, written next to coverage |
 | `scripts/audit_spec/report_content.py` | Validate authored report content and source bindings |
 | `scripts/audit_spec/render_report.py` | Render the generated, read-only Markdown audit |
 | `scripts/audit_spec/report_layout.py` | Define fixed report headings, tables, and copy |
@@ -106,6 +107,7 @@ Private shared helpers live in `scripts/audit_spec/_schema.py`,
 | Capability details schema | `schemas/audit_capabilities_details.schema.json` |
 | Failure-case details schema | `schemas/audit_failure_cases_details.schema.json` |
 | Tool-call details schema | `schemas/audit_tool_calls_details.schema.json` |
+| Code provenance schema | `schemas/audit_code_provenance.schema.json` |
 | Tool-call coverage example | `examples/schemas/tool_calls.coverage.json` |
 | Tool-call details example | `examples/schemas/tool_calls.details.json` |
 | Capability judgment input example | `examples/schemas/capability_judgments.json` |
@@ -115,6 +117,7 @@ Private shared helpers live in `scripts/audit_spec/_schema.py`,
 | Failure-case coverage example | `examples/schemas/failure_cases.coverage.json` |
 | Failure-case details example | `examples/schemas/failure_cases.details.json` |
 | Aggregate coverage report example | `examples/schemas/coverage_report.json` |
+| Code provenance example | `examples/schemas/code_provenance.json` |
 | Report content example | `examples/report-content.json` |
 
 ## Measurement Methods
@@ -137,3 +140,50 @@ kinds remain `unsupported`.
 each declared prohibited tool as a hard gate. Other failure-case fields are
 rubric context; conditions that must gate coverage belong in
 `evidence_required`.
+
+## Code Provenance
+
+`provenance.py` is optional evidence, not a measurement method: it has no audit
+items, writes no `coverage.json`, and never changes coverage counts. It answers
+how much code the agent wrote in tool calls also appears verbatim in text the
+agent was given, such as its skills or system prompt.
+
+- Subjects and loading match `measure.py`: repeat `--trace` (with one
+  `--source-kind`) or `--trial-dir`; `--task-id` and `--run-id` apply only to a
+  single trace. Output goes to `<out-dir>/task=<task-id>/run=<run-id>/provenance.json`,
+  validated against `schemas/audit_code_provenance.schema.json` before any
+  file is written.
+- Sources are explicit `--source NAME=PATH` arguments, each a file or a
+  directory. They are not audit-spec `sources[]`: those bind single denominator
+  files, and `validate.py` has no directory digest. A file source binds the
+  SHA-256 of its bytes. A directory source reads every non-hidden UTF-8 file
+  below it without following symlinks, skipping hidden directories and
+  non-UTF-8 files, and binds the SHA-256 of `sha256sum`-style
+  `<file-sha256>  <relative/posix/path>` lines sorted by path.
+- Authored text is every string value in each TOOL span's arguments, recursing
+  into objects and arrays (including subagent traces). A string holding a JSON
+  object or array is decoded and searched the same way. Multi-line strings,
+  such as shell heredoc bodies and file-write contents, contribute every line.
+  Tool results and assistant messages are not read.
+- Each line is normalized by stripping it and collapsing internal whitespace.
+  A normalized line is trivial, and ignored on both sides, when it has fewer
+  than 10 characters, no letter or digit, starts a comment (`#`, `//`, `/*`,
+  `*/`, `* `, `<!--`, `-->`), or is an import (`import `, `from X import `,
+  `package `, `using `, `use `).
+- A non-trivial authored line is copied when the same normalized line appears
+  in a source. Counts are occurrences: a repeated line counts each time.
+  `matched_lines_by_source` counts a line once for every source containing it,
+  so its values can sum to more than `copied_lines`. `copied_share` is
+  `copied_lines / authored_lines`, rounded to four places, or `null` when no
+  line was authored. Matching is verbatim per line: renamed variables or a
+  line embedded in longer source prose do not match.
+- Output records counts, `span_id`, `tool_call_id`, and tool names only, never
+  the matched text. `tool_calls` lists only calls that authored a non-trivial
+  line; `totals.tool_call_count` counts every TOOL span.
+- `report.py --provenance <file>` or `--provenance-dir <dir>` adds a
+  `provenance` section with each file's subject and totals. It accepts a file
+  only when its `trace_sha256` matches an aggregated, bound coverage input, the
+  trace bytes are unchanged, and every source still has its bound digest.
+  Without these flags the aggregate is unchanged. `--verify-existing` repeats
+  the same checks, and the rendered report adds a Code provenance table under
+  Evaluation coverage.

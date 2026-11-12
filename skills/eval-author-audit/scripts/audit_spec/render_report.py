@@ -300,6 +300,18 @@ def table(kind: str, rows: list[list[str]]) -> list[str]:
     ]
 
 
+def provenance_row(entry: dict) -> list[str]:
+    totals = entry["totals"]
+    share = totals["copied_share"]
+    return [
+        cell(entry["subject"]["run_id"]),
+        str(totals["authored_lines"]),
+        str(totals["copied_lines"]),
+        layout.COPY["no_authored_code"] if share is None else f"{share:.0%}",
+        ", ".join(f"{cell(name)}: {count}" for name, count in sorted(totals["matched_lines_by_source"].items())),
+    ]
+
+
 def measurements(model: content.Content) -> tuple[set[str], set[str], list[dict]]:
     report = model.aggregate
     if report is None:
@@ -571,6 +583,10 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
         ),
         "inputs.measurement",
     )
+    provenance = model.aggregate.get("provenance", []) if model.aggregate is not None else []
+    if provenance:
+        add(["#### " + layout.SUBHEADINGS["provenance"], "", layout.COPY["provenance"], ""], "inputs.measurement")
+        add(table("provenance", [provenance_row(entry) for entry in provenance]), "inputs.measurement")
     if cheats:
         add(["### " + layout.SUBHEADINGS["advisory"], ""], "findings")
         for row in cheats:

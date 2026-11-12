@@ -13,7 +13,7 @@ SECTIONS = (
     (2, "Definitions"),
 )
 EVAL_AUTHOR_URL = "https://github.com/NVIDIA-NeMo/eval-author"
-SUBHEADINGS = {"advisory": "ADVISORY"}
+SUBHEADINGS = {"advisory": "ADVISORY", "provenance": "Code provenance"}
 ACTIONS = {
     "new_task": "Add a task",
     "revise_task": "Revise a task",
@@ -34,6 +34,7 @@ TABLES = {
     "tasks": ("Task", "Behavior", "Capabilities and tools", "Findings"),
     "coverage": ("Functionality", "Intended check and required evidence", "Tasks", "Run evidence"),
     "current": ("", "Current audit"),
+    "provenance": ("Run", "Authored lines", "Copied lines", "Copied share", "Lines found per source"),
 }
 KINDS = (("capability", "Capabilities"), ("tool", "Tools"), ("failure_case", "Failure cases"))
 COVERAGE_HEADINGS = {
@@ -70,6 +71,12 @@ COPY = {
     "basis_demonstrated": "Demonstrated in selected runs",
     "demonstrated": "Demonstrated in {runs} selected {run_word}",
     "none_observed": "None observed",
+    "no_authored_code": "No authored code",
+    "provenance": (
+        "Each run's tool-call arguments are compared line by line with the declared sources, such as the agent's skills "
+        "or system prompt. Copied lines also appear verbatim in a source. This is evidence for review, not a pass or "
+        "fail result, and it does not change coverage."
+    ),
     "proposed_task": "Proposed task:",
     "coverage_gap_title": "Coverage gaps",
     "gap_undemonstrated": "{counts} have no demonstrated coverage in the selected runs.",

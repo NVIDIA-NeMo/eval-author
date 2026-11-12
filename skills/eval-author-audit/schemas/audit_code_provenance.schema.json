@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://developer.nvidia.com/nemo/eval-author/audit_code_provenance.schema.json",
+  "title": "NeMo Eval Author code provenance evidence",
+  "description": "Per-trace counts of code lines authored in tool-call arguments that also appear in declared sources. Evidence reported next to coverage; it never changes coverage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "subject",
+    "totals",
+    "tool_calls",
+    "binding"
+  ],
+  "properties": {
+    "schema": {
+      "description": "Version marker for the code provenance format and its line rule.",
+      "const": "nemo.eval_author.audit_code_provenance.v1"
+    },
+    "subject": {
+      "description": "Provider-neutral identity of the trace, resolved as measure.py does.",
+      "$ref": "#/$defs/subject"
+    },
+    "totals": {
+      "description": "Counts over every tool call in the trace, including subagent traces.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool_call_count",
+        "authored_lines",
+        "copied_lines",
+        "copied_share",
+        "matched_lines_by_source"
+      ],
+      "properties": {
+        "tool_call_count": {
+          "description": "Named TOOL spans in the trace, with or without authored lines.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "authored_lines": {
+          "$ref": "#/$defs/authoredLines"
+        },
+        "copied_lines": {
+          "$ref": "#/$defs/copiedLines"
+        },
+        "copied_share": {
+          "description": "copied_lines divided by authored_lines, rounded to four places; null when no line was authored.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "matched_lines_by_source": {
+          "description": "Authored lines also found in each declared source, including sources with no match. A line found in several sources counts for each.",
+          "$ref": "#/$defs/sourceCounts"
+        }
+      }
+    },
+    "tool_calls": {
+      "description": "Tool calls that authored at least one non-trivial line, depth-first.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/toolCall"
+      }
+    },
+    "binding": {
+      "description": "Digests of the exact trace bytes and source contents compared.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trace_sha256",
+        "sources"
+      ],
+      "properties": {
+        "trace_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/source"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sourceName": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"
+    },
+    "authoredLines": {
+      "description": "Normalized, non-trivial lines in the tool-call arguments.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "copiedLines": {
+      "description": "Authored lines found in at least one declared source.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "sourceCounts": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/sourceName"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "path",
+        "kind",
+        "sha256",
+        "file_count"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/sourceName"
+        },
+        "path": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "kind": {
+          "enum": [
+            "file",
+            "directory"
+          ]
+        },
+        "sha256": {
+          "description": "File bytes digest, or for a directory the digest of sorted sha256sum-style lines for its included files.",
+          "$ref": "#/$defs/sha256"
+        },
+        "file_count": {
+          "description": "Text files read from the source.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "toolCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool",
+        "span_id",
+        "authored_lines",
+        "copied_lines",
+        "matched_lines_by_source"
+      ],
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "span_id": {
+          "description": "Id of the TOOL span in the loaded NeMo Compass trace.",
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "tool_call_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "trace_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "authored_lines": {
+          "$ref": "#/$defs/authoredLines"
+        },
+        "copied_lines": {
+          "$ref": "#/$defs/copiedLines"
+        },
+        "matched_lines_by_source": {
+          "description": "Sources with at least one matching line from this call.",
+          "$ref": "#/$defs/sourceCounts"
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trace",
+        "trace_format",
+        "source_kind",
+        "task_id",
+        "run_id"
+      ],
+      "properties": {
+        "trace": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "trace_format": {
+          "const": "nemo-compass-trace"
+        },
+        "source_kind": {
+          "enum": [
+            "atif",
+            "mlflow",
+            "gym",
+            "trace"
+          ]
+        },
+        "task_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "run_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    }
+  }
+}

@@ -16,6 +16,7 @@
 - Select sources through the existing audit workflow before reading them. Bind only selected, inspected sources with their actual digests.
 - Keep live journey state out of immutable source bindings. Bind its selected artifacts instead and retain decisions only in workflow state.
 - Obtain a selected file's digest with `report_content.py --repo . --source-digest <path>`. Add `--task-tree` for the native task revision digest. This command writes nothing.
+- When the aggregate includes [code provenance](../SKILL.md#optional-measure-code-provenance), bind each aggregated `provenance.json` as a selected `document` source. The renderer refuses bound evidence that is not selected.
 - Preserve stable IDs, user corrections, agreed scope, and decisions while updating authored input.
 - Keep narrative separate from facts computed from the specification, native measurements, and receipts. Leave missing task-to-run mappings unresolved.
 - Preserve the audit's recorded date and code revision. Render no history or trend claims from refresh time.
