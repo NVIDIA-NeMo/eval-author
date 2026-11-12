@@ -5,8 +5,9 @@
 
 ## Artifact names
 
-- Introduce `.eval-author/audit-coverage-report.md` as the audit's readable review artifact.
+- Introduce `.eval-author/report_markdown/audits.md` as the audit's readable review artifact, and the **Audit** tab of `.eval-author/report.html` as the same report for people in a browser.
 - Treat `.eval-author/.working/audit/report-content.json` as authored input and the Markdown as generated, read-only output.
+- Audits written before this location existed live at `.eval-author/audit-coverage-report.md`. The renderer writes the new location and removes the old file only when it is an unedited generated report; it keeps an edited or hand-written one and reports `legacy_report_retained`. Until the first audit, `audits.md` is a placeholder whose first line is the suite report's audit placeholder marker; treat it as no audit.
 - Keep the specification, measurement JSON, source bindings, and journey state internal unless explicitly requested.
 - Use the [audit renderer](../../eval-author/references/conversations/audit.md) for conversation checkpoints and verified report links.
 
@@ -36,11 +37,12 @@ tasks, fixtures, and verifiers, labels all run coverage unmeasured, and writes
 `measurement` lifecycle record. Do not describe it as a deferred or incomplete
 measured audit, or reuse historical run findings as current evidence.
 
-- Link the generated Markdown after a successful write. Report actual validation and rendering outcomes only.
+- After a successful render, the renderer refreshes the suite report itself, so `report.html` (Audit tab), the `report_markdown/` reports, and the generated section of `.eval-author/README.md` match the new audit. Do not run a separate refresh for it. Its result names `suite_report`; a `suite_report_error` means the audit Markdown is current but the HTML is not. Report that error to the user as it is.
+- Link the generated Markdown and `report.html#audit` after a successful write. Report actual validation and rendering outcomes only.
 - Preserve the existing report when inputs are invalid, stale, or unavailable.
 - Never interpret or merge direct Markdown edits. When the renderer reports `generated_output_modified`, make the requested correction in the field it names and rerun. To discard the edits instead, rerun with `--discard-edits <sha>` using the digest in the error. The edited copy is kept at `.eval-author/.working/audit/edited-report-<sha>.md`.
 - Leave hand-authored legacy reports readable until the user requests conversion. On conversion, author validated content from the reviewed facts and preserve stable IDs, decisions, and links. Pass the old Markdown's SHA-256 with `--convert-legacy <digest>` only for that explicit conversion. The renderer retains its original bytes outside the generated report.
-- Leave HTML, all READMEs, and the suite report generator unchanged.
+- Leave task READMEs, authored suite README content outside its generated markers, and the suite report generator unchanged. Never write `report.html` or the generated README section by hand.
 
 ## Inspect verifier behavior and retained controls
 

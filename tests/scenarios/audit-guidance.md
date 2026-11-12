@@ -201,7 +201,7 @@ independently when evaluation-scope confirmation remains unanswered; resuming
 must neither infer suite acceptance nor ask for the same trace selection again.
 
 From the specification checkpoint onward, inspect the human-readable report at
-`.eval-author/audit-coverage-report.md` separately from progress state. It must
+`.eval-author/report_markdown/audits.md` separately from progress state. It must
 explain scope with available evidence, and map stable
 audit-item names to intended tests separately from observed run evidence. A test
 definition is not measured coverage. Its generated **Coverage report** must list
@@ -385,7 +385,7 @@ accepted Ethos and registry, without invented execution evidence. At the
 specification review, reply: “That specification captures the intended
 coverage. Finalize the specification-only findings with measurement pending.”
 
-**Final review:** The agent creates or updates and explicitly links `.eval-author/audit-coverage-report.md`,
+**Final review:** The agent creates or updates and explicitly links `.eval-author/report_markdown/audits.md`,
 updates `.eval-author/.working/journey-state.json`, and distinguishes finished specification
 work from unmeasured coverage in its findings. It reports no zero
 coverage percentage or completed measured audit. It offers first-eval creation
@@ -608,7 +608,7 @@ Reply: “Yes, propose those task improvements.” It proceeds directly to
 measurements, reviewed Ethos, and selected source scope. It does not replay audit
 onboarding, repeat settled input questions, or add another readiness checkpoint.
 The ranked, evidence-based proposals are saved and linked as
-the same generated `.eval-author/audit-coverage-report.md` from authored content, distinguishing new tasks,
+the same generated `.eval-author/report_markdown/audits.md` from authored content, distinguishing new tasks,
 improvements to existing tasks, and evidence gathering. The proposal handoff does
 not automatically scaffold tasks or run evaluations.
 

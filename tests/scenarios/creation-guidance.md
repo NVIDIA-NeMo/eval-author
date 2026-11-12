@@ -33,7 +33,7 @@ At each checkpoint inspect the three-item checklist, current stage, unfinished
 work, and next question. Unanswered scope choices must stop fixture, instruction,
 and grader generation, including delegated work. Save decisions and progress in
 the selected journey’s `scopes` entry in `.eval-author/.working/journey-state.json`; audit-based proposals use
-the same `.eval-author/audit-coverage-report.md`. Keep plans, task validation,
+the same `.eval-author/report_markdown/audits.md`. Keep plans, task validation,
 actual agent performance, and measured coverage as separate claims. If execution
 is unavailable, exercise the partial-completion path; do not invent run evidence.
 

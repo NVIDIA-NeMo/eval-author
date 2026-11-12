@@ -3,7 +3,7 @@
 
 # Write the Audit coverage report, section by section
 
-The renderer builds `audit-coverage-report.md` from `report-content.json`. You
+The renderer builds `report_markdown/audits.md` from `report-content.json`. You
 write only the fields named in this guide. Headings, counts, coverage
 statements, tables, evidence citations, links, numbering, and definitions are
 computed or come from fixed copy in `scripts/audit_spec/report_layout.py`.

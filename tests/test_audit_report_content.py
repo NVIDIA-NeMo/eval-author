@@ -77,7 +77,7 @@ def test_example_schema_layout_and_authored_values_are_consistent(audit_report):
     assert "|  | Current audit | Previous audit | Change |" in text
     assert "| Coverage ratio | 100% | - | Not compared |" in text
     assert "| Coverage basis | Mapped tasks (runs not measured) | - | Not compared |" in text
-    assert "[verify.py](../report-sources/tasks/source-answer/verify.py)" in text
+    assert "[verify.py](../../report-sources/tasks/source-answer/verify.py)" in text
     assert_markdown_links(text, renderer)
 
 
@@ -137,7 +137,9 @@ def test_escaped_task_link_in_summary_renders_as_a_markdown_link(audit_report):
     text = rendered.decode()
     assert_markdown_links(text, renderer)
     assert renderer.task_link(model, "T1") in text
-    assert renderer.task_link(model, "T1") == "[T1-source-answer](../report-sources/tasks/source-answer/instruction.md)"
+    assert (
+        renderer.task_link(model, "T1") == "[T1-source-answer](../../report-sources/tasks/source-answer/instruction.md)"
+    )
 
 
 @pytest.mark.parametrize(
@@ -198,7 +200,7 @@ def test_coverage_task_column_retains_intended_mappings_before_measurement(audit
     capabilities = report.split("### Capabilities audited\n\n", 1)[1].split("### Tools", 1)[0]
     row = next(line for line in capabilities.splitlines() if "cited\\_answers" in line)
     cells = row.split(" | ")
-    assert cells[2].startswith("[T1-source-answer](../report-sources/tasks/source-answer")
+    assert cells[2].startswith("[T1-source-answer](../../report-sources/tasks/source-answer")
     assert "Unmeasured" in cells[3]
     failure_cases = report.split("### Failure cases\n\n")[-1].split("## Verifier cheat screening", 1)[0]
     assert "No evaluation coverage" in failure_cases
@@ -226,7 +228,9 @@ def test_findings_have_plain_headings_and_canonical_task_links(audit_report, tas
     advisory = report.split("### ADVISORY\n\n", 1)[1].split("## Key findings", 1)[0]
     heading, paragraph = advisory.split("\n\n", 2)[:2]
     assert heading == "#### Advisory 1 - Accepts an agent-written reward file"
-    assert paragraph.startswith("The grading script for [T1-source-answer](tasks/source-answer/instruction.md) accepts")
+    assert paragraph.startswith(
+        "The grading script for [T1-source-answer](../tasks/source-answer/instruction.md) accepts"
+    )
     key = report.split("## Key findings\n\n", 1)[1].split("## Recommended next actions", 1)[0]
     assert "agent-written reward file" not in key
     tokens = list(markdown_tokens(advisory))
@@ -234,10 +238,10 @@ def test_findings_have_plain_headings_and_canonical_task_links(audit_report, tas
     task_links = [
         token.attrGet("href")
         for token in tokens
-        if token.type == "link_open" and token.attrGet("href").startswith("tasks/source-answer/instruction")
+        if token.type == "link_open" and token.attrGet("href").startswith("../tasks/source-answer/instruction")
     ]
-    assert task_links == ["tasks/source-answer/instruction.md"]
-    assert all((root / ".eval-author" / target).is_file() for target in task_links)
+    assert task_links == ["../tasks/source-answer/instruction.md"]
+    assert all((root / ".eval-author" / target.removeprefix("../")).is_file() for target in task_links)
     assert_markdown_links(report, renderer)
 
 
@@ -358,7 +362,7 @@ def test_task_references_link_the_entire_full_identifier_in_every_section(audit_
     task_links = [(target, label) for target, label in links if label.startswith("T1")]
     assert len(task_links) >= 5
     assert all(label == "T1-source-answer" for _, label in task_links)
-    assert all(target == "../report-sources/tasks/source-answer/instruction.md" for target, _ in task_links)
+    assert all(target == "../../report-sources/tasks/source-answer/instruction.md" for target, _ in task_links)
 
 
 def test_task_mentions_preserve_identifier_boundaries_and_existing_full_names(audit_report):
@@ -562,7 +566,7 @@ def test_direct_markdown_edits_refuse_refresh_show_diff_and_name_field(audit_rep
 def test_legacy_conversion_is_explicit_and_keeps_original_bytes(audit_report):
     content, renderer, root = audit_report
     output = root / renderer.OUTPUT
-    output.parent.mkdir()
+    output.parent.mkdir(parents=True)
     original = b"# Existing audit\n\nUser corrections and [evidence](old.json).\n"
     output.write_bytes(original)
     with pytest.raises(content.ContentError, match="legacy_report"):
@@ -767,18 +771,18 @@ def test_unnamed_task_is_prefixed_once_and_not_repeated_in_its_citation(audit_re
     "paths,expected",
     [
         ([], "No selected agent runs"),
-        ([".eval-author/jobs/a/t1/result.json"], "1 selected agent run in `jobs/a/t1/`"),
+        ([".eval-author/jobs/a/t1/result.json"], "1 selected agent run in [.eval-author/jobs/a/t1/](../jobs/a/t1)"),
         (
             [
                 ".eval-author/jobs/chat/t1/result.json",
                 ".eval-author/jobs/chat/t2/result.json",
                 ".eval-author/jobs/src-1/t1/result.json",
             ],
-            "3 selected agent runs in `jobs/`",
+            "3 selected agent runs in [.eval-author/jobs/](../jobs)",
         ),
         (
             [".eval-author/jobs/chat/t1/result.json", ".eval-author/jobs/chat/t2/result.json", "traces/a.json"],
-            "3 selected agent runs: 2 in `jobs/chat/`, 1 in `../traces/`",
+            "3 selected agent runs: 2 in [.eval-author/jobs/chat/](../jobs/chat), 1 in [traces/](../../traces)",
         ),
     ],
 )
@@ -820,7 +824,7 @@ def test_finding_citations_dedupe_and_skip_scope_sources(audit_report):
     accuracy = report.split("### Finding 3 - Quotation accuracy is unchecked\n\n", 1)[1].split("\n\n", 1)[0]
     assert accuracy.endswith(
         "Code inspection confirmed a weak verifier, as documented in "
-        "[verify.py](../report-sources/tasks/source-answer/verify.py)."
+        "[verify.py](../../report-sources/tasks/source-answer/verify.py)."
     )
     controls = report.split("### Finding 2 - Retained controls are unavailable\n\n", 1)[1].split("\n\n", 1)[0]
     assert controls.endswith("This finding is unproven.")
@@ -860,7 +864,9 @@ def test_bound_traces_without_run_records_count_as_selected_runs(audit_report, m
     monkeypatch.setattr(
         renderer.content, "trace_path", lambda model, entry: model.repo / ".eval-author" / entry["subject"]["trace"]
     )
-    assert renderer.run_roots(model) == "1 selected agent run in `jobs/unattributed/`"
+    assert (
+        renderer.run_roots(model) == "1 selected agent run in [.eval-author/jobs/unattributed/](../jobs/unattributed)"
+    )
 
 
 def test_escaping_keeps_entities_literal_and_file_fragments_out_of_paths(audit_report):

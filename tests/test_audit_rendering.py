@@ -121,7 +121,7 @@ def report_links(payload, modules, *, intended=False, findings=False):
     lifecycle = domain(payload, modules)
     if not lifecycle["findings"]:
         report = {
-            "path": ".eval-author/audit-coverage-report.md",
+            "path": ".eval-author/report_markdown/audits.md",
             "digest": modules[1].fingerprint("Synthetic preliminary coverage report"),
         }
         lifecycle["findings"] = {"report": report, "source": "Saved the preliminary coverage report"}

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import hashlib
+import importlib.util
 import json
 import os
 import posixpath
@@ -20,9 +21,27 @@ import history  # noqa: E402
 import report_content as content  # noqa: E402
 import report_layout as layout  # noqa: E402
 
+
+def _suite_report():
+    """Load the core skill's suite report by path; audit_spec has its own unrelated report module."""
+    name = "eval_author_suite_report"
+    if name not in sys.modules:
+        path = Path(__file__).resolve().parents[3] / "eval-author/scripts/report.py"
+        spec = importlib.util.spec_from_file_location(name, path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+# The core skill's suite report owns the report locations and publishes the audit in report.html.
+suite_report = _suite_report()
+
 VERSION = 1
-OUTPUT = ".eval-author/audit-coverage-report.md"
-HEADER = "[eval-author-audit-report]: urn:eval-author:audit-report:"
+OUTPUT = suite_report.AUDIT_MARKDOWN
+LEGACY_OUTPUT = suite_report.LEGACY_AUDIT_MARKDOWN
+HEADER = suite_report.AUDIT_HEADER
 
 
 def literal(value: str) -> str:
@@ -251,9 +270,9 @@ def run_roots_text(paths: list[str]) -> str:
         roots = [(root, len(paths))]
     word = layout.COPY["run_word"]
     parts = [
-        f"{count} in `{posixpath.relpath(path, report_dir)}/`"
+        f"{count} in " + md_link(path + "/", path_target(path))
         if len(roots) > 1
-        else f"`{posixpath.relpath(path, report_dir)}/`"
+        else md_link(path + "/", path_target(path))
         for path, count in roots
     ]
     total = len(paths)
@@ -620,6 +639,16 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
                 if "commit" in identity
                 else []
             ),
+            "- **Suite reports:** "
+            + ", ".join(
+                md_link(label, path_target(path) + fragment)
+                for label, path, fragment in (
+                    ("HTML report", suite_report.REPORT_HTML, "#audit"),
+                    ("Tasks", suite_report.TASKS_MARKDOWN, ""),
+                    ("Runs", suite_report.RUNS_MARKDOWN, ""),
+                    ("Suite README", suite_report.SUITE_README, ""),
+                )
+            ),
             "",
         ],
         "identity",
@@ -905,7 +934,9 @@ def refresh(model: content.Content, *, convert_legacy: str | None = None, discar
     rendered, owners = render(model)
     previous = content.read_bytes(output) if output.exists() else None
     backup_kind = None
-    if previous is not None:
+    # The suite report holds the place of a missing audit; replacing that placeholder loses nothing.
+    placeholder = previous is not None and previous.startswith(suite_report.AUDIT_PLACEHOLDER.encode())
+    if previous is not None and not placeholder:
         first, _, body = previous.partition(b"\n\n")
         if not first.startswith(HEADER.encode()):
             backup_kind = "legacy-report"
@@ -966,7 +997,13 @@ def refresh(model: content.Content, *, convert_legacy: str | None = None, discar
             raise content.ContentError(
                 [content.issue("content", "concurrent_change", "Reload content before rendering")]
             )
-        return {**model.result(), "written": False, "report": OUTPUT, "report_sha256": content.sha(rendered)}
+        return {
+            **model.result(),
+            "written": False,
+            "report": OUTPUT,
+            "report_sha256": content.sha(rendered),
+            **publish_suite_report(model.repo),
+        }
     # Revalidate input bytes immediately before publication, including source bindings.
     current = content.load(model.path, model.repo)
     if current.digest != model.digest:
@@ -993,7 +1030,44 @@ def refresh(model: content.Content, *, convert_legacy: str | None = None, discar
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
-    return {**model.result(), "written": True, "report": OUTPUT, "report_sha256": hashlib.sha256(rendered).hexdigest()}
+    return {
+        **model.result(),
+        "written": True,
+        "report": OUTPUT,
+        "report_sha256": hashlib.sha256(rendered).hexdigest(),
+        **retire_legacy_report(model.repo),
+        **publish_suite_report(model.repo),
+    }
+
+
+def retire_legacy_report(repo: Path) -> dict:
+    """Remove the report from its former location once it has been regenerated, unless someone edited it."""
+    legacy = content.local(repo, LEGACY_OUTPUT)
+    if not legacy.is_file():
+        return {}
+    previous = content.read_bytes(legacy)
+    first, _, body = previous.partition(b"\n\n")
+    try:
+        header = json.loads(unquote(first.decode()[len(HEADER) :])) if first.startswith(HEADER.encode()) else None
+    except ValueError:
+        header = None
+    if header is None or header.get("body_sha256") != content.sha(body):
+        return {"legacy_report_retained": LEGACY_OUTPUT}
+    legacy.unlink()
+    return {"legacy_report_removed": LEGACY_OUTPUT}
+
+
+def publish_suite_report(repo: Path) -> dict:
+    """Refresh report.html, the Markdown reports, and the README so the Audit tab shows this report."""
+    try:
+        data = suite_report.refresh(repo)
+    except (suite_report.ReportError, OSError, UnicodeError, RecursionError) as exc:
+        # The audit report is already published; a suite report failure is reported, never hidden.
+        return {"suite_report": None, "suite_report_error": str(exc)}
+    return {
+        "suite_report": suite_report.REPORT_HTML,
+        "suite_report_complete": data["inventory"]["complete"],
+    }
 
 
 def main(argv: list[str] | None = None) -> int:

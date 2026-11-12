@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-[eval-author-audit-report]: urn:eval-author:audit-report:%7B%22body_sha256%22%3A%20%227ceff11ff077faaf151ef74bcecf936a9a9148f0b27126751dc9b608b678410b%22%2C%20%22content_sha256%22%3A%20%224ac97454cee3e6dd1a9894962e205422f81e54038319d63826d48b814115181c%22%2C%20%22renderer_version%22%3A%201%2C%20%22sources_sha256%22%3A%20%22c3f754c65550da88c25a6f2457ee1139d23bc0181574efe31c2cdec19c9d535b%22%2C%20%22validator_version%22%3A%201%7D
+[eval-author-audit-report]: urn:eval-author:audit-report:%7B%22body_sha256%22%3A%20%22ef89ba8400d31fc1fb5befb12feb19d5cc42cc5c651742643791000c5824558e%22%2C%20%22content_sha256%22%3A%20%224ac97454cee3e6dd1a9894962e205422f81e54038319d63826d48b814115181c%22%2C%20%22renderer_version%22%3A%201%2C%20%22sources_sha256%22%3A%20%22c3f754c65550da88c25a6f2457ee1139d23bc0181574efe31c2cdec19c9d535b%22%2C%20%22validator_version%22%3A%201%7D
 
 # Audit coverage report: research-agent
 
@@ -9,6 +9,7 @@
 - **Prepared by:** [Eval Author](https://github.com/NVIDIA-NeMo/eval-author)
 - **Repository:** example/research-agent
 - **Audited commit:** abcdef123456
+- **Suite reports:** [HTML report](../report.html#audit), [Tasks](tasks.md), [Runs](runs.md), [Suite README](../README.md)
 
 ## Summary
 
@@ -31,7 +32,7 @@ No comparable previous audit
 
 #### Advisory 1 - The verifier accepts an unchecked success response
 
-[T1-source-answer](../report-sources/tasks/source-answer/instruction.md)'s verifier prints success without checking the submitted answer, so an empty submission can pass even when the task's quotation requirement is unmet. Code inspection confirmed verifier cheating, as documented in [verify.py](../report-sources/tasks/source-answer/verify.py).
+[T1-source-answer](../../report-sources/tasks/source-answer/instruction.md)'s verifier prints success without checking the submitted answer, so an empty submission can pass even when the task's quotation requirement is unmet. Code inspection confirmed verifier cheating, as documented in [verify.py](../../report-sources/tasks/source-answer/verify.py).
 
 The unchecked success path makes the task result unreliable until the verifier is repaired and exercised.
 
@@ -43,16 +44,16 @@ Proposed task: Revise the verifier to compare the submitted quotation with verif
 
 0 of 1 capabilities, 0 of 1 tools and 1 of 1 failure cases have no mapped task. The [Coverage report](#coverage-report) lists every declared item with its tasks and run evidence.
 
-- **The suite lacks a missing-evidence task.** [T1-source-answer](../report-sources/tasks/source-answer/instruction.md) asks the agent to return a quotation from the supplied source, but the inspected suite has no scenario for a question that the source cannot answer. The audit therefore cannot assess how the agent handles missing evidence.
+- **The suite lacks a missing-evidence task.** [T1-source-answer](../../report-sources/tasks/source-answer/instruction.md) asks the agent to return a quotation from the supplied source, but the inspected suite has no scenario for a question that the source cannot answer. The audit therefore cannot assess how the agent handles missing evidence.
   - Proposed task: Supply a source without an answer and require the agent to acknowledge that limitation.
 
 ### Finding 2 - Retained controls are unavailable
 
-[T1-source-answer](../report-sources/tasks/source-answer/instruction.md) has no supported control receipts in the selected material, so the audit cannot establish whether its verifier rejects wrong answers or accepts valid alternatives. The available code inspection evidence in the task files leaves this finding unproven.
+[T1-source-answer](../../report-sources/tasks/source-answer/instruction.md) has no supported control receipts in the selected material, so the audit cannot establish whether its verifier rejects wrong answers or accepts valid alternatives. The available code inspection evidence in the task files leaves this finding unproven.
 
 ### Finding 3 - Quotation accuracy is unchecked
 
-[T1-source-answer](../report-sources/tasks/source-answer/instruction.md)'s verifier does not compare the answer with the selected source, so a passing result does not establish whether the quotation is accurate. Code inspection confirmed a weak verifier, as documented in [verify.py](../report-sources/tasks/source-answer/verify.py).
+[T1-source-answer](../../report-sources/tasks/source-answer/instruction.md)'s verifier does not compare the answer with the selected source, so a passing result does not establish whether the quotation is accurate. Code inspection confirmed a weak verifier, as documented in [verify.py](../../report-sources/tasks/source-answer/verify.py).
 
 Proposed task: Require the trace to show a read\_file call on the cited source before the answer, and reject quotations that do not appear in what was read.
 
@@ -70,7 +71,7 @@ The recommendations draw on the inspected task definitions, the audit specificat
   - **Next step:** Needs manual task design
 
 - **Medium** · [Finding 3 - Quotation accuracy is unchecked](#finding-3---quotation-accuracy-is-unchecked) · read\_file (tool)
-  - Revise a task ([T1-source-answer](../report-sources/tasks/source-answer/instruction.md)). Require the trace to show a read\_file call on the cited source before the answer, and reject quotations that do not appear in what was read.
+  - Revise a task ([T1-source-answer](../../report-sources/tasks/source-answer/instruction.md)). Require the trace to show a read\_file call on the cited source before the answer, and reject quotations that do not appear in what was read.
 
 - **Low** · [Finding 2 - Retained controls are unavailable](#finding-2---retained-controls-are-unavailable) · no mapped capability or tool
   - Collect more evidence.
@@ -81,7 +82,7 @@ The catalog lists inspected runnable tasks, their intended behavior, and their a
 
 | Task | Behavior | Capabilities and tools | Findings |
 | --- | --- | --- | --- |
-| [T1-source-answer](../report-sources/tasks/source-answer/instruction.md): Source answer | Answer with a quotation from the project source. | Capabilities: cited\_answers. Tools: Unmeasured. The selected record for [T1-source-answer](../report-sources/tasks/source-answer/instruction.md) does not establish a source read. | [Advisory 1 - The verifier accepts an unchecked success response](#advisory-1---the-verifier-accepts-an-unchecked-success-response) (confirmed); [Finding 2 - Retained controls are unavailable](#finding-2---retained-controls-are-unavailable) (unproven); [Finding 3 - Quotation accuracy is unchecked](#finding-3---quotation-accuracy-is-unchecked) (confirmed) |
+| [T1-source-answer](../../report-sources/tasks/source-answer/instruction.md): Source answer | Answer with a quotation from the project source. | Capabilities: cited\_answers. Tools: Unmeasured. The selected record for [T1-source-answer](../../report-sources/tasks/source-answer/instruction.md) does not establish a source read. | [Advisory 1 - The verifier accepts an unchecked success response](#advisory-1---the-verifier-accepts-an-unchecked-success-response) (confirmed); [Finding 2 - Retained controls are unavailable](#finding-2---retained-controls-are-unavailable) (unproven); [Finding 3 - Quotation accuracy is unchecked](#finding-3---quotation-accuracy-is-unchecked) (confirmed) |
 
 ## Coverage report
 
@@ -93,13 +94,13 @@ The Tasks column lists the tasks mapped to each item, including boundary-only re
 
 | Functionality | Intended check and required evidence | Tasks | Run evidence |
 | --- | --- | --- | --- |
-| cited\_answers - Answer with exact quotations. | Expected behavior: Ground each quotation in the selected source. Required tools: read\_file. Required evidence: Each quotation matches the source. | [T1-source-answer](../report-sources/tasks/source-answer/instruction.md) | Unmeasured |
+| cited\_answers - Answer with exact quotations. | Expected behavior: Ground each quotation in the selected source. Required tools: read\_file. Required evidence: Each quotation matches the source. | [T1-source-answer](../../report-sources/tasks/source-answer/instruction.md) | Unmeasured |
 
 ### Tools
 
 | Functionality | Intended check and required evidence | Tasks | Run evidence |
 | --- | --- | --- | --- |
-| read\_file - Read project sources. | Expected use: Read evidence before quoting it. If the tool fails: Disclose an unreadable source. Required evidence: The trace contains a source read. Tool: read\_file. | [T1-source-answer](../report-sources/tasks/source-answer/instruction.md) | Unmeasured |
+| read\_file - Read project sources. | Expected use: Read evidence before quoting it. If the tool fails: Disclose an unreadable source. Required evidence: The trace contains a source read. Tool: read\_file. | [T1-source-answer](../../report-sources/tasks/source-answer/instruction.md) | Unmeasured |
 
 ### Failure cases
 
@@ -120,15 +121,15 @@ The audit considers the following verifier cheat checks where they apply. Task-s
 
 ## Scope and Execution Evidence
 
-- **Audit specification:** [audit.md](../report-sources/audit.md). Specification status: draft. Workflow state owns review decisions.
-- **Ethos:** [ETHOS.md](../report-sources/ETHOS.md).
+- **Audit specification:** [audit.md](../../report-sources/audit.md). Specification status: draft. Workflow state owns review decisions.
+- **Ethos:** [ETHOS.md](../../report-sources/ETHOS.md).
 - **Run Evidence JSON:** Unavailable. Coverage is unmeasured. To measure coverage, agree on the audit checks, select recorded traces from completed agent evaluation runs, and ask Eval Author to measure them against those checks and regenerate this report.
-- **Evaluations inspected:** [T1-source-answer](../report-sources/tasks/source-answer/instruction.md).
-- **Run Evidence:** 1 selected agent run in `../report-sources/`.
+- **Evaluations inspected:** [T1-source-answer](../../report-sources/tasks/source-answer/instruction.md).
+- **Run Evidence:** 1 selected agent run in [report-sources/](../../report-sources).
 
 - **Verifier review:** The review inspected the synthetic success path. Every proposed control remains unexecuted.
 
-- **Fixture limits:** The task, source records, and findings are illustrative synthetic data. They do not establish a live agent result. [ETHOS.md](../report-sources/ETHOS.md), [T1-source-answer](../report-sources/tasks/source-answer/instruction.md), [run.json](../report-sources/run.json)
+- **Fixture limits:** The task, source records, and findings are illustrative synthetic data. They do not establish a live agent result. [ETHOS.md](../../report-sources/ETHOS.md), [T1-source-answer](../../report-sources/tasks/source-answer/instruction.md), [run.json](../../report-sources/run.json)
 
 ## Definitions
 

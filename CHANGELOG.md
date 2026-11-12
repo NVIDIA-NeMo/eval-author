@@ -31,6 +31,15 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Changed
 
+- **Suite report layout.** `report.html` gains an **Audit** tab that renders the
+  latest audit coverage report, with task links that open the Tasks row and run
+  links that open the Runs tab. Task and run tables move from `.eval-author/README.md`
+  to `.eval-author/report_markdown/tasks.md` and `runs.md`, and the audit report moves
+  from `.eval-author/audit-coverage-report.md` to `report_markdown/audits.md`. The
+  README's generated section is now an introduction to the suite and report that
+  always links all four. Existing suites update on their next refresh; an older
+  audit is shown from its old location until the next audit regenerates it. See
+  [Case and run catalog](docs/results.md#case-and-run-catalog).
 - **One trace loader.** `skills/eval-author/scripts/trace_loading.py` loads
   `atif`, `mlflow`, `gym`, `intake`, and `trace` sources into NeMo Compass
   `Trace` objects (trace contract v3) and writes a

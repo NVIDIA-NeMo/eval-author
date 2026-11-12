@@ -27,29 +27,46 @@ the collapsed Legacy trials section; a folder of trials does not establish a
 single job or evaluation invocation. Both show available warnings
 and missing-data states. Settings configures browser viewer addresses only.
 
-The same generator maintains a report section in `.eval-author/README.md` beside
-the HTML. It appends the section when absent and updates only the content between
-`<!-- BEGIN EVAL AUTHOR REPORT -->` and `<!-- END EVAL AUTHOR REPORT -->`.
-Existing setup, suite commands, case descriptions, and other authored content
-outside those markers remain byte-for-byte intact. Never replace a suite README
-with the report. Malformed or duplicate markers stop the refresh without
-publishing either output; repair the markers while preserving the content.
+Its Audit tab shows the latest audit coverage report, rendered from
+`.eval-author/report_markdown/audits.md` (or, until the next audit, an older
+`.eval-author/audit-coverage-report.md`). Task links in the audit open the task's
+row in the Tasks tab, run links open the Runs tab, and section links stay in the
+Audit tab. The tab flags an edited, hand-written, or legacy-location audit.
+Refresh only reads the audit; the [audit renderer](../../eval-author-audit/references/coverage-report.md)
+writes it and then refreshes the suite report.
 
-Within that section, each report content tab becomes an H2 section in tab order
-(`## Tasks`, then `## Runs`); omit Settings. Tables keep the same columns and
-ordering as the HTML, and native score labels replace visual
-bars. Legacy trials becomes an H3 under Runs. Preserve statuses, warnings,
-record diagnostics, and missing-data labels. Edit task documentation, native
-artifacts, or supported reporting metadata to update generated content, then
-refresh. Maintain operational and rerun guidance outside the marked section for
+The same generator writes each content tab as Markdown in `.eval-author/report_markdown/`,
+for agents and reviews: `tasks.md` (a status summary that counts Proposed, Draft,
+Accepted, and Unknown tasks with their meaning, then the task table) and `runs.md`
+(jobs, then Legacy trials as an H2). Tables keep the same columns and ordering as
+the HTML, and native score labels replace visual bars. Preserve statuses,
+warnings, record diagnostics, and missing-data labels. Links resolve from
+`report_markdown/`. Until the first audit it also writes a placeholder
+`audits.md`, marked by its first line, so every link to it works; it never
+replaces a rendered or hand-written audit. Refresh rewrites `tasks.md` and
+`runs.md` completely, repairing edits. Edit task documentation, native artifacts,
+or supported reporting metadata to update generated content, then refresh.
+
+It also maintains a generated introduction in `.eval-author/README.md`. It appends
+the section when absent and updates only the content between
+`<!-- BEGIN EVAL AUTHOR REPORT -->` and `<!-- END EVAL AUTHOR REPORT -->`. The
+section introduces the suite, summarizes task statuses, runs, and the latest
+audit, explains what people can learn and do with each tab of `report.html`,
+gives the Harbor viewer commands for the actual task and job roots, and always
+links `report.html`, `tasks.md`, `runs.md`, and `audits.md`, telling agents to
+read the Markdown reports. Existing setup, suite commands, case descriptions, and
+other authored content outside those markers remain byte-for-byte intact. Never
+replace a suite README with the report. Malformed or duplicate markers stop the
+refresh without publishing any output; repair the markers while preserving the
+content. Maintain operational and rerun guidance outside the marked section for
 both providers.
 
 Display **Proposed**, **Draft**, **Accepted**, or **Unknown** and any status reason in the Tasks
 table in both outputs, using [Task status](shared-prerequisites.md#task-status)
 for authored tasks.
-In the HTML, each status is a badge
-and the reason appears in a popover on hover or keyboard focus; Markdown prints
-the reason as text.
+In the HTML, each status is a badge, a status summary above the table counts each
+status, and the reason appears in a popover on hover or keyboard focus; Markdown
+prints the status in bold and the reason as text.
 Shared journey state owns these decisions; reporting metadata and native run
 scores cannot override them. **Draft** means acceptance is pending or its task
 revision or evidence changed; **Unknown** means no valid task status is available.
@@ -141,7 +158,7 @@ canonical `REPORTS` sentence in [conversation_templates.py](../scripts/conversat
 containing each artifact link once. Supply the actual paths to
 `.eval-author/report.html` and `.eval-author/README.md`, using the report and suite
 README link labels from the selected conversation flow. Keep both links in
-that closing sentence.
+that closing sentence; the README links the Markdown reports.
 
 Present evaluation findings and report links to the user; describe generation internals
 only when asked. Reuse the settled scope and authorization: a missing report is not
@@ -151,9 +168,9 @@ exit status, readiness result, or proof requirements to make the report succeed.
 A returning refresh reconciles artifacts even if an earlier handoff was interrupted.
 
 Outputs are `.eval-author/report.html`, containing the fixed template and validated
-embedded JSON, and the marked report section in `.eval-author/README.md`. Both
-use the same validated records; authored README content is preserved and is not
-reporting state. `.eval-author/.working/report/state.json` is the authoritative
+embedded JSON, the Markdown reports in `.eval-author/report_markdown/`, and the
+marked introduction in `.eval-author/README.md`. All use the same validated
+records; authored README content is preserved and is not reporting state. `.eval-author/.working/report/state.json` is the authoritative
 report metadata and last inventory snapshot; task status is projected from
 `.eval-author/.working/journey-state.json`. A legacy HTML report is imported
 once when that state is absent; later refreshes use the internal state and repair
@@ -166,8 +183,8 @@ Never hand-edit the HTML or rebuild the UI per task.
 Task READMEs and native evidence take precedence. Refresh repairs a missing or edited generated section while
 preserving surrounding documentation. Deleted artifact records disappear after a complete
 scan; incomplete inventories retain prior in-scope artifact records as unverified.
-State and both outputs are prepared before publication; each file is updated
-atomically, with state committed first. An interruption between updates is repaired
+State and every output are prepared before publication; each file is updated
+atomically, with state committed first and the HTML last. An interruption between updates is repaired
 by the next refresh. An OS advisory lock prevents concurrent refreshes and releases
 automatically when the process exits. Locks and temporary writes stay under
 `.eval-author/.working/report/`.
