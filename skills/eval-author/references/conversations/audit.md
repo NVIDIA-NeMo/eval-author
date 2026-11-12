@@ -94,6 +94,8 @@ Findings require `report` and accept an optional `findings` link.
 Acknowledgement accepts only `report`. Other stages accept `report` only when
 announcing `report_action`. Stage-inapplicable links are rejected.
 Section links require fragments. Supporting evidence stays inside the report.
+When the saved report is `.eval-author/report_markdown/audits.md`, the report notice also
+links the HTML report's Audit tab (`.eval-author/report.html#audit`); callers supply no extra link.
 
 Blockers follow the [shared contract](onboarding.md#blockers): one explanation
 per saved blocker with `id`, `step`, `reason`, `needed`, and `skill_link` where

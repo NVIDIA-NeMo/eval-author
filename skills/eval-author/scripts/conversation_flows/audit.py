@@ -101,7 +101,13 @@ def report_notice(state: dict, lifecycle: dict, facts: dict) -> str:
     action = facts.get("report_action")
     if not isinstance(action, str) or action not in copy.REPORT_ACTIONS:
         raise ValueError("Supply the actual report action: created, updated, or unchanged")
-    return copy.REPORT_ACTIONS[action].format(report=report_link(state, lifecycle, facts))
+    notice = copy.REPORT_ACTIONS[action].format(report=report_link(state, lifecycle, facts))
+    # The audit renderer refreshes report.html from the canonical report; a legacy location has no Audit tab yet.
+    if lifecycle["findings"]["report"]["path"] == copy.CANONICAL_REPORT:
+        notice += " " + copy.HTML_REPORT.format(
+            html=link(local_target(state, copy.HTML_REPORT_PATH), copy.HTML_REPORT_LABEL, fragment="audit")
+        )
+    return notice
 
 
 def scope(state: dict, lifecycle: dict) -> str:
