@@ -29,7 +29,8 @@ class KindSnapshot(BaseModel):
     items: list[str]
     covered: NonNegativeInt
     basis: Literal["demonstrated", "mapped"]
-    criteria: str
+    # Snapshots recorded before criteria fingerprints existed have none; they compare on their item lists.
+    criteria: str | None = None
 
 
 class Snapshot(BaseModel):
@@ -153,7 +154,7 @@ def compare(current: dict, earlier: dict) -> dict:
     removed = sorted(set(earlier["items"]) - set(current["items"]))
     if current["basis"] != earlier["basis"]:
         status = "method"
-    elif added or removed or current["criteria"] != earlier["criteria"]:
+    elif added or removed or earlier["criteria"] is not None and current["criteria"] != earlier["criteria"]:
         status = "scope"
     else:
         status = "comparable"
