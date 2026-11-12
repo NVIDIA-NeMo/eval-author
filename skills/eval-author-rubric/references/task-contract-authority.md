@@ -31,7 +31,9 @@ Use the same inputs for every selected task:
   prompts, and reward writer. When an identity selection exists, reuse its
   resolved scorer and dependencies from [the identity measurement](identity.md).
 - The reference solution, if present, as feasibility evidence only.
-- The current Ethos, if the suite has one, as owner intent.
+- The current Ethos, if the suite has one, as owner intent. Before citing it as a
+  correctness source, run the [Ethos structure measurement](identity.md#selected-ethos-structure);
+  an Ethos that fails it or whose digest changed is not a usable source.
 
 Construction plans, requirement maps, generator labels, task READMEs, and trace
 candidates are claims to compare, never authority. A disagreement between them

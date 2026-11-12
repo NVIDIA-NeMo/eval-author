@@ -49,7 +49,7 @@ artifact uses `access: denied` without trying the read; an unresolved selection 
 The checked-in mutation panel exercises these distinctions with actual local files.
 
 Raw measurements are named `identity`, `route`, `config`, `links`, and `approvals`.
-Explicit `sourced_config`, `freshness`, `native`, and `reconstruction` selections add their
+Explicit `sourced_config`, `freshness`, `native`, `reconstruction`, and `ethos` selections add their
 corresponding measurements. Absent optional selections do not establish coverage.
 They have statuses and diagnostics, not numeric scores. The eleven canonical
 criteria consume this evidence under their own anchors; a helper passing is not
@@ -72,6 +72,19 @@ current local bytes. Report duplicate IDs, malformed references, missing files,
 denied/unresolved access, and changed digests with stable `identity.*` diagnostics.
 A missing optional revision stays null; a missing required content digest does not
 pass. Do not turn content identity into an ownership or confidentiality claim.
+
+## Selected Ethos structure
+
+`ethos` is `{"artifact_id": <id>}` naming one selected artifact with role `ethos`.
+Pass `--ethos-validator <ethos-write>/scripts/validate_ethos.py`, located as the
+[shared prerequisites](../../eval-author/references/shared-prerequisites.md) describe;
+never substitute a copy or another schema. The measurement reads the document
+through the shared reader, records its digest and the validator file's digest, and
+runs the validator on those bytes. A rejection is `ethos.invalid` (fail) with the
+validator's reason; its warnings are kept. A changed digest is
+`ethos.digest_mismatch`. A missing or broken validator leaves validity unknown.
+A valid result is structure only: it does not show the content was confirmed,
+is current, or states adequate intent.
 
 ## Source-backed inventory assessment
 

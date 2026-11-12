@@ -13,6 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval-author/scripts"))
 from eval_author_shared.task_evidence import loads  # noqa: E402
 from rubric_configuration import compare_sourced_config  # noqa: E402
+from rubric_ethos import check_ethos  # noqa: E402
 from rubric_freshness import check_freshness  # noqa: E402
 from rubric_identity import compare_config, finish, identify, resolve_route, text  # noqa: E402
 from rubric_links import check_approvals, check_links, check_sourced_approvals  # noqa: E402
@@ -22,7 +23,7 @@ from rubric_report import build_report  # noqa: E402
 from rubric_scoring import assess  # noqa: E402
 
 
-def measure(root, selection):
+def measure(root, selection, ethos_validator=None):
     root = Path(root).resolve(strict=True)
     json.dumps(selection, allow_nan=False)
     if not isinstance(selection, dict):
@@ -70,6 +71,8 @@ def measure(root, selection):
         measurements["reconstruction"] = project_reconstruction(root, artifacts, selection["reconstruction"])
     if "freshness" in selection:
         measurements["freshness"] = check_freshness(root, artifacts, selection["freshness"])
+    if "ethos" in selection:
+        measurements["ethos"] = check_ethos(root, artifacts, selection["ethos"], ethos_validator)
     if "native" in selection:
         selected_native = selection["native"]
         if not isinstance(selected_native, dict) or set(selected_native) != {
@@ -97,9 +100,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--selection", required=True, type=Path)
+    parser.add_argument("--ethos-validator", type=Path, help="ethos-write's scripts/validate_ethos.py")
     args = parser.parse_args(argv)
     try:
-        report = measure(args.root.absolute(), loads(args.selection.read_text()))
+        report = measure(args.root.absolute(), loads(args.selection.read_text()), args.ethos_validator)
         output = json.dumps(report, sort_keys=True, indent=2, allow_nan=False)
     except (OSError, ValueError, TypeError, KeyError):
         print(
