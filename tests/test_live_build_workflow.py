@@ -18,6 +18,26 @@ def workflow():
     return yaml.safe_load((ROOT / ".github/workflows/skill-evaluation-live.yml").read_text())
 
 
+@pytest.mark.parametrize("entrypoint", [("pytest",), ("python", "-m", "pytest")], ids=["console", "module"])
+def test_preparation_benchmark_collection_without_pythonpath(entrypoint):
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    result = subprocess.run(
+        ["uv", "run", "--locked", *entrypoint, "--collect-only", "-q", "tests/test_preparation_benchmark_workflow.py"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    node_ids = [
+        line for line in result.stdout.splitlines() if line.startswith("tests/test_preparation_benchmark_workflow.py::")
+    ]
+    assert len(node_ids) == len(set(node_ids)) == 38, result.stdout
+
+
 def test_build_once_and_download_before_each_credential_bearing_shard():
     jobs = workflow()["jobs"]
     assert "build-opencode" in jobs, "upstream per-platform build missing"

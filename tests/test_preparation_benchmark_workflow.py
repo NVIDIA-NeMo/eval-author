@@ -8,8 +8,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
-from tests.test_live_build_workflow import condition, workflow
+from test_live_build_workflow import condition, workflow
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKERS = ("1", "2", "4", "8")
