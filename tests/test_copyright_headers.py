@@ -65,3 +65,36 @@ def test_report_exception_does_not_exempt_other_files(repository, fix_nvidia):
             assert checker._has_nvidia_header(path.read_text(), checker._comment_style(path))
     else:
         assert set(invalid) == {Path(name) for name in paths}
+
+
+def test_vendor_exemption_preserves_only_recorded_upstream_files(repository):
+    import hashlib
+    import json
+
+    root = repository / "skills/integrations/taste/vendor/taste"
+    root.mkdir(parents=True)
+    (root / "LICENSE").write_text("Original research license.\n")
+    upstream = root / "upstream.py"
+    upstream.write_text("# Original upstream source.\n")
+    own = root / "adapter.py"
+    own.write_text("# New NVIDIA adapter.\n")
+    (root / "provenance.json").write_text(
+        json.dumps(
+            {
+                "files": [
+                    {
+                        "path": "LICENSE",
+                        "vendored_path": "LICENSE",
+                        "included": True,
+                        "source_sha256": hashlib.sha256((root / "LICENSE").read_bytes()).hexdigest(),
+                    },
+                    {"path": "upstream.py", "vendored_path": "upstream.py", "included": True},
+                ]
+            }
+        )
+    )
+    assert checker.check_headers(fix_nvidia=False) == [own.relative_to(repository)]
+    assert checker.check_headers(fix_nvidia=True) == []
+    assert upstream.read_text() == "# Original upstream source.\n"
+    (root / "LICENSE").write_text("Altered license\n")
+    assert upstream.relative_to(repository) in checker.check_headers(fix_nvidia=False)

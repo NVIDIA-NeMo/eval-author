@@ -200,6 +200,25 @@ Skills CLI. You need Git, access to this GitHub repository, a POSIX shell with
    Expect the verification message with no differences. Then
    [open your assistant and start a request](#verify-your-assistant-can-use-eval-author).
 
+### Standalone TASTE skill
+
+The optional [TASTE skill](../skills/integrations/taste/SKILL.md) learns and
+clusters tool sequences, then guides generation of executable tasks. Copy
+the checkout's `skills/integrations/` directory alongside your installed
+`eval-author/` directory, keeping the nested `integrations/taste/` layout so the
+shared EA links resolve. Load `integrations/taste/SKILL.md` directly; it is outside
+the top-level automatic skill catalog. Install its
+`vendor/taste/requirements.txt` in a separate Python environment. Sequence
+learning and clustering need prepared seeds, tool schemas and policy files;
+Stage 3 also needs the selected benchmark's execution and grading tools.
+
+Run `scripts/taste_runtime.py run --help` for the launcher options. Use absolute
+paths for `--backend-config` and `--workspace`, and select `--stage train`,
+`cluster`, or the optional scripted `generate` executor. The skill describes
+prepared inputs and recovery. Model calls need the selected provider credentials
+and execution authorization. The bundled source retains its original license
+and provenance; its dependencies are separate from this repository's uv lock.
+
 ### Manual checkout
 
 If you prefer to keep the skills outside your project, you can load a checkout

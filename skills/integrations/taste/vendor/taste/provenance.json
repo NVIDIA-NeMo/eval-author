@@ -1,0 +1,563 @@
+{
+  "upstream_url": "https://github.com/tomerkeren42/TASTE-task-synthesis-from-tool-sequence-evolution",
+  "upstream_commit": "a60c05ba79b36d9fe782e28838712420a4bcbe97",
+  "permission": {
+    "status": "user-confirmed",
+    "date": "2026-11-02",
+    "scope": "modification and vendoring into eval-author",
+    "evidence": "User confirmed permission already granted in migration chat; grant details pending. Original LICENSE retained; no relicensing inferred."
+  },
+  "files": [
+    {
+      "path": "src/__init__.py",
+      "source_sha256": "244e974c0ec7839e1a14bb4a10c32190f0bfbf97c53283d0906ac19f8a1c2e8c",
+      "commit_sha256": "244e974c0ec7839e1a14bb4a10c32190f0bfbf97c53283d0906ac19f8a1c2e8c",
+      "vendored_path": "src/__init__.py",
+      "included": true,
+      "vendored_sha256": "4a23babc85724a18ab8361ab7bb615979b10e195c1145110629f776145b5ea2f"
+    },
+    {
+      "path": "src/common/__init__.py",
+      "source_sha256": "80daa1ad9a9830025be61cc1a63fbe24ea96f424201b1bda3c8a3f7bfc908b6b",
+      "commit_sha256": "80daa1ad9a9830025be61cc1a63fbe24ea96f424201b1bda3c8a3f7bfc908b6b",
+      "vendored_path": "src/common/__init__.py",
+      "included": true,
+      "vendored_sha256": "80daa1ad9a9830025be61cc1a63fbe24ea96f424201b1bda3c8a3f7bfc908b6b"
+    },
+    {
+      "path": "src/common/call_to_llm.py",
+      "source_sha256": "a825e9b947427afe6632031f4cca08afa6dae97ddb6c56b901eaea4796bc38c5",
+      "commit_sha256": "a825e9b947427afe6632031f4cca08afa6dae97ddb6c56b901eaea4796bc38c5",
+      "vendored_path": "src/common/call_to_llm.py",
+      "included": true,
+      "vendored_sha256": "d3e45d8066cc263d7144de3d392b9c8960a82b9e3edc03f50ff4338009d10ddc"
+    },
+    {
+      "path": "src/common/domain_config.py",
+      "source_sha256": "c2bf79915fb4bd726c6f0dbaa1095f7949809e812c6cdd2dd67da1310c94993f",
+      "commit_sha256": "c2bf79915fb4bd726c6f0dbaa1095f7949809e812c6cdd2dd67da1310c94993f",
+      "vendored_path": "src/common/domain_config.py",
+      "included": true,
+      "vendored_sha256": "2c285c40433aad7269ac2e52bb84ce97ba09cf62486785a02dfc1fcb41b69ad4"
+    },
+    {
+      "path": "src/common/domain_utils.py",
+      "source_sha256": "9f5306707dd84ad6dc81f6bd6816b9a88cbb85bed6867cd338f82364795a9cdc",
+      "commit_sha256": "9f5306707dd84ad6dc81f6bd6816b9a88cbb85bed6867cd338f82364795a9cdc",
+      "vendored_path": "src/common/domain_utils.py",
+      "included": false,
+      "vendored_sha256": "6c68dee449ab2eb6068c301a249120f1875794d0cdc9b9a8a88287231dbdb0b8"
+    },
+    {
+      "path": "src/common/domain_validators/__init__.py",
+      "source_sha256": "ac8d1734b3a2f13711f986875bb15c67c097fc77909a59b148273eeae6a3b7e6",
+      "commit_sha256": "ac8d1734b3a2f13711f986875bb15c67c097fc77909a59b148273eeae6a3b7e6",
+      "vendored_path": "src/backends/tau2/domain_validators/__init__.py",
+      "included": false,
+      "vendored_sha256": "392b837ee681bdfa9497117857e908707538380f4520c49d4ae56cae3ebd9e57"
+    },
+    {
+      "path": "src/common/domain_validators/airline.py",
+      "source_sha256": "56998c752147d283a5da5ff9054f6904260d1e0b8ad381708394c670b4207690",
+      "commit_sha256": "56998c752147d283a5da5ff9054f6904260d1e0b8ad381708394c670b4207690",
+      "vendored_path": "src/backends/tau2/domain_validators/airline.py",
+      "included": false,
+      "vendored_sha256": "43a16927e798fdee0d6a4ba4ef223084c5c7b9356ec6b621b9dd7f17174e2484"
+    },
+    {
+      "path": "src/common/domain_validators/base.py",
+      "source_sha256": "7c7fde9ef4ebb25ade33c59c054c90b94d4e366c3262b7388833d5b5f7536ea5",
+      "commit_sha256": "7c7fde9ef4ebb25ade33c59c054c90b94d4e366c3262b7388833d5b5f7536ea5",
+      "vendored_path": "src/backends/tau2/domain_validators/base.py",
+      "included": false,
+      "vendored_sha256": "39464c9960db9a543198692092b68a4025863ced913e3bc64de6e66f5ca1c1fa"
+    },
+    {
+      "path": "src/common/domain_validators/retail.py",
+      "source_sha256": "69c74114325446e7f63e4ac58f41ca34755062c9006c64e5f510c38d4b5a7dd4",
+      "commit_sha256": "69c74114325446e7f63e4ac58f41ca34755062c9006c64e5f510c38d4b5a7dd4",
+      "vendored_path": "src/backends/tau2/domain_validators/retail.py",
+      "included": false,
+      "vendored_sha256": "7640230da8bc185778428b2c48eae8fa418a4941bdf4f61970caf8a4d36a7b3a"
+    },
+    {
+      "path": "src/common/domain_validators/telecom.py",
+      "source_sha256": "e96fd1540e3764fb1a47aa196a6472489032ee190204c151a65bef63297fba99",
+      "commit_sha256": "e96fd1540e3764fb1a47aa196a6472489032ee190204c151a65bef63297fba99",
+      "vendored_path": "src/backends/tau2/domain_validators/telecom.py",
+      "included": false,
+      "vendored_sha256": "65722bdaf5996dd55e3677fe81e91e5a02c3846c71cbe587a3256ef7f1ddb10b"
+    },
+    {
+      "path": "src/common/flight_ambiguity_checker.py",
+      "source_sha256": "131b1b914e1bf1eda53e38164d22ead9bdbaa82e17f6c164743854dcf15872fe",
+      "commit_sha256": "131b1b914e1bf1eda53e38164d22ead9bdbaa82e17f6c164743854dcf15872fe",
+      "vendored_path": "src/backends/tau2/flight_ambiguity_checker.py",
+      "included": false,
+      "vendored_sha256": "9afb455e1e55d4d6d682a9ebbe3d2cf7a7a601821e63624f6e9114b50768340f"
+    },
+    {
+      "path": "src/common/llm_response_parser.py",
+      "source_sha256": "6ce78ec6a2ac87b6b3c2cfb0f65da5a9bf36f224a9c61f75801d9ce62de2d7bc",
+      "commit_sha256": "6ce78ec6a2ac87b6b3c2cfb0f65da5a9bf36f224a9c61f75801d9ce62de2d7bc",
+      "vendored_path": "src/common/llm_response_parser.py",
+      "included": true,
+      "vendored_sha256": "7979abfc41a42875dd80bdea95528726c71d8be6b7a726ca45ecaa969c466db7"
+    },
+    {
+      "path": "src/common/prompt_manager.py",
+      "source_sha256": "af6efcd15e933e1446b42083d3168441670e6c5c29255d2b3d6974b05ab5211a",
+      "commit_sha256": "af6efcd15e933e1446b42083d3168441670e6c5c29255d2b3d6974b05ab5211a",
+      "vendored_path": "src/common/prompt_manager.py",
+      "included": true,
+      "vendored_sha256": "c5525d52e8c79076bfe37699a0bd588660d4f1b236750e08b49db4919666060e"
+    },
+    {
+      "path": "src/common/sampler/__init__.py",
+      "source_sha256": "5c8e4261c8b277988bb9ba06e3f75990cefaefa753c35313f17e10143380567a",
+      "commit_sha256": "5c8e4261c8b277988bb9ba06e3f75990cefaefa753c35313f17e10143380567a",
+      "vendored_path": "src/common/sampler/__init__.py",
+      "included": true,
+      "vendored_sha256": "a078264d77228ba428d62fe9c2ef097709a160c579acb42eb010920b6d661840"
+    },
+    {
+      "path": "src/common/sampler/action_sequence_clusterer.py",
+      "source_sha256": "6af1c6c3f1fd43a1c0cbc0c186bb4244413b25187b6323072b0747c8f1ce843e",
+      "commit_sha256": "844f91ca4c809f552968411e6c57a17538689d109bdb99b077e925063c62d96b",
+      "vendored_path": "src/common/sampler/action_sequence_clusterer.py",
+      "included": true,
+      "vendored_sha256": "834ed4c8a40aa3e203e3a2cb2c4499cd29c19ad776b3383cf1a7e0aff18724e7"
+    },
+    {
+      "path": "src/common/sampler/action_sequence_ngram_sampler.py",
+      "source_sha256": "5f1aef9d95588e189f5180afd6be972d331475082408420cf0ee35450f30a86d",
+      "commit_sha256": "c23aecd6af624e2cf266662dd99e99fa2c0dc1901140edb1e1c1df3534381366",
+      "vendored_path": "src/common/sampler/action_sequence_ngram_sampler.py",
+      "included": true,
+      "vendored_sha256": "7d3027181ac40eb57572b533737e46a75540224e64e9d883493df654d1b3c2ea"
+    },
+    {
+      "path": "src/common/sampler/adaptive_ngram_model.py",
+      "source_sha256": "d8e6684021516e9ee58c37750cc90860b0629ea484c2aa4cf0757a4eb835d83a",
+      "commit_sha256": "d8e6684021516e9ee58c37750cc90860b0629ea484c2aa4cf0757a4eb835d83a",
+      "vendored_path": "src/common/sampler/adaptive_ngram_model.py",
+      "included": true,
+      "vendored_sha256": "e3995176bfc4d57bec336830996d5de79dc4dda3d9813d1e503ac89840447d35"
+    },
+    {
+      "path": "src/common/sampler/checkpointable.py",
+      "source_sha256": "eec6c16102e3831c41464da6ddb685588b880c4b553c7c55f74b340802d50391",
+      "commit_sha256": "eec6c16102e3831c41464da6ddb685588b880c4b553c7c55f74b340802d50391",
+      "vendored_path": "src/common/sampler/checkpointable.py",
+      "included": true,
+      "vendored_sha256": "5dcfebc4b4e9d50b117ad8036f467de96b34653251a27960229fa0a51d1254a5"
+    },
+    {
+      "path": "src/common/sampler/length_distribution.py",
+      "source_sha256": "be5c1286905914cbed9328705da1804afdf9773157f306484ad47236db55e7c8",
+      "commit_sha256": "558463ba24cc830d2371fc74aa7e1e39becdd871fe5a556fd7da21c716a27980",
+      "vendored_path": "src/common/sampler/length_distribution.py",
+      "included": true,
+      "vendored_sha256": "047c362098fb7cf50054847a947d40d3ecc5ff8584b6ae81d21e58ac84c8d64a"
+    },
+    {
+      "path": "src/common/sampler/sequence_metrics.py",
+      "source_sha256": "badc905ca5bfc6875aa056145e1d3615612e54d75f83cd357b474cc0c4ca5d88",
+      "commit_sha256": "badc905ca5bfc6875aa056145e1d3615612e54d75f83cd357b474cc0c4ca5d88",
+      "vendored_path": "src/common/sampler/sequence_metrics.py",
+      "included": true,
+      "vendored_sha256": "b3917afd397a721eb7a65f0d53ed6253353b6d26419ff2e6bc19b1730109ac72"
+    },
+    {
+      "path": "src/common/tool_spec_retriever.py",
+      "source_sha256": "2c0c3bbcc1f8054f582273b8a3b892d15b4855b5b93fa3c2a647d0c1d3b603ec",
+      "commit_sha256": "2c0c3bbcc1f8054f582273b8a3b892d15b4855b5b93fa3c2a647d0c1d3b603ec",
+      "vendored_path": "src/common/tool_spec_retriever.py",
+      "included": true,
+      "vendored_sha256": "05c950ab6cb7f31acd865aa5fd622d31020249570071371dd0875a2677eca0be"
+    },
+    {
+      "path": "src/stage1_ngram/__init__.py",
+      "source_sha256": "da7e0771e198e516c90b042faacf22a50756b40072e9b136722d0c37f5836c6a",
+      "commit_sha256": "da7e0771e198e516c90b042faacf22a50756b40072e9b136722d0c37f5836c6a",
+      "vendored_path": "src/stage1_ngram/__init__.py",
+      "included": true,
+      "vendored_sha256": "da7e0771e198e516c90b042faacf22a50756b40072e9b136722d0c37f5836c6a"
+    },
+    {
+      "path": "src/stage1_ngram/initialize_ngram_model.py",
+      "source_sha256": "9b8fec07a039abfa31b20c83a86a94705cd0057853273f39a4dea60963c22b96",
+      "commit_sha256": "a9a5836dbbdf1a925e2951a68091e2789b5fea41d0c8e63c015df5eb842ebaed",
+      "vendored_path": "src/stage1_ngram/initialize_ngram_model.py",
+      "included": true,
+      "vendored_sha256": "9d0276af772d801311cf675ffd10b025b6311994a0eb28d3e6bc5d2cbe681130"
+    },
+    {
+      "path": "src/stage2_cluster/__init__.py",
+      "source_sha256": "6f4f16d8c2e565ec32c9bc41c3a4b11e9021c7f7dc3059244501d94db3dc917c",
+      "commit_sha256": "6f4f16d8c2e565ec32c9bc41c3a4b11e9021c7f7dc3059244501d94db3dc917c",
+      "vendored_path": "src/stage2_cluster/__init__.py",
+      "included": true,
+      "vendored_sha256": "6f4f16d8c2e565ec32c9bc41c3a4b11e9021c7f7dc3059244501d94db3dc917c"
+    },
+    {
+      "path": "src/stage2_cluster/action_sequence_validator.py",
+      "source_sha256": "2983198d247a54af36a4ce15a6af59b27357357d06996b74c7e6407118797026",
+      "commit_sha256": "2983198d247a54af36a4ce15a6af59b27357357d06996b74c7e6407118797026",
+      "vendored_path": "src/stage2_cluster/action_sequence_validator.py",
+      "included": true,
+      "vendored_sha256": "a4504a75e036100d49cd27c06e9925689b227bf7e992847168f06a2130148013"
+    },
+    {
+      "path": "src/stage2_cluster/cluster_and_validate.py",
+      "source_sha256": "3cff5955ad7a71db930455ed108b2917dd843e150a32e55e7b77c059b949b1f3",
+      "commit_sha256": "e543bbe8eb43283bb6b46742fc0269e355d3b47ace94165c28183155de012694",
+      "vendored_path": "src/stage2_cluster/cluster_and_validate.py",
+      "included": true,
+      "vendored_sha256": "11d2998e26c7b9ce5a4e37ddf7a1c2b9fdaf7bce6afcceacd56c4ddb232bea57"
+    },
+    {
+      "path": "src/stage2_cluster/medoid_validation.py",
+      "source_sha256": "5d9bfbee20257a36458f1a796bff3db334f75e9764f93e6c6012fcbd33c280e5",
+      "commit_sha256": "5d9bfbee20257a36458f1a796bff3db334f75e9764f93e6c6012fcbd33c280e5",
+      "vendored_path": "src/stage2_cluster/medoid_validation.py",
+      "included": true,
+      "vendored_sha256": "abba8518fa130a09220a1afed8409a3d9be3a641f43b617f9d3c6c378f0a597e"
+    },
+    {
+      "path": "src/stage3_tasks/__init__.py",
+      "source_sha256": "9d61c6a6c80510b6cf432793406a5e1e93a247497256ba1928c901d2d1f1500a",
+      "commit_sha256": "9d61c6a6c80510b6cf432793406a5e1e93a247497256ba1928c901d2d1f1500a",
+      "vendored_path": "src/stage3_tasks/__init__.py",
+      "included": true,
+      "vendored_sha256": "9d61c6a6c80510b6cf432793406a5e1e93a247497256ba1928c901d2d1f1500a"
+    },
+    {
+      "path": "src/stage3_tasks/action_sequence_policy.py",
+      "source_sha256": "7c05b357bda77bc2ba6d0756b03d2bb8d7f4e59ee233745293c33df1dca3aabb",
+      "commit_sha256": "7c05b357bda77bc2ba6d0756b03d2bb8d7f4e59ee233745293c33df1dca3aabb",
+      "vendored_path": "src/backends/tau2/action_sequence_policy.py",
+      "included": false,
+      "vendored_sha256": "7936c21e8c3036b01d3ff1079351c9f0676ab51385510eea1d7e3c33ac9faa85"
+    },
+    {
+      "path": "src/stage3_tasks/adversarial_evolver.py",
+      "source_sha256": "95b3eecc69b01cc466d3d5364197c11d5d9fcbf859fecd4f59156759607baa72",
+      "commit_sha256": "95b3eecc69b01cc466d3d5364197c11d5d9fcbf859fecd4f59156759607baa72",
+      "vendored_path": "src/stage3_tasks/adversarial_evolver.py",
+      "included": false
+    },
+    {
+      "path": "src/stage3_tasks/database_state_manager.py",
+      "source_sha256": "1b797169c1be7221e6e7e3614a096c1be33275f7dcd6b4ac8cbe1236511225aa",
+      "commit_sha256": "1b797169c1be7221e6e7e3614a096c1be33275f7dcd6b4ac8cbe1236511225aa",
+      "vendored_path": "src/backends/tau2/database_state_manager.py",
+      "included": false,
+      "vendored_sha256": "2b2a7b5c532073d404526cf3a8b72a75bd1990b91cb4bb38213f2c0ec52ffda4"
+    },
+    {
+      "path": "src/stage3_tasks/env_assertion_synthesizer.py",
+      "source_sha256": "cb663479e0cd31f3354fa288ab341a569adf564243c188d564bf8e6bd86829c7",
+      "commit_sha256": "cb663479e0cd31f3354fa288ab341a569adf564243c188d564bf8e6bd86829c7",
+      "vendored_path": "src/backends/tau2/env_assertion_synthesizer.py",
+      "included": false,
+      "vendored_sha256": "0df0b715e86e2f3ed2a63ce1923530e6ddf2b3f91da695e8788b8eec8af20e30"
+    },
+    {
+      "path": "src/stage3_tasks/evolve_tasks.py",
+      "source_sha256": "9f76f24a77707af082c247da4c3b9184ffa54200d2573adcad4a17675a609b73",
+      "commit_sha256": "9f76f24a77707af082c247da4c3b9184ffa54200d2573adcad4a17675a609b73",
+      "vendored_path": "src/stage3_tasks/evolve_tasks.py",
+      "included": false
+    },
+    {
+      "path": "src/stage3_tasks/generate_tasks.py",
+      "source_sha256": "16fff9a978ed5b55a35aaae4904522bfbe438f77ac05985959892e1b9f910e68",
+      "commit_sha256": "cc1958e218744c99ca30acd23594c0b938e5aad6b2635880ee215cdaf7ecccea",
+      "vendored_path": "src/stage3_tasks/generate_tasks.py",
+      "included": true,
+      "vendored_sha256": "e9e5cb15a7c70ff88501789688efe2ca82aab441a6713d43e9396458dd2d5c5d"
+    },
+    {
+      "path": "src/stage3_tasks/partial_coverage_gt_agent.py",
+      "source_sha256": "8f2e6f2b813c27abe9bba22b06a0160ab4e624ef7c217f8b93f0252002a2d74e",
+      "commit_sha256": "8f2e6f2b813c27abe9bba22b06a0160ab4e624ef7c217f8b93f0252002a2d74e",
+      "vendored_path": "src/backends/tau2/partial_coverage_gt_agent.py",
+      "included": false,
+      "vendored_sha256": "9e090083e5932f17e094e163785dbe8772928aeb1725b3c1ab16b560100a4f1f"
+    },
+    {
+      "path": "src/stage3_tasks/scenario_aligner.py",
+      "source_sha256": "036db197b389b3f113b73d8f9d49b190dd93ef40a03c973daec254fec73d3004",
+      "commit_sha256": "036db197b389b3f113b73d8f9d49b190dd93ef40a03c973daec254fec73d3004",
+      "vendored_path": "src/backends/tau2/scenario_aligner.py",
+      "included": false,
+      "vendored_sha256": "8530d53ae3f077c5e06633b597caed7aa80f5893af574a4d439247e1d512f585"
+    },
+    {
+      "path": "src/stage3_tasks/task_builder.py",
+      "source_sha256": "f51d697e372fa678e474863452c115b9f595db8ccc71489e9a1febc777c1a6a9",
+      "commit_sha256": "f51d697e372fa678e474863452c115b9f595db8ccc71489e9a1febc777c1a6a9",
+      "vendored_path": "src/backends/tau2/task_builder.py",
+      "included": false,
+      "vendored_sha256": "791f34204a02abc986033febaafe7ede8eb6b85b919d46f9b19a6876fca5602c"
+    },
+    {
+      "path": "src/stage3_tasks/task_generation.py",
+      "source_sha256": "c140a259c0ebd550904d6a2f7f4664b05b0726bb5393f0cafda9bedc81a43e50",
+      "commit_sha256": "c140a259c0ebd550904d6a2f7f4664b05b0726bb5393f0cafda9bedc81a43e50",
+      "vendored_path": "src/stage3_tasks/task_generation.py",
+      "included": true,
+      "vendored_sha256": "ce7fba4c1206572f27184425c48ffa8e76e8d8caf8c5f0cffbbcb2388c1b95e7"
+    },
+    {
+      "path": "src/stage3_tasks/task_set.py",
+      "source_sha256": "5b57700cfc4a115565347100a87ec2de6e22f40b4615c40d5d0aa9842a17a3ad",
+      "commit_sha256": "5b57700cfc4a115565347100a87ec2de6e22f40b4615c40d5d0aa9842a17a3ad",
+      "vendored_path": "src/stage3_tasks/task_set.py",
+      "included": true,
+      "vendored_sha256": "404be892ad5468161482fe32901e58b8d050cb5d039bbb022677804b36223df1"
+    },
+    {
+      "path": "src/stage3_tasks/task_validator.py",
+      "source_sha256": "5893582e17fbda33e592d493eb36c6515f44c058c656115408af69b3c3ddb6f5",
+      "commit_sha256": "5893582e17fbda33e592d493eb36c6515f44c058c656115408af69b3c3ddb6f5",
+      "vendored_path": "src/backends/tau2/task_validator.py",
+      "included": false,
+      "vendored_sha256": "eab771eb8a1603267ecc0f61382efdaddb635832750d2750c3eded8038329da3"
+    },
+    {
+      "path": "src/stage3_tasks/task_validator_logging.py",
+      "source_sha256": "614f3e50ed83904bdcaa276aa05f43b925313e6ef296655bfed51de9ef37c433",
+      "commit_sha256": "614f3e50ed83904bdcaa276aa05f43b925313e6ef296655bfed51de9ef37c433",
+      "vendored_path": "src/backends/tau2/task_validator_logging.py",
+      "included": false,
+      "vendored_sha256": "8ec4eab272c288e2d5a725f7a0dcf6861a9b5b67e861a4e40dc2694029f80e82"
+    },
+    {
+      "path": "src/stage3_tasks/validation_with_retry.py",
+      "source_sha256": "7ae03cd2107618e79f6555d0f7aa88fe7e7cb25f9163b133494a32bd1b2180b1",
+      "commit_sha256": "7ae03cd2107618e79f6555d0f7aa88fe7e7cb25f9163b133494a32bd1b2180b1",
+      "vendored_path": "src/stage3_tasks/validation_with_retry.py",
+      "included": true,
+      "vendored_sha256": "de844f0fa986011a273524a73f72d71a4fe2e1f2dcb427976925f666c8d40650"
+    },
+    {
+      "path": "artifacts/prompts/stage2/validate_action_sequence.txt",
+      "source_sha256": "e9b0872983021de30ddf698e472648caae71005241bfba09f2522af99fe0eb01",
+      "commit_sha256": "e9b0872983021de30ddf698e472648caae71005241bfba09f2522af99fe0eb01",
+      "vendored_path": "src/backends/tau2/resources/prompts/stage2/validate_action_sequence.txt",
+      "included": false,
+      "vendored_sha256": "e9b0872983021de30ddf698e472648caae71005241bfba09f2522af99fe0eb01"
+    },
+    {
+      "path": "artifacts/prompts/stage3/adversarial_scenario.txt",
+      "source_sha256": "5ef9d0bd1e12ec3bc4ca2f0e27be8d2272f2cee2b641c896f3dc009d197f9f8b",
+      "commit_sha256": "5ef9d0bd1e12ec3bc4ca2f0e27be8d2272f2cee2b641c896f3dc009d197f9f8b",
+      "vendored_path": "src/backends/tau2/resources/prompts/stage3/adversarial_scenario.txt",
+      "included": false,
+      "vendored_sha256": "5ef9d0bd1e12ec3bc4ca2f0e27be8d2272f2cee2b641c896f3dc009d197f9f8b"
+    },
+    {
+      "path": "artifacts/prompts/stage3/adversarial_scenario_lite.txt",
+      "source_sha256": "e8f7a84e2dd08fb57bee352213d1ac75138eb2aca4bee353a468129cec3f212c",
+      "commit_sha256": "e8f7a84e2dd08fb57bee352213d1ac75138eb2aca4bee353a468129cec3f212c",
+      "vendored_path": "src/backends/tau2/resources/prompts/stage3/adversarial_scenario_lite.txt",
+      "included": false,
+      "vendored_sha256": "e8f7a84e2dd08fb57bee352213d1ac75138eb2aca4bee353a468129cec3f212c"
+    },
+    {
+      "path": "artifacts/prompts/stage3/adversarial_strategy.txt",
+      "source_sha256": "0e17e296890fbbeca4fe4215206e33e0ee9db5dd2bb0db6af96cc2348f7b18f2",
+      "commit_sha256": "0e17e296890fbbeca4fe4215206e33e0ee9db5dd2bb0db6af96cc2348f7b18f2",
+      "vendored_path": "src/backends/tau2/resources/prompts/stage3/adversarial_strategy.txt",
+      "included": false,
+      "vendored_sha256": "0e17e296890fbbeca4fe4215206e33e0ee9db5dd2bb0db6af96cc2348f7b18f2"
+    },
+    {
+      "path": "artifacts/prompts/stage3/create_user_task.txt",
+      "source_sha256": "94f113c29a2d416842075c9ed553d58481f1a335fa76e8d8b44463ecde447241",
+      "commit_sha256": "94f113c29a2d416842075c9ed553d58481f1a335fa76e8d8b44463ecde447241",
+      "vendored_path": "src/backends/tau2/resources/prompts/stage3/create_user_task.txt",
+      "included": false,
+      "vendored_sha256": "b79aa237d35077550908ee5607652e334c3965891f10b25e20f1eaf9056ee723"
+    },
+    {
+      "path": "artifacts/prompts/stage3/db_trap_construction.txt",
+      "source_sha256": "e22344dd5dcb6fdc6bde7b40be3495e7b358a9a954ead8ae76ef1bef9041ec00",
+      "commit_sha256": "e22344dd5dcb6fdc6bde7b40be3495e7b358a9a954ead8ae76ef1bef9041ec00",
+      "vendored_path": "src/backends/tau2/resources/prompts/stage3/db_trap_construction.txt",
+      "included": false,
+      "vendored_sha256": "e22344dd5dcb6fdc6bde7b40be3495e7b358a9a954ead8ae76ef1bef9041ec00"
+    },
+    {
+      "path": "artifacts/prompts/stage3/generate_db_initialization.txt",
+      "source_sha256": "c3ea5c5cdea74f6cda53b2371a9ea9349bd56b41d2dbc068fd57af6e0c499985",
+      "commit_sha256": "c3ea5c5cdea74f6cda53b2371a9ea9349bd56b41d2dbc068fd57af6e0c499985",
+      "vendored_path": "src/backends/tau2/resources/prompts/stage3/generate_db_initialization.txt",
+      "included": false,
+      "vendored_sha256": "c3ea5c5cdea74f6cda53b2371a9ea9349bd56b41d2dbc068fd57af6e0c499985"
+    },
+    {
+      "path": "artifacts/prompts/stage3/partial_coverage_gt_agent.txt",
+      "source_sha256": "ef85ee3df196ecf5afd425c6ba73182be7d9a6561125ffc7c2c1dd8318e3434b",
+      "commit_sha256": "ef85ee3df196ecf5afd425c6ba73182be7d9a6561125ffc7c2c1dd8318e3434b",
+      "vendored_path": "src/backends/tau2/resources/prompts/stage3/partial_coverage_gt_agent.txt",
+      "included": false,
+      "vendored_sha256": "ef85ee3df196ecf5afd425c6ba73182be7d9a6561125ffc7c2c1dd8318e3434b"
+    },
+    {
+      "path": "artifacts/prompts/stage3/patch_db.txt",
+      "source_sha256": "2f6f8326d10b1036eb2986f176319e277f211bfe31d692f0443078b468b70899",
+      "commit_sha256": "2f6f8326d10b1036eb2986f176319e277f211bfe31d692f0443078b468b70899",
+      "vendored_path": "src/backends/tau2/resources/prompts/stage3/patch_db.txt",
+      "included": false,
+      "vendored_sha256": "2f6f8326d10b1036eb2986f176319e277f211bfe31d692f0443078b468b70899"
+    },
+    {
+      "path": "artifacts/prompts/stage3/patch_task.txt",
+      "source_sha256": "1a9bb481da29a3a86e53513a8e6ca1e662378047fd23008e5b110b8706629661",
+      "commit_sha256": "1a9bb481da29a3a86e53513a8e6ca1e662378047fd23008e5b110b8706629661",
+      "vendored_path": "src/backends/tau2/resources/prompts/stage3/patch_task.txt",
+      "included": false,
+      "vendored_sha256": "1a9bb481da29a3a86e53513a8e6ca1e662378047fd23008e5b110b8706629661"
+    },
+    {
+      "path": "artifacts/prompts/stage3/task_coherence_review.txt",
+      "source_sha256": "ea309212a1f17eb7dbe02f27e83cc8813ce765ca8af10ccbad3789f677eb1ee1",
+      "commit_sha256": "ea309212a1f17eb7dbe02f27e83cc8813ce765ca8af10ccbad3789f677eb1ee1",
+      "vendored_path": "src/backends/tau2/resources/prompts/stage3/task_coherence_review.txt",
+      "included": false,
+      "vendored_sha256": "ea309212a1f17eb7dbe02f27e83cc8813ce765ca8af10ccbad3789f677eb1ee1"
+    },
+    {
+      "path": "artifacts/prompts/stage3/telecom/align_scenario_with_end_state.txt",
+      "source_sha256": "9effd24f6393db08e7b325d8b8ed32dd1028f399c1cfd78c4516293c6c2b374e",
+      "commit_sha256": "9effd24f6393db08e7b325d8b8ed32dd1028f399c1cfd78c4516293c6c2b374e",
+      "vendored_path": "src/backends/tau2/resources/prompts/stage3/telecom/align_scenario_with_end_state.txt",
+      "included": false,
+      "vendored_sha256": "9effd24f6393db08e7b325d8b8ed32dd1028f399c1cfd78c4516293c6c2b374e"
+    },
+    {
+      "path": "artifacts/prompts/stage3/telecom/generate_env_assertions.txt",
+      "source_sha256": "baa8f93053dce498ae79f291513738ff644b4b8eecf95b552cee7680d8b92512",
+      "commit_sha256": "baa8f93053dce498ae79f291513738ff644b4b8eecf95b552cee7680d8b92512",
+      "vendored_path": "src/backends/tau2/resources/prompts/stage3/telecom/generate_env_assertions.txt",
+      "included": false,
+      "vendored_sha256": "baa8f93053dce498ae79f291513738ff644b4b8eecf95b552cee7680d8b92512"
+    },
+    {
+      "path": "artifacts/domains/airline/domain.json",
+      "source_sha256": "920885f7c9d44dd5adbdcb3a4346d7c22044f10bfea7c734c558b60b9c73fa9c",
+      "commit_sha256": "920885f7c9d44dd5adbdcb3a4346d7c22044f10bfea7c734c558b60b9c73fa9c",
+      "vendored_path": "src/backends/tau2/resources/domains/airline/domain.json",
+      "included": false,
+      "vendored_sha256": "920885f7c9d44dd5adbdcb3a4346d7c22044f10bfea7c734c558b60b9c73fa9c"
+    },
+    {
+      "path": "artifacts/domains/airline/policy.md",
+      "source_sha256": "10dc0525421521208be39cee235bba84a16e2bcba9899eb93d92cd81d2f62fc4",
+      "commit_sha256": "10dc0525421521208be39cee235bba84a16e2bcba9899eb93d92cd81d2f62fc4",
+      "vendored_path": "src/backends/tau2/resources/domains/airline/policy.md",
+      "included": false,
+      "vendored_sha256": "10dc0525421521208be39cee235bba84a16e2bcba9899eb93d92cd81d2f62fc4"
+    },
+    {
+      "path": "artifacts/domains/airline/tool_spec.json",
+      "source_sha256": "2993c30c9137655126d104c324b009dd0a3adb3c8b485e761680803f843a281a",
+      "commit_sha256": "2993c30c9137655126d104c324b009dd0a3adb3c8b485e761680803f843a281a",
+      "vendored_path": "src/backends/tau2/resources/domains/airline/tool_spec.json",
+      "included": false,
+      "vendored_sha256": "2993c30c9137655126d104c324b009dd0a3adb3c8b485e761680803f843a281a"
+    },
+    {
+      "path": "artifacts/domains/retail/domain.json",
+      "source_sha256": "d0431ec2ca61eb9daa98066ede89b600e1b321e6d5b8dfe29cc9a77324e52362",
+      "commit_sha256": "d0431ec2ca61eb9daa98066ede89b600e1b321e6d5b8dfe29cc9a77324e52362",
+      "vendored_path": "src/backends/tau2/resources/domains/retail/domain.json",
+      "included": false,
+      "vendored_sha256": "d0431ec2ca61eb9daa98066ede89b600e1b321e6d5b8dfe29cc9a77324e52362"
+    },
+    {
+      "path": "artifacts/domains/retail/policy.md",
+      "source_sha256": "2c9652afbce57d6e087768d37cda64d31c53d50b3e3225cfdb791bac66466467",
+      "commit_sha256": "2c9652afbce57d6e087768d37cda64d31c53d50b3e3225cfdb791bac66466467",
+      "vendored_path": "src/backends/tau2/resources/domains/retail/policy.md",
+      "included": false,
+      "vendored_sha256": "2c9652afbce57d6e087768d37cda64d31c53d50b3e3225cfdb791bac66466467"
+    },
+    {
+      "path": "artifacts/domains/retail/tool_spec.json",
+      "source_sha256": "65e7285e29feb81f8ab73326bffa8a10592c2ff9c3851dab468944b2c2930d37",
+      "commit_sha256": "65e7285e29feb81f8ab73326bffa8a10592c2ff9c3851dab468944b2c2930d37",
+      "vendored_path": "src/backends/tau2/resources/domains/retail/tool_spec.json",
+      "included": false,
+      "vendored_sha256": "65e7285e29feb81f8ab73326bffa8a10592c2ff9c3851dab468944b2c2930d37"
+    },
+    {
+      "path": "artifacts/domains/telecom/domain.json",
+      "source_sha256": "c8ab6f8e5f0f3c4e0d1e8b2507af4d6f031ffe88d02f302bd78045056cd8d232",
+      "commit_sha256": "c8ab6f8e5f0f3c4e0d1e8b2507af4d6f031ffe88d02f302bd78045056cd8d232",
+      "vendored_path": "src/backends/tau2/resources/domains/telecom/domain.json",
+      "included": false,
+      "vendored_sha256": "c8ab6f8e5f0f3c4e0d1e8b2507af4d6f031ffe88d02f302bd78045056cd8d232"
+    },
+    {
+      "path": "artifacts/domains/telecom/policy.md",
+      "source_sha256": "95943844a0cf11fdf0e2842b483b81d9f9338aa53235712ed131db075d086ed7",
+      "commit_sha256": "95943844a0cf11fdf0e2842b483b81d9f9338aa53235712ed131db075d086ed7",
+      "vendored_path": "src/backends/tau2/resources/domains/telecom/policy.md",
+      "included": false,
+      "vendored_sha256": "95943844a0cf11fdf0e2842b483b81d9f9338aa53235712ed131db075d086ed7"
+    },
+    {
+      "path": "artifacts/domains/telecom/tool_spec.json",
+      "source_sha256": "448b87d8a9624972ec68a43c6931b283d345dd5bcfbbdf8a93d16e6f99ba6435",
+      "commit_sha256": "448b87d8a9624972ec68a43c6931b283d345dd5bcfbbdf8a93d16e6f99ba6435",
+      "vendored_path": "src/backends/tau2/resources/domains/telecom/tool_spec.json",
+      "included": false,
+      "vendored_sha256": "448b87d8a9624972ec68a43c6931b283d345dd5bcfbbdf8a93d16e6f99ba6435"
+    },
+    {
+      "path": "LICENSE",
+      "source_sha256": "fdac0c6f8430af2199fef2c666d1e3785f68324a4c267039d1b9114672b66e23",
+      "commit_sha256": "fdac0c6f8430af2199fef2c666d1e3785f68324a4c267039d1b9114672b66e23",
+      "vendored_path": "LICENSE",
+      "included": true,
+      "vendored_sha256": "fdac0c6f8430af2199fef2c666d1e3785f68324a4c267039d1b9114672b66e23"
+    }
+  ],
+  "excluded": [
+    "experiment outputs",
+    "checkpoints",
+    "task datasets",
+    "DB fixtures",
+    "credentials",
+    "bytecode",
+    "external benchmark runtimes",
+    "benchmark-specific validation, synthesis and scenario alignment",
+    "benchmark resources and prompt overrides"
+  ],
+  "local_source_changes": " README.md                                          | 28 +++++++++++++++\n src/common/sampler/action_sequence_clusterer.py    |  2 +-\n .../sampler/action_sequence_ngram_sampler.py       |  7 ++--\n src/common/sampler/length_distribution.py          | 42 ++++++++++++++++++++--\n src/stage1_ngram/initialize_ngram_model.py         | 12 +++++--\n src/stage2_cluster/cluster_and_validate.py         | 11 ++++--\n src/stage3_tasks/generate_tasks.py                 |  8 ++++-\n 7 files changed, 97 insertions(+), 13 deletions(-)\n",
+  "derived_files": [
+    {
+      "path": "src/common/partial_coverage_hints.py",
+      "upstream_path": "src/stage3_tasks/partial_coverage_gt_agent.py"
+    }
+  ],
+  "local_modifications": [
+    "Stages 1 and 2 consume versioned prepared data bundles and normalized seeds without native runtime imports.",
+    "Adaptive n-gram sampling, weighted clustering, empirical length sampling and frozen-center recovery retained.",
+    "Stage 3 retains sequence-conditioned candidate/fixture generation, whole-action partial hints, patching and regeneration.",
+    "Benchmark-specific implementations and resources removed from the maintained TASTE subset.",
+    "EA task service supplies checks, assertion synthesis, alignment, native execution/grading and export through validate/export.",
+    "Generic candidate task payload plus normalized reference_actions replace native task-field access in generation.",
+    "Prepared data/prompt fingerprints, length distributions and generation settings bind checkpoints, recovery and resume.",
+    "Generated task records retain candidate, fixture and native task separately from private validation and hint evidence.",
+    "Original license retained; independent EA native integrations reside outside the vendor tree.",
+    "Unused evolution sources excluded; formatting/import cleanup applied to the maintained subset.",
+    "Sequence-only recovery selection is shared by the automated runner and the skill-led Stage 3 helper; native interactions can run outside TASTE.",
+    "Stage 1/2 append-only private journals retain every seed/draw, validator transport response/usage, replacement and recovery round without changing sequence algorithms.",
+    "Stage 1 recovery verifies and replays linked immutable decision journals, preserves pending draws, records explicit legacy RNG resets, and saves complete Python/NumPy random state for later continuation."
+  ]
+}

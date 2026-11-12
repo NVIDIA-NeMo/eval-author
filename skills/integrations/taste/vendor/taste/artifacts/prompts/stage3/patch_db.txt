@@ -1,0 +1,8 @@
+Repair the fixture using the validation feedback and prepared context. Preserve the task's intended requirements and the environment's baseline/patch rules. Return the complete fixture JSON object.
+Candidate: {task_json}
+Fixture: {db_json}
+Fixture schema: {db_schema}
+Task schema: {task_schema}
+Tools: {tool_spec}
+Policy: {policy}
+Failure: {error}

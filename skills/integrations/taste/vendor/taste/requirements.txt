@@ -1,0 +1,5 @@
+numpy>=1.24
+scipy>=1.10
+pydantic>=2
+jsonschema>=4.23
+litellm>=1.80.15,<1.82.7

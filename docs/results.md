@@ -271,5 +271,17 @@ Workflows may stop before producing every artifact when prerequisites are missin
 | Intake trace inspection | `.eval-author/traces/` |
 | Trace-derived environments (**experimental**) | A private, gitignored workspace per task under `.eval-author/.working/trace-environments/`, with a root `README.md` for generated-case review and reruns; generated batches also have a collection-root guide. No-candidate outcomes do not create a suite guide. |
 
+| TASTE sequence preparation and selection | Private run inputs, checkpoints and selected clusters, plus Stage 1 `<save-dir>/evidence/events.jsonl` and Stage 2 `<output>.evidence/events.jsonl`. Journals retain attempted draws, model responses/usage, validation decisions and recovery history; they do not establish task acceptance or agent performance. |
+
+TASTE sequence journals contain private prompts and responses. Keep them with
+their run artifacts. New runs require fresh journal destinations; interrupted
+events and unknown costs remain explicit instead of being counted as successes
+or zero-cost calls.
+Resumed Stage 1 runs retain a fresh journal linked to the original checkpoint
+and journal hashes. Completed decisions contribute once; an interrupted model
+request remains separate from its later revalidation. Current checkpoints and
+draw boundaries include Python and NumPy random states. A legacy recovery with
+a new random seed is identified explicitly rather than reported as exact replay.
+
 [Choose another workflow](../README.md#choose-your-journey) or review
 [runtime requirements](getting-started.md#requirements).

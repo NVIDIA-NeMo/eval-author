@@ -1,0 +1,229 @@
+diff --git a/src/common/sampler/action_sequence_clusterer.py b/src/common/sampler/action_sequence_clusterer.py
+index c2a057e..49d59ae 100644
+--- a/src/common/sampler/action_sequence_clusterer.py
++++ b/src/common/sampler/action_sequence_clusterer.py
+@@ -142,7 +142,7 @@ class ActionSequenceClusterer:
+         attempts = 0
+         filtered_out = 0
+         while len(unique) < self.pool_size and attempts < max_attempts:
+-            length = self.length_distribution.sample_length(self.length_config)
++            length = self.length_distribution.sample_length(self.length_config, rng=self.rng)
+             seq = self.model.generate_random_sequence(
+                 length=length,
+                 rng=self.rng,
+diff --git a/src/common/sampler/action_sequence_ngram_sampler.py b/src/common/sampler/action_sequence_ngram_sampler.py
+index 44392f3..80326a8 100644
+--- a/src/common/sampler/action_sequence_ngram_sampler.py
++++ b/src/common/sampler/action_sequence_ngram_sampler.py
+@@ -119,7 +119,10 @@ class ActionSequenceNGramModelSampler(CheckpointableModel):
+     @property
+     def length_distribution(self) -> LengthDistribution:
+         if self._length_distribution is None:
+-            lengths = [len(seq) for seq in self.action_sequence_set]
++            if self._length_config is not None and self._length_config.mode == "empirical":
++                lengths = self._length_config.empirical_lengths
++            else:
++                lengths = [len(seq) for seq in self.action_sequence_set]
+             self._length_distribution = LengthDistribution.fit(
+                 lengths, fallback_lengths=self._reference_lengths
+             )
+@@ -127,7 +130,7 @@ class ActionSequenceNGramModelSampler(CheckpointableModel):
+ 
+     def sample_length(self) -> int:
+         """Sample an action sequence length based on the configured mode."""
+-        return self.length_distribution.sample_length(self._length_config)
++        return self.length_distribution.sample_length(self._length_config, rng=self._rng)
+ 
+     # ── Core interface ────────────────────────────────────────────────────
+ 
+diff --git a/src/common/sampler/length_distribution.py b/src/common/sampler/length_distribution.py
+index 9538f72..e975819 100644
+--- a/src/common/sampler/length_distribution.py
++++ b/src/common/sampler/length_distribution.py
+@@ -1,3 +1,5 @@
++import json
++import random
+ from dataclasses import asdict, dataclass
+ from typing import List, Optional, Tuple, Dict, Any
+ import numpy as np
+@@ -13,24 +15,45 @@ class LengthDistributionConfig:
+         - "from_seed": Fit a KDE from a reference task set.
+           ``reference_source`` can be "original" (tau2 domain tasks),
+           a path to a tasks.json, or None (use the seed tasks).
++        - "empirical": Draw with replacement from explicit positive integer
++          ``empirical_lengths``; repeated entries retain their frequency.
+         - "skew_normal": Sample from a skew-normal distribution with
+           parameters (skew_alpha, gaussian_mean, gaussian_std) clipped to
+           [min_length, max_length].  When skew_alpha=0 this is a standard
+           Gaussian.
+     """
+ 
+-    mode: str  # "from_seed" | "skew_normal"
++    mode: str  # "from_seed" | "skew_normal" | "empirical"
+     reference_source: Optional[str] = None  # path, "original", or None
+     min_length: Optional[int] = None
+     max_length: Optional[int] = None
+     gaussian_mean: Optional[float] = None
+     gaussian_std: Optional[float] = None
+     skew_alpha: float = 0.0
++    empirical_lengths: Optional[List[int]] = None
+ 
+     def __post_init__(self):
+-        valid_modes = ("from_seed", "skew_normal")
++        valid_modes = ("from_seed", "skew_normal", "empirical")
+         if self.mode not in valid_modes:
+             raise ValueError(f"mode must be one of {valid_modes}, got '{self.mode}'")
++        if self.mode == "empirical":
++            if not isinstance(self.empirical_lengths, list) or not self.empirical_lengths:
++                raise ValueError("empirical mode requires a non-empty empirical_lengths list")
++            if any(type(length) is not int or length < 1 for length in self.empirical_lengths):
++                raise ValueError(
++                    "empirical_lengths must contain positive integers; explicitly exclude "
++                    "and record zero-call references before mutation-only sampling"
++                )
++            if (
++                self.min_length is not None and min(self.empirical_lengths) < self.min_length
++                or self.max_length is not None and max(self.empirical_lengths) > self.max_length
++            ):
++                raise ValueError("empirical bounds must include all supplied lengths; draws are not clipped")
++            if self.gaussian_mean is not None or self.gaussian_std is not None or self.skew_alpha != 0:
++                raise ValueError("empirical mode does not accept Gaussian or skew parameters")
++            self.empirical_lengths = self.empirical_lengths.copy()
++        elif self.empirical_lengths is not None:
++            raise ValueError("empirical_lengths requires mode='empirical'")
+         if self.mode == "skew_normal":
+             if self.gaussian_mean is None or self.gaussian_std is None:
+                 raise ValueError(
+@@ -44,11 +67,16 @@ class LengthDistributionConfig:
+     def from_dict(cls, d: Dict[str, Any]) -> "LengthDistributionConfig":
+         known_fields = {
+             "mode", "reference_source", "min_length", "max_length",
+-            "gaussian_mean", "gaussian_std", "skew_alpha",
++            "gaussian_mean", "gaussian_std", "skew_alpha", "empirical_lengths",
+         }
+         filtered = {k: v for k, v in d.items() if k in known_fields}
+         return cls(**filtered)
+ 
++    @classmethod
++    def from_json(cls, path: str) -> "LengthDistributionConfig":
++        with open(path) as stream:
++            return cls.from_dict(json.load(stream))
++
+ 
+ class LengthDistribution:
+     def __init__(
+@@ -124,6 +152,8 @@ class LengthDistribution:
+     def sample_length(
+         self,
+         config: Optional["LengthDistributionConfig"] = None,
++        *,
++        rng: Optional[random.Random] = None,
+     ) -> int:
+         """
+         Sample an action sequence length based on the configured mode.
+@@ -133,7 +163,13 @@ class LengthDistribution:
+               gaussian_std) clipped to [min_length, max_length].  When
+               skew_alpha=0 this is a standard Gaussian.
+             - "from_seed" or None: KDE-based sample from fitted lengths.
++            - "empirical": Exact row-frequency draws using the supplied RNG
++              (or NumPy global RNG); independent of fitted/adaptively accepted lengths.
+         """
++        if config is not None and config.mode == "empirical":
++            if rng is not None:
++                return rng.choice(config.empirical_lengths)
++            return int(np.random.choice(config.empirical_lengths))
+         if config is not None and config.mode == "skew_normal":
+             lo = config.min_length if config.min_length is not None else self.min_length
+             hi = config.max_length if config.max_length is not None else self.max_length
+diff --git a/src/stage1_ngram/initialize_ngram_model.py b/src/stage1_ngram/initialize_ngram_model.py
+index 8be875a..40de930 100644
+--- a/src/stage1_ngram/initialize_ngram_model.py
++++ b/src/stage1_ngram/initialize_ngram_model.py
+@@ -29,6 +29,10 @@ def parse_args():
+         "--seed-tasks", type=str, default=None,
+         help="Path to a tasks.json file to use as seeds instead of the default domain tasks (e.g. task_sets/verified_airline_tasks.json)",
+     )
++    parser.add_argument(
++        "--length-config", default=None,
++        help="JSON LengthDistributionConfig; overrides the default from_seed policy",
++    )
+     parser.add_argument("--num-samples", type=int, default=3000, help="Total samples to run (default: 3000)")
+     parser.add_argument("--save-every", type=int, default=400, help="Checkpoint interval (default: 400)")
+     parser.add_argument(
+@@ -92,9 +96,11 @@ def main():
+ 
+     sampler = ActionSequenceNGramModelSampler(
+         action_sequence_set=seed_tasks,
+-        length_distribution_config=LengthDistributionConfig(
+-            mode="from_seed",
+-            reference_source="original",
++        length_distribution_config=(
++            LengthDistributionConfig.from_json(args.length_config)
++            if args.length_config else LengthDistributionConfig(
++                mode="from_seed", reference_source="original",
++            )
+         ),
+         domain=args.domain,
+         n=args.n,
+diff --git a/src/stage2_cluster/cluster_and_validate.py b/src/stage2_cluster/cluster_and_validate.py
+index 876738a..41c8372 100644
+--- a/src/stage2_cluster/cluster_and_validate.py
++++ b/src/stage2_cluster/cluster_and_validate.py
+@@ -37,7 +37,7 @@ from src.common.sampler.action_sequence_clusterer import (
+     save_validated_clusters,
+ )
+ from src.common.sampler.action_sequence_ngram_sampler import ActionSequenceNGramModelSampler
+-from src.common.sampler.length_distribution import build_length_distribution
++from src.common.sampler.length_distribution import LengthDistributionConfig, build_length_distribution
+ from src.common.tool_spec_retriever import ToolsSpecRetriever
+ 
+ 
+@@ -64,6 +64,10 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+     parser.add_argument("--pool-temperature", type=float, default=1.5, help="Temperature for pool generation")
+     parser.add_argument("--max-kmedoids-iters", type=int, default=100, help="Max k-medoids iterations")
+ 
++    parser.add_argument(
++        "--length-config", default=None,
++        help="JSON LengthDistributionConfig; overrides skew-normal CLI length flags",
++    )
+     parser.add_argument("--gaussian-mean", type=float, default=7, help="Mean (loc) of the skew-normal length distribution")
+     parser.add_argument("--gaussian-std", type=float, default=5, help="Std (scale) of the skew-normal length distribution")
+     parser.add_argument("--skew-alpha", type=float, default=2.0, help="Skewness (0=symmetric, >0=right-skewed, <0=left-skewed)")
+@@ -134,8 +138,9 @@ def main(argv: Optional[List[str]] = None) -> None:
+         min_length=args.min_length,
+         max_length=args.max_length,
+     )
+-    print(f"  Length distribution: mode={length_config.mode}, "
+-          f"range=[{args.min_length}, {args.max_length}]")
++    if args.length_config:
++        length_config = LengthDistributionConfig.from_json(args.length_config)
++    print(f"  Length distribution: {length_config.to_dict()}")
+ 
+     action_types = ToolsSpecRetriever(path=domain_config.tool_spec_path).get_action_types()
+     print(f"  Action types loaded: {len(action_types)} actions")
+diff --git a/src/stage3_tasks/generate_tasks.py b/src/stage3_tasks/generate_tasks.py
+index ee0d703..0827e90 100644
+--- a/src/stage3_tasks/generate_tasks.py
++++ b/src/stage3_tasks/generate_tasks.py
+@@ -226,6 +226,9 @@ def _recluster_and_retry(
+ 
+     print(f"  Loading n-gram model from {checkpoint_path}...")
+     sampler = ActionSequenceNGramModelSampler.load_state(checkpoint_path)
++    if data.get("length_distribution"):
++        sampler._length_config = LengthDistributionConfig.from_dict(data["length_distribution"])
++        sampler._length_distribution = None
+     action_types = ToolsSpecRetriever(path=domain_config.tool_spec_path).get_action_types()
+ 
+     failed_set = set(failed_orig_indices)
+@@ -507,7 +510,10 @@ def main():
+         domain=args.domain,
+         seed_source="medoids",
+         num_tasks_to_generate=len(entries),
+-        length_distribution_config=LengthDistributionConfig(mode="from_seed"),
++        length_distribution_config=LengthDistributionConfig.from_dict(
++            load_validated_clusters(args.clusters).get("length_distribution")
++            or {"mode": "from_seed"}
++        ),
+         model_name=args.model_name,
+     )
+ 

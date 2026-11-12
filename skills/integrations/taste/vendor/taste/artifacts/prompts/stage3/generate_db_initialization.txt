@@ -1,0 +1,6 @@
+Construct the initial environment state needed for this task and reference solution. Follow the prepared state schema and baseline/patch rules. Use consistent identities and relationships. Return only the fixture JSON object; use an empty object when the prepared schema permits a stateless task.
+Task: {task_context}
+Reference calls: {action_arguments}
+State schema: {db_schema}
+Policy: {policy}
+Previous failure: {error_context}

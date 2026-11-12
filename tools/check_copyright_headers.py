@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import subprocess
 from pathlib import Path
 
@@ -85,14 +87,41 @@ def _add_nvidia_header(path: Path, content: str, style: str) -> None:
     path.write_text(updated, encoding="utf-8")
 
 
+def _vendored_taste_paths() -> set[str]:
+    root = PROJECT_ROOT / "skills/integrations/taste/vendor/taste"
+    manifest = root / "provenance.json"
+    if not manifest.is_file():
+        return set()
+    data = json.loads(manifest.read_text())
+    license_record = next(item for item in data["files"] if item["path"] == "LICENSE")
+    license_path = root / "LICENSE"
+    if (
+        not license_path.is_file()
+        or hashlib.sha256(license_path.read_bytes()).hexdigest() != license_record["source_sha256"]
+    ):
+        return set()
+    paths = [item["vendored_path"] for item in data["files"] if item.get("included")]
+    paths.extend(item["path"] for item in data.get("derived_files", []))
+    return {
+        str((root / path).relative_to(PROJECT_ROOT))
+        for path in paths
+        if (root / path).resolve().is_relative_to(root.resolve())
+    }
+
+
 def check_headers(*, fix_nvidia: bool) -> list[Path]:
     invalid: list[Path] = []
+    upstream_paths = _vendored_taste_paths()
     for path in _tracked_and_untracked_files():
         style = _comment_style(path)
         if style is None or not path.is_file():
             continue
         relative_path = path.relative_to(PROJECT_ROOT).as_posix()
-        if relative_path in HEADERLESS_TEMPLATES or relative_path in SIGNED_NVSKILLS_REPORTS:
+        if (
+            relative_path in HEADERLESS_TEMPLATES
+            or relative_path in SIGNED_NVSKILLS_REPORTS
+            or relative_path in upstream_paths
+        ):
             continue
 
         content = path.read_text(encoding="utf-8")

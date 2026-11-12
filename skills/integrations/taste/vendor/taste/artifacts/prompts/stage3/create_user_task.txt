@@ -1,0 +1,7 @@
+Construct a realistic task whose reference solution uses exactly the supplied tool-name sequence, preserving order and repeated calls. Supply complete concrete arguments. Ground requirements in the supplied policy, tool definitions, and prepared context. Keep private reference information out of public requests. Return only a JSON object with exactly two fields: task (an object matching the task schema) and reference_actions (an ordered array of objects with name, arguments, and optional requestor/action_id).
+Task schema: {task_schema}
+Policy: {policy}
+Tools: {tool_spec}
+Prepared examples: {example_task}
+Reference plan: {reference_plan}
+Previous failure: {error_context}

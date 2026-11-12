@@ -1,0 +1,4 @@
+Determine whether this ordered tool-name sequence could represent a realistic, useful workflow under the supplied policy and tool definitions. This is a plausibility check; concrete arguments and state will be constructed later. Identify violations by zero-based sequence positions. Return only JSON with valid (boolean), reason (string), and problematic_indices (array of indices).
+Sequence: {action_sequence}
+Policy: {policy}
+Tools: {tool_spec}

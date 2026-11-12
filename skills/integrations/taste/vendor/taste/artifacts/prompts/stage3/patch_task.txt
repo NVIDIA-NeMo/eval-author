@@ -1,0 +1,8 @@
+Repair this candidate using the validation feedback. Preserve the ordered reference tool names, including repeated calls. Adjust the scenario, arguments, and proposed criteria only as needed to resolve the failure consistently with the policy. Return the complete candidate object with task and reference_actions.
+Candidate: {task_json}
+Fixture: {db_json}
+Task schema: {task_schema}
+Fixture schema: {db_schema}
+Tools: {tool_spec}
+Policy: {policy}
+Failure: {error}
