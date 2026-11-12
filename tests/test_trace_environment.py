@@ -2564,7 +2564,9 @@ def test_no_candidate_publication_reviews_exact_product(tmp_path: Path, reviewer
 def test_publication_review_is_invalidated_by_changed_export(tmp_path: Path, change: str) -> None:
     task_dir, _ = _workspace(tmp_path)
     _candidate(task_dir)
-    _ready_environment(task_dir, record_validation=False)
+    _ready_static_environment(task_dir)
+    assert not (task_dir / "private/jobs").exists()
+    assert not (task_dir / "validation.json").exists()
     _review_privacy(task_dir)
     code, result = _run("finalize", "--task-dir", str(task_dir), "--status", "candidate")
     assert code == 0, result
