@@ -73,6 +73,14 @@ output paths. If integration is missing when execution is ready, use the
 retaining task and verifier work. Grader setup remains a separate dependency;
 verifier controls cannot prove the user's agent is connected.
 
+Follow the shared [trajectory-saving procedure](../../eval-author/references/conversations/first-eval.md#save-evaluation-trajectories),
+inspecting native startup and capture/export settings. `observability_enabled`
+captures only model calls through the rollout-prefixed Gym Model Server; direct-provider
+calls can bypass it. Retain complete Responses input/history and outputs in native
+rollout JSONL, including `ng_trajectory` attachments; aggregates or attachments
+alone are not audit-ready ATIF. Preserve the configured Gym–Harbor bridge and
+original ATIF artifacts when selected.
+
 Propose one attempt per selected example for the initial baseline unless the
 agreed purpose requires repeats. Record the count and cost in shared scope. A Harbor
 JobConfig or `.eval-author/run.yaml` is not required for NeMo Gym.
@@ -117,10 +125,33 @@ managed execution using prepared splits.
 
 Run only with the established execution and spend authorization. Retain fresh
 outputs, rewards, errors, resolved settings, and exact commands for every selected
-task under `.eval-author/runs/`. Keep exact native run and attempt identities
-and readable selected-row evidence in the suite README, outside finalized task
+task under the repository-local run directory (default `.eval-author/runs/`). Keep
+exact native run and attempt identities and readable selected-row evidence in the
+suite README, outside finalized task
 directories, using
 paths resolved from the documented working directory. A working suite requires
 native execution of the actual agent and recorded rewards, even when scores are
-low. Return to the parent skill for reconciliation and linked rerun instructions. Report NeMo Gym
+low.
+
+Match retained evidence to each selected attempt's native rollout/task/repeat
+identities. Prefer an identified original ATIF for a bridged run and validate it
+read-only with [Harbor's audit parser](harbor-first-eval.md#9-evaluate-the-agent);
+do not copy it merely to verify usability.
+
+Check the saved `execution_settings.trajectory_capture` before creating conversion
+artifacts. When capture is enabled (`mode: automatic`, or `mode: optional` with
+`choice: true`), use the existing [`gym-to-atif` converter](../../gym-to-atif/SKILL.md),
+selecting the attempt's one-based physical JSONL row under its projection rules.
+Preserve original native outputs; keep source, ATIF, receipt, and conversion limits
+under fresh per-attempt paths in the saved supported trajectory destination, and
+validate the ATIF with Harbor's audit parser.
+When optional saving is declined or pending, capture is unsupported, or
+the setting is absent, do not invoke the converter or create optional persisted
+trajectory copies. Retain required native results and inspect existing ATIF
+read-only; otherwise explain that conversion was not performed and audit usability
+remains unverified.
+
+Record missing history, unsupported content, and conversion failures under the
+shared procedure; do not rerun the agent or replace its baseline result to repair capture.
+Return to the parent skill for reconciliation and linked rerun instructions. Report NeMo Gym
 control results in their own terms, without labeling them Harbor NOP/Oracle jobs.
