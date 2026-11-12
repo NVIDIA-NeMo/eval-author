@@ -20,12 +20,13 @@ class EvidenceScopeError(ValueError):
 
 
 class Review:
-    def __init__(self, repo: Path, roots: list[Path]):
+    def __init__(self, repo: Path, roots: list[Path], *, identity: dict | None = None):
         self.repo = repo.resolve()
         self.roots = [self.path(path) for path in roots]
         self.evidence: dict[str, str] = {}
         self.task_digests: dict[Path, str] = {}
         self.manifests: dict[Path, dict] = {}
+        self.identity = identity
 
     def path(self, value: str | Path) -> Path:
         path = Path(value)
@@ -39,8 +40,22 @@ class Review:
 
     def read(self, path: Path) -> bytes:
         path = self.path(path)
-        if not any(path.is_relative_to(root) for root in self.roots):
+        if self.identity is None and not any(path.is_relative_to(root) for root in self.roots):
             raise EvidenceScopeError(f"Select the evidence source before reading: {path}")
+        if self.identity is not None:
+            from rubric_identity import artifact_byte_limit, read_selected
+
+            relative = path.relative_to(self.repo).as_posix()
+            matches = [record for record in self.identity["records"] if record["path"] == relative]
+            if not matches:
+                raise EvidenceScopeError("identity.reference_unselected")
+            raw, reason = read_selected(self.repo, relative, min(artifact_byte_limit(record) for record in matches))
+            if reason:
+                raise ValueError("identity." + reason)
+            if any(hashlib.sha256(raw).hexdigest() != record["digest"] for record in matches):
+                raise ValueError("identity.digest_mismatch")
+            self.evidence[relative] = hashlib.sha256(raw).hexdigest()
+            return raw
         if path.stat().st_size > 8_000_000:
             raise ValueError(f"Evidence exceeds 8 MB: {path}")
         raw = path.read_bytes()
@@ -148,7 +163,15 @@ def inspect_receipt(
     return row
 
 
-def inspect_manifest(review: Review, path: Path, manifest: dict, tasks: set[Path], rows: list[dict]) -> list[dict]:
+def inspect_manifest(
+    review: Review,
+    path: Path,
+    manifest: dict,
+    tasks: set[Path],
+    rows: list[dict],
+    *,
+    verify_historical: bool = False,
+) -> list[dict]:
     row = {"path": path.relative_to(review.repo).as_posix(), "classification": "unproven"}
     try:
         task = review.path(manifest["task_dir"])
@@ -156,7 +179,7 @@ def inspect_manifest(review: Review, path: Path, manifest: dict, tasks: set[Path
             return []
         row["task"] = task.relative_to(review.repo).as_posix()
         task_evidence.validate_contract(manifest["contract"])
-        if review.task_digest(task) != manifest.get("task_sha256"):
+        if not verify_historical and review.task_digest(task) != manifest.get("task_sha256"):
             row.update(classification="stale", reason="This manifest describes an earlier task revision")
             return [row]
         missing = [
@@ -240,7 +263,27 @@ def check(
     source_roots: list[Path],
     *,
     content: Path | None = None,
+    selection: dict | None = None,
 ) -> dict:
+    preflight = {}
+    identity = None
+    repo = repo.resolve()
+    if selection is not None:
+        from rubric_identity import identify, resolve_route, validate_identity_selection
+
+        if content is not None or evidence_dirs or source_roots:
+            raise ValueError("An explicit selection cannot be combined with content or evidence directories")
+        validate_identity_selection(selection)
+        identity = identify(repo, selection["artifacts"])
+        route = resolve_route(repo, selection["artifacts"], selection["route"])
+        preflight = {
+            "identity": identity,
+            "route": route,
+            "preflight_success": identity["status"] == route["status"] == "pass"
+            and route.get("bound_dependency") is True,
+        }
+        if not preflight["preflight_success"]:
+            return {"valid": False, "controls": [], "evidence": [], "mode": "selected", **preflight}
     if content is not None:
         model = content_model(repo.resolve(), content)
         selected = {model.source(task["source"]) for task in model.tasks.values()}
@@ -250,62 +293,74 @@ def check(
         links = {model.source(identifier) for finding in model.data["findings"] for identifier in finding["evidence"]}
         evidence = model.evidence
         return {**_account(model.repo, selected, model.controls, links, evidence), "mode": "content"}
-    review = Review(repo, [*tasks, *evidence_dirs, *source_roots])
+    review = Review(repo, [*tasks, *evidence_dirs, *source_roots], identity=identity)
+    if identity is not None:
+        review.roots = [review.path(record["path"]) for record in identity["records"]]
     selected = {review.path(path) for path in tasks}
     if not selected or any(not path.is_dir() for path in selected):
         raise ValueError("Select existing task directories")
     report = review.path(report)
     links = findings_links(report, report.read_text())
     rows, scanned = [], set()
+    evidence_paths = []
     for directory in evidence_dirs:
         directory = review.path(directory)
         if not directory.is_dir():
             raise ValueError(f"Evidence directory is missing: {directory}")
-        for path in sorted(directory.rglob("*.json")):
-            if path in scanned:
-                continue
-            scanned.add(path)
-            if len(scanned) > 1000:
-                raise ValueError("Select narrower evidence directories (maximum 1000 JSON files)")
-            raw = review.read(path)
-            try:
-                payload = task_evidence.loads(raw)
-            except ValueError:
-                rows.append(
-                    {
-                        "path": path.relative_to(review.repo).as_posix(),
-                        "classification": "unproven",
-                        "reason": "Malformed evidence JSON",
-                    }
-                )
-                continue
-            if not isinstance(payload, dict):
-                continue
-            if payload.get("schema") == task_evidence.SCHEMA and "manifest" in payload:
-                rows.append(inspect_receipt(review, path, payload, selected))
-            elif (
-                payload.get("schema") in (task_evidence.SCHEMA, task_evidence.MANIFEST_SCHEMA) and "task_dir" in payload
-            ):
-                review.manifests[path] = payload
-            elif str(payload.get("schema", "")).startswith("nemo.eval_author.task_evidence."):
-                rows.append(
-                    {
-                        "path": path.relative_to(review.repo).as_posix(),
-                        "classification": "unproven",
-                        "reason": "Malformed or unsupported task-evidence record",
-                    }
-                )
+        evidence_paths.extend(sorted(directory.rglob("*.json")))
+    if identity is not None:
+        evidence_paths = [
+            review.path(record["path"]) for record in identity["records"] if record["role"] in {"receipt", "manifest"}
+        ]
+    for path in evidence_paths:
+        if path in scanned:
+            continue
+        scanned.add(path)
+        if len(scanned) > 1000:
+            raise ValueError("Select narrower evidence directories (maximum 1000 JSON files)")
+        raw = review.read(path)
+        try:
+            payload = task_evidence.loads(raw)
+        except ValueError:
+            rows.append(
+                {
+                    "path": path.relative_to(review.repo).as_posix(),
+                    "classification": "unproven",
+                    "reason": "Malformed evidence JSON",
+                }
+            )
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if payload.get("schema") == task_evidence.SCHEMA and "manifest" in payload:
+            rows.append(inspect_receipt(review, path, payload, selected))
+        elif payload.get("schema") in (task_evidence.SCHEMA, task_evidence.MANIFEST_SCHEMA) and "task_dir" in payload:
+            review.manifests[path] = payload
+        elif str(payload.get("schema", "")).startswith("nemo.eval_author.task_evidence."):
+            rows.append(
+                {
+                    "path": path.relative_to(review.repo).as_posix(),
+                    "classification": "unproven",
+                    "reason": "Malformed or unsupported task-evidence record",
+                }
+            )
     for path, manifest in review.manifests.items():
         rows.extend(inspect_manifest(review, path, manifest, selected, rows))
+    accounting = _account(
+        review.repo,
+        selected,
+        rows,
+        links,
+        [{"path": path, "digest": digest} for path, digest in sorted(review.evidence.items())],
+    )
+    if identity is not None:
+        preflight["preflight_success"] = bool(rows) and all(
+            row["classification"] in {"passed", "agent_run"} for row in rows
+        )
     return {
-        **_account(
-            review.repo,
-            selected,
-            rows,
-            links,
-            [{"path": path, "digest": digest} for path, digest in sorted(review.evidence.items())],
-        ),
-        "mode": "legacy",
+        **accounting,
+        "mode": "selected" if identity is not None else "legacy",
+        **preflight,
     }
 
 
@@ -318,13 +373,37 @@ def main() -> int:
     parser.add_argument("--task", type=Path, action="append", default=[])
     parser.add_argument("--evidence-dir", type=Path, action="append", default=[])
     parser.add_argument("--source-root", type=Path, action="append", default=[])
+    parser.add_argument(
+        "--selection", type=Path, help="Explicit artifact/route selection instead of evidence discovery"
+    )
     args = parser.parse_args()
     try:
-        result = check(args.repo, args.report, args.task, args.evidence_dir, args.source_root, content=args.content)
+        selection = None
+        if args.selection:
+            from rubric_identity import _read_selected
+
+            path = args.selection.absolute()
+            raw, reason = _read_selected(path.parent, path.name)
+            if reason:
+                raise ValueError("identity.selection_invalid")
+            selection = task_evidence.loads(raw)
+            if not isinstance(selection, dict):
+                raise ValueError("Select artifacts and a declared route")
+        result = check(
+            args.repo,
+            args.report,
+            args.task,
+            args.evidence_dir,
+            args.source_root,
+            content=args.content,
+            selection=selection,
+        )
     except (OSError, ValueError, KeyError, TypeError, RuntimeError, ImportError) as exc:
         result = {"valid": False, "error": str(exc)}
+        if args.selection:
+            result["preflight_success"] = False
     print(json.dumps(result, indent=2))
-    return 0 if result["valid"] else 1
+    return 0 if result["valid"] and result.get("preflight_success", True) else 1
 
 
 if __name__ == "__main__":

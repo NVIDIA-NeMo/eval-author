@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from _identity import identity_module  # noqa: E402
 from _markdown import AuditMarkdownError  # noqa: E402
 from _schema import AuditEnvironmentError, AuditSpecError, item_counts, load_audit_spec  # noqa: E402
 from _values import EVIDENCE_CLASS_ORDER, harbor_evidence_class_from_result, optional_string  # noqa: E402
@@ -226,21 +227,51 @@ def main(argv: list[str] | None = None) -> int:
         help="JSON file of skill-authored judgments for non-tool failure-case evidence",
     )
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
+    parser.add_argument(
+        "--identity-root", type=Path, help="root directory that --identity-selection paths are relative to"
+    )
+    parser.add_argument(
+        "--identity-selection",
+        type=Path,
+        help="opt-in local identity/route selection; does not assess rubric merit or execute a scorer",
+    )
     args = parser.parse_args(argv)
 
     try:
+        identity_preflight = _identity_preflight(args)
+        if identity_preflight is not None and not identity_preflight["measurement_allowed"]:
+            _print(
+                {"valid": None, "written": False, "error_type": "identity", "identity_preflight": identity_preflight},
+                compact=args.compact,
+            )
+            return 1
         _validate_evidence_class_args(args)
         method_names = _measurement_methods(args.measure)
         inputs = _measurement_inputs(args, method_names)
         audit = load_audit_spec(args.audit)
         pending_subject = _subject(args)
         source_kind = _source_kind(args)
-        loaded_trace = _load_trace(pending_subject.trace_path, source_kind)
+        if identity_preflight is None:
+            loaded_trace = _load_trace(pending_subject.trace_path, source_kind)
+        else:
+            identity_api = identity_module()
+            trace_path = pending_subject.trace_path.absolute()
+            _bind_identity_trace(identity_preflight, args.identity_root, trace_path)
+            raw, reason = identity_api.read_selected(
+                trace_path.parent, trace_path.name, identity_api.artifact_byte_limit({"role": "trace"})
+            )
+            if reason:
+                raise AuditMeasurementError("identity.measured_trace_invalid")
+            _bind_identity_trace(identity_preflight, args.identity_root, trace_path, hashlib.sha256(raw).hexdigest())
+            loaded_trace = _load_trace(pending_subject.trace_path, source_kind, raw=raw)
+            _bind_identity_trace(identity_preflight, args.identity_root, trace_path, loaded_trace.content_sha256)
         _validate_judgment_trace(inputs.capability_judgments, loaded_trace, label="capability judgments")
         _validate_judgment_trace(inputs.failure_case_judgments, loaded_trace, label="failure-case judgments")
         subject_info = _finalize_subject(
             pending_subject, loaded_trace, source_kind=source_kind, evidence_class=_resolve_evidence_class(args)
         )
+        if identity_preflight is not None:
+            identity_preflight["subject"] = {"task_id": subject_info.task_id, "run_id": subject_info.run_id}
         reports = _measure_all(
             audit=audit,
             audit_path=args.audit,
@@ -249,6 +280,9 @@ def main(argv: list[str] | None = None) -> int:
             method_names=method_names,
             inputs=inputs,
         )
+        if identity_preflight is not None:
+            for report in reports:
+                report.coverage["identity_preflight"] = identity_preflight
         _validate_reports(reports)
         written_reports = _write_reports(reports, out_dir=args.out_dir, subject=subject_info, compact=args.compact)
     except AuditEnvironmentError as exc:
@@ -276,8 +310,53 @@ def main(argv: list[str] | None = None) -> int:
     }
     if subject_info.evidence_class is not None:
         summary["evidence_class"] = subject_info.evidence_class
+    if identity_preflight is not None:
+        summary["identity_preflight"] = identity_preflight
     _print(summary, compact=args.compact)
     return 0
+
+
+def _identity_preflight(args: argparse.Namespace) -> JsonObject | None:
+    if args.identity_root is None and args.identity_selection is None:
+        return None
+    if args.identity_root is None or args.identity_selection is None:
+        raise AuditMeasurementError("--identity-root and --identity-selection must be supplied together")
+    args.identity_root = args.identity_root.resolve()
+    identity_api = identity_module()
+    from eval_author_shared.task_evidence import loads
+
+    try:
+        path = args.identity_selection.absolute()
+        raw, reason = identity_api.read_selected(path.parent, path.name)
+        if reason:
+            raise ValueError
+        selection = loads(raw)
+        identity_api.validate_identity_selection(selection)
+    except (OSError, ValueError):
+        raise AuditMeasurementError("identity.selection_invalid") from None
+    identity = identity_api.identify(args.identity_root, selection["artifacts"])
+    route = identity_api.resolve_route(args.identity_root, identity["records"], selection["route"])
+    return {
+        "identity": identity,
+        "route": route,
+        "route_request": selection["route"],
+        "subject": {"task_id": args.task_id, "run_id": args.run_id},
+        "measurement_allowed": identity["status"] == route["status"] == "pass"
+        and route.get("bound_dependency") is True,
+        "preflight_success": False,
+    }
+
+
+def _bind_identity_trace(
+    preflight: JsonObject, root: Path, trace_path: Path, content_sha256: str | None = None
+) -> None:
+    selected = [
+        row
+        for row in preflight["identity"]["records"]
+        if row["role"] == "trace" and (root / row["path"]).absolute() == trace_path.absolute()
+    ]
+    if len(selected) != 1 or content_sha256 is not None and selected[0]["digest"] != content_sha256:
+        raise AuditMeasurementError("identity.measured_trace_mismatch")
 
 
 def _validate_evidence_class_args(args: argparse.Namespace) -> None:
@@ -387,7 +466,7 @@ def _source_kind(args: argparse.Namespace) -> str:
     return "atif"
 
 
-def _load_trace(path: Path, source_kind: str) -> LoadedTrace:
+def _load_trace(path: Path, source_kind: str, *, raw: bytes | None = None) -> LoadedTrace:
     """Load the trace once through the shared Compass loader; methods receive the typed Trace."""
     sys.path.append(str(Path(__file__).resolve().parents[3] / "eval-author/scripts"))
     try:
@@ -410,7 +489,7 @@ def _load_trace(path: Path, source_kind: str) -> LoadedTrace:
     try:
         # Third-party diagnostics may contain trace values; keep CLI output content-free.
         with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
-            traces, digest = trace_loading.load_snapshot(path, source_kind)
+            traces, digest = trace_loading.load_snapshot(path, source_kind, raw=raw)
     except trace_loading.TraceLoadError as exc:
         # These messages name the failed check, never trace content.
         raise AuditTraceError(f"{path} is not a loadable {source_kind} trace: {exc}") from exc

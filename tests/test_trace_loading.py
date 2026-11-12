@@ -569,6 +569,42 @@ def test_load_snapshot_digests_the_bytes_it_loads_and_cites_the_source(loading, 
     assert trace.source_url == source.resolve().as_uri() + "#L2"
 
 
+@pytest.mark.parametrize("source_kind", ["atif", "mlflow", "gym", "trace"])
+def test_load_snapshot_uses_selected_bytes_without_reopening_source(loading, tmp_path, monkeypatch, source_kind):
+    if source_kind == "atif":
+        raw = ATIF_FIXTURE.read_bytes()
+    elif source_kind == "mlflow":
+        raw = MLFLOW_FIXTURE.read_bytes()
+    elif source_kind == "gym":
+        raw = json.dumps(gym_record()).encode()
+    else:
+        [trace] = loading.load_traces(ATIF_FIXTURE, "atif")
+        raw = (trace.model_dump_json() + "\n").encode()
+    source = tmp_path / ("selected.jsonl" if source_kind == "trace" else "selected.json")
+    source.write_bytes(raw)
+    expected, _ = loading.load_snapshot(source, source_kind)
+    source.write_text("replaced after the selected read")
+    original_open = Path.open
+
+    def selected_must_not_reopen(path, *args, **kwargs):
+        assert path != source, "selected source must not be reopened"
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", selected_must_not_reopen)
+    traces, digest = loading.load_snapshot(source, source_kind, raw=raw)
+    assert digest == "sha256:" + hashlib.sha256(raw).hexdigest()
+    for trace in [*traces, *expected]:
+        pending = [trace]
+        while pending:
+            item = pending.pop()
+            # Compass keeps the private MLflow staging path in provider metadata.
+            pointer = item.attributes.get("source_pointer", {})
+            if "export_path" in pointer:
+                pointer["export_path"] = "<snapshot>"
+            pending.extend(item.root_spans if hasattr(item, "root_spans") else item.children)
+    assert [trace.model_dump() for trace in traces] == [trace.model_dump() for trace in expected]
+
+
 def _with_losses(directory: Path, *losses: list[dict]) -> Path:
     """A normalized source holding one copy of the MLflow fixture trace per entry of ``losses``."""
     first = directory / "first"
