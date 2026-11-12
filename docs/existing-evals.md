@@ -105,7 +105,15 @@ specific recovery step, such as restoring access, restoring a known valid copy,
 or confirming an intentional repository move. After recovery, it reloads saved
 progress and resumes the audit.
 
-For measured audits, if saved trace availability is unresolved or traces are absent, the prerequisite
+For measured audits, Eval Author checks `.eval-author/jobs/` for completed agent
+runs when trace availability is unresolved. It checks run metadata and trace-file
+presence, then offers relevant candidates when you select audit sources.
+It checks known task matches first, then newer jobs, and continues in batches
+when needed. Logs and other trial files do not consume the job search budget.
+It reads trace contents only after you select the source. An empty or incomplete
+lookup leaves availability unresolved rather than proving no traces exist.
+
+If saved trace availability is unresolved or traces are absent, the prerequisite
 response explains the required action and links the audit skill instruction
 that requires the pause. Unknown availability and confirmed absence are shown
 separately; neither is a claim about measured coverage.
@@ -126,7 +134,8 @@ select a suite, and giving a trace location does not confirm the suite list.
 Once the evaluation scope is confirmed, it explains that traces record the
 agent's actual actions during a run, letting the audit check what was exercised
 beyond the test definitions and pass/fail scores. It then asks you to select
-the trace source and location, before searching or reading traces.
+the trace source and location before searching beyond the retained-job metadata
+or reading trace contents.
 This also applies to using traces to identify runtime tool names. A source you
 already explicitly selected is reused. If the location is unknown, it helps you
 choose a bounded place to look before searching.

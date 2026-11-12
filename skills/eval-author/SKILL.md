@@ -149,7 +149,8 @@ proposal-only, and audit
 generate/validate/measure/aggregate requests keep their
 scope. Explanation-only requests do not start a workflow. Scoped operations reuse
 applicable shared decisions but do not acquire unrelated onboarding requirements.
-Trace-source selection remains required before searching or reading traces.
+Trace-source selection remains required before searching or reading traces,
+apart from the bounded [retained-run lookup](references/shared-prerequisites.md#locate-retained-evaluation-runs).
 
 Load `eval-author-rubric` only after explicit end-user opt-in to that named
 experimental assessment; never load or run it automatically.

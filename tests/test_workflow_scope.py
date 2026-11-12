@@ -6,8 +6,11 @@
 import copy
 import importlib.util
 import json
+import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -21,6 +24,8 @@ CONTRACTS = json.loads(scope.CONTRACTS.read_text())
 
 
 def capture(case):
+    if case.startswith("audit-retained-runs-"):
+        return retained_capture(case)
     turns, calls = [], []
     empty = {"complete": True, "entries": {}, "errors": []}
     for index, contract in enumerate(CONTRACTS["cases"][case]):
@@ -53,6 +58,145 @@ def capture(case):
     return evidence, raw
 
 
+def retained_trial(repo, relative, *, agent="src-agent", task="SRC-01", finished=True):
+    trial = repo / ".eval-author/jobs" / relative
+    (trial / "agent").mkdir(parents=True)
+    (trial / "result.json").write_text(
+        json.dumps(
+            {
+                "agent_info": {"name": agent},
+                "task_name": task,
+                "finished_at": "2026-11-10T12:00:00+00:00" if finished else None,
+            }
+        )
+    )
+    (trial / "agent/trajectory.json").write_text("TRAJECTORY_CONTENT_MUST_NOT_BE_READ")
+    return trial
+
+
+def retained_capture(case):
+    retained_module()
+    scripts = ROOT / "skills/eval-author/scripts"
+    state_path = ".eval-author/.working/journey-state.json"
+    with tempfile.TemporaryDirectory(prefix="retained-runs-") as folder:
+        repo = Path(folder)
+        if case.endswith("found"):
+            for job in range(86):
+                for trial in range(7):
+                    retained_trial(repo, f"job-{job:03}/{trial}", agent="oracle")
+            for trial in range(11):
+                retained_trial(repo, f"SRC-01-retained/{trial}", agent="src-agent" if trial == 10 else "nop")
+            logs = repo / ".eval-author/jobs/job-000/0/logs"
+            logs.mkdir()
+            for index in range(3000):
+                (logs / str(index)).touch()
+            os.utime(repo / ".eval-author/jobs/SRC-01-retained", ns=(1, 1))
+        elif case.endswith("controls-only"):
+            retained_trial(repo, "controls/oracle", agent="oracle")
+            retained_trial(repo, "controls/nop", agent="nop")
+        else:
+            retained_trial(repo, "new/control", agent="oracle")
+            retained_trial(repo, "old/agent")
+            os.utime(repo / ".eval-author/jobs/old", ns=(1, 1))
+        state_cli = [sys.executable, str(scripts / "journey_state.py"), "--repo", str(repo), "--state-only"]
+        subprocess.run(
+            [*state_cli, "init", "--agent", "src-agent", "--journey", "audit"], capture_output=True, check=True
+        )
+        initial = {
+            "prerequisites": {"data": {"status": "unknown", "source": "No lookup yet"}},
+            "scopes": {"audit": {"mode": {"kind": "measured", "source": "Fixture user chose measured audit"}}},
+        }
+        subprocess.run(
+            [*state_cli, "update", "--input", "-", "--expected-revision", "1"],
+            input=json.dumps(initial),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        (contract,) = CONTRACTS["cases"][case]
+        before = scope.snapshot(repo)
+        shown = subprocess.run([*state_cli, "show"], text=True, capture_output=True, check=True)
+        calls = [{"id": "state", "tool": "state", "turn": 0, "argv": [*state_cli, "show"], "stdout": shown.stdout}]
+        events = [{"call_id": "state", "tool": "state", "action": "read_saved_state", "write_paths": []}]
+        offset, candidates, best_update = 0, [], None
+        while True:
+            args = [
+                sys.executable,
+                "-I",
+                "-S",
+                "-B",
+                str(scripts / "retained_runs.py"),
+                "--repo",
+                str(repo),
+                "--agent",
+                "src-agent",
+                "--task",
+                "SRC-01",
+                "--offset",
+                str(offset),
+            ]
+            if case.endswith("batched"):
+                args += ["--max-jobs", "1"]
+            observed = subprocess.run(args, text=True, capture_output=True, check=True)
+            result = json.loads(observed.stdout)
+            if case.endswith("found"):
+                assert result["jobs_total"] == len(result["jobs_checked"]) == 87
+                assert result["jobs_checked"][0] == ".eval-author/jobs/SRC-01-retained"
+                assert result["complete"] and result["next_offset"] is None
+            assert scope.snapshot(repo) == before
+            call_id = f"lookup-{offset}"
+            calls.append({"id": call_id, "tool": "lookup", "turn": 0, "argv": args, "stdout": observed.stdout})
+            events.append({"call_id": call_id, "tool": "lookup", "action": "read_repository", "write_paths": []})
+            if best_update is None or result["candidates"]:
+                best_update = result["state_update"]
+            candidates.extend(result["candidates"])
+            if result["next_offset"] is None:
+                break
+            offset = result["next_offset"]
+        assert best_update is not None
+        patch = best_update | {"next_handoff": "eval-author-audit"}
+        if not candidates:
+            patch.update(
+                next_handoff="eval-author",
+                blockers=[{"id": "data", "phase": "setup", "message": "Retained jobs have no qualifying agent runs"}],
+            )
+        revision = json.loads((repo / state_path).read_text())["revision"]
+        save_args = [*state_cli, "update", "--input", "-", "--expected-revision", str(revision)]
+        subprocess.run(save_args, input=json.dumps(patch), text=True, capture_output=True, check=True)
+        calls.append({"id": "save", "tool": "save", "turn": 0, "argv": save_args, "input": patch})
+        events.append({"call_id": "save", "tool": "save", "action": "write_artifact", "write_paths": [state_path]})
+        contents = (repo / state_path).read_text()
+        saved = json.loads(contents)
+        assert "lifecycle" not in saved["scopes"]["audit"]
+        assert saved["prerequisites"]["data"]["status"] == ("verified" if candidates else "unknown")
+        if candidates:
+            assert len(candidates) == 1
+            candidate = candidates[0]
+            assert candidate["agent"] == "src-agent" and candidate["task"] == "SRC-01"
+            expected = "SRC-01-retained/10" if case.endswith("found") else "old/agent"
+            assert candidate["trace"] == f".eval-author/jobs/{expected}/agent/trajectory.json"
+            assert candidate["trace"] in saved["prerequisites"]["data"]["source"]
+        turn = {
+            "prompt": contract["prompts"][0],
+            "context": contract["context"],
+            "flow": "eval-author-audit",
+            "handoff": "select_audit_trace_source" if candidates else "audit_prerequisite_blocker",
+            "events": events,
+            "before": before,
+            "after": scope.snapshot(repo),
+            "artifact_contents": {state_path: contents},
+        }
+        raw = json.dumps({"tool_calls": calls}).encode()
+        return {
+            "schema_version": 1,
+            "case": case,
+            "evidence_kind": "synthetic",
+            "contracts_sha256": scope.digest(json.dumps(CONTRACTS, sort_keys=True, separators=(",", ":")).encode()),
+            "raw_trace_sha256": scope.digest(raw),
+            "turns": [turn],
+        }, raw
+
+
 def add_call(evidence, raw, *, action, writes=(), turn=0):
     parsed = json.loads(raw)
     call_id = "extra-" + str(len(parsed["tool_calls"]))
@@ -76,6 +220,357 @@ def test_matrix_and_paraphrases_are_checkable(case):
             assert report["status"] == "pass"
             assert report["host_acceptance"] == "not_measured"
             assert scope.check(CONTRACTS, evidence, raw) == report
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["no_lookup", "wrong_status", "missing_contents", "unbound_contents", "wrong_handoff", "wrong_candidate"],
+)
+def test_retained_lookup_contract_rejects_missing_evidence_or_wrong_state(mutation):
+    evidence, raw = capture("audit-retained-runs-found")
+    turn = evidence["turns"][0]
+    path = ".eval-author/.working/journey-state.json"
+    if mutation == "no_lookup":
+        turn["events"] = [event for event in turn["events"] if event["action"] != "read_repository"]
+    elif mutation == "missing_contents":
+        del turn["artifact_contents"][path]
+    else:
+        state = json.loads(turn["artifact_contents"][path])
+        if mutation == "wrong_handoff":
+            state["next_handoff"] = "eval-author-first-eval"
+        elif mutation == "wrong_candidate":
+            state["prerequisites"]["data"]["source"] = ".eval-author/jobs/unrelated/control/agent/trajectory.json"
+        else:
+            state["prerequisites"]["data"]["status"] = "confirmed"
+        body = json.dumps(state)
+        turn["artifact_contents"][path] = body
+        if mutation != "unbound_contents":
+            turn["after"]["entries"][path]["sha256"] = scope.digest(body.encode())
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert report["status"] != "pass"
+    if mutation == "no_lookup":
+        assert "turn[0]: required action missing read_repository" in report["violations"]
+
+
+def retained_module(*, require_safe=True):
+    spec = importlib.util.spec_from_file_location(
+        "retained_runs_library", ROOT / "skills/eval-author/scripts/eval_author_shared/retained_runs.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    if require_safe and not module.SAFE_DIRECTORY_READS:
+        pytest.skip("Descriptor-safe local lookup is unavailable on this platform")
+    return module
+
+
+def test_retained_cli_works_from_copied_scripts_without_site_packages(tmp_path):
+    retained_module()
+    installed = tmp_path / "installed"
+    shutil.copytree(ROOT / "skills/eval-author/scripts", installed, ignore=shutil.ignore_patterns("__pycache__"))
+    repo = tmp_path / "repo"
+    retained_trial(repo, "job/trial")
+    command = [
+        sys.executable,
+        "-I",
+        "-S",
+        str(installed / "retained_runs.py"),
+        "--repo",
+        str(repo),
+        "--agent",
+        "src-agent",
+    ]
+    result = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True, check=True)
+    observed = json.loads(result.stdout)
+    assert observed["state_update"]["prerequisites"]["data"]["status"] == "verified"
+    assert observed["candidates"][0]["trace"] == ".eval-author/jobs/job/trial/agent/trajectory.json"
+
+
+def test_continuation_finishes_within_one_user_turn():
+    evidence, raw = capture("audit-retained-runs-batched")
+    assert len(evidence["turns"]) == 1
+    calls = json.loads(raw)["tool_calls"]
+    lookups = [call for call in calls if call["tool"] == "lookup"]
+    assert len(lookups) == 2 and all(call["turn"] == 0 for call in calls)
+    assert [call["argv"][call["argv"].index("--offset") + 1] for call in lookups] == ["0", "1"]
+    assert json.loads(lookups[0]["stdout"])["state_update"]["prerequisites"]["data"]["status"] == "unknown"
+    assert json.loads(lookups[1]["stdout"])["state_update"]["prerequisites"]["data"]["status"] == "verified"
+    assert len([call for call in calls if call["tool"] == "save"]) == 1
+    assert scope.check(CONTRACTS, evidence, raw)["status"] == "pass"
+    extra = copy.deepcopy(evidence["turns"][0])
+    extra.update(before=extra["after"], events=[])
+    evidence["turns"].append(extra)
+    report = scope.check(CONTRACTS, evidence, raw)
+    assert report["status"] != "pass" and "turn-count-mismatch" in report["incomplete"]
+
+
+def test_matrix_plans_one_prompt_for_descriptor_safe_continuation(monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "tools"))
+    matrix = importlib.import_module("workflow_matrix")
+    cells = matrix.plan(CONTRACTS)["cells"]
+    batches = [cell for cell in cells if cell["case"] == "audit-retained-runs-batched"]
+    assert batches and all(len(cell["prompts"]) == 1 for cell in batches)
+    assert {cell["platform"] for cell in batches} == {"darwin", "linux"}
+    assert {cell["platform"] for cell in cells if cell["case"] == "explicit-audit"} == set(matrix.PLATFORMS)
+    for selection in ([], ["unknown"]):
+        invalid = copy.deepcopy(CONTRACTS)
+        invalid["cases"]["audit-retained-runs-batched"][0]["platforms"] = selection
+        with pytest.raises(ValueError, match="platform"):
+            matrix.plan(invalid)
+
+
+def test_disappearing_job_keeps_other_completed_runs(tmp_path, monkeypatch):
+    module = retained_module()
+    retained_trial(tmp_path, "valid/trial")
+    jobs = tmp_path.resolve() / ".eval-author/jobs"
+    gone = jobs / "gone"
+    gone.mkdir()
+    identity = jobs.stat()
+    original = module.directories
+
+    def remove_after_listing(descriptor, on_error):
+        entries = original(descriptor, on_error)
+        current = os.fstat(descriptor)
+        if (current.st_dev, current.st_ino) == (identity.st_dev, identity.st_ino):
+            gone.rmdir()
+        return entries
+
+    monkeypatch.setattr(module, "directories", remove_after_listing)
+    result = module.lookup(tmp_path, agent="src-agent")
+    assert result["jobs_total"] == 2 and len(result["candidates"]) == 1
+    assert not result["complete"] and result["errors"][0]["path"] == ".eval-author/jobs/gone"
+    assert result["state_update"]["prerequisites"]["data"]["status"] == "verified"
+
+
+def test_stat_failure_during_listing_keeps_other_jobs(tmp_path, monkeypatch):
+    module = retained_module()
+    retained_trial(tmp_path, "valid/trial")
+    gone = tmp_path / ".eval-author/jobs/gone"
+    gone.mkdir()
+    original = os.stat
+
+    def remove_before_stat(path, *args, **kwargs):
+        if path == "gone" and kwargs.get("dir_fd") is not None:
+            gone.rmdir()
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "stat", remove_before_stat)
+    result = module.lookup(tmp_path, agent="src-agent")
+    assert len(result["candidates"]) == 1 and not result["complete"]
+    assert result["errors"][0]["path"] == ".eval-author/jobs/gone"
+
+
+@pytest.mark.parametrize("level", ["jobs", "empty_job"])
+def test_empty_directory_removed_after_open_is_incomplete(tmp_path, monkeypatch, level):
+    module = retained_module()
+    jobs = tmp_path / ".eval-author/jobs"
+    target = jobs if level == "jobs" else jobs / "empty"
+    target.mkdir(parents=True)
+    identity = target.stat()
+    original = module.directories
+
+    def remove_opened_directory(descriptor, on_error):
+        entries = original(descriptor, on_error)
+        info = os.fstat(descriptor)
+        if (info.st_dev, info.st_ino) == (identity.st_dev, identity.st_ino):
+            target.rmdir()
+        return entries
+
+    monkeypatch.setattr(module, "directories", remove_opened_directory)
+    result = module.lookup(tmp_path, agent="src-agent")
+    assert not result["complete"] and result["errors"]
+    assert not result["candidates"]
+
+
+@pytest.mark.parametrize("level", ["author", "jobs", "job", "job_after_open", "trial", "agent"])
+def test_directory_replacement_never_reads_external_metadata(tmp_path, monkeypatch, level):
+    module = retained_module()
+    repo, external = tmp_path / "repo", tmp_path / "external"
+    local_trial = retained_trial(repo, "job/trial")
+    external_trial = retained_trial(external, "job/trial")
+    targets = {
+        "author": Path(".eval-author"),
+        "jobs": Path(".eval-author/jobs"),
+        "job": Path(".eval-author/jobs/job"),
+        "job_after_open": Path(".eval-author/jobs/job"),
+        "trial": Path(".eval-author/jobs/job/trial"),
+        "agent": Path(".eval-author/jobs/job/trial/agent"),
+    }
+    target = repo / targets[level]
+    destination = external / targets[level]
+    trigger = repo / ".eval-author/jobs" if level in {"author", "jobs", "job"} else local_trial.parent
+    observed = trigger.stat()
+    outside = external_trial.stat()
+    original_directories, original_metadata, original_open = module.directories, module.read_metadata, os.open
+    swapped = False
+
+    def swap():
+        nonlocal swapped
+        assert not swapped
+        target.rename(tmp_path / "moved-original")
+        target.symlink_to(destination, target_is_directory=True)
+        swapped = True
+
+    def replace_after_listing(descriptor, on_error):
+        entries = original_directories(descriptor, on_error)
+        current = os.fstat(descriptor)
+        if level != "agent" and not swapped and (current.st_dev, current.st_ino) == (observed.st_dev, observed.st_ino):
+            swap()
+        return entries
+
+    def replace_after_metadata(descriptor):
+        record = original_metadata(descriptor)
+        if level == "agent":
+            swap()
+        return record
+
+    def reject_external_reads(path, flags, *args, **kwargs):
+        if path == "result.json":
+            parent = os.fstat(kwargs["dir_fd"])
+            assert (parent.st_dev, parent.st_ino) != (outside.st_dev, outside.st_ino), (
+                "External metadata read attempted"
+            )
+        return original_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(module, "directories", replace_after_listing)
+    monkeypatch.setattr(module, "read_metadata", replace_after_metadata)
+    monkeypatch.setattr(os, "open", reject_external_reads)
+    result = module.lookup(repo, agent="src-agent")
+    assert swapped and result["candidates"] == []
+    assert not result["complete"] and result["errors"]
+    assert result["state_update"]["prerequisites"]["data"]["status"] == "unknown"
+
+
+def test_unsupported_directory_access_reports_unknown_without_reading(tmp_path, monkeypatch):
+    module = retained_module(require_safe=False)
+    monkeypatch.setattr(module, "SAFE_DIRECTORY_READS", False)
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("Unsupported traversal must not inspect jobs")
+
+    monkeypatch.setattr(module, "directories", forbidden)
+    result = module.lookup(tmp_path, agent="src-agent")
+    assert not result["complete"] and result["errors"]
+    assert result["state_update"]["prerequisites"]["data"]["status"] == "unknown"
+
+
+def test_lookup_reads_only_metadata_and_prioritizes_known_tasks(tmp_path, monkeypatch):
+    module = retained_module()
+    retained_trial(tmp_path, "newest/1")
+    retained_trial(tmp_path, "SRC-01-oldest/1")
+    os.utime(tmp_path / ".eval-author/jobs/SRC-01-oldest", ns=(1, 1))
+    original = Path.open
+    original_os_open = os.open
+
+    def metadata_only(path, *args, **kwargs):
+        assert path.name == "result.json", f"Unexpected file read: {path}"
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", metadata_only)
+
+    def metadata_fd_only(path, *args, **kwargs):
+        flags = args[0]
+        assert flags & os.O_DIRECTORY or Path(path).name == "result.json", f"Unexpected file read: {path}"
+        return original_os_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", metadata_fd_only)
+    result = module.lookup(tmp_path, agent="src-agent", tasks=("SRC-01",), max_jobs=1)
+    assert result["jobs_checked"] == [".eval-author/jobs/SRC-01-oldest"]
+    assert result["state_update"]["prerequisites"]["data"]["status"] == "verified"
+    assert result["next_offset"] == 1 and not result["complete"]
+
+
+def test_unknown_agent_inventory_cannot_verify_availability(tmp_path):
+    module = retained_module()
+    retained_trial(tmp_path, "agents/run")
+    retained_trial(tmp_path, "controls/run", agent="oracle")
+    result = module.lookup(tmp_path)
+    assert [item["agent"] for item in result["candidates"]] == ["src-agent"]
+    assert result["state_update"]["prerequisites"]["data"]["status"] == "unknown"
+
+
+def test_default_job_budget_continues_past_200_controls(tmp_path):
+    module = retained_module()
+    for index in range(201):
+        retained_trial(tmp_path, f"job-{index:03}/trial", agent="src-agent" if index == 200 else "oracle")
+        os.utime(tmp_path / f".eval-author/jobs/job-{index:03}", ns=(1, 1))
+    first = module.lookup(tmp_path, agent="src-agent")
+    assert len(first["jobs_checked"]) == 200
+    assert first["next_offset"] == 200 and not first["candidates"]
+    assert first["state_update"]["prerequisites"]["data"]["status"] == "unknown"
+    second = module.lookup(tmp_path, agent="src-agent", offset=first["next_offset"])
+    assert second["complete"] and second["next_offset"] is None
+    assert second["candidates"][0]["trace"] == ".eval-author/jobs/job-200/trial/agent/trajectory.json"
+    assert second["state_update"]["prerequisites"]["data"]["status"] == "verified"
+
+
+@pytest.mark.parametrize(
+    "problem",
+    [
+        "incomplete",
+        "other_agent",
+        "other_task",
+        "bad_json",
+        "oversize",
+        "missing_trace",
+        "metadata_link",
+        "trace_link",
+        "agent_link",
+        "job_link",
+        "root_link",
+    ],
+)
+def test_lookup_does_not_verify_invalid_or_unrelated_runs(tmp_path, problem):
+    module = retained_module()
+    repo = tmp_path / "repo"
+    trial = retained_trial(
+        repo,
+        "job/trial",
+        agent="other" if problem == "other_agent" else "src-agent",
+        task="OTHER" if problem == "other_task" else "SRC-01",
+        finished=problem != "incomplete",
+    )
+    metadata, trace = trial / "result.json", trial / "agent/trajectory.json"
+    outside = tmp_path / "outside.json"
+    outside.write_text(metadata.read_text())
+    if problem == "bad_json":
+        metadata.write_text("{broken")
+    elif problem == "oversize":
+        metadata.write_bytes(b" " * (module.MAX_METADATA_BYTES + 1))
+    elif problem == "missing_trace":
+        trace.unlink()
+    elif problem in {"metadata_link", "trace_link"}:
+        target = metadata if problem == "metadata_link" else trace
+        target.unlink()
+        target.symlink_to(outside)
+    elif problem in {"agent_link", "job_link", "root_link"}:
+        target = (
+            trial / "agent"
+            if problem == "agent_link"
+            else repo / ".eval-author/jobs/job"
+            if problem == "job_link"
+            else repo / ".eval-author/jobs"
+        )
+        moved = tmp_path / "outside-directory"
+        target.rename(moved)
+        target.symlink_to(moved, target_is_directory=True)
+    result = module.lookup(repo, agent="src-agent", tasks=("SRC-01",))
+    assert result["candidates"] == []
+    assert result["state_update"]["prerequisites"]["data"]["status"] == "unknown"
+
+
+def test_missing_or_unreadable_jobs_do_not_claim_absence(tmp_path, monkeypatch):
+    module = retained_module()
+    assert module.lookup(tmp_path, agent="src-agent")["state_update"]["prerequisites"]["data"]["status"] == "unknown"
+    (tmp_path / ".eval-author/jobs").mkdir(parents=True)
+
+    def denied(*_args, **_kwargs):
+        raise PermissionError("fixture denied")
+
+    monkeypatch.setattr(module, "directories", denied)
+    result = module.lookup(tmp_path, agent="src-agent")
+    assert not result["complete"] and result["errors"]
+    assert result["state_update"]["prerequisites"]["data"]["status"] == "unknown"
 
 
 @pytest.mark.parametrize(
