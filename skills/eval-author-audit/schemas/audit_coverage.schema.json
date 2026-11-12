@@ -15,6 +15,54 @@
     "covered"
   ],
   "properties": {
+    "identity_preflight": {
+      "type": "object",
+      "required": [
+        "route_request"
+      ],
+      "properties": {
+        "route_request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "entrypoint",
+            "expected_scorer",
+            "dependencies"
+          ],
+          "properties": {
+            "entrypoint": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expected_scorer": {
+              "type": "string",
+              "minLength": 1
+            },
+            "dependencies": {
+              "type": "object"
+            },
+            "dependency_source": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "artifact_id",
+                "pointer"
+              ],
+              "properties": {
+                "artifact_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pointer": {
+                  "type": "string",
+                  "maxLength": 1024
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "schema": {
       "description": "Version marker for the shared audit coverage format.",
       "const": "nemo.eval_author.audit_coverage.v2"

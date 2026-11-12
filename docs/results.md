@@ -7,6 +7,17 @@ Eval Author saves reports and evaluation artifacts in the repository you are
 working on. Start with the report for your requested workflow, and read its
 limitations before deciding what to change.
 
+## Experimental rubric artifacts
+
+Rubric selections use `rubric_scope` for source-backed inventories. Package demo
+observations use `retained_credit`, `retained_credit_controls`, and `coverage` to
+identify their consumers. The provenance panel uses `rubric-provenance-demo-v1`
+with `rubric-provenance-expectations-v1` expectations; the version remains 1.
+Update integrations to these current names and rebuild older demo outputs rather
+than relying on former field or schema names; no compatibility aliases are kept.
+See the [rubric measurements](determinism-checks.md#rubric-identity-measurements)
+and [provenance demo](determinism-checks.md#provenance-demo) for commands.
+
 ## Case and run catalog
 
 The case and run catalog can be found in `.eval-author/report.html` and the
@@ -222,6 +233,41 @@ for how changed inputs reopen review and measurement.
 
 For the combined findings review and optional next-action handoff, see
 [Audit coverage](existing-evals.md#audit-coverage).
+
+### Identity-aware coverage results
+
+When measurement uses the paired
+[`--identity-root` and `--identity-selection` flags](existing-evals.md#measure-coverage-with-an-explicit-identity-selection),
+the CLI summary and each per-method `coverage.json` include `identity_preflight`:
+
+- `identity` retains selected artifact records, access states, digests, nullable
+  revisions, and stable diagnostics.
+- `route` retains the declared scorer and dependency checks. `executed_scorer`
+  stays null: resolving a declaration is not evidence that this scorer ran.
+- `route_request` retains the selection used to resolve that route. Aggregation
+  and retained-report verification recompute the route from the selected files
+  and reject an envelope that disagrees with the result.
+- `subject` keeps the measured `task_id` and `run_id`, including IDs from
+  native trial metadata when you supply no override.
+- `measurement_allowed` means the selected identity and source-bound declared
+  route passed the gate. The measured trace must also match its selected path
+  and digest before the CLI writes coverage.
+- `preflight_success` remains false even for a successful coverage measurement.
+  This envelope does not certify workflow readiness, task quality, or rubric
+  criteria.
+
+The aggregate Coverage measurements (JSON) preserves the envelope in each
+`input_reports` entry alongside that input's subject and coverage accounting.
+Aggregation rejects unresolved or inconsistent envelopes rather than upgrading
+them into passing evidence. It validates retained measurement data without
+attesting to a fresh native execution. Ordinary reports without the opt-in
+fields remain supported.
+
+Identity-aware reports without `route_request` must be measured again before
+aggregation. A route envelope alone cannot establish its source binding.
+
+Identity failures leave coverage unmeasured, not 0%. They do not erase earlier
+output files. Do not present an older result as the failed attempt's measurement.
 
 ## Trace workflows
 

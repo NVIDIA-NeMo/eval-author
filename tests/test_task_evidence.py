@@ -137,6 +137,53 @@ def reports(tmp_path):
     return before, after
 
 
+@pytest.mark.parametrize("missing", [False, True])
+def test_historical_manifest_checks_produced_receipts_without_current_task_proof(
+    tmp_path, prepared, missing, monkeypatch
+):
+    audit = importlib.import_module("audit_verifier_evidence")
+    task, _, manifest_path = prepared
+    receipts = complete(tmp_path, manifest_path)
+    if missing:
+        receipts = [path for path in receipts if path.name != "incorrect-receipt.json"]
+    (task / "instruction.md").write_text("Changed after the retained controls ran.")
+    review = audit.Review(tmp_path, [tmp_path])
+    manifest = review.object(manifest_path)
+    rows = [
+        audit.inspect_receipt(review, path, review.object(path), {task}, verify_historical=True) for path in receipts
+    ]
+    default = audit.inspect_manifest(review, manifest_path, manifest, {task}, rows)
+    assert default == [
+        {
+            "path": "manifest.json",
+            "task": "cover-read",
+            "classification": "stale",
+            "reason": "This manifest describes an earlier task revision",
+        }
+    ]
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Historical manifest validation must not measure the current task")
+
+    monkeypatch.setattr(review, "task_digest", forbidden)
+    historical = audit.inspect_manifest(review, manifest_path, manifest, {task}, rows, verify_historical=True)
+    assert historical == (
+        [
+            {
+                "path": "manifest.json",
+                "task": "cover-read",
+                "classification": "unproven",
+                "reason": "Declared controls have no retained receipts",
+                "cases": ["incorrect"],
+            }
+        ]
+        if missing
+        else []
+    )
+    assert {row["classification"] for row in rows} == {"stale", "agent_run"}
+    assert all(row["historical_classification"] == "passed" for row in rows if row["classification"] == "stale")
+
+
 def test_acceptance_requires_controls_and_exact_agent_evidence(tmp_path, prepared, monkeypatch):
     # Isolate receipt invariants here; the documented flow below uses real bound measurements.
     monkeypatch.setattr(pipeline, "_verify_coverage_binding", lambda path: {"audit_sha256": "fixture"})

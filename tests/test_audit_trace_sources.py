@@ -93,9 +93,9 @@ def test_atif_run_id_is_the_same_measured_directly_or_after_loading(tmp_path: Pa
 
 
 def test_measured_trace_and_digest_come_from_the_same_bytes(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.syspath_prepend(str(MEASURE.parent))
+    monkeypatch.syspath_prepend(str(MEASURE.parent.parent))
     monkeypatch.syspath_prepend(str(TRACE_LOADING.parent))
-    measure_module = importlib.import_module("measure")
+    measure_module = importlib.import_module("audit_spec.measure")
     trace_loading = importlib.import_module("trace_loading")
     source = tmp_path / "export.json"
     first = json.dumps({"traces": [mlflow_record()]})

@@ -296,13 +296,16 @@ def _write_private(path: Path, data: bytes) -> None:
         stream.write(data)
 
 
-def _snapshot(source: Path, directory: Path, kind: str) -> tuple[Path, str]:
+def _snapshot(source: Path, directory: Path, kind: str, raw: bytes | None = None) -> tuple[Path, str]:
     """Copy ``source`` into ``directory`` as a new private file; return it and the digest of the bytes copied.
 
     ATIF and Gym loaders choose whole-file JSON (".json") or JSONL by suffix; the copy keeps it.
     """
     suffix = ".json" if source.suffix.lower() == ".json" else ".jsonl"
     path = directory / f"source.{kind}{suffix}"
+    if raw is not None:
+        _write_private(path, raw)
+        return path, _sha256(raw)
     digest = hashlib.sha256()
     with source.open("rb") as reader, path.open("xb") as writer:
         os.chmod(writer.name, 0o600)
@@ -312,9 +315,12 @@ def _snapshot(source: Path, directory: Path, kind: str) -> tuple[Path, str]:
     return path, "sha256:" + digest.hexdigest()
 
 
-def load_snapshot(source: Path, source_kind: str, **load_kwargs: Any) -> tuple[list[Trace], str]:
+def load_snapshot(
+    source: Path, source_kind: str, *, raw: bytes | None = None, **load_kwargs: Any
+) -> tuple[list[Trace], str]:
     """Load a private snapshot of ``source``; return its traces and the ``sha256:`` digest of the bytes loaded.
 
+    With ``raw``, load those caller-validated bytes without reopening ``source``.
     Traces and spans cite ``source``, not the deleted snapshot.
     """
     from trace_ingest.source_links import file_source_url
@@ -322,7 +328,7 @@ def load_snapshot(source: Path, source_kind: str, **load_kwargs: Any) -> tuple[l
     with tempfile.TemporaryDirectory() as staging:
         directory = Path(staging)
         directory.chmod(0o700)
-        snapshot, digest = _snapshot(source, directory, source_kind)
+        snapshot, digest = _snapshot(source, directory, source_kind, raw)
         traces = load_traces(snapshot, source_kind, **load_kwargs)
         staged, original = file_source_url(snapshot), file_source_url(source)
     pending: list[Any] = list(traces)
