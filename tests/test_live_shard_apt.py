@@ -478,14 +478,153 @@ def test_ci_bootstraps_private_apt_before_both_python_test_groups():
     assert tests["env"]["EVAL_AUTHOR_NATIVE_APT_ROOT"] == "${{ runner.temp }}/native-apt"
 
 
+@pytest.fixture
+def native_host_commands(monkeypatch):
+    for name in ("EVAL_AUTHOR_NATIVE_APT_ROOT", "GITHUB_ACTIONS", "CI"):
+        monkeypatch.delenv(name, raising=False)
+    original_is_file = Path.is_file
+    calls = []
+
+    def configure(apt="2.8.4ubuntu0.1", libapt=None, helper=True, missing_command=None):
+        def is_file(path):
+            if path == Path("/usr/lib/apt/apt-helper"):
+                return helper
+            return original_is_file(path)
+
+        def run(args, **kwargs):
+            calls.append(args)
+            if args[0] == missing_command:
+                raise FileNotFoundError(args[0])
+            if args[0] == "dpkg-query":
+                version = apt if args[-1] == "apt" else libapt
+                return subprocess.CompletedProcess(args, 0 if version is not None else 1, version or "", "")
+            assert args[:1] == ["dpkg"] and args[1] == "--compare-versions"
+            assert args[3:] == ["ge", "2.8.4ubuntu0.1"]
+            return subprocess.CompletedProcess(args, 0 if args[2] in ("2.8.4ubuntu0.1", "2.8.4ubuntu0.2") else 1)
+
+        monkeypatch.setattr(Path, "is_file", is_file)
+        monkeypatch.setattr(subprocess, "run", run)
+        return calls
+
+    return configure
+
+
+def test_unconfigured_host_missing_libapt_skips_native_controls(native_host_commands):
+    calls = native_host_commands()
+    with pytest.raises(pytest.skip.Exception, match="patched APT and libapt required"):
+        native_apt_environment()
+    assert [args[0] for args in calls] == ["dpkg-query", "dpkg", "dpkg-query"]
+
+
+@pytest.mark.parametrize(
+    "apt,libapt,helper,missing_command",
+    [
+        ("2.6.1", None, True, None),  # Debian 12
+        ("2.4.14", None, True, None),  # Ubuntu 22.04
+        ("2.8.3", "2.8.3", True, None),  # Unpatched Ubuntu 24.04
+        ("2.8.4ubuntu0.1", "2.8.3", True, None),
+        (None, "2.8.4ubuntu0.1", True, None),
+        ("", "2.8.4ubuntu0.1", True, None),
+        ("2.8.4ubuntu0.1", "", True, None),
+        ("2.8.4ubuntu0.1", "2.8.4ubuntu0.1", False, None),
+        ("2.8.4ubuntu0.1", "2.8.4ubuntu0.1", True, "dpkg-query"),
+        ("2.8.4ubuntu0.1", "2.8.4ubuntu0.1", True, "dpkg"),
+    ],
+)
+def test_unsupported_unconfigured_host_skips(native_host_commands, apt, libapt, helper, missing_command):
+    calls = native_host_commands(apt=apt, libapt=libapt, helper=helper, missing_command=missing_command)
+    with pytest.raises(pytest.skip.Exception):
+        native_apt_environment()
+    assert not any(args[0].endswith("apt-helper") for args in calls)
+
+
+@pytest.mark.parametrize("ci", [None, "GITHUB_ACTIONS", "CI"])
+@pytest.mark.parametrize("version", ["2.8.4ubuntu0.1", "2.8.4ubuntu0.2"])
+def test_both_host_packages_at_floor_allow_native_controls(native_host_commands, monkeypatch, ci, version):
+    calls = native_host_commands(apt=version, libapt=version)
+    if ci:
+        monkeypatch.setenv(ci, "true")
+    assert native_apt_environment() == (Path("/usr/lib/apt/apt-helper"), {})
+    assert [args[-1] for args in calls if args[0] == "dpkg-query"] == ["apt", "libapt-pkg6.0t64"]
+    assert sum(args[0] == "dpkg" for args in calls) == 2
+
+
+@pytest.mark.parametrize("ci", ["GITHUB_ACTIONS", "CI"])
+@pytest.mark.parametrize("problem", ["helper", "apt", "libapt", "dpkg-query", "dpkg"])
+def test_ci_requires_native_controls(native_host_commands, monkeypatch, ci, problem):
+    calls = native_host_commands(
+        apt="2.8.3" if problem == "apt" else "2.8.4ubuntu0.1",
+        libapt=None if problem == "libapt" else "2.8.4ubuntu0.1",
+        helper=problem != "helper",
+        missing_command=problem if problem in ("dpkg-query", "dpkg") else None,
+    )
+    monkeypatch.setenv(ci, "true")
+    with pytest.raises(pytest.fail.Exception):
+        native_apt_environment()
+    assert not any(args[0].endswith("apt-helper") for args in calls)
+
+
+@pytest.mark.parametrize("private", ["", "missing-native-apt"])
+def test_explicit_broken_native_root_never_falls_back(native_host_commands, monkeypatch, tmp_path, private):
+    calls = native_host_commands(libapt="2.8.4ubuntu0.1")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("EVAL_AUTHOR_NATIVE_APT_ROOT", private)
+    with pytest.raises(pytest.fail.Exception):
+        native_apt_environment()
+    assert calls == []
+
+
+@pytest.mark.parametrize("problem", [None, "library", "apt", "libapt", "version", "architecture", "command"])
+def test_explicit_native_root_validates_before_retry(native_bootstrap_commands, monkeypatch, tmp_path, problem):
+    result, _, root = native_bootstrap_commands()
+    assert result.returncode == 0, result.stderr
+    for name in ("CI", "GITHUB_ACTIONS"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("EVAL_AUTHOR_NATIVE_APT_ROOT", str(root))
+    if problem == "library":
+        (root / "usr/lib/x86_64-linux-gnu/libapt-pkg.so.6.0").unlink()
+    calls = []
+
+    def check_output(args, **kwargs):
+        calls.append(args)
+        if problem == "command":
+            raise FileNotFoundError(args[0])
+        if args[0] == "dpkg":
+            return "unsupported" if problem == "architecture" else "amd64"
+        if args[0] == "dpkg-deb":
+            package = Path(args[-1]).name.split("_")[0]
+            version = "2.8.3" if problem == ("apt" if package == "apt" else "libapt") else "2.8.4ubuntu0.1"
+            return f"{package}\n{version}\namd64"
+        assert args == [str(root / "usr/lib/apt/apt-helper"), "--version"]
+        assert kwargs["env"] == {"LD_LIBRARY_PATH": str(root / "usr/lib/x86_64-linux-gnu")}
+        return "apt 2.8.3 (amd64)" if problem == "version" else "apt 2.8.4 (amd64)"
+
+    monkeypatch.setattr(subprocess, "check_output", check_output)
+    if problem is None:
+        helper, env = native_apt_environment()
+        assert helper == root / "usr/lib/apt/apt-helper"
+        assert env == {"LD_LIBRARY_PATH": str(root / "usr/lib/x86_64-linux-gnu")}
+        assert len(calls) == 4
+    else:
+        with pytest.raises((AssertionError, KeyError, OSError)):
+            native_apt_environment()
+    assert not any("download-file" in args for args in calls)
+
+
 @pytest.fixture(scope="session")
 def native_apt():
+    return native_apt_environment()
+
+
+def native_apt_environment():
     private = os.environ.get("EVAL_AUTHOR_NATIVE_APT_ROOT")
+    required = private is not None or any(os.environ.get(name) == "true" for name in ("GITHUB_ACTIONS", "CI"))
+    reject = pytest.fail if required else pytest.skip
+    if private == "":
+        pytest.fail("EVAL_AUTHOR_NATIVE_APT_ROOT must name a bootstrapped native APT directory")
     helper = Path(private) / "usr/lib/apt/apt-helper" if private else Path("/usr/lib/apt/apt-helper")
     if not helper.is_file():
-        if private or os.environ.get("GITHUB_ACTIONS") == "true":
-            pytest.fail("native APT bootstrap required on CI")
-        pytest.skip("native APT required")
+        reject("native APT bootstrap required; see DEVELOPMENT.md")
     env = {}
     if private:
         architecture = subprocess.check_output(["dpkg", "--print-architecture"], text=True, timeout=10).strip()
@@ -504,12 +643,19 @@ def native_apt():
         assert version == f"apt 2.8.4 ({architecture})"
     else:
         for package in ("apt", "libapt-pkg6.0t64"):
-            installed = subprocess.run(
-                ["dpkg-query", "-W", "-f=${Version}", package], capture_output=True, text=True, timeout=10
-            )
-            assert installed.returncode == 0 and installed.stdout, "patched APT and libapt required"
-            floor = subprocess.run(["dpkg", "--compare-versions", installed.stdout, "ge", "2.8.4ubuntu0.1"], timeout=10)
-            assert floor.returncode == 0, "patched APT and libapt required for native retry test"
+            try:
+                installed = subprocess.run(
+                    ["dpkg-query", "-W", "-f=${Version}", package], capture_output=True, text=True, timeout=10
+                )
+                if installed.returncode != 0 or not installed.stdout.strip():
+                    reject("patched APT and libapt required for native retry test")
+                floor = subprocess.run(
+                    ["dpkg", "--compare-versions", installed.stdout, "ge", "2.8.4ubuntu0.1"], timeout=10
+                )
+            except (OSError, subprocess.SubprocessError):
+                reject("patched APT and libapt required for native retry test")
+            if floor.returncode != 0:
+                reject("patched APT and libapt required for native retry test")
     return helper, env
 
 

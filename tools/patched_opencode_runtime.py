@@ -633,6 +633,7 @@ def prepare_images(
                 category = "contract_error" if _PREPARATION_PHASE.get() == "contract" else "unknown_error"
             safe = PreparationError(category, _PREPARATION_PHASE.get())
         details = preparation_failure(safe)
+        _PREPARATION_PHASE.set(details["phase"])
         try:
             _timing_event("failed", details["operation"], details["category"])
         except Exception:
@@ -732,13 +733,57 @@ def _prepare_images(skill, output, binary_manifest):
     return path
 
 
+def _preparation_cache_prefix(source):
+    # Scheduling hint only: never merge task identities or rewrite the recipe.
+    # Accept native indented continuations, but decline ambiguous boundaries and
+    # context-dependent ONBUILD/RUN mounts rather than guessing cache identity.
+    offset = 0
+    instruction_offset = 0
+    pending = ""
+    for line in source.splitlines(keepends=True):
+        stripped = line.strip()
+        if "<<" in line or re.match(r"#\s*(syntax|escape|check)\s*=", stripped, re.I):
+            return None
+        if pending and (not stripped or stripped.startswith("#") or not line[0].isspace()):
+            return None
+        if stripped and not stripped.startswith("#"):
+            continued = stripped.endswith("\\")
+            if continued and (stripped.endswith("\\\\") or line.rstrip("\r\n") != line.rstrip()):
+                return None
+            if not pending:
+                instruction_offset = offset
+            pending += stripped[:-1] + " " if continued else stripped
+            if not continued:
+                match = re.fullmatch(r"([A-Za-z]+)\s+(.+)", pending.strip())
+                if not match:
+                    return None
+                instruction, value = match[1].upper(), match[2]
+                if instruction in {"COPY", "ADD"}:
+                    return source[:instruction_offset]
+                if instruction not in {"FROM", "RUN", "ENV", "WORKDIR", "USER", "LABEL", "SHELL"}:
+                    return None
+                if instruction == "RUN" and value.lstrip().startswith("--"):
+                    return None
+                pending = ""
+        offset += len(line)
+    return None
+
+
 def _prepare_chains(plan, output, platform, bound, dependency_image):
     stop = Event()
     admission = Lock()
     failures = []
     records = {}
     timing = _PREPARATION_TIMING.get()
-    pending = iter(enumerate(plan.items(), 1))
+    groups = {}
+    for ordinal, (identity, row) in enumerate(plan.items(), 1):
+        pinned = pinned_dockerfile(row[1], platform, dependency_image=dependency_image)
+        # Only the shared inspected default parent is known before source builds;
+        # custom bases can inherit context-consuming ONBUILD instructions.
+        prefix = _preparation_cache_prefix(pinned) if row[2] and dependency_image is not None else None
+        key = ("prefix", prefix) if prefix is not None else ("identity", identity)
+        groups.setdefault(key, []).append((ordinal, identity, row))
+    pending = iter(groups.values())
 
     def chain(ordinal, identity, row):
         _PREPARATION_STOP.set(stop)
@@ -767,17 +812,26 @@ def _prepare_chains(plan, output, platform, bound, dependency_image):
                 stop.set()
             raise safe from None
 
+    def group_chains(rows):
+        results = {}
+        for ordinal, identity, row in rows:
+            with admission:
+                if stop.is_set():
+                    break
+            results[identity] = chain(ordinal, identity, row)
+        return results
+
     def admit(executor, active):
         with admission:
             if stop.is_set():
                 return False
             try:
-                ordinal, (identity, row) = next(pending)
+                rows = next(pending)
             except StopIteration:
                 return False
             preparation_timeout(1)
             context = copy_context()
-            active[executor.submit(context.run, chain, ordinal, identity, row)] = identity
+            active[executor.submit(context.run, group_chains, rows)] = None
             return True
 
     with ThreadPoolExecutor(max_workers=_PREPARATION_WORKERS.get()) as executor:
@@ -789,9 +843,9 @@ def _prepare_chains(plan, output, platform, bound, dependency_image):
             while active:
                 completed, _ = wait(active, return_when=FIRST_COMPLETED)
                 for future in completed:
-                    identity = active.pop(future)
+                    active.pop(future)
                     try:
-                        records[identity] = future.result()
+                        records.update(future.result())
                     except BaseException:
                         stop.set()
                 if stop.is_set():

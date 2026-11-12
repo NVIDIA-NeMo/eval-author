@@ -166,36 +166,59 @@ def test_two_real_subprocess_chains_overlap_dedup_and_publish_in_arm_order(runti
     assert all(r["remaining_deadline_seconds"] > 0 for r in completed)
 
 
-@pytest.mark.parametrize("failure", ["docker", "deadline"])
+@pytest.mark.parametrize("failure", ["docker", "deadline", "offline_probe"])
 def test_failure_stops_admission_settles_active_clients_and_never_publishes(
-    runtime, controlled, tmp_path, monkeypatch, failure
+    runtime, controlled, tmp_path, monkeypatch, capsys, failure
 ):
     skill, output, state, ids, _ = controlled
     errors = []
+    probe_failed = threading.Event()
+    stop_flags = []
+    private_message = "private probe task payload must not be published"
     if failure == "docker":
         (state / ("fail-" + ids[1])).touch()
-    else:
+    elif failure == "deadline":
         monkeypatch.setattr(runtime, "PREPARATION_TIMEOUT_SECONDS", 2)
+    else:
+        original_check = runtime.check_prepared_image
+
+        def check(identity, *args, **kwargs):
+            original_check(identity, *args, **kwargs)
+            if identity == ids[1]:
+                stop_flags.append(runtime._PREPARATION_STOP.get())
+                probe_failed.set()
+                raise ValueError(private_message)
+
+        monkeypatch.setattr(runtime, "check_prepared_image", check)
 
     def release():
         try:
             for identity in ids[:2]:
                 wait_path(state / ("source-" + identity))
-            if failure == "docker":
+            if failure != "deadline":
                 (state / ("release-" + ids[1])).touch()
-                wait_path(tmp_path / "private.json")
-                # Allow the failing worker to set its stop flag while its sibling remains blocked.
-                time.sleep(0.1)
+                if failure == "docker":
+                    wait_path(tmp_path / "private.json")
+                    # Allow the failing worker to set its stop flag while its sibling remains blocked.
+                    time.sleep(0.1)
+                else:
+                    assert probe_failed.wait(6)
+                    assert stop_flags[0].wait(6)
+                    assert not preparation_returned.is_set()
+                    assert not (output / "prepared-images.json").exists()
+                    assert not (state / ("image-" + ids[0] + "-source")).exists()
                 assert not any((state / ("source-" + identity)).exists() for identity in ids[2:])
         except Exception as error:
             errors.append(error)
         finally:
-            if failure == "docker":
+            if failure != "deadline":
                 (state / ("release-" + ids[0])).touch()
 
+    preparation_returned = threading.Event()
     controller = threading.Thread(target=release)
     controller.start()
     checkpoint = tmp_path / "timing.json"
+    original_phase = runtime._PREPARATION_PHASE.get()
     try:
         with pytest.raises(runtime.PreparationError) as caught:
             runtime.prepare_images(
@@ -207,17 +230,36 @@ def test_failure_stops_admission_settles_active_clients_and_never_publishes(
                 private_diagnostics=tmp_path / "private.json",
             )
     finally:
+        preparation_returned.set()
         controller.join(8)
     assert not controller.is_alive() and not errors
-    assert caught.value.category == ("docker_failed" if failure == "docker" else "deadline_exceeded")
-    assert caught.value.phase == "task_source" and caught.value.operation == "build"
+    expected_category = {
+        "docker": "docker_failed",
+        "deadline": "deadline_exceeded",
+        "offline_probe": "validation_error",
+    }[failure]
+    assert caught.value.category == expected_category
+    assert caught.value.phase == ("offline_probe" if failure == "offline_probe" else "task_source")
+    assert caught.value.operation == ("none" if failure == "offline_probe" else "build")
     assert not (output / "prepared-images.json").exists()
+    assert not list(output.glob(".manifest-*"))
     assert len(list(state.glob("source-*"))) == 2
-    assert not list(state.glob("probe-*"))
-    assert not any((state / ("built-" + identity)).exists() for identity in ids)
+    assert len(list(state.glob("probe-*"))) == (1 if failure == "offline_probe" else 0)
+    assert sum((state / ("built-" + identity)).exists() for identity in ids) == (1 if failure == "offline_probe" else 0)
     timing = runtime.validate_preparation_timing(json.loads(checkpoint.read_text()))
     assert timing["latest"]["event"] == "failed"
+    assert timing["latest"]["phase"] == caught.value.phase
+    assert timing["latest"]["category"] == caught.value.category
+    assert timing["latest"]["operation"] == caught.value.operation
+    assert timing["latest"]["image_ordinal"] == 0
     assert timing["latest"]["completed_images"] == 0
+    assert private_message not in checkpoint.read_text() + capsys.readouterr().out + str(caught.value)
+    if failure == "offline_probe":
+        assert isinstance(caught.value.__context__, ValueError)
+        assert str(caught.value.__context__) == private_message
+        assert caught.value.__suppress_context__
+        assert (state / ("image-" + ids[0] + "-source")).exists()
+    assert runtime._PREPARATION_PHASE.get() == original_phase
     assert runtime._PREPARATION_DEADLINE.get() is None
     assert runtime._PREPARATION_STOP.get() is None
 
@@ -278,8 +320,10 @@ def test_terminal_timing_failure_removes_new_manifest(runtime, controlled, tmp_p
 
 
 def test_failure_checkpoint_error_preserves_first_execution_failure(runtime, tmp_path, monkeypatch):
+    first_failure = runtime.PreparationError("docker_failed", "task_layer", "build")
+
     def fail(*args):
-        raise runtime.PreparationError("docker_failed", "task_layer", "build")
+        raise first_failure
 
     original = runtime.PreparationTiming.emit
 
@@ -294,6 +338,7 @@ def test_failure_checkpoint_error_preserves_first_execution_failure(runtime, tmp
         runtime.prepare_images(
             tmp_path, tmp_path / "out", tmp_path / "binary", timing_checkpoint=tmp_path / "timing.json"
         )
+    assert caught.value is first_failure
     assert runtime.preparation_failure(caught.value) == dict(
         category="docker_failed", phase="task_layer", operation="build"
     )
