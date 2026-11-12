@@ -17,7 +17,15 @@ from test_skill_contract import (
 )
 
 
-def measured(tmp_path, evidence_class="agent_under_test", *, trace=None, run_id="fixture-run", include_unrelated=False):
+def measured(
+    tmp_path,
+    evidence_class="agent_under_test",
+    *,
+    trace=None,
+    source_kind="atif",
+    run_id="fixture-run",
+    include_unrelated=False,
+):
     audit = _write_audit(tmp_path)
     if trace is None:
         trace = tmp_path / "trace.json"
@@ -30,6 +38,8 @@ def measured(tmp_path, evidence_class="agent_under_test", *, trace=None, run_id=
         str(audit),
         "--trace",
         str(trace),
+        "--source-kind",
+        source_kind,
         "--task-id",
         "fixture",
         "--run-id",

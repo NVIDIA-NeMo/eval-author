@@ -107,7 +107,7 @@ class LiveAgent(BaseAgent):
             self.receipt["usage_status"] = "not_applicable"
             self.save()
             return
-        from openai import APIError, APIStatusError, AsyncOpenAI
+        from openai import APIConnectionError, APIError, APIStatusError, APITimeoutError, AsyncOpenAI
 
         key = os.environ.get("INFERENCE_HUB_API_KEY")
         if not key:
@@ -132,6 +132,7 @@ class LiveAgent(BaseAgent):
             }
         ]
         retries_left, unobserved_tokens = 2, 0
+        request_attempts = 0
         async with AsyncOpenAI(
             api_key=key, base_url=MODEL["base_url"], timeout=MODEL["request_timeout_sec"], max_retries=0
         ) as client:
@@ -153,6 +154,13 @@ class LiveAgent(BaseAgent):
                         ):
                             raise RuntimeError("token budget exhausted")
                         try:
+                            request_attempts += 1
+                            self.receipt["request_diagnostic"] = {
+                                "state": "in-flight",
+                                "http_status": None,
+                                "attempts": request_attempts,
+                            }
+                            self.save()
                             response = await client.chat.completions.create(
                                 model=MODEL["model"],
                                 messages=messages,
@@ -161,8 +169,19 @@ class LiveAgent(BaseAgent):
                                 max_completion_tokens=MODEL["max_completion_tokens"],
                                 store=False,
                             )
+                            self.receipt["request_diagnostic"]["state"] = "response"
                             break
                         except APIError as exc:
+                            self.receipt["request_diagnostic"].update(
+                                state="http-error"
+                                if isinstance(exc, APIStatusError)
+                                else "timeout"
+                                if isinstance(exc, APITimeoutError)
+                                else "connection-error"
+                                if isinstance(exc, APIConnectionError)
+                                else "api-error",
+                                http_status=exc.status_code if isinstance(exc, APIStatusError) else None,
+                            )
                             # Failed requests have no usage receipt; reserve their full allowance.
                             unobserved_tokens += reserved + MODEL["max_completion_tokens"]
                             transient = isinstance(exc, APIStatusError) and (

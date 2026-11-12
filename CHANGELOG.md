@@ -6,6 +6,85 @@
 Notable changes to NeMo Eval Author are recorded here. Eval Author is a research
 preview: workflows, skills, and saved artifacts may change between releases.
 
+## Unreleased
+
+### Removed
+
+- **Breaking: ATIF converters.** The `gym-to-atif` and `mlflow-to-atif` skills,
+  their `nemo.eval_author.gym_to_atif.v1` receipts, `--emit-atif`, and the NeMo
+  Gym `ng-trajectory` CI route are gone. Eval Author never converts traces to
+  ATIF; ATIF is only an input format.
+- **Breaking: live MLflow queries.** Traces are no longer read from an MLflow
+  tracking server; export them and load the complete local export.
+- **Breaking: v1 audit coverage files.** `report.py` accepts only
+  `nemo.eval_author.audit_coverage.v2` inputs; measure existing traces again to
+  aggregate them.
+- **Breaking: legacy trace workspace paths.** `record-validation
+  --allow-aggregate-only` is gone; every proof job needs per-check rows.
+  Summary v2/v3, run-input v1/v2 and validation v6 workspaces, the
+  `private/workspace.json` creation marker, `construction.v1` and
+  `construction.v2`, and the historical trace construction import are no longer
+  read. Older workspaces are refused; re-run `prepare` in a new task directory.
+  A native first-eval or task-create `construction.v2` contract becomes v3 by
+  changing its schema id; prepare its task evidence again. See
+  [importing existing artifacts](skills/eval-author/references/construction-plan.md#import-existing-artifacts-without-rewriting-evidence).
+
+### Changed
+
+- **One trace loader.** `skills/eval-author/scripts/trace_loading.py` loads
+  `atif`, `mlflow`, `gym`, `intake`, and `trace` sources into NeMo Compass
+  `Trace` objects (trace contract v3) and writes a
+  `nemo.eval_author.trace_load.v2` receipt. `--trace-id` (or `--row` for NeMo Gym
+  JSONL) selects one trace of a larger source. Intake is a live selection from the
+  Intake service by workspace and time window, authenticated with
+  `NMP_ACCESS_TOKEN`; it no longer reads `nemo intake` CLI exports. A run that
+  Compass loaded only in part, such as a partially loaded session or an ATIF
+  trajectory that continues in another file, is refused rather than read as
+  whole. See [Load local traces](docs/traces.md#load-local-traces).
+- **NeMo Compass 0.2.1.** Trace loading requires `nemo-compass` 0.2.1 from
+  PyPI, the first release with trace contract v3. The loader rejects any other
+  version and Git, local, or editable installs.
+- **Audit measurement reads Compass traces.** `measure.py` loads one ATIF,
+  MLflow, NeMo Gym, or normalized trace per file through the trace loader, so
+  Harbor is no longer an audit dependency. Coverage files and reports are now
+  `nemo.eval_author.audit_coverage.v2` and
+  `nemo.eval_author.audit_coverage_report.v2` with `trace_format:
+  nemo-compass-trace` and `source_kind`, and tool-call evidence cites trace and
+  span IDs.
+- **NeMo Gym closure evidence** binds the selected rollout through the
+  `trace_load.v2` receipt and its normalized trace instead of a conversion
+  receipt. See
+  [Native NeMo Gym evidence](skills/eval-author-task-create/references/gym-evidence.md).
+- **Breaking: trace workspaces read Compass Traces.** `prepare --source <file>
+  --source-kind {atif,mlflow,gym,trace} [--row N] [--trace-id ID]` loads one
+  trace through the trace loader and writes `private/canonical.trace.json` and a
+  scrubbed `safe/trace.json` that still validates as a Compass `Trace`. Load Intake with
+  `trace_loading.py` first, then prepare its `traces.normalized.jsonl` with
+  `--source-kind trace`. The safe copy omits media and model token ids, drops
+  source attributes and pseudonymizes identifiers consistently. Tool calls whose
+  arguments, results or definitions hold a redacted or pseudonymized value are
+  not offered for exact replay. Candidates, construction, tool-call
+  fixtures and the evidence audit cite safe-trace turn and span ids instead of
+  ATIF step ids: `evidence_turns`, provenance `trace_turn`, `cutoff_turn_id`,
+  and `{span_id, call_id}` call evidence. See
+  [trace sources](skills/eval-author-inspect-trace/references/sources.md).
+  Schema changes:
+
+  | Artifact | Old | New |
+  | --- | --- | --- |
+  | summary | v2, v3 | v4 |
+  | candidate | v2 | v3 |
+  | privacy audit | v1 | v2 |
+  | tool-call generation | v1 | v2 |
+  | product | v4 | v5 |
+  | batch (members `{task_id, source, source_kind, row?}`) | v1 | v2 |
+  | tool calls, tool-call plan, tool access, call fixtures | v2 | v3 |
+  | MCP scenario, schema overrides, evidence audit | v1 | v2 |
+  | construction | v2 | v3 |
+
+  Run-input v3, validation v7, tool-access decisions v1 and publication review
+  v1 are unchanged.
+
 ## 0.1.0
 
 Initial research-preview release, tested with Harbor 0.20.0 and NeMo Gym v0.6.0.

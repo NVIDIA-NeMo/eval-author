@@ -10,9 +10,10 @@ from pathlib import Path
 import pytest
 from test_audit_binding import measured as native_measurement
 from test_audit_state import reviewed, selected, task_review
-from test_gym_to_atif import rollout
 from test_journey_state import ethos_ready, setup_ready
-from test_skill_contract import _AUDIT_REPORT, _MLFLOW_TO_ATIF, _mlflow_export, _run_json_script, _write_atif_trace
+from test_skill_contract import _AUDIT_REPORT, _run_json_script, _write_atif_trace
+from test_trace_loading import SCRIPT as TRACE_LOADING
+from test_trace_loading import gym_record, mlflow_record
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills/eval-author/scripts"
 
@@ -611,32 +612,32 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
         trace = source
     else:
         if format == "gym":
-            source.write_text("invalid unselected row\n" + json.dumps(rollout()) + "\n")
+            source.write_text("invalid unselected row\n" + json.dumps(gym_record()) + "\n")
             if scenario == "failed_selection":
                 source.write_text(source.read_text() + "{}\n")
             selector = 2
-            converter = SCRIPTS.parents[1] / "gym-to-atif/scripts/gym_to_atif.py"
-            arguments = ["--input", str(source), "--row", str(selector)]
+            arguments = ["--source-kind", "gym", "--input", str(source), "--row", str(selector)]
         else:
-            payload = _mlflow_export()
+            payload = {"traces": [mlflow_record()]}
             payload["traces"].append({"info": {"trace_id": "unselected"}, "data": "invalid unselected trace"})
             source.write_text(json.dumps(payload))
-            selector = "tr-fixture"
+            selector = "tr-synthetic-ci"
             selected_trace = tmp_path / "selected.json"
             selected_trace.write_text(
-                json.dumps(next(t for t in payload["traces"] if t["info"]["trace_id"] == selector))
+                json.dumps({"traces": [next(t for t in payload["traces"] if t["info"]["trace_id"] == selector)]})
             )
-            converter = _MLFLOW_TO_ATIF
-            arguments = ["--input", str(selected_trace), "--agent-name", "example-agent"]
-        code, result, stderr = _run_json_script(converter, *arguments, "--output-dir", str(prepared))
+            arguments = ["--source-kind", "mlflow", "--input", str(selected_trace)]
+        code, result, stderr = _run_json_script(TRACE_LOADING, *arguments, "--output-dir", str(prepared))
         assert code == 0, stderr or result
-        trace = prepared / "trace.atif.json" if format == "gym" else Path(result["files"][0])
+        trace = prepared / "traces.normalized.jsonl"
         if scenario == "failed_selection":
             code, failed, stderr = _run_json_script(
-                converter, "--input", str(source), "--row", "3", "--output-dir", str(prepared / "failed")
+                TRACE_LOADING,
+                *["--source-kind", "gym", "--input", str(source), "--row", "3"],
+                *["--output-dir", str(prepared / "failed")],
             )
             assert code == 2 and failed["status"] == "error", stderr or failed
-            assert not (prepared / "failed/trace.atif.json").exists()
+            assert not (prepared / "failed").exists()
     selection = {
         "path": source.relative_to(tmp_path).as_posix(),
         "source_digest": state.digest(source.read_bytes()),
@@ -649,7 +650,11 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
         "evidence_class": "agent_under_test",
     }
     specification, trace, judgments, aggregate = native_measurement(
-        tmp_path, trace=trace, run_id=selection["run_id"], include_unrelated=scenario == "shared_output"
+        tmp_path,
+        trace=trace,
+        source_kind="atif" if format == "atif" else "trace",
+        run_id=selection["run_id"],
+        include_unrelated=scenario == "shared_output",
     )
     aggregate_payload = json.loads(aggregate.read_text())
     coverage_paths = [Path(row["path"]) for row in aggregate_payload["binding"]["inputs"]]

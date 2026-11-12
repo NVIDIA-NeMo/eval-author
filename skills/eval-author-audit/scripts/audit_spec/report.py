@@ -19,6 +19,7 @@ from typing import Any, TypeAlias
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from _identity import identity_module  # noqa: E402
 from _markdown import AuditMarkdownError  # noqa: E402
 from _schema import ITEM_KINDS as AUDIT_ITEM_KINDS  # noqa: E402
 from _schema import AuditEnvironmentError, AuditSpecError, item_counts, load_audit_spec  # noqa: E402
@@ -26,7 +27,7 @@ from _values import EVIDENCE_CLASS_ORDER, dedupe_names, subject_evidence_class  
 
 JsonObject: TypeAlias = dict[str, Any]
 
-REPORT_SCHEMA = "nemo.eval_author.audit_coverage_report.v1"
+REPORT_SCHEMA = "nemo.eval_author.audit_coverage_report.v2"
 ITEM_KINDS = tuple(sorted(AUDIT_ITEM_KINDS))
 SCHEMAS_DIR = Path(__file__).resolve().parents[2] / "schemas"
 COVERAGE_SCHEMA_PATH = SCHEMAS_DIR / "audit_coverage.schema.json"
@@ -336,6 +337,29 @@ def _validate_coverage_matches_audit(
     """Reject stale or incompatible coverage files before aggregating them."""
     warnings: list[JsonObject] = []
     binding = coverage.get("binding")
+    if "identity_preflight" in coverage:
+        preflight = coverage["identity_preflight"]
+        if (
+            preflight.get("measurement_allowed") is not True
+            or preflight.get("preflight_success") is not False
+            or any(
+                not isinstance(preflight.get(key), dict)
+                or preflight[key].get("status") != "pass"
+                or preflight[key].get("diagnostics") != []
+                for key in ("identity", "route")
+            )
+            or preflight["route"].get("bound_dependency") is not True
+        ):
+            raise AuditCoverageInputError("unresolved identity or route cannot supply measured coverage")
+        records = preflight["identity"].get("records")
+        if (
+            preflight.get("subject") != {key: coverage["subject"][key] for key in ("task_id", "run_id")}
+            or not isinstance(records, list)
+            or not records
+            or any(not isinstance(row, dict) or row.get("access") != "available" for row in records)
+        ):
+            raise AuditCoverageInputError("inconsistent measured identity subject or access")
+        _validate_selected_trace(coverage, artifact_path=artifact_path)
     if binding is not None:
         for judgment in binding.get("judgments", []):
             try:
@@ -384,6 +408,44 @@ def _validate_coverage_matches_audit(
     return warnings
 
 
+def _validate_selected_trace(coverage: JsonObject, *, artifact_path: Callable[[str], Path]) -> None:
+    identity_api = identity_module()
+
+    binding = coverage.get("binding")
+    if not isinstance(binding, dict):
+        raise AuditCoverageInputError("selected identity requires measured trace binding")
+    records = coverage["identity_preflight"]["identity"]["records"]
+    original = Path(coverage["subject"]["trace"])
+    candidates = []
+    for row in records:
+        relative = row.get("path")
+        if row.get("role") != "trace" or not isinstance(relative, str):
+            continue
+        parts = Path(relative).parts
+        if parts and not Path(relative).is_absolute() and original.parts[-len(parts) :] == parts:
+            candidates.append((row, parts))
+    # measure.py retains root-relative records but no root field. Recover a
+    # unique source root from trace suffixes and validate the complete selection;
+    # another selected trace may have the same basename under a different root.
+    matching = []
+    for row, parts in candidates:
+        if row.get("digest") != binding["trace_sha256"]:
+            continue
+        root = artifact_path(str(original)).parent
+        for _ in parts[1:]:
+            root = root.parent
+        if identity_api.identify(root, records) == coverage["identity_preflight"]["identity"]:
+            matching.append(root)
+    if len(matching) != 1:
+        raise AuditCoverageInputError("identity evidence does not match measured trace sources")
+    preflight = coverage["identity_preflight"]
+    if (
+        set(preflight) != {"identity", "route", "route_request", "subject", "measurement_allowed", "preflight_success"}
+        or identity_api.resolve_route(matching[0], records, preflight.get("route_request")) != preflight["route"]
+    ):
+        raise AuditCoverageInputError("inconsistent measured identity route envelope")
+
+
 def _input_report(coverage_input: CoverageInput) -> JsonObject:
     """Keep one compact traceability record per aggregated coverage file."""
     payload = coverage_input.payload
@@ -393,6 +455,7 @@ def _input_report(coverage_input: CoverageInput) -> JsonObject:
         "item_kind": payload["item_kind"],
         "item_kind_count": payload["item_kind_count"],
         "subject": payload["subject"],
+        **({"identity_preflight": payload["identity_preflight"]} if "identity_preflight" in payload else {}),
         "covered": payload["covered"],
         "covered_count": len(payload["covered"]),
     }

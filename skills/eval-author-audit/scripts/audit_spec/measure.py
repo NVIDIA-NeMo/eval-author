@@ -2,30 +2,28 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Measure one ATIF trace against an audit-spec denominator."""
+"""Measure one trace against an audit-spec denominator."""
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
+import os
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 from urllib.parse import quote
 
-try:
-    from harbor.models.trajectories import Trajectory
-except ImportError as exc:
-    HARBOR_IMPORT_ERROR: ImportError | None = exc
-    Trajectory = Any  # type: ignore[assignment,misc]
-else:
-    HARBOR_IMPORT_ERROR = None
+if TYPE_CHECKING:
+    from trace_ingest import Trace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from _identity import identity_module  # noqa: E402
 from _markdown import AuditMarkdownError  # noqa: E402
 from _schema import AuditEnvironmentError, AuditSpecError, item_counts, load_audit_spec  # noqa: E402
 from _values import EVIDENCE_CLASS_ORDER, harbor_evidence_class_from_result, optional_string  # noqa: E402
@@ -33,7 +31,14 @@ from measurements import capabilities, failure_cases, tool_calls  # noqa: E402
 
 JsonObject: TypeAlias = dict[str, Any]
 
-COVERAGE_SCHEMA = "nemo.eval_author.audit_coverage.v1"
+COVERAGE_SCHEMA = "nemo.eval_author.audit_coverage.v2"
+TRACE_FORMAT = "nemo-compass-trace"
+SOURCE_KINDS = ("atif", "mlflow", "gym", "trace")
+SELECT_ONE = (
+    "measure one trace: select it with eval-author's trace_loading.py --row or --trace-id, "
+    "then pass its traces.normalized.jsonl with --source-kind trace"
+)
+INSTALL_HINT = "(install requirements.txt or run with uv --with-requirements)"
 SCHEMAS_DIR = Path(__file__).resolve().parents[2] / "schemas"
 COVERAGE_SCHEMA_PATH = SCHEMAS_DIR / "audit_coverage.schema.json"
 CAPABILITY_JUDGMENTS_SCHEMA_PATH = SCHEMAS_DIR / "audit_capability_judgments.schema.json"
@@ -61,22 +66,22 @@ class MeasurementMethod:
 
     name: str
     details_schema: str
-    measure: Callable[[JsonObject, Trajectory, MeasurementInputs], JsonObject]
+    measure: Callable[[JsonObject, Trace, MeasurementInputs], JsonObject]
 
 
-def _measure_capabilities(audit: JsonObject, trajectory: Trajectory, inputs: MeasurementInputs) -> JsonObject:
+def _measure_capabilities(audit: JsonObject, trace: Trace, inputs: MeasurementInputs) -> JsonObject:
     """Run capability coverage with optional skill-authored judgments."""
-    return capabilities.measure(audit, trajectory, judgments=inputs.capability_judgments)
+    return capabilities.measure(audit, trace, judgments=inputs.capability_judgments)
 
 
-def _measure_failure_cases(audit: JsonObject, trajectory: Trajectory, inputs: MeasurementInputs) -> JsonObject:
+def _measure_failure_cases(audit: JsonObject, trace: Trace, inputs: MeasurementInputs) -> JsonObject:
     """Run failure-case coverage with optional skill-authored judgments."""
-    return failure_cases.measure(audit, trajectory, judgments=inputs.failure_case_judgments)
+    return failure_cases.measure(audit, trace, judgments=inputs.failure_case_judgments)
 
 
-def _measure_tool_calls(audit: JsonObject, trajectory: Trajectory, _inputs: MeasurementInputs) -> JsonObject:
+def _measure_tool_calls(audit: JsonObject, trace: Trace, _inputs: MeasurementInputs) -> JsonObject:
     """Run tool-call coverage without sidecar inputs."""
-    return tool_calls.measure(audit, trajectory)
+    return tool_calls.measure(audit, trace)
 
 
 METHODS: dict[str, MeasurementMethod] = {
@@ -108,7 +113,7 @@ class AuditMeasurementError(ValueError):
 
 @dataclass(frozen=True)
 class PendingSubject:
-    """The trace and caller/provider identity available before parsing ATIF."""
+    """The trace and caller/provider identity available before loading it."""
 
     trace_path: Path
     task_id: str
@@ -122,13 +127,15 @@ class Subject:
     trace_path: Path
     task_id: str
     run_id: str
+    source_kind: str
     trace_sha256: str = ""
     evidence_class: str | None = None
 
     def to_json(self) -> JsonObject:
         payload: JsonObject = {
             "trace": str(self.trace_path.resolve()),
-            "trace_format": "atif",
+            "trace_format": TRACE_FORMAT,
+            "source_kind": self.source_kind,
             "task_id": self.task_id,
             "run_id": self.run_id,
         }
@@ -139,9 +146,9 @@ class Subject:
 
 @dataclass(frozen=True)
 class LoadedTrace:
-    """Parsed ATIF plus a stable fallback identity for ad-hoc traces."""
+    """One loaded trace plus the digest of the exact source bytes."""
 
-    trajectory: Trajectory
+    trace: Trace
     content_sha256: str
 
 
@@ -179,8 +186,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--audit", type=Path, required=True, help="audit.md file to measure against")
     subject = parser.add_mutually_exclusive_group(required=True)
-    subject.add_argument("--trace", type=Path, help="ATIF trajectory JSON file")
+    subject.add_argument("--trace", type=Path, help="trace file holding exactly one trace (see --source-kind)")
     subject.add_argument("--trial-dir", type=Path, help="Harbor trial directory containing agent/trajectory.json")
+    parser.add_argument(
+        "--source-kind",
+        choices=SOURCE_KINDS,
+        help="format of --trace (default: atif); --trial-dir always reads agent/trajectory.json as atif",
+    )
     parser.add_argument("--task-id", help="task id to stamp on the measurement report")
     parser.add_argument("--run-id", help="run id to stamp on the measurement report")
     parser.add_argument(
@@ -215,26 +227,62 @@ def main(argv: list[str] | None = None) -> int:
         help="JSON file of skill-authored judgments for non-tool failure-case evidence",
     )
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
+    parser.add_argument(
+        "--identity-root", type=Path, help="root directory that --identity-selection paths are relative to"
+    )
+    parser.add_argument(
+        "--identity-selection",
+        type=Path,
+        help="opt-in local identity/route selection; does not assess rubric merit or execute a scorer",
+    )
     args = parser.parse_args(argv)
 
     try:
+        identity_preflight = _identity_preflight(args)
+        if identity_preflight is not None and not identity_preflight["measurement_allowed"]:
+            _print(
+                {"valid": None, "written": False, "error_type": "identity", "identity_preflight": identity_preflight},
+                compact=args.compact,
+            )
+            return 1
         _validate_evidence_class_args(args)
         method_names = _measurement_methods(args.measure)
         inputs = _measurement_inputs(args, method_names)
         audit = load_audit_spec(args.audit)
         pending_subject = _subject(args)
-        loaded_trace = _load_harbor_trajectory(pending_subject.trace_path)
+        source_kind = _source_kind(args)
+        if identity_preflight is None:
+            loaded_trace = _load_trace(pending_subject.trace_path, source_kind)
+        else:
+            identity_api = identity_module()
+            trace_path = pending_subject.trace_path.absolute()
+            _bind_identity_trace(identity_preflight, args.identity_root, trace_path)
+            raw, reason = identity_api.read_selected(
+                trace_path.parent, trace_path.name, identity_api.artifact_byte_limit({"role": "trace"})
+            )
+            if reason:
+                raise AuditMeasurementError("identity.measured_trace_invalid")
+            _bind_identity_trace(identity_preflight, args.identity_root, trace_path, hashlib.sha256(raw).hexdigest())
+            loaded_trace = _load_trace(pending_subject.trace_path, source_kind, raw=raw)
+            _bind_identity_trace(identity_preflight, args.identity_root, trace_path, loaded_trace.content_sha256)
         _validate_judgment_trace(inputs.capability_judgments, loaded_trace, label="capability judgments")
         _validate_judgment_trace(inputs.failure_case_judgments, loaded_trace, label="failure-case judgments")
-        subject_info = _finalize_subject(pending_subject, loaded_trace, evidence_class=_resolve_evidence_class(args))
+        subject_info = _finalize_subject(
+            pending_subject, loaded_trace, source_kind=source_kind, evidence_class=_resolve_evidence_class(args)
+        )
+        if identity_preflight is not None:
+            identity_preflight["subject"] = {"task_id": subject_info.task_id, "run_id": subject_info.run_id}
         reports = _measure_all(
             audit=audit,
             audit_path=args.audit,
-            trajectory=loaded_trace.trajectory,
+            trace=loaded_trace.trace,
             subject=subject_info,
             method_names=method_names,
             inputs=inputs,
         )
+        if identity_preflight is not None:
+            for report in reports:
+                report.coverage["identity_preflight"] = identity_preflight
         _validate_reports(reports)
         written_reports = _write_reports(reports, out_dir=args.out_dir, subject=subject_info, compact=args.compact)
     except AuditEnvironmentError as exc:
@@ -262,12 +310,57 @@ def main(argv: list[str] | None = None) -> int:
     }
     if subject_info.evidence_class is not None:
         summary["evidence_class"] = subject_info.evidence_class
+    if identity_preflight is not None:
+        summary["identity_preflight"] = identity_preflight
     _print(summary, compact=args.compact)
     return 0
 
 
+def _identity_preflight(args: argparse.Namespace) -> JsonObject | None:
+    if args.identity_root is None and args.identity_selection is None:
+        return None
+    if args.identity_root is None or args.identity_selection is None:
+        raise AuditMeasurementError("--identity-root and --identity-selection must be supplied together")
+    args.identity_root = args.identity_root.resolve()
+    identity_api = identity_module()
+    from eval_author_shared.task_evidence import loads
+
+    try:
+        path = args.identity_selection.absolute()
+        raw, reason = identity_api.read_selected(path.parent, path.name)
+        if reason:
+            raise ValueError
+        selection = loads(raw)
+        identity_api.validate_identity_selection(selection)
+    except (OSError, ValueError):
+        raise AuditMeasurementError("identity.selection_invalid") from None
+    identity = identity_api.identify(args.identity_root, selection["artifacts"])
+    route = identity_api.resolve_route(args.identity_root, identity["records"], selection["route"])
+    return {
+        "identity": identity,
+        "route": route,
+        "route_request": selection["route"],
+        "subject": {"task_id": args.task_id, "run_id": args.run_id},
+        "measurement_allowed": identity["status"] == route["status"] == "pass"
+        and route.get("bound_dependency") is True,
+        "preflight_success": False,
+    }
+
+
+def _bind_identity_trace(
+    preflight: JsonObject, root: Path, trace_path: Path, content_sha256: str | None = None
+) -> None:
+    selected = [
+        row
+        for row in preflight["identity"]["records"]
+        if row["role"] == "trace" and (root / row["path"]).absolute() == trace_path.absolute()
+    ]
+    if len(selected) != 1 or content_sha256 is not None and selected[0]["digest"] != content_sha256:
+        raise AuditMeasurementError("identity.measured_trace_mismatch")
+
+
 def _validate_evidence_class_args(args: argparse.Namespace) -> None:
-    """Require an explicit evidence-class choice for standalone ATIF measurement."""
+    """Require an explicit evidence-class choice for standalone trace measurement."""
     if args.evidence_class is not None and args.skip_evidence_class:
         raise AuditMeasurementError("pass only one of --evidence-class and --skip-evidence-class")
     if args.skip_evidence_class and args.trial_dir is not None:
@@ -288,7 +381,7 @@ def _resolve_evidence_class(args: argparse.Namespace) -> str | None:
 
 
 def _subject(args: argparse.Namespace) -> PendingSubject:
-    """Resolve the requested trace and provider-neutral subject identifiers before parsing ATIF."""
+    """Resolve the requested trace and provider-neutral subject identifiers before loading the trace."""
     if args.trial_dir is not None:
         return _subject_from_trial_dir(args.trial_dir, task_id=args.task_id, run_id=args.run_id)
     if args.trace is None:
@@ -348,43 +441,78 @@ def _load_harbor_result(path: Path) -> JsonObject:
     return payload
 
 
-def _load_harbor_trajectory(path: Path) -> LoadedTrace:
-    """Read ATIF through Harbor once; downstream methods receive the typed trajectory object."""
-    if HARBOR_IMPORT_ERROR is not None:
+def _trace_run_id(loaded_trace: LoadedTrace) -> str:
+    """Prefer recorded run identity, then fall back to a short trace-content digest.
+
+    Compass names an ATIF trace without ``trajectory_id`` by a digest of its bytes, so an ATIF
+    run, read directly or from normalized output, uses the recorded ``trajectory_id`` and then
+    ``session_id``, as before the move to Compass.
+    """
+    trace = loaded_trace.trace
+    run = trace.root_spans[0].run if len(trace.root_spans) == 1 else None
+    if str(getattr(run, "schema_version", None) or "").startswith("ATIF-"):
+        identities = [getattr(run, "trajectory_id", None), trace.session_id]
+    else:
+        identities = [trace.id]
+    return next(filter(None, map(optional_string, identities)), f"trace-sha256-{loaded_trace.content_sha256[:12]}")
+
+
+def _source_kind(args: argparse.Namespace) -> str:
+    """Harbor trial directories always hold ATIF; direct traces use the declared kind."""
+    if args.trial_dir is None:
+        return args.source_kind or "atif"
+    if args.source_kind not in (None, "atif"):
+        raise AuditMeasurementError("--trial-dir reads agent/trajectory.json as atif; omit --source-kind")
+    return "atif"
+
+
+def _load_trace(path: Path, source_kind: str, *, raw: bytes | None = None) -> LoadedTrace:
+    """Load the trace once through the shared Compass loader; methods receive the typed Trace."""
+    sys.path.append(str(Path(__file__).resolve().parents[3] / "eval-author/scripts"))
+    try:
+        import trace_loading
+    except ModuleNotFoundError as exc:
+        if exc.name != "trace_loading":
+            raise
         raise AuditEnvironmentError(
-            "Harbor is required to read ATIF trajectories for audit measurement; "
-            "install requirements.txt or run with uv --with-requirements"
-        ) from HARBOR_IMPORT_ERROR
+            "Incomplete skill installation: install the sibling eval-author skill alongside eval-author-audit."
+        ) from None
     try:
-        raw = path.read_bytes()
+        trace_loading.check_installation()
+        import trace_ingest.loaders  # noqa: F401  # fail as an environment error, not mid-load
+    except trace_loading.TraceLoadError as exc:
+        raise AuditEnvironmentError(f"audit measurement reads traces with NeMo Compass: {exc} {INSTALL_HINT}") from exc
+    except ImportError as exc:
+        raise AuditEnvironmentError(f"audit measurement reads traces with NeMo Compass {INSTALL_HINT}") from exc
+    if source_kind == "gym" and path.suffix.lower() != ".json":
+        raise AuditTraceError(f"{path} is NeMo Gym JSONL; {SELECT_ONE}")
+    try:
+        # Third-party diagnostics may contain trace values; keep CLI output content-free.
+        with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
+            traces, digest = trace_loading.load_snapshot(path, source_kind, raw=raw)
+    except trace_loading.TraceLoadError as exc:
+        # These messages name the failed check, never trace content.
+        raise AuditTraceError(f"{path} is not a loadable {source_kind} trace: {exc}") from exc
     except OSError as exc:
-        raise AuditTraceError(f"could not read Harbor ATIF trajectory at {path}: {exc}") from exc
-    try:
-        trajectory_model: Any = Trajectory
-        trajectory = trajectory_model.model_validate_json(raw)
-    except ValueError as exc:
-        raise AuditTraceError(f"{path} is not an ATIF trajectory accepted by Harbor: {exc}") from exc
-    return LoadedTrace(trajectory=trajectory, content_sha256=hashlib.sha256(raw).hexdigest())
+        raise AuditTraceError(f"could not read trace at {path}") from exc
+    except Exception as exc:
+        raise AuditTraceError(f"{path} is not a loadable {source_kind} trace") from exc
+    if len(traces) != 1:
+        raise AuditTraceError(f"{path} holds {len(traces)} traces; {SELECT_ONE}")
+    return LoadedTrace(trace=traces[0], content_sha256=digest.removeprefix("sha256:"))
 
 
-def _finalize_subject(subject: PendingSubject, loaded_trace: LoadedTrace, *, evidence_class: str | None) -> Subject:
+def _finalize_subject(
+    subject: PendingSubject, loaded_trace: LoadedTrace, *, source_kind: str, evidence_class: str | None
+) -> Subject:
     """Fill any missing run identity from the parsed trace or trace content."""
     return Subject(
         trace_path=subject.trace_path,
         task_id=subject.task_id,
         run_id=subject.run_id or _trace_run_id(loaded_trace),
+        source_kind=source_kind,
         trace_sha256=loaded_trace.content_sha256,
         evidence_class=evidence_class,
-    )
-
-
-def _trace_run_id(loaded_trace: LoadedTrace) -> str:
-    """Prefer explicit ATIF identity, then fall back to a short trace-content digest."""
-    trajectory = loaded_trace.trajectory
-    return (
-        optional_string(getattr(trajectory, "trajectory_id", None))
-        or optional_string(getattr(trajectory, "session_id", None))
-        or f"trace-sha256-{loaded_trace.content_sha256[:12]}"
     )
 
 
@@ -455,7 +583,7 @@ def _validate_judgment_trace(
     *,
     label: str,
 ) -> None:
-    """Reject a judgment sidecar authored for different ATIF content."""
+    """Reject a judgment sidecar authored for different trace content."""
     if judgments is None:
         return
     expected = f"sha256:{loaded_trace.content_sha256}"
@@ -468,17 +596,17 @@ def _measure_all(
     *,
     audit: JsonObject,
     audit_path: Path,
-    trajectory: Trajectory,
+    trace: Trace,
     subject: Subject,
     method_names: list[str],
     inputs: MeasurementInputs,
 ) -> list[MeasurementReport]:
-    """Fan the shared trajectory into each selected measurement method."""
+    """Fan the shared trace into each selected measurement method."""
     return [
         _measure(
             audit=audit,
             audit_path=audit_path,
-            trajectory=trajectory,
+            trace=trace,
             subject=subject,
             method_name=method_name,
             inputs=inputs,
@@ -491,7 +619,7 @@ def _measure(
     *,
     audit: JsonObject,
     audit_path: Path,
-    trajectory: Trajectory,
+    trace: Trace,
     subject: Subject,
     method_name: str,
     inputs: MeasurementInputs,
@@ -499,10 +627,10 @@ def _measure(
     """Wrap one method's raw result in the shared coverage/details envelope."""
     method = METHODS[method_name]
     try:
-        measurement = method.measure(audit, trajectory, inputs)
+        measurement = method.measure(audit, trace, inputs)
     except ValueError as exc:
         raise AuditMeasurementError(str(exc)) from exc
-    # This digest belongs to the exact bytes parsed into trajectory, not a later reread.
+    # This digest belongs to the exact bytes loaded into the trace, not a later reread.
     trace_sha = subject.trace_sha256
     audit_info = _audit_info(audit, audit_path)
     subject_info = subject.to_json()

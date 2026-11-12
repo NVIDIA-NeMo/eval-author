@@ -106,7 +106,15 @@ specific recovery step, such as restoring access, restoring a known valid copy,
 or confirming an intentional repository move. After recovery, it reloads saved
 progress and resumes the audit.
 
-For measured audits, if saved trace availability is unresolved or traces are absent, the prerequisite
+For measured audits, Eval Author checks `.eval-author/jobs/` for completed agent
+runs when trace availability is unresolved. It checks run metadata and trace-file
+presence, then offers relevant candidates when you select audit sources.
+It checks known task matches first, then newer jobs, and continues in batches
+when needed. Logs and other trial files do not consume the job search budget.
+It reads trace contents only after you select the source. An empty or incomplete
+lookup leaves availability unresolved rather than proving no traces exist.
+
+If saved trace availability is unresolved or traces are absent, the prerequisite
 response explains the required action and links the audit skill instruction
 that requires the pause. Unknown availability and confirmed absence are shown
 separately; neither is a claim about measured coverage.
@@ -127,7 +135,8 @@ select a suite, and giving a trace location does not confirm the suite list.
 Once the evaluation scope is confirmed, it explains that traces record the
 agent's actual actions during a run, letting the audit check what was exercised
 beyond the test definitions and pass/fail scores. It then asks you to select
-the trace source and location, before searching or reading traces.
+the trace source and location before searching beyond the retained-job metadata
+or reading trace contents.
 This also applies to using traces to identify runtime tool names. A source you
 already explicitly selected is reused. If the location is unknown, it helps you
 choose a bounded place to look before searching.
@@ -150,8 +159,9 @@ traces reopen check review and dependent measurement and findings. Changes to
 report content or its supporting evidence also make recorded findings stale until they are regenerated. Saved
 progress therefore reflects the current inputs when you resume.
 
-Coverage measurement compares that specification with recorded ATIF traces.
-ATIF is a structured record of an agent's interaction. Measurements are saved
+Coverage measurement compares that specification with recorded traces
+(normalized NeMo Compass traces, or ATIF, MLflow, or NeMo Gym traces), each a structured record
+of an agent's interaction. Measurements are saved
 under `.eval-author/audit-measurements/`. **Coverage measurements (JSON)**
 (`.eval-author/audit-coverage-report.json`) is the file of generated results
 aggregated over the selected runs, when available.
@@ -197,6 +207,72 @@ evidence.
 
 See [audit results](results.md#coverage-audits) for report editing, saved artifacts,
 and coverage limits.
+
+### Check explicitly selected retained controls
+
+For an existing Markdown audit report, the read-only verifier evidence checker
+can read an explicit artifact selection instead of searching evidence directories:
+
+```bash
+python <skills>/eval-author/scripts/audit_verifier_evidence.py \
+  --repo <repository> --report <audit-report.md> --task <task-directory> \
+  --selection <private-selection.json>
+```
+
+The selection has `artifacts` and `route` fields that follow the
+[shared identity and declared-route contract](../skills/eval-author-rubric/references/identity.md).
+Select receipts with role `receipt`, manifests with role `manifest`, and every
+linked native result explicitly. Do not combine this mode with `--content`,
+`--evidence-dir`, or `--source-root`. Existing structured-content and directory
+modes are unchanged. None of these checks applies experimental rubric scores.
+
+The JSON result preserves shared `identity` and `route` diagnostics alongside
+retained-control classifications. `valid` still means findings are accounted for.
+`preflight_success` also requires resolved identity/access/route checks and
+current passing retained controls for every selected task. Missing, denied,
+unresolved, stale, or unproven evidence cannot pass merely because a report explains
+it. The selected-mode command exits nonzero when either condition fails.
+
+This is a bounded retained-credit check, not full workflow readiness or task
+qualification. It does not execute controls, prove solver-role isolation, or
+attest which scorer ran. The existing native task-revision check still hashes the
+selected task tree. The checker does not rediscover evidence files.
+
+### Measure coverage with an explicit identity selection
+
+For an explicitly selected audit trace, opt in to identity and declared-route
+checks before writing coverage:
+
+```bash
+python <skills>/eval-author-audit/scripts/audit_spec/measure.py \
+  --audit <audit.md> --trace <selected-trace.json> \
+  --task-id <task-id> --run-id <run-id> --evidence-class agent_under_test \
+  --out-dir <private-measurements-directory> \
+  --identity-root <repository> --identity-selection <private-selection.json>
+```
+
+Supply `--identity-root` and `--identity-selection` together. The
+selection uses the same [artifact and route contract](../skills/eval-author-rubric/references/identity.md)
+as the retained-control checker. Include the measured trace with role `trace`.
+Its selected path and digest must match the trace actually measured. With
+`--trial-dir` instead of `--trace`, select that trial's `agent/trajectory.json`.
+Existing task/run identity and evidence-class options remain in effect.
+
+Both selected consumers require source-bound declared dependency closure, not
+just a dependency map asserted in the selection. Select the dependency source
+and follow the shared contract. Unknown or mismatched routes cannot authorize
+measurement. This verifies the selected declaration, not arbitrary code imports
+or which scorer executed.
+
+Selection files must be regular local files, at most 1 MiB, with no symlink
+traversal. Selected trace files can contain at most 2,000,000 bytes. Other selected
+artifacts retain the 1 MiB limit, within a 16 MiB identity-read budget. Root aliases
+are resolved at entry; symlinks below that root remain invalid.
+If selected evidence is missing, denied, unresolved, or invalid, the
+command exits nonzero without writing new coverage. It does not produce zero
+coverage. Without either identity flag, ordinary coverage measurement is unchanged and does not
+activate rubric assessment. See [identity-aware coverage results](results.md#identity-aware-coverage-results)
+for the retained envelope and its limits.
 
 ## Propose new evaluations
 

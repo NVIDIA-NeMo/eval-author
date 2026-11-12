@@ -3,7 +3,7 @@
 
 # Shared construction contract
 
-New construction uses `nemo.eval_author.construction.v2`, for Harbor and Gym.
+New construction uses `nemo.eval_author.construction.v3`, for Harbor and Gym.
 Keep `construction.json` private, outside the task tree. Trace workspaces use
 `private/construction.json`. Proposals may leave authority unresolved; a draft
 must identify the rule or independent evidence that defines correctness.
@@ -27,9 +27,9 @@ evidence before qualification.
 | `cases` | `case`, `kind`, `observations: [{check, expected}]`, `requirements`, `reaches`, `dependency`, `rationale`, `review`. Native cases match the result contract; unused trace metadata is `[]`/null. |
 | `prerequisites` | `id`, `before`, `after`, `bypass_case`, `check`. Each bypass contradicts the dependent requirement's scored check. Usually `[]`. |
 | `probes` | Trace setup/reach definitions, or `[]` for native result-contract observations. |
-| `starting_state` | Trace cutoff, input roots, external inputs, no-files reason and review; null for native declarations. Input artifacts live only in `inputs`. |
+| `starting_state` | Trace `cutoff_turn_id`, input roots, external inputs, no-files reason and review; null for native declarations. Input artifacts live only in `inputs`. |
 | `review` | Trace construction review, or null for native declarations. |
-| `bindings` | Trace `candidate_sha256` and `trace_sha256`, or null for native tasks. |
+| `bindings` | Trace `candidate_sha256` and `trace_sha256` (hex SHA-256 of `safe/trace.json`), or null for native tasks. |
 | `migration` | Original artifact `{path, sha256, schema}` bindings, or `[]` for a new contract. |
 
 Assertions use `{"pointer":"/...","equals":value}` or finite `min`/`max`.
@@ -39,9 +39,9 @@ Oracle and valid alternatives declare every check passing. NOP declares every
 check failing. Native cases use the provider's actual result fields.
 
 The [provenance and probe field definitions](construction-qualification.md)
-remain applicable to trace fields. In v2, move `starting_state.artifacts` into
-`inputs`, remove the `task/` path prefix, and use each artifact review note as
-its rationale. Requirements carry the bound candidate statement and an explicit
+remain applicable to trace fields, including turn and span source references.
+Input artifacts live in `inputs` with task-relative paths, and each review note
+serves as its rationale. Requirements carry the bound candidate statement and an explicit
 correctness authority. A source agent's answer does not establish that authority.
 
 ```bash
@@ -59,33 +59,30 @@ changed task content; source control owns prior revisions.
 
 ## Import existing artifacts without rewriting evidence
 
-`construction.v1` is the published trace format. `construction_plan.v1` was an
-earlier experimental format from this work; retained experiment artifacts already
-use it, so its explicit import and receipt readers remain supported. New native
-and trace authoring uses only v2. Both old formats remain readable through their
-existing script APIs. Migration writes a new private file and records the exact
+`construction.v1` and `construction.v2` are refused. Trace contracts cited ATIF
+steps and have no import: author them as v3 in a workspace prepared by the
+current `prepare`. A native v2 contract becomes v3 by changing only its schema
+id. That changes its SHA-256, so evidence manifests bound to the v2 file no
+longer verify; run `task_evidence.py prepare` again with the v3 file.
+`construction_plan.v1` was an earlier experimental native format; retained
+experiment artifacts already use it, so its explicit import and receipt readers
+remain supported. Migration writes a new private file and records the exact
 original path, schema and SHA-256. It never modifies the source or its receipts.
 
 ```bash
 python <eval_author_dir>/scripts/construction_contract.py --plan <old-native-plan.json> \
   --contract <native-result-contract.json> --migrate-to <private-new-plan.json>
-python <eval_author_dir>/scripts/construction_contract.py --plan <old-workspace>/private/construction.json \
-  --workspace <old-workspace> --migrate-to <private-imported-contract.json>
 ```
 
-Native imports without a result contract leave case kinds unresolved. Trace
-imports preserve provenance, probes, controls, reviews and dependencies, while
-leaving correctness authority unresolved for explicit review. Keep the source
-files available: canonical validation rechecks their hashes.
+Native imports without a result contract leave case kinds unresolved. Keep the
+source files available: canonical validation rechecks their hashes.
 
 An imported contract is a proposal for a new revision. Keep historical workspaces
-and proof untouched. To activate it, create a fresh private workspace, retain the
-bound source/candidate and task inputs, review the imported authority, and use
-v2 as its construction file before recording new run inputs. For a sidecar import
-in an unproved workspace, keep the original file and select the reviewed v2 file:
+and proof untouched. In a trace workspace that has not recorded proof, keep the
+original file and select a reviewed sidecar contract:
 
 ```bash
-python <eval_author_dir>/scripts/construction_contract.py --plan <workspace>/private/construction-v2.json \
+python <eval_author_dir>/scripts/construction_contract.py --plan <workspace>/private/construction-v3.json \
   --workspace <workspace> --activate
 ```
 

@@ -92,6 +92,7 @@ def test_diagnostic_checkpoint_is_opt_in_and_always_retained_without_private_out
     assert set(uploads[0]["with"]["path"].splitlines()) == {
         "${{ runner.temp }}/preparation-timing-summary.json",
         "${{ runner.temp }}/preparation-operation-timing.json",
+        "${{ runner.temp }}/tooling-build-diagnostics.json",
     }
     assert prepare["timeout-minutes"] == 15
     assert timing["timeout-minutes"] == 33
@@ -130,6 +131,27 @@ def test_outer_budget_covers_declared_steps_without_raising_native_caps():
         assert re.search(rf"^{name} = {value}$", runtime, re.M)
 
 
+def test_preparation_budget_retains_upload_headroom_with_shared_setup_deadline():
+    sys.path.insert(0, str(ROOT / "tools"))
+    import live_shard
+
+    job = workflow()["jobs"]["preparation-timing"]
+    steps = job["steps"]
+    clock = next(s for s in steps if "EA_LIVE_JOB_DEADLINE=" in s.get("run", ""))
+    prepare = next(s for s in steps if "live_shard.py prepare" in s.get("run", ""))
+    projection = next(s for s in steps if "tooling_build_diagnostics.py" in s.get("run", ""))
+    assert steps.index(clock) == 1 and "started + LIVE_JOB_SECONDS" in clock["run"]
+    setup = steps[steps.index(clock) : steps.index(prepare) + 1]
+    assert projection in setup
+    effective_setup = min(sum(s["timeout-minutes"] for s in setup) * 60, live_shard.SETUP_SECONDS)
+    assert effective_setup == live_shard.LIVE_JOB_SECONDS - live_shard.RUN_PHASE_SECONDS == 1620
+    outside = [steps[0], *steps[steps.index(prepare) + 1 :]]
+    assert [s["timeout-minutes"] for s in outside] == [2, 1, 2]
+    assert outside[-1]["uses"].startswith("actions/upload-artifact@")
+    assert effective_setup + sum(s["timeout-minutes"] for s in outside) * 60 == 32 * 60
+    assert 32 * 60 < job["timeout-minutes"] * 60 == 33 * 60
+
+
 def test_production_and_pr_share_contained_phase_runner_and_close_before_publish():
     jobs = workflow()["jobs"]
     for job_name in ("evaluate", "preparation-timing"):
@@ -138,7 +160,7 @@ def test_production_and_pr_share_contained_phase_runner_and_close_before_publish
             phase: next(s for s in steps if f"tools/live_shard.py {phase} " in s.get("run", ""))
             for phase in ("create", "runtime", "relocate", "prepare", "close")
         }
-        assert [phases[p]["timeout-minutes"] for p in ("create", "runtime", "relocate", "prepare")] == [4, 5, 1, 15]
+        assert [phases[p]["timeout-minutes"] for p in ("create", "runtime", "relocate", "prepare")] == [7, 5, 1, 15]
         assert [steps.index(phases[p]) for p in ("create", "runtime", "relocate", "prepare", "close")] == sorted(
             steps.index(s) for s in phases.values()
         )
@@ -292,7 +314,6 @@ def test_actual_timing_summary_script_projects_only_typed_aggregates(tmp_path, o
     assert summary["binary_sha256"] == hashlib.sha256(binary.read_bytes()).hexdigest()
     assert summary["model_execution_enabled"] is False
     assert "PRIVATE" not in json.dumps(summary) + result.stdout + result.stderr
-    assert sum(s["timeout-minutes"] for s in job["steps"]) == job["timeout-minutes"]
 
 
 def summary_shell_fixture(tmp_path):
@@ -358,6 +379,42 @@ def test_evaluate_shell_never_stages_after_close_failure(tmp_path):
     assert result.stdout == "live shard phase failed; private evidence retained\n"
     assert result.stderr == ""
     assert not (tmp_path / "skill-publish").exists()
+
+
+@pytest.mark.parametrize("job_name", ["preparation-timing", "evaluate"])
+def test_build_diagnostics_projection_is_always_independent_of_fatal_close(tmp_path, job_name):
+    steps = workflow()["jobs"][job_name]["steps"]
+    projections = [s for s in steps if "tooling_build_diagnostics.py" in s.get("run", "")]
+    assert len(projections) == 1, "missing always-run safe build projection"
+    projection = projections[0]
+    close = next(s for s in steps if "live_shard.py close " in s.get("run", ""))
+    assert steps.index(projection) < steps.index(close)
+    assert "always()" in projection["if"] and "always()" in close["if"]
+    assert "secrets." not in json.dumps(projection)
+    assert '"$RUNNER_TEMP/live-shard/control/image/build-diagnostics.json"' in projection["run"]
+    upload = next(s for s in steps if "tooling-build-diagnostics.json" in s.get("with", {}).get("path", ""))
+    assert "always()" in upload["if"]
+    public_path = (
+        "skill-publish/tooling-build-diagnostics.json" if job_name == "evaluate" else "tooling-build-diagnostics.json"
+    )
+    assert "${{ runner.temp }}/" + public_path in upload["with"]["path"].splitlines()
+    # Execute the YAML body, substituting only sudo/python; source stays absent.
+    shim = tmp_path / "sudo"
+    shim.write_text(f'#!/bin/sh\nshift\nexec "{sys.executable}" "$@"\n')
+    shim.chmod(0o700)
+    result = subprocess.run(
+        ["/bin/bash", "-e", "-o", "pipefail", "-c", projection["run"]],
+        cwd=ROOT,
+        env={
+            "PATH": str(tmp_path) + os.pathsep + os.defpath,
+            "RUNNER_TEMP": str(tmp_path),
+            "PYTHONDONTWRITEBYTECODE": "1",
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert json.loads((tmp_path / public_path).read_text())["failure_category"] == "checkpoint_unavailable"
 
 
 @pytest.mark.parametrize(

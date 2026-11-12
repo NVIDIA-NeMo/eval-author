@@ -9,10 +9,12 @@
 python <skill_dir>/scripts/trace_environment.py audit-evidence --task-dir <task-dir>
 ```
 
-The helper verifies the retained safe ATIF digest and structure, then writes
-`private/evidence-audit.json` with owner-only permissions. Standard output gives
-counts and the report path. The report contains scoped JSON locations rather
-than messages, tool names, arguments, output text, or user-chosen identifiers.
+The helper verifies the retained safe Trace digest and structure, then writes
+`private/evidence-audit.json` (schema `evidence_audit.v2`, scope
+`recorded_result_coverage`, bound by `safe_trace_sha256`) with owner-only
+permissions. Standard output gives counts and the report path. Findings cite
+safe-trace `turn_id` or `span_id` values rather than messages, tool names,
+arguments, output text, or user-chosen identifiers.
 An unchanged rerun returns the same report; a changed report or source is
 rejected. Preserve prior evidence and use a fresh workspace for changed inputs.
 The report stays private and is not added to exported products.
@@ -21,19 +23,21 @@ The report stays private and is not added to exported products.
 
 | Finding | Meaning and next action |
 | --- | --- |
-| Missing observation | No result is linked to this call in its ATIF step. Locate missing source evidence; never borrow another step's result or the agent's claimed outcome. |
-| Multiple observations | More than one result references the call. Inspect whether normalization retained fragments or duplicate outcomes; exact replay requires one usable result. |
-| Unlinked observation | A result has no `source_call_id`. It may be legitimate non-tool feedback; inspect its role without assigning it to a nearby call. Unknown non-null call references are rejected by ATIF validation before auditing. |
+| Missing result | The TOOL span records no result. Locate missing source evidence; never borrow another call's result or the agent's claimed outcome. |
+| Multiple results | The TOOL span records more than one result. Inspect whether loading retained fragments or duplicate outcomes; exact replay requires one usable result. |
+| Unlinked result | A turn records a result that Compass could not pair with a call. It may be legitimate non-tool feedback; inspect its role without assigning it to a nearby call. |
 | Explicit error / not-error | A recorded boolean flag describes the tool response. A not-error flag does not prove the task's requested outcome or side effect. |
 | Unrecorded status | No supported error flag is present. Preserve uncertainty; do not classify prose, an empty response, or a final assistant claim as success. |
 | Invalid / conflicting status | Flags are non-boolean or disagree. Correct source normalization with provenance; exact replay is unsupported until resolved. |
 | Conflicting identical inputs | The same scoped tool and canonical arguments have different content or status. Inspect state, versions, and ordering. This does not itself identify a causal state transition. |
-| Agent step without observation | Common for reasoning and final answers. It is an evidence-shape count, not a failure verdict or evidence that the task is incomplete. |
+| Agent turn without results | Common for reasoning and final answers. It is an evidence-shape count, not a failure verdict or evidence that the task is incomplete. |
 
-Pairing uses the call ID within the same step and trajectory. Reused IDs in a
-later step or child trajectory never link their observations. Conflict groups
-also respect explicit server identity. The audit does not infer human authorship,
-find semantic failures, reconstruct files, recover missing state, or score traces.
+The report also counts agents, turns, calls, results, paired calls and
+harness-initiated calls. Compass pairs each result with its call; reused call
+IDs in another turn or agent never link results. Conflict groups are scoped to
+the owning agent span and the explicit tool server. The audit does not infer
+human authorship, find semantic failures, reconstruct files, recover missing
+state, or score traces.
 
 Read the relevant safe source locations during the existing privacy and
 construction review. Record material limitations in `candidate.uncertainties`.
@@ -44,11 +48,10 @@ provider-native proof. An empty findings list does not prove correctness.
 
 ## Replay error status
 
-The compiler recognizes boolean `isError` and `is_error` on an observation result
-or directly in its `extra` object. These are explicit source-extension flags,
-not required ATIF fields. Multiple flags must agree; integers, strings and null
-are invalid. Unrecognized nested status formats remain unrecorded and require
-source normalization if their semantics matter. Never infer a flag from content.
+Error status comes only from the loaded `ToolResult`: `is_error` gives `error`
+or `not_error`; otherwise the loader's recorded `is_error_status` attribute
+marks `invalid` (non-boolean flags) or `conflicting` (disagreeing flags), and a
+result without a flag is `unrecorded`. Never infer status from content.
 
 Explicit status is retained as `is_error` on generated call-fixture cases and
 as `isError` on MCP results. Identical inputs with different status, including
