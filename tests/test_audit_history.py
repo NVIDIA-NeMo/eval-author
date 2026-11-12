@@ -181,3 +181,23 @@ def test_snapshot_counts_each_run_once(history):
         now=datetime(2026, 11, 9, tzinfo=timezone.utc),
     )
     assert value["runs"] == ["same-run"]
+
+
+def test_a_fresh_audit_setting_aside_the_audit_folder_keeps_the_snapshots(history, tmp_path):
+    history.save(tmp_path, make(history, "one"))
+    working = tmp_path / ".eval-author/.working"
+    (working / "audit").mkdir(parents=True)
+    (working / "audit/report-content.json").write_text("{}")
+    working.joinpath("audit").rename(working / "audit-before-fresh-audit")
+    assert [row["audit_id"] for row in history.load(tmp_path)] == ["one"]
+
+
+def test_snapshots_saved_in_the_earlier_location_are_still_read(history, tmp_path):
+    legacy = tmp_path / history.LEGACY_HISTORY_DIR
+    legacy.mkdir(parents=True)
+    (legacy / "old.json").write_text(json.dumps(make(history, "old", at="2026-10-01T00:00:00+00:00")))
+    history.save(tmp_path, make(history, "new", at="2026-11-01T00:00:00+00:00"))
+    rows = history.load(tmp_path)
+    assert sorted(row["audit_id"] for row in rows) == ["new", "old"]
+    assert history.previous(rows, "support", "new")["audit_id"] == "old"
+    assert not history.save(tmp_path, make(history, "old"))

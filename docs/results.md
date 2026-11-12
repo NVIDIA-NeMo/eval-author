@@ -204,7 +204,7 @@ The incomplete-measurement rules above apply to measured audits. Resuming either
 approach preserves its choice and reviews changed inputs before reusing results.
 
 Once an audit's findings are recorded, Eval Author saves a snapshot of it under
-`.eval-author/.working/audit/history/`. The next report for the same agent compares
+`.eval-author/.working/audit-history/`, which a new audit keeps. The next report for the same agent compares
 capability coverage with the previous audit in the Evaluation coverage table:
 percentage points for the coverage ratio and relative percentages for counts. A
 changed declared scope or measurement method is explained and its coverage

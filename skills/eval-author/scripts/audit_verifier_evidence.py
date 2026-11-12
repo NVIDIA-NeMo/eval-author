@@ -28,9 +28,24 @@ class Review:
         self.manifests: dict[Path, dict] = {}
         self.identity = identity
 
+    def relocated(self, path: Path) -> Path:
+        """Map an absolute path saved by the repository's earlier location onto this repository.
+
+        Receipts and manifests record absolute paths, and their bytes are bound by digest, so they
+        cannot be rewritten after the repository is copied or moved. The longest suffix that
+        exists here is used. The target is still checked against the repository, the selected
+        evidence roots, and the digests the receipts record.
+        """
+        if path.is_absolute() and not path.resolve().is_relative_to(self.repo):
+            for start in range(1, len(path.parts)):
+                candidate = self.repo.joinpath(*path.parts[start:])
+                if candidate.exists():
+                    return candidate
+        return path
+
     def path(self, value: str | Path) -> Path:
         path = Path(value)
-        path = path if path.is_absolute() else self.repo / path
+        path = self.relocated(path) if path.is_absolute() else self.repo / path
         if any(part.is_symlink() for part in (path, *path.parents)):
             raise EvidenceScopeError(f"Evidence must not traverse symlinks: {path}")
         path = path.resolve()

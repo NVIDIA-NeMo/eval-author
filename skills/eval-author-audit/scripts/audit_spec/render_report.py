@@ -413,7 +413,9 @@ def history_lines(model: content.Content, covered: set[str], measured: set[str],
         ["Coverage basis", layout.COPY[basis[now["basis"]]], layout.COPY[basis[then["basis"]]], changes[3]],
     ]
     lines = [
-        layout.COPY["compared_with"].format(date=earlier["recorded_at"][:10], commit=earlier["commit"][:7]),
+        layout.COPY["compared_with" if earlier["commit"] else "compared_with_undated_commit"].format(
+            date=earlier["recorded_at"][:10], commit=(earlier["commit"] or "")[:7]
+        ),
         "",
         *table("history", rows),
     ]
@@ -610,7 +612,14 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
             f"- **Date:** {identity['date']}",
             "- **Prepared by:** " + md_link("Eval Author", layout.EVAL_AUTHOR_URL),
             f"- **Repository:** {cell(identity['repository'])}",
-            f"- **Audited commit:** {identity['commit']}" + (" (dirty working tree)" if identity["dirty"] else ""),
+            *(
+                [
+                    f"- **Audited commit:** {identity['commit']}"
+                    + (" (dirty working tree)" if identity.get("dirty") else "")
+                ]
+                if "commit" in identity
+                else []
+            ),
             "",
         ],
         "identity",

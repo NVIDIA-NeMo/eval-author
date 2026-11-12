@@ -70,6 +70,7 @@ COPY = {
     "no_baseline_previous": "No previous audit",
     "no_baseline_change": "Not compared",
     "compared_with": "Compared with the audit reviewed on {date} at commit {commit}.",
+    "compared_with_undated_commit": "Compared with the audit reviewed on {date}.",
     "not_comparable_method": "Not comparable: measurement method changed",
     "not_compared_scope": "Not compared: declared scope changed",
     "scope_changed": (

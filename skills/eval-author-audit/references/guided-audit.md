@@ -75,6 +75,10 @@ when the user selects it. Answering a next-action question clears `pending` and
 complete only when derived `audit.complete` is true. Findings remain in
 `audit-coverage-report.md`; link it whenever it is created or updated.
 
+A fresh audit may set aside the earlier `.eval-author/.working/audit/` folder. Leave
+`.eval-author/.working/audit-history/` in place: it holds the previous audits that the
+new report compares against.
+
 Treat changed inputs conservatively: changes to the agent, confirmed Ethos,
 selected scope, specification or selection manifest bytes, or selected case,
 verifier, or trace bytes reopen check review and all dependent measurement and

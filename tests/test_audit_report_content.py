@@ -1185,3 +1185,42 @@ def test_recording_accepts_the_documented_relative_repository(audit_report, monk
     history = history_module(audit_report)
     assert history.main(["--repo", ".", "--content", "report-content.json"]) == 0
     assert len(history.load(root)) == 1
+
+
+def test_manifest_task_follows_a_relocated_repository(audit_report):
+    content, _, root = audit_report
+    task = root / "tasks/example"
+    task.mkdir(parents=True)
+    model = load(audit_report)
+    assert content._manifest_task(model, {"task_dir": "/earlier/location/of/repo/tasks/example"}) == task.resolve()
+    assert content._manifest_task(model, {"task_dir": "/earlier/location/of/repo/tasks/absent"}) == Path(
+        "/earlier/location/of/repo/tasks/absent"
+    )
+
+
+def test_a_repository_without_git_history_reports_no_commit(audit_report):
+    _, _, root = audit_report
+    path = root / "report-content.json"
+    value = json.loads(path.read_text())
+    del value["identity"]["commit"], value["identity"]["dirty"]
+    path.write_text(json.dumps(value))
+    text = render_text(audit_report)
+    assert "Audited commit" not in text and "No comparable previous audit" in text
+    audit_report[1].refresh(load(audit_report))
+    history = history_module(audit_report)
+    assert history.main(["--repo", str(root), "--content", "report-content.json"]) == 0
+    saved = history.load(root)
+    assert saved[0]["commit"] is None and saved[0]["dirty"] is False
+    assert "Compared with the audit reviewed on" not in render_text(audit_report)
+
+
+def test_comparison_with_an_audit_that_had_no_commit_omits_the_commit(audit_report):
+    save_snapshot(audit_report, "earlier", covered=0)
+    history = history_module(audit_report)
+    _, _, root = audit_report
+    path = history.path_for(root, "earlier")
+    value = json.loads(path.read_text())
+    value["commit"] = None
+    path.write_text(json.dumps(value))
+    text = render_text(audit_report)
+    assert "Compared with the audit reviewed on 2026-10-01." in text and "at commit" not in text

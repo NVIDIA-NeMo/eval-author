@@ -14,9 +14,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, NonNegativeInt, ValidationError
+from pydantic import BaseModel, ConfigDict, NonNegativeInt
 
-HISTORY_DIR = ".eval-author/.working/audit/history"
+# History lives beside the per-audit folder, not in it: a fresh audit sets that folder aside.
+HISTORY_DIR = ".eval-author/.working/audit-history"
+LEGACY_HISTORY_DIR = ".eval-author/.working/audit/history"
 VERSION = 1
 KINDS = ("capability", "tool", "failure_case")
 
@@ -39,7 +41,7 @@ class Snapshot(BaseModel):
     audit_id: str
     agent: str
     recorded_at: str
-    commit: str
+    commit: str | None
     dirty: bool
     content_sha256: str
     report_sha256: str
@@ -83,8 +85,9 @@ def snapshot(
         "audit_id": content_sha256,
         "agent": agent,
         "recorded_at": now.astimezone(timezone.utc).isoformat(timespec="seconds"),
-        "commit": identity["commit"],
-        "dirty": identity["dirty"],
+        # A repository without git history has no commit to record.
+        "commit": identity.get("commit"),
+        "dirty": identity.get("dirty", False),
         "content_sha256": content_sha256,
         "report_sha256": report_sha256,
         # Measurement inputs are per kind, so one run can appear several times.
@@ -98,9 +101,9 @@ def path_for(repo: Path, audit_id: str) -> Path:
 
 
 def save(repo: Path, value: dict) -> bool:
-    """Write an immutable snapshot. An audit already recorded is left untouched."""
+    """Write an immutable snapshot. An audit already recorded in either location is left untouched."""
     target = path_for(repo, value["audit_id"])
-    if target.exists():
+    if target.exists() or (repo / LEGACY_HISTORY_DIR / target.name).exists():
         return False
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_name(target.name + ".tmp")
@@ -111,17 +114,16 @@ def save(repo: Path, value: dict) -> bool:
 
 def load(repo: Path) -> list[dict]:
     """Retained snapshots, skipping files that are not readable snapshots."""
-    found = []
-    for path in sorted((repo / HISTORY_DIR).glob("*.json")):
-        try:
-            value = json.loads(path.read_text())
-        except (OSError, ValueError):
-            continue
-        try:
-            found.append(Snapshot.model_validate(value).model_dump())
-        except ValidationError:
-            continue
-    return found
+    found: dict[str, dict] = {}
+    # The earlier location is read too, so audits recorded before the move still serve as baselines.
+    for folder in (LEGACY_HISTORY_DIR, HISTORY_DIR):
+        for path in sorted((repo / folder).glob("*.json")):
+            try:
+                value = Snapshot.model_validate(json.loads(path.read_text())).model_dump()
+            except (OSError, ValueError):
+                continue
+            found[value["audit_id"]] = value
+    return list(found.values())
 
 
 def previous(snapshots: list[dict], agent: str, audit_id: str) -> dict | None:

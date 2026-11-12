@@ -19,6 +19,7 @@
 - Preserve stable IDs, user corrections, agreed scope, and decisions while updating authored input.
 - Keep narrative separate from facts computed from the specification, native measurements, and receipts. Leave missing task-to-run mappings unresolved.
 - Preserve the audit's recorded date and code revision. Render no history or trend claims from refresh time.
+- Read `identity.commit` and `identity.dirty` from git (`git rev-parse HEAD`, and whether `git status --porcelain` is empty). When the repository has no git history, omit both fields without asking the user; the report then has no Audited commit line.
 - Run the validator before rendering. Repair the named input fields when validation fails.
 - After rendering, check that task identifiers parse as Markdown links. If one appears as plain text, correct its authored field to use the task identifier and rerender. The renderer rebuilds the link from the task's canonical path, so this is a repair step, not a reason to block the report.
 
@@ -68,7 +69,7 @@ python <eval-author-skill-dir>/scripts/audit_verifier_evidence.py --repo . \
 - Record `findings.report` with the generated Markdown's path and SHA-256, and `findings.content` with the authored JSON's path and SHA-256.
 - Copy the renderer's `bindings` into `findings.inputs`. Retain the existing provenance in `findings.source` ; the current derived findings digest marks them reviewed.
 - Revalidate after content, task, receipt, or other bound input changes. Changed content makes the recorded findings stale until they are regenerated and recorded again. Changed inspected task or specification inputs retain the existing scope and measurement invalidation rules.
-- Once the findings are recorded and current, save the audit's history snapshot once. Do not run it on report refresh, and rerunning it for the same reviewed content changes nothing.
+- Once the findings are recorded and current, save the audit's history snapshot once. Do not run it on report refresh, and rerunning it for the same reviewed content changes nothing. History is kept in `.eval-author/.working/audit-history/`, outside the per-audit folder.
 
 ```bash
 python <audit-skill-dir>/scripts/audit_spec/history.py --repo . \

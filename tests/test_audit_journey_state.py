@@ -835,3 +835,32 @@ def test_native_results_resume_and_changed_trace_reopens_audit(modules, tmp_path
         assert all(path.read_bytes() == contents for path, contents in before.items())
         if changed:
             changed.write_bytes(original)
+
+
+def test_audit_saved_before_findings_final_loads_as_an_unmeasured_task_review(modules, tmp_path):
+    state, audit = modules
+    saved = ready(modules, tmp_path)
+    _, lifecycle, _ = task_review(audit)
+    state.update(
+        tmp_path,
+        {
+            "scopes": {
+                "audit": {
+                    "mode": {"kind": "task_review", "source": "User selected task review"},
+                    "lifecycle": lifecycle,
+                }
+            }
+        },
+        expected_revision=saved["revision"],
+    )
+    path = state.state_path(tmp_path)
+    on_disk = json.loads(path.read_text())
+    del on_disk["scopes"]["audit"]["lifecycle"]["findings_final"]
+    del on_disk["scopes"]["audit"]["lifecycle"]["selection_manifest"]
+    del on_disk["scopes"]["audit"]["mode"]
+    path.write_text(json.dumps(on_disk))
+    loaded = state.load_state(tmp_path)
+    output = state.view(loaded)
+    assert loaded["journey"] == "audit" and output["checklist"] and audit.mode(loaded) == "task_review"
+    assert not audit.progress(tmp_path, loaded)["measurement_complete"]
+    assert audit.record(loaded)["measurement"] is None

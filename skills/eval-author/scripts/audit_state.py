@@ -63,9 +63,18 @@ def new_record() -> dict:
     }
 
 
+# Keys added after audits were first saved. Every reader goes through record(), so a record
+# saved before a key existed is completed once here instead of in each place that reads it.
+OPTIONAL_KEYS = {"selection_manifest": None, "findings_final": None}
+
+
 def record(state: dict) -> dict | None:
     scope = state.get("scopes", {}).get("audit", {})
-    return scope.get("lifecycle") if isinstance(scope, dict) else None
+    lifecycle = scope.get("lifecycle") if isinstance(scope, dict) else None
+    if isinstance(lifecycle, dict):
+        for key, default in OPTIONAL_KEYS.items():
+            lifecycle.setdefault(key, default)
+    return lifecycle
 
 
 def _fields(value, fields: str) -> None:
@@ -120,7 +129,7 @@ def _decision(value) -> None:
 
 def validate(value: dict) -> None:
     try:
-        value = {"selection_manifest": None, "findings_final": None, **value}
+        value = {**OPTIONAL_KEYS, **value}
         _fields(value, " ".join(new_record()))
         if type(value["schema_version"]) is not int or value["schema_version"] != 1:
             raise ValueError("Unsupported audit lifecycle version")

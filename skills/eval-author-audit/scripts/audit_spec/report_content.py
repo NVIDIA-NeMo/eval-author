@@ -482,7 +482,10 @@ def _manifest_task(model: Content, value: dict) -> Path | None:
     if not isinstance(name, str):
         return None
     path = Path(name)
-    return (path if path.is_absolute() else model.repo / path).resolve()
+    if path.is_absolute():
+        # A manifest saved before the repository was copied or moved names the earlier location.
+        return core_module().Review(model.repo, []).relocated(path).resolve()
+    return (model.repo / path).resolve()
 
 
 def _controls(model: Content):

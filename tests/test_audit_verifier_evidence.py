@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -339,3 +340,46 @@ def test_findings_links_read_the_current_and_legacy_findings_heading(panel, head
     links = audit.findings_links(panel.report, text)
     assert links == {(panel.report.parent / "records/control.json").resolve()}
     assert audit.findings_links(panel.report, text.replace(heading, "Other section", 1)) == set()
+
+
+@pytest.mark.parametrize("keep_original", [True, False])
+def test_control_evidence_survives_a_copied_or_moved_repository(panel, tmp_path_factory, keep_original):
+    before = panel.check()
+    assert before["valid"]
+    destination = tmp_path_factory.mktemp("relocated") / "repo"
+    if keep_original:
+        shutil.copytree(panel.tmp_path, destination)
+    else:
+        shutil.move(panel.tmp_path, destination)
+    result = audit_check = panel.audit.check(
+        destination,
+        destination / "audit.md",
+        [destination / "tasks/example"],
+        [destination / "measurements/example"],
+        [destination / "runs"],
+    )
+    assert audit_check["valid"]
+    assert {row["classification"] for row in result["controls"]} == {"passed", "agent_run"}
+    assert not any(row["classification"] == "unproven" for row in result["controls"])
+
+
+def test_relocated_evidence_still_fails_when_a_digest_differs(panel, tmp_path_factory):
+    destination = tmp_path_factory.mktemp("relocated") / "repo"
+    shutil.move(panel.tmp_path, destination)
+    (destination / "runs/early-exit.json").write_text("{}")
+    result = panel.audit.check(
+        destination,
+        destination / "audit.md",
+        [destination / "tasks/example"],
+        [destination / "measurements/example"],
+        [destination / "runs"],
+    )
+    assert any(row["classification"] == "unproven" for row in result["controls"])
+
+
+def test_absolute_evidence_outside_the_repository_without_a_relocated_match_is_rejected(panel, tmp_path_factory):
+    outside = tmp_path_factory.mktemp("outside") / "result.json"
+    outside.write_text("{}")
+    review = panel.audit.Review(panel.tmp_path, [panel.records])
+    with pytest.raises(panel.audit.EvidenceScopeError):
+        review.path(outside)
