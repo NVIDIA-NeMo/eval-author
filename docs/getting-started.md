@@ -355,3 +355,6 @@ Running your actual agent uses its configured provider and dependencies.
 If you need help, [open an issue](https://github.com/NVIDIA-NeMo/eval-author/issues)
 with the workflow, relevant versions, and a minimal reproduction using synthetic
 data. Keep credentials and private traces out of public reports.
+
+For optional integration with existing EA workflows, see
+[TASTE generation and native benchmark expansion](existing-evals.md#generate-tasks-with-taste).

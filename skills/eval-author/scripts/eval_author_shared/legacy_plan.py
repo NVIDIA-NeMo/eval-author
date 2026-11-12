@@ -128,7 +128,11 @@ def input_file(task: Path, relative: str) -> Path:
 
 def validate(plan: dict, mode: str, task: Path | None = None, contract: dict | None = None) -> dict:
     fields(plan, {"schema", "task_id", "provider", "requirements", "inputs", "checks", "cases", "prerequisites"})
-    if plan["schema"] != SCHEMA or mode not in ("proposal", "draft") or plan["provider"] not in ("harbor", "gym"):
+    if (
+        plan["schema"] != SCHEMA
+        or mode not in ("proposal", "draft")
+        or plan["provider"] not in ("harbor", "gym", "native")
+    ):
         raise PlanError("unsupported schema, mode, or provider")
     text(plan["task_id"])
     requirements = indexed(plan["requirements"])

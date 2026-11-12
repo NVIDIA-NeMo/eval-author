@@ -127,12 +127,14 @@ def validate_contract(contract: dict[str, Any]) -> None:
         raise EvidenceError("contract must be an object")
     if not isinstance(contract.get("task_id"), str) or not contract["task_id"].strip():
         raise EvidenceError("contract requires task_id")
-    if contract.get("provider") not in ("harbor", "gym"):
-        raise EvidenceError("contract provider must be harbor or gym")
+    if contract.get("provider") not in ("harbor", "gym", "native"):
+        raise EvidenceError("contract provider must be harbor, gym or native")
     if not isinstance(contract.get("native_run_id"), str) or not contract["native_run_id"].startswith("/"):
         raise EvidenceError("contract requires native_run_id JSON pointer")
     if contract["provider"] == "gym" and contract["native_run_id"] != "/native_run_id":
         raise EvidenceError("NeMo Gym contracts use the maintained adapter and /native_run_id")
+    if contract["provider"] == "native" and contract["native_run_id"] != "/native_run_id":
+        raise EvidenceError("native contracts use the maintained adapter and /native_run_id")
     cases = contract.get("cases")
     if not isinstance(cases, dict) or not cases:
         raise EvidenceError("contract requires cases")
@@ -169,10 +171,11 @@ def validate_contract(contract: dict[str, Any]) -> None:
             raise EvidenceError(f"include {kind} case or explain why it is not applicable")
 
 
-def fresh(path: Path, task: Path) -> None:
+def fresh(path: Path, task: Path, *, make_parents: bool = True) -> None:
     if path.exists() or path.is_symlink() or path.resolve().is_relative_to(task.resolve()):
         raise EvidenceError(f"output must be new and outside the task tree: {path}")
-    path.parent.mkdir(parents=True, exist_ok=True)
+    if make_parents:
+        path.parent.mkdir(parents=True, exist_ok=True)
 
 
 def write_new(path: Path, value: dict[str, Any]) -> None:
@@ -261,6 +264,10 @@ def prepare(
         from .gym_evidence import snapshot
 
         manifest["gym_inputs"] = snapshot(task.resolve(), contract)
+    if contract["provider"] == "native":
+        from .native_evidence import snapshot
+
+        manifest["native_inputs"] = snapshot(task.resolve(), contract)
     if replacing and ledger.exists():
         # Detach the whole ledger first: partial disposal must not hide a failed attempt in a current proof set.
         with tempfile.TemporaryDirectory(prefix=".repair-discard-", dir=ledger.parent) as temporary:
@@ -311,6 +318,14 @@ def manifest_at(path: Path) -> dict[str, Any]:
         manifest.get("task_sha256"),
         "task revision changed; prepare a new manifest and rerun controls and agents",
     )
+    if manifest["contract"]["provider"] == "native":
+        from .native_evidence import snapshot
+
+        require_binding(
+            snapshot(Path(manifest["task_dir"]), manifest["contract"]),
+            manifest.get("native_inputs"),
+            "native prepared inputs changed",
+        )
     return manifest
 
 
@@ -339,6 +354,7 @@ def run(
     timeout: int = 1800,
     purpose: str = "closure",
     gym_source: Path | None = None,
+    native_source: Path | None = None,
 ) -> dict[str, Any]:
     manifest = manifest_at(manifest_path)
     if timeout <= 0:
@@ -349,13 +365,17 @@ def run(
         raise EvidenceError("known case, nonempty run ID, and command are required")
     if purpose not in ("baseline", "closure"):
         raise EvidenceError("purpose must be baseline or closure")
-    if purpose == "closure" and case["kind"] == "agent" and trace is None:
+    if (
+        (purpose == "closure" or manifest["contract"]["provider"] == "native")
+        and case["kind"] == "agent"
+        and trace is None
+    ):
         raise EvidenceError("agent evidence requires a fresh trace")
     paths = [output, result] + ([trace] if trace is not None else [])
     if len({p.resolve() for p in paths}) != len(paths):
         raise EvidenceError("receipt, native result, and trace must have distinct paths")
     for path in paths:
-        fresh(path, Path(manifest["task_dir"]))
+        fresh(path, Path(manifest["task_dir"]), make_parents=manifest["contract"]["provider"] != "native")
     source = None
     if manifest["contract"]["provider"] == "gym":
         from .gym_evidence import source_paths
@@ -368,6 +388,17 @@ def run(
                 raise EvidenceError("NeMo Gym native outputs must be fresh and outside the task")
     elif gym_source is not None:
         raise EvidenceError("--gym-source applies only to NeMo Gym")
+    native_descriptor = None
+    if manifest["contract"]["provider"] == "native":
+        from .native_evidence import source_paths
+
+        if native_source is None:
+            raise EvidenceError("native recording requires --native-source")
+        native_descriptor = read(native_source)
+        for path in source_paths(native_descriptor):
+            fresh(path, Path(manifest["task_dir"]), make_parents=False)
+    elif native_source is not None:
+        raise EvidenceError("--native-source applies only to native recording")
     receipt: dict[str, Any] = {
         "schema": SCHEMA,
         "manifest": str(manifest_path.resolve()),
@@ -375,6 +406,7 @@ def run(
         "case": case_id,
         "purpose": purpose,
         "gym_source": source,
+        "native_source": native_descriptor,
         "run_id": run_id,
         "command": command,
         "cwd": str(Path.cwd()),
@@ -413,6 +445,13 @@ def run(
             from .gym_evidence import build
 
             write_new(result, build(source, manifest, case, purpose, trace))
+        if native_descriptor is not None:
+            from .native_evidence import build
+
+            normalized = build(native_descriptor, manifest, case, trace)
+            require_binding(normalized["native_run_id"], run_id, "native run differs from registered execution")
+            result.parent.mkdir(parents=True, exist_ok=True)
+            write_new(result, normalized)
         native = read(result)
         _validate_control(native, manifest["contract"], case)
         receipt["native_run_id"] = native_identity(native, manifest)
@@ -426,6 +465,7 @@ def run(
             receipt["health_status"] = native["health"]["verdict"]
     except (ValueError, OSError, KeyError, TypeError, subprocess.TimeoutExpired) as exc:
         receipt["error"] = str(exc)
+    output.parent.mkdir(parents=True, exist_ok=True)
     write_new(output, receipt)
     return receipt
 
@@ -439,7 +479,11 @@ def _validate_control(native: dict, contract: dict, case: dict) -> None:
         raise EvidenceError("incorrect control must exercise a wrong answer; NOP belongs to the empty control")
 
 
-def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]]:
+def verify_receipts(
+    paths: list[Path], task_id: str, *, qualification: bool = False, agent_runs: int = 2
+) -> dict[str, dict[str, Any]]:
+    if type(agent_runs) is not int or agent_runs < 1 or (not qualification and agent_runs != 2):
+        raise EvidenceError("qualification requires a positive agent-run count; closure requires two")
     if not paths or len({p.resolve() for p in paths}) != len(paths):
         raise EvidenceError("distinct execution receipts are required")
     manifests = set()
@@ -453,16 +497,26 @@ def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]
     contract: dict[str, Any] = {}
     for path in paths:
         receipt = read(path)
-        if receipt.get("schema") != SCHEMA or receipt.get("status") != "passed" or receipt.get("returncode") != 0:
+        statuses = {"passed", "behavior_failed"} if qualification else {"passed"}
+        if receipt.get("schema") != SCHEMA or receipt.get("status") not in statuses or receipt.get("returncode") != 0:
             raise EvidenceError("execution receipt is not passed")
-        if receipt.get("purpose") != "closure":
-            raise EvidenceError("baseline receipts cannot establish gap closure")
+        purpose = "baseline" if qualification else "closure"
+        if receipt.get("purpose") != purpose:
+            raise EvidenceError(
+                "native qualification requires baseline receipts"
+                if qualification
+                else "baseline receipts cannot establish gap closure"
+            )
         manifest_path = Path(receipt["manifest"])
         manifest = manifest_at(manifest_path)
         sha = digest(manifest_path)
         require_binding(sha, receipt.get("manifest_sha256"), "manifest digest mismatch")
         manifests.add(sha)
         contract = manifest["contract"]
+        if qualification and (
+            contract["provider"] != "native" or manifest.get("construction", {}).get("status") == "unmeasured"
+        ):
+            raise EvidenceError("native qualification requires a bound construction plan")
         if contract["task_id"] != task_id:
             raise EvidenceError("manifest task_id differs from selected task")
         case_id = receipt["case"]
@@ -480,11 +534,24 @@ def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]
             rebuilt = build(receipt["gym_source"], manifest, case, "closure", retained_trace)
             if rebuilt != native:
                 raise EvidenceError("NeMo Gym native source artifacts changed")
+        if contract["provider"] == "native":
+            from .native_evidence import build
+
+            retained_trace = Path(receipt["trace"]) if receipt.get("trace") else None
+            rebuilt = build(receipt["native_source"], manifest, case, retained_trace)
+            if rebuilt != native:
+                raise EvidenceError("native source artifacts changed")
+            require_binding(native["native_run_id"], receipt["run_id"], "native run differs from registered execution")
         native_run_id = native_identity(native, manifest)
         if native_run_id != receipt.get("native_run_id") or native_run_id in seen_native_runs:
             raise EvidenceError("native run identity is changed or reused")
         seen_native_runs.add(native_run_id)
-        if not assertions(native, case["health"]) or not assertions(native, case["checks"]):
+        behavior_passed = assertions(native, case["checks"])
+        if receipt["status"] != ("passed" if behavior_passed else "behavior_failed"):
+            raise EvidenceError("recorded behavior status differs from native checks")
+        if not assertions(native, case["health"]) or (
+            not behavior_passed and not (qualification and case["kind"] == "agent")
+        ):
             raise EvidenceError("native evidence does not satisfy declared health and behavior checks")
         run_id = receipt.get("run_id")
         if not isinstance(run_id, str) or not run_id.strip() or run_id in seen_runs:
@@ -509,8 +576,12 @@ def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]
     if len(manifests) != 1:
         raise EvidenceError("all evidence must use the same manifest revision")
     required = {name for name, case in contract["cases"].items() if case["kind"] not in ("agent", "diagnostic")}
-    if not required <= seen_cases or len(agents) < 2:
-        raise EvidenceError("every declared control and at least two agent runs are required")
+    if not required <= seen_cases or len(agents) < agent_runs:
+        raise EvidenceError(
+            "every declared control and the requested agent runs are required"
+            if qualification
+            else "every declared control and at least two agent runs are required"
+        )
     # Every pre-registered closure attempt counts, including interrupted/failed runs.
     # Preparing a repair resets the helper's registrations; native results stay separate.
     ledger = Path(manifest.get("attempts", ""))
@@ -530,10 +601,10 @@ def verify_receipts(paths: list[Path], task_id: str) -> dict[str, dict[str, Any]
         if kind is None and receipt_path.is_file():
             case_id = read(receipt_path).get("case")
             kind = contract["cases"].get(case_id, {}).get("kind")
-        if attempt.get("purpose") == "closure" and kind != "diagnostic":
+        if attempt.get("purpose") == purpose and kind != "diagnostic":
             registered.append(Path(attempt["receipt"]).resolve())
     if len(set(registered)) != len(registered) or set(registered) != {path.resolve() for path in paths}:
-        raise EvidenceError("all registered closure attempts must be supplied, including failures")
+        raise EvidenceError(f"all registered {purpose} attempts must be supplied, including failures")
     return agents
 
 
@@ -561,13 +632,28 @@ def main() -> int:
     execute.add_argument("--timeout", type=int, default=1800)
     execute.add_argument("--purpose", choices=("baseline", "closure"), default="closure")
     execute.add_argument("--gym-source", type=Path)
+    execute.add_argument("--native-source", type=Path)
     execute.add_argument("command", nargs=argparse.REMAINDER)
+    qualify = commands.add_parser("qualify-native")
+    qualify.add_argument("--task-id", required=True)
+    qualify.add_argument("--evidence", type=Path, nargs="+", required=True)
+    qualify.add_argument("--agent-runs", type=int, default=1)
     args = parser.parse_args()
     try:
         if args.action == "prepare":
             payload = prepare(
                 args.task_dir, args.contract, args.out, args.previous, args.reason, args.construction_plan
             )
+        elif args.action == "qualify-native":
+            agents = verify_receipts(args.evidence, args.task_id, qualification=True, agent_runs=args.agent_runs)
+            payload = {
+                "status": "passed",
+                "task_id": args.task_id,
+                "qualification": "native_task",
+                "coverage": "unmeasured",
+                "agent_runs": len(agents),
+                "agent_passes": sum(row["status"] == "passed" for row in agents.values()),
+            }
         else:
             command = args.command[1:] if args.command[:1] == ["--"] else args.command
             payload = run(
@@ -581,6 +667,7 @@ def main() -> int:
                 args.timeout,
                 args.purpose,
                 args.gym_source,
+                args.native_source,
             )
         print(json.dumps(payload, indent=2))
         return 0 if payload.get("status", "passed") == "passed" else 1

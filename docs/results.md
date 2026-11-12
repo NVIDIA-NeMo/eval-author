@@ -285,3 +285,10 @@ a new random seed is identified explicitly rather than reported as exact replay.
 
 [Choose another workflow](../README.md#choose-your-journey) or review
 [runtime requirements](getting-started.md#requirements).
+
+The optional TASTE integration stores per-run routing approval in
+`integration.json` under its selected private run directory. Native cohort
+qualification retains hash-bound task, runtime, reset, raw execution, normalized
+Compass trace and loading/projection receipts. Generated tasks remain Draft until
+the selected qualification contract succeeds; failed target-agent behavior remains
+performance evidence. See [native benchmark expansion](existing-evals.md#expand-a-native-benchmark).

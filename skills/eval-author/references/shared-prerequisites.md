@@ -7,7 +7,9 @@ The core owns orientation and goal selection. This is the canonical operational
 procedure after readiness for creating, auditing, and improving evals, including
 direct skill calls. The [onboarding rendering contract](conversations/onboarding.md)
 defines stage inputs and outputs; it does not duplicate this sequence.
-It supports NeMo Gym and Harbor through the same flow. Scoped operations retain their
+It supports NeMo Gym and Harbor through the same flow; explicitly selected native
+benchmark expansion uses the [native prerequisite route](pre-reqs/improve.md).
+Scoped operations retain their
 existing input requirements and do not acquire a full onboarding checklist.
 For creation and improvement, begin this procedure only after the selected goal's rendered
 checklist and readiness question have been shown and the user replies to that

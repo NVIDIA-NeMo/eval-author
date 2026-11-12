@@ -3,7 +3,8 @@
 
 # Shared construction contract
 
-New construction uses `nemo.eval_author.construction.v3`, for Harbor and Gym.
+New construction uses `nemo.eval_author.construction.v3`, for Harbor, Gym and
+explicitly selected native benchmark runners.
 Keep `construction.json` private, outside the task tree. Trace workspaces use
 `private/construction.json`. Proposals may leave authority unresolved; a draft
 must identify the rule or independent evidence that defines correctness.
@@ -20,7 +21,7 @@ evidence before qualification.
 
 | Field | Required contents |
 |---|---|
-| `schema`, `task_id`, `provider` | Schema above; stable task identity; `harbor` or `gym`. |
+| `schema`, `task_id`, `provider` | Schema above; stable task identity; `harbor`, `gym` or `native`. |
 | `requirements` | `id`, `statement`, `authority: {basis, reference}`, `candidate_index`. Authority basis: `specification`, `user_decision`, `independent_reference`, or `unresolved`. Index is null without a bound candidate. |
 | `inputs` | `path`, `sha256`, `basis`, `source`, `rationale`, `edits`, `review`. Paths are task-relative. Native inputs use `copied`/`authored`, a source description, `edits: []`, `review: null`. Trace inputs retain observed/exact-reversal/authored provenance and review. |
 | `checks` | `id`, `requirements` (IDs), `success` (JSON-pointer assertion). Every requirement maps to scored checks. |

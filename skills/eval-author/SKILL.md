@@ -32,6 +32,7 @@ triggers:
   - my evals do not use Harbor
   - what happened in this agent trace
   - create an evaluation environment from a trace
+  - generate tasks with TASTE from this coverage audit
   - which eval author step do I need
 not-for:
   - eval-author-first-eval (use to establish Ethos and build first evals without prior coverage)
@@ -49,7 +50,7 @@ compatibility: >-
   The core manages shared state and delegates Ethos to ethos-orchestrate;
   runtime execution is delegated to sub-flows.
   Discovery, audit, and task creation use the local checkout.
-  Task execution requires the selected NeMo Gym or Harbor runtime and may require Docker and provider
+  Task execution requires the selected NeMo Gym, Harbor, or explicitly selected native benchmark runtime and may require Docker and provider
   credentials. Trace inspection requires the nemo CLI, an explicit workspace,
   and read access to configured Intake. Trace loading requires Python 3.12–3.13
   and NeMo Compass 0.2.1 from requirements.txt.
@@ -76,7 +77,8 @@ each request to the narrow sub-flow that owns it.
 
 Use the requested outcome and prior answers before asking a question. Creating,
 auditing, and improving evals use the **Shared prerequisites and Ethos** flow
-below for NeMo Gym and Harbor, including direct invocations of their skills.
+below for NeMo Gym, Harbor and explicitly selected native benchmark expansion,
+including direct invocations of their skills.
 
 For an explicit full-audit request, first follow
 [Return to an audit](references/shared-prerequisites.md#return-to-an-audit).
@@ -131,6 +133,7 @@ instead of repeating orientation.
 | Build first evals | `eval-author-first-eval`; confirm reuse of any saved design on a fresh request before continuing its unfinished stage |
 | Audit coverage, gaps, and improvement opportunities | `eval-author-audit`, continuing with eval and trace selection |
 | Improve or expand evals | Preserve the expansion goal and use the expansion handoff below; an audit is optional |
+| Explicitly generate tasks with TASTE from an EA coverage audit | [opt-in TASTE integration](references/taste-integration.md), after shared prerequisites and confirmed Ethos; preserve the selected audit, scope and execution authorization |
 | Create a task from a recorded interaction | [Task-create trace source mode](../eval-author-task-create/SKILL.md#trace-source-mode), or [first-eval](../eval-author-first-eval/SKILL.md#a-recorded-trace-as-a-starting-source) for a new suite; use the [shared trace handoff](references/trace-input.md), without requiring an audit gap |
 | Explicit trace-environment request or existing workspace continuation | [Trace environment](../eval-author-trace-environment/SKILL.md); retain existing artifacts and the compatibility workflow |
 
@@ -173,9 +176,17 @@ for new shared flows; returning audits use the continuation route above.
 
 ### Expansion handoff
 
+For TASTE requests, follow the [opt-in integration](references/taste-integration.md)
+before loading its standalone skill. Carry the selected audit, confirmed Ethos,
+prerequisites and execution authorization into that flow.
+
 An expansion request does not imply an audit. Carry supplied suite context,
 requested additions, confirmed Ethos, prerequisites, and pending decisions into
-the selected authoring flow. Resolve an unsupported suite format during
+the selected authoring flow. For explicitly selected existing native benchmark
+runners, follow [native benchmark cohorts](references/native-authoring.md) and
+the task-create native mode. Preserve the runner and inspected grading semantics;
+do not require conversion to Gym or Harbor for this supported path.
+Resolve other unsupported suite formats during
 [shared prerequisites](references/shared-prerequisites.md#check-the-agent-and-setup),
 before Ethos. For an unsupported suite, follow the
 [improvement prerequisite blocker](references/pre-reqs/improve.md#checks-and-blocking-conditions):
@@ -260,7 +271,7 @@ The sub-flows share this language, and reports use it verbatim.
 
 ## Sub-flows
 
-Read the selected sub-flow's own `SKILL.md` when its stage begins and follow it.
+Read the selected sub-flow's linked instructions when its stage begins and follow them.
 This file carries the standard and boundaries; the sub-flow carries the steps.
 
 | Sub-flow | Use it to |
@@ -269,6 +280,7 @@ This file carries the standard and boundaries; the sub-flow carries the steps.
 | `eval-author-discover` | Establish whether a repository's evaluations run, name the rung that fails, and get the exact command to run them |
 | `eval-author-audit` | Define intended coverage in `audit.md`, measure selected trace coverage, identify gaps, and recommend improvements supported by the findings |
 | `eval-author-task-create` | Propose concrete dataset improvements from audit findings; when task creation is requested, create one eligible NeMo Gym or Harbor task and prove it with native controls and repeated measured runs |
+| [opt-in TASTE integration](references/taste-integration.md) | Follow TASTE's three-stage method with sequence algorithms and skill-led generation through EA/native tools, then qualify and measure; selected explicitly through this entry point |
 | `eval-author-inspect-trace` | Understand one Intake trace without presuming that the trace contains a failure. Not user-invocable; this skill selects it |
 | `eval-author-rubric` | **Experimental; explicit end-user opt-in only, never automatic.** Assess selected rubric items across validity, coverage, and diversity; initially anti-cheat within validity only |
 | `eval-author-trace-environment` | **Experimental.** Continue an existing trace-environment workspace or handle an explicit request for this compatibility workflow |

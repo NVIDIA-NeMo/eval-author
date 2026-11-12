@@ -36,8 +36,11 @@ A source map is inspection evidence, not proof of execution.
 | Task records/export | `atomic_write_text` in `src/stage3_tasks/task_set.py`; optional scripted task-set manager | Codex persists evidence and packages through EA/native tools; scripted mode calls service export |
 | EA audit/acceptance | Existing EA skills/helpers | Independent qualification, primary execution and coverage |
 
-Native benchmark implementations and their assets stay outside `vendor/taste/`.
-Sequence stages do not import benchmark runtimes or task services.
+Benchmark-specific implementations and their assets live in the sibling
+`eval-author/scripts/benchmark_runtime/` package. No native benchmark implementation
+or bundled domain catalog belongs in `vendor/taste/`. Historical Tau2 generation
+helpers are reused by the EA task service where applicable, not imported by
+TASTE's sequence stages.
 
 ## Compatibility evidence
 

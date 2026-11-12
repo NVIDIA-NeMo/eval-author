@@ -131,7 +131,7 @@ def assess(value, mode="proposal", task=None, contract=None, workspace=None):
         raise PlanError(_RETIRED)
     if value["schema"] != SCHEMA or mode not in {"proposal", "draft"}:
         raise PlanError("unsupported construction schema or stage")
-    if value["provider"] not in {"harbor", "gym"}:
+    if value["provider"] not in {"harbor", "gym", "native"}:
         raise PlanError("unsupported construction provider")
     plan_format.text(value["task_id"])
     if not isinstance(value["migration"], list) or len(value["migration"]) > 16:

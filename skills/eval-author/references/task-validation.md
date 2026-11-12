@@ -286,6 +286,12 @@ external services still need the provider's version and rerun plan.
 
 ## Record controls and agent runs
 
+For explicitly selected native benchmark cohorts, use the
+[native qualification route](native-authoring.md#execute-and-qualify). Its
+`qualify-native` command verifies current controls and complete unhinted baseline
+attempts; a healthy agent failure remains a measured result. It does not establish
+automatic tool-gap closure. Other modes retain their acceptance rules below.
+
 Record each control and each agent attempt as its own invocation around the
 trusted native command. Every receipt needs fresh native output, so one job with
 several attempts can back only one receipt:

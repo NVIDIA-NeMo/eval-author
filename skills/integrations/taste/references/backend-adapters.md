@@ -60,11 +60,34 @@ Use the shared EA environment/construction/validation instructions linked from
 the protocol. Source/provider eligibility for EA acceptance remains a separate
 check; native execution alone does not establish a supported acceptance mode.
 
+### Built-in optional automation
+
+The shared EA modules `benchmark_runtime.workspace_assistant` and
+`benchmark_runtime.tau2` retain their selected external native runtimes. Their
+preparation commands (`python -m benchmark_runtime.workspace_assistant` or
+`python -m benchmark_runtime.tau2`) expose native root, split and output options
+through `--help` and emit normalized resources plus `prepared.json`.
+
+Include the sibling `eval-author/scripts/` and `vendor/taste/` on `PYTHONPATH`
+when using these preparation modules or their scripted Stage 3 services.
+Sequence stages and skill-directed helper commands need the TASTE runtime alone.
+
+Workspace Assistant uses its fixed-request environment and native state scorer.
+Answer/content grading requires an independent checker and evidence. Tau2's
+optional scripted service expects the full upstream dialogue API. The mini-runner bridge is selected during preparation with
+`--dialogue-runner mini --native-python PATH --mini-config FILE`. It binds the
+selected harness and endpoint configuration, delivers hints only to the solver,
+and retains native results and event logs. Primary mini runs additionally use
+`--trace-python PATH` with the shared Compass dependencies to retain canonical
+trace evidence. Runtime readiness still requires native controls.
+
 ## Optional scripted task-service boundary
 
 Read this section when using the automated `--stage generate` runner or extending
-its service. The skill-directed path requires no such class. Configure `task_service` as a compatible `module:factory` with its native
-root and options. Only the scripted Stage 3 runner calls
+its service. The skill-directed path requires no such class. Configure
+`task_service` as `benchmark_runtime.workspace_assistant:Service`,
+`benchmark_runtime.tau2:Service` or another compatible `module:factory`, with its
+native root and options. Only the scripted Stage 3 runner calls
 `factory(config=config)`; service options stay opaque to sequence stages.
 
 The generator produces `{"task": {...}, "reference_actions": [...]}` and a

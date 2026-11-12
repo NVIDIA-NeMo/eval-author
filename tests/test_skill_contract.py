@@ -216,7 +216,7 @@ def _local_roots(scripts_dir: Path) -> set[str]:
     }
 
 
-def _imported_roots(path: Path) -> set[str]:
+def _imported_roots(path: Path, *, optional_imports: frozenset[str] = frozenset()) -> set[str]:
     """Return the root package of every import in one module."""
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     roots: set[str] = set()
@@ -227,7 +227,7 @@ def _imported_roots(path: Path) -> set[str]:
             names = [node.module] if node.module and not node.level else []
         else:
             continue
-        roots.update(name.split(".")[0] for name in names)
+        roots.update(name.split(".")[0] for name in names if name not in optional_imports)
     return roots
 
 
@@ -4471,6 +4471,13 @@ def test_audit_report_rejects_empty_coverage_set_without_writing(tmp_path: Path)
 def test_bundled_scripts_never_import_the_platform() -> None:
     """The copyable boundary permits standalone libraries, not the platform application."""
     offenders: dict[str, set[str]] = {}
+    # These optional services use the copied TASTE contract and its documented
+    # generation dependencies; other platform/src imports remain forbidden.
+    service_imports = {
+        _CORE_SCRIPTS_DIR / "benchmark_runtime/authoring.py": frozenset({"litellm"}),
+        _CORE_SCRIPTS_DIR / "benchmark_runtime/tau2.py": frozenset({"src.backends.contracts"}),
+        _CORE_SCRIPTS_DIR / "benchmark_runtime/workspace_assistant.py": frozenset({"src.backends.contracts"}),
+    }
     for scripts_dir in _SCRIPT_DIRS:
         permitted = (
             _local_roots(scripts_dir)
@@ -4480,7 +4487,11 @@ def test_bundled_scripts_never_import_the_platform() -> None:
             | _PERMITTED_THIRD_PARTY
         )
         for path in _bundled_scripts(scripts_dir):
-            found = {root for root in _imported_roots(path) if root not in permitted}
+            found = {
+                root
+                for root in _imported_roots(path, optional_imports=service_imports.get(path, frozenset()))
+                if root not in permitted
+            }
             if found:
                 offenders[path.relative_to(scripts_dir).as_posix()] = found
     assert not offenders, (

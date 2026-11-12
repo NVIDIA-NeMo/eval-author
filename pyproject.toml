@@ -80,3 +80,11 @@ extra-paths = [
 include = ["skills/integrations/taste/vendor/taste/src/common/call_to_llm.py"]
 [tool.ty.overrides.rules]
 unresolved-import = "ignore"
+
+[[tool.ty.overrides]]
+include = [
+  "skills/eval-author/scripts/benchmark_runtime/tau2.py",
+  "tests/taste_tau2_controls.py",
+]
+[tool.ty.overrides.rules]
+unresolved-import = "ignore"

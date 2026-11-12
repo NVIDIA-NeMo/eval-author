@@ -37,6 +37,7 @@ from working_paths import (  # noqa: E402
 )
 
 STAGES = {"explore", "interview", "draft", "write", "review", "complete"}
+SETUPS = ("gym", "harbor", "native")
 COMMON_PREREQUISITES = {
     "code_access",
     "file_writes",
@@ -192,7 +193,7 @@ def validate(state: dict, *, check_size: bool = True) -> None:
         _text(state[field], field)
     for field in ("agent", "pending_question", "next_handoff"):
         _text(state[field], field, nullable=True)
-    if state["journey"] not in (*JOURNEYS, None) or state["setup"] not in ("gym", "harbor", None):
+    if state["journey"] not in (*JOURNEYS, None) or state["setup"] not in (*SETUPS, None):
         raise ValueError("Unknown journey or setup")
     if not isinstance(state["prerequisites"], dict):
         raise ValueError("Prerequisites must be a mapping")
@@ -1073,7 +1074,7 @@ def main() -> int:
     init = commands.add_parser("init", help="Initialize or resume; selectively invalidate changed identity/setup")
     init.add_argument("--agent")
     init.add_argument("--journey", choices=JOURNEYS)
-    init.add_argument("--setup", choices=("gym", "harbor"))
+    init.add_argument("--setup", choices=SETUPS)
     commands.add_parser("show", help="Read state and derive checklist without writing")
     relocation = commands.add_parser(
         "rebind", help="Recover relocated state and reopen approvals; preserve prior context"

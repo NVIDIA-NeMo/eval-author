@@ -1,7 +1,8 @@
 ---
 name: eval-author-task-create
 description: >-
-  Create a task from a recorded interaction in trace source mode, without requiring
+  Expand an explicitly selected native benchmark with a qualified task cohort, or
+  create a task from a recorded interaction in trace source mode, without requiring
   an audit gap. Or propose dataset improvements from Eval Author audit findings, then optionally
   create one NeMo Gym or Harbor task from one actionable uncovered tool. Prove it with
   NeMo Gym controls and native execution or Harbor's Oracle, then run it repeatedly
@@ -22,6 +23,7 @@ triggers:
   - turn uncovered_items into Harbor tasks
   - propose dataset improvements from audit findings
   - suggest new evals based on this audit
+  - expand this benchmark using its native runner
 not-for:
   - eval-author-first-eval (use when the user has no evaluations yet)
   - eval-author (use for the shared standard and routing)
@@ -31,7 +33,9 @@ not-for:
 compatibility: >-
   Proposals read local audit artifacts and task evidence without running NeMo Gym or Harbor.
   Task creation needs the selected provider’s authoring runtime verified by
-  eval-author’s shared locator and runtime-policy.json. Keep NeMo Gym separate.
+  eval-author’s shared locator and runtime-policy.json for Gym/Harbor. Native
+  benchmark mode inspects the selected runner directly and uses the audit runtime
+  to load Compass traces. Keep NeMo Gym separate.
   Docker is required for Oracle and Docker-backed real-agent runs. Real-agent
   runs may require provider credentials and explicit user approval.
 maturity: alpha
@@ -48,12 +52,12 @@ metadata:
 
 # Eval Author: create task
 
+For selected native benchmarks, follow [native cohorts](../eval-author/references/native-authoring.md); TASTE requires its [opt-in gate](../eval-author/references/taste-integration.md).
+
 ## Trace source mode
 
-For a user-requested task from an ATIF, MLflow, NeMo Gym or normalized trace, use the shared
-[trace source handoff](../eval-author/references/trace-input.md): privacy review,
-candidate admission, environment preparation, construction and native qualification.
-This source mode does not require an audit gap and does not claim coverage closure.
+For a user-requested task from an ATIF, MLflow, NeMo Gym or normalized trace, use the shared [trace source handoff](../eval-author/references/trace-input.md): privacy review,
+candidate admission, environment preparation, construction and native qualification. This source mode does not require an audit gap and does not claim coverage closure.
 Skip the audit selector and gap-only scaffold/acceptance steps; use the selected
 provider's native task initialization and the handoff's qualification procedure.
 For audit-gap requests, retain Steps 1–8 and their measured eligibility rules.

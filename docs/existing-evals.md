@@ -229,3 +229,43 @@ recommendations may need further task design or measurement.
 For the complete workflows, see the [discovery](../skills/eval-author-discover/SKILL.md),
 [audit](../skills/eval-author-audit/SKILL.md), and
 [task-creation](../skills/eval-author-task-create/SKILL.md) skills.
+
+## Generate tasks with TASTE
+
+TASTE is an optional task source for existing evaluations. Request it explicitly,
+for example: “Generate tasks with TASTE from this coverage audit.” The integration
+is disabled by default. Eval Author records your explicit approval for the selected
+run in `.eval-author/.working/taste/<run-id>/integration.json` before routing to
+TASTE. This approval does not increase the agreed execution or model-call budget.
+
+To inspect or disable the route for a before/after comparison:
+
+```bash
+python skills/eval-author/scripts/taste_feature.py status --run-dir /absolute/private/run
+python skills/eval-author/scripts/taste_feature.py disable --run-dir /absolute/private/run
+```
+
+Re-enable it with `enable --run-dir /absolute/private/run --approval 'Use TASTE for this run'`.
+Disabling keeps the generated evidence and selects ordinary EA authoring. Direct
+invocation of the [standalone skill](../skills/integrations/taste/SKILL.md) remains
+available independently. See [setup](getting-started.md#standalone-taste-skill).
+
+## Expand a native benchmark
+
+For an explicitly selected existing benchmark, Eval Author can qualify a cohort
+using its own inspected runner, reset and grading semantics. It retains native
+results and construction evidence separately from target-agent performance.
+Workspace Assistant and Tau2 preparation helpers live in
+`skills/eval-author/scripts/benchmark_runtime/`; run their modules with `--help`
+for native-root, split and output options. Include that scripts directory and
+`skills/integrations/taste/vendor/taste/` on `PYTHONPATH` when using them.
+These optional runtimes are installed separately and make no model calls during
+preparation. Unknown runtime capabilities remain explicit limitations.
+
+Native primary evidence uses Compass Trace. Workspace Assistant's external native
+ATIF exporter is loaded unchanged through the shared trace loader. The Tau mini
+bridge emits a canonical trace with source-bound live tool calls and preserves
+its event journal, simulator activity and projection limits separately. Measure
+coverage through the [shared loader](../skills/eval-author/references/trace-loading.md)
+and current audit workflow; native reward and task qualification do not establish
+measured coverage or automatic tool-gap closure.

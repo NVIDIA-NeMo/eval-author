@@ -50,6 +50,16 @@ while preparing and proving the environment.
 
 ## Required outputs
 
+For the [native benchmark cohort route](../eval-author/references/native-authoring.md),
+reuse the selected benchmark's original fixture loader, reset and native scorer.
+The kit binds those sources and records equivalent fresh-state tool/scorer smoke
+evidence: a no-op and two reference executions, including reset parity. Existing
+current proof may be reused. Do not regenerate an existing benchmark's base data
+or require a Gym/Harbor conversion. Generated fixture additions still need schema,
+integrity, reset and reference checks before tasks depend on them. The general
+kit layout below may point to these bound native inputs and jobs instead of
+creating a second generator or provider scaffold.
+
 First-eval and task-create are not finished with an environment until the kit
 under `.eval-author/.working/environments/<agent-slug>/` holds:
 

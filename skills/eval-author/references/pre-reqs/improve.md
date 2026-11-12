@@ -17,7 +17,14 @@ are the shared, Ethos, and selected authoring skills. Accept user-created and
 Eval Author-created suites without requiring prior audits, completed evaluations,
 traces, coverage reports, or planning artifacts.
 
-Confirm that the existing suite uses a supported format before checking a
+For an explicitly selected existing native benchmark, follow
+[native benchmark cohorts](../native-authoring.md). Verify its actual task input,
+runtime, reset, grading and trace interfaces using the selected implementation.
+An inspected native execution adapter satisfies this path; missing capabilities
+remain concrete prerequisites. Do not apply the suite-conversion blocker below
+to this mode. Reuse prior verified facts and unchanged content approvals.
+
+For other authoring modes, confirm that the existing suite uses a supported format before checking a
 provider's runtime or starting Ethos. Identifying an existing framework does not
 establish compatibility; a saved Harbor setup does not establish the suite's
 format. If the suite uses another format, finish the independent checks, then
