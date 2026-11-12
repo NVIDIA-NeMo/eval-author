@@ -284,6 +284,187 @@ def _run_discover(
     return result.returncode, json.loads(result.stdout)
 
 
+def _controlled_host_discover(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> Callable[..., tuple[int, dict]]:
+    """Keep inventory real; use native judging only when Harbor is importable."""
+    import asyncio
+    import importlib.metadata
+    import importlib.util
+
+    harbor_available = importlib.util.find_spec("harbor") is not None
+    discover = _import_discover(monkeypatch)
+    runtime = {
+        "python": ".".join(str(part) for part in sys.version_info[:3]),
+        "harbor_importable": harbor_available,
+        "harbor_version": importlib.metadata.version("harbor") if harbor_available else None,
+        "harbor_cli": None,
+    }
+    monkeypatch.setattr(discover._probe, "probe", lambda repo: runtime.copy())
+    monkeypatch.setattr(
+        discover.gym_probe,
+        "probe",
+        lambda repo, cli: {
+            "gym_available": not harbor_available,
+            "gym_version": "0.6.0" if not harbor_available else None,
+            "gym_cli": "controlled-gym" if not harbor_available else None,
+            "gym_reason": "NeMo Gym is unavailable on this controlled host.",
+        },
+    )
+
+    def unavailable_backend(*args: object) -> None:
+        raise RuntimeError("Backend unavailable on this controlled host.")
+
+    if harbor_available:
+        judge = importlib.import_module("providers.harbor._judge")
+        # Patch the native seam, not backend_check: its error handling remains real.
+        monkeypatch.setattr(judge.EnvironmentFactory, "run_preflight", unavailable_backend)
+        monkeypatch.setattr(judge, "_harbor_executable", lambda: None)
+    else:
+        monkeypatch.setattr(
+            discover.gym_judge,
+            "validate",
+            lambda *args: discover.gym_judge.GymRun(error="Controlled Gym judge unavailable."),
+        )
+
+    def run(repo: Path, *args: str) -> tuple[int, dict]:
+        code = asyncio.run(discover._main(["--repo", str(repo), *args]))
+        return code, json.loads(capsys.readouterr().out)
+
+    return run
+
+
+@pytest.fixture(params=["available", "absent"], ids=["host-harbor", "no-harbor"])
+def discover_on_controlled_host(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> Callable[..., tuple[int, dict]]:
+    if request.param == "absent":
+        _block_harbor_imports(monkeypatch)
+    return _controlled_host_discover(monkeypatch, capsys)
+
+
+def test_controlled_host_discovery_retains_native_judging_without_host_work(
+    suite: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from unittest.mock import AsyncMock, Mock
+
+    pytest.importorskip("harbor")
+    run = _controlled_host_discover(monkeypatch, capsys)
+    discover = importlib.import_module("discover")
+    judge = importlib.import_module("providers.harbor._judge")
+    calls = {}
+    for name, owner, attribute in (
+        # Wrap the installed readiness stubs, never the implementations they replace.
+        ("harbor-probe", discover._probe, "probe"),
+        ("gym-probe", discover.gym_probe, "probe"),
+        ("preflight", judge.EnvironmentFactory, "run_preflight"),
+        ("executable", judge, "_harbor_executable"),
+        ("scan", discover, "scan_repository"),
+        ("yaml", yaml, "safe_load"),
+        ("schema", judge.JobConfig, "model_validate"),
+        ("tasks", judge, "judge_tasks"),
+        ("backend", judge, "backend_check"),
+    ):
+        spy = Mock(wraps=getattr(owner, attribute))
+        monkeypatch.setattr(owner, attribute, spy)
+        calls[name] = spy
+    calls["resolution"] = AsyncMock(wraps=judge.Job.create)
+    monkeypatch.setattr(judge.Job, "create", calls["resolution"])
+    real_run = subprocess.run
+
+    def git_only(command: list[str], *args: Any, **kwargs: Any) -> Any:
+        assert Path(command[0]).name == "git", f"forbidden real launch: {command}"
+        return real_run(command, *args, **kwargs)
+
+    calls["subprocess"] = Mock(side_effect=git_only)
+    monkeypatch.setattr(subprocess, "run", calls["subprocess"])
+    for owner in (discover._probe, discover.gym_probe):
+        monkeypatch.setattr(owner, "locate", Mock(side_effect=AssertionError("forbidden runtime locator")))
+    assert discover._probe.probe is calls["harbor-probe"], "readiness counter was disconnected"
+    assert discover.gym_probe.probe is calls["gym-probe"], "readiness counter was disconnected"
+    assert judge.EnvironmentFactory.run_preflight is calls["preflight"], "preflight counter was disconnected"
+    # Positive self-test: drive the live seams, then reset before measuring discovery.
+    discover._probe.probe(suite)
+    discover.gym_probe.probe(suite, None)
+    assert judge.backend_check().status == "fail"
+    judge._harbor_executable()
+    assert {name: calls[name].call_count for name in ("harbor-probe", "gym-probe", "preflight", "executable")} == {
+        "harbor-probe": 1,
+        "gym-probe": 1,
+        "preflight": 1,
+        "executable": 1,
+    }
+    with pytest.raises(AssertionError, match="forbidden real launch"):
+        subprocess.run(["docker", "info"])
+    for owner in (discover._probe, discover.gym_probe):
+        with pytest.raises(AssertionError, match="forbidden runtime locator"):
+            owner.locate(suite)
+    for spy in calls.values():
+        spy.reset_mock()
+    code, report = run(suite)
+
+    counts = {name: spy.call_count for name, spy in calls.items()}
+    host_commands = [call.args[0] for call in calls["subprocess"].call_args_list if Path(call.args[0][0]).name != "git"]
+    print(f"Controlled-host calls: {counts}; host commands: {host_commands}")
+    assert counts["harbor-probe"] == counts["gym-probe"] == counts["executable"] == 1, counts
+    assert counts["preflight"] == 2, counts
+    assert host_commands == [], host_commands
+    assert counts["scan"] == counts["resolution"] == counts["schema"] == counts["tasks"] == 1, counts
+    assert counts["yaml"] >= 1, counts
+    assert counts["backend"] == 2, counts
+    assert code == 1
+    assert report["proven"] is True
+    assert report["task_count"] == 1
+    assert report["fingerprint"].startswith("sha256:")
+    for name in ("schema", "resolution", "tasks", "coverage", "agent", "dataset-tasks"):
+        assert _named(report, name)["status"] == "pass"
+    assert _named(report, "backend")["status"] == "fail"
+    assert _named(report, "round-trip")["status"] == "warn"
+    assert report["phases"]["solve"] == "skipped"
+
+
+def _block_harbor_imports(monkeypatch: pytest.MonkeyPatch) -> None:
+    import builtins
+    import importlib.util
+
+    original_import = builtins.__import__
+    original_import_module = importlib.import_module
+    original_find_spec = importlib.util.find_spec
+
+    def blocked(name: str) -> bool:
+        return name == "harbor" or name.startswith("harbor.") or name == "providers.harbor._judge"
+
+    def without_harbor(name: str, *args: Any, **kwargs: Any) -> Any:
+        if blocked(name):
+            raise ModuleNotFoundError("Harbor deliberately absent", name=name)
+        return original_import(name, *args, **kwargs)
+
+    def import_module(name: str, package: str | None = None) -> Any:
+        if blocked(name):
+            raise ModuleNotFoundError("Harbor deliberately absent", name=name)
+        return original_import_module(name, package)
+
+    monkeypatch.setattr(builtins, "__import__", without_harbor)
+    monkeypatch.setattr(importlib, "import_module", import_module)
+    monkeypatch.setattr(
+        importlib.util, "find_spec", lambda name: None if name == "harbor" else original_find_spec(name)
+    )
+
+
+def test_controlled_host_discovery_scans_with_harbor_imports_blocked(
+    suite: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _block_harbor_imports(monkeypatch)
+    run = _controlled_host_discover(monkeypatch, capsys)
+    _, report = run(suite)
+    assert report["proven"] is False
+    assert report["runtime"]["gym_available"] is True
+    assert report["phases"]["explore"] == "valid"
+    assert report["task_count"] == 1
+    assert [config["path"] for config in report["configs"]] == ["harbor-job.yaml"]
+    assert report["fingerprint"].startswith("sha256:")
+
+
 def _run_json_script(
     script: Path,
     *args: str,
@@ -4703,7 +4884,9 @@ def test_discovery_preserves_source_and_retains_only_empty_scratch_directories(s
     assert after == before
 
 
-def test_discover_reports_a_config_pyyaml_cannot_parse(suite: Path) -> None:
+def test_discover_reports_a_config_pyyaml_cannot_parse(
+    suite: Path, discover_on_controlled_host: Callable[..., tuple[int, dict]]
+) -> None:
     """Broken YAML is a finding, not a crash.
 
     A tab cannot start a YAML token, so PyYAML raises ``yaml.YAMLError``, which is
@@ -4713,7 +4896,7 @@ def test_discover_reports_a_config_pyyaml_cannot_parse(suite: Path) -> None:
     """
     (suite / "broken.yaml").write_text("datasets:\n\t- path: ./tabbed\n", encoding="utf-8")
 
-    _, report = _run_discover(suite)
+    _, report = discover_on_controlled_host(suite)
 
     assert "harbor-job.yaml" in [config["path"] for config in report["configs"]], (
         "one broken file must not hide the configs around it"
@@ -4724,11 +4907,13 @@ def test_discover_reports_a_config_pyyaml_cannot_parse(suite: Path) -> None:
     assert parse["hint"], "an unreadable config must tell the user what to do"
 
 
-def test_discover_ignores_a_yaml_file_that_declares_no_harbor_work(suite: Path) -> None:
+def test_discover_ignores_a_yaml_file_that_declares_no_harbor_work(
+    suite: Path, discover_on_controlled_host: Callable[..., tuple[int, dict]]
+) -> None:
     """Broken YAML that names no datasets or tasks is somebody else's file."""
     (suite / "docker-compose.yaml").write_text("services:\n\t- broken\n", encoding="utf-8")
 
-    _, report = _run_discover(suite)
+    _, report = discover_on_controlled_host(suite)
 
     assert [config["path"] for config in report["configs"]] == ["harbor-job.yaml"]
 
@@ -4739,11 +4924,14 @@ def test_discover_ignores_a_yaml_file_that_declares_no_harbor_work(suite: Path) 
     ids=["canonical", "lowercase", "absent"],
 )
 def test_discover_records_the_root_ethos_file_by_its_actual_name(
-    suite: Path, names: tuple[str, ...], expected: str | None
+    suite: Path,
+    names: tuple[str, ...],
+    expected: str | None,
+    discover_on_controlled_host: Callable[..., tuple[int, dict]],
 ) -> None:
     for name in names:
         (suite / name).write_text("# doctrine\n", encoding="utf-8")
-    _, report = _run_discover(suite)
+    _, report = discover_on_controlled_host(suite)
     assert report["ethos_path"] == expected
     assert _named(report, "ethos")["status"] == ("pass" if expected else "warn")
 
@@ -4767,13 +4955,15 @@ def test_discover_prefers_uppercase_ethos_when_both_names_exist(
 
 
 @_needs_unreadable_files
-def test_discover_reports_an_unreadable_ethos(suite: Path) -> None:
+def test_discover_reports_an_unreadable_ethos(
+    suite: Path, discover_on_controlled_host: Callable[..., tuple[int, dict]]
+) -> None:
     """ETHOS.md is advisory, so failing to read it must not cost the whole report."""
     ethos = suite / "ETHOS.md"
     ethos.write_text("# doctrine\n", encoding="utf-8")
     ethos.chmod(0o000)
     try:
-        _, report = _run_discover(suite)
+        _, report = discover_on_controlled_host(suite)
     finally:
         ethos.chmod(0o644)
 
@@ -4784,15 +4974,17 @@ def test_discover_reports_an_unreadable_ethos(suite: Path) -> None:
 
 
 @_needs_unreadable_files
-def test_discover_keeps_an_unreadable_dataset_file_out_of_the_fingerprint(suite: Path) -> None:
+def test_discover_keeps_an_unreadable_dataset_file_out_of_the_fingerprint(
+    suite: Path, discover_on_controlled_host: Callable[..., tuple[int, dict]]
+) -> None:
     """One unreadable file must neither abort the fingerprint nor silently join it."""
-    _, baseline = _run_discover(suite)
+    _, baseline = discover_on_controlled_host(suite)
 
     blocked = suite / "dataset" / "task-one" / "blocked.bin"
     blocked.write_bytes(b"payload")
     blocked.chmod(0o000)
     try:
-        _, report = _run_discover(suite)
+        _, report = discover_on_controlled_host(suite)
     finally:
         blocked.chmod(0o644)
 

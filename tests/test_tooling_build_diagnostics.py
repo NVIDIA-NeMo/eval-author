@@ -358,6 +358,7 @@ def test_projection_failure_is_fixed_and_cannot_skip_fatal_cleanup(tmp_path, mod
     [
         "apt_index",
         "apt_bootstrap",
+        "apt_full_index",
         "apt_acquire",
         "apt_plan_validate",
         "apt_staging",
