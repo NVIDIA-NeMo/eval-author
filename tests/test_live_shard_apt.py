@@ -471,7 +471,7 @@ def test_ci_bootstraps_private_apt_before_both_python_test_groups():
     job = workflow["jobs"]["test"]
     assert job["strategy"]["matrix"]["python-version"] == ["3.12", "3.13"]
     bootstrap = next(step for step in job["steps"] if "bootstrap_native_apt.sh" in step.get("run", ""))
-    tests = next(step for step in job["steps"] if step.get("name") == "Run tests in two parallel groups")
+    tests = next(step for step in job["steps"] if step.get("name") == "Run tests across runner CPUs")
     assert job["steps"].index(bootstrap) < job["steps"].index(tests)
     assert bootstrap["run"] == 'bash tools/bootstrap_native_apt.sh "$RUNNER_TEMP/native-apt"'
     assert bootstrap["timeout-minutes"] == 3
