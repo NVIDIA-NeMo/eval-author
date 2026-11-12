@@ -38,6 +38,42 @@
       "files": []
     },
     {
+      "id": "rubric-contract-hidden-requirement",
+      "prompt": "Yes, I explicitly opt in to the experimental eval-author-rubric task contract and scoring authority area for this synthetic task only. Use only these inline facts; no commands or files. instruction.md, the only solver-visible text, says: \"Compute the total amount of all orders in /workspace/orders.csv and write it to /workspace/total.txt, rounded to two decimal places.\" orders.csv has amounts 120.25, 89.50 and 40.75. The verifier awards credit only when total.txt is 250.50 and /workspace/summary.json equals {\"currency\": \"USD\", \"order_count\": 3}. The reference solution writes both files. Nothing has been executed and no human has reviewed the task. Score CREATE-03, CREATE-04 and CREATE-05-A.",
+      "expected_output": "CREATE-04 = 0/E1: the summary.json condition has no solver-visible authority. CREATE-05-A = 1/E1: the 250.50 total is justified by the instruction and fixture amounts, but the summary.json values have no correctness source, and the reference solution writing them is not authority. CREATE-03 is NOT_ASSESSED: the stated instruction is clear and agrees with the total check, the unstated summary.json condition is a CREATE-04 finding rather than a CREATE-03 defect, and level 2 would need human review or an authorized probe. All evidence is agent inspection; nothing is executed and no other rubric area is scored.",
+      "assertions": [
+        "Reports CREATE-04 = 0/E1 for the summary.json condition that no solver-visible text states.",
+        "Reports CREATE-05-A = 1/E1: ties 250.50 to the instruction and fixture amounts, and does not treat the reference solution as authority for the summary.json values.",
+        "Leaves CREATE-03 NOT_ASSESSED rather than 0 or 2, records the review as agent review at E1, and executes nothing."
+      ],
+      "expected_skill": "eval-author-rubric",
+      "files": []
+    },
+    {
+      "id": "rubric-contract-agent-only",
+      "prompt": "Yes, I explicitly opt in to the experimental eval-author-rubric task contract and scoring authority area for this synthetic task only. Inline facts only; no commands or files. The instruction asks for the number of rows in /workspace/users.csv whose status is active, written as an integer to /workspace/active.txt. users.csv has five rows, three of them active. The verifier's only check reads active.txt, strips whitespace, and requires exactly 3. My agent review mapped that one condition to the instruction and recomputed 3 from the fixture. No human has reviewed the mapping and no probe has run. Can CREATE-03, CREATE-04 and CREATE-05-A score 2?",
+      "expected_output": "Reports the crosswalk measurements: one of one material condition supported, and the expected value 3 recomputed from the fixture, with reviewer kind agent. Does not award 2: level 2 needs human adjudication of the mapping or an authorized probe, so all three items stay NOT_ASSESSED rather than 0 or 1. Names the human review or probe that would complete them. Executes nothing.",
+      "assertions": [
+        "Reports the supported-condition measurement and the recomputed expected value, recording the review as agent review.",
+        "Does not score any of CREATE-03, CREATE-04 or CREATE-05-A at 2 and does not invent a defect; leaves them NOT_ASSESSED.",
+        "Names human adjudication or an authorized probe as the missing evidence for level 2; executes nothing."
+      ],
+      "expected_skill": "eval-author-rubric",
+      "files": []
+    },
+    {
+      "id": "rubric-anti-cheat-only-selection",
+      "prompt": "Yes, I explicitly opt in to the experimental eval-author-rubric anti-cheat area only, for this synthetic task. Inline facts only; no commands or files. The instruction asks only for /workspace/report.json. The verifier awards full credit when the solver-writable /workspace/success.json contains {\"ok\": true}; otherwise it checks report.json and also a /workspace/summary.json that the instruction never mentions. Code inspection confirms the success.json path is reachable. No controls have run.",
+      "expected_output": "Applies only the anti-cheat area: AC-02 = 0/E1 and AC-03 = 0/E1 for the reachable solver-writable success path, citing one shared finding ID. Does not score CREATE-03, CREATE-04 or CREATE-05-A or apply the task contract area; it may mention the unstated summary.json check as outside the selected scope and offer that area separately. Executes nothing.",
+      "assertions": [
+        "Reports AC-02 = 0/E1 and AC-03 = 0/E1 with one shared finding ID.",
+        "Does not report scores or result rows for CREATE-03, CREATE-04 or CREATE-05-A, because the task contract area was not selected.",
+        "Executes nothing and does not start an audit."
+      ],
+      "expected_skill": "eval-author-rubric",
+      "files": []
+    },
+    {
       "id": "rubric-generic-review-no-opt-in",
       "prompt": "Review this synthetic eval for data leakage and forged credit. Answer from these inline facts only; no commands or files. The verifier trusts a solver-writable success.json.",
       "expected_output": "Explains the ordinary trust-boundary concern without invoking eval-author-rubric, applying AC item scores, or treating a generic anti-cheat request as experimental opt-in.",

@@ -249,3 +249,36 @@ def test_rubric_dataset_contains_positive_and_negative_cases() -> None:
     for case in cases:
         assert case["prompt"] and case["expected_output"] and case["assertions"]
         assert case["files"] == []
+
+
+def _task_contract_items() -> list[dict]:
+    data = json.loads((SKILL / "references/task-contract-authority.json").read_text())
+    assert set(data) == {"rubric_version", "items"}, "policies and result_template stay in one source"
+    return data["items"]
+
+
+def test_task_contract_source_preserves_criterion_checks_and_anchors() -> None:
+    items = _task_contract_items()
+    assert [item["id"] for item in items] == ["CREATE-03", "CREATE-04", "CREATE-05-A"]
+    checks = [check for item in items for check in item["checks"]]
+    assert len(checks) == len({check["id"] for check in checks}) == 9
+    for item in items:
+        assert set(item["scoring"]) == {"0", "1", "2", "3"}
+        ids = [check["id"] for check in item["checks"]]
+        assert ids == sorted(ids) and all(i.startswith(item["id"] + "-C") for i in ids)
+        assert {check["method"] for check in item["checks"]} == set(item["methods"])
+
+
+def test_task_contract_reference_links_each_criterion_without_copying_anchors() -> None:
+    text = (SKILL / "references/task-contract-authority.md").read_text()
+    items = _task_contract_items()
+    sections = dict(re.findall(r"## ([A-Z]+-\d+(?:-[A-Z])?) — ([\s\S]*?)(?=\n## |\Z)", text))
+    assert set(sections) == {item["id"] for item in items}
+    for index, item in enumerate(items):
+        section = sections[item["id"]]
+        assert section.startswith(item["title"] + "\n")
+        assert f"task-contract-authority.json#/items/{index}" in section
+        assert "**Methods and evidence:**" in section and "**Assessment limit:**" in section
+        for anchor in item["scoring"].values():
+            assert anchor not in text, "Keep full score anchors in canonical JSON only"
+    assert not re.search(r"\bW\d\d\b", text)

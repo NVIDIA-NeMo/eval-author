@@ -1163,7 +1163,7 @@ def test_seed_datasets_are_bounded_and_have_negative_cases(live):
         "team-skills/ethos/ethos-write",
     ):
         skill = ROOT / path
-        expected_count = 6 if skill.name in ("eval-author", "eval-author-first-eval", "eval-author-rubric") else 4
+        expected_count = {"eval-author": 6, "eval-author-first-eval": 6, "eval-author-rubric": 9}.get(skill.name, 4)
         assert live.dataset_cases(skill) == expected_count
         cases = json.loads((skill / "evals/evals.json").read_text())["evals"]
         expected_negative_count = 3 if skill.name == "eval-author-rubric" else 1
@@ -1173,17 +1173,17 @@ def test_seed_datasets_are_bounded_and_have_negative_cases(live):
                 assert (skill / "evals" / filename).is_file()
 
 
-@pytest.mark.parametrize("count", [0, 1, 4, 6, 7])
+@pytest.mark.parametrize("count", [0, 1, 4, 9, 10])
 def test_dataset_case_limit(live, repo, count):
     skill = repo / "skills/eval-author"
     path = skill / "evals/evals.json"
     data = json.loads(path.read_text())
     data["evals"] = [{"id": str(i), "prompt": "Task", "expected_output": "Answer"} for i in range(count)]
     path.write_text(json.dumps(data))
-    if 1 <= count <= 6:
+    if 1 <= count <= 9:
         assert live.dataset_cases(skill) == count
     else:
-        with pytest.raises(ValueError, match="expected one to six authored cases"):
+        with pytest.raises(ValueError, match="expected one to 9 authored cases"):
             live.dataset_cases(skill)
 
 

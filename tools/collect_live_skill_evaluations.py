@@ -35,6 +35,7 @@ HUB_KEY = "INFERENCE_HUB_API_KEY"
 DEFAULT_CHAT_MODEL = "azure/openai/gpt-5.6-luna"
 DEFAULT_EMBEDDING_MODEL = "azure/openai/text-embedding-3-small"
 TIER3_TIMEOUT_SECONDS = LIVE_EXECUTION_SECONDS
+MAX_DATASET_CASES = 9
 DIMENSIONS = ("security", "correctness", "discoverability", "effectiveness", "efficiency")
 FINDINGS = {"duplicate", "EXACT_DUPLICATE", "HIGH_SIMILARITY", "SIMILAR", "LOOSELY_RELATED", "DISTINCT"}
 
@@ -318,8 +319,8 @@ def dataset_cases(skill):
         return None
     data = json.loads(path.read_text())
     cases = data["evals"]
-    if data["skill_name"] != skill.name or not isinstance(cases, list) or not 1 <= len(cases) <= 6:
-        raise ValueError("expected one to six authored cases")
+    if data["skill_name"] != skill.name or not isinstance(cases, list) or not 1 <= len(cases) <= MAX_DATASET_CASES:
+        raise ValueError(f"expected one to {MAX_DATASET_CASES} authored cases")
     ids = [case["id"] for case in cases]
     if len(set(ids)) != len(ids):
         raise ValueError("duplicate case IDs")
@@ -484,7 +485,7 @@ def _collect(
             "attempts": 1,
             "concurrency": 1,
             "baseline": True,
-            "max_cases_per_skill": 4,
+            "max_cases_per_skill": MAX_DATASET_CASES,
             "tier2_timeout_seconds": 300,
             "tier3_timeout_seconds": TIER3_TIMEOUT_SECONDS,
             "monetary_budget_enforced": False,
