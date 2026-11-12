@@ -63,7 +63,10 @@ A full audit quietly checks for saved progress before choosing its introduction.
 For a new audit, choose one of two approaches before setup checks:
 
 - **Review tasks only.** Review scenarios, fixtures, and verifiers against
-  the agent's intended behavior (`ETHOS.md`). This needs no saved runs.
+  the agent's intended behavior (`ETHOS.md`). This needs no saved runs. Each
+  scored check must trace to the task instruction and a justified expected value,
+  the same standard Eval Author applies to tasks it creates. Checks for
+  requirements the instruction never states are reported as false rejections.
 - **Full review with measured evaluation runs.** Review tasks, then analyze
   saved agent runs to validate that intended behaviors and tools are covered.
   Uses additional tokens.

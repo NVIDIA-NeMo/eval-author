@@ -45,6 +45,25 @@
       "files": []
     },
     {
+      "id": "audit-verifier-hidden-requirement",
+      "prompt": "Check whether the verifier of my existing Harbor task at /workspace/input/tasks/order-total can be trusted. Inspect its files only: do not run the task or its tests, write files, start a guided audit, or ask setup questions. Report each issue with its audit finding category and basis.",
+      "expected_output": "Reads the task's instruction, verifier, fixture, and reference solution. Finds that tests/test.sh also requires /workspace/summary.json with currency and order_count, which instruction.md never asks for, so a solution that follows the instruction is rejected; classifies it as false_rejection with inspection basis. Treats the total.txt check as supported: the instruction asks for a two-decimal total and the fixture amounts sum to 250.50. Executes nothing and writes nothing.",
+      "assertions": [
+        "Identifies the summary.json requirement in tests/test.sh as absent from instruction.md and classifies it as false_rejection with inspection basis, without claiming that any control or task execution confirmed it.",
+        "Does not report the total.txt check as a hidden requirement; ties its expected 250.50 value to the instruction and the fixture amounts.",
+        "Stays read-only and scoped: does not run the task or tests, write files, start the guided audit, or ask setup questions."
+      ],
+      "expected_skill": "eval-author-audit",
+      "files": [
+        "files/tasks/order-total/task.toml",
+        "files/tasks/order-total/instruction.md",
+        "files/tasks/order-total/environment/Dockerfile",
+        "files/tasks/order-total/environment/orders.csv",
+        "files/tasks/order-total/tests/test.sh",
+        "files/tasks/order-total/solution/solve.sh"
+      ]
+    },
+    {
       "id": "eval-author-audit-negative",
       "prompt": "What is 17 + 25? Reply with the number only.",
       "expected_output": "42",
