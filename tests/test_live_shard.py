@@ -122,7 +122,8 @@ def test_runtime_installs_each_job_with_managed_python_and_keyless_env(shard, mo
     assert events[-1][0] == "handoff"
 
 
-def test_prepare_explicit_worker_selection_reaches_keyless_child(shard, tmp_path):
+@pytest.mark.parametrize("workers", [None, 1, 2, 4, 8])
+def test_prepare_default_or_explicit_worker_selection_reaches_keyless_child(shard, tmp_path, workers):
     import json
 
     module, root, events, phase = shard
@@ -130,9 +131,9 @@ def test_prepare_explicit_worker_selection_reaches_keyless_child(shard, tmp_path
     config = json.loads(config_path.read_text())
     config["phase"] = "relocate"
     config_path.write_text(json.dumps(config))
-    assert phase("prepare", "--workers", "4") == 0
+    assert phase("prepare", *([] if workers is None else ["--workers", str(workers)])) == 0
     execution = next(e[1] for e in events if e[0] == "execute")
-    assert execution[1][-2:] == ["--workers", "4"]
+    assert execution[1][-2:] == ["--workers", str(2 if workers is None else workers)]
     assert not any("KEY" in name for name in execution[3])
     assert events[-1][0] == "handoff"
 
@@ -292,6 +293,8 @@ def test_relocation_gates_installed_python_before_full_preparation(shard):
         str(root / "workspace/prepared-live-images"),
         "--private-diagnostics",
         str(root / "workspace/preparation-docker-failure.private.json"),
+        "--workers",
+        "2",
     ]
     assert 0 < events[0][1][5] <= 900
     assert events[-1][0] == "handoff"

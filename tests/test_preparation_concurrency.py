@@ -92,16 +92,17 @@ def wait_path(path):
 
 
 @pytest.mark.parametrize("controlled", [10], indirect=True)
-@pytest.mark.parametrize("workers", [1, 2, 4, 8])
-def test_real_subprocess_admission_matches_explicit_bound(runtime, controlled, tmp_path, workers):
+@pytest.mark.parametrize("workers", [None, 1, 2, 4, 8])
+def test_real_subprocess_admission_matches_default_or_explicit_bound(runtime, controlled, tmp_path, workers):
     skill, output, state, ids, _ = controlled
+    bound = 2 if workers is None else workers
     errors = []
 
     def release():
         try:
-            for identity in ids[:workers]:
+            for identity in ids[:bound]:
                 wait_path(state / ("source-" + identity))
-            assert len(list(state.glob("source-*"))) == workers
+            assert len(list(state.glob("source-*"))) == bound
         except Exception as error:
             errors.append(error)
         finally:
@@ -111,11 +112,14 @@ def test_real_subprocess_admission_matches_explicit_bound(runtime, controlled, t
     controller = threading.Thread(target=release)
     controller.start()
     try:
-        path = runtime.prepare_images(skill, output, tmp_path / "binary.json", workers=workers)
+        path = runtime.prepare_images(
+            skill, output, tmp_path / "binary.json", **({} if workers is None else {"workers": workers})
+        )
     finally:
         controller.join(8)
     assert not controller.is_alive() and not errors
     assert len(json.loads(path.read_text())["images"]) == 10
+    assert runtime._PREPARATION_WORKERS.get() == 2
 
 
 def test_two_real_subprocess_chains_overlap_dedup_and_publish_in_arm_order(runtime, controlled, tmp_path):
@@ -295,10 +299,20 @@ def test_failure_checkpoint_error_preserves_first_execution_failure(runtime, tmp
     )
 
 
-def test_keyless_cli_explicit_workers_reaches_production(runtime, tmp_path, monkeypatch):
+@pytest.mark.parametrize("workers", [None, 1, 2, 4, 8])
+def test_keyless_cli_default_or_explicit_workers_reaches_production(runtime, tmp_path, monkeypatch, workers):
     cli = importlib.import_module("prepare_live_images")
     calls = []
-    monkeypatch.setattr(cli, "prepare_images", lambda *a, **kw: calls.append(kw))
+    active_workers = []
+
+    def prepare(*args, **kwargs):
+        calls.append(kwargs)
+        return runtime.prepare_images(*args, **kwargs)
+
+    monkeypatch.setattr(cli, "prepare_images", prepare)
+    monkeypatch.setattr(
+        runtime, "_prepare_images", lambda *a: active_workers.append(runtime._PREPARATION_WORKERS.get())
+    )
     monkeypatch.setattr(
         sys,
         "argv",
@@ -310,13 +324,14 @@ def test_keyless_cli_explicit_workers_reaches_production(runtime, tmp_path, monk
             str(tmp_path / "out"),
             "--binary-manifest",
             str(tmp_path / "binary"),
-            "--workers",
-            "8",
+            *([] if workers is None else ["--workers", str(workers)]),
         ],
     )
     monkeypatch.setattr(os, "environ", {"PATH": "/usr/bin:/bin", "INFERENCE_HUB_API_KEY": "never-forward"})
     cli.main()
-    assert calls[0]["workers"] == 8
+    bound = 2 if workers is None else workers
+    assert calls[0]["workers"] == bound
+    assert active_workers == [bound]
     assert "INFERENCE_HUB_API_KEY" not in os.environ
 
 

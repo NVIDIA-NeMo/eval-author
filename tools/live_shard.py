@@ -19,6 +19,7 @@ from pathlib import Path
 from live_agent_diagnostics import read_regular
 from live_shard_boundary import attach_boundary, close_boundary, create_boundary, execute_in_boundary, handoff_boundary
 from patched_opencode_runtime import (
+    DEFAULT_PREPARATION_WORKERS,
     LIVE_EXECUTION_SECONDS,
     LIVE_HANDOFF_SECONDS,
     PREPARATION_TIMEOUT_SECONDS,
@@ -66,6 +67,8 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
     if args.workers is not None and args.phase != "prepare":
         parser.error("--workers is only supported for prepare")
+    if args.phase == "prepare" and args.workers is None:
+        args.workers = DEFAULT_PREPARATION_WORKERS
     return args
 
 
@@ -255,8 +258,7 @@ def _run_phase(args):
             ]
             if args.timing_checkpoint:
                 argv.extend(["--timing-checkpoint", str(workspace / "preparation-operation-timing.json")])
-            if args.workers is not None:
-                argv.extend(["--workers", str(args.workers)])
+            argv.extend(["--workers", str(args.workers)])
             execute(argv, "prepare")
         elif args.phase == "run":
             if not math.isfinite(config["deadline"]) or config["deadline"] - time.monotonic() <= RUN_PHASE_SECONDS:

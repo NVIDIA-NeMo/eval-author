@@ -321,8 +321,10 @@ with remaining preparation budget. Image completion means its offline probe
 passed. Shared dependency work is measured before trial-image clocks start.
 `tools/prepare_live_images.py --workers {1,2,4,8}` and
 `tools/live_shard.py prepare --workers {1,2,4,8}` explicitly select bounded
-concurrent task-image chains. The default remains serial (1) until cold hosted
-benchmarks select a winner. The immutable shared default dependency parent is
+concurrent task-image chains. Ordinary required preparation defaults to two
+workers; `--workers 1` explicitly restores serial preparation. The 1/2/4/8
+benchmark overrides remain available; the default is not a measured speedup claim.
+The immutable shared default dependency parent is
 built once; each unique task identity retains source-build, layer-build and
 offline-probe order. All workers share the same absolute preparation deadline.
 On failure, new chains stop admission and admitted clients settle before outer

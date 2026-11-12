@@ -149,7 +149,8 @@ LIVE_HANDOFF_SECONDS = 60
 PREPARATION_TIMEOUT_SECONDS = 900
 _PREPARATION_DEADLINE: ContextVar[float | None] = ContextVar("prepared_image_deadline", default=None)
 _PREPARATION_PHASE = ContextVar("prepared_image_phase", default="unknown")
-_PREPARATION_WORKERS = ContextVar("preparation_workers", default=1)
+DEFAULT_PREPARATION_WORKERS = 2
+_PREPARATION_WORKERS = ContextVar("preparation_workers", default=DEFAULT_PREPARATION_WORKERS)
 _PREPARATION_STOP: ContextVar[Event | None] = ContextVar("preparation_stop", default=None)
 PREPARATION_WORKERS = (1, 2, 4, 8)
 PREPARATION_CATEGORIES = frozenset(
@@ -583,7 +584,15 @@ def check_prepared_image(identity, record, platform, *, probe=False, binary=None
         check_package_versions(versions)
 
 
-def prepare_images(skill, output, binary_manifest, *, workers=1, timing_checkpoint=None, private_diagnostics=None):
+def prepare_images(
+    skill,
+    output,
+    binary_manifest,
+    *,
+    workers=DEFAULT_PREPARATION_WORKERS,
+    timing_checkpoint=None,
+    private_diagnostics=None,
+):
     if type(workers) is not int or workers not in PREPARATION_WORKERS:
         raise PreparationError("validation_error", "budget")
     workers_token = _PREPARATION_WORKERS.set(workers)
