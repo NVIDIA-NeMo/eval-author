@@ -1183,7 +1183,7 @@ def test_dataset_case_limit(live, repo, count):
     if 1 <= count <= 9:
         assert live.dataset_cases(skill) == count
     else:
-        with pytest.raises(ValueError, match="expected one to 9 authored cases"):
+        with pytest.raises(ValueError, match="expected 1 to 9 authored cases"):
             live.dataset_cases(skill)
 
 

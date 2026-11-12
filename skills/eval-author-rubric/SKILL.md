@@ -80,7 +80,7 @@ the area or criterion IDs explicitly requested by the user:
 
 If the named-rubric request leaves the area ambiguous, clarify the scope once
 before inspecting artifacts. Do not apply unselected areas. An explicit request
-for both areas selects both; selecting particular IDs does not select their whole area.
+for several areas selects each named area; selecting particular IDs does not select their whole area.
 Coverage, diversity, and the remaining validity areas are not implemented.
 Do not score them or imply overall evaluation quality. Retained-credit checks and
 identity-aware coverage are separate consumers, not prerequisites for this assessment.
@@ -155,7 +155,7 @@ For each selected criterion, report its original ID, applicability, score or
 explicit unassessed status, evidence strength, measurement, evidence references,
 limitation, and next action.
 Use that criterion's scoring rules. Do not transfer anti-cheat evidence floors to
-artifact, configuration, and provenance criteria.
+artifact, configuration, and provenance or task contract criteria.
 Lead with confirmed defects and what results cannot be trusted, then incomplete
 checks. Keep instructions, claims,
 and measured facts separate. Use short, direct explanations with source IDs;

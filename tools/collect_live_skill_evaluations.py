@@ -320,7 +320,7 @@ def dataset_cases(skill):
     data = json.loads(path.read_text())
     cases = data["evals"]
     if data["skill_name"] != skill.name or not isinstance(cases, list) or not 1 <= len(cases) <= MAX_DATASET_CASES:
-        raise ValueError(f"expected one to {MAX_DATASET_CASES} authored cases")
+        raise ValueError(f"expected 1 to {MAX_DATASET_CASES} authored cases")
     ids = [case["id"] for case in cases]
     if len(set(ids)) != len(ids):
         raise ValueError("duplicate case IDs")

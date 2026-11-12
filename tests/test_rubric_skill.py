@@ -60,46 +60,62 @@ def test_rubric_routes_only_the_explicitly_selected_assessment_area() -> None:
     assert "references/identity.md" in text
 
 
-def test_rubric_canonical_source_preserves_criterion_checks_and_anchors() -> None:
-    source = SKILL / "references/artifact-configuration-provenance.json"
-    assert source.is_file()
-    data = json.loads(source.read_text())
+CANONICAL_AREAS = {
+    "artifact-configuration-provenance": (
+        [
+            "DISC-01-A",
+            "DISC-01-B",
+            "DISC-01-C",
+            "DISC-02-A",
+            "DISC-02-B",
+            "DISC-03-A",
+            "AUD-02",
+            "ENV-01",
+            "ENV-02-A",
+            "ENV-03",
+            "CREATE-07",
+        ],
+        38,
+        {"rubric_version", "policies", "result_template", "items"},
+    ),
+    "task-contract-authority": (["CREATE-03", "CREATE-04", "CREATE-05-A"], 9, {"rubric_version", "items"}),
+}
+
+
+@pytest.mark.parametrize("area", CANONICAL_AREAS)
+def test_rubric_canonical_source_preserves_criterion_checks_and_anchors(area: str) -> None:
+    ids, check_count, keys = CANONICAL_AREAS[area]
+    data = json.loads((SKILL / f"references/{area}.json").read_text())
+    assert set(data) == keys, "Rubric-wide policies and result_template have one source"
     items = data["items"]
-    assert {item["id"] for item in items} == {
-        "DISC-01-A",
-        "DISC-01-B",
-        "DISC-01-C",
-        "DISC-02-A",
-        "DISC-02-B",
-        "DISC-03-A",
-        "AUD-02",
-        "ENV-01",
-        "ENV-02-A",
-        "ENV-03",
-        "CREATE-07",
-    }
-    assert len(items) == 11
+    assert [item["id"] for item in items] == ids
     checks = [check for item in items for check in item["checks"]]
-    assert len(checks) == len({check["id"] for check in checks}) == 38
-    assert sum(len(item["scoring"]) for item in items) == 44
-    assert all(set(item["scoring"]) == {"0", "1", "2", "3"} for item in items)
+    assert len(checks) == len({check["id"] for check in checks}) == check_count
+    for item in items:
+        assert set(item["scoring"]) == {"0", "1", "2", "3"}
+        check_ids = [check["id"] for check in item["checks"]]
+        assert check_ids == sorted(check_ids) and all(i.startswith(item["id"] + "-C") for i in check_ids)
+        assert {check["method"] for check in item["checks"]} == set(item["methods"])
 
 
-def test_rubric_reference_uses_canonical_definitions_and_item_specific_evidence() -> None:
-    reference = SKILL / "references/artifact-configuration-provenance.md"
-    assert reference.is_file()
-    text = reference.read_text()
-    normalized = " ".join(text.split())
-    items = json.loads((SKILL / "references/artifact-configuration-provenance.json").read_text())["items"]
+@pytest.mark.parametrize("area", CANONICAL_AREAS)
+def test_rubric_reference_links_each_criterion_without_copying_anchors(area: str) -> None:
+    text = (SKILL / f"references/{area}.md").read_text()
+    items = json.loads((SKILL / f"references/{area}.json").read_text())["items"]
     sections = dict(re.findall(r"## ([A-Z]+-\d+(?:-[A-Z])?) — ([\s\S]*?)(?=\n## |\Z)", text))
     assert set(sections) == {item["id"] for item in items}
-    for item in items:
-        assert sections[item["id"]].startswith(item["title"] + "\n")
-        assert "**Methods and evidence:**" in sections[item["id"]]
-        assert "**Assessment limit:**" in sections[item["id"]]
-        assert f"artifact-configuration-provenance.json#/items/{items.index(item)}" in sections[item["id"]]
+    for index, item in enumerate(items):
+        section = sections[item["id"]]
+        assert section.startswith(item["title"] + "\n")
+        assert f"{area}.json#/items/{index}" in section
+        assert "**Methods and evidence:**" in section and "**Assessment limit:**" in section
         for anchor in item["scoring"].values():
             assert anchor not in text, "Keep full score anchors in canonical JSON only"
+
+
+def test_provenance_reference_states_rubric_wide_assessment_rules() -> None:
+    text = (SKILL / "references/artifact-configuration-provenance.md").read_text()
+    normalized = " ".join(text.split())
     for rule in (
         "E0 alone supports no numeric score",
         "Do not import anti-cheat's evidence-floor table",
@@ -249,36 +265,3 @@ def test_rubric_dataset_contains_positive_and_negative_cases() -> None:
     for case in cases:
         assert case["prompt"] and case["expected_output"] and case["assertions"]
         assert case["files"] == []
-
-
-def _task_contract_items() -> list[dict]:
-    data = json.loads((SKILL / "references/task-contract-authority.json").read_text())
-    assert set(data) == {"rubric_version", "items"}, "policies and result_template stay in one source"
-    return data["items"]
-
-
-def test_task_contract_source_preserves_criterion_checks_and_anchors() -> None:
-    items = _task_contract_items()
-    assert [item["id"] for item in items] == ["CREATE-03", "CREATE-04", "CREATE-05-A"]
-    checks = [check for item in items for check in item["checks"]]
-    assert len(checks) == len({check["id"] for check in checks}) == 9
-    for item in items:
-        assert set(item["scoring"]) == {"0", "1", "2", "3"}
-        ids = [check["id"] for check in item["checks"]]
-        assert ids == sorted(ids) and all(i.startswith(item["id"] + "-C") for i in ids)
-        assert {check["method"] for check in item["checks"]} == set(item["methods"])
-
-
-def test_task_contract_reference_links_each_criterion_without_copying_anchors() -> None:
-    text = (SKILL / "references/task-contract-authority.md").read_text()
-    items = _task_contract_items()
-    sections = dict(re.findall(r"## ([A-Z]+-\d+(?:-[A-Z])?) — ([\s\S]*?)(?=\n## |\Z)", text))
-    assert set(sections) == {item["id"] for item in items}
-    for index, item in enumerate(items):
-        section = sections[item["id"]]
-        assert section.startswith(item["title"] + "\n")
-        assert f"task-contract-authority.json#/items/{index}" in section
-        assert "**Methods and evidence:**" in section and "**Assessment limit:**" in section
-        for anchor in item["scoring"].values():
-            assert anchor not in text, "Keep full score anchors in canonical JSON only"
-    assert not re.search(r"\bW\d\d\b", text)

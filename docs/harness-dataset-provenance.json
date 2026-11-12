@@ -245,7 +245,7 @@
       },
       {
         "path": "skills/eval-author-audit/evals/files/tasks/order-total/instruction.md",
-        "sha256": "67eab241de0526614fa8149e1385155bd0a890c41eb2ab8e70a4a705d1f70977",
+        "sha256": "955f0801cbda8210e1b026729d5b0c50c9915a21fbf18c3f88ec4f5c2a8de6c6",
         "description": "Synthetic Harbor task whose verifier also requires an unstated summary.json; inspected, never executed"
       },
       {

@@ -10,14 +10,16 @@ same way to every task, whoever or whatever produced it. It has no aggregate sco
 
 ## Canonical definitions
 
-The [frozen Rubric v4 subset](task-contract-authority.json) is the single source
+The [canonical Rubric v4 subset](task-contract-authority.json) is the single source
 for the three criterion IDs, original questions, measurements, nine checks, score
 anchors, evidence requirements, and boundaries. Read each selected `items` entry
 in full before assessment. Rubric-wide `policies` and the `result_template` row
 format are defined once in [the provenance subset](artifact-configuration-provenance.json);
-apply them here unchanged. Every selected criterion gets a result row, and every
-canonical check in it gets an outcome or an explicit not-run, blocked, or
-not-applicable reason.
+apply them here unchanged. Apply the result-row, check-accounting, assessment-state,
+defect-precedence, and evidence-strength rules in
+[assessment and evidence](artifact-configuration-provenance.md#assessment-and-evidence);
+its criterion count and level-acceptance exceptions belong to that area. The
+rules below add this area's requirements.
 
 ## Inputs
 
@@ -57,26 +59,27 @@ they are review notes, not a new file format.
 
 ## Scoring rules
 
-- CREATE-03-C01, CREATE-04-C01, and CREATE-05-A-C02 are `llm_as_judge` checks,
-  and no judge is qualified for this area. Record your review with reviewer kind
-  `agent`; never label it human review or a qualified judge.
-- Agent review alone can support 0 or 1 at E1 when cited files establish the
-  anchor. Confirming an unsupported condition requires inspecting the full
-  declared solver-visible material; an incomplete search cannot establish absence.
-- Level 2 additionally requires human adjudication of the crosswalk by the user
-  or task owner, recorded as `human_review` with its source, or an authorized
-  probe through the native scorer (CREATE-03-C03, CREATE-04-C03). Without either,
-  an agent-only crosswalk with no defect leaves the item `NOT_ASSESSED`: report
-  its measurements and name the review or probe that would complete it.
-- Level 3 follows each canonical anchor and requires independent corroboration.
-- E0 assertions support no numeric score. E1 is inspectable files, E2 an
-  executed probe on the identified revision, and E3 independent corroboration.
-  Execution raises evidence strength, not merit.
-- A confirmed defect outweighs supported rows in the same criterion. Reuse one
-  finding ID across criteria only when each criterion's own anchor is met.
+- CREATE-03-C01, CREATE-04-C01, and CREATE-05-A-C02 are `llm_as_judge` checks.
+  Unless a scope-matched qualification record is supplied, record your review
+  with reviewer kind `agent`; never label it human review or a qualified judge.
+- A score of 0 or 1 at E1 rests on the cited files, not on that review's verdict.
+  Cite the scorer location and the solver-visible span, fixture, or source that
+  establish the anchor, so a reader can check it without trusting the review.
+  Confirming an unsupported condition requires inspecting the full declared
+  solver-visible material; an incomplete search cannot establish absence.
+- Level 2 requires human adjudication of the crosswalk by the user or task owner,
+  recorded as `human_review` with its source: CREATE-03-C02 for the contract
+  interpretation, CREATE-05-A-C01 for correctness authority, and for CREATE-04 a
+  human decision on the CREATE-04-C01 mapping, as the qualified alternative to
+  the unqualified judge. Without it, an agent-only crosswalk with no defect leaves
+  the item `NOT_ASSESSED`: report its measurements and name the review that
+  would complete it.
+- Authorized probes through the native scorer (CREATE-03-C03, CREATE-04-C03)
+  supply the boundary and blind-discovery evidence for the level-3 anchors; they
+  do not replace level-2 adjudication. Level 3 also requires independent
+  corroboration.
 - CREATE-04-C02 and CREATE-05-A-C03 count crosswalk rows by status against all
   material scored conditions and expected results. Report the denominators.
-- `NOT_ASSESSED` is not 0. `NOT_APPLICABLE` needs a task-specific reason.
 
 ## CREATE-03 — Clear task contract
 
