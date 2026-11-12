@@ -5,8 +5,9 @@ description: >-
   Experimental rubric requiring explicit end-user opt-in to eval-author-rubric
   for selected tasks or suites; never run by default or infer consent from a
   generic review request. Covers validity, coverage, and diversity. The
-  populated areas are anti-cheat within validity and artifact, configuration,
-  and provenance, selected separately. Other areas remain unimplemented. Does not start an
+  populated areas are anti-cheat within validity; artifact, configuration, and
+  provenance; and task contract and scoring authority, each selected
+  separately. Other areas remain unimplemented. Does not start an
   audit, run controls without approval, or certify overall evaluation quality.
 triggers:
   - apply eval-author-rubric to these tasks
@@ -72,6 +73,10 @@ the area or criterion IDs explicitly requested by the user:
   [the canonical assessment](references/artifact-configuration-provenance.md)
   for its original criterion IDs and item-specific anchors. Artifact, configuration,
   and provenance opt-in does not select anti-cheat.
+- **Task contract and scoring authority:** use
+  [the task contract assessment](references/task-contract-authority.md) for
+  CREATE-03, CREATE-04, and CREATE-05-A. Selecting this area selects neither of
+  the others, and selecting another area does not select it.
 
 If the named-rubric request leaves the area ambiguous, clarify the scope once
 before inspecting artifacts. Do not apply unselected areas. An explicit request
