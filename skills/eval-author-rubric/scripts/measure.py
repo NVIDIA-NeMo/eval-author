@@ -15,7 +15,7 @@ from eval_author_shared.task_evidence import loads  # noqa: E402
 from rubric_configuration import compare_sourced_config  # noqa: E402
 from rubric_ethos import check_ethos  # noqa: E402
 from rubric_freshness import check_freshness  # noqa: E402
-from rubric_identity import compare_config, finish, identify, resolve_route, text  # noqa: E402
+from rubric_identity import compare_config, finish, identify, read_selected, resolve_route, text  # noqa: E402
 from rubric_links import check_approvals, check_links, check_sourced_approvals  # noqa: E402
 from rubric_native import project_native  # noqa: E402
 from rubric_reconstruction import project_reconstruction  # noqa: E402
@@ -24,6 +24,13 @@ from rubric_scoring import assess  # noqa: E402
 
 
 def measure(root, selection, ethos_validator=None):
+    selected_root = Path(root).absolute()
+    root_identity = None
+    if isinstance(selection, dict) and "scorer_controls" in selection:
+        if any(path.is_symlink() for path in (selected_root, *selected_root.parents)):
+            raise ValueError("selected evidence root is a symlink")
+        stat = selected_root.stat()
+        root_identity = (stat.st_dev, stat.st_ino)
     root = Path(root).resolve(strict=True)
     json.dumps(selection, allow_nan=False)
     if not isinstance(selection, dict):
@@ -85,14 +92,33 @@ def measure(root, selection, ethos_validator=None):
         if not all(isinstance(ids, list) and all(text(ident) for ident in ids) for ids in selected_native.values()):
             raise ValueError("invalid native selection")
         measurements["native"] = project_native(root, identity, **selected_native)
+    if "scorer_controls" in selection:
+        from rubric_scorer_controls import project
+
+        measurements["scorer_controls"] = project(root, selection)
+    items = build_report(assess(measurements, selection, root=root), measurements, selection, root)
+    if "scorer_controls" in selection:
+        from rubric_scorer_controls import project
+
+        current = project(root, selection)
+        stat = selected_root.stat()
+        if (
+            current != measurements["scorer_controls"]
+            or identify(root, artifacts) != identity
+            or root_identity != (stat.st_dev, stat.st_ino)
+            or any(path.is_symlink() for path in (selected_root, *selected_root.parents))
+        ):
+            raise ValueError("selected evidence changed during assessment")
     return {
         "schema": "rubric-measurements-v2",
         "experimental": True,
         "scope": "explicit-local-selection",
         "preflight_success": False,
-        "anti_cheat_scores": None,
+        "anti_cheat_scores": {key: items[key]["score"] for key in ("AC-01", "AC-02", "AC-03", "AC-04")}
+        if "scorer_controls" in selection
+        else None,
         "measurements": measurements,
-        "items": build_report(assess(measurements, selection, root=root), measurements, selection, root),
+        "items": items,
     }
 
 
@@ -101,10 +127,18 @@ def main(argv=None):
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--selection", required=True, type=Path)
     parser.add_argument("--ethos-validator", type=Path, help="ethos-write's scripts/validate_ethos.py")
+    parser.add_argument(
+        "--verify-existing", type=Path, help="Compare a retained report with a fresh read-only assessment"
+    )
     args = parser.parse_args(argv)
     try:
         report = measure(args.root.absolute(), loads(args.selection.read_text()), args.ethos_validator)
         output = json.dumps(report, sort_keys=True, indent=2, allow_nan=False)
+        if args.verify_existing:
+            root = args.root.absolute()
+            data, reason = read_selected(root, args.verify_existing.absolute().relative_to(root).as_posix())
+            if reason or data is None or json.dumps(loads(data), sort_keys=True, indent=2, allow_nan=False) != output:
+                raise ValueError("retained report disagrees with current evidence")
     except (OSError, ValueError, TypeError, KeyError):
         print(
             json.dumps(

@@ -1,0 +1,26 @@
+{
+  "schema": "refund-control-applicability-v1",
+  "criterion": "AC-02",
+  "scope": "Both selected refund grading arms over the fixed scripted-event vocabulary, including the native submission/worker/result path.",
+  "reviewer_kind": "agent",
+  "reachable_path": "evaluate validates candidate events, applies them to private state, then computes per-check and total credit. The baseline completion_only branch trusts the solver-controlled success boolean without enforcing mandatory checks; the reviewed arm gates total credit on every mandatory check.",
+  "attack_classes": {
+    "early-exit-no-work": ["no-work"],
+    "forged-success-and-stale-business-events": ["no-work", "stale-carryover"],
+    "incorrect-effects": ["wrong-customer", "wrong-order", "wrong-amount", "wrong-destination", "missing-approval", "late-approval", "missing-ledger", "duplicate-ledger"],
+    "state-tampering": ["protected-mutation", "historical-mutation"]
+  },
+  "excluded_classes": {
+    "inert-reference-text-and-copied-answers": "The exact candidate schema accepts events and a success boolean, not reference text or final-state claims. Copying valid events performs the requested synthetic actions and is permitted by this contract; no source or text-presence predicate is scored. The no-work forged-success control tests the accepted assertion channel."
+  },
+  "unresolved_classes": {
+    "all-failure-stub": "No valid-schema all-failure control with events=[] and success=false is exercised. no-work claims success=true; missing-completion performs the required work. Malformed inputs and helper failures are operational errors, not healthy all-failure defenses.",
+    "native-submission-early-exit": "The fixed copying agent does not exercise solver-process early exit leaving absent or stale submissions. The event-level no-work control does not establish submission handoff robustness.",
+    "native-stale-success-after-later-failure": "stale-carryover contains old business run identifiers, not stale native success after a later failure. helper-error does not leave successful consumer output behind before failing. A stale-output/later-failure control with a current valid-result neighbor is missing.",
+    "native-scorer-test-tampering": "No refund-scoped solver-role scorer/test/expected-output mutation or forged reward/checks output attempt is exercised. The event vocabulary excludes file writes, but the selected native role can attempt filesystem access. The obedient copying agent, permission flags and denied manifest read do not discharge this applicable native boundary."
+  },
+  "required_valid_controls": ["reference", "split-alternative", "approval-threshold-inclusive", "below-approval-threshold", "permitted-zero-balance-inaction", "missing-completion"],
+  "native_paths": ["submission", "worker", "result-consumer"],
+  "fixture_gaps": ["Applicable native submission, worker and result-consumer controls have not been consumed; fixture execution does not prove native health or reach."],
+  "remaining_gaps": ["No independently authored held-out attacks or valid alternatives corroborate this panel; score 3 is unsupported.", "Scripted approval events do not authenticate human authority. No model behavior or external payment effect is measured."]
+}

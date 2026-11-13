@@ -291,4 +291,8 @@ def assess(measurements, selection, root: Path | None = None):
         rows["CREATE-07"]["limitations"].append(
             "A mismatched digest alone does not show incompatible results were silently combined; material change impact and reuse disposition are unknown."
         )
+    if "scorer_controls" in selection:
+        from rubric_scorer_controls import assess_controls
+
+        rows.update(assess_controls(measurements, selection, root))
     return rows
