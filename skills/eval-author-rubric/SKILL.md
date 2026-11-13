@@ -5,8 +5,9 @@ description: >-
   Experimental rubric requiring explicit end-user opt-in to eval-author-rubric
   for selected tasks or suites; never run by default or infer consent from a
   generic review request. Covers validity, coverage, and diversity. The
-  populated areas are anti-cheat within validity and artifact, configuration,
-  and provenance, selected separately. Other areas remain unimplemented. Does not start an
+  populated areas are anti-cheat within validity; artifact, configuration, and
+  provenance; and task contract and scoring authority, each selected
+  separately. Other areas remain unimplemented. Does not start an
   audit, run controls without approval, or certify overall evaluation quality.
 triggers:
   - apply eval-author-rubric to these tasks
@@ -72,10 +73,14 @@ the area or criterion IDs explicitly requested by the user:
   [the canonical assessment](references/artifact-configuration-provenance.md)
   for its original criterion IDs and item-specific anchors. Artifact, configuration,
   and provenance opt-in does not select anti-cheat.
+- **Task contract and scoring authority:** use
+  [the task contract assessment](references/task-contract-authority.md) for
+  CREATE-03, CREATE-04, and CREATE-05-A. Selecting this area selects neither of
+  the others, and selecting another area does not select it.
 
 If the named-rubric request leaves the area ambiguous, clarify the scope once
 before inspecting artifacts. Do not apply unselected areas. An explicit request
-for both areas selects both; selecting particular IDs does not select their whole area.
+for several areas selects each named area; selecting particular IDs does not select their whole area.
 Coverage, diversity, and the remaining validity areas are not implemented.
 Do not score them or imply overall evaluation quality. Retained-credit checks and
 identity-aware coverage are separate consumers, not prerequisites for this assessment.
@@ -150,7 +155,7 @@ For each selected criterion, report its original ID, applicability, score or
 explicit unassessed status, evidence strength, measurement, evidence references,
 limitation, and next action.
 Use that criterion's scoring rules. Do not transfer anti-cheat evidence floors to
-artifact, configuration, and provenance criteria.
+artifact, configuration, and provenance or task contract criteria.
 Lead with confirmed defects and what results cannot be trusted, then incomplete
 checks. Keep instructions, claims,
 and measured facts separate. Use short, direct explanations with source IDs;
