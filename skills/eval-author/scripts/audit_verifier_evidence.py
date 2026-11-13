@@ -13,6 +13,14 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from eval_author_shared import task_evidence
+from verification_integrity import (
+    ACCEPTANCE_DETECTOR,
+    CLAIMS,
+    new_integrity,
+    project_integrity,
+    receipt_state,
+    required_verification,
+)
 
 
 class EvidenceScopeError(ValueError):
@@ -20,6 +28,9 @@ class EvidenceScopeError(ValueError):
 
 
 class Review:
+    # Subclasses that cannot read the current task tree report freshness as unknown.
+    measures_task = True
+
     def __init__(self, repo: Path, roots: list[Path], *, identity: dict | None = None):
         self.repo = repo.resolve()
         self.roots = [self.path(path) for path in roots]
@@ -109,9 +120,48 @@ def findings_links(report: Path, text: str) -> set[Path]:
 
 
 def inspect_receipt(
-    review: Review, path: Path, receipt: dict, tasks: set[Path], *, verify_historical: bool = False
+    review: Review,
+    path: Path,
+    receipt: dict,
+    tasks: set[Path],
+    *,
+    verify_historical: bool = False,
+    include_integrity: bool = False,
 ) -> dict:
-    row = {"path": path.relative_to(review.repo).as_posix(), "classification": "unproven"}
+    claim = receipt.get("status") if receipt.get("status") in CLAIMS else None
+    assessed = (
+        receipt.get("schema") == task_evidence.SCHEMA
+        and receipt.get("purpose") in ("closure", "baseline")
+        and claim is not None
+        and (
+            type(receipt.get("returncode")) is int or (claim == "infrastructure_error" and "returncode" not in receipt)
+        )
+    )
+    integrity = new_integrity("unassessed" if assessed else "unsupported")
+    bound = receipt.get("manifest_sha256")
+    if assessed:
+        integrity.update(
+            claim=claim,
+            purpose=receipt["purpose"],
+            manifest_sha256=bound if isinstance(bound, str) else None,
+            status_claim="unknown" if claim == "passed" else "not_applicable",
+        )
+
+    def judge(basis, execution, behavior, consistent):
+        """Only a passed claim can contradict. Other claims record agreement only."""
+        integrity.update(basis=basis, execution=execution, behavior=behavior)
+        if consistent:
+            integrity.update(status="consistent", code="validated" if execution == "healthy" else "execution_error")
+            if claim == "passed":
+                integrity["status_claim"] = "consistent"
+        elif claim == "passed":
+            integrity.update(status="mismatched", status_claim="contradiction", code="status_contradiction")
+        else:
+            integrity.update(status="mismatched", code="status_mismatch")
+
+    row: dict = {"path": path.relative_to(review.repo).as_posix(), "classification": "unproven"}
+    if include_integrity:
+        row["integrity"] = integrity
     try:
         manifest_path = review.path(receipt["manifest"])
         row["manifest"] = manifest_path.relative_to(review.repo).as_posix()
@@ -121,25 +171,40 @@ def inspect_receipt(
         review.manifests[manifest_path] = manifest
         task = review.path(manifest["task_dir"])
         if task not in tasks:
+            if assessed:
+                integrity.update(status_claim="excluded", code="out_of_scope")
             row.update(classification="out_of_scope", reason="Manifest belongs to an unselected task")
             return row
         row["task"] = task.relative_to(review.repo).as_posix()
         row["case"] = receipt.get("case")
         if hashlib.sha256(review.read(manifest_path)).hexdigest() != receipt.get("manifest_sha256"):
+            supersedes = manifest.get("supersedes")
+            if assessed and isinstance(supersedes, dict) and supersedes.get("manifest_sha256") == bound:
+                # An in-place repair replaced these bytes. The receipt belongs to the older revision.
+                integrity.update(status_claim="excluded", code="superseded", freshness="stale")
             raise ValueError("Manifest bytes differ from the receipt")
         contract = manifest["contract"]
         task_evidence.validate_contract(contract)
         case = contract["cases"][receipt["case"]]
+        if case["kind"] in {"agent", "diagnostic"} or receipt.get("purpose") == "baseline":
+            integrity.update(status_claim="excluded", code="excluded")
+            assessed = False
         if case["kind"] == "agent":
             row.update(classification="agent_run", reason="Agent runs are reviewed through the selected trace evidence")
             return row
         row["kind"] = case["kind"]
         row["task_revision"] = manifest.get("task_sha256")
         historical = review.task_digest(task) != manifest.get("task_sha256")
+        if review.measures_task:
+            integrity["freshness"] = "stale" if historical else "current"
         if historical and not verify_historical:
+            if assessed:
+                integrity["code"] = "stale"
             row.update(classification="stale", reason="Task changed since this control ran")
             return row
         if receipt.get("status") == "infrastructure_error" or receipt.get("returncode") != 0:
+            if assessed:
+                judge("receipt", "execution_error", "unknown", claim == "infrastructure_error")
             raise ValueError("Control has no healthy completed execution")
         result_path = review.path(receipt["result"])
         native = review.object(result_path)
@@ -149,9 +214,13 @@ def inspect_receipt(
             raise ValueError("Native run identity differs from the receipt")
         task_evidence._validate_control(native, contract, case)
         if not task_evidence.assertions(native, case["health"]):
+            if assessed:
+                judge("native", "execution_error", "unknown", False)
             raise ValueError("Native control health checks failed")
         passed = task_evidence.assertions(native, case["checks"])
         expected_status = "passed" if passed else "behavior_failed"
+        if assessed:
+            judge("native", "healthy", "passed" if passed else "failed", claim == expected_status)
         if receipt.get("status") != expected_status:
             raise ValueError("Receipt status disagrees with native assertions")
         if case["kind"] == "diagnostic":
@@ -175,6 +244,11 @@ def inspect_receipt(
         raise
     except (OSError, ValueError, KeyError, TypeError) as exc:
         row["reason"] = str(exc)
+        if integrity["code"] == "unassessed":
+            integrity.update(
+                status="unknown",
+                code="source_missing" if isinstance(exc, OSError) else "invalid_evidence",
+            )
     return row
 
 
@@ -212,6 +286,157 @@ def inspect_manifest(
         row["reason"] = str(exc)
         return [row]
     return []
+
+
+def _cited_outcome(row: dict) -> tuple[str, str] | None:
+    """Classify one cited control receipt against a passed acceptance claim."""
+    if row.get("classification") == "agent_run":
+        return None
+    integrity = row["integrity"]
+    state = receipt_state(integrity)
+    if integrity["code"] == "superseded":
+        return "superseded_reliance", "violation"
+    if integrity["behavior"] == "failed":
+        return "cited_failure", "violation"
+    if integrity["execution"] == "execution_error":
+        return "cited_execution_error", "violation"
+    if state in ("pass", "stale"):
+        return ("cited_pass", "consistent") if integrity["freshness"] == "current" else ("cited_stale", "stale")
+    return "cited_unverified", "unknown"
+
+
+def _registered_closure(review: Review, manifest: dict, digest: str) -> list[Path] | None:
+    """Return closure receipts registered for this manifest revision, or None if the ledger is unavailable."""
+    ledger = review.path(manifest["attempts"])
+    if not ledger.is_dir():
+        return None
+    registered = []
+    for entry in sorted(ledger.iterdir()):
+        if not re.fullmatch(r"[0-9a-f]{64}\.json", entry.name):
+            continue
+        attempt = review.object(entry)
+        # Match the producer's registration shape, including historical records without kind.
+        required = {"run_id", "receipt", "purpose", "case", "manifest_sha256"}
+        if (
+            set(attempt) not in (required, required | {"kind"})
+            or not all(isinstance(attempt[field], str) for field in required)
+            or not attempt["run_id"].strip()
+            or entry.stem != hashlib.sha256(attempt["run_id"].encode()).hexdigest()
+            or not re.fullmatch(r"[0-9a-f]{64}", attempt["manifest_sha256"])
+            or attempt["purpose"] not in ("baseline", "closure")
+            or not attempt["receipt"]
+            or (
+                "kind" in attempt
+                and attempt["kind"]
+                not in ("reference", "incorrect", "empty", "alternative", "side_effect", "agent", "diagnostic")
+            )
+        ):
+            raise ValueError("Malformed attempt registration")
+        receipt = review.path(attempt["receipt"])
+        if attempt["manifest_sha256"] != digest:
+            continue
+        case = manifest["contract"]["cases"].get(attempt["case"])
+        if case is None or ("kind" in attempt and attempt["kind"] != case["kind"]):
+            raise ValueError("Attempt registration differs from the declared case")
+        if attempt["purpose"] == "closure" and case["kind"] not in ("agent", "diagnostic"):
+            registered.append(receipt)
+    return registered
+
+
+def inspect_acceptance(review: Review, saved: dict) -> dict:
+    """Compare a saved acceptance's passed validation claim with its authoritative records.
+
+    A violation needs a definitive record: a cited receipt with failed behavior or
+    execution, a registered closure failure the claim omits, or a cited receipt
+    from a revision that a repair explicitly superseded. Unreadable or incomplete
+    evidence stays unknown. Agent runs are reviewed through their traces instead.
+    """
+    result: dict = {"detector_version": ACCEPTANCE_DETECTOR, "claim": "unsupported", "ordering": "unknown"}
+    evidence = saved.get("evidence")
+    if (
+        saved.get("schema") != "nemo.eval_author.task_gap_verification.v2"
+        or saved.get("task_validation") != "passed"
+        or not isinstance(evidence, list)
+        or not all(isinstance(value, str) for value in evidence)
+    ):
+        return {
+            **result,
+            "status": "not_applicable",
+            "eligible_claims": 0,
+            "violations": 0,
+            "violation_findings": 0,
+            "findings": [],
+        }
+    findings, rows, manifests, cited = [], [], {}, set()
+
+    def relative(path: Path) -> str:
+        return path.relative_to(review.repo).as_posix()
+
+    def inspect(path: Path) -> dict:
+        try:
+            receipt = review.object(path)
+            manifest = review.object(review.path(receipt["manifest"]))
+            return inspect_receipt(review, path, receipt, {review.path(manifest["task_dir"])}, include_integrity=True)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            code = "source_missing" if isinstance(exc, OSError) else "invalid_evidence"
+            return {"path": relative(path), "classification": "unproven", "integrity": new_integrity(code)}
+
+    for value in evidence:
+        path = review.path(value)
+        if path in cited:
+            continue
+        cited.add(path)
+        row = inspect(path)
+        rows.append(row)
+        outcome = _cited_outcome(row)
+        if outcome is not None:
+            findings.append(
+                {"code": outcome[0], "outcome": outcome[1], "receipt": row["path"], "case": row.get("case")}
+            )
+    for path, manifest in list(review.manifests.items()):
+        if not any(row.get("manifest") == relative(path) for row in rows):
+            continue
+        try:
+            digest = hashlib.sha256(review.read(path)).hexdigest()
+            task_evidence.validate_contract(manifest["contract"])
+            manifests[relative(path)] = manifest
+            registered = _registered_closure(review, manifest, digest)
+        except (OSError, ValueError, KeyError, TypeError):
+            registered = None
+        if registered is None:
+            findings.append({"code": "ledger_unavailable", "outcome": "unknown", "receipt": None, "case": None})
+            continue
+        for receipt in registered:
+            if receipt in cited:
+                continue
+            row = inspect(receipt)
+            failed = row["integrity"]["behavior"] == "failed" or row["integrity"]["execution"] == "execution_error"
+            findings.append(
+                {
+                    "code": "omitted_failure" if failed else "omitted_attempt",
+                    "outcome": "violation" if failed else "unknown",
+                    "receipt": row["path"],
+                    "case": row.get("case"),
+                }
+            )
+    verification = required_verification(manifests, rows)
+    if not verification["required_cases"]:
+        findings.append({"code": "missing_required", "outcome": "unknown", "receipt": None, "case": None})
+    for case in verification["cases"]:
+        if case["state"] == "missing":
+            findings.append({"code": "missing_required", "outcome": "unknown", "receipt": None, "case": case["case"]})
+    outcomes = {row["outcome"] for row in findings}
+    return {
+        **result,
+        "claim": "passed",
+        "status": next((value for value in ("violation", "unknown", "stale") if value in outcomes), "consistent"),
+        "eligible_claims": 1,
+        "violations": int("violation" in outcomes),
+        "violation_findings": sum(row["outcome"] == "violation" for row in findings),
+        "required_verification": verification,
+        "agent_runs": "excluded",
+        "findings": findings,
+    }
 
 
 def content_model(repo: Path, path: Path):
@@ -270,6 +495,20 @@ def _account(repo: Path, selected: set[Path], rows: list[dict], links: set[Path]
     }
 
 
+def _selected_manifests(review: Review, selected: set[Path]) -> dict[str, tuple[dict, str]]:
+    """Return valid manifests for selected tasks. The control rows already report invalid ones."""
+    manifests = {}
+    for path, manifest in review.manifests.items():
+        try:
+            task_evidence.validate_contract(manifest["contract"])
+            if review.path(manifest["task_dir"]) in selected:
+                digest = hashlib.sha256(review.read(path)).hexdigest()
+                manifests[path.relative_to(review.repo).as_posix()] = (manifest, digest)
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    return manifests
+
+
 def check(
     repo: Path,
     report: Path,
@@ -279,6 +518,7 @@ def check(
     *,
     content: Path | None = None,
     selection: dict | None = None,
+    include_integrity: bool = False,
 ) -> dict:
     preflight = {}
     identity = None
@@ -348,7 +588,7 @@ def check(
         if not isinstance(payload, dict):
             continue
         if payload.get("schema") == task_evidence.SCHEMA and "manifest" in payload:
-            rows.append(inspect_receipt(review, path, payload, selected))
+            rows.append(inspect_receipt(review, path, payload, selected, include_integrity=include_integrity))
         elif payload.get("schema") in (task_evidence.SCHEMA, task_evidence.MANIFEST_SCHEMA) and "task_dir" in payload:
             review.manifests[path] = payload
         elif str(payload.get("schema", "")).startswith("nemo.eval_author.task_evidence."):
@@ -372,6 +612,9 @@ def check(
         preflight["preflight_success"] = bool(rows) and all(
             row["classification"] in {"passed", "agent_run"} for row in rows
         )
+    if include_integrity:
+        manifests = _selected_manifests(review, selected)
+        accounting.update(project_integrity(manifests, rows))
     return {
         **accounting,
         "mode": "selected" if identity is not None else "legacy",
@@ -390,6 +633,11 @@ def main() -> int:
     parser.add_argument("--source-root", type=Path, action="append", default=[])
     parser.add_argument(
         "--selection", type=Path, help="Explicit artifact/route selection instead of evidence discovery"
+    )
+    parser.add_argument(
+        "--integrity",
+        action="store_true",
+        help="Add typed receipt-consistency, required-control and supersession measurements",
     )
     args = parser.parse_args()
     try:
@@ -412,6 +660,7 @@ def main() -> int:
             args.source_root,
             content=args.content,
             selection=selection,
+            include_integrity=args.integrity,
         )
     except (OSError, ValueError, KeyError, TypeError, RuntimeError, ImportError) as exc:
         result = {"valid": False, "error": str(exc)}

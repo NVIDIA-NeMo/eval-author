@@ -5,6 +5,7 @@ import asyncio
 import importlib.util
 import json
 import re
+import selectors
 import subprocess
 import sys
 from pathlib import Path
@@ -300,7 +301,7 @@ def load_fixture_module(name, relative):
     return module
 
 
-def run_verifier_locally(tmp_path, monkeypatch, policy, grader="sound"):
+def run_verifier_locally(tmp_path, monkeypatch, policy, grader="sound", *, wait_for_output=False):
     module = load_fixture_module("verify", "normalizer/tests/verify.py")
     program = tmp_path / "normalize.py"
     program.write_text(policy)
@@ -309,8 +310,30 @@ def run_verifier_locally(tmp_path, monkeypatch, policy, grader="sound"):
     def local_run(command, **kwargs):
         for key in ("user", "group", "extra_groups"):
             kwargs.pop(key)
-        kwargs.update(cwd=tmp_path, timeout=0.1)
-        return native_run([sys.executable, "-I", str(program)], **kwargs)
+        kwargs.update(cwd=tmp_path)
+        command = [sys.executable, "-I", str(program)]
+        if not wait_for_output:
+            kwargs["timeout"] = 0.1
+            return native_run(command, **kwargs)
+        input_text = kwargs.pop("input")
+        startup_timeout = kwargs.pop("timeout")
+        assert kwargs.pop("capture_output") is True
+        with subprocess.Popen(
+            command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs
+        ) as process:
+            try:
+                # Do not spend the partial-output test's deadline on interpreter startup.
+                # Observe readiness without consuming bytes from communicate's capture.
+                with selectors.DefaultSelector() as selector:
+                    assert process.stdout is not None
+                    selector.register(process.stdout, selectors.EVENT_READ)
+                    assert selector.select(startup_timeout), "submission did not produce output before startup deadline"
+                stdout, stderr = process.communicate(input=input_text, timeout=0.1)
+                return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                process.wait()
 
     monkeypatch.setattr(module.subprocess, "run", local_run)
     monkeypatch.setattr(module, "Path", lambda _: tmp_path)
@@ -320,15 +343,31 @@ def run_verifier_locally(tmp_path, monkeypatch, policy, grader="sound"):
 
 
 @pytest.mark.parametrize("grader", ["sound", "vulnerable", "always-fail"])
-def test_submission_timeout_is_a_zero_reward_not_infrastructure(tmp_path, monkeypatch, grader):
+@pytest.mark.parametrize("startup_delay", [0, 0.2])
+def test_submission_timeout_is_a_zero_reward_not_infrastructure(tmp_path, monkeypatch, grader, startup_delay):
     checks = run_verifier_locally(
-        tmp_path, monkeypatch, "import time; print('partial', flush=True); time.sleep(60)", grader
+        tmp_path,
+        monkeypatch,
+        f"import time; time.sleep({startup_delay}); print('partial', flush=True); time.sleep(60)",
+        grader,
+        wait_for_output=True,
     )
     assert checks["reward"] == 0
     assert checks["semantic_passes"] == 0
     assert checks["exit_codes"] == [None] * checks["cases"]
     assert checks["timeouts"] == checks["cases"]
     assert all(row["timed_out"] and row["stdout"] == "partial\n" for row in checks["rows"])
+    assert (tmp_path / "reward.txt").read_text() == "0\n"
+
+
+@pytest.mark.parametrize("grader", ["sound", "vulnerable", "always-fail"])
+def test_submission_timeout_before_output_is_a_zero_reward(tmp_path, monkeypatch, grader):
+    checks = run_verifier_locally(tmp_path, monkeypatch, "import time; time.sleep(60)", grader)
+    assert checks["reward"] == 0
+    assert checks["semantic_passes"] == 0
+    assert checks["exit_codes"] == [None] * checks["cases"]
+    assert checks["timeouts"] == checks["cases"]
+    assert all(row["timed_out"] and row["stdout"] == "" and row["stderr"] == "" for row in checks["rows"])
     assert (tmp_path / "reward.txt").read_text() == "0\n"
 
 

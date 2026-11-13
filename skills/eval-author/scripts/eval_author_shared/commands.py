@@ -6,7 +6,9 @@
 import json
 import sys
 
-PRIVACY = frozenset({"init", "prepare", "audit-evidence", "review-privacy", "batch-prepare", "batch-status"})
+PRIVACY = frozenset(
+    {"init", "prepare", "audit-evidence", "audit-retries", "review-privacy", "batch-prepare", "batch-status"}
+)
 ENVIRONMENT = frozenset(
     {
         "inventory-tool-calls",

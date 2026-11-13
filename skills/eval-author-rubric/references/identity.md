@@ -211,6 +211,75 @@ validate every ATIF field, or traverse nested/subagent traces. Unsupported nativ
 formats remain unresolved. Existing control/accounting seam tests do not prove
 that the whole retained-credit or coverage workflow consumes this interface.
 
+## Selected receipt consistency
+
+Every explicit `native` selection automatically reports three measurements. The owning
+receipt validator derives each one from the same selected receipt, manifest, and
+native result. None of them scans a task tree.
+
+- `receipt_integrity` (`receipt-integrity-v1`) counts receipt status claims.
+- `required_verification` (`required-verification-v1`) gives each required
+  control of each selected manifest one state.
+- `superseded_references` (`manifest-supersession-v1`) lists receipts bound to a
+  manifest that a selected repair manifest explicitly supersedes.
+
+Read each control's typed `integrity` fields separately: claim, basis, record
+consistency, execution health, declared behavior, status-claim agreement, and
+freshness.
+
+Only a supported receipt for a closure control that claims `passed` is eligible.
+The claim is a contradiction when one of these is true:
+
+- Its return code is nonzero.
+- Its digest-bound native result from the same run fails a health assertion.
+- That result passes health and fails a declared behavior assertion.
+
+A contradiction shows that the records are inconsistent. It does not show that
+an agent ignored feedback, that evidence was visible to the model, or that
+context growth caused the result. A correctly recorded failure or infrastructure
+error is not an eligible claim. Zero reward, permitted partial credit, valid
+alternatives, and legitimate no-action controls follow their declared checks.
+Agent, diagnostic, baseline, out-of-scope, and superseded receipts are excluded.
+When a later reference check fails, the validator withdraws a native-basis claim
+as unknown. A return-code contradiction stands.
+
+Report contradictions divided by eligible claims. Keep unknown, excluded, and
+not-applicable receipts separate. Execution errors and mismatches are overlapping
+diagnostic counts, not extra trials. A zero denominator has a null rate.
+
+For required controls, report each state separately: `pass`, `fail`, `missing`,
+`mismatched`, `execution_error`, `unknown`, and `stale`. Freshness is `unknown`
+here. Do not report a rubric pass as a current pass. A missing control is an
+evidence gap. It does not show that verification was skipped. Retain earlier
+contradictions when another selected receipt passes. Ordering alone does not
+establish recovery.
+
+Keep both verification-integrity groups visible in `group_scores`.
+Only `receipt_consistency` can receive a numeric score in rubric reports.
+`required_verification` is always unassessed because this native projection cannot
+establish current task freshness. Display its null score as `Unassessed` and
+retain its evidence gaps. These group scores do not replace canonical scores.
+
+Treat each superseded reference as a review candidate. Receipts have no
+trustworthy time, so `confirmed` stays 0. Use `task_pipeline.py
+check-acceptance --integrity` to test whether a saved claim relies on a
+superseded result.
+
+After source revalidation, `CREATE-07-C01` includes `selected_receipt_status_consistent`
+as a bounded predicate with outcome `PASS`, `FAIL`, or `BLOCKED`. Its canonical
+check remains `PARTIAL`, and this evidence alone leaves the criterion score null.
+`context_rot_score` stays null. Use the existing freshness checks for selected
+dependencies separately. Do not transfer a historical pass to a changed task.
+These remain unassessed here:
+
+- General false-closure claims in prose.
+- Actions in traces that use superseded values.
+- Visibility into the request context.
+- Prevention experiments.
+
+Retry candidates belong to the inspect-trace retry audit, not this rubric.
+Do not prescribe a checkpoint as a proven remedy from these measurements.
+
 ## Selected reconstruction provenance
 
 The optional `reconstruction` array selects existing candidate artifacts and retained

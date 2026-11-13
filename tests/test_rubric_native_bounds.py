@@ -103,7 +103,10 @@ def test_cli_rejects_malformed_control_config_before_classification(panel, field
     assert result.returncode == 1
     native = json.loads(result.stdout)["measurements"]["native"]
     assert native["status"] == "fail"
-    assert native["controls"] == [{"receipt": "receipt", "classification": "unproven", "task_freshness": "unknown"}]
+    assert [
+        {key: row[key] for key in ("receipt", "classification", "task_freshness")} for row in native["controls"]
+    ] == [{"receipt": "receipt", "classification": "unproven", "task_freshness": "unknown"}]
+    assert native["controls"][0]["integrity"]["status_claim"] == "unknown"
     assert "native.reference_invalid" in {row["code"] for row in native["diagnostics"]}
     assert not native["subjects"]
     assert "PRIVATE-" not in result.stdout

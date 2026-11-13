@@ -29,6 +29,15 @@ Review every change for repeated content: instructions, setup steps, workflow li
 - User-facing details live in one `docs/` page; other docs link to it.
 - Shared logic goes in one script or helper rather than being copied between skills.
 
+## Types and validation
+
+- Prefer explicit parameter and return types when writing or changing scripts and code.
+- For structured data, prefer named types over loosely shaped dictionaries. Use `TypedDict` or dataclasses for internal records.
+- Consider Pydantic models when external inputs or persisted records need runtime validation. Type annotations alone do not validate data.
+- Reuse existing models and owning validators. Preserve supported formats, strictness, and unknown-evidence handling rather than introducing competing schemas or silent coercion.
+- Keep standalone scripts dependency-light. Use standard-library types and explicit validation when Pydantic is not part of the supported runtime.
+- Run the affected tests and configured type checks after changing a data contract.
+
 ## Conversation rendering
 
 Use the existing `skills/eval-author/scripts/conversation_renderer.py` entry point.

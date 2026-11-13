@@ -239,6 +239,10 @@ current passing retained controls for every selected task. Missing, denied,
 unresolved, stale, or unproven evidence cannot pass merely because a report explains
 it. The selected-mode command exits nonzero when either condition fails.
 
+Add `--integrity` to report receipt contradictions, required-control states,
+and superseded manifests. See
+[verification-integrity checks](determinism-checks.md#verification-integrity-checks).
+
 This is a bounded retained-credit check, not full workflow readiness or task
 qualification. It does not execute controls, prove solver-role isolation, or
 attest which scorer ran. The existing native task-revision check still hashes the
