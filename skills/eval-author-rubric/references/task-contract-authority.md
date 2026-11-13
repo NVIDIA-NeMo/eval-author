@@ -12,8 +12,10 @@ same way to every task, whoever or whatever produced it. It has no aggregate sco
 
 The [canonical subset](task-contract-authority.json) is the single source
 for the three criterion IDs, original questions, measurements, nine checks, score
-anchors, evidence requirements, and boundaries. Read each selected `items` entry
-in full before assessment. Rubric-wide `policies` and the `result_template` row
+anchors, evidence requirements, and boundaries. Criterion IDs name this area; each
+check ID adds its method. The source rubric's IDs stay in each entry's `source`
+and `source_id` fields. Look up entries by ID, never by position, and read each
+selected entry in full before assessment. Rubric-wide `policies` and the `result_template` row
 format are defined once in [the provenance subset](artifact-configuration-provenance.json);
 apply them here unchanged. Apply the result-row, check-accounting, assessment-state,
 defect-precedence, and evidence-strength rules in
@@ -61,46 +63,50 @@ they are review notes, not a new file format.
 
 ## Scoring rules
 
-- CREATE-03-C01, CREATE-04-C01, and CREATE-05-A-C02 are `llm_as_judge` checks.
-  Unless a scope-matched qualification record is supplied, record your review
-  with reviewer kind `agent`; never label it human review or a qualified judge.
+- Each check ID ends with its method. The three `.llm-judge` checks are
+  `llm_as_judge`. Unless a scope-matched qualification record is supplied, record
+  your review with reviewer kind `agent`; never label it human review or a
+  qualified judge.
 - A score of 0 or 1 at E1 rests on the cited files, not on that review's verdict.
   Cite the scorer location and the solver-visible span, fixture, or source that
   establish the anchor, so a reader can check it without trusting the review.
   Confirming an unsupported condition requires inspecting the full declared
   solver-visible material; an incomplete search cannot establish absence.
 - Level 2 requires human adjudication of the crosswalk by the user or task owner,
-  recorded as `human_review` with its source: CREATE-03-C02 for the contract
-  interpretation, CREATE-05-A-C01 for correctness authority, and for CREATE-04 a
-  human decision on the CREATE-04-C01 mapping, as the qualified alternative to
-  the unqualified judge. Without it, an agent-only crosswalk with no defect leaves
-  the item `NOT_ASSESSED`: report its measurements and name the review that
-  would complete it.
-- Authorized probes through the native scorer (CREATE-03-C03, CREATE-04-C03)
-  supply the boundary and blind-discovery evidence for the level-3 anchors; they
-  do not replace level-2 adjudication. Level 3 also requires independent
-  corroboration.
-- CREATE-04-C02 and CREATE-05-A-C03 count crosswalk rows by status against all
+  recorded as `human_review` with its source: the `.human-review` check of
+  `task-contract.clear-contract` and `task-contract.scoring-authority`, and for
+  `task-contract.discoverable-requirements` a human decision on its `.llm-judge`
+  mapping, as the qualified alternative to the unqualified judge. Without it, an
+  agent-only crosswalk with no defect leaves the item `NOT_ASSESSED`: report its
+  measurements and name the review that would complete it.
+- Authorized `.probe` checks through the native scorer supply the boundary and
+  blind-discovery evidence for the level-3 anchors; they do not replace level-2
+  adjudication. Level 3 also requires independent corroboration.
+- The `.deterministic` checks of `task-contract.discoverable-requirements` and
+  `task-contract.scoring-authority` count crosswalk rows by status against all
   material scored conditions and expected results. Report the denominators.
 
-## CREATE-03 — Clear task contract
+## task-contract.clear-contract — Clear task contract
 
-[Canonical definition](task-contract-authority.json#/items/0)
+Canonical definition: the `task-contract.clear-contract` entry in
+[task-contract-authority.json](task-contract-authority.json).
 
 **Methods and evidence:** Extract the goal, allowed actions, outputs, constraints,
 and assumptions from solver-visible material and compare each stated condition
 with the scorer's expectation. Keep a cited ambiguity register. Human
 interpretation resolves ambiguity; authorized valid boundary solutions test it.
 
-**Assessment limit:** A condition the contract never states is a CREATE-04
-finding. It is a CREATE-03 defect only when the stated contract also contradicts
+**Assessment limit:** A condition the contract never states is a
+`task-contract.discoverable-requirements` finding. It is a defect here only when the
+stated contract also contradicts
 the scorer or is too underspecified to grade. Do not resolve ambiguity from
 hidden author intent, grading notes, or the reference solution; a reference solve
 does not establish clarity.
 
-## CREATE-04 — Discoverable grading requirements
+## task-contract.discoverable-requirements — Discoverable grading requirements
 
-[Canonical definition](task-contract-authority.json#/items/1)
+Canonical definition: the `task-contract.discoverable-requirements` entry in
+[task-contract-authority.json](task-contract-authority.json).
 
 **Methods and evidence:** Map every material scored condition to a span the
 solver can read or reach, then count coverage and broken references against the
@@ -112,9 +118,10 @@ not solver-visible: a condition supported only by Ethos is `unsupported` here
 unless the task exposes it. A confirmed unsupported material condition is a
 defect even when other rows are supported.
 
-## CREATE-05-A — Correctness and scoring authority
+## task-contract.scoring-authority — Correctness and scoring authority
 
-[Canonical definition](task-contract-authority.json#/items/2)
+Canonical definition: the `task-contract.scoring-authority` entry in
+[task-contract-authority.json](task-contract-authority.json).
 
 **Methods and evidence:** Record a correctness source for each expected result and
 each partial-credit, guardrail, entity-linkage, and protected-state rule.

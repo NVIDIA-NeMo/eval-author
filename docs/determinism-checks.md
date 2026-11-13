@@ -29,9 +29,9 @@ that presentation guarantee does not establish deterministic workflow execution.
 
 ## Rubric identity measurements
 
-The experimental rubric demo assesses source-bound task access (`DISC-01-A`),
-explicit grading-path identification (`DISC-01-B`), and grading-dependency access
-with a retained completeness review (`DISC-01-C`). Raw identity, route,
+The experimental rubric demo assesses source-bound task access (`provenance.task-artifact-access`),
+explicit grading-path identification (`provenance.grading-path`), and grading-dependency access
+with a retained completeness review (`provenance.grading-dependency-access`). Raw identity, route,
 configuration, relationship, and approval measurements remain separate from
 canonical criterion scores. See the
 [rubric measurement contract](../skills/eval-author-rubric/references/identity.md)
@@ -60,7 +60,7 @@ case IDs and omits success claims when any case mismatches. Correctly detecting 
 planted defect does not cause a nonzero exit.
 It also checks that CLI assessment leaves the selected input bytes unchanged.
 
-| Variant | DISC-01-A | DISC-01-B | DISC-01-C |
+| Variant | provenance.task-artifact-access | provenance.grading-path | provenance.grading-dependency-access |
 | --- | --- | --- | --- |
 | Valid declared inventory | 2 | 2 | 2 |
 | Wrong scorer | 2 | 0 | 2 |

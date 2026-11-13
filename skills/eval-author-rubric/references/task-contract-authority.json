@@ -2,8 +2,11 @@
   "rubric_version": "4.0-draft",
   "items": [
     {
-      "id": "CREATE-03",
-      "skill_id": "first_eval_create",
+      "id": "task-contract.clear-contract",
+      "source": {
+        "id": "CREATE-03",
+        "skill_id": "first_eval_create"
+      },
       "title": "Clear task contract",
       "question": "Can independent readers resolve the goal and grading boundaries from the public or discoverable contract?",
       "requirement": "For each scored task, the solver-visible contract must specify enough goal, permissions, outputs, constraints and assumptions to justify grading.",
@@ -20,21 +23,24 @@
           "action": "Extract goal, allowed actions, outputs, constraints and assumptions from solver-visible material; compare with scorer expectations for contradictions and boundary ambiguity.",
           "expected_evidence": "Cited requirement and ambiguity register",
           "when": "During assessment of the declared revision",
-          "id": "CREATE-03-C01"
+          "id": "task-contract.clear-contract.llm-judge",
+          "source_id": "CREATE-03-C01"
         },
         {
           "method": "human_review",
           "action": "Resolve material ambiguities through independent contract interpretation without consulting hidden author intent as authority.",
           "expected_evidence": "Independent interpretation and disposition",
           "when": "During assessment of the declared revision",
-          "id": "CREATE-03-C02"
+          "id": "task-contract.clear-contract.human-review",
+          "source_id": "CREATE-03-C02"
         },
         {
           "method": "probe",
           "action": "Exercise independently justified valid boundary solutions under the same scorer.",
           "expected_evidence": "Boundary-case rewards and health",
           "when": "Only for authorized boundary tests",
-          "id": "CREATE-03-C03"
+          "id": "task-contract.clear-contract.probe",
+          "source_id": "CREATE-03-C03"
         }
       ],
       "scoring": {
@@ -62,8 +68,11 @@
       "implementation_task": "Build a public-contract ambiguity review packet and boundary-case control set."
     },
     {
-      "id": "CREATE-04",
-      "skill_id": "first_eval_create",
+      "id": "task-contract.discoverable-requirements",
+      "source": {
+        "id": "CREATE-04",
+        "skill_id": "first_eval_create"
+      },
       "title": "Discoverable grading requirements",
       "question": "Can the solver find legitimate authority for every material scored condition?",
       "requirement": "Every material scored condition must follow from solver-visible instructions or authority reachable under solver permissions.",
@@ -80,21 +89,24 @@
           "action": "Map scored conditions to authority spans and adjudicate entailment, including formatting, tolerances, defaults and preservation.",
           "expected_evidence": "Condition-to-authority map with cited decisions",
           "when": "During assessment of the declared revision",
-          "id": "CREATE-04-C01"
+          "id": "task-contract.discoverable-requirements.llm-judge",
+          "source_id": "CREATE-04-C01"
         },
         {
           "method": "deterministic",
           "action": "Check reference integrity and condition coverage against the full scoring inventory.",
           "expected_evidence": "Coverage counts and broken references",
           "when": "During assessment of the declared revision",
-          "id": "CREATE-04-C02"
+          "id": "task-contract.discoverable-requirements.deterministic",
+          "source_id": "CREATE-04-C02"
         },
         {
           "method": "probe",
           "action": "Test authority access and independent requirement discovery under solver permissions without author hints.",
           "expected_evidence": "Blind discovery paths and access receipts",
           "when": "Only for authorized solver-scope access tests",
-          "id": "CREATE-04-C03"
+          "id": "task-contract.discoverable-requirements.probe",
+          "source_id": "CREATE-04-C03"
         }
       ],
       "scoring": {
@@ -123,8 +135,11 @@
       "implementation_task": "Build a complete condition-to-authority crosswalk and blind discoverability check."
     },
     {
-      "id": "CREATE-05-A",
-      "skill_id": "first_eval_create",
+      "id": "task-contract.scoring-authority",
+      "source": {
+        "id": "CREATE-05-A",
+        "skill_id": "first_eval_create"
+      },
       "title": "Correctness and scoring authority",
       "question": "Are expected results and scoring semantics justified by authoritative requirements?",
       "requirement": "For every expected result and scored obligation, identify correctness authority and explicit partial-credit, guardrail, entity-linkage and protected-state rules.",
@@ -141,21 +156,24 @@
           "action": "Justify each expected result using specifications, verified data or independently reviewed reference outcomes; resolve contradictory authority.",
           "expected_evidence": "Correctness-authority map and decisions",
           "when": "During assessment of the declared revision",
-          "id": "CREATE-05-A-C01"
+          "id": "task-contract.scoring-authority.human-review",
+          "source_id": "CREATE-05-A-C01"
         },
         {
           "method": "llm_as_judge",
           "action": "Compare the scoring contract to authority for partial credit, guardrails, entity/value/destination relationships and protected-state obligations.",
           "expected_evidence": "Cited semantic contract review",
           "when": "During assessment of the declared revision",
-          "id": "CREATE-05-A-C02"
+          "id": "task-contract.scoring-authority.llm-judge",
+          "source_id": "CREATE-05-A-C02"
         },
         {
           "method": "deterministic",
           "action": "Check authority/obligation coverage and explicit declared scoring fields.",
           "expected_evidence": "Coverage and missing-contract report",
           "when": "During assessment of the declared revision",
-          "id": "CREATE-05-A-C03"
+          "id": "task-contract.scoring-authority.deterministic",
+          "source_id": "CREATE-05-A-C03"
         }
       ],
       "scoring": {
