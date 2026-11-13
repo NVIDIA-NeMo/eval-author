@@ -13,6 +13,11 @@ Rubric selections use `rubric_scope` for source-backed inventories. Package demo
 observations use `retained_credit`, `retained_credit_controls`, and `coverage` to
 identify their consumers. The provenance panel uses `rubric-provenance-demo-v1`
 with `rubric-provenance-expectations-v1` expectations; the version remains 1.
+Criterion IDs name their area, such as `provenance.grading-path` or
+`task-contract.scoring-authority`, and each check ID adds its method, such as
+`.deterministic-1` or `.llm-judge`. Result rows and check results keep the source
+rubric's IDs in `source` and `source_id`; `skill_id` is no longer filled from the
+source rubric.
 Update integrations to these current names and rebuild older demo outputs rather
 than relying on former field or schema names; no compatibility aliases are kept.
 See the [rubric measurements](determinism-checks.md#rubric-identity-measurements)

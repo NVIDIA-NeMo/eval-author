@@ -60,20 +60,54 @@ def test_changed_bytes_fail_even_when_the_new_content_validates(tmp_path):
     assert codes(result) == [("ethos.digest_mismatch", "fail")]
 
 
+BROKEN_VALIDATORS = {
+    "crash.py": "class EthosError(ValueError): pass\ndef validate(text): raise RuntimeError\n",
+    "exits-on-load.py": "import sys\nsys.exit(0)\n",
+    "exits-on-validate.py": "import sys\nclass EthosError(ValueError): pass\ndef validate(text): sys.exit(0)\n",
+}
+
+
 @pytest.mark.parametrize(
     ("validator", "code"),
     [
         (None, "ethos.validator_unavailable"),
         ("absent.py", "ethos.validator_unavailable"),
         ("crash.py", "ethos.validator_failed"),
+        ("exits-on-load.py", "ethos.validator_unavailable"),
+        ("exits-on-validate.py", "ethos.validator_failed"),
     ],
 )
 def test_unusable_validator_leaves_validity_unknown(tmp_path, validator, code):
-    (tmp_path / "crash.py").write_text("class EthosError(ValueError): pass\ndef validate(text): raise RuntimeError\n")
+    for name, source in BROKEN_VALIDATORS.items():
+        (tmp_path / name).write_text(source)
     path = tmp_path / validator if validator else None
     result = check_ethos(tmp_path, selected(tmp_path, VALID), {"artifact_id": "ethos"}, path)
     assert (result["status"], result["valid"]) == ("unknown", None)
     assert codes(result) == [(code, "unknown")]
+
+
+def test_validator_output_cannot_corrupt_the_cli_report(tmp_path):
+    noisy = tmp_path / "noisy.py"
+    noisy.write_text(
+        "print('loaded')\nclass EthosError(ValueError): pass\ndef validate(text):\n    print('ok')\n    return []\n"
+    )
+    request = tmp_path / "selection.json"
+    request.write_text(json.dumps({"artifacts": selected(tmp_path, VALID), "ethos": {"artifact_id": "ethos"}}))
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(CLI),
+            "--root",
+            str(tmp_path),
+            "--selection",
+            str(request),
+            "--ethos-validator",
+            str(noisy),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(result.stdout)["measurements"]["ethos"]["valid"] is True
 
 
 @pytest.mark.parametrize(

@@ -5,7 +5,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import io
 import types
 from pathlib import Path
 
@@ -23,8 +25,9 @@ def _load_validator(path):
     module = types.ModuleType("ethos_write_validator")
     module.__file__ = str(path)
     try:
-        exec(compile(data, str(path), "exec"), module.__dict__)
-    except Exception:  # Any failure in the external validator leaves validity unknown.
+        with contextlib.redirect_stdout(io.StringIO()):
+            exec(compile(data, str(path), "exec"), module.__dict__)
+    except (Exception, SystemExit):  # Any failure in the external validator leaves validity unknown.
         return None
     validate, error = getattr(module, "validate", None), getattr(module, "EthosError", None)
     if not callable(validate) or not (isinstance(error, type) and issubclass(error, Exception)):
@@ -75,11 +78,12 @@ def check_ethos(root, artifacts, selected, validator_path):
         diagnostics.append(diagnostic("ethos.invalid", subject))
         return {**result, **_status(diagnostics)}
     try:
-        warnings = validate(content)
+        with contextlib.redirect_stdout(io.StringIO()):
+            warnings = validate(content)
     except error as exc:
         result.update(valid=False, error=str(exc))
         diagnostics.append(diagnostic("ethos.invalid", subject))
-    except Exception:  # A validator defect is not evidence about the document.
+    except (Exception, SystemExit):  # A validator defect is not evidence about the document.
         diagnostics.append(diagnostic("ethos.validator_failed", subject, "unknown"))
     else:
         result.update(valid=True, warnings=[str(warning) for warning in warnings])
