@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Repeated-operation candidates over real Compass loading of synthetic ATIF traces."""
+"""Find repeated-operation candidates with the real Compass loader and synthetic ATIF traces."""
 
 import json
 import subprocess
@@ -61,7 +61,11 @@ def test_unchanged_repeat_after_an_explicit_error_is_a_review_candidate_with_rec
     assert report["counts"]["review_candidates"] == 1
     assert report["counts"]["confirmed_violations"] == 0
     assert report["excluded"] == {"repeat_succeeded": 1}
-    assert report["candidate_rate"] == 0.5
+    assert report["counts"]["assessed_opportunities"] == 1
+    assert report["counts"]["excluded"] == 1
+    assert report["counts"]["no_repeat"] == 0
+    assert report["candidate_rate"] == 1.0
+    assert type(report["candidate_rate"]) is float
     assert report["trials"] == {"observable": 1, "affected": 1}
     [finding] = report["findings"]
     assert finding["code"] == "repeat_after_error"
@@ -109,7 +113,26 @@ def test_unrecorded_feedback_is_not_an_opportunity_and_unrecorded_repeat_is_unkn
     assert report["candidate_rate"] is None
 
 
-def test_retry_command_is_private_repeatable_and_preserves_the_evidence_audit(tmp_path):
+@pytest.mark.parametrize(
+    "tail,eligible,assessed,candidates,no_repeat,rate,trials",
+    [
+        ((), 3, 0, 0, 0, None, {"observable": 0, "affected": 0}),
+        ((step(9, (call("n", path="no-repeat"), True)),), 4, 1, 0, 1, 0.0, {"observable": 1, "affected": 0}),
+        (
+            (step(9, (call("c1", path="candidate"), True)), step(10, (call("c2", path="candidate"), True))),
+            5,
+            2,
+            1,
+            1,
+            0.5,
+            {"observable": 1, "affected": 1},
+        ),
+    ],
+    ids=["zero-denominator", "no-repeat-denominator", "candidate-and-no-repeat-denominator"],
+)
+def test_retry_command_is_private_repeatable_and_preserves_the_evidence_audit(
+    tmp_path, tail, eligible, assessed, candidates, no_repeat, rate, trials
+):
     script = ROOT / "skills/eval-author-inspect-trace/scripts/trace_privacy.py"
 
     def cli(*args):
@@ -120,15 +143,45 @@ def test_retry_command_is_private_repeatable_and_preserves_the_evidence_audit(tm
     assert code == 0, created
     root = Path(created["task_dir"])
     source = tmp_path / "source.json"
-    audit(tmp_path, step(2, (call("a"), True)), step(3, (call("b"), True)))
+    audit(
+        tmp_path,
+        step(2, (call("u1", path="unknown"), True)),
+        step(3, (call("u2", path="unknown"), None)),
+        step(4, (call("e1", path="excluded"), True)),
+        step(5, (call("e2", path="excluded"), False)),
+        step(6, (call("i1", path="intervening"), True)),
+        step(7, (call("w", "write"), False)),
+        step(8, (call("i2", path="intervening"), False)),
+        *tail,
+    )
     source.write_bytes((tmp_path / "source.atif.json").read_bytes())
     code, prepared = cli("prepare", "--task-dir", root, "--source", source, "--source-kind", "atif")
     assert code == 0, prepared
     first = cli("audit-retries", "--task-dir", root)
     assert first[0] == 0, first
     assert first == cli("audit-retries", "--task-dir", root)
-    assert first[1]["counts"]["review_candidates"] == 1
     report = root / "private/retry-audit.json"
+    saved = json.loads(report.read_text())
+    assert saved["schema"] == "nemo.eval_author.retry_audit.v1"
+    expected_counts = {
+        "tool_calls": 7 + len(tail),
+        "eligible_opportunities": eligible,
+        "assessed_opportunities": assessed,
+        "review_candidates": candidates,
+        "confirmed_violations": 0,
+        "no_repeat": no_repeat,
+        "excluded": 2,
+        "unknown": 1,
+        "ineligible": 0,
+    }
+    assert saved["counts"] == first[1]["counts"] == expected_counts
+    assert all(type(value) is int for value in saved["counts"].values())
+    assert saved["excluded"] == {"intervening_action": 1, "repeat_succeeded": 1}
+    assert saved["unknown"] == {"repeat_status_unrecorded": 1}
+    assert saved["candidate_rate"] == rate
+    assert type(saved["candidate_rate"]) is type(rate)
+    assert saved["trials"] == trials
+    assert all(type(value) is int for value in saved["trials"].values())
     assert "private observation text" not in report.read_text()
     assert not (root / "private/evidence-audit.json").exists()
     report.write_text("{}")

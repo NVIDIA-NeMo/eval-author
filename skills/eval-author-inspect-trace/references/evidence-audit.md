@@ -58,25 +58,28 @@ errors:
 python <skill_dir>/scripts/trace_privacy.py audit-retries --task-dir <task-dir>
 ```
 
-The helper writes `private/retry-audit.json` (schema `retry_audit.v1`,
+The helper writes `private/retry-audit.json` (schema `nemo.eval_author.retry_audit.v1`,
 detector `repeat-after-error-v1`) under the same write-once rules as the
 evidence audit. Findings cite safe-trace `span_id` and `turn_id` values only.
 
 | Field | Meaning and next action |
 | --- | --- |
-| Eligible opportunity | A model-issued, ordered call whose single result has an explicit error flag. |
-| Review candidate | The next identical call by the same agent, in a later turn, also has an error flag, and no different call came between. Inspect the cited spans before reporting it. |
-| Excluded | A different call came between (`intervening_action`), or the repeat succeeded (`repeat_succeeded`). Do not report these as defects. |
-| Unknown | The repeat has no defined error status. Preserve the uncertainty. |
+| Eligible opportunity | A model-issued, ordered call with usable input whose single result has an explicitly true error flag. |
+| Review candidate | The next identical call by the same agent, in a later turn, also has an explicitly true error flag, and no different call came between. Inspect the cited spans before reporting it. |
+| Excluded | A different call came between (`intervening_action`), or the repeat has an explicitly false error flag (`repeat_succeeded`). Do not report these as defects or treat the false flag as proof of correctness. |
+| Unknown | The repeat status is absent, invalid, conflicting, or unobservable, unless an intervening action already excludes the opportunity. Preserve the uncertainty. |
+| `no_repeat` | An eligible error call with no identical call by the same agent in a later turn. This is assessed, not excluded. |
 | Ineligible | Harness-initiated, unordered, or unusable-input error calls. |
-| `later_success_span_id` | A later identical call without an error flag. Other recovery is not detected. |
+| `later_success_span_id` | A later identical call with an explicitly false error flag, not proof of correctness or a successful side effect. Other recovery is not detected. |
 | `observed_input_tokens` | Input totals reported by the repeat turn's model spans. Do not infer a window, estimate, or compaction. |
 
 `confirmed_violations` is always 0 because the trace records no artifact or
 environment state. `feedback_visibility` is `unknown`: the trace does not show
-which result reached the model. Report the candidate rate per assessed
-opportunity and keep unknown and excluded counts separate. Never present a
-candidate as evidence of context rot or ignored feedback.
+which result reached the model. Apply the exact
+[denominator contract](../../../docs/determinism-checks.md#verification-integrity-checks):
+eligible counts retain unknown and excluded opportunities; assessed counts remove
+both and retain no-repeat opportunities. Report a null rate for zero assessed
+opportunities. Never present a candidate as evidence of context rot or ignored feedback.
 
 ## Replay error status
 

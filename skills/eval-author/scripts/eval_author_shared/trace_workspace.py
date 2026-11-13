@@ -666,7 +666,7 @@ def _review_privacy(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _retain_report(task_dir: Path, name: str, report: dict[str, Any], label: str) -> Path:
-    """Write a derived private report once; an unchanged rerun matches, a changed one is rejected."""
+    """Write a derived private report once. Accept an unchanged rerun and reject a changed one."""
     report_bytes = (json.dumps(report, indent=2, sort_keys=True) + "\n").encode()
     if len(report_bytes) > MAX_CANONICAL_BYTES:
         raise ContractError(f"{label} exceeds the bounded artifact size; no partial report was retained")

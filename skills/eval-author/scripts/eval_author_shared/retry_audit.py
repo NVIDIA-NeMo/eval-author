@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Deterministic repeated-operation candidates in a safe Compass Trace; never a correctness judge."""
+"""Find repeated-operation candidates deterministically in a safe Compass Trace. Do not judge correctness."""
 
 from __future__ import annotations
 
@@ -19,9 +19,10 @@ DETECTOR = "repeat-after-error-v1"
 LIMITATIONS = (
     "The trace records no material artifact or environment state, so no repeat is a confirmed violation.",
     "Recorded results do not show which feedback reached the model before the repeat.",
-    "Only exact repeats of the same scoped tool and canonical arguments are compared.",
-    "Recovery covers a later identical call without an error flag, not other remedies.",
-    "Token counts are source-reported per span. No model window, estimate, or compaction boundary is inferred.",
+    "The audit compares only exact repeats of the same scoped tool and canonical arguments.",
+    "Recovery covers a later identical call with an explicit false error flag, not proof of correctness. "
+    "Other remedies are outside scope.",
+    "Token counts come from each source span. The audit infers no model window, estimate, or compaction boundary.",
 )
 
 
@@ -43,12 +44,16 @@ def _observed_input_tokens(spans: dict[str, Span], llm_span_ids: list[str]) -> l
 def audit_retries(trace: Trace, *, safe_trace_sha256: str) -> dict[str, Any]:
     """Report each explicit tool error as one opportunity to avoid an unchanged repeat.
 
-    An opportunity is an ordered, model-issued call whose single result has an
-    explicit error flag. Its repeat is the next identical call by the same agent
-    in a later turn. Any different intervening call may have changed state, so
-    it excludes the repeat. A repeat without an error flag suggests a transient
-    failure and is also excluded. A repeat that also errs is a review candidate.
-    An undefined repeat status is unknown and outside the candidate rate.
+    An opportunity is an ordered, model-issued call with usable input whose
+    single result has an explicit true error flag. Its repeat is the next
+    identical call by the same agent in a later turn.
+    Any different intervening call may have changed state, so
+    it excludes the repeat. A repeat with an explicit false error flag is also
+    excluded; that flag does not establish correctness. A repeat that also errs
+    is a review candidate. An undefined repeat status is unknown.
+    Assessed opportunities are eligible minus unknown minus excluded: candidates
+    plus no-repeat opportunities. The candidate rate is candidates / assessed,
+    or null when assessed is zero. Eligible counts retain unknown and excluded.
     Findings cite safe-trace span and turn ids, never trace text.
     """
     from trace_ingest import Initiator
@@ -120,7 +125,7 @@ def audit_retries(trace: Trace, *, safe_trace_sha256: str) -> dict[str, Any]:
             )
     for span_id in unordered:
         findings.append({"code": "error_call_unordered", "outcome": "ineligible", "span_ids": [span_id]})
-    assessed = opportunities - sum(unknown.values())
+    assessed = opportunities - sum(unknown.values()) - sum(excluded.values())
     return {
         "schema": SCHEMA,
         "safe_trace_sha256": safe_trace_sha256,

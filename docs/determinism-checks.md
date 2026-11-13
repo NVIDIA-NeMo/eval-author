@@ -206,22 +206,22 @@ or default outputs. Keep their output private.
 | Saved acceptance claim | `task_pipeline.py check-acceptance --report <acceptance.json> --integrity` | `acceptance_integrity` |
 | Repeats after tool errors | `trace_privacy.py audit-retries --task-dir <task-dir>` | `private/retry-audit.json` |
 
-**Receipt status claims.** Only a passed claim on a closure control is an
-eligible claim. A claim is a contradiction when the receipt's return code is
+**Receipt status claims.** Only a passed claim on a closure control is
+eligible. A claim is a contradiction when the receipt's return code is
 nonzero. It is also a contradiction when its bound native result fails a health
 or behavior assertion. The contradiction rate is contradictions divided by eligible claims.
 A correctly recorded failure or infrastructure error is not an eligible claim.
 Agent, diagnostic, and baseline receipts are excluded. Unknown receipts stay
 separate and block the rubric predicate.
 
-**Required controls.** Each required control gets one state: `pass`, `fail`,
+**Required controls.** Each required control has one state: `pass`, `fail`,
 `missing`, `mismatched`, `execution_error`, `unknown`, or `stale`. Only a
 current pass for every control sets `verified`. A missing control is an evidence
-gap, because the attempt ledger is not read. The rubric does not read the task
+gap. The check does not read the attempt ledger. The rubric does not read the task
 tree, so its freshness is `unknown`. The Audit checker hashes the selected task
 tree and reports `current` or `stale`.
 
-**Superseded manifests.** `prepare --previous` now records the replaced
+**Superseded manifests.** `prepare --previous` records the replaced
 manifest's digest as `supersedes`. A receipt bound to a superseded manifest is a
 review candidate, because receipts have no trustworthy time. Repair manifests
 prepared earlier have no link.
@@ -237,14 +237,69 @@ Missing or unreadable evidence is `unknown`. A changed task makes the
 claim `stale`. Agent runs are excluded. The command exits 0 only when the claim
 is `consistent`. Without `--integrity`, `check-acceptance` is unchanged.
 
-**Repeats after tool errors.** Each model-issued tool call with an explicit
-error flag is one opportunity. Its repeat is the next identical call by the same
-agent in a later turn. The repeat is a review candidate when it also has an
-error flag and no different call came between. A repeat that succeeds, or a different call
-between, is excluded. A repeat with no error flag is unknown. Traces record no
-artifact or environment state, so `confirmed_violations` is always 0. Token
-counts are the values each span reports; no model window or estimate is added.
+**Repeats after tool errors.** The report schema is
+`nemo.eval_author.retry_audit.v1`. Each ordered, model-issued tool call with usable
+input and a single result whose error flag is explicitly true is one eligible
+opportunity. Its repeat is the next identical call by the same agent in a later
+turn. The repeat is a review candidate when its error flag is also explicitly
+true and no different call came between. A repeat with an explicitly false error
+flag (`repeat_succeeded`), or a different call between (`intervening_action`), is
+excluded. A false flag does not prove correctness or a successful side effect.
+Absent, invalid, conflicting, or unobservable repeat status is unknown unless
+an intervening action already excludes the opportunity.
+
+`eligible_opportunities` retains all eligible error calls, including unknown and
+excluded opportunities. `assessed_opportunities = eligible_opportunities - unknown - excluded`,
+which equals `review_candidates + no_repeat`. A call with no identical repeat in
+a later turn counts as `no_repeat`, not an exclusion. `candidate_rate` is
+`review_candidates / assessed_opportunities`, or `null` when assessed is zero.
+`trials.observable` is 1 only when assessed is positive; `trials.affected` is 1
+only when a review candidate exists. Unknown and excluded counts remain separate.
+Traces record no artifact or environment state, so `confirmed_violations` is always 0. Token
+counts are the values each span reports. The check adds no model window or estimate.
 The evidence audit report is unchanged.
+
+#### Scores for each check group
+
+Verification-integrity scores apply to each supported check group separately.
+They do not replace canonical rubric scores or form an aggregate score.
+
+| Score | Meaning |
+| --- | --- |
+| 0 | No applicable checks pass. |
+| 1 | Some checks pass, but half or fewer. |
+| 2 | More than half pass, but not all. |
+| 3 | All applicable checks pass. |
+| Unassessed | Evidence is missing, stale, or unknown, or no checks apply. |
+
+Show the pass, fail, unknown, and excluded counts beside each score. Unknown
+evidence blocks a score even when some results are known. Review candidates
+remain separate and do not count as failed checks. Use the cited evidence to
+explain the result and the next action.
+
+#### Run the scoring demo
+
+From the repository root, use a new private output directory:
+
+```bash
+uv run --locked python tools/run_verification_integrity_demo.py \
+  --format text --run-dir /absolute/path/to/new-demo-directory
+```
+
+The demo shows expected and observed scores of 0, 1, 2, and 3. It also shows
+unassessed missing and stale evidence, a contradictory saved claim, a consistent
+saved claim, and retry candidates that receive no score. Acceptance examples use
+partial claim fixtures to test integrity, not complete workflow acceptance. Each
+case includes a next action and links to its evidence.
+
+The command runs the real receipt producer, rubric and acceptance commands, and
+production scoring code with synthetic native results. It retains inputs,
+command outputs, Markdown, JSON, and file hashes. It replays unchanged sources
+and compares normalized measurements from a fresh directory. Path-bound raw
+reports need not match across directories. Existing output directories are rejected.
+
+This demonstrates the checks and scoring rules. It does not demonstrate model
+performance or complete workflow qualification.
 
 Regenerate saved derived rubric reports to include the new fields. Retained
 receipts do not change. The report builder revalidates against the selected

@@ -25,6 +25,7 @@ from pathlib import Path
 from eval_author_shared.task_evidence import loads
 from rubric_identity import identify, resolve_route
 from rubric_scoring import _checked_record, _observations, classify_inventory, route_is_bound
+from verification_scoring import score_integrity_groups
 
 CANONICAL = Path(__file__).resolve().parents[1] / "references/artifact-configuration-provenance.json"
 INVENTORIES = {"DISC-01-A": "task_artifacts", "DISC-01-C": "grading_dependencies"}
@@ -493,7 +494,7 @@ def _native(check, measurements, selection):
         {"required_" + state: count for state, count in verification["states"].items()},
         verification["required_cases"],
         "selected required controls",
-        "A missing control is an evidence gap: the attempt ledger is not read. Native freshness is unknown here.",
+        "A missing control is an evidence gap. The check does not read the attempt ledger. Native freshness is unknown here.",
         "States describe selected closure receipts, not current task qualification or agent behavior.",
     )
     measured += native_check["measurements"]
@@ -504,10 +505,11 @@ def _native(check, measurements, selection):
         len(measurement["controls"]),
         "selected receipts",
         "Only selected repair manifests supply supersession links.",
-        "Receipts have no trustworthy order, so each reference is a review candidate, not a confirmed violation.",
+        "Receipts have no trustworthy order. Each reference is a review candidate, not a confirmed violation.",
     )
     native_check["measurements"] = measured + native_check["measurements"]
     check.setdefault("measurements", []).extend(native_check["measurements"])
+    check["group_scores"] = score_integrity_groups(measurement)
     # Append after freshness so its scoped predicates, counts and evidence survive.
     for key in ("evidence", "evidence_refs", "diagnostic_refs", "predicate_results"):
         check.setdefault(key, []).extend(native_check[key])

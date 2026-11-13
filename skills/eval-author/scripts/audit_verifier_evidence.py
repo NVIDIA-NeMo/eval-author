@@ -181,7 +181,7 @@ def inspect_receipt(
         if hashlib.sha256(review.read(manifest_path)).hexdigest() != receipt.get("manifest_sha256"):
             supersedes = manifest.get("supersedes")
             if assessed and isinstance(supersedes, dict) and supersedes.get("manifest_sha256") == bound:
-                # An in-place repair replaced these bytes; the receipt belongs to the older revision.
+                # An in-place repair replaced these bytes. The receipt belongs to the older revision.
                 integrity.update(status_claim="excluded", code="superseded", freshness="stale")
             raise ValueError("Manifest bytes differ from the receipt")
         contract = manifest["contract"]
@@ -307,7 +307,7 @@ def _cited_outcome(row: dict) -> tuple[str, str] | None:
 
 
 def _registered_closure(review: Review, manifest: dict, digest: str) -> list[Path] | None:
-    """Closure receipts registered for this manifest revision; None when the ledger is unavailable."""
+    """Return closure receipts registered for this manifest revision, or None if the ledger is unavailable."""
     ledger = review.path(manifest["attempts"])
     if not ledger.is_dir():
         return None
@@ -316,12 +316,31 @@ def _registered_closure(review: Review, manifest: dict, digest: str) -> list[Pat
         if not re.fullmatch(r"[0-9a-f]{64}\.json", entry.name):
             continue
         attempt = review.object(entry)
-        if attempt.get("manifest_sha256") != digest or attempt.get("purpose") != "closure":
+        # Match the producer's registration shape, including historical records without kind.
+        required = {"run_id", "receipt", "purpose", "case", "manifest_sha256"}
+        if (
+            set(attempt) not in (required, required | {"kind"})
+            or not all(isinstance(attempt[field], str) for field in required)
+            or not attempt["run_id"].strip()
+            or entry.stem != hashlib.sha256(attempt["run_id"].encode()).hexdigest()
+            or not re.fullmatch(r"[0-9a-f]{64}", attempt["manifest_sha256"])
+            or attempt["purpose"] not in ("baseline", "closure")
+            or not attempt["receipt"]
+            or (
+                "kind" in attempt
+                and attempt["kind"]
+                not in ("reference", "incorrect", "empty", "alternative", "side_effect", "agent", "diagnostic")
+            )
+        ):
+            raise ValueError("Malformed attempt registration")
+        receipt = review.path(attempt["receipt"])
+        if attempt["manifest_sha256"] != digest:
             continue
-        # Older ledgers omit the kind; the registration's case still names it.
-        kind = attempt.get("kind") or manifest["contract"]["cases"].get(attempt.get("case"), {}).get("kind")
-        if kind not in ("agent", "diagnostic"):
-            registered.append(review.path(attempt["receipt"]))
+        case = manifest["contract"]["cases"].get(attempt["case"])
+        if case is None or ("kind" in attempt and attempt["kind"] != case["kind"]):
+            raise ValueError("Attempt registration differs from the declared case")
+        if attempt["purpose"] == "closure" and case["kind"] not in ("agent", "diagnostic"):
+            registered.append(receipt)
     return registered
 
 
@@ -341,7 +360,14 @@ def inspect_acceptance(review: Review, saved: dict) -> dict:
         or not isinstance(evidence, list)
         or not all(isinstance(value, str) for value in evidence)
     ):
-        return {**result, "status": "not_applicable", "eligible_claims": 0, "violations": 0, "findings": []}
+        return {
+            **result,
+            "status": "not_applicable",
+            "eligible_claims": 0,
+            "violations": 0,
+            "violation_findings": 0,
+            "findings": [],
+        }
     findings, rows, manifests, cited = [], [], {}, set()
 
     def relative(path: Path) -> str:
@@ -358,6 +384,8 @@ def inspect_acceptance(review: Review, saved: dict) -> dict:
 
     for value in evidence:
         path = review.path(value)
+        if path in cited:
+            continue
         cited.add(path)
         row = inspect(path)
         rows.append(row)
@@ -383,8 +411,7 @@ def inspect_acceptance(review: Review, saved: dict) -> dict:
             if receipt in cited:
                 continue
             row = inspect(receipt)
-            state = receipt_state(row["integrity"])
-            failed = row["integrity"]["behavior"] == "failed" or state == "execution_error"
+            failed = row["integrity"]["behavior"] == "failed" or row["integrity"]["execution"] == "execution_error"
             findings.append(
                 {
                     "code": "omitted_failure" if failed else "omitted_attempt",
@@ -394,6 +421,8 @@ def inspect_acceptance(review: Review, saved: dict) -> dict:
                 }
             )
     verification = required_verification(manifests, rows)
+    if not verification["required_cases"]:
+        findings.append({"code": "missing_required", "outcome": "unknown", "receipt": None, "case": None})
     for case in verification["cases"]:
         if case["state"] == "missing":
             findings.append({"code": "missing_required", "outcome": "unknown", "receipt": None, "case": case["case"]})
@@ -403,7 +432,8 @@ def inspect_acceptance(review: Review, saved: dict) -> dict:
         "claim": "passed",
         "status": next((value for value in ("violation", "unknown", "stale") if value in outcomes), "consistent"),
         "eligible_claims": 1,
-        "violations": sum(row["outcome"] == "violation" for row in findings),
+        "violations": int("violation" in outcomes),
+        "violation_findings": sum(row["outcome"] == "violation" for row in findings),
         "required_verification": verification,
         "agent_runs": "excluded",
         "findings": findings,
@@ -467,7 +497,7 @@ def _account(repo: Path, selected: set[Path], rows: list[dict], links: set[Path]
 
 
 def _selected_manifests(review: Review, selected: set[Path]) -> dict[str, tuple[dict, str]]:
-    """Valid manifests for selected tasks; the control rows already report invalid ones."""
+    """Return valid manifests for selected tasks. The control rows already report invalid ones."""
     manifests = {}
     for path, manifest in review.manifests.items():
         try:

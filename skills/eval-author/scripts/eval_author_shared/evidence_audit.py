@@ -18,7 +18,7 @@ SCHEMA = "nemo.eval_author.trace_environment_evidence_audit.v2"
 
 
 def call_key(agent_span_id: str | None, span: Any) -> str | None:
-    """Identical-input scope: the owning AGENT span, explicit tool server, tool name and arguments."""
+    """Identify matching inputs by the owning AGENT span, explicit tool server, tool name and arguments."""
     name = span.tool_name.strip() if isinstance(span.tool_name, str) else ""
     if not name or not isinstance(span.input, dict):
         return None  # the tool-access plan reports schema and name problems

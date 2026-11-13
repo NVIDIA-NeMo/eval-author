@@ -10,10 +10,10 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Added
 
-- **Verification-integrity checks.** Opt-in reports for receipt contradictions,
+- Opt-in verification-integrity checks report receipt contradictions,
   required-control states, superseded manifests, saved acceptance claims, and
-  unchanged repeats after tool errors. Repair manifests now record the digest
-  they supersede. See
+  unchanged repeats after tool errors. Repair manifests record the digest they
+  supersede. See
   [verification-integrity checks](docs/determinism-checks.md#verification-integrity-checks).
 
 ### Removed

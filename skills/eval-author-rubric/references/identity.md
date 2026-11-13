@@ -213,7 +213,7 @@ that the whole retained-credit or coverage workflow consumes this interface.
 
 ## Selected receipt consistency
 
-An explicit `native` selection also emits three measurements. The owning
+An explicit `native` selection also reports three measurements. The owning
 receipt validator derives each one from the same selected receipt, manifest, and
 native result. None of them scans a task tree.
 
@@ -240,7 +240,7 @@ context growth caused the result. A correctly recorded failure or infrastructure
 error is not an eligible claim. Zero reward, permitted partial credit, valid
 alternatives, and legitimate no-action controls follow their declared checks.
 Agent, diagnostic, baseline, out-of-scope, and superseded receipts are excluded.
-When a later reference check fails, the claim is withdrawn as unknown.
+When a later reference check fails, the validator withdraws the claim as unknown.
 
 Report contradictions divided by eligible claims. Keep unknown, excluded, and
 not-applicable receipts separate. Execution errors and mismatches are overlapping
@@ -248,7 +248,7 @@ diagnostic counts, not extra trials. A zero denominator has a null rate.
 
 For required controls, report each state separately: `pass`, `fail`, `missing`,
 `mismatched`, `execution_error`, `unknown`, and `stale`. Freshness is `unknown`
-here; do not report a rubric pass as a current pass. A missing control is an
+here. Do not report a rubric pass as a current pass. A missing control is an
 evidence gap. It does not show that verification was skipped. Retain earlier
 contradictions when another selected receipt passes. Ordering alone does not
 establish recovery.

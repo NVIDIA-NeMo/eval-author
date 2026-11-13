@@ -314,7 +314,7 @@ def project_native(
                 review, root / records[ident]["path"], receipt, {task}, verify_historical=True, include_integrity=True
             )
             consumer_rows.append(inspected)
-            # A receipt-only execution claim needs no native result; other claims
+            # A receipt-only execution claim needs no native result. Other claims
             # count only after every reference check below binds the same run.
             if inspected["integrity"]["basis"] == "receipt":
                 row["integrity"] = inspected["integrity"]

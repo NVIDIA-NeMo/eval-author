@@ -509,7 +509,7 @@ def _check_acceptance(path: Path) -> tuple[int, dict]:
 
 
 def _acceptance_integrity(path: Path) -> tuple[int, dict]:
-    """Report typed claim-versus-record findings instead of stopping at the first error."""
+    """Report typed findings that compare claims with records. Continue past the first error."""
     saved = _read_json(path)
     import task_evidence  # noqa: F401  # Puts the shared Eval Author scripts on the import path.
     from audit_verifier_evidence import Review, inspect_acceptance

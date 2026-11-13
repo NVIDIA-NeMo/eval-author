@@ -57,6 +57,13 @@ def test_cli_scores_bound_status_claim_without_context_attribution(panel, claime
     predicate = next(row for row in check["predicate_results"] if row["id"] == "selected_receipt_status_consistent")
     assert predicate["outcome"] == {"contradiction": "FAIL", "consistent": "PASS"}.get(expected, "BLOCKED")
     assert check["outcome"] == "PARTIAL"
+    groups = {row["id"]: row for row in check["group_scores"]}
+    assert groups["receipt_consistency"]["score"] == {"contradiction": 0, "consistent": 3}.get(expected)
+    assert groups["required_verification"]["score"] is None
+    assert groups["required_verification"]["unknown"] == 3
+    assert groups["required_verification"]["outcome"] == "unassessed"
+    assert all(row["scope"] == "verification_integrity" for row in groups.values())
+    assert "aggregate_score" not in report
     counts = next(row for row in check["measurements"] if row["unit"] == "selected receipt claims")
     assert counts["denominator"] == 1
 
@@ -151,6 +158,12 @@ def test_real_recorder_to_cli_retains_contradiction_and_recovery(panel, monkeypa
     assert summary["eligible_claims"] == 2
     assert summary["contradictions"] == 1
     assert summary["contradiction_rate"] == 0.5
+    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+    groups = {row["id"]: row for row in check["group_scores"]}
+    assert groups["receipt_consistency"]["score"] == 1
+    assert groups["receipt_consistency"]["passed"] == groups["receipt_consistency"]["failed"] == 1
+    assert groups["required_verification"]["score"] is None
+    assert report["items"]["CREATE-07"]["score"] is None
     assert summary["unknown"] == 0
     assert [row["integrity"]["status_claim"] for row in report["measurements"]["native"]["controls"]] == [
         "contradiction",
@@ -279,6 +292,7 @@ def test_report_revalidates_integrity_instead_of_trusting_saved_counts(panel, mo
     check = next(row for row in rebuilt["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
     assert not any(row["id"] == "selected_receipt_status_consistent" for row in check.get("predicate_results", []))
     assert "revalidation" in check["remaining_gap"]
+    assert not check.get("group_scores")
 
 
 def select(panel, records, ident, path, role):
@@ -399,3 +413,30 @@ def test_in_place_repair_excludes_the_old_receipt_from_current_verification(pane
     assert rows["reference"]["state"] == "missing"
     assert rows["reference"]["superseded_receipts"] == 1
     assert output["superseded_references"]["references"] == 1
+
+
+@pytest.mark.parametrize("kind", ["empty", "missing", "malformed", "baseline"])
+def test_cli_unassessed_group_scores_do_not_become_zero(panel, kind):
+    panel.receipt.update(status="passed", purpose="baseline" if kind == "baseline" else "closure")
+    records = panel.seal()["records"]
+    selected = panel.selection
+    if kind == "empty":
+        selected = {key: [] for key in selected}
+    elif kind == "missing":
+        panel.paths["receipt"].unlink()
+    elif kind == "malformed":
+        panel.paths["receipt"].write_text("[]")
+        records = [row for row in records if row["id"] != "receipt"]
+        select(panel, records, "receipt", panel.paths["receipt"], "receipt")
+    completed = run_rubric_cli(panel, {"artifacts": records, "native": selected})
+    assert completed.returncode == 1
+    assert completed.stderr == ""
+    report = json.loads(completed.stdout)
+    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
+    receipt, required = check["group_scores"]
+    assert receipt["score"] is required["score"] is None
+    assert receipt["outcome"] == required["outcome"] == "unassessed"
+    assert receipt["failed"] == required["failed"] == 0
+    assert receipt["unknown"] == int(kind in {"missing", "malformed"})
+    assert receipt["excluded"] == int(kind == "baseline")
+    assert report["items"]["CREATE-07"]["score"] is None

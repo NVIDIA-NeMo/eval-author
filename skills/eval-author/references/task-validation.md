@@ -353,8 +353,9 @@ different task or reinterpret old rewards to make them pass.
 
 After editing, prepare the current manifest with `--previous <current-manifest>
 --reason "<classification and concrete change>"`; `--out` may name that same
-manifest. The new manifest records the replaced digest as `supersedes`; receipts
-bound to it belong to the superseded revision. Then rerun all required controls and agent evidence for acceptance.
+manifest. The new manifest records the replaced digest as `supersedes`. Receipts
+bound to that digest belong to the superseded revision. Then rerun all required
+controls and agent evidence for acceptance.
 The recorder keeps the current repair count and reason, with at most three
 repairs after the initial attempt. Do not reset the count to evade that budget.
 Retain unresolved work when exhausted. Source control owns prior task and grader
@@ -398,6 +399,10 @@ control receipts, attempt ledger, and repair lineage:
 - `unknown`: evidence is missing or unreadable.
 - `stale`: the task changed after the controls ran.
 
+`violations` counts violating claims (0 or 1), while `violation_findings`
+counts the supporting findings. Duplicate citations count once. An empty
+list of evidence is `unknown`, not a consistent claim.
+
 Report each finding with its receipt and case. Do not call an `unknown` or
-`stale` finding a false claim. Agent runs are excluded; review them through
+`stale` finding a false claim. Agent runs are excluded. Review them through
 their traces. The mode leaves coverage checks to the default command.

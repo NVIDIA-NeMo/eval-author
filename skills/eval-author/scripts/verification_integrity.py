@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Typed verification-integrity measurements over existing receipt validation.
+"""Aggregate typed verification-integrity measurements from existing receipt validation.
 
 The owning validators classify each receipt. These helpers only aggregate those
 classifications. They report record consistency and evidence coverage, not agent
