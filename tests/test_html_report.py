@@ -1991,6 +1991,18 @@ def test_readme_introduces_the_suite_and_always_links_every_report(tmp_path):
     assert report.refresh(tmp_path)["audit"] is None
 
 
+def test_audit_links_keep_encoded_paths_and_external_urls_intact(tmp_path):
+    base = ".eval-author/report_markdown"
+    task_rows = {".eval-author/tasks/refund#policy": "#task:row"}
+    link, external = report.audit_link("../tasks/refund%23policy/README.md", base, task_rows)
+    assert link == "tasks/refund%23policy/README.md" and not external
+    link, external = report.audit_link("../tasks/refund%23policy", base, task_rows)
+    assert link == "#task:row" and not external
+    url = "https://example.test/a?next=%2Fx%3Fy%3D1#frag%20x"
+    assert report.audit_link(url, base, {}) == (url, True)
+    assert report.audit_link("#finding-%231", base, {}) == ("#audit-finding-#1", False)
+
+
 def test_audit_tab_links_tasks_runs_and_sections_to_report_views(tmp_path):
     path = task(tmp_path, readme="# Refund\n")
     run_path = job(tmp_path, total=1)

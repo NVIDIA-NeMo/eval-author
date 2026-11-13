@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-[eval-author-audit-report]: urn:eval-author:audit-report:%7B%22body_sha256%22%3A%20%227d42c2a4b6a3863d902125934a0c89c8931673f339f1a321e9a118caa73ce0fc%22%2C%20%22content_sha256%22%3A%20%224ac97454cee3e6dd1a9894962e205422f81e54038319d63826d48b814115181c%22%2C%20%22renderer_version%22%3A%201%2C%20%22sources_sha256%22%3A%20%22c3f754c65550da88c25a6f2457ee1139d23bc0181574efe31c2cdec19c9d535b%22%2C%20%22validator_version%22%3A%201%7D
+[eval-author-audit-report]: urn:eval-author:audit-report:%7B%22body_sha256%22%3A%20%2281ce9cdc5b95d4e9273efeff872476a61986a7bb1b93b976bb25a6c606e6f739%22%2C%20%22content_sha256%22%3A%20%224ac97454cee3e6dd1a9894962e205422f81e54038319d63826d48b814115181c%22%2C%20%22renderer_version%22%3A%201%2C%20%22sources_sha256%22%3A%20%22c3f754c65550da88c25a6f2457ee1139d23bc0181574efe31c2cdec19c9d535b%22%2C%20%22validator_version%22%3A%201%7D
 
 # Audit coverage report: research-agent
 
@@ -61,7 +61,7 @@ Proposed task: Require the trace to show a read\_file call on the cited source b
 
 The recommendations draw on the inspected task definitions, the audit specification, and the selected Ethos.
 
-| Severity | Finding / Advisory | Tool or capability | Description |
+| Priority | Finding / Advisory | Affected coverage | Description |
 | --- | --- | --- | --- |
 | High | [Advisory 1 - The verifier accepts an unchecked success response](#advisory-1---the-verifier-accepts-an-unchecked-success-response) | cited\_answers (capability) | Repair the verifier. Revise the verifier to compare the submitted quotation with verifier-owned source data and reject empty answers. |
 | Medium | [Finding 1 - Coverage gaps](#finding-1---coverage-gaps) | missing\_evidence (failure case) | Add a task. Supply a source without an answer and require the agent to acknowledge that limitation. **Verification:** Accept a reply that says the sources do not contain the answer. Reject a reply that supplies a quotation, a participant, or a count, because none can come from the supplied source. **Breadth:** Provisionally three inputs: no answer in the source, a partial answer, and an answer that exists only in a different source. Exclude multi-turn variants until the first set is agreed. **Next step:** Needs manual task design. |

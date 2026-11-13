@@ -189,8 +189,10 @@ catalog, verifier cheat screening, scope and execution evidence, and
 definitions.
 
 The audit report is generated. Ask Eval Author to revise and regenerate it when
-you need changes. Direct Markdown edits block refresh, and the Audit tab marks an
-edited report. Each regeneration also refreshes `report.html` and the suite README.
+you need changes. Editing the generated audit Markdown blocks audit regeneration
+until the edits are resolved. HTML refresh continues to display the edited report,
+and the Audit tab marks it as edited. Each regeneration also refreshes `report.html`
+and the Markdown reports.
 
 Audits saved before this layout are at `.eval-author/audit-coverage-report.md`.
 The Audit tab shows such a report, labeled with its old location, until the next

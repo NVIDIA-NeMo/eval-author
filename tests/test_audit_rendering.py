@@ -546,6 +546,20 @@ def test_selection_checkpoint_can_announce_a_report_without_advancing(modules, s
     assert modules[2].render(payload) == output
 
 
+@pytest.mark.parametrize("stage", ["measurement", "blockers"])
+def test_html_announcement_requires_successful_suite_publication(modules, stage):
+    payload = checkpoint(modules, stage)
+    report_links(payload, modules)
+    payload["facts"]["report_action"] = "updated"
+    target = payload["facts"]["links"]["report"]["target"]
+    payload["facts"]["suite_report_error"] = "Could not write report.html"
+    output = modules[2].render(payload)
+    assert f"I updated [Audit coverage report](<{target}>)." in output
+    assert "could not be refreshed" in output
+    assert "You can also read it" not in output
+    assert "report.html" not in output
+
+
 def test_selection_report_notice_requires_its_bound_report_link(modules):
     payload = checkpoint(modules, "suites")
     report_links(payload, modules)

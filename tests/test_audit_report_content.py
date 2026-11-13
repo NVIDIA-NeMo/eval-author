@@ -1040,9 +1040,9 @@ def next_action_rows(block):
     """The recommendation table's body rows, each split into its four cells."""
     rows = [line for line in block.splitlines() if line.startswith("| ")]
     assert [cell.strip() for cell in rows[0].strip("|").split(" | ")] == [
-        "Severity",
+        "Priority",
         "Finding / Advisory",
-        "Tool or capability",
+        "Affected coverage",
         "Description",
     ]
     return [[cell.strip() for cell in line.strip("|").split(" | ")] for line in rows[2:]]

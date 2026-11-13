@@ -203,9 +203,9 @@ say why the gap matters.
 
 **The renderer writes:** one table with a row for every recommendation, with no
 grouping by capability, tool, or failure case. Rows are ordered by `priority`
-(high, medium, low), and `order` breaks ties. The columns are Severity (the
-priority), Finding / Advisory (a link to the advisory or finding), Tool or
-capability (every capability, tool, or failure case the row involves, or "no mapped
+(high, medium, low), and `order` breaks ties. The columns are Priority (the
+recommendation priority), Finding / Advisory (a link to the advisory or finding), Affected
+coverage (every capability, tool, or failure case the row involves, or "no mapped
 capability or tool"), and Description (the action followed by your `proposed_task`).
 A revise-task row also links the task it revises. When a recommendation has
 `details`, the same Description cell continues with Verification, Breadth, and Next

@@ -66,6 +66,7 @@ CANONICAL_REPORT = ".eval-author/report_markdown/audits.md"
 HTML_REPORT_PATH = ".eval-author/report.html"
 HTML_REPORT_LABEL = "HTML report’s Audit tab"
 HTML_REPORT = "You can also read it in the {html}."
+HTML_REPORT_FAILED = "The HTML report could not be refreshed, so it does not yet show this audit."
 SECTION_LABELS = {
     "intended_coverage": "Audit coverage report: Capabilities audited",
     "findings": "Audit coverage report: Key findings",

@@ -50,8 +50,9 @@ Onboarding `resume` rejects these downstream checkpoints.
 
 ## Stages and facts
 
-Every stage accepts `audit_observations`, optional `links`, and applicable
-`blockers`. Additional facts and gates are listed below; unknown fields fail.
+Every stage accepts `audit_observations`, optional `links`, optional
+`suite_report_error` (the renderer's error: the notice then links the Markdown and says the HTML report
+could not be refreshed), and applicable `blockers`. Additional facts and gates are listed below; unknown fields fail.
 
 | Stage | Additional facts and behavior |
 |---|---|

@@ -27,7 +27,7 @@ PHASES = {
     "complete": "next_action",
 }
 STAGES = {"audit_" + stage for stage in {*PHASES.values(), "blockers", "resume"}}
-COMMON_FACTS = {"audit_observations", "links", "blockers"}
+COMMON_FACTS = {"audit_observations", "links", "blockers", "suite_report_error"}
 STAGE_FACTS = {
     "suites": {"suites", "report_action"},
     "traces": {"report_action"},
@@ -103,7 +103,10 @@ def report_notice(state: dict, lifecycle: dict, facts: dict) -> str:
         raise ValueError("Supply the actual report action: created, updated, or unchanged")
     notice = copy.REPORT_ACTIONS[action].format(report=report_link(state, lifecycle, facts))
     # The audit renderer refreshes report.html from the canonical report; a legacy location has no Audit tab yet.
-    if lifecycle["findings"]["report"]["path"] == copy.CANONICAL_REPORT:
+    # A suite_report_error means the Markdown is current but the HTML is not, so never announce the HTML then.
+    if facts.get("suite_report_error"):
+        notice += " " + copy.HTML_REPORT_FAILED
+    elif lifecycle["findings"]["report"]["path"] == copy.CANONICAL_REPORT:
         notice += " " + copy.HTML_REPORT.format(
             html=link(local_target(state, copy.HTML_REPORT_PATH), copy.HTML_REPORT_LABEL, fragment="audit")
         )

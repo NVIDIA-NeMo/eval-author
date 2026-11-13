@@ -77,6 +77,7 @@ def bound_links(state: dict, facts: dict) -> None:
     paths = {
         "report": ".eval-author/report.html",
         "readme": ".eval-author/README.md",
+        "tasks_markdown": ".eval-author/report_markdown/tasks.md",
         "rerun": ".eval-author/README.md",
         "tasks_view": ".eval-author/report.html",
     }
@@ -486,7 +487,7 @@ def first_review(record: dict, progress: dict, facts: dict) -> str:
             copy.FIRST_REVIEW_INTRO.format(task_id=literal(record["first_task"], "first task ID")),
             copy.FIRST_REVIEW_ACTION.format(
                 report=named_link(facts, "tasks_view", fragment=True, label=copy.FIRST_REVIEW_REPORT_LABEL),
-                readme=named_link(facts, "readme", label=copy.FIRST_REVIEW_README_LABEL),
+                markdown=named_link(facts, "tasks_markdown", label=copy.FIRST_REVIEW_MARKDOWN_LABEL),
             ),
             task_table(rows),
             copy.FIRST_REVIEW_STATUS.format(
@@ -519,7 +520,7 @@ def suite_review(record: dict, progress: dict, facts: dict) -> str:
         ),
         copy.SUITE_REVIEW_ACTION.format(
             report=named_link(facts, "tasks_view", fragment=True, label=copy.FIRST_REVIEW_REPORT_LABEL),
-            readme=named_link(facts, "readme", label=copy.FIRST_REVIEW_README_LABEL),
+            markdown=named_link(facts, "tasks_markdown", label=copy.FIRST_REVIEW_MARKDOWN_LABEL),
         ),
         task_table(rows),
         copy.SUITE_REVIEW_STATUS.format(

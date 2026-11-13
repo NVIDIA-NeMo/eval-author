@@ -1341,7 +1341,7 @@ def render_readme_section(repo: Path, data: dict) -> str:
         ("`report_markdown/`", "The same reports as Markdown, for agents and reviews."),
         (
             "`.working/`",
-            "Eval Author's private workflow state, evidence, and drafts. Do not edit it by hand.",
+            "Eval Author's private workflow state, evidence, and drafts.",
         ),
     ]
     lines = [
@@ -1374,6 +1374,11 @@ def render_readme_section(repo: Path, data: dict) -> str:
         "to the Runs tab.",
         "- **Settings** sets the Harbor viewer addresses that the task and job links open.",
         "",
+        "The Harbor task viewer can only serve one directory of tasks at a time. If your tasks are spread across "
+        "sub folders, start the viewer on one folder, open its tasks, then stop it and start it on the next folder. "
+        "Change the viewer address in **Settings** to match each viewer you start. The Harbor job viewer works the "
+        "same way for job folders.",
+        "",
         "Use it to decide which drafts to accept, see which intended behaviors no task covers yet, check that "
         "controls pass and fail as designed before trusting an agent score, compare agent runs over time, and "
         "choose the next evaluation to add.",
@@ -1394,8 +1399,7 @@ def render_readme_section(repo: Path, data: dict) -> str:
             "- [report_markdown/audits.md](report_markdown/audits.md): the latest audit coverage report, with "
             "findings, recommendations, and coverage tables that link to the tasks they cite.",
             "",
-            "These files are generated. Do not edit them: edit the task READMEs, the reporting metadata, or the audit's "
-            "report content, then have Eval Author refresh the report.",
+            "> **Note:** All report content is generated programmatically. Any hand edits will be overwritten.",
             "",
             "## Folder layout",
             "",
@@ -1415,10 +1419,11 @@ def heading_slug(title: str) -> str:
 def audit_link(href: str, base: str, targets: dict[str, str]) -> tuple[str, bool]:
     """Point an audit link at the report's own views where one exists; keep other files relative to the HTML."""
     if href.startswith("#"):
-        return "#audit-" + href[1:], False
+        return "#audit-" + unquote(href[1:]), False
     if re.match(r"^[a-z][a-z0-9+.-]*:", href, re.I):
         return href, True
     path, _, fragment = href.partition("#")
+    fragment = unquote(fragment)
     resolved = posixpath.normpath(posixpath.join(base, unquote(path)))
     views = {TASKS_MARKDOWN: "#cases", RUNS_MARKDOWN: "#runs", AUDIT_MARKDOWN: "#audit", REPORT_HTML: "#cases"}
     if resolved in views:
@@ -1464,7 +1469,7 @@ def render_audit_html(source: str, path: str, tasks: list[dict], runs: list[dict
             token.attrSet("id", "audit-" + slug + (f"-{count}" if count else ""))
         for child in token.children or []:
             if child.type == "link_open":
-                href, external = audit_link(unquote(str(child.attrGet("href") or "")), posixpath.dirname(path), targets)
+                href, external = audit_link(str(child.attrGet("href") or ""), posixpath.dirname(path), targets)
                 child.attrSet("href", href)
                 if external:
                     child.attrSet("target", "_blank")

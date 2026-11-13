@@ -33,7 +33,7 @@ KIND_NAMES = {"capability": "capability", "tool": "tool", "failure_case": "failu
 TABLES = {
     "tasks": ("Task", "Behavior", "Capabilities and tools", "Findings"),
     "coverage": ("Functionality", "Intended check and required evidence", "Tasks", "Run evidence"),
-    "recommendations": ("Severity", "Finding / Advisory", "Tool or capability", "Description"),
+    "recommendations": ("Priority", "Finding / Advisory", "Affected coverage", "Description"),
     "history": ("", "Current audit", "Previous audit", "Change"),
 }
 KINDS = (("capability", "Capabilities"), ("tool", "Tools"), ("failure_case", "Failure cases"))

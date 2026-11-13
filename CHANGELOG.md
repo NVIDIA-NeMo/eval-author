@@ -31,12 +31,12 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ### Changed
 
-- **Report page headers.** The header's "Markdown for agents" row is gone. Each
-  tab now shows its own "Agent markdown" link (`tasks.md`, `runs.md`, or
-  `audits.md`) floated right of a one-line page description, and the Audit tab no
-  longer shows the separate "Saved date / Markdown path" line. The Suite README
-  link is no longer in the header; it remains in the audit report's Suite reports
-  list.
+- **Suite README and reports.** `.eval-author/README.md` is now a general
+  descriptor of the evaluation suite. It no longer holds report content, so a
+  refresh never changes it. The human-readable report lives in `report.html`,
+  and the former README tables are split into one Markdown report per content
+  tab for agents: `report_markdown/tasks.md`, `runs.md`, and `audits.md`. Each
+  tab links to its Markdown report.
 - **Generated reports are not audit evidence.** Content validation now refuses to
   bind `.eval-author/README.md`, `report.html`, `report_markdown/*`, or the legacy
   `audit-coverage-report.md` as a source, because publishing the audit rewrites
