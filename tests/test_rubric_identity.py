@@ -1230,7 +1230,7 @@ def test_cli_downstream_readers_respect_full_identity_selection(tmp_path, consum
         assert report["measurements"]["native"]["bindings"] == []
         assert report["measurements"]["native"]["status"] != "pass"
     else:
-        assert report["items"]["DISC-01-A"]["score"] is None
+        assert report["items"]["provenance.task-artifact-access"]["score"] is None
 
 
 def audited_rubric_cli(root, selection, forbidden):

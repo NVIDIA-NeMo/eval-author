@@ -63,22 +63,32 @@ def test_rubric_routes_only_the_explicitly_selected_assessment_area() -> None:
 CANONICAL_AREAS = {
     "artifact-configuration-provenance": (
         [
-            "DISC-01-A",
-            "DISC-01-B",
-            "DISC-01-C",
-            "DISC-02-A",
-            "DISC-02-B",
-            "DISC-03-A",
-            "AUD-02",
-            "ENV-01",
-            "ENV-02-A",
-            "ENV-03",
-            "CREATE-07",
+            "provenance.task-artifact-access",
+            "provenance.grading-path",
+            "provenance.grading-dependency-access",
+            "provenance.declared-configuration",
+            "provenance.observed-configuration",
+            "provenance.runtime-route",
+            "provenance.comparison-fairness",
+            "provenance.solver-tool-access",
+            "provenance.dependency-substitution",
+            "provenance.external-state",
+            "provenance.evidence-revision-consistency",
         ],
         38,
         {"rubric_version", "policies", "result_template", "items"},
     ),
-    "task-contract-authority": (["CREATE-03", "CREATE-04", "CREATE-05-A"], 9, {"rubric_version", "items"}),
+    "task-contract-authority": (
+        ["task-contract.clear-contract", "task-contract.discoverable-requirements", "task-contract.scoring-authority"],
+        9,
+        {"rubric_version", "items"},
+    ),
+}
+METHOD_SLUGS = {
+    "deterministic": "deterministic",
+    "human_review": "human-review",
+    "llm_as_judge": "llm-judge",
+    "probe": "probe",
 }
 
 
@@ -91,10 +101,13 @@ def test_rubric_canonical_source_preserves_criterion_checks_and_anchors(area: st
     assert [item["id"] for item in items] == ids
     checks = [check for item in items for check in item["checks"]]
     assert len(checks) == len({check["id"] for check in checks}) == check_count
+    assert len({check["source_id"] for check in checks}) == check_count
+    assert len({item["source"]["id"] for item in items}) == len(items)
     for item in items:
         assert set(item["scoring"]) == {"0", "1", "2", "3"}
-        check_ids = [check["id"] for check in item["checks"]]
-        assert check_ids == sorted(check_ids) and all(i.startswith(item["id"] + "-C") for i in check_ids)
+        for check in item["checks"]:
+            prefix = re.escape(f"{item['id']}.{METHOD_SLUGS[check['method']]}")
+            assert re.fullmatch(prefix + r"(-\d+)?", check["id"]), "Check IDs name their item and method"
         assert {check["method"] for check in item["checks"]} == set(item["methods"])
 
 
@@ -102,12 +115,13 @@ def test_rubric_canonical_source_preserves_criterion_checks_and_anchors(area: st
 def test_rubric_reference_links_each_criterion_without_copying_anchors(area: str) -> None:
     text = (SKILL / f"references/{area}.md").read_text()
     items = json.loads((SKILL / f"references/{area}.json").read_text())["items"]
-    sections = dict(re.findall(r"## ([A-Z]+-\d+(?:-[A-Z])?) — ([\s\S]*?)(?=\n## |\Z)", text))
+    sections = dict(re.findall(r"## (\S+) — ([\s\S]*?)(?=\n## |\Z)", text))
     assert set(sections) == {item["id"] for item in items}
-    for index, item in enumerate(items):
+    assert "#/items/" not in text, "Link entries by ID, not position"
+    for item in items:
         section = sections[item["id"]]
         assert section.startswith(item["title"] + "\n")
-        assert f"{area}.json#/items/{index}" in section
+        assert f"the `{item['id']}` entry in" in " ".join(section.split())
         assert "**Methods and evidence:**" in section and "**Assessment limit:**" in section
         for anchor in item["scoring"].values():
             assert anchor not in text, "Keep full score anchors in canonical JSON only"
@@ -119,7 +133,7 @@ def test_provenance_reference_states_rubric_wide_assessment_rules() -> None:
     for rule in (
         "E0 alone supports no numeric score",
         "Do not import anti-cheat's evidence-floor table",
-        "CREATE-07 and AUD-02 can meet their level-3 anchors at E2",
+        "`provenance.evidence-revision-consistency` and `provenance.comparison-fairness` can meet their level-3 anchors at E2",
         "Every selected criterion must have a result row",
         "Every source check must be accounted for",
         "NOT_ASSESSED",

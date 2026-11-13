@@ -27,7 +27,10 @@ from rubric_identity import identify, resolve_route
 from rubric_scoring import _checked_record, _observations, classify_inventory, route_is_bound
 
 CANONICAL = Path(__file__).resolve().parents[1] / "references/artifact-configuration-provenance.json"
-INVENTORIES = {"DISC-01-A": "task_artifacts", "DISC-01-C": "grading_dependencies"}
+INVENTORIES = {
+    "provenance.task-artifact-access": "task_artifacts",
+    "provenance.grading-dependency-access": "grading_dependencies",
+}
 
 
 def _validated(measurements, selection, root):
@@ -94,7 +97,7 @@ def _inventory(check, item_id, measurements, selection, root, records, valid):
     source_bound = inventory["source_bound"]
     observed = inventory["records"]
     diagnostics = _diagnostics(measurements, "identity", set([source_id, *required]))
-    if check["id"].endswith("C01"):
+    if check["id"] == item_id + ".deterministic-1":
         if source is None:
             check["diagnostic_refs"] = diagnostics
             return
@@ -139,36 +142,39 @@ def _inventory(check, item_id, measurements, selection, root, records, valid):
 
 
 PARTIAL_HELPERS = {
-    "DISC-02-A-C02": ("config", "Unknown JSON pointers only; no per-field source or provider-hidden classification."),
-    "DISC-02-B-C01": (
+    "provenance.declared-configuration.deterministic-2": (
+        "config",
+        "Unknown JSON pointers only; no per-field source or provider-hidden classification.",
+    ),
+    "provenance.observed-configuration.deterministic-1": (
         "config",
         "Caller-projected declared/observed diff only; no trusted native run/task binding or independently observed settings.",
     ),
-    "DISC-02-B-C02": (
+    "provenance.observed-configuration.deterministic-2": (
         "config",
         "Unavailable projected values stay unknown; observable native coverage and its denominator are not established.",
     ),
-    "AUD-02-C01": (
+    "provenance.comparison-fairness.deterministic": (
         "config",
         "Declared/observed projection comparison only; not a version-bound cross-system comparison or fairness judgment.",
     ),
-    "ENV-02-A-C01": (
+    "provenance.dependency-substitution.deterministic-1": (
         "identity",
         "Selected local identities only; installed component availability and complete MCP inventory are not established.",
     ),
-    "ENV-02-A-C03": (
+    "provenance.dependency-substitution.deterministic-2": (
         "approvals",
         "Declared substitution bindings only; no installed runtime observation or scope-owner authentication.",
     ),
-    "ENV-03-C01": (
+    "provenance.external-state.deterministic": (
         "identity",
         "Selected file digests only; no material external-state inventory, live response capture or drift bounds.",
     ),
-    "CREATE-07-C01": (
+    "provenance.evidence-revision-consistency.deterministic-1": (
         "links",
         "Explicit projected graph only; no complete native result-to-revision binding or semantic compatibility.",
     ),
-    "CREATE-07-C02": (
+    "provenance.evidence-revision-consistency.deterministic-2": (
         "identity",
         "Selected current byte comparisons only; no material change-impact adjudication, score invalidation or preserved regrading lineage.",
     ),
@@ -208,11 +214,11 @@ def _partial_helper(check, measurements, selection):
 
 
 CONFIG_CHECKS = {
-    "DISC-02-A-C01": "Selected field provenance only; required model, prompt, sampling, budget, harness and dependency coverage is not independently established.",
-    "DISC-02-A-C02": "Selected fields and omitted category placeholders only; required-field completeness and version-reference semantics are not established.",
-    "DISC-02-B-C01": "Selected-record run/task/configuration assertions only, not native attestation or complete runtime-setting coverage.",
-    "DISC-02-B-C02": "Observable coverage is limited to selected fields and omitted category placeholders, not an independently established native denominator.",
-    "AUD-02-C01": "Declared/observed source comparison only; distinct cross-system identities, complete comparison settings and fairness are not established.",
+    "provenance.declared-configuration.deterministic-1": "Selected field provenance only; required model, prompt, sampling, budget, harness and dependency coverage is not independently established.",
+    "provenance.declared-configuration.deterministic-2": "Selected fields and omitted category placeholders only; required-field completeness and version-reference semantics are not established.",
+    "provenance.observed-configuration.deterministic-1": "Selected-record run/task/configuration assertions only, not native attestation or complete runtime-setting coverage.",
+    "provenance.observed-configuration.deterministic-2": "Observable coverage is limited to selected fields and omitted category placeholders, not an independently established native denominator.",
+    "provenance.comparison-fairness.deterministic": "Declared/observed source comparison only; distinct cross-system identities, complete comparison settings and fairness are not established.",
 }
 
 
@@ -277,21 +283,21 @@ def _sourced_config(check, measurement, selection):
         boundary,
     )
     ident = check["id"]
-    if ident == "DISC-02-A-C01":
+    if ident == "provenance.declared-configuration.deterministic-1":
         _predicate(
             check,
             "declared_fields_sourced",
             "PASS" if counts["declared_sourced"] == counts["fields"] else "PARTIAL",
             "Every reported declared selector resolves to nonempty digest-bound source content.",
         )
-    elif ident == "DISC-02-A-C02":
+    elif ident == "provenance.declared-configuration.deterministic-2":
         _predicate(
             check,
             "unknown_states_classified",
             "PASS",
             "Omitted, inaccessible, provider-hidden and unobservable states retain fixed reasons and claim limits for reported fields.",
         )
-    elif ident == "DISC-02-B-C02":
+    elif ident == "provenance.observed-configuration.deterministic-2":
         _predicate(
             check,
             "unavailable_observations_not_matched",
@@ -305,7 +311,7 @@ def _sourced_config(check, measurement, selection):
             "PASS" if not counts["unknown"] else "PARTIAL",
             "Type-preserving comparison over selected source fields; different is a measured difference, not a fairness failure.",
         )
-        if ident == "DISC-02-B-C01":
+        if ident == "provenance.observed-configuration.deterministic-1":
             bindings = [field["observed"]["binding"] for field in fields.values()]
             mismatch = any(binding["reason"] and binding["reason"].endswith("_mismatch") for binding in bindings)
             outcome = (
@@ -326,9 +332,9 @@ def _sourced_config(check, measurement, selection):
 
 
 FRESHNESS_CHECKS = {
-    "CREATE-07-C01": "Selected result/dependency lineage only; completeness of all material instructions, fixtures, scorer, ground truth, judge and runtime bindings is not established.",
-    "CREATE-07-C02": "Derived freshness and reuse eligibility only; no persisted score invalidation, regrading execution or complete regrading history is established.",
-    "CREATE-07-C04": "Selected ETHOS byte/revision lineage only; obligation references, semantic change-impact adjudication and changed/unchanged fixture outcomes are not established.",
+    "provenance.evidence-revision-consistency.deterministic-1": "Selected result/dependency lineage only; completeness of all material instructions, fixtures, scorer, ground truth, judge and runtime bindings is not established.",
+    "provenance.evidence-revision-consistency.deterministic-2": "Derived freshness and reuse eligibility only; no persisted score invalidation, regrading execution or complete regrading history is established.",
+    "provenance.evidence-revision-consistency.deterministic-4": "Selected ETHOS byte/revision lineage only; obligation references, semantic change-impact adjudication and changed/unchanged fixture outcomes are not established.",
 }
 
 
@@ -338,7 +344,7 @@ def _freshness(check, measurements, selection):
         check["diagnostic_refs"] = _diagnostics(measurements, "freshness")
         return
     indexed = list(enumerate(measurement["records"]))
-    if check["id"] == "CREATE-07-C04":
+    if check["id"] == "provenance.evidence-revision-consistency.deterministic-4":
         ethos = {
             row["id"]
             for row in selection.get("artifacts", [])
@@ -380,7 +386,7 @@ def _freshness(check, measurements, selection):
         boundary,
     )
     current = "BLOCKED" if not records or values["unresolved"] else "FAIL" if values["stale"] else "PASS"
-    if check["id"] == "CREATE-07-C01":
+    if check["id"] == "provenance.evidence-revision-consistency.deterministic-1":
         # A failed dependency can leave a valid-looking prefix of lineage.
         bound = (
             records
@@ -398,7 +404,7 @@ def _freshness(check, measurements, selection):
             outcome,
             "Selected retained evidence has source-bound old/current dependency identities; no material-completeness claim.",
         )
-    elif check["id"] == "CREATE-07-C02":
+    elif check["id"] == "provenance.evidence-revision-consistency.deterministic-2":
         _predicate(
             check,
             "selected_evidence_current",
@@ -582,7 +588,7 @@ def _verified_helpers(measurements, selection, root):
 def _helper_check(check, item_id, measurements, selection, root, records, valid, verified):
     if check["method"] != "deterministic":
         return
-    if check["id"] == "ENV-02-A-C03" and (
+    if check["id"] == "provenance.dependency-substitution.deterministic-2" and (
         "approval_sources" in selection or "evidence" in measurements.get("approvals", {})
     ):
         if "approvals" in verified:
@@ -608,7 +614,7 @@ def _helper_check(check, item_id, measurements, selection, root, records, valid,
         _partial_helper(check, measurements, selection)
     elif item_id in INVENTORIES and check["method"] == "deterministic":
         _inventory(check, item_id, measurements, selection, root, records, valid)
-    elif check["id"] == "DISC-01-B-C01":
+    elif check["id"] == "provenance.grading-path.deterministic-1":
         route = measurements.get("route", {})
         selected = selection.get("route")
         if not route or not isinstance(selected, dict):
@@ -633,7 +639,7 @@ def _helper_check(check, item_id, measurements, selection, root, records, valid,
             outcome,
         )
 
-    if check["id"] == "CREATE-07-C01" and "native" in measurements:
+    if check["id"] == "provenance.evidence-revision-consistency.deterministic-1" and "native" in measurements:
         if "native" in verified:
             _native(check, measurements, selection)
         else:
@@ -660,7 +666,7 @@ def build_report(items, measurements, selection, root):
             row["measurements"] = []
         row.update(
             item_id=ident,
-            skill_id=definition["skill_id"],
+            source=deepcopy(definition["source"]),
             assessment_state=row["status"],
             subject_id=subject["id"] if subject else None,
             subject_revision="sha256:" + subject["digest"] if subject else None,

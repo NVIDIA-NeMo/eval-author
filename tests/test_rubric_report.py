@@ -44,7 +44,7 @@ def test_complete_canonical_crosswalk_preserves_assessment_decisions(modules, tm
     for item in definitions["items"]:
         row = rows[item["id"]]
         assert definitions["result_template"].keys() <= row.keys()
-        assert row["skill_id"] == item["skill_id"]
+        assert row["source"] == item["source"] and row["skill_id"] is None
         assert row["status"] == row["assessment_state"] == items[item["id"]]["status"]
         assert row["score"] == items[item["id"]]["score"]
         assert row["subject_id"] is row["subject_revision"] is None
@@ -123,9 +123,9 @@ def test_caller_only_dependency_graph_cannot_pass(modules, tmp_path, consumer):
     assert measurements["route"]["bound_dependency"] is False
     items = assess(measurements, selection, root=tmp_path)
     if consumer == "score":
-        assert items["DISC-01-B"]["score"] is None
+        assert items["provenance.grading-path"]["score"] is None
     else:
-        row = report.build_report(items, measurements, selection, tmp_path)["DISC-01-B"]
+        row = report.build_report(items, measurements, selection, tmp_path)["provenance.grading-path"]
         assert row["check_results"][0]["outcome"] == "PARTIAL"
 
 
@@ -135,7 +135,7 @@ def test_caller_expected_scorer_cannot_establish_wrong_scorer_merit(modules, tmp
     selection["route"]["expected_scorer"] = "caller-typo"
     measurements = measured(selection, tmp_path)
     assert any(row["code"] == "route.scorer_mismatch" for row in measurements["route"]["diagnostics"])
-    row = assess(measurements, selection, root=tmp_path)["DISC-01-B"]
+    row = assess(measurements, selection, root=tmp_path)["provenance.grading-path"]
     assert (row["status"], row["score"]) == ("NOT_ASSESSED", None)
 
 
@@ -148,8 +148,8 @@ def test_inventory_access_cannot_pass_unbound_required_records(modules, tmp_path
     measurements = measured(selection, tmp_path)
     assert measurements["identity"]["status"] == "pass"
     items = assess(measurements, selection, root=tmp_path)
-    assert items["DISC-01-A"]["score"] is None
-    row = report.build_report(items, measurements, selection, tmp_path)["DISC-01-A"]
+    assert items["provenance.task-artifact-access"]["score"] is None
+    row = report.build_report(items, measurements, selection, tmp_path)["provenance.task-artifact-access"]
     assert row["check_results"][1]["outcome"] == "PARTIAL"
     assert row["check_results"][1]["evidence"][0]["value"][0]["access"] == "unresolved"
 
@@ -159,7 +159,7 @@ def test_scored_inventory_replaces_unmet_default_gap(modules, tmp_path):
     selection = packet(tmp_path)
     measurements = measured(selection, tmp_path)
     items = assess(measurements, selection, root=tmp_path)
-    row = report.build_report(items, measurements, selection, tmp_path)["DISC-01-A"]
+    row = report.build_report(items, measurements, selection, tmp_path)["provenance.task-artifact-access"]
     assert row["score"] == 2
     stale = "Required task-artifact selection and source-bound access evidence are needed."
     assert stale not in row["limitations"]
@@ -174,7 +174,7 @@ def test_inventory_access_revalidates_current_bytes(modules, tmp_path):
     measurements = measured(selection, tmp_path)
     items = assess(measurements, selection, root=tmp_path)
     (tmp_path / "task.json").write_text("changed after measurement")
-    row = report.build_report(items, measurements, selection, tmp_path)["DISC-01-A"]
+    row = report.build_report(items, measurements, selection, tmp_path)["provenance.task-artifact-access"]
     check = row["check_results"][1]
     assert check["outcome"] == "PARTIAL"
     assert check["evidence"][0]["value"][0]["access"] == "unresolved"
@@ -196,7 +196,7 @@ def test_caller_only_dependency_gap_cannot_assign_partial_merit(modules, tmp_pat
     record["evidence"][0]["digest"] = record["digest"]
     measurements = measured(selection, tmp_path)
     assert any(row["code"] == "route.dependencies_unresolved" for row in measurements["route"]["diagnostics"])
-    assert assess(measurements, selection, root=tmp_path)["DISC-01-B"]["score"] is None
+    assert assess(measurements, selection, root=tmp_path)["provenance.grading-path"]["score"] is None
 
 
 @pytest.mark.parametrize("source", [[], {}, None, 1])
@@ -206,8 +206,8 @@ def test_malformed_inventory_source_stays_blocked(modules, tmp_path, source):
     selection["rubric_scope"]["task_artifacts"]["source"] = source
     measurements = measured(selection, tmp_path)
     rows = report.build_report(assess(measurements, selection, root=tmp_path), measurements, selection, tmp_path)
-    assert rows["DISC-01-A"]["score"] is None
-    assert all(check["outcome"] != "PASS" for check in rows["DISC-01-A"]["check_results"])
+    assert rows["provenance.task-artifact-access"]["score"] is None
+    assert all(check["outcome"] != "PASS" for check in rows["provenance.task-artifact-access"]["check_results"])
 
 
 def test_selected_identity_and_bounded_helper_checks(modules, tmp_path):
@@ -224,11 +224,15 @@ def test_selected_identity_and_bounded_helper_checks(modules, tmp_path):
         assert row["score"] == items[row["item_id"]]["score"]
         assert isinstance(row["measurements"], list)
     checks = {check["check_id"]: check for row in rows.values() for check in row["check_results"]}
-    for ident in ("DISC-01-A-C01", "DISC-01-A-C02", "DISC-01-B-C01"):
+    for ident in (
+        "provenance.task-artifact-access.deterministic-1",
+        "provenance.task-artifact-access.deterministic-2",
+        "provenance.grading-path.deterministic-1",
+    ):
         assert checks[ident]["outcome"] == "PASS"
         assert checks[ident]["evidence"] and checks[ident]["evidence_refs"]
         assert checks[ident]["evidence_boundary"]
-    assert checks["DISC-01-B-C02"]["outcome"] == "BLOCKED"
+    assert checks["provenance.grading-path.deterministic-2"]["outcome"] == "BLOCKED"
     for check in checks.values():
         if check["method"] != "deterministic":
             assert check["outcome"] == "NOT_RUN"
@@ -251,9 +255,9 @@ def test_unvalidated_identity_cannot_supply_subject_or_passing_route(modules, tm
     else:
         selection["artifacts"] = [record for record in selection["artifacts"] if record["id"] not in {"task", "scorer"}]
     rows = report.build_report(items, measurements, selection, tmp_path)
-    assert rows["DISC-01-A"]["subject_id"] != "task"
-    assert rows["DISC-01-B"]["check_results"][0]["outcome"] != "PASS"
-    assert rows["DISC-01-A"]["score"] == items["DISC-01-A"]["score"]
+    assert rows["provenance.task-artifact-access"]["subject_id"] != "task"
+    assert rows["provenance.grading-path"]["check_results"][0]["outcome"] != "PASS"
+    assert rows["provenance.task-artifact-access"]["score"] == items["provenance.task-artifact-access"]["score"]
 
 
 @pytest.mark.parametrize(
@@ -266,7 +270,7 @@ def test_actual_access_records_supply_counts_and_diagnostics(modules, tmp_path, 
     (tmp_path / "task.json").unlink()
     measurements = measured(selection, tmp_path)
     items = assess(measurements, selection, root=tmp_path)
-    row = report.build_report(items, measurements, selection, tmp_path)["DISC-01-A"]
+    row = report.build_report(items, measurements, selection, tmp_path)["provenance.task-artifact-access"]
     check = row["check_results"][1]
     assert check["evidence"][0]["value"][0]["access"] == expected
     count = next(value for value in check["measurements"] if value["name"] == expected)
@@ -301,18 +305,38 @@ def test_raw_helpers_are_bounded_partial_evidence_not_native_success(modules, tm
     )
     rows = report.build_report(assess(measurements, selection, root=tmp_path), measurements, selection, tmp_path)
     checks = {check["check_id"]: check for row in rows.values() for check in row["check_results"]}
-    for ident in ("DISC-02-A-C02", "DISC-02-B-C01", "DISC-02-B-C02", "AUD-02-C01", "CREATE-07-C01", "CREATE-07-C02"):
+    for ident in (
+        "provenance.declared-configuration.deterministic-2",
+        "provenance.observed-configuration.deterministic-1",
+        "provenance.observed-configuration.deterministic-2",
+        "provenance.comparison-fairness.deterministic",
+        "provenance.evidence-revision-consistency.deterministic-1",
+        "provenance.evidence-revision-consistency.deterministic-2",
+    ):
         check = checks[ident]
         assert check["outcome"] == "PARTIAL"
         assert check["evidence"] and check["remaining_gap"]
         assert check["evidence_boundary"]
-    assert "/agent/model" in checks["AUD-02-C01"]["evidence"][0]["value"]["differences"]
-    for ident in ("DISC-01-B-C02", "DISC-03-A-C01", "DISC-03-A-C02", "ENV-01-C02", "CREATE-07-C03", "CREATE-07-C04"):
+    assert (
+        "/agent/model" in checks["provenance.comparison-fairness.deterministic"]["evidence"][0]["value"]["differences"]
+    )
+    for ident in (
+        "provenance.grading-path.deterministic-2",
+        "provenance.runtime-route.deterministic-1",
+        "provenance.runtime-route.deterministic-2",
+        "provenance.solver-tool-access.deterministic",
+        "provenance.evidence-revision-consistency.deterministic-3",
+        "provenance.evidence-revision-consistency.deterministic-4",
+    ):
         assert checks[ident]["outcome"] == "BLOCKED"
         assert checks[ident]["remaining_gap"]
-    assert checks["ENV-02-A-C03"]["diagnostic_refs"]
-    assert rows["ENV-02-A"]["approval_refs"] == []
-    assert all(row["score"] is None for ident, row in rows.items() if ident not in {"DISC-01-A", "DISC-01-B"})
+    assert checks["provenance.dependency-substitution.deterministic-2"]["diagnostic_refs"]
+    assert rows["provenance.dependency-substitution"]["approval_refs"] == []
+    assert all(
+        row["score"] is None
+        for ident, row in rows.items()
+        if ident not in {"provenance.task-artifact-access", "provenance.grading-path"}
+    )
 
 
 def test_declarations_without_helper_observations_do_not_count_as_execution(modules, tmp_path):
@@ -342,7 +366,7 @@ def test_inventory_does_not_pass_incomplete_or_unbound_reference_origins(modules
             record for record in measurements["identity"]["records"] if record["id"] != "task"
         ]
     row = report.build_report(assess(measurements, selection, root=tmp_path), measurements, selection, tmp_path)[
-        "DISC-01-A"
+        "provenance.task-artifact-access"
     ]
     assert row["check_results"][0]["outcome"] != "PASS"
     access = row["check_results"][1]
@@ -357,7 +381,7 @@ def test_route_observation_cannot_pass_after_route_selection_changes(modules, tm
     measurements = measured(selection, tmp_path)
     items = assess(measurements, selection, root=tmp_path)
     selection["route"]["dependencies"]["scorer"] = ["unavailable-new-dependency"]
-    check = report.build_report(items, measurements, selection, tmp_path)["DISC-01-B"]["check_results"][0]
+    check = report.build_report(items, measurements, selection, tmp_path)["provenance.grading-path"]["check_results"][0]
     assert check["outcome"] == "PARTIAL"
     assert check["remaining_gap"]
 
@@ -368,7 +392,7 @@ def test_missing_route_measurement_is_blocked_even_with_valid_identity(modules, 
     measurements = measured(selection, tmp_path)
     del measurements["route"]
     check = report.build_report(assess(measurements, selection, root=tmp_path), measurements, selection, tmp_path)[
-        "DISC-01-B"
+        "provenance.grading-path"
     ]["check_results"][0]
     assert check["outcome"] == "BLOCKED"
     assert check["evidence"] == []
@@ -402,9 +426,11 @@ def test_unknown_criterion_is_rejected_and_explicit_subset_is_preserved(modules,
     with pytest.raises(ValueError, match="unknown rubric item"):
         report.build_report({"made-up": {}}, {}, {}, tmp_path)
     items = assess({}, {})
-    rows = report.build_report({"ENV-01": items["ENV-01"]}, {}, {}, tmp_path)
-    assert list(rows) == ["ENV-01"]
-    assert len(rows["ENV-01"]["check_results"]) == 3
+    rows = report.build_report(
+        {"provenance.solver-tool-access": items["provenance.solver-tool-access"]}, {}, {}, tmp_path
+    )
+    assert list(rows) == ["provenance.solver-tool-access"]
+    assert len(rows["provenance.solver-tool-access"]["check_results"]) == 3
 
 
 def sourced_packet(tmp_path):
@@ -462,7 +488,13 @@ def test_sourced_fields_supply_bounded_predicates_not_canonical_success(modules,
     selection, measurements = sourced_packet(tmp_path)
     rows, checks = report_checks(modules, measurements, selection, tmp_path)
     assert len(checks) == 38
-    for ident in ("DISC-02-A-C01", "DISC-02-A-C02", "DISC-02-B-C01", "DISC-02-B-C02", "AUD-02-C01"):
+    for ident in (
+        "provenance.declared-configuration.deterministic-1",
+        "provenance.declared-configuration.deterministic-2",
+        "provenance.observed-configuration.deterministic-1",
+        "provenance.observed-configuration.deterministic-2",
+        "provenance.comparison-fairness.deterministic",
+    ):
         check = checks[ident]
         assert check["outcome"] == "PARTIAL"
         assert check["evidence"][0]["helper"] == "sourced_config"
@@ -470,10 +502,12 @@ def test_sourced_fields_supply_bounded_predicates_not_canonical_success(modules,
         assert counts(check)["declared_sourced"] == (7, 7)
         assert counts(check)["observed_sourced"] == (7, 7)
         assert counts(check)["run_bound"] == (0, 7)
-    assert predicates(checks["DISC-02-A-C01"])["declared_fields_sourced"] == "PASS"
-    assert predicates(checks["DISC-02-A-C02"])["unknown_states_classified"] == "PASS"
-    assert predicates(checks["DISC-02-B-C01"])["selected_run_binding"] == "BLOCKED"
-    assert predicates(checks["AUD-02-C01"])["selected_fields_compared"] == "PASS"
+    assert predicates(checks["provenance.declared-configuration.deterministic-1"])["declared_fields_sourced"] == "PASS"
+    assert (
+        predicates(checks["provenance.declared-configuration.deterministic-2"])["unknown_states_classified"] == "PASS"
+    )
+    assert predicates(checks["provenance.observed-configuration.deterministic-1"])["selected_run_binding"] == "BLOCKED"
+    assert predicates(checks["provenance.comparison-fairness.deterministic"])["selected_fields_compared"] == "PASS"
     assert all(row["score"] is None for row in rows.values())
     assert "PRIVATE-CONFIG-SENTINEL" not in json.dumps(rows)
     assert_resolving_refs(checks, measurements, selection)
@@ -498,25 +532,38 @@ def test_freshness_reports_scoped_lineage_without_scoring_or_fixture_claims(modu
     measurements = {"freshness": check_freshness(tmp_path, selection["artifacts"], selection["freshness"])}
     before = copy.deepcopy((selection, measurements))
     rows, checks = report_checks(modules, measurements, selection, tmp_path)
-    for ident in ("CREATE-07-C01", "CREATE-07-C02"):
+    for ident in (
+        "provenance.evidence-revision-consistency.deterministic-1",
+        "provenance.evidence-revision-consistency.deterministic-2",
+    ):
         check = checks[ident]
         assert check["outcome"] == "PARTIAL"
         assert check["evidence"][0]["value"] == measurements["freshness"]["records"]
         assert counts(check)["current"] == (1, 2)
         assert counts(check)[expected] == (1, 2)
         assert counts(check)["usable"] == (1, 2)
-    assert predicates(checks["CREATE-07-C01"])["selected_evidence_lineage_bound"] == "PASS"
-    assert predicates(checks["CREATE-07-C02"])["selected_evidence_current"] == ("FAIL" if role == "task" else "BLOCKED")
-    assert predicates(checks["CREATE-07-C02"])["noncurrent_evidence_withheld"] == "PASS"
-    assert checks["CREATE-07-C03"]["outcome"] == "BLOCKED"
-    ethos = checks["CREATE-07-C04"]
+    assert (
+        predicates(checks["provenance.evidence-revision-consistency.deterministic-1"])[
+            "selected_evidence_lineage_bound"
+        ]
+        == "PASS"
+    )
+    assert predicates(checks["provenance.evidence-revision-consistency.deterministic-2"])[
+        "selected_evidence_current"
+    ] == ("FAIL" if role == "task" else "BLOCKED")
+    assert (
+        predicates(checks["provenance.evidence-revision-consistency.deterministic-2"])["noncurrent_evidence_withheld"]
+        == "PASS"
+    )
+    assert checks["provenance.evidence-revision-consistency.deterministic-3"]["outcome"] == "BLOCKED"
+    ethos = checks["provenance.evidence-revision-consistency.deterministic-4"]
     if role == "ethos":
         assert ethos["outcome"] == "PARTIAL"
         assert counts(ethos)["unresolved"] == (1, 1)
         assert predicates(ethos)["selected_ethos_identity_current"] == "BLOCKED"
     else:
         assert ethos["outcome"] == "BLOCKED"
-    assert rows["CREATE-07"]["score"] is None
+    assert rows["provenance.evidence-revision-consistency"]["score"] is None
     assert_resolving_refs(checks, measurements, selection)
     assert (selection, measurements) == before
 
@@ -546,15 +593,18 @@ def test_partial_dependency_lineage_cannot_pass_selected_evidence_binding(module
         ["a-dep"] if failed_dependency == "z-dep" else []
     )
     rows, checks = report_checks(modules, measurements, selection, tmp_path)
-    check = checks["CREATE-07-C01"]
+    check = checks["provenance.evidence-revision-consistency.deterministic-1"]
     assert predicates(check)["selected_evidence_lineage_bound"] == "BLOCKED"
     assert counts(check)["unresolved"] == (1, 2)
     assert counts(check)["current"] == (1, 2)
     assert counts(check)["usable"] == (1, 2)
     assert any(row["code"] == "freshness.binding_invalid" for row in check["diagnostic_refs"])
-    assert predicates(checks["CREATE-07-C02"])["selected_evidence_current"] == "BLOCKED"
+    assert (
+        predicates(checks["provenance.evidence-revision-consistency.deterministic-2"])["selected_evidence_current"]
+        == "BLOCKED"
+    )
     assert check["outcome"] == "PARTIAL"
-    assert rows["CREATE-07"]["score"] is None
+    assert rows["provenance.evidence-revision-consistency"]["score"] is None
     assert "PRIVATE-LINEAGE-SENTINEL" not in json.dumps(rows)
     assert_resolving_refs(checks, measurements, selection)
 
@@ -567,14 +617,14 @@ def test_unverified_optional_measurements_cannot_supply_predicates(modules, tmp_
 
     if helper == "sourced_config":
         selection, measurements = sourced_packet(tmp_path)
-        target = "DISC-02-A-C01"
+        target = "provenance.declared-configuration.deterministic-1"
     else:
         dep = artifact(tmp_path, "dep", {"v": 1})
         result = artifact(tmp_path, "result", {"reward": 1}, role="result")
         source, entry = binding_source(tmp_path, result, [dep])
         selection: dict = {"artifacts": [dep, result, source], "freshness": [entry]}
         measurements = {helper: check_freshness(tmp_path, selection["artifacts"], selection[helper])}
-        target = "CREATE-07-C01"
+        target = "provenance.evidence-revision-consistency.deterministic-1"
     if defect == "generic_success":
         measurements[helper] = {"status": "pass"}
     elif defect == "changed_source":
@@ -603,7 +653,7 @@ def test_sourced_unknown_counts_preserve_reasons_and_source_references(modules, 
     del config["declared"]["/run"]
     measurements["sourced_config"] = compare_sourced_config(tmp_path, selection["artifacts"], **config)
     _, checks = report_checks(modules, measurements, selection, tmp_path)
-    check = checks["DISC-02-A-C02"]
+    check = checks["provenance.declared-configuration.deterministic-2"]
     for name in ("declared_provider_hidden", "declared_omitted", "observed_inaccessible", "observed_unobservable"):
         assert counts(check)[name] == (1, 7)
     assert counts(check)["unknown"] == (4, 7)
@@ -623,13 +673,16 @@ def test_native_freshness_does_not_promote_historical_control_to_current_binding
     selection = {"artifacts": artifacts, "freshness": [entry]}
     measurements = {"freshness": check_freshness(tmp_path, artifacts, [entry])}
     _, checks = report_checks(modules, measurements, selection, tmp_path)
-    bound = checks["CREATE-07-C01"]
+    bound = checks["provenance.evidence-revision-consistency.deterministic-1"]
     assert bound["evidence"][0]["value"][0]["native_classification"] == "passed"
     assert predicates(bound)["selected_evidence_lineage_bound"] == "BLOCKED"
-    assert predicates(checks["CREATE-07-C02"])["selected_evidence_current"] == "BLOCKED"
+    assert (
+        predicates(checks["provenance.evidence-revision-consistency.deterministic-2"])["selected_evidence_current"]
+        == "BLOCKED"
+    )
     assert "#/selection/freshness/0" in bound["evidence_refs"]
     assert "#/selection/artifacts/0" in bound["evidence_refs"]
-    assert checks["CREATE-07-C03"]["outcome"] == "BLOCKED"
+    assert checks["provenance.evidence-revision-consistency.deterministic-3"]["outcome"] == "BLOCKED"
     assert_resolving_refs(checks, measurements, selection)
 
 
@@ -656,14 +709,14 @@ def test_selected_config_binding_outcomes_do_not_attest_native_execution(modules
     }
     measurements = {"sourced_config": compare_sourced_config(tmp_path, artifacts, **selection["sourced_config"])}
     _, checks = report_checks(modules, measurements, selection, tmp_path)
-    check = checks["DISC-02-B-C01"]
+    check = checks["provenance.observed-configuration.deterministic-1"]
     assert predicates(check)["selected_run_binding"] == expected
     assert check["outcome"] == "PARTIAL"
     assert counts(check)["run_bound"] == ((7 if variant == "bound" else 1 if variant == "partial" else 0), 7)
     if variant == "wrong_run":
         assert counts(check)["different"] == (7, 7)
-        assert predicates(checks["AUD-02-C01"])["selected_fields_compared"] == "PASS"
-    assert checks["DISC-02-B-C03"]["outcome"] == "NOT_RUN"
+        assert predicates(checks["provenance.comparison-fairness.deterministic"])["selected_fields_compared"] == "PASS"
+    assert checks["provenance.observed-configuration.probe"]["outcome"] == "NOT_RUN"
     assert_resolving_refs(checks, measurements, selection)
 
 
@@ -691,19 +744,24 @@ def test_cli_malformed_artifact_neighbor_keeps_safe_negative_report(modules, tmp
     assert report["preflight_success"] is False
     assert report["measurements"]["identity"]["status"] == "fail"
     assert report["measurements"]["identity"]["diagnostics"]
-    row = report["items"]["CREATE-07"]
+    row = report["items"]["provenance.evidence-revision-consistency"]
     checks = {check["id"]: check for check in row["check_results"]}
-    freshness = checks["CREATE-07-C02"]
+    freshness = checks["provenance.evidence-revision-consistency.deterministic-2"]
     assert predicates(freshness)["selected_evidence_current"] == ("FAIL" if role == "task" else "BLOCKED")
     assert counts(freshness)["stale" if role == "task" else "unresolved"] == (1, 1)
     assert counts(freshness)["usable"] == (0, 1)
     assert freshness["diagnostic_refs"]
     assert row["score"] is None
     if role == "ethos":
-        assert predicates(checks["CREATE-07-C04"])["selected_ethos_identity_current"] == "BLOCKED"
-        assert counts(checks["CREATE-07-C04"])["unresolved"] == (1, 1)
+        assert (
+            predicates(checks["provenance.evidence-revision-consistency.deterministic-4"])[
+                "selected_ethos_identity_current"
+            ]
+            == "BLOCKED"
+        )
+        assert counts(checks["provenance.evidence-revision-consistency.deterministic-4"])["unresolved"] == (1, 1)
     else:
-        assert checks["CREATE-07-C04"]["outcome"] == "BLOCKED"
+        assert checks["provenance.evidence-revision-consistency.deterministic-4"]["outcome"] == "BLOCKED"
     assert "PRIVATE-" not in completed.stdout + completed.stderr
     assert_resolving_refs(checks, report["measurements"], selection)
 
@@ -715,7 +773,7 @@ def test_malformed_freshness_selection_stays_blocked(modules, tmp_path, invalid)
     selection = {"artifacts": [], "freshness": invalid}
     measurements = {"freshness": check_freshness(tmp_path, [], invalid)}
     _, checks = report_checks(modules, measurements, selection, tmp_path)
-    assert checks["CREATE-07-C01"]["outcome"] == "BLOCKED"
+    assert checks["provenance.evidence-revision-consistency.deterministic-1"]["outcome"] == "BLOCKED"
 
 
 @pytest.mark.parametrize("variant", ["current", "invalid", "empty"])
@@ -731,12 +789,12 @@ def test_freshness_current_invalid_and_empty_packets_keep_exact_denominators(mod
     selection = {"artifacts": [dep, result, source], "freshness": [] if variant == "empty" else [entry]}
     measurements = {"freshness": check_freshness(tmp_path, selection["artifacts"], selection["freshness"])}
     rows, checks = report_checks(modules, measurements, selection, tmp_path)
-    check = checks["CREATE-07-C02"]
+    check = checks["provenance.evidence-revision-consistency.deterministic-2"]
     assert check["outcome"] == "PARTIAL"
     assert counts(check)["current"] == (int(variant == "current"), int(variant != "empty"))
     assert counts(check)["unresolved"] == (int(variant == "invalid"), int(variant != "empty"))
     assert predicates(check)["selected_evidence_current"] == ("PASS" if variant == "current" else "BLOCKED")
-    assert rows["CREATE-07"]["score"] is None
+    assert rows["provenance.evidence-revision-consistency"]["score"] is None
     assert_resolving_refs(checks, measurements, selection)
 
 
@@ -777,7 +835,7 @@ def test_native_qualified_refs_are_bounded_and_preserve_freshness(modules, nativ
     baseline, baseline_checks = report_checks(modules, baseline_measurements, baseline_selection, tmp_path)
     before = copy.deepcopy((selection, measurements))
     rows, checks = report_checks(modules, measurements, selection, tmp_path)
-    check = checks["CREATE-07-C01"]
+    check = checks["provenance.evidence-revision-consistency.deterministic-1"]
     assert check["outcome"] == "PARTIAL"
     assert predicates(check)["selected_native_references_bound"] == "PASS"
     native = next(row["value"] for row in check["evidence"] if row["helper"] == "native")
@@ -792,26 +850,26 @@ def test_native_qualified_refs_are_bounded_and_preserve_freshness(modules, nativ
     assert "#/selection/native" in check["evidence_refs"]
     assert {f"#/selection/artifacts/{index}" for index in range(4)} <= set(check["evidence_refs"])
     if freshness:
-        previous = baseline_checks["CREATE-07-C01"]
+        previous = baseline_checks["provenance.evidence-revision-consistency.deterministic-1"]
         assert previous["evidence"][0] in check["evidence"]
         assert previous["predicate_results"][0] in check["predicate_results"]
         assert check["measurements"] == previous["measurements"]
         assert set(previous["evidence_refs"]) <= set(check["evidence_refs"])
         assert all(row in check["diagnostic_refs"] for row in previous["diagnostic_refs"])
     for ident, other in checks.items():
-        if ident != "CREATE-07-C01":
+        if ident != "provenance.evidence-revision-consistency.deterministic-1":
             assert other == baseline_checks[ident]
     for ident, row in rows.items():
         for key in ("score", "status", "assessment_state"):
             assert row[key] == baseline[ident][key]
-    assert rows["CREATE-07"]["score"] is None
+    assert rows["provenance.evidence-revision-consistency"]["score"] is None
     assert "PRIVATE-" not in json.dumps(rows)
     assert_resolving_refs(checks, measurements, selection)
     assert (selection, measurements) == before
     cli = run_rubric_cli(fixture, selection)
     assert cli.returncode == 1 and cli.stderr == ""
     actual = json.loads(cli.stdout)
-    actual_check = actual["items"]["CREATE-07"]["check_results"][0]
+    actual_check = actual["items"]["provenance.evidence-revision-consistency"]["check_results"][0]
     for key in ("outcome", "evidence", "evidence_refs", "predicate_results"):
         assert actual_check[key] == check[key]
     assert actual["preflight_success"] is False
@@ -854,7 +912,7 @@ def test_unverified_native_output_never_supplies_predicates(modules, native_pack
     else:
         measurements["native"]["native_execution"] = 0 if defect == "type_confusion" else True
     _, checks = report_checks(modules, measurements, selection, tmp_path)
-    check = checks["CREATE-07-C01"]
+    check = checks["provenance.evidence-revision-consistency.deterministic-1"]
     assert check["outcome"] == ("PARTIAL" if with_freshness else "BLOCKED")
     assert not any(row["helper"] == "native" for row in check["evidence"])
     assert not any(row["id"] == "selected_native_references_bound" for row in check.get("predicate_results", []))
@@ -881,11 +939,11 @@ def test_native_reference_defects_do_not_pass_or_assign_merit(modules, native_pa
         selection["native"] = {key: [] for key in fixture.selection}
     measurements["native"] = project_native(tmp_path, fixture.identity, **selection["native"])
     rows, checks = report_checks(modules, measurements, selection, tmp_path)
-    check = checks["CREATE-07-C01"]
+    check = checks["provenance.evidence-revision-consistency.deterministic-1"]
     assert check["outcome"] == "PARTIAL"
     assert predicates(check)["selected_native_references_bound"] == expected
     assert check["evidence"][0]["value"] == measurements["native"]
-    assert rows["CREATE-07"]["score"] is None
+    assert rows["provenance.evidence-revision-consistency"]["score"] is None
     assert_resolving_refs(checks, measurements, selection)
     assert "PRIVATE-" not in json.dumps(rows)
 
@@ -909,7 +967,7 @@ def test_sourced_approvals_retain_evidence_and_scoped_predicates_in_cli(modules,
     selection, measurements = approval_packet(tmp_path)
     before = copy.deepcopy((selection, measurements))
     rows, checks = report_checks(modules, measurements, selection, tmp_path)
-    check = checks["ENV-02-A-C03"]
+    check = checks["provenance.dependency-substitution.deterministic-2"]
     assert check["outcome"] == "PARTIAL"
     assert check["evidence"][0]["value"] == measurements["approvals"]
     assert predicates(check) == {
@@ -922,8 +980,8 @@ def test_sourced_approvals_retain_evidence_and_scoped_predicates_in_cli(modules,
     assert "#/selection/artifacts/5" in check["evidence_refs"]
     assert check["evidence"][0]["value"]["authority_authenticated"] is False
     assert "installed" in check["remaining_gap"] and "authority" in check["evidence_boundary"]
-    assert checks["ENV-02-A-C02"]["outcome"] == "NOT_RUN"
-    assert rows["ENV-02-A"]["score"] is None
+    assert checks["provenance.dependency-substitution.human-review"]["outcome"] == "NOT_RUN"
+    assert rows["provenance.dependency-substitution"]["score"] is None
     assert_resolving_refs({check["id"]: check}, measurements, selection)
     assert (selection, measurements) == before
     request = tmp_path / "selection.json"
@@ -933,7 +991,7 @@ def test_sourced_approvals_retain_evidence_and_scoped_predicates_in_cli(modules,
     assert cli.returncode == 1 and cli.stderr == ""
     actual = json.loads(cli.stdout)
     assert actual["measurements"]["approvals"] == measurements["approvals"]
-    assert actual["items"]["ENV-02-A"]["check_results"][2] == check
+    assert actual["items"]["provenance.dependency-substitution"]["check_results"][2] == check
     assert actual["preflight_success"] is False
     assert subprocess.run(command, capture_output=True, text=True, timeout=15).stdout == cli.stdout
 
@@ -992,13 +1050,13 @@ def test_approval_predicates_follow_source_scope_and_freshness_not_declarations(
         selection["approval_sources"],
     )
     rows, checks = report_checks(modules, measurements, selection, tmp_path)
-    check = checks["ENV-02-A-C03"]
+    check = checks["provenance.dependency-substitution.deterministic-2"]
     assert tuple(predicates(check).values()) == expected
-    assert check["outcome"] == "PARTIAL" and rows["ENV-02-A"]["score"] is None
+    assert check["outcome"] == "PARTIAL" and rows["provenance.dependency-substitution"]["score"] is None
     assert check["evidence"][0]["value"] == measurements["approvals"]
     assert code in {row["code"] for row in check["diagnostic_refs"]}
     assert measurements["approvals"]["authority_authenticated"] is False
-    assert checks["ENV-02-A-C02"]["outcome"] == "NOT_RUN"
+    assert checks["provenance.dependency-substitution.human-review"]["outcome"] == "NOT_RUN"
     if variant in {"audit", "journey"}:
         assert measurements["approvals"]["status"] == "unknown"
     assert_resolving_refs({check["id"]: check}, measurements, selection)
@@ -1011,7 +1069,7 @@ def test_approval_predicates_follow_source_scope_and_freshness_not_declarations(
         timeout=15,
     )
     assert cli.returncode == 1 and cli.stderr == ""
-    assert json.loads(cli.stdout)["items"]["ENV-02-A"]["check_results"][2] == check
+    assert json.loads(cli.stdout)["items"]["provenance.dependency-substitution"]["check_results"][2] == check
 
 
 @pytest.mark.parametrize(
@@ -1041,7 +1099,7 @@ def test_unverified_sourced_approvals_cannot_supply_evidence_or_predicates(modul
     else:
         measurements["approvals"]["authority_authenticated"] = 0 if defect == "type_confusion" else True
     _, checks = report_checks(modules, measurements, selection, tmp_path)
-    check = checks["ENV-02-A-C03"]
+    check = checks["provenance.dependency-substitution.deterministic-2"]
     assert check["outcome"] == "BLOCKED"
     assert check["evidence"] == [] and not check.get("predicate_results")
     assert "revalidation" in check["remaining_gap"]
@@ -1061,7 +1119,7 @@ def test_sourced_approval_identity_failure_retains_safe_diagnostics(modules, tmp
         selection["approval_sources"],
     )
     _, checks = report_checks(modules, measurements, selection, tmp_path)
-    check = checks["ENV-02-A-C03"]
+    check = checks["provenance.dependency-substitution.deterministic-2"]
     assert check["outcome"] == "PARTIAL"
     assert "PASS" not in predicates(check).values()
     assert check["diagnostic_refs"]
@@ -1076,11 +1134,11 @@ def test_raw_approval_pass_remains_compatible_partial_projection(modules, tmp_pa
     measurements["approvals"] = check_approvals(selection["approvals"], selection["decisions"], selection["artifacts"])
     assert measurements["approvals"]["status"] == "pass"
     rows, checks = report_checks(modules, measurements, selection, tmp_path)
-    check = checks["ENV-02-A-C03"]
+    check = checks["provenance.dependency-substitution.deterministic-2"]
     assert check["outcome"] == "PARTIAL"
     assert check["evidence"][0]["value"] == {"status": "pass", "authority_authenticated": False}
     assert not check.get("predicate_results")
-    assert rows["ENV-02-A"]["score"] is None
+    assert rows["provenance.dependency-substitution"]["score"] is None
 
 
 @pytest.mark.parametrize("invalid", [None, {}, "not-a-list"])
@@ -1091,5 +1149,5 @@ def test_malformed_native_selector_cannot_supply_evidence(modules, native_packet
     selection["native"]["receipt_ids"] = invalid
     measurements["native"] = project_native(tmp_path, fixture.identity, **selection["native"])
     _, checks = report_checks(modules, measurements, selection, tmp_path)
-    assert checks["CREATE-07-C01"]["outcome"] == "BLOCKED"
-    assert checks["CREATE-07-C01"]["evidence"] == []
+    assert checks["provenance.evidence-revision-consistency.deterministic-1"]["outcome"] == "BLOCKED"
+    assert checks["provenance.evidence-revision-consistency.deterministic-1"]["evidence"] == []

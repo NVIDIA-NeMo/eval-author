@@ -852,11 +852,16 @@ def summary(result):
     lines = [
         f"Rubric handcrafted assessment demo: {result['status']}",
         f"Raw measurement regressions: {sum(row['matches_expectations'] for row in result['cases'])}/{len(result['cases'])} matched",
-        "Variant | DISC-01-A | DISC-01-B | DISC-01-C | expected match",
+        "Variant | provenance.task-artifact-access | provenance.grading-path | provenance.grading-dependency-access | expected match",
     ]
     for case in result["assessments"]:
         values = [
-            json.dumps(case["observed"]["items"][key]["score"]) for key in ("DISC-01-A", "DISC-01-B", "DISC-01-C")
+            json.dumps(case["observed"]["items"][key]["score"])
+            for key in (
+                "provenance.task-artifact-access",
+                "provenance.grading-path",
+                "provenance.grading-dependency-access",
+            )
         ]
         lines.append(" | ".join([case["id"], *values, str(case["matches_expectations"])]))
     lines.extend(

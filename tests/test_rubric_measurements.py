@@ -196,8 +196,17 @@ def test_demo_reports_canonical_outcomes_through_actual_cli(rubric_panel):
         "confirmed-missing": (0, 2, 2),
         "partial": (1, 1, 1),
     }
-    supported = ("DISC-01-A", "DISC-01-B", "DISC-01-C")
-    unsupported = {"DISC-02-A", "DISC-02-B", "DISC-03-A", "AUD-02", "ENV-01", "ENV-02-A", "ENV-03", "CREATE-07"}
+    supported = ("provenance.task-artifact-access", "provenance.grading-path", "provenance.grading-dependency-access")
+    unsupported = {
+        "provenance.declared-configuration",
+        "provenance.observed-configuration",
+        "provenance.runtime-route",
+        "provenance.comparison-fairness",
+        "provenance.solver-tool-access",
+        "provenance.dependency-substitution",
+        "provenance.external-state",
+        "provenance.evidence-revision-consistency",
+    }
     cases = {row["id"]: row for row in report["assessments"]}
     assert cases.keys() == expected.keys()
     assert report["counts"] == {"cases": 14, "assessments": len(expected), "evidence_cases": 8}
@@ -257,9 +266,9 @@ def test_demo_text_summary_is_concise_and_keeps_limits(rubric_panel, monkeypatch
 
     result = subprocess.CompletedProcess([], 0, stdout=summary(rubric_panel))
     assert result.stdout.startswith("Rubric handcrafted assessment demo:")
-    assert "DISC-01-A" in result.stdout
-    assert "DISC-01-B" in result.stdout
-    assert "DISC-01-C" in result.stdout
+    assert "provenance.task-artifact-access" in result.stdout
+    assert "provenance.grading-path" in result.stdout
+    assert "provenance.grading-dependency-access" in result.stdout
     if rubric_panel["status"] == "passed":
         assert "weak-route defect, not demonstrated exploitation" in result.stdout
     else:
@@ -388,7 +397,7 @@ def test_declared_unavailable_task_is_not_a_confirmed_zero(tmp_path, monkeypatch
         text=True,
     )
     assert result.returncode == 1
-    row = json.loads(result.stdout)["items"]["DISC-01-A"]
+    row = json.loads(result.stdout)["items"]["provenance.task-artifact-access"]
     assert row["score"] is None
     assert row["status"] == "NOT_ASSESSED"
     assert row["legacy_measurements"] == {"required": 1, "accessible": 0, "missing": 0, "denied": 0, "unresolved": 1}
