@@ -49,6 +49,35 @@ declared reconstruction under the existing rules. This diagnostic neither adds
 a readiness gate nor replaces independent truth, executable checks, or repeated
 provider-native proof. An empty findings list does not prove correctness.
 
+## Repeats after tool errors
+
+**Experimental.** After `prepare`, report unchanged repeats after explicit tool
+errors:
+
+```bash
+python <skill_dir>/scripts/trace_privacy.py audit-retries --task-dir <task-dir>
+```
+
+The helper writes `private/retry-audit.json` (schema `retry_audit.v1`,
+detector `repeat-after-error-v1`) under the same write-once rules as the
+evidence audit. Findings cite safe-trace `span_id` and `turn_id` values only.
+
+| Field | Meaning and next action |
+| --- | --- |
+| Eligible opportunity | A model-issued, ordered call whose single result has an explicit error flag. |
+| Review candidate | The next identical call by the same agent, in a later turn, also has an error flag, and no different call came between. Inspect the cited spans before reporting it. |
+| Excluded | A different call came between (`intervening_action`), or the repeat succeeded (`repeat_succeeded`). Do not report these as defects. |
+| Unknown | The repeat has no defined error status. Preserve the uncertainty. |
+| Ineligible | Harness-initiated, unordered, or unusable-input error calls. |
+| `later_success_span_id` | A later identical call without an error flag. Other recovery is not detected. |
+| `observed_input_tokens` | Input totals reported by the repeat turn's model spans. Do not infer a window, estimate, or compaction. |
+
+`confirmed_violations` is always 0 because the trace records no artifact or
+environment state. `feedback_visibility` is `unknown`: the trace does not show
+which result reached the model. Report the candidate rate per assessed
+opportunity and keep unknown and excluded counts separate. Never present a
+candidate as evidence of context rot or ignored feedback.
+
 ## Replay error status
 
 Error status comes only from the loaded `ToolResult`: `is_error` gives `error`

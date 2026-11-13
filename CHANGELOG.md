@@ -8,6 +8,14 @@ preview: workflows, skills, and saved artifacts may change between releases.
 
 ## Unreleased
 
+### Added
+
+- **Verification-integrity checks.** Opt-in reports for receipt contradictions,
+  required-control states, superseded manifests, saved acceptance claims, and
+  unchanged repeats after tool errors. Repair manifests now record the digest
+  they supersede. See
+  [verification-integrity checks](docs/determinism-checks.md#verification-integrity-checks).
+
 ### Removed
 
 - **Breaking: ATIF converters.** The `gym-to-atif` and `mlflow-to-atif` skills,

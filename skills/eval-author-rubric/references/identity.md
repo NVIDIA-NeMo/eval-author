@@ -213,48 +213,64 @@ that the whole retained-credit or coverage workflow consumes this interface.
 
 ## Selected receipt consistency
 
-An explicit `native` selection also emits `receipt_integrity`, version
-`receipt-integrity-v1`. Read each control's typed `integrity` fields separately:
-record consistency, execution health, declared behavior, status-claim agreement,
-and freshness. The owning receipt validator derives them from the same selected
-receipt, manifest, and native result. It does not scan a task tree.
+An explicit `native` selection also emits three measurements. The owning
+receipt validator derives each one from the same selected receipt, manifest, and
+native result. None of them scans a task tree.
 
-A confirmed contradiction requires all of the following:
+- `receipt_integrity` (`receipt-integrity-v1`) counts receipt status claims.
+- `required_verification` (`required-verification-v1`) gives each required
+  control of each selected manifest one state.
+- `superseded_references` (`manifest-supersession-v1`) lists receipts bound to a
+  manifest that a selected repair manifest explicitly supersedes.
 
-- A supported closure-control receipt that claims `passed`.
-- A digest-bound manifest and a result from the same run.
-- Health assertions that pass.
-- Declared behavior assertions that fail.
+Read each control's typed `integrity` fields separately: claim, basis, record
+consistency, execution health, declared behavior, status-claim agreement, and
+freshness.
 
-This contradiction shows that the records are inconsistent. It does
-not establish that an agent ignored feedback, that evidence was visible to the
-model, or that context growth caused the result. A correctly recorded failed
-control is consistent evidence. Zero reward, permitted partial credit, valid
+Only a supported closure-control receipt that claims `passed` is an eligible
+claim. It is a contradiction when one of these is true:
+
+- Its return code is nonzero.
+- Its digest-bound native result from the same run fails a health assertion.
+- That result passes health and fails a declared behavior assertion.
+
+A contradiction shows that the records are inconsistent. It does not show that
+an agent ignored feedback, that evidence was visible to the model, or that
+context growth caused the result. A correctly recorded failure or infrastructure
+error is not an eligible claim. Zero reward, permitted partial credit, valid
 alternatives, and legitimate no-action controls follow their declared checks.
-Agent, diagnostic, and baseline receipts do not supply eligible closure claims.
+Agent, diagnostic, baseline, out-of-scope, and superseded receipts are excluded.
+When a later reference check fails, the claim is withdrawn as unknown.
 
-Report contradictions divided by eligible receipt claims. Keep unknown and
-excluded claims separate. Execution errors and mismatches are additional
-diagnostic counts that can overlap. They are not extra trials. A zero denominator
-has a null rate.
+Report contradictions divided by eligible claims. Keep unknown, excluded, and
+not-applicable receipts separate. Execution errors and mismatches are overlapping
+diagnostic counts, not extra trials. A zero denominator has a null rate.
 
-Unselected attempts and controls missing from selected manifests are evidence gaps.
-They do not show that verification was skipped. When another selected receipt
-passes, retain earlier findings. Ordering alone does not establish recovery.
+For required controls, report each state separately: `pass`, `fail`, `missing`,
+`mismatched`, `execution_error`, `unknown`, and `stale`. Freshness is `unknown`
+here; do not report a rubric pass as a current pass. A missing control is an
+evidence gap. It does not show that verification was skipped. Retain earlier
+contradictions when another selected receipt passes. Ordering alone does not
+establish recovery.
+
+Treat each superseded reference as a review candidate. Receipts have no
+trustworthy time, so `confirmed` stays 0. Use `task_pipeline.py
+check-acceptance --integrity` to test whether a saved claim relies on a
+superseded result.
 
 `CREATE-07-C01` includes `selected_receipt_status_consistent` as a bounded
 `PASS`, `FAIL`, or `BLOCKED` predicate after source revalidation. Its canonical
 check remains `PARTIAL`, and this evidence alone leaves the criterion score null.
-Native current-task freshness and `context_rot_score` remain unknown/null.
-Use existing selected-dependency freshness separately. Do not transfer a historical
-pass to a changed task. The following have no qualified adapter here and remain unassessed:
+`context_rot_score` stays null. Use existing selected-dependency freshness
+separately. Do not transfer a historical pass to a changed task.
+These remain unassessed here:
 
-- General false-closure claims.
-- Actions based on superseded values.
-- Retry analysis.
+- General false-closure claims in prose.
+- Actions in traces that use superseded values.
 - Visibility into the request context.
 - Prevention experiments.
 
+Retry candidates belong to the inspect-trace retry audit, not this rubric.
 Do not prescribe a checkpoint as a proven remedy from these measurements.
 
 ## Selected reconstruction provenance

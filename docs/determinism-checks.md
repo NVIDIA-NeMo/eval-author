@@ -191,30 +191,76 @@ The result records the document and validator digests and the validator's
 verdict. A valid result checks structure only, not confirmed or adequate intent.
 Keep selections and output private because they can contain local evidence locations.
 
-### Receipt-consistency checks
+### Verification-integrity checks
 
-An existing `native` selection adds `receipt_integrity` (`receipt-integrity-v1`)
-to the measurement output. Each selected control retains typed consistency,
-execution, behavior, and status-claim results. The report counts contradictions
-per eligible receipt claim and keeps unknowns and exclusions separate. These
-counts do not show whether context rot caused a contradiction or whether a checkpoint prevents it.
-The measurement does not change canonical scores, native closure requirements, or Audit outputs.
+These opt-in checks find contradictions between saved records and gaps in the
+evidence. They do not show agent intent, what the model saw, or whether context
+rot caused a result. They do not change canonical scores, closure requirements,
+or default outputs. Keep their output private.
 
-Regenerate saved derived reports to include the new fields. Retained receipts do
-not change. The report builder revalidates against the selected source bytes.
+| Check | How to run it | Output |
+| --- | --- | --- |
+| Receipt status claims | Existing rubric `native` selection | `receipt_integrity` |
+| Required controls | Rubric `native` selection, or `audit_verifier_evidence.py --integrity` | `required_verification` |
+| Superseded manifests | Rubric `native` selection, or `audit_verifier_evidence.py --integrity` | `superseded_references` |
+| Saved acceptance claim | `task_pipeline.py check-acceptance --report <acceptance.json> --integrity` | `acceptance_integrity` |
+| Repeats after tool errors | `trace_privacy.py audit-retries --task-dir <task-dir>` | `private/retry-audit.json` |
 
-Run the credential-free integration panel:
+**Receipt status claims.** Only a passed claim on a closure control is an
+eligible claim. A claim is a contradiction when the receipt's return code is
+nonzero. It is also a contradiction when its bound native result fails a health
+or behavior assertion. The contradiction rate is contradictions divided by eligible claims.
+A correctly recorded failure or infrastructure error is not an eligible claim.
+Agent, diagnostic, and baseline receipts are excluded. Unknown receipts stay
+separate and block the rubric predicate.
+
+**Required controls.** Each required control gets one state: `pass`, `fail`,
+`missing`, `mismatched`, `execution_error`, `unknown`, or `stale`. Only a
+current pass for every control sets `verified`. A missing control is an evidence
+gap, because the attempt ledger is not read. The rubric does not read the task
+tree, so its freshness is `unknown`. The Audit checker hashes the selected task
+tree and reports `current` or `stale`.
+
+**Superseded manifests.** `prepare --previous` now records the replaced
+manifest's digest as `supersedes`. A receipt bound to a superseded manifest is a
+review candidate, because receipts have no trustworthy time. Repair manifests
+prepared earlier have no link.
+
+**Saved acceptance claims.** A passed `task_validation` claim is a violation in
+these cases:
+
+- A cited control receipt shows failed behavior or execution.
+- A registered closure failure is not cited.
+- A cited receipt is from before an in-place repair.
+
+Missing or unreadable evidence is `unknown`. A changed task makes the
+claim `stale`. Agent runs are excluded. The command exits 0 only when the claim
+is `consistent`. Without `--integrity`, `check-acceptance` is unchanged.
+
+**Repeats after tool errors.** Each model-issued tool call with an explicit
+error flag is one opportunity. Its repeat is the next identical call by the same
+agent in a later turn. The repeat is a review candidate when it also has an
+error flag and no different call came between. A repeat that succeeds, or a different call
+between, is excluded. A repeat with no error flag is unknown. Traces record no
+artifact or environment state, so `confirmed_violations` is always 0. Token
+counts are the values each span reports; no model window or estimate is added.
+The evidence audit report is unchanged.
+
+Regenerate saved derived rubric reports to include the new fields. Retained
+receipts do not change. The report builder revalidates against the selected
+source bytes.
+
+Run the credential-free integration panels:
 
 ```bash
-uv run --locked pytest tests/test_rubric_receipt_integrity.py -q
+uv run --locked pytest tests/test_rubric_receipt_integrity.py \
+  tests/test_acceptance_integrity.py tests/test_retry_audit.py -q
 ```
 
-The recorder-to-CLI case exercises the real receipt producer with scripted
-synthetic native results. It plants a false passing status beside a later valid
-receipt and expects one contradiction in two eligible claims. It also checks
-that output is repeatable and the original receipts stay unchanged. This is not
-evidence from live Harbor runs or of model performance. Current task freshness
-remains unknown, so the rubric CLI still exits 1 even when all supplied status claims agree.
+The panels use the real receipt recorder, trace loader, and command entry
+points with scripted synthetic results. They are not evidence from live Harbor
+runs or of model performance. Rubric task freshness stays unknown, so the rubric
+CLI still exits 1 even when all selected status claims agree.
 
 ## Provenance demo
 
