@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval-author/scripts"))
 from eval_author_shared.task_evidence import loads  # noqa: E402
+from rubric_authority import check_authority  # noqa: E402
 from rubric_configuration import compare_sourced_config  # noqa: E402
 from rubric_ethos import check_ethos  # noqa: E402
 from rubric_freshness import check_freshness  # noqa: E402
@@ -73,6 +74,8 @@ def measure(root, selection, ethos_validator=None):
         measurements["freshness"] = check_freshness(root, artifacts, selection["freshness"])
     if "ethos" in selection:
         measurements["ethos"] = check_ethos(root, artifacts, selection["ethos"], ethos_validator)
+    if "authority" in selection:
+        measurements["authority"] = check_authority(root, artifacts, selection["authority"])
     if "native" in selection:
         selected_native = selection["native"]
         if not isinstance(selected_native, dict) or set(selected_native) != {

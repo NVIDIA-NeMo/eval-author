@@ -45,8 +45,8 @@ uv run --locked python tools/run_rubric_measurements.py
 ```
 
 The default output is `rubric-mutation-panel-v3` JSON. It contains 14 raw-measurement
-regressions, five canonical score variants, and eight source configuration and
-freshness variants in `evidence_cases`. Both
+regressions, five canonical score variants, and 14 source configuration, freshness,
+Ethos, and authority-reference variants in `evidence_cases`. Both
 assessment panels invoke the actual measurement CLI without mocking helper outputs.
 Each includes
 independently authored expected outcomes, observed items and raw measurements,
@@ -80,8 +80,9 @@ certifying completeness. The confirmed-missing variant removes the task
 file before the checker reads it. A caller's missing-access declaration alone
 remains unknown.
 
-The source configuration and freshness variants use handcrafted refund-task inputs,
-JSON configuration records, and retained review notes. They use no native receipts:
+The source configuration, freshness, Ethos, and authority-reference variants use handcrafted refund-task inputs,
+JSON configuration records, retained review notes, an `ETHOS.md`, a saved journey
+state, and a construction plan. They use no native receipts:
 
 | Variant | Expected bounded observation |
 | --- | --- |
@@ -93,6 +94,12 @@ JSON configuration records, and retained review notes. They use no native receip
 | Material scorer change | Refund note is stale after changing its approval check. |
 | Material dependency change | Refund note is stale after changing its selected judge prompt. |
 | Unknown ETHOS change | Refund note is unresolved after changing intent. Semantic impact remains unknown. |
+| Ethos confirmed | `ETHOS.md` passes the installed `ethos-write` validator, and the saved journey state confirms its current bytes. |
+| Ethos malformed | The validator rejects a renamed required section. |
+| Ethos changed after confirmation | The edited document still validates, but its saved confirmation names the earlier bytes. |
+| Authority resolved | A construction plan's `ETHOS.md#Constraints` and `task.json#/task_id` references both name selected content. |
+| Authority broken reference | A cited `ETHOS.md` heading is missing. The neighbor requirement still resolves. |
+| Authority prose | A prose reference is reported as not checkable, not broken. The neighbor still resolves. |
 
 Every freshness variant also checks that the unaffected neighbor remains current
 and usable. Each compares old and new lineage against the retained binding and
@@ -188,7 +195,15 @@ native preflight passed. Configuration acceptability remains unassessed.
 To check a selected `ETHOS.md`, add an `ethos` selection naming its artifact and
 pass `--ethos-validator` with the installed `ethos-write/scripts/validate_ethos.py`.
 The result records the document and validator digests and the validator's
-verdict. A valid result checks structure only, not confirmed or adequate intent.
+verdict. Also select `.eval-author/.working/journey-state.json` as
+`confirmation_artifact_id` to check that the saved confirmation names the
+document's current bytes. A pass shows structure and the saved binding, not who
+approved the content or that it states adequate intent.
+
+To check a construction plan's grading-authority references, add an `authority`
+selection naming the plan. A reference written as `path`, `path#Heading`,
+`path#L3-L5`, or `path#/json/pointer` must name selected content. Prose
+references are reported as not checkable rather than broken.
 Keep selections and output private because they can contain local evidence locations.
 
 ## Provenance demo

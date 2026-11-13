@@ -49,7 +49,7 @@ artifact uses `access: denied` without trying the read; an unresolved selection 
 The checked-in mutation panel exercises these distinctions with actual local files.
 
 Raw measurements are named `identity`, `route`, `config`, `links`, and `approvals`.
-Explicit `sourced_config`, `freshness`, `native`, `reconstruction`, and `ethos` selections add their
+Explicit `sourced_config`, `freshness`, `native`, `reconstruction`, `ethos`, and `authority` selections add their
 corresponding measurements. Absent optional selections do not establish coverage.
 They have statuses and diagnostics, not numeric scores. The eleven canonical
 criteria consume this evidence under their own anchors; a helper passing is not
@@ -73,9 +73,11 @@ denied/unresolved access, and changed digests with stable `identity.*` diagnosti
 A missing optional revision stays null; a missing required content digest does not
 pass. Do not turn content identity into an ownership or confidentiality claim.
 
-## Selected Ethos structure
+## Selected Ethos structure and confirmation
 
-`ethos` is `{"artifact_id": <id>}` naming one selected artifact with role `ethos`.
+`ethos` is `{"artifact_id": <id>}` naming one selected artifact with role `ethos`,
+plus an optional `confirmation_artifact_id` naming the selected
+`.eval-author/.working/journey-state.json` with role `journey_state`.
 Pass `--ethos-validator <ethos-write-skill-dir>/scripts/validate_ethos.py`, with the
 skill directory located as the
 [shared prerequisites](../../eval-author/references/shared-prerequisites.md) describe.
@@ -85,8 +87,29 @@ through the shared reader, records its digest and the validator file's digest, a
 runs the validator on those bytes. A rejection is `ethos.invalid` (fail) with the
 validator's reason; its warnings are kept. A changed digest is
 `ethos.digest_mismatch`. A missing or broken validator leaves validity unknown.
-A valid result is structure only: it does not show the content was confirmed,
-is current, or states adequate intent.
+
+With a confirmation artifact, the measurement validates the journey state with its
+owning validator and compares its saved `confirmed_digest` with the document's
+current bytes. `confirmed` needs the same path, the same digest, and stage
+`complete`. A different digest is `ethos.confirmation_stale` (fail). No saved
+confirmation, a confirmation still under review, or one for another path stays
+unknown. A confirmed result shows the saved binding, not who approved the content
+or that it states adequate intent.
+
+## Construction authority references
+
+`authority` is `{"plan_artifact_id": <id>}` naming one selected construction plan
+with role `construction`. Every artifact a reference cites must also be selected.
+For each requirement, a reference written as a locator is resolved against the
+selected bytes: `path` names the artifact, `path#Heading` a Markdown heading or its
+anchor, `path#L3-L5` a line range, and `path#/json/pointer` a JSON value.
+A missing target is `authority.reference_broken` (fail) and a changed source is
+`authority.reference_changed` (fail). Prose, unselected paths, and `unresolved`
+authority stay unknown; never guess what prose refers to. The result also counts
+requirements by basis and status, scored checks, and mapped requirements, and
+flags checks that cite undeclared requirements. Full plan validation stays with
+`construction_contract.py`. A resolved reference shows that the cited content
+exists, not that it supports the requirement.
 
 ## Source-backed inventory assessment
 

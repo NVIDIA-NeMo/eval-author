@@ -11,6 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "skills/eval-author/scripts"))
+import journey_state  # noqa: E402
 from rubric_ethos import check_ethos  # noqa: E402
 
 VALIDATOR = ROOT / "team-skills/ethos/ethos-write/scripts/validate_ethos.py"
@@ -18,20 +19,37 @@ VALID = (ROOT / "team-skills/ethos/ethos-write/evals/files/router-help/ETHOS.md"
 CLI = ROOT / "skills/eval-author-rubric/scripts/measure.py"
 
 
-def selected(root, content, *, digest=None, role="ethos"):
-    (root / "ETHOS.md").write_bytes(content)
-    record = {
-        "id": "ethos",
+def record(root, ident, role, path, content, digest=None):
+    (root / path).parent.mkdir(parents=True, exist_ok=True)
+    (root / path).write_bytes(content)
+    actual = hashlib.sha256(content).hexdigest()
+    return {
+        "id": ident,
         "role": role,
-        "path": "ETHOS.md",
-        "digest": digest or hashlib.sha256(content).hexdigest(),
+        "path": path,
+        "digest": digest or actual,
         "revision": None,
         "access": "available",
         "selection_origin": "explicit",
         "source": "fixture",
-        "evidence": [{"path": "ETHOS.md", "digest": hashlib.sha256(content).hexdigest()}],
+        "evidence": [{"path": path, "digest": actual}],
     }
-    return [record]
+
+
+def selected(root, content, *, digest=None, role="ethos"):
+    return [record(root, "ethos", role, "ETHOS.md", content, digest)]
+
+
+def with_confirmation(root, ethos_content, *, confirmed, stage="complete", path="ETHOS.md"):
+    state = journey_state.new_state(root)
+    state["agent"] = "router-help"
+    state["ethos"].update(path=path, stage=stage, confirmed_digest=confirmed)
+    if confirmed:
+        state["ethos"].update(confirmation_source="user reply", validation="validate_ethos.py: valid")
+    saved = json.dumps(state).encode()
+    artifacts = selected(root, ethos_content)
+    artifacts.append(record(root, "state", "journey_state", ".eval-author/.working/journey-state.json", saved))
+    return check_ethos(root, artifacts, {"artifact_id": "ethos", "confirmation_artifact_id": "state"}, VALIDATOR)
 
 
 def codes(result):
@@ -118,6 +136,37 @@ def test_validator_output_cannot_corrupt_the_cli_report(tmp_path):
 def test_selection_must_name_one_ethos_artifact(tmp_path, selection, role):
     with pytest.raises(ValueError):
         check_ethos(tmp_path, selected(tmp_path, VALID, role=role), selection, VALIDATOR)
+
+
+def test_confirmation_of_the_current_bytes_passes(tmp_path):
+    result = with_confirmation(tmp_path, VALID, confirmed=hashlib.sha256(VALID).hexdigest())
+    assert result["status"] == "pass"
+    assert result["confirmation"]["status"] == "confirmed"
+    assert result["confirmation"]["source"] == "user reply"
+
+
+@pytest.mark.parametrize(
+    ("confirmed", "stage", "path", "status", "code", "severity"),
+    [
+        ("0" * 64, "complete", "ETHOS.md", "stale", "ethos.confirmation_stale", "fail"),
+        (None, "explore", "ETHOS.md", "unconfirmed", "ethos.unconfirmed", "unknown"),
+        ("current", "review", "ETHOS.md", "under_review", "ethos.confirmation_under_review", "unknown"),
+        ("current", "complete", "docs/ETHOS.md", "other_document", "ethos.confirmation_other_document", "unknown"),
+    ],
+)
+def test_confirmation_must_name_these_exact_bytes(tmp_path, confirmed, stage, path, status, code, severity):
+    confirmed = hashlib.sha256(VALID).hexdigest() if confirmed == "current" else confirmed
+    result = with_confirmation(tmp_path, VALID, confirmed=confirmed, stage=stage, path=path)
+    assert result["valid"] is True
+    assert result["confirmation"]["status"] == status
+    assert codes(result) == [(code, severity)]
+
+
+def test_unreadable_confirmation_state_fails(tmp_path):
+    artifacts = selected(tmp_path, VALID) + [record(tmp_path, "state", "journey_state", "state.json", b'{"ethos": {}}')]
+    selection = {"artifact_id": "ethos", "confirmation_artifact_id": "state"}
+    result = check_ethos(tmp_path, artifacts, selection, VALIDATOR)
+    assert codes(result) == [("ethos.confirmation_invalid", "fail")]
 
 
 def test_cli_reports_ethos_measurement(tmp_path):

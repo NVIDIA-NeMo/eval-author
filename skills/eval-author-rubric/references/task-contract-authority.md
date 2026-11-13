@@ -32,8 +32,10 @@ Use the same inputs for every selected task:
   resolved scorer and dependencies from [the identity measurement](identity.md).
 - The reference solution, if present, as feasibility evidence only.
 - The current Ethos, if the suite has one, as owner intent. Before citing it as a
-  correctness source, run the [Ethos structure measurement](identity.md#selected-ethos-structure);
-  an Ethos that fails it or whose digest changed is not a usable source.
+  correctness source, run the [Ethos measurement](identity.md#selected-ethos-structure-and-confirmation)
+  with the saved journey state when one exists. An Ethos that fails, changed since
+  selection, or has a stale confirmation is not a usable source; an unconfirmed one
+  is a claim to compare, not owner intent.
 
 Construction plans, requirement maps, generator labels, task READMEs, and trace
 candidates are claims to compare, never authority. A disagreement between them
@@ -81,7 +83,11 @@ they are review notes, not a new file format.
   do not replace level-2 adjudication. Level 3 also requires independent
   corroboration.
 - CREATE-04-C02 and CREATE-05-A-C03 count crosswalk rows by status against all
-  material scored conditions and expected results. Report the denominators.
+  material scored conditions and expected results. Report the denominators. When
+  the task has a construction plan, run the
+  [authority measurement](identity.md#construction-authority-references) for its
+  counts. A broken or changed reference is a finding; a resolved one shows only
+  that the cited content exists, and prose references stay agent-reviewed rows.
 
 ## CREATE-03 — Clear task contract
 

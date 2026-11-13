@@ -200,8 +200,8 @@ def test_demo_reports_canonical_outcomes_through_actual_cli(rubric_panel):
     unsupported = {"DISC-02-A", "DISC-02-B", "DISC-03-A", "AUD-02", "ENV-01", "ENV-02-A", "ENV-03", "CREATE-07"}
     cases = {row["id"]: row for row in report["assessments"]}
     assert cases.keys() == expected.keys()
-    assert report["counts"] == {"cases": 14, "assessments": len(expected), "evidence_cases": 8}
-    assert len(report["evidence_cases"]) == 8
+    assert report["counts"] == {"cases": 14, "assessments": len(expected), "evidence_cases": 14}
+    assert len(report["evidence_cases"]) == 14
     assert {case["id"] for case in report["evidence_cases"]} == {
         "sourced-equal",
         "sourced-different",
@@ -211,6 +211,12 @@ def test_demo_reports_canonical_outcomes_through_actual_cli(rubric_panel):
         "material-scorer-change",
         "material-dependency-change",
         "unknown-ethos-change",
+        "ethos-confirmed",
+        "ethos-malformed",
+        "ethos-changed-after-confirmation",
+        "authority-resolved",
+        "authority-broken-reference",
+        "authority-prose",
     }
     assert all(case["matches_expectations"] for case in report["evidence_cases"])
     canonical = json.loads(

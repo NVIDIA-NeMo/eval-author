@@ -5,6 +5,7 @@
 
 import argparse
 import copy
+import hashlib
 import json
 import subprocess
 import sys
@@ -17,6 +18,7 @@ sys.path.insert(0, str(ROOT / "skills/eval-author-rubric/scripts"))
 sys.path.insert(0, str(ROOT / "skills/eval-author/scripts"))
 from eval_author_shared.task_evidence import digest, loads  # noqa: E402
 from first_eval_state import fingerprint  # noqa: E402
+from journey_state import new_state  # noqa: E402
 from measure import measure  # noqa: E402
 
 
@@ -146,28 +148,90 @@ def fixture(root, mutation):
     }
 
 
-def selected_file(root, selection, ident, role, value):
-    path = root / (ident + ".json")
-    path.write_text(json.dumps(value, sort_keys=True, allow_nan=False))
+def selected_file(root, selection, ident, role, value, name=None):
+    """Select a handcrafted JSON value, or raw bytes written to `name`."""
+    relative = name or ident + ".json"
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if isinstance(value, bytes):
+        path.write_bytes(value)
+    else:
+        path.write_text(json.dumps(value, sort_keys=True, allow_nan=False))
     record = next((row for row in selection["artifacts"] if row["id"] == ident), None)
     if record is None:
         record = {
             "id": ident,
             "role": role,
-            "path": path.name,
+            "path": relative,
             "revision": None,
             "access": "available",
             "selection_origin": "explicit",
             "source": "handcrafted:rubric-demo",
         }
         selection["artifacts"].append(record)
-    record.update(digest=digest(path), evidence=[{"path": path.name, "digest": digest(path)}])
+    record.update(digest=digest(path), evidence=[{"path": relative, "digest": digest(path)}])
     return record
+
+
+ETHOS_VALIDATOR = ROOT / "team-skills/ethos/ethos-write/scripts/validate_ethos.py"
+ETHOS_DOCUMENT = (ROOT / "team-skills/ethos/ethos-write/evals/files/router-help/ETHOS.md").read_bytes()
+
+
+def ethos_selection(root, selection, mutation):
+    """Select a handcrafted ETHOS.md and Eval Author's saved confirmation of it."""
+    content = ETHOS_DOCUMENT
+    if mutation == "ethos-malformed":
+        content = content.replace(b"\n## Constraints\n", b"\n## Limits\n")
+    confirmed = hashlib.sha256(content).hexdigest()
+    if mutation == "ethos-changed-after-confirmation":
+        content = content.replace(b"## Vision\n", b"## Vision\n\nRevised after confirmation.\n")
+    selected_file(root, selection, "ethos-document", "ethos", content, "ETHOS.md")
+    state = new_state(root)
+    state.update(repository="handcrafted:rubric-demo", agent="router-help", updated_at="2026-01-01T00:00:00+00:00")
+    state["ethos"].update(
+        stage="complete",
+        confirmed_digest=confirmed,
+        confirmation_source="handcrafted user confirmation",
+        validation="handcrafted validate_ethos.py result",
+    )
+    selected_file(root, selection, "journey-state", "journey_state", state)
+    selection["ethos"] = {"artifact_id": "ethos-document", "confirmation_artifact_id": "journey-state"}
+
+
+def authority_selection(root, selection, mutation):
+    """Select a handcrafted construction plan whose second requirement is an unaffected neighbor."""
+    selected_file(root, selection, "ethos-document", "ethos", ETHOS_DOCUMENT, "ETHOS.md")
+    first = {
+        "authority-resolved": "ETHOS.md#Constraints",
+        "authority-broken-reference": "ETHOS.md#Refund limits",
+        "authority-prose": "Reviewed refund rule",
+    }[mutation]
+    plan = {
+        "requirements": [
+            {
+                "id": "limit",
+                "statement": "Respect the constraint",
+                "authority": {"basis": "specification", "reference": first},
+            },
+            {
+                "id": "task",
+                "statement": "Use the task",
+                "authority": {"basis": "specification", "reference": "task.json#/task_id"},
+            },
+        ],
+        "checks": [{"id": "total", "requirements": ["limit", "task"]}],
+    }
+    selected_file(root, selection, "construction", "construction", plan)
+    selection["authority"] = {"plan_artifact_id": "construction"}
 
 
 def evidence_fixture(root, mutation):
     selection = fixture(root, None)
-    if mutation.startswith("sourced-"):
+    if mutation.startswith("ethos-"):
+        ethos_selection(root, selection, mutation)
+    elif mutation.startswith("authority-"):
+        authority_selection(root, selection, mutation)
+    elif mutation.startswith("sourced-"):
         config = copy.deepcopy(selection["declared_config"])
         config["tool_permissions"] = {"network": False}
         declared = selected_file(root, selection, "declared-settings", "configuration", config)
@@ -277,6 +341,16 @@ def evidence_fixture(root, mutation):
     return selection
 
 
+def ethos_or_authority_matches(observation, case):
+    codes = sorted({row["code"] for row in observation.get("diagnostics", [])})
+    if codes != case["codes"]:
+        return False
+    if case["measurement"] == "ethos":
+        confirmation = observation.get("confirmation") or {}
+        return observation.get("valid") == case["valid"] and confirmation.get("status") == case["confirmation_status"]
+    return [row["status"] for row in observation.get("requirements", [])] == case["requirement_statuses"]
+
+
 def canonical_checks(report, definitions, expected=None):
     items = report.get("items", {})
     if set(items) != {item["id"] for item in definitions["items"]}:
@@ -314,6 +388,8 @@ def evidence_matches(report, case, selection, root):
     observation = report.get("measurements", {}).get(case["measurement"], {})
     if observation.get("status") != case["status"]:
         return False
+    if case["measurement"] in ("ethos", "authority"):
+        return ethos_or_authority_matches(observation, case)
     if case["measurement"] == "sourced_config":
         if not all(observation.get(key) == case[key] for key in ("differences", "unknowns", "counts")):
             return False
@@ -778,6 +854,7 @@ def run_panel():
                 root,
                 "--selection",
                 request,
+                *(("--ethos-validator", ETHOS_VALIDATOR) if "ethos" in selection else ()),
             )
             expected_items = {
                 **case.get("items", baseline_items),
@@ -861,7 +938,7 @@ def summary(result):
         lines.append(" | ".join([case["id"], *values, str(case["matches_expectations"])]))
     lines.extend(
         [
-            f"Sourced config/freshness: {sum(row['matches_expectations'] for row in result['evidence_cases'])}/{len(result['evidence_cases'])} matched; {result['canonical_checks_per_case']} canonical check IDs per case.",
+            f"Config, freshness, Ethos and authority evidence: {sum(row['matches_expectations'] for row in result['evidence_cases'])}/{len(result['evidence_cases'])} matched; {result['canonical_checks_per_case']} canonical check IDs per case.",
             "null = NOT_ASSESSED.",
             "No native execution or solver attempts; full workflow/runtime acceptance remains unmeasured.",
             f"Package acceptance: {result['package_acceptance']['status']}; {result['package_acceptance']['counts']['matched']}/{result['package_acceptance']['counts']['cases']} CLI cases matched; inputs unchanged: {all(row['inputs_unchanged'] for row in result['package_acceptance']['cases'])}.",
