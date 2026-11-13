@@ -9,8 +9,7 @@ helpers, not caller-authored verdicts. Inventory content findings require ``root
 only selected local JSON sources are read, with their exact parsed bytes rehashed.
 See ``references/identity.md`` for supported scope and review projections.
 
-The bounded implementation scores the task-artifact-access, grading-path and
-grading-dependency-access criteria only. Other criteria retain
+The bounded implementation scores DISC-01-A/B/C only. Other criteria retain
 specific gaps: comparison, link and approval predicates alone cannot satisfy
 whole-criterion anchors. No native/reviewer authentication protocol is invented.
 """
@@ -23,17 +22,17 @@ from eval_author_shared.task_evidence import loads
 from rubric_identity import _read_selected
 
 ITEM_LIMITATIONS = {
-    "provenance.task-artifact-access": "Required task-artifact selection and source-bound access evidence are needed.",
-    "provenance.grading-path": "Selected scorer, scoring configuration and complete explicit dispatch evidence are needed.",
-    "provenance.grading-dependency-access": "Selected grading dependencies need source-bound access evidence and completeness review.",
-    "provenance.declared-configuration": "Configuration comparison does not establish per-field sources, relevant-setting coverage or claim limits.",
-    "provenance.observed-configuration": "No trusted native run observations bound to task/configuration are consumed; supplied values may echo declarations.",
-    "provenance.runtime-route": "No trusted provider-owned manifest and adapter validation is consumed.",
-    "provenance.comparison-fairness": "Configuration differences alone do not establish fairness or adjudicate accommodations.",
-    "provenance.solver-tool-access": "No actual solver-identity call, error, reset and permission probe evidence is consumed.",
-    "provenance.dependency-substitution": "Approval matching does not authenticate scope-owner authority or establish required-component availability.",
-    "provenance.external-state": "Pins and identity differences do not establish material external-state coverage or justified live-state bounds.",
-    "provenance.evidence-revision-consistency": "Identity/link checks do not establish change tracking, invalidation or preserved regrading lineage.",
+    "DISC-01-A": "Required task-artifact selection and source-bound access evidence are needed.",
+    "DISC-01-B": "Selected scorer, scoring configuration and complete explicit dispatch evidence are needed.",
+    "DISC-01-C": "Selected grading dependencies need source-bound access evidence and completeness review.",
+    "DISC-02-A": "Configuration comparison does not establish per-field sources, relevant-setting coverage or claim limits.",
+    "DISC-02-B": "No trusted native run observations bound to task/configuration are consumed; supplied values may echo declarations.",
+    "DISC-03-A": "No trusted provider-owned manifest and adapter validation is consumed.",
+    "AUD-02": "Configuration differences alone do not establish fairness or adjudicate accommodations.",
+    "ENV-01": "No actual solver-identity call, error, reset and permission probe evidence is consumed.",
+    "ENV-02-A": "Approval matching does not authenticate scope-owner authority or establish required-component availability.",
+    "ENV-03": "Pins and identity differences do not establish material external-state coverage or justified live-state bounds.",
+    "CREATE-07": "Identity/link checks do not establish change tracking, invalidation or preserved regrading lineage.",
 }
 
 
@@ -102,7 +101,7 @@ def classify_inventory(item_id, scope, records, diagnostics, root, valid=None):
     source = _checked_record(records, diagnostics, scope.get("source"))
     if source and valid is not None and source["id"] not in valid:
         source = None
-    kind = "task_artifacts" if item_id == "provenance.task-artifact-access" else "grading_dependencies"
+    kind = "task_artifacts" if item_id == "DISC-01-A" else "grading_dependencies"
     document = _source_json(root, source)
     source_bound = document is not None and document.get(kind) == {
         "required": required,
@@ -110,7 +109,7 @@ def classify_inventory(item_id, scope, records, diagnostics, root, valid=None):
     }
     roles = (
         {"task", "instructions", "input", "fixture", "metadata", "task_input", "task_metadata"}
-        if item_id == "provenance.task-artifact-access"
+        if item_id == "DISC-01-A"
         else {"scorer", "dependency", "test", "expected_result", "dataset", "judge_prompt", "rubric", "configuration"}
     )
     observed, access = [], []
@@ -256,10 +255,10 @@ def assess(measurements, selection, root: Path | None = None):
     scope = selection.get("rubric_scope", {})
     if not isinstance(scope, dict):
         raise ValueError("rubric_scope must be an object")
-    _inventory(rows["provenance.task-artifact-access"], scope.get("task_artifacts"), records, diagnostics, root)
+    _inventory(rows["DISC-01-A"], scope.get("task_artifacts"), records, diagnostics, root)
     dependency_scope = scope.get("grading_dependencies")
-    _inventory(rows["provenance.grading-dependency-access"], dependency_scope, records, diagnostics, root)
-    if rows["provenance.grading-dependency-access"]["score"] == 2 and isinstance(dependency_scope, dict):
+    _inventory(rows["DISC-01-C"], dependency_scope, records, diagnostics, root)
+    if rows["DISC-01-C"]["score"] == 2 and isinstance(dependency_scope, dict):
         review = _checked_record(records, diagnostics, dependency_scope.get("review_source"))
         source = _checked_record(records, diagnostics, dependency_scope.get("source"))
         conclusion = _source_json(root, review)
@@ -277,26 +276,19 @@ def assess(measurements, selection, root: Path | None = None):
             }
             and conclusion["complete"] is True
         ):
-            rows["provenance.grading-dependency-access"]["evidence_refs"].append(review["id"])
+            rows["DISC-01-C"]["evidence_refs"].append(review["id"])
         else:
-            rows["provenance.grading-dependency-access"].update(status="NOT_ASSESSED", score=None)
-            rows["provenance.grading-dependency-access"]["limitations"].append(
+            rows["DISC-01-C"].update(status="NOT_ASSESSED", score=None)
+            rows["DISC-01-C"]["limitations"].append(
                 "Supported source-bound completeness review is missing or contradictory."
             )
     if selection.get("declared_config"):
-        rows["provenance.declared-configuration"]["evidence_strength"] = "E0"
+        rows["DISC-02-A"]["evidence_strength"] = "E0"
     if selection.get("observed_config"):
-        rows["provenance.observed-configuration"]["evidence_strength"] = "E0"
-    _route(
-        rows["provenance.grading-path"],
-        measurements.get("route", {}),
-        selection.get("route"),
-        records,
-        diagnostics,
-        root,
-    )
+        rows["DISC-02-B"]["evidence_strength"] = "E0"
+    _route(rows["DISC-01-B"], measurements.get("route", {}), selection.get("route"), records, diagnostics, root)
     if any(d["code"] == "identity.digest_mismatch" for d in diagnostics):
-        rows["provenance.evidence-revision-consistency"]["limitations"].append(
+        rows["CREATE-07"]["limitations"].append(
             "A mismatched digest alone does not show incompatible results were silently combined; material change impact and reuse disposition are unknown."
         )
     return rows

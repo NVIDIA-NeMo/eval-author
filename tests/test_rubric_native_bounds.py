@@ -180,11 +180,7 @@ def test_selected_orphan_bytes_do_not_count_as_native_references(panel, role, wi
     assert result.returncode == 1
     assert result.stderr == ""
     report = json.loads(result.stdout)
-    check = next(
-        row
-        for row in report["items"]["provenance.evidence-revision-consistency"]["check_results"]
-        if row["id"] == "provenance.evidence-revision-consistency.deterministic-1"
-    )
+    check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
     predicate = next(row for row in check["predicate_results"] if row["id"] == "selected_native_references_bound")
     assert predicate["outcome"] == "FAIL"
 

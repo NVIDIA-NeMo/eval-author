@@ -15,17 +15,16 @@ not establish that integration.
 The [canonical subset](artifact-configuration-provenance.json) is the
 single source for the 11 criterion IDs, original questions, applicability,
 measurements, 38 checks, 44 score anchors, evidence requirements, and boundaries.
-Criterion IDs name this area; each check ID adds its method. The source rubric's
-IDs stay in each entry's `source` and `source_id` fields. Look up entries by ID,
-never by position, and read each selected entry in full before assessment. Do not rewrite the source or
+Read each selected `items` entry in full before assessment. Links below use JSON
+Pointer fragments to identify those entries; if a viewer does not navigate JSON
+fragments, locate the entry by its original ID. Do not rewrite the source or
 replace distinct criteria with helper capability scores. Source code references
 and implementation-task descriptions are provenance, not proof of runnable
 integration or permission to execute them.
 
 Source provenance: this subset follows the supplied `Rubric.v4.json`.
 The embedded rubric in the supplied Vibe Rubric draft has the same selected
-criterion definitions and score anchors, but omits source check `CREATE-07-C04`
-(`provenance.evidence-revision-consistency.deterministic-4`), its ETHOS
+criterion definitions and score anchors, but omits `CREATE-07-C04`, its ETHOS
 evidence entry, and `policies.ethos`. Those additions in `Rubric.v4.json` implement
 the explicit ETHOS-freshness requirement. Treat them as a
 traceable augmentation, not an unchanged extraction of the draft's embedded JSON.
@@ -36,7 +35,7 @@ observations and the owning workflow's native records, not a parallel ledger.
 
 ## Assessment and evidence
 
-Every selected criterion must have a result row using its ID and the
+Every selected criterion must have a result row using its original ID and the
 JSON `result_template` fields: subject/revision, applicability, assessment and
 execution states, score or null, evidence strength, measurements with units and
 denominators, check results, qualifications, evidence and approval references,
@@ -44,7 +43,7 @@ findings, remaining gaps, and next action. This is a response/private-note
 projection, not a new native receipt format. No aggregate score is permitted.
 
 Every source check must be accounted for within each selected criterion: record
-its check ID, condition, method, evidence, and outcome, or an explicit
+its original check ID, condition, method, evidence, and outcome, or an explicit
 not-run, blocked, unresolved, or condition-not-applicable reason. Conditional or
 optional methods do not require every stage to run. An area-wide assessment
 accounts for all 11 criteria; an explicit subset accounts only for the selected
@@ -65,8 +64,7 @@ IDs. Retain unsupported portions rather than silently dropping them.
   not evidence about the selected task.
 - Do not import anti-cheat's evidence-floor table. Acceptance follows each
   canonical anchor and its applicable checks: source-backed identification can
-  meet level 2 without agent execution. `provenance.evidence-revision-consistency`
-  and `provenance.comparison-fairness` can meet their
+  meet level 2 without agent execution. CREATE-07 and AUD-02 can meet their
   level-3 anchors at E2; E3 requires independent corroboration. Other criteria
   retain their explicit independent review or repeat requirements.
 - Deterministic extraction/comparison does not decide semantic materiality,
@@ -78,10 +76,9 @@ IDs. Retain unsupported portions rather than silently dropping them.
   installs, model calls, and writes require separate authorization. Preserve
   historical receipts and report stale evidence through the owning validators.
 
-## provenance.task-artifact-access — Task artifact access
+## DISC-01-A — Task artifact access
 
-Canonical definition: the `provenance.task-artifact-access` entry in
-[artifact-configuration-provenance.json](artifact-configuration-provenance.json).
+[Canonical definition](artifact-configuration-provenance.json#/items/0)
 
 **Methods and evidence:** Deterministic manifest/reference inventory and performed
 reviewer-access checks establish observed access and identity; independent source
@@ -92,10 +89,9 @@ artifacts separately. A confirmed inspection-blocking absence can establish a
 zero; a failed or incomplete search is not proof of absence. Reviewer readability
 says nothing about solver permissions or scoring correctness.
 
-## provenance.grading-path — Grading-path identification
+## DISC-01-B — Grading-path identification
 
-Canonical definition: the `provenance.grading-path` entry in
-[artifact-configuration-provenance.json](artifact-configuration-provenance.json).
+[Canonical definition](artifact-configuration-provenance.json#/items/1)
 
 **Methods and evidence:** Resolve explicit registrations, dispatch, entry points,
 and configuration deterministically; compare existing run metadata only when
@@ -107,10 +103,9 @@ cannot establish inaccessible behavior. Complete source resolution can support
 executing arbitrary repository code during inventory. Identifying a route does
 not prove that it grades correctly or that a launcher actually selected it.
 
-## provenance.grading-dependency-access — Grading dependency access
+## DISC-01-C — Grading dependency access
 
-Canonical definition: the `provenance.grading-dependency-access` entry in
-[artifact-configuration-provenance.json](artifact-configuration-provenance.json).
+[Canonical definition](artifact-configuration-provenance.json#/items/2)
 
 **Methods and evidence:** Walk declared dependencies for the selected grading
 route and check reviewer access/version identity. Review unclear generated or
@@ -121,10 +116,9 @@ from successful deterministic reads.
 a missing dependency of this scorer. Do not expose protected inputs to the solver
 or award leakage-resistance credit from reviewer access.
 
-## provenance.declared-configuration — Declared configuration identity
+## DISC-02-A — Declared configuration identity
 
-Canonical definition: the `provenance.declared-configuration` entry in
-[artifact-configuration-provenance.json](artifact-configuration-provenance.json).
+[Canonical definition](artifact-configuration-provenance.json#/items/3)
 
 **Methods and evidence:** Extract sourced configuration fields deterministically;
 review claim-specific implications of unknowns. A complete declaration and
@@ -135,10 +129,9 @@ of the sourced manifest, not reconstruction of the agent, supports level 3.
 states. Do not infer credentials, internals, or observed execution from declared
 settings. Materiality of an unknown field remains a review decision.
 
-## provenance.observed-configuration — Observed configuration agreement
+## DISC-02-B — Observed configuration agreement
 
-Canonical definition: the `provenance.observed-configuration` entry in
-[artifact-configuration-provenance.json](artifact-configuration-provenance.json).
+[Canonical definition](artifact-configuration-provenance.json#/items/4)
 
 **Methods and evidence:** Compare trusted run-bound observations with declarations
 and retain per-field matched, mismatched, and unobservable outcomes. Level 3
@@ -149,10 +142,9 @@ merely to fill the rubric. A configured version echoed by a launcher is not an
 independently observed binary version. Unknown fields are not matches, and
 justified differences must bound the claim rather than disappear from the diff.
 
-## provenance.runtime-route — Runtime route compatibility
+## DISC-03-A — Runtime route compatibility
 
-Canonical definition: the `provenance.runtime-route` entry in
-[artifact-configuration-provenance.json](artifact-configuration-provenance.json).
+[Canonical definition](artifact-configuration-provenance.json#/items/5)
 
 **Methods and evidence:** Use authorized provider-owned manifest and adapter
 validation, retaining runtime identities and typed errors. Independent clean
@@ -163,10 +155,9 @@ NOT_ASSESSED. Distinguish unavailable runtime, unsupported manifest, and confirm
 validation failure; none is an agent-performance result. Local route-identity
 checks are not provider validation or an end-to-end smoke pass.
 
-## provenance.comparison-fairness — Comparison setup fairness
+## AUD-02 — Comparison setup fairness
 
-Canonical definition: the `provenance.comparison-fairness` entry in
-[artifact-configuration-provenance.json](artifact-configuration-provenance.json).
+[Canonical definition](artifact-configuration-provenance.json#/items/6)
 
 **Methods and evidence:** Produce a deterministic setup diff, then obtain
 scope-matched review of each material justification. Authorized matched
@@ -178,10 +169,9 @@ configurations are not universally required; an intentional accommodation is not
 a demonstrated unjustified advantage. Keep unresolved justification and effect
 questions visible without starting an Audit workflow.
 
-## provenance.solver-tool-access — Verify solver tool access
+## ENV-01 — Verify solver tool access
 
-Canonical definition: the `provenance.solver-tool-access` entry in
-[artifact-configuration-provenance.json](artifact-configuration-provenance.json).
+[Canonical definition](artifact-configuration-provenance.json#/items/7)
 
 **Methods and evidence:** Review the required action/tool/permission map, compare
 exposed schemas and snapshots, and use authorized actual solver-role call,
@@ -192,10 +182,9 @@ for the level-3 corroboration.
 coverage or award levels 2 or 3. Retain the native runtime evidence gap instead
 of converting reviewer access or task reward into solver-readiness evidence.
 
-## provenance.dependency-substitution — Inventory dependencies and substitution approval
+## ENV-02-A — Inventory dependencies and substitution approval
 
-Canonical definition: the `provenance.dependency-substitution` entry in
-[artifact-configuration-provenance.json](artifact-configuration-provenance.json).
+[Canonical definition](artifact-configuration-provenance.json#/items/8)
 
 **Methods and evidence:** Inventory observed real/replacement components, obtain
 scope-owner decisions, and match their allowed differences and revisions to
@@ -207,10 +196,9 @@ they do not prove that approval is absent. A matching digest or nonempty approva
 reference cannot confer authority. Approval provides no replacement-fidelity
 credit and does not authorize extra permissions.
 
-## provenance.external-state — Control external state
+## ENV-03 — Control external state
 
-Canonical definition: the `provenance.external-state` entry in
-[artifact-configuration-provenance.json](artifact-configuration-provenance.json).
+[Canonical definition](artifact-configuration-provenance.json#/items/9)
 
 **Methods and evidence:** Capture dependency pins, snapshots, or live-source/time/
 response identities; review live-state bounds and outcome relations. Authorized
@@ -222,10 +210,9 @@ interpretability. Permitted state changes may legitimately change reward; do not
 require invariance or call every changed outcome invalid. Retain unmeasured drift
 and unresolved attribution rather than assigning full automated scores.
 
-## provenance.evidence-revision-consistency — Evidence revision consistency
+## CREATE-07 — Evidence revision consistency
 
-Canonical definition: the `provenance.evidence-revision-consistency` entry in
-[artifact-configuration-provenance.json](artifact-configuration-provenance.json).
+[Canonical definition](artifact-configuration-provenance.json#/items/10)
 
 **Methods and evidence:** Bind material task, scoring, configuration, runtime, and
 applicable ETHOS/obligation identities; compare retained evidence with current

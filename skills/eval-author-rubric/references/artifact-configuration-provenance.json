@@ -33,11 +33,8 @@
   },
   "items": [
     {
-      "id": "provenance.task-artifact-access",
-      "source": {
-        "id": "DISC-01-A",
-        "skill_id": "discover"
-      },
+      "id": "DISC-01-A",
+      "skill_id": "discover",
       "title": "Task artifact access",
       "question": "Can the authorized reviewer read the task instructions and required input artifacts?",
       "requirement": "Discover inventories an existing task or suite.",
@@ -53,24 +50,21 @@
           "action": "Read manifests and explicit references to inventory task instructions, input fixtures and task metadata.",
           "expected_evidence": "Inventory with artifact role and reference origin.",
           "when": "Always within the stated applicability",
-          "id": "provenance.task-artifact-access.deterministic-1",
-          "source_id": "DISC-01-A-C01"
+          "id": "DISC-01-A-C01"
         },
         {
           "method": "deterministic",
           "action": "Resolve each location using reviewer permissions; record readability and revision or digest without exposing secrets.",
           "expected_evidence": "Per-artifact access results and identities.",
           "when": "Always within the stated applicability",
-          "id": "provenance.task-artifact-access.deterministic-2",
-          "source_id": "DISC-01-A-C02"
+          "id": "DISC-01-A-C02"
         },
         {
           "method": "human_review",
           "action": "Independently verify the task-artifact inventory against the selected source.",
           "expected_evidence": "Independent inventory differences and resolution.",
           "when": "For level 3.",
-          "id": "provenance.task-artifact-access.human-review",
-          "source_id": "DISC-01-A-C03"
+          "id": "DISC-01-A-C03"
         }
       ],
       "scoring": {
@@ -96,11 +90,8 @@
       "implementation_task": "Build a manifest/reference inventory checker that emits per-artifact access and identity records."
     },
     {
-      "id": "provenance.grading-path",
-      "source": {
-        "id": "DISC-01-B",
-        "skill_id": "discover"
-      },
+      "id": "DISC-01-B",
+      "skill_id": "discover",
       "title": "Grading-path identification",
       "question": "Can the reviewer determine which scorer and scoring configuration apply to this task?",
       "requirement": "A discovered evaluation assigns a score or verdict.",
@@ -117,40 +108,35 @@
           "action": "Resolve scorer registrations, entry points and configured dispatch rules; retain task-to-scorer links.",
           "expected_evidence": "Selection map with supporting configuration references.",
           "when": "Always within the stated applicability",
-          "id": "provenance.grading-path.deterministic-1",
-          "source_id": "DISC-01-B-C01"
+          "id": "DISC-01-B-C01"
         },
         {
           "method": "deterministic",
           "action": "Use existing run metadata to compare the selected scorer with the declared route.",
           "expected_evidence": "Declared/observed selection diff.",
           "when": "Matching run metadata is already available; do not launch a run for inventory alone.",
-          "id": "provenance.grading-path.deterministic-2",
-          "source_id": "DISC-01-B-C02"
+          "id": "DISC-01-B-C02"
         },
         {
           "method": "human_review",
           "action": "Inspect code when configuration cannot resolve selection; document dynamic rules or the unresolved boundary.",
           "expected_evidence": "Code-backed selection explanation.",
           "when": "Selection remains ambiguous.",
-          "id": "provenance.grading-path.human-review-1",
-          "source_id": "DISC-01-B-C03"
+          "id": "DISC-01-B-C03"
         },
         {
           "method": "llm_as_judge",
           "action": "Propose an interpretation of an ambiguous dispatch rule using exact code/configuration evidence.",
           "expected_evidence": "Evidence-linked interpretation and uncertainty.",
           "when": "Optional assistance only; it cannot establish behavior of inaccessible code.",
-          "id": "provenance.grading-path.llm-judge",
-          "source_id": "DISC-01-B-C04"
+          "id": "DISC-01-B-C04"
         },
         {
           "method": "human_review",
           "action": "Independently resolve the same grading path from the recorded packet.",
           "expected_evidence": "Independent path-selection result.",
           "when": "For level 3.",
-          "id": "provenance.grading-path.human-review-2",
-          "source_id": "DISC-01-B-C05"
+          "id": "DISC-01-B-C05"
         }
       ],
       "scoring": {
@@ -176,11 +162,8 @@
       "implementation_task": "Build a scorer-selection resolver and an unresolved-dispatch report."
     },
     {
-      "id": "provenance.grading-dependency-access",
-      "source": {
-        "id": "DISC-01-C",
-        "skill_id": "discover"
-      },
+      "id": "DISC-01-C",
+      "skill_id": "discover",
       "title": "Grading dependency access",
       "question": "Can the reviewer access the artifacts needed to inspect the selected grading path?",
       "requirement": "A grading path has been identified or its known branches are being inventoried.",
@@ -196,32 +179,28 @@
           "action": "Follow declared scorer references to tests, reference answers, datasets, judge prompts, rubrics and configuration.",
           "expected_evidence": "Dependency graph with reference origins.",
           "when": "Always within the stated applicability",
-          "id": "provenance.grading-dependency-access.deterministic-1",
-          "source_id": "DISC-01-C-C01"
+          "id": "DISC-01-C-C01"
         },
         {
           "method": "deterministic",
           "action": "Check reviewer access and record versions/digests for each material dependency; mark external or unresolved artifacts.",
           "expected_evidence": "Per-dependency access and identity records.",
           "when": "Always within the stated applicability",
-          "id": "provenance.grading-dependency-access.deterministic-2",
-          "source_id": "DISC-01-C-C02"
+          "id": "DISC-01-C-C02"
         },
         {
           "method": "human_review",
           "action": "Inspect unclear imports, generated references or external-service contracts for undeclared dependencies.",
           "expected_evidence": "Additional dependency evidence or explicit inspection limit.",
           "when": "Declared references do not settle completeness.",
-          "id": "provenance.grading-dependency-access.human-review-1",
-          "source_id": "DISC-01-C-C03"
+          "id": "DISC-01-C-C03"
         },
         {
           "method": "human_review",
           "action": "Independently verify dependency coverage and access against the selected scorer.",
           "expected_evidence": "Independent inventory check.",
           "when": "For level 3.",
-          "id": "provenance.grading-dependency-access.human-review-2",
-          "source_id": "DISC-01-C-C04"
+          "id": "DISC-01-C-C04"
         }
       ],
       "scoring": {
@@ -247,11 +226,8 @@
       "implementation_task": "Build a dependency walker with access/version checks and a queue for unresolved references."
     },
     {
-      "id": "provenance.declared-configuration",
-      "source": {
-        "id": "DISC-02-A",
-        "skill_id": "discover"
-      },
+      "id": "DISC-02-A",
+      "skill_id": "discover",
       "title": "Declared configuration identity",
       "question": "Is the evaluated agent and its declared configuration identifiable?",
       "requirement": "Discovery describes an agent/application or interprets its evaluation setup.",
@@ -267,32 +243,28 @@
           "action": "Record agent/application/model identity, prompts, sampling, budgets, harness, permissions and dependency identities from authorized configuration.",
           "expected_evidence": "Sourced configuration manifest.",
           "when": "Always within the stated applicability",
-          "id": "provenance.declared-configuration.deterministic-1",
-          "source_id": "DISC-02-A-C01"
+          "id": "DISC-02-A-C01"
         },
         {
           "method": "deterministic",
           "action": "Mark omitted, inaccessible and provider-hidden fields separately; validate required fields and version references.",
           "expected_evidence": "Field-completeness report with unknown reasons.",
           "when": "Always within the stated applicability",
-          "id": "provenance.declared-configuration.deterministic-2",
-          "source_id": "DISC-02-A-C02"
+          "id": "DISC-02-A-C02"
         },
         {
           "method": "human_review",
           "action": "Assess which unknown settings limit the stated interpretation or comparison.",
           "expected_evidence": "Claim-specific limitation record.",
           "when": "Unknown settings may be material.",
-          "id": "provenance.declared-configuration.human-review-1",
-          "source_id": "DISC-02-A-C03"
+          "id": "DISC-02-A-C03"
         },
         {
           "method": "human_review",
           "action": "Independently reconstruct the declared manifest from its sources.",
           "expected_evidence": "Independent manifest comparison.",
           "when": "For level 3; reconstruct configuration records, not the agent or grader.",
-          "id": "provenance.declared-configuration.human-review-2",
-          "source_id": "DISC-02-A-C04"
+          "id": "DISC-02-A-C04"
         }
       ],
       "scoring": {
@@ -319,11 +291,8 @@
       "implementation_task": "Build a configuration manifest extractor with explicit unknown-state validation."
     },
     {
-      "id": "provenance.observed-configuration",
-      "source": {
-        "id": "DISC-02-B",
-        "skill_id": "discover"
-      },
+      "id": "DISC-02-B",
+      "skill_id": "discover",
       "title": "Observed configuration agreement",
       "question": "Did the run use the configuration being reported?",
       "requirement": "A result or readiness claim relies on an existing or authorized run.",
@@ -339,24 +308,21 @@
           "action": "Bind run metadata to task/configuration identities and compare model, prompt, limits, harness, tools and dependency settings.",
           "expected_evidence": "Per-field declared/observed diff and run binding.",
           "when": "Always within the stated applicability",
-          "id": "provenance.observed-configuration.deterministic-1",
-          "source_id": "DISC-02-B-C01"
+          "id": "DISC-02-B-C01"
         },
         {
           "method": "deterministic",
           "action": "Keep unavailable observed settings as unknown rather than treating them as matching.",
           "expected_evidence": "Coverage of observable settings.",
           "when": "Always within the stated applicability",
-          "id": "provenance.observed-configuration.deterministic-2",
-          "source_id": "DISC-02-B-C02"
+          "id": "DISC-02-B-C02"
         },
         {
           "method": "probe",
           "action": "Repeat with the recorded configuration and verify expected configuration/control observations.",
           "expected_evidence": "Independent repeat metadata and control receipts.",
           "when": "For level 3, only with execution authorization.",
-          "id": "provenance.observed-configuration.probe",
-          "source_id": "DISC-02-B-C03"
+          "id": "DISC-02-B-C03"
         }
       ],
       "scoring": {
@@ -383,11 +349,8 @@
       "implementation_task": "Build a declared-versus-observed configuration comparator keyed by run/task revision."
     },
     {
-      "id": "provenance.runtime-route",
-      "source": {
-        "id": "DISC-03-A",
-        "skill_id": "discover"
-      },
+      "id": "DISC-03-A",
+      "skill_id": "discover",
       "title": "Runtime route compatibility",
       "question": "Does the task manifest match the selected runtime route?",
       "requirement": "Runtime readiness, not file-only inventory, is requested.",
@@ -403,24 +366,21 @@
           "action": "Identify the agreed provider, runtime/adapter version and task manifest; run authorized provider validation.",
           "expected_evidence": "Versioned validation result and errors.",
           "when": "Always within the stated applicability",
-          "id": "provenance.runtime-route.deterministic-1",
-          "source_id": "DISC-03-A-C01"
+          "id": "DISC-03-A-C01"
         },
         {
           "method": "deterministic",
           "action": "Distinguish missing runtime, unsupported manifest and validation failure from agent behavior.",
           "expected_evidence": "Typed compatibility status.",
           "when": "Always within the stated applicability",
-          "id": "provenance.runtime-route.deterministic-2",
-          "source_id": "DISC-03-A-C02"
+          "id": "DISC-03-A-C02"
         },
         {
           "method": "probe",
           "action": "Validate known-invalid manifests and a clean supported configuration.",
           "expected_evidence": "Expected acceptance/rejection controls.",
           "when": "For level 3, within authorized runtime checks.",
-          "id": "provenance.runtime-route.probe",
-          "source_id": "DISC-03-A-C03"
+          "id": "DISC-03-A-C03"
         }
       ],
       "scoring": {
@@ -443,11 +403,8 @@
       "implementation_task": "Wrap provider validation into a typed compatibility receipt without running the target agent."
     },
     {
-      "id": "provenance.comparison-fairness",
-      "source": {
-        "id": "AUD-02",
-        "skill_id": "audit"
-      },
+      "id": "AUD-02",
+      "skill_id": "audit",
       "title": "Comparison setup fairness",
       "question": "Are material setup differences justified for the comparison being claimed?",
       "requirement": "When comparing systems, disclose prompts, tools, budgets, scaffolds, scorer settings and model-specific accommodations.",
@@ -464,24 +421,21 @@
           "action": "Diff prompts, tool permissions, budgets, scaffolds and scoring configuration across systems.",
           "expected_evidence": "Versioned configuration diff",
           "when": "During assessment of the declared revision",
-          "id": "provenance.comparison-fairness.deterministic",
-          "source_id": "AUD-02-C01"
+          "id": "AUD-02-C01"
         },
         {
           "method": "human_review",
           "action": "Decide whether each material difference or model-specific accommodation is justified by the intended comparison.",
           "expected_evidence": "Difference-by-difference rationale and unresolved disputes",
           "when": "During assessment of the declared revision",
-          "id": "provenance.comparison-fairness.human-review",
-          "source_id": "AUD-02-C02"
+          "id": "AUD-02-C02"
         },
         {
           "method": "probe",
           "action": "Run matched configuration comparisons for differences whose effect remains disputed.",
           "expected_evidence": "Paired results at fixed task/system identities",
           "when": "When a material fairness dispute requires authorized testing",
-          "id": "provenance.comparison-fairness.probe",
-          "source_id": "AUD-02-C03"
+          "id": "AUD-02-C03"
         }
       ],
       "scoring": {
@@ -508,11 +462,8 @@
       "implementation_task": "Build a comparative setup review packet with matched sensitivity experiments for disputed accommodations."
     },
     {
-      "id": "provenance.solver-tool-access",
-      "source": {
-        "id": "ENV-01",
-        "skill_id": "environment"
-      },
+      "id": "ENV-01",
+      "skill_id": "environment",
       "title": "Verify solver tool access",
       "question": "Can the solver exercise every required tool contract under its actual permissions?",
       "requirement": "When task completion depends on tools or permissioned actions.",
@@ -529,24 +480,21 @@
           "action": "Map required task actions to solver-visible tools and required permission boundaries.",
           "expected_evidence": "Action-to-tool/permission coverage map.",
           "when": "Whenever applicable",
-          "id": "provenance.solver-tool-access.human-review",
-          "source_id": "ENV-01-C01"
+          "id": "ENV-01-C01"
         },
         {
           "method": "deterministic",
           "action": "Compare exposed schemas and permission/configuration snapshots with the required tool contract.",
           "expected_evidence": "Schema and permission differences.",
           "when": "Whenever applicable",
-          "id": "provenance.solver-tool-access.deterministic",
-          "source_id": "ENV-01-C02"
+          "id": "ENV-01-C02"
         },
         {
           "method": "probe",
           "action": "Exercise supported calls, reset and expected errors under solver permissions within the authorized side-effect boundary.",
           "expected_evidence": "Actual solver-identity preflight and error/reset receipts.",
           "when": "Only authorized bounded probes",
-          "id": "provenance.solver-tool-access.probe",
-          "source_id": "ENV-01-C03"
+          "id": "ENV-01-C03"
         }
       ],
       "scoring": {
@@ -572,11 +520,8 @@
       "implementation_task": "Deliver an action/tool coverage map and solver-permission preflight packet."
     },
     {
-      "id": "provenance.dependency-substitution",
-      "source": {
-        "id": "ENV-02-A",
-        "skill_id": "environment"
-      },
+      "id": "ENV-02-A",
+      "skill_id": "environment",
       "title": "Inventory dependencies and substitution approval",
       "question": "Is every required component available in an explicitly authorized form?",
       "requirement": "When a task depends on software, tools, MCP endpoints or replacements.",
@@ -592,24 +537,21 @@
           "action": "Inventory each required component and MCP endpoint as real, approved mock/replay, missing or unknown, with observed identity.",
           "expected_evidence": "Dependency status and revision inventory.",
           "when": "Whenever applicable",
-          "id": "provenance.dependency-substitution.deterministic-1",
-          "source_id": "ENV-02-A-C01"
+          "id": "ENV-02-A-C01"
         },
         {
           "method": "human_review",
           "action": "Obtain scope-owner approval for each substitution, naming allowed differences and revision.",
           "expected_evidence": "Scoped owner approval; absence is not implied consent.",
           "when": "Whenever applicable",
-          "id": "provenance.dependency-substitution.human-review",
-          "source_id": "ENV-02-A-C02"
+          "id": "ENV-02-A-C02"
         },
         {
           "method": "deterministic",
           "action": "Match installed substitution identities and declared differences to approval records.",
           "expected_evidence": "Approval-to-component match report.",
           "when": "Whenever applicable",
-          "id": "provenance.dependency-substitution.deterministic-2",
-          "source_id": "ENV-02-A-C03"
+          "id": "ENV-02-A-C03"
         }
       ],
       "scoring": {
@@ -635,11 +577,8 @@
       "implementation_task": "Deliver a dependency bill of materials and revision-bound substitution approvals."
     },
     {
-      "id": "provenance.external-state",
-      "source": {
-        "id": "ENV-03",
-        "skill_id": "environment"
-      },
+      "id": "ENV-03",
+      "skill_id": "environment",
       "title": "Control external state",
       "question": "Are pinned and intentionally live dependencies bounded well enough to interpret outcomes?",
       "requirement": "When time, web/API responses, mutable data, packages, images or remote services influence the task.",
@@ -656,24 +595,21 @@
           "action": "Inventory material dependencies; record pins/snapshots or live time, source and response identities.",
           "expected_evidence": "Dependency manifest and retained snapshot/response references.",
           "when": "Whenever applicable",
-          "id": "provenance.external-state.deterministic",
-          "source_id": "ENV-03-C01"
+          "id": "ENV-03-C01"
         },
         {
           "method": "human_review",
           "action": "Define acceptable live-state drift and the outcome relation expected under relevant changes.",
           "expected_evidence": "Live-state bounds and scoring-interpretation contract.",
           "when": "Whenever applicable",
-          "id": "provenance.external-state.human-review",
-          "source_id": "ENV-03-C02"
+          "id": "ENV-03-C02"
         },
         {
           "method": "probe",
           "action": "Replay or deliberately perturb relevant state and compare behavior/state and grading against the declared relation.",
           "expected_evidence": "Revision-bound replay/drift outcomes and unresolved attribution.",
           "when": "Authorized drift/replay tests only",
-          "id": "provenance.external-state.probe",
-          "source_id": "ENV-03-C03"
+          "id": "ENV-03-C03"
         }
       ],
       "scoring": {
@@ -700,11 +636,8 @@
       "implementation_task": "Deliver an external-state manifest with live drift bounds and replay-control results."
     },
     {
-      "id": "provenance.evidence-revision-consistency",
-      "source": {
-        "id": "CREATE-07",
-        "skill_id": "first_eval_create"
-      },
+      "id": "CREATE-07",
+      "skill_id": "first_eval_create",
       "title": "Evidence revision consistency",
       "question": "Are results bound to compatible identities and invalidated when material dependencies change?",
       "requirement": "For every task result or reused qualification packet, bind all material instruction, data, scoring and runtime identities.",
@@ -719,32 +652,28 @@
           "action": "Bind instructions, fixtures, scorer, ground truth, judge prompt/configuration and material runtime/dependency identities to each result.",
           "expected_evidence": "Result-to-revision manifest",
           "when": "During assessment of the declared revision",
-          "id": "provenance.evidence-revision-consistency.deterministic-1",
-          "source_id": "CREATE-07-C01"
+          "id": "CREATE-07-C01"
         },
         {
           "method": "deterministic",
           "action": "Compare current and evidence identities; invalidate affected scores on material changes and retain original results plus regrading history.",
           "expected_evidence": "Stale-evidence and regrading report",
           "when": "During assessment of the declared revision",
-          "id": "provenance.evidence-revision-consistency.deterministic-2",
-          "source_id": "CREATE-07-C02"
+          "id": "CREATE-07-C02"
         },
         {
           "method": "deterministic",
           "action": "Test declared identity-change fixtures to confirm affected evidence invalidates while unchanged evidence lineage remains intact.",
           "expected_evidence": "Change-injection invalidation tests",
           "when": "When verifying robustness of evidence reuse",
-          "id": "provenance.evidence-revision-consistency.deterministic-3",
-          "source_id": "CREATE-07-C03"
+          "id": "CREATE-07-C03"
         },
         {
           "method": "deterministic",
           "action": "Bind ETHOS revision and obligation references to task and qualification evidence; use declared change-impact mappings to invalidate affected assumptions after ETHOS changes. Test changed-content and unchanged-reuse fixtures.",
           "expected_evidence": "ETHOS change-impact and stale-evidence report; fixture outcomes.",
           "when": "When task meaning or qualification depends on ETHOS; unresolved semantic change impact requires authorized review, not an inferred unchanged status.",
-          "id": "provenance.evidence-revision-consistency.deterministic-4",
-          "source_id": "CREATE-07-C04"
+          "id": "CREATE-07-C04"
         }
       ],
       "scoring": {
