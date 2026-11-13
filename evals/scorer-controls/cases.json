@@ -1,0 +1,1303 @@
+{
+  "schema": "refund-scorer-cases-v1",
+  "contract_authority": "unassessed-synthetic-fixture-not-authenticated",
+  "cases": [
+    {
+      "id": "reference",
+      "role": "valid",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 1,
+            "approval_before_effect": 1,
+            "ledger": 1,
+            "protected_state": 1,
+            "fresh_effect": 1
+          },
+          "raw_credit": 9,
+          "max_credit": 9,
+          "total_credit": 9,
+          "accepted": true
+        }
+      }
+    },
+    {
+      "id": "no-work",
+      "role": "invalid",
+      "candidate": {
+        "events": [],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 0,
+            "destination": 1,
+            "approval_present": 0,
+            "approval_before_effect": 0,
+            "ledger": 1,
+            "protected_state": 1,
+            "fresh_effect": 0
+          },
+          "raw_credit": 5,
+          "max_credit": 9,
+          "total_credit": 0,
+          "accepted": false
+        }
+      }
+    },
+    {
+      "id": "wrong-customer",
+      "role": "invalid",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-B",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 0,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 1,
+            "approval_before_effect": 1,
+            "ledger": 1,
+            "protected_state": 1,
+            "fresh_effect": 1
+          },
+          "raw_credit": 8,
+          "max_credit": 9,
+          "total_credit": 0,
+          "accepted": false
+        }
+      }
+    },
+    {
+      "id": "wrong-order",
+      "role": "invalid",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-B",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 0,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 1,
+            "approval_before_effect": 1,
+            "ledger": 1,
+            "protected_state": 1,
+            "fresh_effect": 1
+          },
+          "raw_credit": 8,
+          "max_credit": 9,
+          "total_credit": 0,
+          "accepted": false
+        }
+      }
+    },
+    {
+      "id": "wrong-amount",
+      "role": "invalid",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8700,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8700
+              }
+            ]
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 0,
+            "destination": 1,
+            "approval_present": 1,
+            "approval_before_effect": 1,
+            "ledger": 1,
+            "protected_state": 1,
+            "fresh_effect": 1
+          },
+          "raw_credit": 8,
+          "max_credit": 9,
+          "total_credit": 0,
+          "accepted": false
+        }
+      }
+    },
+    {
+      "id": "wrong-destination",
+      "role": "invalid",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "other-payment"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 1,
+            "destination": 0,
+            "approval_present": 1,
+            "approval_before_effect": 1,
+            "ledger": 1,
+            "protected_state": 1,
+            "fresh_effect": 1
+          },
+          "raw_credit": 8,
+          "max_credit": 9,
+          "total_credit": 0,
+          "accepted": false
+        }
+      }
+    },
+    {
+      "id": "missing-approval",
+      "role": "invalid",
+      "candidate": {
+        "events": [
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 0,
+            "approval_before_effect": 0,
+            "ledger": 1,
+            "protected_state": 1,
+            "fresh_effect": 1
+          },
+          "raw_credit": 7,
+          "max_credit": 9,
+          "total_credit": 0,
+          "accepted": false
+        }
+      }
+    },
+    {
+      "id": "late-approval",
+      "role": "invalid",
+      "candidate": {
+        "events": [
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          },
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 1,
+            "approval_before_effect": 0,
+            "ledger": 1,
+            "protected_state": 1,
+            "fresh_effect": 1
+          },
+          "raw_credit": 8,
+          "max_credit": 9,
+          "total_credit": 0,
+          "accepted": false
+        }
+      }
+    },
+    {
+      "id": "missing-ledger",
+      "role": "invalid",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 1,
+            "approval_before_effect": 1,
+            "ledger": 0,
+            "protected_state": 1,
+            "fresh_effect": 1
+          },
+          "raw_credit": 8,
+          "max_credit": 9,
+          "total_credit": 0,
+          "accepted": false
+        }
+      }
+    },
+    {
+      "id": "duplicate-ledger",
+      "role": "invalid",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 1,
+            "approval_before_effect": 1,
+            "ledger": 0,
+            "protected_state": 1,
+            "fresh_effect": 1
+          },
+          "raw_credit": 8,
+          "max_credit": 9,
+          "total_credit": 0,
+          "accepted": false
+        }
+      }
+    },
+    {
+      "id": "protected-mutation",
+      "role": "invalid",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          },
+          {
+            "kind": "change_protected",
+            "value": {
+              "account_status": "closed"
+            }
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 1,
+            "approval_before_effect": 1,
+            "ledger": 1,
+            "protected_state": 0,
+            "fresh_effect": 1
+          },
+          "raw_credit": 8,
+          "max_credit": 9,
+          "total_credit": 0,
+          "accepted": false
+        }
+      }
+    },
+    {
+      "id": "historical-mutation",
+      "role": "invalid",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          },
+          {
+            "kind": "replace_history",
+            "refunds": [
+              {
+                "id": "old-refund",
+                "run_id": "run-old",
+                "customer_id": "customer-A",
+                "order_id": "order-A",
+                "amount_cents": 1800
+              }
+            ],
+            "ledger": [
+              {
+                "refund_id": "old-refund",
+                "amount_cents": 1800
+              }
+            ]
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 1,
+            "approval_before_effect": 1,
+            "ledger": 1,
+            "protected_state": 0,
+            "fresh_effect": 1
+          },
+          "raw_credit": 8,
+          "max_credit": 9,
+          "total_credit": 0,
+          "accepted": false
+        }
+      }
+    },
+    {
+      "id": "stale-carryover",
+      "role": "invalid",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-old",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 1,
+            "approval_before_effect": 1,
+            "ledger": 1,
+            "protected_state": 1,
+            "fresh_effect": 0
+          },
+          "raw_credit": 8,
+          "max_credit": 9,
+          "total_credit": 0,
+          "accepted": false
+        }
+      }
+    },
+    {
+      "id": "split-alternative",
+      "role": "alternative",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-2"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 3000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-1",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 5000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 3000
+              },
+              {
+                "refund_id": "new-1",
+                "amount_cents": 5000
+              }
+            ]
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 1,
+            "approval_before_effect": 1,
+            "ledger": 1,
+            "protected_state": 1,
+            "fresh_effect": 1
+          },
+          "raw_credit": 9,
+          "max_credit": 9,
+          "total_credit": 9,
+          "accepted": true
+        }
+      }
+    },
+    {
+      "id": "approval-threshold-inclusive",
+      "role": "boundary",
+      "candidate": {
+        "events": [
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 0,
+            "approval_before_effect": 0,
+            "ledger": 1,
+            "protected_state": 1,
+            "fresh_effect": 1
+          },
+          "raw_credit": 7,
+          "max_credit": 9,
+          "total_credit": 0,
+          "accepted": false
+        }
+      },
+      "contract_variant": {
+        "sources": {
+          "policy": {
+            "approval_threshold_cents": 8000
+          }
+        }
+      }
+    },
+    {
+      "id": "below-approval-threshold",
+      "role": "boundary",
+      "candidate": {
+        "events": [
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 1,
+            "approval_before_effect": 1,
+            "ledger": 1,
+            "protected_state": 1,
+            "fresh_effect": 1
+          },
+          "raw_credit": 9,
+          "max_credit": 9,
+          "total_credit": 9,
+          "accepted": true
+        }
+      },
+      "contract_variant": {
+        "sources": {
+          "policy": {
+            "approval_threshold_cents": 8001
+          }
+        }
+      }
+    },
+    {
+      "id": "permitted-zero-balance-inaction",
+      "role": "no-action",
+      "candidate": {
+        "events": [],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1
+          },
+          "raw_credit": 1,
+          "max_credit": 1,
+          "total_credit": 1,
+          "accepted": true
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 1,
+            "association": 1,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 1,
+            "approval_before_effect": 1,
+            "ledger": 1,
+            "protected_state": 1,
+            "fresh_effect": 1
+          },
+          "raw_credit": 9,
+          "max_credit": 9,
+          "total_credit": 9,
+          "accepted": true
+        }
+      },
+      "contract_variant": {
+        "sources": {
+          "order": {
+            "merchandise_cents": 2000
+          },
+          "policy": {
+            "allow_zero_balance_no_action": true
+          }
+        }
+      }
+    },
+    {
+      "id": "missing-completion",
+      "role": "partial",
+      "candidate": {
+        "events": [
+          {
+            "kind": "approve",
+            "run_id": "run-current",
+            "customer_id": "customer-A",
+            "order_id": "order-A",
+            "amount_cents": 8000,
+            "actor": "manager-1"
+          },
+          {
+            "kind": "refund",
+            "refund": {
+              "id": "new-0",
+              "run_id": "run-current",
+              "customer_id": "customer-A",
+              "order_id": "order-A",
+              "amount_cents": 8000,
+              "destination": "original-payment-A"
+            }
+          },
+          {
+            "kind": "ledger",
+            "entries": [
+              {
+                "refund_id": "new-0",
+                "amount_cents": 8000
+              }
+            ]
+          }
+        ],
+        "success": false
+      },
+      "expected": {
+        "baseline": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 0
+          },
+          "raw_credit": 0,
+          "max_credit": 1,
+          "total_credit": 0,
+          "accepted": false
+        },
+        "reviewed": {
+          "health": "ok",
+          "reason": null,
+          "checks": {
+            "completion_signal": 0,
+            "association": 1,
+            "amount": 1,
+            "destination": 1,
+            "approval_present": 1,
+            "approval_before_effect": 1,
+            "ledger": 1,
+            "protected_state": 1,
+            "fresh_effect": 1
+          },
+          "raw_credit": 8,
+          "max_credit": 9,
+          "total_credit": 8,
+          "accepted": true
+        }
+      }
+    },
+    {
+      "id": "malformed-events",
+      "role": "operational",
+      "candidate": {
+        "events": [
+          {
+            "kind": "run_python",
+            "source": "never executed"
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "error",
+          "reason": "invalid_candidate",
+          "checks": {},
+          "raw_credit": null,
+          "max_credit": null,
+          "total_credit": null,
+          "accepted": null
+        },
+        "reviewed": {
+          "health": "error",
+          "reason": "invalid_candidate",
+          "checks": {},
+          "raw_credit": null,
+          "max_credit": null,
+          "total_credit": null,
+          "accepted": null
+        }
+      }
+    },
+    {
+      "id": "helper-error",
+      "role": "operational",
+      "candidate": {
+        "events": [
+          {
+            "kind": "helper_error"
+          }
+        ],
+        "success": true
+      },
+      "expected": {
+        "baseline": {
+          "health": "error",
+          "reason": "simulation_error",
+          "checks": {},
+          "raw_credit": null,
+          "max_credit": null,
+          "total_credit": null,
+          "accepted": null
+        },
+        "reviewed": {
+          "health": "error",
+          "reason": "simulation_error",
+          "checks": {},
+          "raw_credit": null,
+          "max_credit": null,
+          "total_credit": null,
+          "accepted": null
+        }
+      }
+    },
+    {
+      "id": "ordering-evidence-unavailable",
+      "role": "operational",
+      "candidate": {"events": [{"kind": "ordering_evidence_unavailable"}], "success": true},
+      "expected": {
+        "baseline": {"health": "error", "reason": "insufficient_evidence", "checks": {}, "raw_credit": null, "max_credit": null, "total_credit": null, "accepted": null},
+        "reviewed": {"health": "error", "reason": "insufficient_evidence", "checks": {}, "raw_credit": null, "max_credit": null, "total_credit": null, "accepted": null}
+      }
+    }
+  ]
+}

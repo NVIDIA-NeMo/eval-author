@@ -14,6 +14,7 @@ Developer tools in `tools/` are not included in skill-only installations.
 | [Rubric identity measurements](#rubric-identity-measurements) | Handcrafted mutations produce exact scoped identity diagnostics and scores. |
 | [Provenance demo](#provenance-demo) | Selected source bytes, record links, and revision changes produce expected diagnostics. |
 | [Audit and task evidence](#audit-and-task-evidence) | Acceptance still matches its retained source and execution evidence. |
+| [Deterministic refund scorer controls](#deterministic-refund-scorer-controls) | Paired task credit, required-condition gating and native interface health. |
 | [Verifier-cheat panel](#verifier-cheat-panel) | Real Harbor controls distinguish a sound grader from a planted vulnerable grader. |
 | [Live anti-cheat experiment](#live-anti-cheat-experiment) | Model-backed Harbor task attempts separate real behavior from vulnerable reward signals. |
 | [Factual and semantic reports](#factual-and-semantic-reports) | Reports preserve source facts and semantic comparisons use compatible evidence. |
@@ -222,6 +223,66 @@ These cases add deterministic evidence checks, not scoring anchors. Their scores
 remain null. Supplied failed and rejected candidates retain their identities and
 reasons, but this does not establish that every attempt was recorded or that each
 reason is valid. The fixtures execute no generator, scorer, model, or native task.
+
+## Deterministic refund scorer controls
+
+The refund panel compares a deliberately weak completion-only scorer with a
+reviewed-rule scorer on the same scripted events and task inputs. The contract
+and expected credit vectors live in `evals/scorer-controls/`. These are synthetic
+contract examples, not authenticated task-owner approvals or canonical rubric
+scores.
+
+Run the fixture-only panel and replay its retained inputs:
+
+```bash
+uv run --locked python tools/run_scorer_controls.py \
+  --output "$PWD/.eval-author/refund-controls/run-1"
+uv run --locked python tools/run_scorer_controls.py \
+  --verify-existing "$PWD/.eval-author/refund-controls/run-1"
+```
+
+Each output directory must be new. `panel.json` retains expected and observed
+per-check credit, raw credit, gated total credit, and acceptance for both arms.
+A failed mandatory check sets gated total credit to zero but preserves each
+check's credit. The optional completion signal permits partial credit when
+required work succeeds. Helper failures and insufficient evidence retain null
+credit and acceptance rather than becoming successful negative controls.
+
+The panel preserves the refund association, amount, approval ordering, ledger,
+protected-state and freshness requirements. Its explicit destination requirement
+applies identically to both arms. Approval-boundary and permitted no-action cases
+use declared task-input variants; they are not scorer repairs. Both arms receive
+the same variant. A no-work submission against the positive-balance contract
+remains invalid.
+
+The actual rubric measurement CLI checks the retained selection and declared
+scorer dependencies. Replay recomputes outcomes and compares the saved report;
+it never executes Python from the retained evidence directory. Changed source
+bytes or a changed selected runtime invalidate replay. A declared dependency
+map does not establish arbitrary-code dependency completeness.
+
+For native execution, use the existing Harbor collector with its refund panel:
+
+```bash
+uv run --locked python tools/collect_verifier_cheat_evidence.py \
+  --panel refund --output "$PWD/.eval-author/refund-native/run-1"
+```
+
+This requires the locked Harbor runtime and a Docker host that enforces
+`no-network`. Native execution runs the scripted event fixture through the real
+Harbor agent/verifier interface. It does not perform an external payment or
+measure model behavior. Keep its native receipts separate from fixture-only
+results. `scorer-native-private.json` retains per-case results and native
+receipts. `scorer-native-summary.json` is an allowlisted aggregate. Harbor's
+scalar reward measures transport health here, not task credit; the per-case
+results carry task credit. The refund command also runs the unchanged
+[verifier-cheat panel](#verifier-cheat-panel), keeping its leakage controls and
+results separate. No new CI job or artifact upload is configured by this command.
+
+Task qualification remains `NOT_ASSESSED` until applicable contract authority
+and current task evidence are supplied. Passing this finite panel does not prove
+general scorer correctness or that rubric-guided authoring caused an improvement.
+Independent acceptance cases and human contract review remain separate gates.
 
 ## Verifier-cheat panel
 
