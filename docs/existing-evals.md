@@ -68,6 +68,12 @@ For a new audit, choose one of two approaches before setup checks:
   saved agent runs to validate that intended behaviors and tools are covered.
   Uses additional tokens.
 
+Both approaches hold each scored check to the standard Eval Author applies to
+tasks it creates: it must trace to the task instruction and a justified expected
+value. Checks for requirements the instruction never states, or expected values
+that contradict their source, are reported as false rejections. Expected values
+with no identifiable source are reported as evidence limits.
+
 An approach already named in your request carries forward. The choice replaces
 the initial readiness question. Resuming an audit keeps its saved approach and
 pending decision. Saved setup or Ethos from creating evaluations can be reused,
