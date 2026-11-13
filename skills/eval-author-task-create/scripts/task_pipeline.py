@@ -515,7 +515,9 @@ def _acceptance_integrity(path: Path) -> tuple[int, dict]:
     from audit_verifier_evidence import Review, inspect_acceptance
 
     evidence = saved.get("evidence")
-    cited = [Path(value).resolve() for value in evidence if isinstance(value, str)] if isinstance(evidence, list) else []
+    cited = (
+        [Path(value).resolve() for value in evidence if isinstance(value, str)] if isinstance(evidence, list) else []
+    )
     paths = [path.resolve(), *cited]
     repo = Path(os.path.commonpath(paths))
     repo = repo if repo.is_dir() else repo.parent
