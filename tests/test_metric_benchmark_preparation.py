@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -308,3 +309,88 @@ def test_changed_copy_is_not_signed_as_the_authored_input(tmp_path, monkeypatch,
         prepare_inputs(source, tmp_path / "prepared", benchmark=benchmark)
     assert file_manifest(source.parent) == before
     assert not (tmp_path / "prepared").exists()
+
+
+@pytest.mark.parametrize("size", [7, 8, 9, 32])
+def test_registry_response_size_boundary(tmp_path, monkeypatch, size):
+    limit = 8
+    consumed = []
+
+    class Response(BytesIO):
+        def read(self, size=-1):
+            data = super().read(size)
+            consumed.append(len(data))
+            return data
+
+    monkeypatch.setattr("metric_benchmark.preparation.MAX_REGISTRY_BYTES", limit)
+    monkeypatch.setattr("metric_benchmark.preparation.urlopen", lambda *a, **kw: Response(b"[]" + b" " * (size - 2)))
+    output = tmp_path / "registry.json"
+    if size <= limit:
+        assert download_registry("https://example.org/registry.json", output) == []
+        assert read_json(output) == []
+    else:
+        output.write_bytes(b"previous snapshot")
+        with pytest.raises(ValueError, match="registry response exceeds"):
+            download_registry("https://example.org/registry.json", output)
+        assert output.read_bytes() == b"previous snapshot"
+    assert sum(consumed) == min(size, limit + 1)
+    assert list(tmp_path.iterdir()) == [output]
+
+
+def test_oversized_registry_does_not_download_tasks_or_publish(tmp_path, registry, monkeypatch):
+    _, _, url, _, _ = registry
+    source = write_yaml(tmp_path / "source/tasks.yml", dataset(url))
+    monkeypatch.setattr("metric_benchmark.preparation.MAX_REGISTRY_BYTES", 8)
+    monkeypatch.setattr("metric_benchmark.preparation.TaskClient.download_tasks", forbidden)
+    with pytest.raises(ValueError, match="registry response exceeds"):
+        prepare_inputs(source, tmp_path / "prepared")
+    assert not (tmp_path / "prepared").exists()
+    assert not list(tmp_path.glob(".prepare-*"))
+
+
+def nested_experiment(tmp_path):
+    source, _ = experiment(tmp_path)
+    cases_root = source.parent / "cases"
+    cases_root.mkdir()
+    for child in source.parent.iterdir():
+        if child not in (source, cases_root):
+            child.rename(cases_root / child.name)
+    definition = read_yaml(source)
+    assert isinstance(definition, dict)
+    for name in ("cases", "execution", "analysis"):
+        definition[name]["path"] = "cases/" + definition[name]["path"]
+    return write_yaml(source, definition)
+
+
+@pytest.mark.parametrize("reserved", ["cases/prepared-tasks", "cases/prepared-tasks/set-0000", "preparation.json"])
+def test_nested_cases_reject_reserved_paths(tmp_path, monkeypatch, reserved):
+    source = nested_experiment(tmp_path)
+    path = source.parent / reserved
+    if path.suffix == ".json":
+        path.write_text("{}")
+    else:
+        path.mkdir(parents=True)
+    before = file_manifest(source.parent)
+    monkeypatch.setattr("metric_benchmark.preparation.urlopen", forbidden)
+    monkeypatch.setattr("metric_benchmark.preparation.TaskClient.download_tasks", forbidden)
+    with pytest.raises(ValueError, match="reserved preparation path"):
+        prepare_inputs(source, tmp_path / "prepared", benchmark=True)
+    assert file_manifest(source.parent) == before
+    assert not (tmp_path / "prepared").exists()
+    assert not list(tmp_path.glob(".prepare-*"))
+
+
+def test_nested_cases_reserve_only_generated_locations(tmp_path):
+    source = nested_experiment(tmp_path)
+    (source.parent / "prepared-tasks").mkdir()
+    (source.parent / "prepared-tasks/notes.txt").write_text("Unrelated authored content")
+    (source.parent / "cases/preparation.json").write_text("{}")
+    before = file_manifest(source.parent)
+    output = tmp_path / "prepared"
+    receipt = prepare_inputs(source, output, benchmark=True)
+    check_benchmark(output / source.name)
+    assert (output / "prepared-tasks/notes.txt").read_text() == "Unrelated authored content"
+    assert (output / "cases/preparation.json").read_text() == "{}"
+    assert (output / "cases/prepared-tasks/set-0000").is_dir()
+    assert prepare_inputs(source, output, benchmark=True, cached_only=True) == receipt
+    assert file_manifest(source.parent) == before

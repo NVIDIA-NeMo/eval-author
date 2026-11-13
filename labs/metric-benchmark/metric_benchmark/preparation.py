@@ -40,6 +40,7 @@ from metric_benchmark.signing import check_benchmark, sign_benchmark
 Commit = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{40}$")]
 RECEIPT = "preparation.json"
 TASKS_DIR = "prepared-tasks"
+MAX_REGISTRY_BYTES = 32 * 1024 * 1024
 
 
 def _url(value: str, *, git: bool = False) -> str:
@@ -100,6 +101,12 @@ class SourceTasks(Model):
         return self
 
 
+def _task_document(data: object) -> DatasetManifest | SourceTasks:
+    if isinstance(data, dict) and "dataset" in data:
+        return DatasetManifest.model_validate(data)
+    return SourceTasks.model_validate(data)
+
+
 def _registry_rows(path: Path) -> list[DatasetSpec]:
     rows = TypeAdapter(list[DatasetSpec]).validate_python(read_json(path))
     unique([(row.name, row.version) for row in rows], "registry dataset versions")
@@ -113,7 +120,10 @@ def download_registry(url: str, output: Path) -> list[DatasetSpec]:
     with tempfile.TemporaryDirectory(dir=output.parent) as temporary:
         snapshot = Path(temporary) / "registry.json"
         with urlopen(url, timeout=60) as response:
-            snapshot.write_bytes(response.read())
+            content = response.read(MAX_REGISTRY_BYTES + 1)
+        if len(content) > MAX_REGISTRY_BYTES:
+            raise ValueError(f"registry response exceeds {MAX_REGISTRY_BYTES} bytes")
+        snapshot.write_bytes(content)
         rows = _registry_rows(snapshot)
         write_json(output, [row.model_dump(mode="json") for row in rows])
     return rows
@@ -171,11 +181,11 @@ def _prepare_tasks(data: object, source_root: Path, root: Path, ordinal: int) ->
     directory = root / TASKS_DIR / f"set-{ordinal:04d}"
     directory.mkdir(parents=True)
     origin = {}
-    if isinstance(data, dict) and "dataset" in data:
-        source = DatasetManifest.model_validate(data).dataset
-        tasks, origin = _dataset_tasks(source, directory / "registry.json")
+    document = _task_document(data)
+    if isinstance(document, DatasetManifest):
+        tasks, origin = _dataset_tasks(document.dataset, directory / "registry.json")
     else:
-        tasks = SourceTasks.model_validate(data)
+        tasks = document
     remote = [task for task in tasks.tasks if isinstance(task, RemoteTask)]
     downloaded = {}
     if remote:
@@ -205,13 +215,14 @@ def _prepare_tasks(data: object, source_root: Path, root: Path, ordinal: int) ->
             source_digest = input_digest(source_path)
             relative = task.path
             path = root / relative
+            # Benchmark preparation already copied the bundle; standalone tasks may still need copying.
             if not path.exists():
                 path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copytree(source_path, path, symlinks=True)
             task.source().resolve(root, allow_unsigned=True)
             if input_digest(path) != source_digest:
                 raise ValueError(f"copied task contents differ from source: {task.path}")
-        HarborTask(path)
+        HarborTask(path)  # Construction validates the native task configuration and required inputs.
         prepared.append(
             TaskSource(
                 task_id=task.task_id,
@@ -248,11 +259,9 @@ def _verify_authored_benchmark(path: Path) -> tuple[Path, list[CaseDefinition]]:
         for agent in [agents.baseline, *agents.mutants]:
             for source in agent.inputs.values():
                 source.resolve(root, allow_unsigned=True)
-        data = read_yaml(entry.tasks.resolve(root, allow_unsigned=True))
-        if isinstance(data, dict) and "dataset" in data:
-            DatasetManifest.model_validate(data)
-        else:
-            for task in SourceTasks.model_validate(data).tasks:
+        document = _task_document(read_yaml(entry.tasks.resolve(root, allow_unsigned=True)))
+        if isinstance(document, SourceTasks):
+            for task in document.tasks:
                 if isinstance(task, TaskSource):
                     task.source().resolve(root, allow_unsigned=True)
         settings = analysis.case_settings[entry.case_id]
@@ -265,9 +274,9 @@ def _source_files(source: Path, benchmark: bool) -> dict:
     if benchmark:
         return file_manifest(source.parent)
     files = {source.name: input_digest(source)}
-    data = read_yaml(source)
-    if not (isinstance(data, dict) and "dataset" in data):
-        for task in SourceTasks.model_validate(data).tasks:
+    document = _task_document(read_yaml(source))
+    if isinstance(document, SourceTasks):
+        for task in document.tasks:
             if isinstance(task, TaskSource):
                 path = task.source().resolve(source.parent, allow_unsigned=True)
                 files[task.path] = input_digest(path)
@@ -276,8 +285,10 @@ def _source_files(source: Path, benchmark: bool) -> dict:
 
 def prepare_inputs(source: Path, output: Path, *, benchmark: bool = False, cached_only: bool = False) -> dict:
     """Publish a prepared bundle atomically; verified retries do not access the network."""
-    if version("harbor") != "0.24.0":
-        raise ValueError("preparation requires the qualified Harbor 0.24.0 client")
+    harbor_version = version("harbor")
+    expected_version = LocalExecution().harbor_version
+    if harbor_version != expected_version:
+        raise ValueError(f"preparation requires the qualified Harbor {expected_version} client")
     source = source.resolve(strict=True)
     source_root = source.parent
     output = output.absolute()
@@ -296,14 +307,17 @@ def prepare_inputs(source: Path, output: Path, *, benchmark: bool = False, cache
         return receipt
     if cached_only:
         raise ValueError("cached-only preparation requires an existing prepared bundle")
-    if (source_root / TASKS_DIR).exists() or (source_root / RECEIPT).exists():
-        raise ValueError("source bundle uses a reserved preparation path")
+    authored = _verify_authored_benchmark(source) if benchmark else None
+    tasks_root = authored[0].parent if authored is not None else source_root
+    for reserved in (tasks_root / TASKS_DIR, source_root / RECEIPT):
+        if reserved.exists():
+            raise ValueError(f"source bundle uses a reserved preparation path: {reserved.relative_to(source_root)}")
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".prepare-", dir=output.parent) as temporary:
         stage = Path(temporary) / "bundle"
         origins = {}
-        if benchmark:
-            cases_path, entries = _verify_authored_benchmark(source)
+        if authored is not None:
+            cases_path, entries = authored
             shutil.copytree(source_root, stage, symlinks=True)
             if file_manifest(stage) != original:
                 raise ValueError("copied benchmark contents differ from source")
@@ -330,7 +344,7 @@ def prepare_inputs(source: Path, output: Path, *, benchmark: bool = False, cache
         receipt = {
             "artifact_type": "prepared_inputs",
             "schema_version": 1,
-            "harbor": version("harbor"),
+            "harbor": harbor_version,
             "request": request,
             "origins": origins,
             "files": file_manifest(stage),

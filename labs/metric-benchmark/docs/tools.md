@@ -39,7 +39,8 @@ uv run --locked python labs/metric-benchmark/prepare_inputs.py registry \
 ```
 
 `--url` selects another HTTP(S) Harbor JSON registry. The snapshot is validated
-and written as normalized JSON. An existing file is accepted only when its
+and written as normalized JSON. Registry responses larger than 32 MiB are rejected
+before parsing or publication. An existing file is accepted only when its
 contents match the newly fetched snapshot; use a new output to record changes.
 
 Prepare only a task collection, including a collection containing one Git task:
@@ -83,7 +84,9 @@ after success. A failed download leaves no final bundle. Repeating a successful
 command verifies its source request and prepared files without network access.
 `--cached-only` additionally requires that an output already exists. Changed or
 missing prepared files fail verification; changed source requests require a new
-output. `prepared-tasks/` and `preparation.json` are reserved output names.
+output. The source must leave `prepared-tasks/` unused relative to the cases
+directory (or the standalone task manifest's directory), and `preparation.json`
+unused relative to the experiment or standalone task manifest's directory.
 
 Each prepared bundle contains:
 
