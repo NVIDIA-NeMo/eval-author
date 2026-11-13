@@ -63,7 +63,7 @@ for references, content pins, and the example layout.
 ## 1. Prep
 
 Prep prepares case examples for the experiment. Case construction remains
-external to the experiment; the [input preparation tool](tools.md#prepare-remote-inputs)
+external to the experiment; the [Harbor task download tool](tools.md#download-harbor-tasks)
 can materialize remote tasks into the prepared bundle. Prep produces the
 baseline agent, creates and qualifies its mutants, and assembles the case
 description, task set, and configuration in the benchmark's input format. Prep

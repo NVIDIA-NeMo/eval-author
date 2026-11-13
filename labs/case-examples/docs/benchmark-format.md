@@ -7,7 +7,7 @@ The format for the case examples follows the directory layout and reuses the YAM
 specifications consumed by the metric benchmark. [See here](../../metric-benchmark/docs/benchmark-format.md)
 for details.
 The existing manifest schemas remain supported. The
-[experimental remote preparation](#remote-datasets-experimental) extends task sources
+[remote task download workflow](#remote-datasets) extends task sources
 while preserving the prepared local manifest format.
 
 ## Layers
@@ -85,21 +85,21 @@ Repository-authored tasks can be checked in. Remote task contents are downloaded
 into a separate prepared bundle. Remote dataset retrieval is independent of where
 the agent executes; the current runner still requires local task directories.
 
-### Remote datasets (experimental)
+### Remote datasets
 
 An authored task manifest can select a versioned Harbor JSON-registry dataset or
 list individually pinned Git tasks alongside local tasks. See the
-[remote task source format](../../metric-benchmark/docs/benchmark-format.md#remote-task-sources-experimental-proof-of-concept)
+[remote task source format](../../metric-benchmark/docs/benchmark-format.md#remote-task-sources)
 for selectors, supported sources, and revision rules.
 
-Use the [preparation commands](../../metric-benchmark/docs/tools.md#prepare-remote-inputs)
+Use the [download commands](../../metric-benchmark/docs/tools.md#download-harbor-tasks)
 to resolve and download the tasks, produce local manifests, and sign the complete
 experiment in a separate output directory. Cases, analysis settings, and explicit
-subset memberships retain their existing structure. Repeated preparation verifies
+subset memberships retain their existing structure. Repeating the download command verifies
 the saved bundle without querying the registry.
 
-Preparation retains registry snapshots and resolved Git revisions in the bundle's
+The downloader retains registry snapshots and resolved Git revisions in the bundle's
 receipt. Archive that bundle with results: automatic inclusion of registry
 provenance in result reports remains follow-up work. See the
-[prototype boundaries](../../metric-benchmark/docs/tools.md#prototype-boundaries)
+[supported sources and limits](../../metric-benchmark/docs/tools.md#supported-sources-and-limits)
 for the supported scope and remaining work.

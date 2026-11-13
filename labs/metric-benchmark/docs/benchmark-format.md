@@ -93,7 +93,7 @@ there is no `kind` field on these entries. The inventory is derived from this
 manifest and is not repeated in the experiment. Adding a directory does not add
 a task. Preparation must materialize archives or remote datasets first.
 
-### Remote task sources (experimental proof of concept)
+### Remote task sources
 
 Authored task manifests can select a Harbor JSON-registry dataset:
 
@@ -105,8 +105,8 @@ dataset:
 
 The entire dataset is selected. An explicit release version is required; `latest`
 and `head` are rejected. Omit `registry` to use Harbor's default JSON registry, or
-add `registry: {url: https://example.org/registry.json}` inside `dataset`. This
-prototype supports Git-backed entries in JSON registries, not Harbor Hub package
+add `registry: {url: https://example.org/registry.json}` inside `dataset`. The downloader
+supports Git-backed entries in JSON registries, not Harbor Hub package
 datasets. The task manifest contains either `dataset` or `tasks`, never both.
 
 An explicit task list can mix existing local entries with individual Git tasks:
@@ -128,9 +128,9 @@ existing content-pin rules. HTTP(S) Git URLs are supported; `file://` is also
 accepted for local Git fixtures. URL credentials must come from the environment,
 not embedded user/password fields.
 
-These are preparation inputs. The stage loaders, signer, and experiment runner
-continue to consume the explicit local task format above. Run
-[input preparation](tools.md#prepare-remote-inputs) first; it resolves upstream
+These are download inputs. The stage loaders, signer, and experiment runner
+continue to consume the explicit local task format above. Run the
+[Harbor task download command](tools.md#download-harbor-tasks) first; it resolves upstream
 Git refs in registry entries to immutable commits, downloads the tasks, and
 produces a separate signed experiment bundle. Case names and analysis settings
 are preserved. Registry refs that match different commits are rejected; use a
@@ -141,8 +141,8 @@ commit, and content hashes are retained separately rather than encoded as an int
 The design keeps resolution explicit so execution and saved-result analysis do
 not query a potentially changed registry. Reuse the prepared bundle to repeat an
 experiment; prepare a new output and increment the benchmark revision when
-adopting changed upstream inputs. The prototype's remaining scope is described
-with the [preparation commands](tools.md#prototype-boundaries).
+adopting changed upstream inputs. See the
+[supported sources and limits](tools.md#supported-sources-and-limits).
 
 ## Execution: `execution.yml`
 

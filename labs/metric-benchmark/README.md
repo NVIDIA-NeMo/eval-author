@@ -14,8 +14,8 @@ will grow, change, and may be dropped as we learn. We believe in building in pla
 sight.
 
 The benchmark consumes prepared case examples, fixed task-subset manifests, and
-a YAML experiment configuration. The experimental
-[input preparation tool](docs/tools.md#prepare-remote-inputs) downloads Harbor
+a YAML experiment configuration. The
+[Harbor task download tool](docs/tools.md#download-harbor-tasks) downloads Harbor
 registry datasets or pinned Git tasks into that format.
 
 The architecture has three phases: external prep, execution, and score analysis.

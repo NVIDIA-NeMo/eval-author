@@ -22,19 +22,19 @@ references: [cases](benchmark-format.md#cases-casesyml),
 
 See [`sha-sign`](sha-sign.md) for signing, re-signing, checking pins, and the Python API.
 
-## Prepare remote inputs
+## Download Harbor tasks
 
-`prepare_inputs.py` is an experimental preparation tool for the
-[remote-source formats](benchmark-format.md#remote-task-sources-experimental-proof-of-concept).
+`download_harbor_tasks.py` downloads and prepares Harbor tasks using the
+[remote-source formats](benchmark-format.md#remote-task-sources).
 Use the repository environment (`uv sync --locked`), which pins Harbor 0.24.0,
-and Git on `PATH`. Initial preparation needs network access to the registry and
+and Git on `PATH`. Initial downloads need network access to the registry and
 Git repositories. Task execution additionally needs the configured environment
 backend; the example below uses Docker and makes no model calls.
 
 Download a registry snapshot without downloading or running its tasks:
 
 ```bash
-uv run --locked python labs/metric-benchmark/prepare_inputs.py registry \
+uv run --locked python labs/metric-benchmark/download_harbor_tasks.py registry \
   --output /tmp/harbor-registry.json
 ```
 
@@ -43,21 +43,21 @@ and written as normalized JSON. Registry responses larger than 32 MiB are reject
 before parsing or publication. An existing file is accepted only when its
 contents match the newly fetched snapshot; use a new output to record changes.
 
-Prepare only a task collection, including a collection containing one Git task:
+Download a task collection, including a collection containing one Git task:
 
 ```bash
-uv run --locked python labs/metric-benchmark/prepare_inputs.py tasks \
+uv run --locked python labs/metric-benchmark/download_harbor_tasks.py tasks \
   --source labs/metric-benchmark/examples/remote/git-task.yml \
   --output /tmp/remote-task-bundle
 ```
 
 This produces a `tasks.yml` with paths relative to that output bundle. Local paths
 in the authored input resolve from the source file's directory in this standalone
-mode. To preserve an existing experiment's bundle-relative paths, prepare the
-whole experiment instead:
+mode. To preserve an existing experiment's bundle-relative paths, use the
+benchmark command instead:
 
 ```bash
-uv run --locked python labs/metric-benchmark/prepare_inputs.py benchmark \
+uv run --locked python labs/metric-benchmark/download_harbor_tasks.py benchmark \
   --source labs/metric-benchmark/examples/remote/experiment.yml \
   --output /tmp/remote-benchmark
 
@@ -71,15 +71,15 @@ registry dataset and a directly pinned Git task with Oracle and NOP. Its coverag
 adapter is synthetic, and its one-task subsets cannot establish a meaningful
 correlation. It demonstrates plumbing rather than coverage quality.
 
-Keep authored experiments in a dedicated directory: benchmark preparation copies
+Keep authored experiments in a dedicated directory: the benchmark command copies
 the directory containing the experiment file, preserving its relative layout.
 The output must be outside that source directory. The source remains unchanged;
-provided input pins are verified before any manifests are rewritten. Preparation
+provided input pins are verified before any manifests are rewritten. The downloader
 accepts missing pins, downloads remote tasks, then signs and checks the complete
 output. Copied files must match their authored sources, including unsigned inputs.
 Analysis subsets must already exist and reference the selected task IDs.
 
-Both task and benchmark preparation publish a complete output directory only
+Both task and benchmark commands publish a complete output directory only
 after success. A failed download leaves no final bundle. Repeating a successful
 command verifies its source request and prepared files without network access.
 `--cached-only` additionally requires that an output already exists. Changed or
@@ -96,7 +96,7 @@ Each prepared bundle contains:
 - `preparation.json`: schema version, Harbor version, authored-input file hashes,
   dataset selectors and registry hashes, resolved task Git commits, and the file
   hashes of the complete prepared bundle excluding the receipt itself.
-- For benchmark preparation, copies of the agent and analysis inputs and the
+- For the benchmark command, copies of the agent and analysis inputs and the
   signed experiment configuration, ready for the existing stage tools.
 
 Archive the prepared bundle and its receipt with execution results. The receipt
@@ -105,19 +105,18 @@ the existing execution identity through the generated manifests. Analysis can
 still run from signed metadata and saved results without task directories or
 registry access.
 
-### Prototype boundaries
+### Supported sources and limits
 
-The proof of concept uses Harbor's Git task downloader and registry models; it
-does not implement a second task transport or change the execution/result schema.
+The command uses Harbor's Git task downloader and registry models.
 It supports HTTP(S) JSON registries whose tasks come from Git. Harbor Hub package
 tasks/datasets, local registry path selectors, arbitrary archives, dataset filters,
-and partial-download recovery are follow-up work. Git LFS datasets need separate
+and partial-download recovery are not supported. Git LFS datasets need separate
 qualification before use; the smoke test does not exercise them.
 
 The whole-dataset selection retains task names and rejects duplicates or missing
 tasks. Explicit task lists retain author-supplied IDs and integer revisions.
 Automatic task-revision tracking across dataset releases and embedding registry
-provenance directly in result reports remain design work. For now provenance is
+provenance directly in result reports are not implemented. For now provenance is
 retained in the prepared bundle; existing reports continue to use case/task IDs
 and content-based execution identity. The runner never prepares or downloads
 inputs implicitly.

@@ -67,10 +67,10 @@ qualification criteria remain to be defined.
 
 ## Adding a task set
 
-Prefer an existing Harbor benchmark at a specific version. The experimental
-[remote preparation workflow](benchmark-format.md#remote-datasets-experimental)
+Prefer an existing Harbor benchmark at a specific version. The
+[remote task download workflow](benchmark-format.md#remote-datasets)
 accepts a Harbor JSON-registry dataset or individually pinned Git tasks without
-checking their contents into this repository. Prepare the complete experiment
+checking their contents into this repository. Download tasks for the complete experiment
 before execution and retain the resulting bundle with its source receipt. The
 runner consumes the generated local task manifests.
 

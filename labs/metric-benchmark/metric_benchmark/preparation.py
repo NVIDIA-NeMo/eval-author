@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Prepare registry datasets and Git tasks for the local benchmark contract."""
+"""Download remote Harbor tasks into validated local benchmark bundles."""
 
 import asyncio
 import re
@@ -159,7 +159,7 @@ def _dataset_tasks(source: DatasetSource, snapshot: Path) -> tuple[SourceTasks, 
     commits = {}
     for task in spec.tasks:
         if not task.git_url:
-            raise ValueError("remote registry tasks must have Git sources in this proof of concept")
+            raise ValueError("remote registry tasks must have Git sources")
         key = task.git_url, task.git_commit_id
         if key not in commits:
             commits[key] = _resolve_git(*key)
@@ -283,7 +283,7 @@ def _source_files(source: Path, benchmark: bool) -> dict:
     return files
 
 
-def prepare_inputs(source: Path, output: Path, *, benchmark: bool = False, cached_only: bool = False) -> dict:
+def download_harbor_tasks(source: Path, output: Path, *, benchmark: bool = False, cached_only: bool = False) -> dict:
     """Publish a prepared bundle atomically; verified retries do not access the network."""
     harbor_version = version("harbor")
     expected_version = LocalExecution().harbor_version

@@ -16,7 +16,7 @@ import yaml
 from metric_benchmark.config import TaskManifest, load_benchmark, read_yaml
 from metric_benchmark.io import file_manifest, input_digest, read_json
 from metric_benchmark.pipeline import run_experiment
-from metric_benchmark.preparation import GitSource, download_registry, prepare_inputs
+from metric_benchmark.preparation import GitSource, download_harbor_tasks, download_registry
 from metric_benchmark.signing import check_benchmark
 from test_metric_benchmark_config import LAB, TASK_IDS
 from test_metric_benchmark_execution import fake_harbor
@@ -86,7 +86,7 @@ def test_registry_download_dataset_and_verified_offline_replay(tmp_path, registr
     assert len(download_registry(url, snapshot)) == 1
     source = write_yaml(tmp_path / "source/tasks.yml", dataset(url))
     output = tmp_path / "prepared"
-    receipt = prepare_inputs(source, output)
+    receipt = download_harbor_tasks(source, output)
     manifest = TaskManifest.model_validate(read_yaml(output / "tasks.yml"))
     assert [t.task_id for t in manifest.tasks] == TASK_IDS
     for task in manifest.tasks:
@@ -99,12 +99,12 @@ def test_registry_download_dataset_and_verified_offline_replay(tmp_path, registr
     (served / "registry.json").unlink()
     monkeypatch.setattr("metric_benchmark.preparation.urlopen", forbidden)
     monkeypatch.setattr("metric_benchmark.preparation.TaskClient.download_tasks", forbidden)
-    assert prepare_inputs(source, output, cached_only=True) == receipt
-    assert prepare_inputs(source, output) == receipt
+    assert download_harbor_tasks(source, output, cached_only=True) == receipt
+    assert download_harbor_tasks(source, output) == receipt
     assert file_manifest(output) == before
     (output / manifest.tasks[0].path / "instruction.md").write_text("changed")
     with pytest.raises(ValueError, match="prepared contents changed"):
-        prepare_inputs(source, output, cached_only=True)
+        download_harbor_tasks(source, output, cached_only=True)
 
 
 def test_direct_git_task_cli(tmp_path, registry):
@@ -123,7 +123,15 @@ def test_direct_git_task_cli(tmp_path, registry):
     )
     output = tmp_path / "prepared"
     subprocess.run(
-        [sys.executable, str(LAB / "prepare_inputs.py"), "tasks", "--source", str(source), "--output", str(output)],
+        [
+            sys.executable,
+            str(LAB / "download_harbor_tasks.py"),
+            "tasks",
+            "--source",
+            str(source),
+            "--output",
+            str(output),
+        ],
         check=True,
     )
     tasks = TaskManifest.model_validate(read_yaml(output / "tasks.yml"))
@@ -144,10 +152,10 @@ def test_complete_benchmark_preparation_execution_and_offline_analysis(tmp_path,
     remove_pins(source.parent)
     before = file_manifest(source.parent)
     output = tmp_path / "prepared"
-    receipt = prepare_inputs(source, output, benchmark=True)
+    receipt = download_harbor_tasks(source, output, benchmark=True)
     assert file_manifest(source.parent) == before
     check_benchmark(output / source.name)
-    assert prepare_inputs(source, output, benchmark=True, cached_only=True) == receipt
+    assert download_harbor_tasks(source, output, benchmark=True, cached_only=True) == receipt
     results = tmp_path / "results"
     completed = run_experiment(output / source.name, "run", results, runner=fake_harbor)
     assert set(completed["cases"]) == {"rho-agent"}
@@ -181,7 +189,7 @@ def test_failed_dataset_preparation_does_not_publish(tmp_path, registry, change)
     source = write_yaml(tmp_path / "source/tasks.yml", data)
     output = tmp_path / "prepared"
     with pytest.raises(ValueError):
-        prepare_inputs(source, output)
+        download_harbor_tasks(source, output)
     assert not output.exists()
     assert not list(tmp_path.glob(".prepare-*"))
 
@@ -204,7 +212,7 @@ def test_invalid_direct_sources_rejected(tmp_path, registry, change):
         task["source"]["unexpected"] = "ignored?"
     source = write_yaml(tmp_path / "source/tasks.yml", {"tasks": [task]})
     with pytest.raises(ValueError):
-        prepare_inputs(source, tmp_path / "prepared")
+        download_harbor_tasks(source, tmp_path / "prepared")
     assert not (tmp_path / "prepared").exists()
 
 
@@ -213,20 +221,20 @@ def test_existing_output_and_changed_authored_inputs(tmp_path, registry):
     source = write_yaml(tmp_path / "source/tasks.yml", dataset(url))
     output = tmp_path / "prepared"
     with pytest.raises(ValueError, match="cached-only"):
-        prepare_inputs(source, output, cached_only=True)
-    prepare_inputs(source, output)
+        download_harbor_tasks(source, output, cached_only=True)
+    download_harbor_tasks(source, output)
     source.write_text(source.read_text() + "\n# changed\n")
     with pytest.raises(ValueError, match="prepared request changed"):
-        prepare_inputs(source, output)
+        download_harbor_tasks(source, output)
     with pytest.raises(ValueError, match="outside the source bundle"):
-        prepare_inputs(source, source.parent / "prepared")
+        download_harbor_tasks(source, source.parent / "prepared")
 
 
 def test_stale_authored_pin_is_not_resigned(tmp_path, registry):
     source, _ = experiment(tmp_path)
     (source.parent / "analysis.yml").write_text("changed: true\n")
     with pytest.raises(ValueError, match="input digest differs"):
-        prepare_inputs(source, tmp_path / "prepared", benchmark=True)
+        download_harbor_tasks(source, tmp_path / "prepared", benchmark=True)
     assert not (tmp_path / "prepared").exists()
 
 
@@ -234,7 +242,7 @@ def test_symlinks_are_not_copied_into_prepared_benchmark(tmp_path):
     source, _ = experiment(tmp_path)
     (source.parent / "link").symlink_to(tmp_path / "outside")
     with pytest.raises(ValueError, match="ordinary files"):
-        prepare_inputs(source, tmp_path / "prepared", benchmark=True)
+        download_harbor_tasks(source, tmp_path / "prepared", benchmark=True)
 
 
 def test_direct_source_requires_plain_url():
@@ -254,7 +262,7 @@ def test_shared_task_manifest_prepared_once(tmp_path, registry, alias):
     write_yaml(cases_path, cases)
     remove_pins(source.parent)
     output = tmp_path / "prepared"
-    receipt = prepare_inputs(source, output, benchmark=True)
+    receipt = download_harbor_tasks(source, output, benchmark=True)
     check_benchmark(output / source.name)
     assert list(receipt["origins"]) == ["tasks/workspace/tasks.yml"]
     assert len(list((output / "prepared-tasks").iterdir())) == 1
@@ -270,7 +278,7 @@ def test_registry_rejects_ambiguous_branch_and_annotated_tag(tmp_path, registry)
     (served / "registry.json").write_text(json.dumps(rows))
     source = write_yaml(tmp_path / "source/tasks.yml", dataset(url))
     with pytest.raises(ValueError, match="exactly one"):
-        prepare_inputs(source, tmp_path / "prepared")
+        download_harbor_tasks(source, tmp_path / "prepared")
     assert not (tmp_path / "prepared").exists()
 
 
@@ -282,7 +290,7 @@ def test_registry_resolves_annotated_tag(tmp_path, registry, ref):
         task["git_commit_id"] = ref
     (served / "registry.json").write_text(json.dumps(rows))
     source = write_yaml(tmp_path / "source/tasks.yml", dataset(url))
-    receipt = prepare_inputs(source, tmp_path / "prepared")
+    receipt = download_harbor_tasks(source, tmp_path / "prepared")
     assert {item["source"]["git_commit_id"] for item in receipt["origins"]["tasks.yml"]["sources"]} == {commit}
 
 
@@ -306,7 +314,7 @@ def test_changed_copy_is_not_signed_as_the_authored_input(tmp_path, monkeypatch,
 
     monkeypatch.setattr("metric_benchmark.preparation.shutil.copytree", changed_copy)
     with pytest.raises(ValueError, match="copied.*differ"):
-        prepare_inputs(source, tmp_path / "prepared", benchmark=benchmark)
+        download_harbor_tasks(source, tmp_path / "prepared", benchmark=benchmark)
     assert file_manifest(source.parent) == before
     assert not (tmp_path / "prepared").exists()
 
@@ -343,7 +351,7 @@ def test_oversized_registry_does_not_download_tasks_or_publish(tmp_path, registr
     monkeypatch.setattr("metric_benchmark.preparation.MAX_REGISTRY_BYTES", 8)
     monkeypatch.setattr("metric_benchmark.preparation.TaskClient.download_tasks", forbidden)
     with pytest.raises(ValueError, match="registry response exceeds"):
-        prepare_inputs(source, tmp_path / "prepared")
+        download_harbor_tasks(source, tmp_path / "prepared")
     assert not (tmp_path / "prepared").exists()
     assert not list(tmp_path.glob(".prepare-*"))
 
@@ -374,7 +382,7 @@ def test_nested_cases_reject_reserved_paths(tmp_path, monkeypatch, reserved):
     monkeypatch.setattr("metric_benchmark.preparation.urlopen", forbidden)
     monkeypatch.setattr("metric_benchmark.preparation.TaskClient.download_tasks", forbidden)
     with pytest.raises(ValueError, match="reserved preparation path"):
-        prepare_inputs(source, tmp_path / "prepared", benchmark=True)
+        download_harbor_tasks(source, tmp_path / "prepared", benchmark=True)
     assert file_manifest(source.parent) == before
     assert not (tmp_path / "prepared").exists()
     assert not list(tmp_path.glob(".prepare-*"))
@@ -387,10 +395,10 @@ def test_nested_cases_reserve_only_generated_locations(tmp_path):
     (source.parent / "cases/preparation.json").write_text("{}")
     before = file_manifest(source.parent)
     output = tmp_path / "prepared"
-    receipt = prepare_inputs(source, output, benchmark=True)
+    receipt = download_harbor_tasks(source, output, benchmark=True)
     check_benchmark(output / source.name)
     assert (output / "prepared-tasks/notes.txt").read_text() == "Unrelated authored content"
     assert (output / "cases/preparation.json").read_text() == "{}"
     assert (output / "cases/prepared-tasks/set-0000").is_dir()
-    assert prepare_inputs(source, output, benchmark=True, cached_only=True) == receipt
+    assert download_harbor_tasks(source, output, benchmark=True, cached_only=True) == receipt
     assert file_manifest(source.parent) == before
