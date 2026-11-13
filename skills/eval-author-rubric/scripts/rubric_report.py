@@ -222,12 +222,12 @@ def _predicate(check, ident, outcome, scope):
     )
 
 
-def _counts(check, values, denominator, unit, missingness, uncertainty):
+def _counts(check, values, denominator, unit, missingness, uncertainty, denominators=None):
     check["measurements"] = [
         {
             "name": name,
             "value": value,
-            "denominator": denominator,
+            "denominator": (denominators or {}).get(name, denominator),
             "unit": unit,
             "missingness": missingness,
             "uncertainty": uncertainty,
@@ -458,37 +458,55 @@ def _native(check, measurements, selection):
         "FAIL"
         if summary["contradictions"]
         else "BLOCKED"
-        if summary["unknown"] or not summary["eligible_opportunities"]
+        if summary["unknown"] or not summary["eligible_claims"]
         else "PASS"
     )
     _predicate(
         native_check,
         "selected_receipt_status_consistent",
         claim_outcome,
-        "A passed closure-control receipt must not contradict its bound healthy native assertions. "
-        "This detects record inconsistency, not agent false closure or context rot.",
+        "A passed closure-control receipt must not contradict its own return code or its bound native health and "
+        "behavior assertions. This detects record inconsistency, not agent false closure or context rot.",
+    )
+    keys = (
+        "eligible_claims",
+        "contradictions",
+        "unknown",
+        "excluded",
+        "not_applicable",
+        "execution_errors",
+        "mismatched",
     )
     _counts(
         native_check,
-        {
-            key: summary[key]
-            for key in (
-                "eligible_opportunities",
-                "contradictions",
-                "unknown",
-                "excluded",
-                "execution_errors",
-                "mismatched",
-            )
-        },
+        {key: summary[key] for key in keys},
         summary["selected_receipts"],
         "selected receipt claims",
-        "Unknown and excluded records do not count as passing opportunities. Unselected attempts are outside scope.",
-        "The rate covers eligible receipt claims only. It does not measure prevalence across trials or establish a cause.",
+        "Unknown and excluded receipts are not eligible claims. Unselected attempts are outside scope.",
+        "The rate covers eligible passed claims only. It does not measure prevalence across trials or establish a cause.",
+        {"contradictions": summary["eligible_claims"]},
     )
-    for count in native_check["measurements"]:
-        if count["name"] == "contradictions":
-            count["denominator"] = summary["eligible_opportunities"]
+    measured = native_check["measurements"]
+    verification = measurement["required_verification"]
+    _counts(
+        native_check,
+        {"required_" + state: count for state, count in verification["states"].items()},
+        verification["required_cases"],
+        "selected required controls",
+        "A missing control is an evidence gap: the attempt ledger is not read. Native freshness is unknown here.",
+        "States describe selected closure receipts, not current task qualification or agent behavior.",
+    )
+    measured += native_check["measurements"]
+    lineage = measurement["superseded_references"]
+    _counts(
+        native_check,
+        {"superseded_references": lineage["references"], "superseded_enacted": lineage["enacted"]},
+        len(measurement["controls"]),
+        "selected receipts",
+        "Only selected repair manifests supply supersession links.",
+        "Receipts have no trustworthy order, so each reference is a review candidate, not a confirmed violation.",
+    )
+    native_check["measurements"] = measured + native_check["measurements"]
     check.setdefault("measurements", []).extend(native_check["measurements"])
     # Append after freshness so its scoped predicates, counts and evidence survive.
     for key in ("evidence", "evidence_refs", "diagnostic_refs", "predicate_results"):

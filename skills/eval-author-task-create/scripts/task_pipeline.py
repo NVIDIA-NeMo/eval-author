@@ -5,7 +5,7 @@
 # requires-python = ">=3.10"
 # dependencies = ["pyyaml>=6.0", "jsonschema>=4.23"]
 # [tool.ty.environment]
-# extra-paths = ["."]
+# extra-paths = [".", "../../eval-author/scripts"]
 # ///
 
 """Select actionable audit gaps, scaffold NeMo Gym or Harbor drafts, and verify closure."""
@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -507,6 +508,24 @@ def _check_acceptance(path: Path) -> tuple[int, dict]:
     return code, current
 
 
+def _acceptance_integrity(path: Path) -> tuple[int, dict]:
+    """Report typed claim-versus-record findings instead of stopping at the first error."""
+    saved = _read_json(path)
+    import task_evidence  # noqa: F401  # Puts the shared Eval Author scripts on the import path.
+    from audit_verifier_evidence import Review, inspect_acceptance
+
+    evidence = saved.get("evidence")
+    cited = [Path(value).resolve() for value in evidence if isinstance(value, str)] if isinstance(evidence, list) else []
+    paths = [path.resolve(), *cited]
+    repo = Path(os.path.commonpath(paths))
+    repo = repo if repo.is_dir() else repo.parent
+    try:
+        result = inspect_acceptance(Review(repo, [repo]), saved)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise PipelineError(f"acceptance integrity: {exc}") from exc
+    return (0 if result["status"] == "consistent" else 1), {"valid": True, "acceptance_integrity": result}
+
+
 def _parser() -> argparse.ArgumentParser:
     """Build the ``select``, ``scaffold``, and ``verify`` subcommand parser."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -536,6 +555,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     recheck = subparsers.add_parser("check-acceptance", help="Revalidate every input of a saved acceptance")
     recheck.add_argument("--report", type=Path, required=True)
+    recheck.add_argument(
+        "--integrity",
+        action="store_true",
+        help="Report typed contradictions between the saved claim and its control receipts and attempt ledger",
+    )
     return parser
 
 
@@ -559,6 +583,8 @@ def main(argv: list[str] | None = None) -> int:
                 gym_python=args.gym_python,
             )
             exit_code = 0
+        elif args.command == "check-acceptance" and args.integrity:
+            exit_code, payload = _acceptance_integrity(args.report)
         elif args.command == "check-acceptance":
             exit_code, payload = _check_acceptance(args.report)
         else:

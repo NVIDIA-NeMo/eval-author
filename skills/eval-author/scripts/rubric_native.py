@@ -14,6 +14,7 @@ import audit_verifier_evidence as audit
 from eval_author_shared import task_evidence
 from rubric_identity import DIGEST, FIELDS, SelectedAccess, artifact_byte_limit, diagnostic, finish, read_selected, text
 from rubric_links import check_links
+from verification_integrity import new_integrity, required_verification, summarize_receipts, superseded_references
 
 MAX_ARTIFACTS = 64
 MAX_BYTES = 2_000_000
@@ -44,6 +45,8 @@ def _read(root, record, limit):
 
 class _SelectedReview(audit.Review):
     """Consumer reads use sealed bytes only; no implicit task-tree scan."""
+
+    measures_task = False
 
     def __init__(self, repo, snapshots):
         self.repo = repo
@@ -131,24 +134,6 @@ def _trace_graph(trace, trace_ref, run_ref, nodes, links, issue):
         _require(len(nodes) + len(links) <= MAX_REFERENCES)
 
 
-def _integrity_summary(controls):
-    states = [row["integrity"] for row in controls]
-    eligible = sum(row["status_claim"] in {"consistent", "contradiction"} for row in states)
-    contradictions = sum(row["status_claim"] == "contradiction" for row in states)
-    return {
-        "detector_version": "receipt-integrity-v1",
-        "selected_receipts": len(states),
-        "eligible_opportunities": eligible,
-        "contradictions": contradictions,
-        "unknown": sum(row["status_claim"] == "unknown" for row in states),
-        "excluded": sum(row["status_claim"] == "excluded" for row in states),
-        "execution_errors": sum(row["execution"] == "execution_error" for row in states),
-        "mismatched": sum(row["status"] == "mismatched" for row in states),
-        "violation_rate": contradictions / eligible if eligible else None,
-        "context_rot_score": None,
-    }
-
-
 def project_native(
     root: Path,
     identity: dict,
@@ -169,10 +154,19 @@ def project_native(
     Task freshness is unknown: no task-tree scan or closure validation occurs.
     """
     diagnostics, nodes, links, controls, subjects = [], [], [], [], []
-    bindings = []
+    bindings, consumer_rows = [], []
+    verified_manifests, lineage, joins = {}, {}, {}
 
     def issue(code, subject="selection", status="fail"):
         diagnostics.append(diagnostic("native." + code, subject, status))
+
+    def joined():
+        # Join selected IDs so later reference failures stay visible and paths stay private.
+        return [
+            {"path": row["receipt"], "manifest": joins[row["receipt"]][0], "case": joins[row["receipt"]][1], **row}
+            for row in controls
+            if row["receipt"] in joins
+        ]
 
     def output():
         link_check = check_links(nodes, links)
@@ -181,7 +175,9 @@ def project_native(
             "nodes": nodes,
             "links": links,
             "controls": controls,
-            "receipt_integrity": _integrity_summary(controls),
+            "receipt_integrity": summarize_receipts([row["integrity"] for row in controls]),
+            "required_verification": required_verification(verified_manifests, joined()),
+            "superseded_references": superseded_references(lineage, joined()),
             "subjects": subjects,
             "bindings": bindings,
             "link_check": link_check,
@@ -256,7 +252,6 @@ def project_native(
     manifest_paths = {root / records[ident]["path"]: ident for ident in manifest_ids if ident in records}
     result_paths = {root / records[ident]["path"]: ident for ident in result_ids if ident in records}
     trace_paths = {root / records[ident]["path"]: ident for ident in trace_ids if ident in records}
-    consumer_rows = []
     seen_traces = set()
     consumed_paths = set()
     for ident in receipt_ids:
@@ -264,29 +259,40 @@ def project_native(
             "receipt": ident,
             "classification": "unproven",
             "task_freshness": "unknown",
-            "integrity": {
-                "status": "unknown",
-                "execution": "unknown",
-                "behavior": "unknown",
-                "status_claim": "unknown",
-                "code": "evidence_unavailable",
-                "freshness": "unknown",
-            },
+            "integrity": new_integrity("evidence_unavailable"),
         }
         controls.append(row)
         if ident not in objects:
             continue
         receipt = objects[ident]
+        inspected = None
         try:
             _require(receipt.get("schema") == task_evidence.SCHEMA)
             _require(text(receipt.get("case")))
             manifest_path = review.path(receipt["manifest"])
             _require(manifest_path in manifest_paths)
+            joins[ident] = (manifest_paths[manifest_path], receipt["case"])
             manifest = review.object(manifest_path)
             _require(manifest.get("schema") in (task_evidence.SCHEMA, task_evidence.MANIFEST_SCHEMA))
             # Agent classification bypasses the shared consumer's task-revision path.
             _require(isinstance(manifest.get("task_sha256"), str) and DIGEST.fullmatch(manifest["task_sha256"]))
-            _require(hashlib.sha256(review.read(manifest_path)).hexdigest() == receipt.get("manifest_sha256"))
+            if hashlib.sha256(review.read(manifest_path)).hexdigest() != receipt.get("manifest_sha256"):
+                supersedes = manifest.get("supersedes")
+                _require(
+                    isinstance(supersedes, dict) and supersedes.get("manifest_sha256") == receipt.get("manifest_sha256")
+                )
+                # The shared consumer classifies a receipt from before an in-place repair.
+                inspected = audit.inspect_receipt(
+                    review,
+                    root / records[ident]["path"],
+                    receipt,
+                    {review.path(manifest["task_dir"])},
+                    verify_historical=True,
+                    include_integrity=True,
+                )
+                row["integrity"] = inspected["integrity"]
+                issue("receipt_superseded", ident, "unknown")
+                continue
             task_evidence.validate_contract(manifest["contract"])
             contract = manifest["contract"]
             _require(contract["provider"] == "harbor")
@@ -308,8 +314,10 @@ def project_native(
                 review, root / records[ident]["path"], receipt, {task}, verify_historical=True, include_integrity=True
             )
             consumer_rows.append(inspected)
-            if "integrity" in inspected:
-                row["integrity"] = {**inspected["integrity"], "freshness": "unknown"}
+            # A receipt-only execution claim needs no native result; other claims
+            # count only after every reference check below binds the same run.
+            if inspected["integrity"]["basis"] == "receipt":
+                row["integrity"] = inspected["integrity"]
             classification = inspected.get("historical_classification", inspected["classification"])
             row["classification"] = classification
             issue("task_freshness_unmeasured", ident, "unknown")
@@ -369,14 +377,21 @@ def project_native(
             )
             if trace_ref is not None:
                 _trace_graph(trace, trace_ref, run_ref, nodes, links, issue)
+            row["integrity"] = inspected["integrity"]
         except (OSError, ValueError, TypeError, KeyError, RecursionError, OverflowError):
             issue("reference_invalid", ident)
+            if inspected is not None and inspected["integrity"]["status_claim"] == "excluded":
+                row["integrity"] = inspected["integrity"]
+            elif row["integrity"]["basis"] != "receipt":
+                row["integrity"] = new_integrity("reference_invalid")
     for path, ident in manifest_paths.items():
         try:
             manifest = review.object(path)
             _require(manifest.get("schema") in (task_evidence.SCHEMA, task_evidence.MANIFEST_SCHEMA))
             _require(isinstance(manifest.get("task_sha256"), str) and DIGEST.fullmatch(manifest["task_sha256"]))
             task_evidence.validate_contract(manifest["contract"])
+            verified_manifests[ident] = manifest
+            lineage[ident] = (manifest, hashlib.sha256(review.read(path)).hexdigest())
             rows = audit.inspect_manifest(
                 review,
                 path,

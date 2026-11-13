@@ -94,6 +94,8 @@ def _native_control(root, entry, selected, validate, row, snapshots):
     _require(receipt.get("purpose") == "closure")
 
     class SelectedReview(Review):
+        measures_task = False
+
         def __init__(self):
             self.repo = root
             self.manifests = {}

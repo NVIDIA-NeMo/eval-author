@@ -21,17 +21,17 @@ def test_unavailable_receipt_is_not_a_passing_opportunity(panel):
     measurement = output["receipt_integrity"]
     assert measurement["detector_version"] == "receipt-integrity-v1"
     assert measurement["selected_receipts"] == 1
-    assert measurement["eligible_opportunities"] == 0
+    assert measurement["eligible_claims"] == 0
     assert measurement["contradictions"] == 0
     assert measurement["unknown"] == 1
-    assert measurement["violation_rate"] is None
+    assert measurement["contradiction_rate"] is None
     assert measurement["context_rot_score"] is None
     assert output["controls"][0]["integrity"]["status"] == "unknown"
 
 
 @pytest.mark.parametrize(
     "claimed,reward,expected",
-    [("passed", 0, "contradiction"), ("passed", 1, "consistent"), ("behavior_failed", 0, "consistent")],
+    [("passed", 0, "contradiction"), ("passed", 1, "consistent"), ("behavior_failed", 0, "not_applicable")],
 )
 def test_cli_scores_bound_status_claim_without_context_attribution(panel, claimed, reward, expected):
     panel.receipt.update(status=claimed, purpose="closure")
@@ -44,15 +44,18 @@ def test_cli_scores_bound_status_claim_without_context_attribution(panel, claime
     integrity = native["controls"][0]["integrity"]
     assert integrity["status_claim"] == expected
     assert integrity["freshness"] == "unknown"
-    assert native["receipt_integrity"]["eligible_opportunities"] == 1
+    eligible = int(claimed == "passed")
+    assert native["receipt_integrity"]["eligible_claims"] == eligible
+    assert native["receipt_integrity"]["not_applicable"] == 1 - eligible
     assert native["receipt_integrity"]["contradictions"] == int(expected == "contradiction")
     assert native["receipt_integrity"]["unknown"] == 0
-    assert native["receipt_integrity"]["violation_rate"] == (1.0 if expected == "contradiction" else 0.0)
+    rate = native["receipt_integrity"]["contradiction_rate"]
+    assert rate == ((1.0 if expected == "contradiction" else 0.0) if eligible else None)
     assert report["items"]["CREATE-07"]["score"] is None
     assert "PRIVATE-" not in completed.stdout
     check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
     predicate = next(row for row in check["predicate_results"] if row["id"] == "selected_receipt_status_consistent")
-    assert predicate["outcome"] == ("FAIL" if expected == "contradiction" else "PASS")
+    assert predicate["outcome"] == {"contradiction": "FAIL", "consistent": "PASS"}.get(expected, "BLOCKED")
     assert check["outcome"] == "PARTIAL"
     counts = next(row for row in check["measurements"] if row["unit"] == "selected receipt claims")
     assert counts["denominator"] == 1
@@ -71,7 +74,8 @@ def test_valid_exceptions_and_no_action_are_not_contradictions(panel, kind):
     summary = output["receipt_integrity"]
     assert summary["contradictions"] == 0
     assert summary["excluded"] == int(kind in {"diagnostic", "agent", "baseline"})
-    assert summary["eligible_opportunities"] == int(kind in {"alternative", "empty"})
+    assert summary["eligible_claims"] == int(kind in {"alternative", "empty"})
+    assert summary["unknown"] == 0
 
 
 def test_execution_error_without_native_output_is_unknown_not_contradiction(panel):
@@ -84,7 +88,7 @@ def test_execution_error_without_native_output_is_unknown_not_contradiction(pane
     assert measurement["controls"][0]["integrity"]["execution"] == "execution_error"
     assert measurement["receipt_integrity"]["execution_errors"] == 1
     assert measurement["receipt_integrity"]["contradictions"] == 0
-    assert measurement["receipt_integrity"]["eligible_opportunities"] == 0
+    assert measurement["receipt_integrity"]["eligible_claims"] == 0
 
 
 def test_real_recorder_to_cli_retains_contradiction_and_recovery(panel, monkeypatch):
@@ -144,9 +148,9 @@ def test_real_recorder_to_cli_retains_contradiction_and_recovery(panel, monkeypa
     assert completed.returncode == 1
     report = json.loads(completed.stdout)
     summary = report["measurements"]["native"]["receipt_integrity"]
-    assert summary["eligible_opportunities"] == 2
+    assert summary["eligible_claims"] == 2
     assert summary["contradictions"] == 1
-    assert summary["violation_rate"] == 0.5
+    assert summary["contradiction_rate"] == 0.5
     assert summary["unknown"] == 0
     assert [row["integrity"]["status_claim"] for row in report["measurements"]["native"]["controls"]] == [
         "contradiction",
@@ -171,10 +175,10 @@ def test_wrong_task_result_cannot_supply_status_claim(panel, reward):
     native = report["measurements"]["native"]
     assert "native.reference_invalid" in {row["code"] for row in native["diagnostics"]}
     assert native["controls"][0]["integrity"]["status_claim"] == "unknown"
-    assert native["receipt_integrity"]["eligible_opportunities"] == 0
+    assert native["receipt_integrity"]["eligible_claims"] == 0
     assert native["receipt_integrity"]["contradictions"] == 0
     assert native["receipt_integrity"]["unknown"] == 1
-    assert native["receipt_integrity"]["violation_rate"] is None
+    assert native["receipt_integrity"]["contradiction_rate"] is None
     check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
     predicate = next(row for row in check["predicate_results"] if row["id"] == "selected_receipt_status_consistent")
     assert predicate["outcome"] == "BLOCKED"
@@ -196,10 +200,10 @@ def test_wrong_role_result_is_rejected_before_native_consumption(panel, monkeypa
     assert "native.reference_invalid" in {row["code"] for row in native["diagnostics"]}
     assert native["controls"][0]["classification"] == "unproven"
     assert native["controls"][0]["integrity"]["status_claim"] == "unknown"
-    assert native["receipt_integrity"]["eligible_opportunities"] == 0
+    assert native["receipt_integrity"]["eligible_claims"] == 0
     assert native["receipt_integrity"]["contradictions"] == 0
     assert native["receipt_integrity"]["unknown"] == 1
-    assert native["receipt_integrity"]["violation_rate"] is None
+    assert native["receipt_integrity"]["contradiction_rate"] is None
     check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
     predicate = next(row for row in check["predicate_results"] if row["id"] == "selected_receipt_status_consistent")
     assert predicate["outcome"] == "BLOCKED"
@@ -242,13 +246,13 @@ def test_contradiction_denominator_excludes_baseline_neighbor(panel):
     report = json.loads(completed.stdout)
     summary = report["measurements"]["native"]["receipt_integrity"]
     assert summary["selected_receipts"] == 2
-    assert summary["eligible_opportunities"] == summary["contradictions"] == summary["excluded"] == 1
-    assert summary["violation_rate"] == 1.0
+    assert summary["eligible_claims"] == summary["contradictions"] == summary["excluded"] == 1
+    assert summary["contradiction_rate"] == 1.0
     check = next(row for row in report["items"]["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
     counts = {row["name"]: row for row in check["measurements"] if row["unit"] == "selected receipt claims"}
     assert counts["contradictions"]["value"] == 1
     assert counts["contradictions"]["denominator"] == 1
-    for name in ("eligible_opportunities", "unknown", "excluded", "execution_errors", "mismatched"):
+    for name in ("eligible_claims", "unknown", "excluded", "execution_errors", "mismatched"):
         assert counts[name]["denominator"] == 2
 
 
@@ -275,3 +279,123 @@ def test_report_revalidates_integrity_instead_of_trusting_saved_counts(panel, mo
     check = next(row for row in rebuilt["CREATE-07"]["check_results"] if row["id"] == "CREATE-07-C01")
     assert not any(row["id"] == "selected_receipt_status_consistent" for row in check.get("predicate_results", []))
     assert "revalidation" in check["remaining_gap"]
+
+
+def select(panel, records, ident, path, role):
+    from eval_author_shared import task_evidence
+
+    digest = task_evidence.digest(path)
+    relative = path.relative_to(panel.tmp_path).as_posix()
+    template = records[0]
+    records.append(
+        dict(
+            template, id=ident, role=role, path=relative, digest=digest, evidence=[{"path": relative, "digest": digest}]
+        )
+    )
+    return records
+
+
+@pytest.mark.parametrize("field", ["trial_name", "trace"])
+def test_later_reference_failure_withdraws_an_inspected_claim(panel, field):
+    panel.receipt.update(status="passed", purpose="closure")
+    if field == "trial_name":
+        panel.result["trial_name"] = ""
+    records = panel.seal()["records"]
+    if field == "trace":
+        panel.paths["trace"].write_text(json.dumps(dict(panel.trace, session_id="changed")))
+        records = [row for row in records if row["id"] != "trace"]
+        records = select(panel, records, "trace", panel.paths["trace"], "trace")
+    output = adapter().project_native(panel.tmp_path, {"records": records}, **panel.selection)
+    assert "native.reference_invalid" in {row["code"] for row in output["diagnostics"]}
+    assert output["controls"][0]["integrity"]["code"] == "reference_invalid"
+    summary = output["receipt_integrity"]
+    assert summary["contradictions"] == summary["eligible_claims"] == 0
+    assert summary["unknown"] == 1
+
+
+def test_receipt_return_code_contradiction_needs_no_native_result(panel):
+    panel.receipt.update(status="passed", returncode=1, purpose="closure")
+    records = panel.seal()["records"]
+    panel.paths["result"].unlink()
+    output = adapter().project_native(panel.tmp_path, {"records": records}, **panel.selection)
+    integrity = output["controls"][0]["integrity"]
+    assert (integrity["basis"], integrity["status_claim"]) == ("receipt", "contradiction")
+    assert output["receipt_integrity"]["contradictions"] == output["receipt_integrity"]["eligible_claims"] == 1
+
+
+def test_required_verification_separates_failed_missing_and_unknown_freshness(panel):
+    panel.receipt["purpose"] = "closure"
+    output = adapter().project_native(panel.tmp_path, panel.seal(), **panel.selection)
+    verification = output["required_verification"]
+    assert verification["required_cases"] == 3
+    assert verification["states"]["fail"] == 1
+    assert verification["states"]["missing"] == 2
+    assert verification["current_pass"] == verification["current_fail"] == 0
+    assert verification["verified"] is False
+    assert verification["capture"] == "unknown"
+    rows = {row["case"]: row for row in verification["cases"]}
+    assert rows["reference"] == {
+        "manifest": "manifest",
+        "case": "reference",
+        "kind": "reference",
+        "state": "fail",
+        "freshness": "unknown",
+        "receipts": 1,
+        "superseded_receipts": 0,
+    }
+    assert rows["incorrect"]["state"] == rows["empty"]["state"] == "missing"
+    assert "agent" not in rows
+
+
+def test_out_of_place_repair_marks_receipts_on_the_old_manifest_for_review(panel):
+    from eval_author_shared import task_evidence
+
+    panel.receipt["purpose"] = "closure"
+    records = panel.seal()["records"]
+    repaired = panel.paths["manifest"].with_name("repair.json")
+    repaired.write_text(
+        json.dumps(
+            dict(
+                panel.manifest,
+                repair_count=1,
+                supersedes={"manifest_sha256": task_evidence.digest(panel.paths["manifest"])},
+            )
+        )
+    )
+    records = select(panel, records, "repair", repaired, "manifest")
+    selection = {**panel.selection, "manifest_ids": ["manifest", "repair"]}
+    lineage = adapter().project_native(panel.tmp_path, {"records": records}, **selection)["superseded_references"]
+    assert lineage["superseded_manifests"] == lineage["references"] == lineage["enacted"] == 1
+    assert lineage["confirmed"] == 0
+    assert lineage["findings"] == [
+        {
+            "receipt": "receipt",
+            "case": "reference",
+            "superseded_manifest_sha256": task_evidence.digest(panel.paths["manifest"]),
+            "superseding_manifest": "repair",
+            "effect": "enacted",
+            "status": "review_candidate",
+        }
+    ]
+
+
+def test_in_place_repair_excludes_the_old_receipt_from_current_verification(panel):
+    from eval_author_shared import task_evidence
+
+    panel.receipt.update(status="passed", purpose="closure")
+    records = panel.seal()["records"]
+    old = task_evidence.digest(panel.paths["manifest"])
+    panel.paths["manifest"].write_text(
+        json.dumps(dict(panel.manifest, repair_count=1, supersedes={"manifest_sha256": old}))
+    )
+    records = [row for row in records if row["id"] != "manifest"]
+    records = select(panel, records, "manifest", panel.paths["manifest"], "manifest")
+    output = adapter().project_native(panel.tmp_path, {"records": records}, **panel.selection)
+    assert {"code": "native.receipt_superseded", "subject": "receipt", "status": "unknown"} in output["diagnostics"]
+    assert output["controls"][0]["integrity"]["code"] == "superseded"
+    assert output["receipt_integrity"]["excluded"] == 1
+    assert output["receipt_integrity"]["contradictions"] == 0
+    rows = {row["case"]: row for row in output["required_verification"]["cases"]}
+    assert rows["reference"]["state"] == "missing"
+    assert rows["reference"]["superseded_receipts"] == 1
+    assert output["superseded_references"]["references"] == 1

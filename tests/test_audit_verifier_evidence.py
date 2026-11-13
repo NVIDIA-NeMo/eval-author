@@ -140,16 +140,24 @@ def test_each_rewarded_cheat_requires_a_finding_even_without_agent_trace(panel, 
     assert panel.check()["valid"]
 
 
-def test_receipt_integrity_records_a_validated_positive_control(panel):
-    row = panel.inspect("reference")
-    assert row["integrity"] == {
+def integrity(panel, **fields):
+    return {
+        "claim": "passed",
+        "purpose": "closure",
+        "manifest_sha256": panel.evidence.digest(panel.manifest),
+        "basis": "native",
         "status": "consistent",
         "execution": "healthy",
         "behavior": "passed",
         "status_claim": "consistent",
         "code": "validated",
         "freshness": "current",
+        **fields,
     }
+
+
+def test_receipt_integrity_records_a_validated_positive_control(panel):
+    assert panel.inspect("reference")["integrity"] == integrity(panel)
 
 
 @pytest.mark.parametrize("status", ["passed", "behavior_failed"])
@@ -158,14 +166,42 @@ def test_receipt_integrity_separates_failed_behavior_from_false_pass_claim(panel
     row = panel.inspect("early-exit")
     contradiction = status == "passed"
     assert row["classification"] == ("unproven" if contradiction else "failed_control")
-    assert row["integrity"] == {
-        "status": "mismatched" if contradiction else "consistent",
-        "execution": "healthy",
-        "behavior": "failed",
-        "status_claim": "contradiction" if contradiction else "consistent",
-        "code": "status_contradiction" if contradiction else "validated",
-        "freshness": "current",
-    }
+    assert row["integrity"] == integrity(
+        panel,
+        claim=status,
+        behavior="failed",
+        status="mismatched" if contradiction else "consistent",
+        status_claim="contradiction" if contradiction else "not_applicable",
+        code="status_contradiction" if contradiction else "validated",
+    )
+
+
+def test_receipt_integrity_records_an_under_claim_without_counting_a_contradiction(panel):
+    panel.record("early-exit", 0, status="behavior_failed")
+    assert panel.inspect("early-exit")["integrity"] == integrity(
+        panel, claim="behavior_failed", status="mismatched", status_claim="not_applicable", code="status_mismatch"
+    )
+
+
+@pytest.mark.parametrize("status", ["passed", "behavior_failed"])
+def test_receipt_integrity_treats_failed_health_assertions_as_definitive(panel, status):
+    manifest = json.loads(panel.manifest.read_text())
+    manifest["contract"]["cases"]["early-exit"]["health"].append({"pointer": "/healthy", "equals": True})
+    panel.write(panel.manifest, manifest)
+    path, native_path = panel.record("early-exit", 0, status=status)
+    native = json.loads(native_path.read_text())
+    panel.write(native_path, {**native, "healthy": False})
+    receipt = json.loads(path.read_text())
+    panel.write(path, {**receipt, "result_sha256": panel.evidence.digest(native_path)})
+    assert panel.inspect("early-exit")["integrity"] == integrity(
+        panel,
+        claim=status,
+        execution="execution_error",
+        behavior="unknown",
+        status="mismatched",
+        status_claim="contradiction" if status == "passed" else "not_applicable",
+        code="status_contradiction" if status == "passed" else "status_mismatch",
+    )
 
 
 @pytest.mark.parametrize("damage", ["manifest_digest", "result_digest", "run_id", "malformed", "missing_result"])
@@ -233,7 +269,7 @@ def test_receipt_integrity_does_not_infer_false_pass_without_supported_claim(pan
         receipt[field] = value
     review = panel.audit.Review(panel.tmp_path, [panel.records, panel.runs])
     row = panel.audit.inspect_receipt(review, path, receipt, {panel.task}, include_integrity=True)
-    assert row["integrity"]["status_claim"] == "unknown"
+    assert row["integrity"]["status_claim"] == ("not_applicable" if value == "behavior_failed" else "unknown")
     assert row["integrity"]["code"] != "status_contradiction"
 
 
@@ -249,10 +285,47 @@ def test_receipt_integrity_records_structured_execution_error_without_result(pan
     else:
         receipt["returncode"] = returncode
     panel.write(path, receipt)
+    false_pass = status == "passed"
+    assert panel.inspect("early-exit")["integrity"] == integrity(
+        panel,
+        claim=status,
+        basis="receipt",
+        execution="execution_error",
+        behavior="unknown",
+        status="mismatched" if false_pass else "consistent",
+        status_claim="contradiction" if false_pass else "not_applicable",
+        code="status_contradiction" if false_pass else "execution_error",
+    )
+
+
+def test_receipt_integrity_excludes_a_receipt_from_before_an_in_place_repair(panel):
+    path, _ = panel.record("early-exit", 0)
+    old = panel.evidence.digest(panel.manifest)
+    manifest = json.loads(panel.manifest.read_text())
+    panel.write(panel.manifest, {**manifest, "repair_count": 1, "supersedes": {"manifest_sha256": old}})
     row = panel.inspect("early-exit")
-    assert row["integrity"]["execution"] == "execution_error"
-    assert row["integrity"]["code"] == "execution_error"
-    assert row["integrity"]["status"] == row["integrity"]["behavior"] == row["integrity"]["status_claim"] == "unknown"
+    assert row["classification"] == "unproven"
+    assert row["reason"] == "Manifest bytes differ from the receipt"
+    assert row["integrity"]["code"] == "superseded"
+    assert row["integrity"]["status_claim"] == "excluded"
+    assert row["integrity"]["freshness"] == "stale"
+    assert row["integrity"]["manifest_sha256"] == old
+
+
+def test_receipt_integrity_reports_unknown_freshness_without_a_task_measurement(panel):
+    class Unmeasured(panel.audit.Review):
+        measures_task = False
+
+        def task_digest(self, task):
+            return "unmeasured"
+
+    path = panel.records / "reference.json"
+    review = Unmeasured(panel.tmp_path, [panel.records, panel.runs])
+    row = panel.audit.inspect_receipt(
+        review, path, json.loads(path.read_text()), {panel.task}, include_integrity=True, verify_historical=True
+    )
+    assert row["integrity"]["freshness"] == "unknown"
+    assert row["integrity"]["status_claim"] == "consistent"
 
 
 def test_receipt_integrity_is_opt_in_without_changing_legacy_decisions(panel):
@@ -559,3 +632,64 @@ def test_absolute_evidence_outside_the_repository_without_a_relocated_match_is_r
     review = panel.audit.Review(panel.tmp_path, [panel.records])
     with pytest.raises(panel.audit.EvidenceScopeError):
         review.path(outside)
+
+
+def test_required_verification_reports_current_controls_only_on_request(panel):
+    assert not {"receipt_integrity", "required_verification", "superseded_references"} & panel.check().keys()
+    result = panel.audit.check(
+        panel.tmp_path, panel.report, [panel.task], [panel.records], [panel.runs], include_integrity=True
+    )
+    verification = result["required_verification"]
+    assert verification["required_cases"] == 7
+    assert verification["current_pass"] == 7
+    assert verification["verified"] is True
+    assert result["receipt_integrity"]["eligible_claims"] == 7
+    assert result["receipt_integrity"]["contradictions"] == 0
+    assert result["superseded_references"]["references"] == 0
+
+
+def test_required_verification_separates_stale_missing_and_failed_controls(panel):
+    (panel.records / "nop.json").unlink()
+    panel.record("early-exit", 1)
+    result = panel.audit.check(
+        panel.tmp_path, panel.report, [panel.task], [panel.records], [panel.runs], include_integrity=True
+    )
+    rows = {row["case"]: row for row in result["required_verification"]["cases"]}
+    assert rows["nop"]["state"] == "missing"
+    assert (rows["early-exit"]["state"], rows["early-exit"]["freshness"]) == ("fail", "current")
+    assert result["required_verification"]["current_fail"] == 1
+    (panel.task / "verify.py").write_text("# repaired revision\n")
+    result = panel.audit.check(
+        panel.tmp_path, panel.report, [panel.task], [panel.records], [panel.runs], include_integrity=True
+    )
+    states = {row["case"]: (row["state"], row["freshness"]) for row in result["required_verification"]["cases"]}
+    assert states["reference"] == ("stale", "stale")
+    assert result["required_verification"]["current_pass"] == 0
+
+
+def test_audit_cli_integrity_flag_is_opt_in(panel):
+    import subprocess
+    import sys
+
+    command = [
+        sys.executable,
+        str(SCRIPTS / "audit_verifier_evidence.py"),
+        "--repo",
+        str(panel.tmp_path),
+        "--report",
+        str(panel.report),
+        "--task",
+        str(panel.task),
+        "--evidence-dir",
+        str(panel.records),
+        "--source-root",
+        str(panel.runs),
+    ]
+    plain = json.loads(subprocess.run(command, capture_output=True, text=True, check=True).stdout)
+    measured = json.loads(subprocess.run([*command, "--integrity"], capture_output=True, text=True, check=True).stdout)
+    assert "required_verification" not in plain
+    assert measured["required_verification"]["verified"] is True
+    assert {key: value for key, value in measured.items() if key in plain} != plain  # rows gain integrity
+    assert [row["classification"] for row in measured["controls"]] == [
+        row["classification"] for row in plain["controls"]
+    ]
