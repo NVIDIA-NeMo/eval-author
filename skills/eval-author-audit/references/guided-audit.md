@@ -16,7 +16,7 @@ For returning-audit entry, follow
 Reuse the saved `scopes.audit.mode` chosen at entry. `task_review` inspects
 existing tasks against confirmed Ethos and can finish without traces. `measured`
 includes that same task review plus coverage measurement from selected recorded
-runs. A legacy lifecycle without a mode remains measured. Follow the core's
+runs. Follow the core's
 [approach procedure](../../eval-author/references/shared-prerequisites.md#choose-the-audit-approach)
 for a new choice or an explicit change.
 
@@ -41,7 +41,7 @@ and decision provenance. Use canonical repository-relative paths throughout the
 lifecycle. Set `specification` to its file path. List the selected case and verifier
 paths in `suite_files` and selected run paths in `trace_files`. Leave each file list
 empty until its source is selected, then keep every file within that selection's paths.
-The same record holds check approval, measurement, findings acceptance, the next
+The same record holds check approval, measurement, recorded findings, the next
 action, and `pending`. Keep that checkpoint inside the audit lifecycle
 when switching journeys. In the update that records a checkpoint's answer, set
 `pending` to `null` or replace it with the next applicable checkpoint.
@@ -63,20 +63,29 @@ Native scripts establish measurement correctness; the lifecycle checks retained 
 
 Save the generated report, content, and input bindings in `findings` using the
 [report binding rules](coverage-report.md#review-and-bindings) and bind
-`findings_review: {digest, source}` to the state snapshot's `audit.findings_digest`. Bind
-`next_action: {kind, findings_digest, source}` to that same current digest only
-when the user selects it. Acceptance clears answered `pending` and
-`pending_question`; save both decisions before any journey switch. Mark the audit
+Current recorded findings are reviewed automatically; no user acceptance or
+`findings_review` record is needed. A task review records the checks report as
+`findings` before it analyzes the tasks, so approving the checks does not finish it.
+After the analysis, save the final report in `findings`, then record
+`findings_final: {digest, source}` with the digest of that report. No user prompt is
+involved. Rewriting the report reopens the finalization. Bind
+`next_action: {kind, findings_digest, source}` to `audit.findings_digest` only
+when the user selects it. Answering a next-action question clears `pending` and
+`pending_question`; save both before any journey switch. Mark the audit
 complete only when derived `audit.complete` is true. Findings remain in
 `audit-coverage-report.md`; link it whenever it is created or updated.
+
+A fresh audit may set aside the earlier `.eval-author/.working/audit/` folder. Leave
+`.eval-author/.working/audit-history/` in place: it holds the previous audits that the
+new report compares against.
 
 Treat changed inputs conservatively: changes to the agent, confirmed Ethos,
 selected scope, specification or selection manifest bytes, or selected case,
 verifier, or trace bytes reopen check review and all dependent measurement and
 findings. A change only to
-the findings report reopens findings review. Record findings acceptance in state
-without rewriting the report merely to mark it accepted. Acceptance can complete
-a task review or fully measured audit while the next action remains undecided.
+the findings report makes the recorded findings stale until they are regenerated
+and recorded again. Recording current findings can complete a task review or
+fully measured audit while the next action remains undecided.
 Improvement requires its own explicit user answer.
 
 ## 1. Confirm evals and traces
@@ -126,6 +135,8 @@ selection even when newer work exists. If scope is unclear, ask which named set
 to audit before requesting its run source. Preserve prior selections until that
 choice is resolved. Reassess trace availability and run mapping for a changed set;
 earlier trace confirmations do not establish evidence for newly selected work.
+Apply the [retained-run lookup](../../eval-author/references/shared-prerequisites.md#locate-retained-evaluation-runs)
+before reporting unavailable runs or asking the user to locate them.
 
 If the user confirms no evaluations exist, say so without searching to prove it.
 If the location is unknown or inaccessible, report that limit and ask for the
@@ -136,7 +147,10 @@ describe what was planned, and pass/fail scores alone cannot establish that
 coverage. State that proposed checks can still be prepared without traces,
 while measurement would remain unmeasured.
 
-Before searching for, listing, opening, converting, or measuring traces, confirm
+Before the source question, use the same retained-run lookup to offer relevant
+candidates from the default jobs directory. Reuse current lookup evidence from
+prerequisites. This metadata-only exception does not select a trace corpus.
+Before other searches, listing, opening, converting, or measuring traces, confirm
 with the user both their source and location through `audit_traces`. A local file
 or bounded directory plus the identified run source is sufficient; do not demand
 an exact filename before searching a user-selected directory. An explicit request
@@ -150,16 +164,18 @@ This rule also applies to tracing runtime tool names while drafting audit items,
 opening traces referenced by a report, and implicit trace scans inside discovery
 or trace-loading tools. Before presenting a missing-source question, inspect named
 agent docs, selected eval definitions, or a tool registry within the current
-milestone as useful, excluding run logs, trajectories, and trace directories
-until source selection is settled. After asking the source question, end the
+milestone as useful. Apart from the retained-run lookup, exclude run logs,
+trajectories, and trace directories until source selection is settled.
+After asking the source question, end the
 turn; do not continue that inspection while waiting. Independent specification
 work can resume if the user explicitly defers the missing source and selects
 that next step. Whole-repository `rg --files`,
 `find`, or recursive globs that expose trace filenames count as trace searches,
 even without opening their contents. Read directly named Ethos and agent files
 first; do not batch a broad inventory alongside loading these instructions.
-If the location is unknown, ask the next focused source question rather than searching the checkout, home
-directory, platform accounts, or unrelated jobs for candidate traces.
+If the location is still unknown after the retained-run lookup, ask the next
+focused source question rather than searching the checkout, home directory,
+platform accounts, or unrelated jobs for candidate traces.
 
 Once selected, inspect only that source and load its traces through the shared
 [trace loader](../../eval-author/references/trace-loading.md); never convert
@@ -240,7 +256,7 @@ tests or inspecting unselected traces.
 Direct the user to this section of the Audit coverage report for the current
 review. Keep `audit.md` as its internal structured source. Agreement with the
 complete, current coverage tables approves the matching checks and evidence
-requirements, while review of findings remains a later decision.
+requirements, while the findings are not a user decision.
 
 Render `audit_checks` with the actual report update, validation result, verified
 coverage-table link, and concrete checks grouped by tools, capabilities,
@@ -249,14 +265,14 @@ any bounded preview as a summary. Follow [report naming](coverage-report.md#arti
 do not introduce a second review document. Validation is not approval. Save the
 user's agreement before measuring the agreed traces, without another readiness
 question. Revisions require revalidation and renewed review; approval does not
-accept the later findings. Explicitly deferred measurement allows the agreed
+approve the findings, which need no approval. Explicitly deferred measurement allows the agreed
 independent report work instead.
 
 When no evaluations exist, explain that Ethos and the report's proposed checks
 can establish what future tests should cover. Existing agent runs can still be
 examined and measured when selected, but their coverage is evidence about those
 runs and cannot complete the existing-suite audit lifecycle. Include first-eval
-creation as a supported next action in findings review.
+creation as a supported next action offered with the findings.
 
 For task review, approval of the checks permits task analysis and findings,
 with every run-coverage dimension unmeasured. Do not fabricate a deferred
@@ -300,7 +316,7 @@ successfully, even when coverage is low. If some inputs fail, report only the
 successful subset with explicit exclusions and keep the agreed milestone partial.
 Update the authored content and regenerate `audit-coverage-report.md` with the measured subset, methods, and any
 excluded inputs. Explain the result and limits, link the updated report, and
-when measurement is complete, continue directly to findings review without
+when measurement is complete, continue directly to recording findings without
 another approval pause.
 Reuse existing measurements only when their inputs still apply.
 
@@ -329,38 +345,35 @@ Then go over it with the user. Lead with what was established: proposed checks,
 partial measurement, or coverage measured over a named set of traces. Explain
 the findings, their evidence and limits, link the Audit coverage report, and
 leave deferred milestones visible. Supporting evidence belongs in the report.
-A task review can complete after findings acceptance while run coverage remains
+A task review completes once current findings are recorded while run coverage remains
 unmeasured. A specification-only outcome within a measured audit is useful
 planning work, not a completed measurement.
 Distinguish items not measured from measured items lacking evidence; neither automatically means
 the dataset needs another test. Keep the [artifact names](coverage-report.md#artifact-names)
-consistent: approving the proposed checks and reviewing the Audit coverage
-report's findings are separate decisions. Both user reviews use the Audit
-coverage report: first its coverage tables, now its findings, evidence
+consistent: only the proposed checks need user approval. The findings
+need none; present them from the Audit coverage report: its findings, evidence
 limits, and next actions. Link the relevant saved sections and explicitly name
 those as the content to review; do not ask the user to reapprove intended checks.
 
-Keep the shared audit checklist item unchecked and current while awaiting the
-user's review of coverage findings, gaps, and recommended next actions.
-Render `audit_findings` with its combined corrections, acceptance, and next-action
-question, then end the turn. Do not append another question. Save acceptance only
-after the user reviews the report and corrections are resolved. A reply accepting the findings and
-selecting a next step satisfies the review; do not add another approval prompt.
-Record the answered review in progress. Update authored content and regenerate the report if findings change.
+Record the findings in state, then render `audit_findings` and end the turn. It
+asks no approval question and saves no pending checkpoint. A user correction
+changes the content; regenerate the report and record the findings again.
+When the findings are recorded, set `journey_status.audit` to `complete` if
+`audit.complete` is true, then run the history snapshot once.
 
 ### After review: offer the next step
 
-Include the next-step offer in findings review. For an existing suite, propose new
+Include the next-step offer with the findings. For an existing suite, propose new
 or improved eval tasks for the report's main gaps. Name the relevant behaviors
 and explain that the next deliverable is a ranked set of candidate scenarios,
 expected behavior, and verification plans. Avoid ending only with a generic
 invitation for questions or a bare link to another skill.
 
-Acceptance alone ends review; render `audit_next_action` as acknowledgement
+Recording findings ends the audit; render `audit_next_action` as acknowledgement
 without a new offer or forced question. Do not begin proposal analysis, writes,
 or background work unless the user selects that action. A broad audit-and-suggest
-request does not select it. Accepting findings and the offered action together
-settles both without another permission prompt.
+request does not select it. A reply choosing the offered action settles it
+without another permission prompt.
 
 Once proposals are selected, enter `eval-author-task-create` at **Step 1: propose dataset
 improvements**. Carry the Audit coverage report, reviewed Audit specification,

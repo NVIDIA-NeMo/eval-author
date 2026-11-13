@@ -102,15 +102,8 @@ FINDING_KINDS = {
 }
 LIMITS_HEADING = "**Evidence limits**"
 RECOMMENDATIONS_HEADING = "**Recommended next actions**"
-FINDINGS_QUESTION = "Do these findings look right? If so, would you like to finish the audit here or plan {choices}?"
-IMPROVEMENT_CHOICE = "the {label}"
-TWO_IMPROVEMENTS = "{choices}, or both"
-MULTIPLE_IMPROVEMENTS = "{choices}, or any combination"
-NO_CHANGE_QUESTION = "Do these findings look right? You can finish the audit here or tell me what needs correcting."
-OTHER_ACTION_QUESTION = (
-    "Do these findings look right? If so, would you like to finish the audit here or choose a recommended next action?"
-)
-REVIEW_ACCEPTED = "You’ve accepted the audit findings."
+NEXT_OFFER = "You can finish here or choose a recommended next action."
+REVIEW_ACCEPTED = "The audit findings are recorded."
 AUDIT_COMPLETE = "The audit is complete for the reviewed scope."
 AUDIT_LIMITED = "The limited findings review is complete; the full measured audit remains incomplete."
 NEXT_ACTIONS = {
@@ -125,7 +118,7 @@ STAGE_LABELS = {
     "traces": "Select traces",
     "checks": "Review proposed checks",
     "measurement": "Perform the audit",
-    "findings": "Review findings",
-    "next_action": "Findings accepted",
+    "findings": "Summarize findings",
+    "next_action": "Findings recorded",
 }
 CURRENT_MILESTONE = "**Current audit step:** {stage}"

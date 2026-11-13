@@ -155,14 +155,15 @@ or generate task files while awaiting the user's response.
 Incorporate feedback until the design is approved. Record actual approval for the
 current plan digest before any scaffolding, fixtures, instructions, graders, or
 delegated authoring. Do not create a separate user-facing planning document.
-An approved design is not paid-execution authorization. Expansion preserves
+Follow the shared [model-call policy](../eval-author/references/shared-prerequisites.md#model-calls-for-requested-work)
+throughout authoring and execution. Expansion preserves
 retained tasks and source choices and reviews only affected design changes.
 
 ## 3. Build and review exactly the first task
 
 After design approval, resolve the [validation inputs before task creation](../eval-author/references/conversations/first-eval.md#validation-setup-before-task-creation).
-Save the inspected setup and ask for any missing judge configuration, access,
-or bounded validation authorization through `first_eval_validation_setup` before
+Save the inspected setup and ask for any missing judge configuration or access
+through `first_eval_validation_setup` before
 creating task files or initializing build work. Reuse existing answers and
 authorization; ready deterministic or configured model grading needs no extra
 approval pause. Keep target-agent execution settings after suite approval.
@@ -250,7 +251,7 @@ task satisfies the [pre-review validation gate](../eval-author/references/conver
 refresh the report and Markdown mirror and use the [suite review checkpoint](../eval-author/references/conversations/first-eval.md#review-the-authored-suite-before-execution-settings).
 Render `first_eval_review_suite` as the final reply and end the turn. Wait for
 approval of the whole suite before discussing target-agent execution models,
-budgets, credentials, attempt settings, or run authorization. Grader-validation
+credentials, attempt settings, or run authorization. Grader-validation
 inputs were resolved before authoring. First-task approval does not approve the
 remaining authored tasks. Revisions reopen the affected review.
 
@@ -264,17 +265,16 @@ do not establish agent performance.
 Use `first_eval_execution_settings` only after approval of the authored suite when
 concrete agent runs are ready. The conversation contract owns its
 settings checklist; record the actual target/model, task/example mapping, repeats,
-validation work, time/cost bounds, and unresolved questions. Mark costs unknown
-without supported estimates. Settings are separate from design and never gate
+validation work, user-specified limits, and unresolved questions.
+Settings are separate from design and never gate
 task generation or either task review. Required grading validation has already
 passed before either authored-task review; it does not wait for this checkpoint.
 Reuse applicable previously displayed settings and prior authorization without
 another generic approval gate.
 
-Paid work requires explicit authorization within its concrete displayed bounds.
-Design approval, task approval, or positive feedback alone grants no spending
-consent. Ask only about the missing authorization or execution setting, preserving
-independent work. Do not ask again when current authorization already covers it.
+Ask only about missing execution settings or whether agent execution is part of
+the requested scope, preserving independent work. Required model calls follow
+the shared model-call policy. Do not add a spending approval checkpoint.
 
 Use the actual repository agent through its supported integration. Save and
 inspect explicit provider-native selection, agent/model settings, attempts, reset,
@@ -334,7 +334,7 @@ selected sources, evidence limits, and preferences. Reuse unchanged prerequisite
 and resolve only audit-specific or changed needs. Missing audit evidence blocks
 only the audit; never silently run evaluations to create traces. Declining keeps
 the completed suite and does not start or repeatedly offer an audit. Audit consent
-does not authorize more tasks, agent edits, or additional paid runs.
+does not authorize more tasks, agent edits, or unrequested agent runs.
 
 ## Starter expansion
 
@@ -355,7 +355,7 @@ validation claims rather than requiring new approval of unchanged tasks.
 
 Use the provider references for native authoring and execution, preserving main's
 Draft/Accepted lifecycle and finalized task documentation. Show concrete execution
-settings when paid work is ready and reuse existing bounded authorization. Update
+settings when agent execution is ready and reuse existing authorization. Update
 the suite README/report outside validated task trees, reconcile retained versus
 added work, and retain the existing expansion progress and handoff. Do not claim
 that the create-only renderer or record establishes expansion completion.

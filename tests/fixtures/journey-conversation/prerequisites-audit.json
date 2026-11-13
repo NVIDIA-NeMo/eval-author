@@ -9,6 +9,7 @@
         "findings": "You selected the custom evaluation suite.",
         "source": "User reply 1"
       }
-    }
+    },
+    "audit_mode": "measured"
   }
 }

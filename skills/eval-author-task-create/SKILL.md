@@ -399,8 +399,9 @@ merely to make it pass.
 
 ## Step 6: run the real agent twice
 
-Running a model spends credentials. Do it only when the user asked for the run
-or approved it. Use the repository's proven agent configuration and point it at
+Run the real agent when it is part of the user's requested task creation.
+Follow the shared [model-call policy](../eval-author/references/shared-prerequisites.md#model-calls-for-requested-work).
+Use the repository's proven agent configuration and point it at
 the draft. Record each attempt as its own invocation with fresh native output:
 one NeMo Gym repeat per recorded run, or one Harbor trial per run with a distinct
 trial name. One job with two attempts cannot back two receipts. Keep all outputs
@@ -518,8 +519,7 @@ task creation additionally needs an actionable measured tool gap, Python 3.11+,
 and the selected native runtime: NeMo Gym in its separate environment or a Harbor
 CLI supporting `harbor task init`. Docker is needed for Docker-backed execution;
 measurement uses the audit skill's dependencies.
-Use the repository's proven agent configuration and authorize real-agent spend
-before starting those jobs.
+Use the repository's proven agent configuration for jobs within the requested scope.
 
 ## Limitations
 

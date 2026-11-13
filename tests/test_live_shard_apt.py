@@ -42,11 +42,13 @@ def update(callback):
 def record(value):
     value["calls"].append([Path(sys.argv[0]).name, args])
 if Path(sys.argv[0]).name == "dpkg-query":
-    assert args == ["-W", "-f=${Version}", "apt"]
-    print(os.environ.get("APT_TEST_VERSION", "2.8.4ubuntu0.1"), end="")
-    sys.exit(int(os.environ.get("APT_TEST_QUERY_EXIT", "0")))
+    assert args[:2] == ["-W", "-f=${Version}"]
+    assert args[2] in ("apt", "libapt-pkg6.0t64")
+    version = os.environ.get("APT_TEST_VERSION" if args[2] == "apt" else "APT_TEST_LIB_VERSION", "2.8.4ubuntu0.1")
+    print(version, end="")
+    sys.exit(int(os.environ.get("APT_TEST_QUERY_EXIT" if args[2] == "apt" else "APT_TEST_LIB_QUERY_EXIT", "0")))
 if Path(sys.argv[0]).name == "dpkg":
-    assert args == ["--compare-versions", os.environ.get("APT_TEST_VERSION", "2.8.4ubuntu0.1"), "ge", "2.8.4ubuntu0.1"]
+    assert args[0] == "--compare-versions" and args[2:] == ["ge", "2.8.4ubuntu0.1"]
     sys.exit(0 if args[1] in ("2.8.4ubuntu0.1", "2.8.4ubuntu0.2") else 1)
 update(record)
 if Path(sys.argv[0]).name == "chown":
@@ -122,6 +124,15 @@ def test_unpatched_or_missing_apt_rejects_before_acquisition(apt_commands, versi
     assert not list(archive.iterdir())
 
 
+@pytest.mark.parametrize("version,query_exit", [("2.8.3", "0"), ("", "0"), ("", "1"), ("2.8.4ubuntu0.1", "1")])
+def test_unpatched_or_missing_libapt_rejects_before_acquisition(apt_commands, version, query_exit):
+    run, archive = apt_commands
+    result, state = run(APT_TEST_LIB_VERSION=version, APT_TEST_LIB_QUERY_EXIT=query_exit)
+    assert result.returncode != 0
+    assert not state["calls"]
+    assert not list(archive.iterdir())
+
+
 @pytest.mark.parametrize("version", ["2.8.4ubuntu0.1", "2.8.4ubuntu0.2"])
 def test_patched_apt_allows_acquisition(apt_commands, version):
     run, _ = apt_commands
@@ -133,12 +144,177 @@ def test_patched_apt_allows_acquisition(apt_commands, version):
 def test_recipe_bootstraps_patched_apt_without_retries_before_helper():
     recipe = (ROOT / "tools/live_shard.Dockerfile").read_text().replace("\\\n", " ")
     update = "apt-get update -o Acquire::Retries=0"
-    bootstrap = "apt-get install -y --no-install-recommends -o Acquire::Retries=0 apt=2.8.4ubuntu0.1"
+    bootstrap = (
+        "apt-get install -y --no-install-recommends -o Acquire::Retries=0 "
+        "apt=2.8.4ubuntu0.1 libapt-pkg6.0t64=2.8.4ubuntu0.1"
+    )
     helper = 'bash /opt/live_shard_apt.sh /var/cache/apt/archives "$APT_SNAPSHOT"'
     assert recipe.index(update) < recipe.index(bootstrap) < recipe.index(helper)
     assert "Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg" in recipe
     assert "--allow-unauthenticated" not in recipe
     assert "apt-get upgrade" not in recipe and "apt-get dist-upgrade" not in recipe
+
+
+@pytest.fixture
+def bootstrap_commands(tmp_path):
+    binary = tmp_path / "bin"
+    binary.mkdir()
+    sources = tmp_path / "ubuntu.sources"
+    state = tmp_path / "bootstrap.json"
+    state.write_text("[]")
+    fake = binary / "apt-get"
+    fake.write_text(
+        f"#!{sys.executable}\n"
+        + """import json, os, sys
+from pathlib import Path
+name, args = Path(sys.argv[0]).name, sys.argv[1:]
+state = Path(os.environ["APT_TEST_STATE"])
+calls = json.loads(state.read_text())
+source = Path(os.environ["APT_TEST_SOURCES"]).read_text()
+calls.append([name, args, source])
+state.write_text(json.dumps(calls))
+if name == "apt-get":
+    phase = "index" if args[0] == "update" else "bootstrap"
+    if phase == "index" and "Suites: noble noble-updates noble-security" in source:
+        phase = "full"
+    sys.exit(7 if os.environ.get("APT_TEST_FAIL") == phase else 0)
+if name == "dpkg-query":
+    if args == ["-W"]:
+        sys.exit(0)
+    assert args[:2] == ["-W", "-f=${Version}"]
+    package = args[2]
+    version = os.environ.get("APT_TEST_APT" if package == "apt" else "APT_TEST_LIB", "2.8.4ubuntu0.1")
+    print(version, end="")
+    sys.exit(1 if os.environ.get("APT_TEST_MISSING") == package else 0)
+if name == "dpkg":
+    assert args[0] == "--compare-versions"
+    assert args[2:] == ["ge", "2.8.4ubuntu0.1"]
+    sys.exit(0 if args[1] in ("2.8.4ubuntu0.1", "2.8.4ubuntu0.2") else 1)
+assert name == "dependency-helper"
+"""
+    )
+    fake.chmod(0o755)
+    for name in ("dpkg", "dpkg-query", "dependency-helper"):
+        (binary / name).symlink_to(fake)
+    helper = tmp_path / "helper.sh"
+    helper.write_text('exec dependency-helper "$@"\n')
+    recipe = (ROOT / "tools/live_shard.Dockerfile").read_text().replace("\\\n", " ")
+    script = recipe.split("\nRUN ", 1)[1].split("\nRUN ", 1)[0]
+    script = script.replace("/etc/apt/sources.list.d/ubuntu.sources", str(sources))
+    script = script.replace("/opt/live_shard_apt.sh", str(helper))
+    script = script.replace("/opt/execution-image-packages.txt", str(tmp_path / "packages.txt"))
+    script = script.replace("/var/lib/apt/lists", str(tmp_path / "lists"))
+    script = script.replace("/var/cache/apt/archives", str(tmp_path / "archives"))
+    env = {
+        "PATH": str(binary) + os.pathsep + os.defpath,
+        "HOME": str(tmp_path),
+        "TMPDIR": str(tmp_path),
+        "APT_SNAPSHOT": "20261105T000000Z",
+        "APT_TEST_STATE": str(state),
+        "APT_TEST_SOURCES": str(sources),
+    }
+
+    def run(**changes):
+        result = subprocess.run(
+            ["/bin/sh", "-c", script],
+            env={**env, **changes},
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return result, json.loads(state.read_text())
+
+    return run, tmp_path
+
+
+def test_generated_recipe_bootstraps_security_only_before_full_update(bootstrap_commands):
+    run, tmp_path = bootstrap_commands
+    result, calls = run()
+    assert result.returncode == 0, result.stderr
+    assert [name for name, _, _ in calls] == [
+        "apt-get",
+        "apt-get",
+        "dpkg-query",
+        "dpkg",
+        "dpkg-query",
+        "dpkg",
+        "apt-get",
+        "dependency-helper",
+        "dpkg-query",
+    ]
+    security = (
+        "Types: deb\nURIs: https://snapshot.ubuntu.com/ubuntu/20261105T000000Z/\n"
+        "Suites: noble-security\nComponents: main\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n"
+    )
+    full = security.replace("Suites: noble-security", "Suites: noble noble-updates noble-security").replace(
+        "Components: main", "Components: main universe"
+    )
+    assert [source for _, _, source in calls] == [security] * 6 + [full] * 3
+    update = [
+        "update",
+        "-o",
+        "Acquire::Retries=0",
+        "-o",
+        "APT::Update::Error-Mode=any",
+        "-o",
+        "Acquire::CompressionTypes::Order=xz",
+    ]
+    assert calls[0][1] == update
+    assert calls[1][1] == [
+        "install",
+        "-y",
+        "--no-install-recommends",
+        "-o",
+        "Acquire::Retries=0",
+        "apt=2.8.4ubuntu0.1",
+        "libapt-pkg6.0t64=2.8.4ubuntu0.1",
+    ]
+    assert calls[2][1] == ["-W", "-f=${Version}", "apt"]
+    assert calls[4][1] == ["-W", "-f=${Version}", "libapt-pkg6.0t64"]
+    assert calls[6][1] == [arg.replace("Acquire::Retries=0", "Acquire::Retries=1") for arg in update]
+    assert calls[7][1] == [str(tmp_path / "archives"), "20261105T000000Z", *PACKAGES]
+    assert [line.split(" uptime=")[0] for line in result.stdout.splitlines()] == [
+        "EA_TOOLING_STAGE=apt_index",
+        "EA_TOOLING_STAGE=apt_bootstrap",
+        "EA_TOOLING_STAGE=apt_full_index",
+    ]
+
+
+@pytest.mark.parametrize("failure,expected", [("index", 1), ("bootstrap", 2), ("full", 7)])
+def test_generated_recipe_failed_apt_command_aborts_transaction(bootstrap_commands, failure, expected):
+    run, tmp_path = bootstrap_commands
+    result, calls = run(APT_TEST_FAIL=failure)
+    assert result.returncode == 7
+    assert len(calls) == expected
+    assert calls[-1][0] == "apt-get"
+    assert (tmp_path / "helper.sh").is_file()
+    assert not (tmp_path / "packages.txt").exists()
+    assert not any(name == "dependency-helper" for name, _, _ in calls)
+    assert [args for name, args, _ in calls if name == "apt-get"].count(calls[-1][1]) == 1
+    if failure != "full":
+        assert all("Suites: noble-security\nComponents: main\n" in source for _, _, source in calls)
+        assert all("Acquire::Retries=1" not in args for _, args, _ in calls)
+        assert "EA_TOOLING_STAGE=apt_full_index" not in result.stdout
+
+
+@pytest.mark.parametrize("package", ["apt", "libapt-pkg6.0t64"])
+@pytest.mark.parametrize("version,missing", [("2.8.3", False), ("", False), ("", True), ("2.8.4ubuntu0.1", True)])
+def test_generated_recipe_rejects_unpatched_or_missing_package_before_full_sources(
+    bootstrap_commands, package, version, missing
+):
+    run, _ = bootstrap_commands
+    result, calls = run(
+        **{
+            "APT_TEST_APT" if package == "apt" else "APT_TEST_LIB": version,
+            "APT_TEST_MISSING": package if missing else "",
+        }
+    )
+    assert result.returncode != 0
+    assert [name for name, _, _ in calls[:2]] == ["apt-get", "apt-get"]
+    assert len(calls) == (3 if package == "apt" else 5) + (0 if missing or not version else 1)
+    assert calls[-1][0] == ("dpkg-query" if missing or not version else "dpkg")
+    assert all("Suites: noble-security\nComponents: main\n" in source for _, _, source in calls)
+    assert "EA_TOOLING_STAGE=apt_full_index" not in result.stdout
 
 
 def test_recipe_removes_build_only_helper_after_installation():
@@ -166,15 +342,331 @@ def test_snapshot_argument_selects_exact_transaction(apt_commands):
     assert len(state["finished"]) == 1
 
 
+@pytest.fixture
+def native_bootstrap_commands(tmp_path):
+    binary = tmp_path / "bin"
+    binary.mkdir()
+    state = tmp_path / "native.json"
+    state.write_text("[]")
+    fake = binary / "apt-get"
+    fake.write_text(
+        f"#!{sys.executable}\n"
+        + """import json, os, sys
+from pathlib import Path
+name, args = Path(sys.argv[0]).name, sys.argv[1:]
+state = Path(os.environ["APT_TEST_STATE"])
+calls = json.loads(state.read_text())
+calls.append([name, args])
+state.write_text(json.dumps(calls))
+if name == "curl":
+    sys.exit(28)
+elif name == "timeout":
+    assert args[:3] == ["--kill-after=1s", "25s", "bash"]
+    if os.environ.get("APT_TEST_DIAGNOSTIC_FAIL"):
+        sys.exit(124)
+    os.execv("/bin/bash", ["bash", *args[3:]])
+elif name == "dpkg":
+    assert args == ["--print-architecture"]
+    print("amd64")
+elif name == "dpkg-query":
+    print("2.8.3")
+elif name == "apt-get":
+    phase = "update" if "update" in args else "download"
+    if os.environ.get("APT_TEST_FAIL") == phase:
+        sys.exit(7)
+    if phase == "download":
+        for package in ("apt", "libapt-pkg6.0t64"):
+            Path(f"{package}_2.8.4ubuntu0.1_amd64.deb").write_bytes(b"synthetic archive")
+elif name == "dpkg-deb":
+    if args[0] == "--show":
+        package = Path(args[2]).name.split("_")[0]
+        print(package)
+        print(os.environ.get("APT_TEST_VERSION", "2.8.4ubuntu0.1"))
+        print("amd64")
+    else:
+        assert args[0] == "--extract"
+        root = Path(args[2])
+        (root / "usr/lib/apt/methods").mkdir(parents=True, exist_ok=True)
+        (root / "usr/lib/x86_64-linux-gnu").mkdir(parents=True, exist_ok=True)
+        (root / "usr/lib/x86_64-linux-gnu/libapt-pkg.so.6.0").touch()
+        helper = root / "usr/lib/apt/apt-helper"
+        helper.write_text("#!/bin/sh\\nprintf 'apt 2.8.4 (amd64)\\\\n'\\n")
+        helper.chmod(0o755)
+else:
+    raise AssertionError(name)
+"""
+    )
+    fake.chmod(0o755)
+    for name in ("dpkg", "dpkg-query", "dpkg-deb", "curl", "timeout"):
+        (binary / name).symlink_to(fake)
+    root = tmp_path / "private-apt"
+
+    def run(**changes):
+        result = subprocess.run(
+            ["/bin/bash", str(ROOT / "tools/bootstrap_native_apt.sh"), str(root)],
+            env={"PATH": str(binary) + os.pathsep + os.defpath, "APT_TEST_STATE": str(state), **changes},
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return result, json.loads(state.read_text()), root
+
+    return run
+
+
+@pytest.mark.parametrize("diagnostic_failure", [False, True])
+@pytest.mark.parametrize("bootstrap_failure", ["", "update", "download"])
+def test_native_diagnostic_is_bounded_prebootstrap_and_preserves_status(
+    native_bootstrap_commands, diagnostic_failure, bootstrap_failure
+):
+    result, calls, root = native_bootstrap_commands(
+        APT_TEST_DIAGNOSTIC_FAIL="1" if diagnostic_failure else "", APT_TEST_FAIL=bootstrap_failure
+    )
+    assert result.returncode == (7 if bootstrap_failure else 0)
+    assert calls[0] == ["timeout", ["--kill-after=1s", "25s", "bash", str(ROOT / "tools/diagnose_native_apt_https.sh")]]
+    assert [name for name, _ in calls].count("curl") == (0 if diagnostic_failure else 4)
+    if bootstrap_failure:
+        assert not any(name == "dpkg-deb" for name, _ in calls)
+        assert not (root / "usr").exists()
+        if bootstrap_failure == "update":
+            assert sum(name == "apt-get" for name, _ in calls) == 1
+
+
+def test_native_bootstrap_isolates_fixed_apt_from_vulnerable_host(native_bootstrap_commands):
+    result, calls, root = native_bootstrap_commands()
+    assert result.returncode == 0, result.stderr
+    assert not any(name == "dpkg-query" for name, _ in calls)
+    apt_calls = [args for name, args in calls if name == "apt-get"]
+    assert len(apt_calls) == 2
+    assert all("Acquire::Retries=0" in args for args in apt_calls)
+    assert apt_calls[1][-3:] == ["download", "apt=2.8.4ubuntu0.1", "libapt-pkg6.0t64=2.8.4ubuntu0.1"]
+    assert all("install" not in args and "upgrade" not in args for args in apt_calls)
+    assert all(f"Dir::Etc::sourcelist={root}/ubuntu.sources" in args for args in apt_calls)
+    assert all("Dir::Etc::sourceparts=-" in args for args in apt_calls)
+    assert "Suites: noble-security\nComponents: main\n" in (root / "ubuntu.sources").read_text()
+    assert "Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg" in (root / "ubuntu.sources").read_text()
+    assert (root / "usr/lib/apt/apt-helper").is_file()
+
+
+@pytest.mark.parametrize("failure", ["update", "download"])
+def test_native_bootstrap_failed_acquisition_never_extracts(native_bootstrap_commands, failure):
+    result, calls, root = native_bootstrap_commands(APT_TEST_FAIL=failure)
+    assert result.returncode == 7
+    assert not any(name == "dpkg-deb" for name, _ in calls)
+    assert not (root / "usr").exists()
+
+
+@pytest.mark.parametrize("version", ["2.8.3", "", "2.8.4ubuntu0.2"])
+def test_native_bootstrap_rejects_unexpected_archive_before_extraction(native_bootstrap_commands, version):
+    result, calls, root = native_bootstrap_commands(APT_TEST_VERSION=version)
+    assert result.returncode != 0
+    assert not any(name == "dpkg-deb" and args[0] == "--extract" for name, args in calls)
+    assert not (root / "usr").exists()
+
+
+def test_ci_bootstraps_private_apt_before_both_python_test_groups():
+    import yaml
+
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    job = workflow["jobs"]["test"]
+    assert job["strategy"]["matrix"]["python-version"] == ["3.12", "3.13"]
+    bootstrap = next(step for step in job["steps"] if "bootstrap_native_apt.sh" in step.get("run", ""))
+    tests = next(step for step in job["steps"] if step.get("name") == "Run tests across runner CPUs")
+    assert job["steps"].index(bootstrap) < job["steps"].index(tests)
+    assert bootstrap["run"] == 'bash tools/bootstrap_native_apt.sh "$RUNNER_TEMP/native-apt"'
+    assert bootstrap["timeout-minutes"] == 3
+    assert tests["env"]["EVAL_AUTHOR_NATIVE_APT_ROOT"] == "${{ runner.temp }}/native-apt"
+
+
+@pytest.fixture
+def native_host_commands(monkeypatch):
+    for name in ("EVAL_AUTHOR_NATIVE_APT_ROOT", "GITHUB_ACTIONS", "CI"):
+        monkeypatch.delenv(name, raising=False)
+    original_is_file = Path.is_file
+    calls = []
+
+    def configure(apt="2.8.4ubuntu0.1", libapt=None, helper=True, missing_command=None):
+        def is_file(path):
+            if path == Path("/usr/lib/apt/apt-helper"):
+                return helper
+            return original_is_file(path)
+
+        def run(args, **kwargs):
+            calls.append(args)
+            if args[0] == missing_command:
+                raise FileNotFoundError(args[0])
+            if args[0] == "dpkg-query":
+                version = apt if args[-1] == "apt" else libapt
+                return subprocess.CompletedProcess(args, 0 if version is not None else 1, version or "", "")
+            assert args[:1] == ["dpkg"] and args[1] == "--compare-versions"
+            assert args[3:] == ["ge", "2.8.4ubuntu0.1"]
+            return subprocess.CompletedProcess(args, 0 if args[2] in ("2.8.4ubuntu0.1", "2.8.4ubuntu0.2") else 1)
+
+        monkeypatch.setattr(Path, "is_file", is_file)
+        monkeypatch.setattr(subprocess, "run", run)
+        return calls
+
+    return configure
+
+
+def test_unconfigured_host_missing_libapt_skips_native_controls(native_host_commands):
+    calls = native_host_commands()
+    with pytest.raises(pytest.skip.Exception, match="patched APT and libapt required"):
+        native_apt_environment()
+    assert [args[0] for args in calls] == ["dpkg-query", "dpkg", "dpkg-query"]
+
+
+@pytest.mark.parametrize(
+    "apt,libapt,helper,missing_command",
+    [
+        ("2.6.1", None, True, None),  # Debian 12
+        ("2.4.14", None, True, None),  # Ubuntu 22.04
+        ("2.8.3", "2.8.3", True, None),  # Unpatched Ubuntu 24.04
+        ("2.8.4ubuntu0.1", "2.8.3", True, None),
+        (None, "2.8.4ubuntu0.1", True, None),
+        ("", "2.8.4ubuntu0.1", True, None),
+        ("2.8.4ubuntu0.1", "", True, None),
+        ("2.8.4ubuntu0.1", "2.8.4ubuntu0.1", False, None),
+        ("2.8.4ubuntu0.1", "2.8.4ubuntu0.1", True, "dpkg-query"),
+        ("2.8.4ubuntu0.1", "2.8.4ubuntu0.1", True, "dpkg"),
+    ],
+)
+def test_unsupported_unconfigured_host_skips(native_host_commands, apt, libapt, helper, missing_command):
+    calls = native_host_commands(apt=apt, libapt=libapt, helper=helper, missing_command=missing_command)
+    with pytest.raises(pytest.skip.Exception):
+        native_apt_environment()
+    assert not any(args[0].endswith("apt-helper") for args in calls)
+
+
+@pytest.mark.parametrize("ci", [None, "GITHUB_ACTIONS", "CI"])
+@pytest.mark.parametrize("version", ["2.8.4ubuntu0.1", "2.8.4ubuntu0.2"])
+def test_both_host_packages_at_floor_allow_native_controls(native_host_commands, monkeypatch, ci, version):
+    calls = native_host_commands(apt=version, libapt=version)
+    if ci:
+        monkeypatch.setenv(ci, "true")
+    assert native_apt_environment() == (Path("/usr/lib/apt/apt-helper"), {})
+    assert [args[-1] for args in calls if args[0] == "dpkg-query"] == ["apt", "libapt-pkg6.0t64"]
+    assert sum(args[0] == "dpkg" for args in calls) == 2
+
+
+@pytest.mark.parametrize("ci", ["GITHUB_ACTIONS", "CI"])
+@pytest.mark.parametrize("problem", ["helper", "apt", "libapt", "dpkg-query", "dpkg"])
+def test_ci_requires_native_controls(native_host_commands, monkeypatch, ci, problem):
+    calls = native_host_commands(
+        apt="2.8.3" if problem == "apt" else "2.8.4ubuntu0.1",
+        libapt=None if problem == "libapt" else "2.8.4ubuntu0.1",
+        helper=problem != "helper",
+        missing_command=problem if problem in ("dpkg-query", "dpkg") else None,
+    )
+    monkeypatch.setenv(ci, "true")
+    with pytest.raises(pytest.fail.Exception):
+        native_apt_environment()
+    assert not any(args[0].endswith("apt-helper") for args in calls)
+
+
+@pytest.mark.parametrize("private", ["", "missing-native-apt"])
+def test_explicit_broken_native_root_never_falls_back(native_host_commands, monkeypatch, tmp_path, private):
+    calls = native_host_commands(libapt="2.8.4ubuntu0.1")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("EVAL_AUTHOR_NATIVE_APT_ROOT", private)
+    with pytest.raises(pytest.fail.Exception):
+        native_apt_environment()
+    assert calls == []
+
+
+@pytest.mark.parametrize("problem", [None, "library", "apt", "libapt", "version", "architecture", "command"])
+def test_explicit_native_root_validates_before_retry(native_bootstrap_commands, monkeypatch, tmp_path, problem):
+    result, _, root = native_bootstrap_commands()
+    assert result.returncode == 0, result.stderr
+    for name in ("CI", "GITHUB_ACTIONS"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("EVAL_AUTHOR_NATIVE_APT_ROOT", str(root))
+    if problem == "library":
+        (root / "usr/lib/x86_64-linux-gnu/libapt-pkg.so.6.0").unlink()
+    calls = []
+
+    def check_output(args, **kwargs):
+        calls.append(args)
+        if problem == "command":
+            raise FileNotFoundError(args[0])
+        if args[0] == "dpkg":
+            return "unsupported" if problem == "architecture" else "amd64"
+        if args[0] == "dpkg-deb":
+            package = Path(args[-1]).name.split("_")[0]
+            version = "2.8.3" if problem == ("apt" if package == "apt" else "libapt") else "2.8.4ubuntu0.1"
+            return f"{package}\n{version}\namd64"
+        assert args == [str(root / "usr/lib/apt/apt-helper"), "--version"]
+        assert kwargs["env"] == {"LD_LIBRARY_PATH": str(root / "usr/lib/x86_64-linux-gnu")}
+        return "apt 2.8.3 (amd64)" if problem == "version" else "apt 2.8.4 (amd64)"
+
+    monkeypatch.setattr(subprocess, "check_output", check_output)
+    if problem is None:
+        helper, env = native_apt_environment()
+        assert helper == root / "usr/lib/apt/apt-helper"
+        assert env == {"LD_LIBRARY_PATH": str(root / "usr/lib/x86_64-linux-gnu")}
+        assert len(calls) == 4
+    else:
+        with pytest.raises((AssertionError, KeyError, OSError)):
+            native_apt_environment()
+    assert not any("download-file" in args for args in calls)
+
+
+@pytest.fixture(scope="session")
+def native_apt():
+    return native_apt_environment()
+
+
+def native_apt_environment():
+    private = os.environ.get("EVAL_AUTHOR_NATIVE_APT_ROOT")
+    required = private is not None or any(os.environ.get(name) == "true" for name in ("GITHUB_ACTIONS", "CI"))
+    reject = pytest.fail if required else pytest.skip
+    if private == "":
+        pytest.fail("EVAL_AUTHOR_NATIVE_APT_ROOT must name a bootstrapped native APT directory")
+    helper = Path(private) / "usr/lib/apt/apt-helper" if private else Path("/usr/lib/apt/apt-helper")
+    if not helper.is_file():
+        reject("native APT bootstrap required; see DEVELOPMENT.md")
+    env = {}
+    if private:
+        architecture = subprocess.check_output(["dpkg", "--print-architecture"], text=True, timeout=10).strip()
+        triplet = {"amd64": "x86_64-linux-gnu", "arm64": "aarch64-linux-gnu"}[architecture]
+        env["LD_LIBRARY_PATH"] = str(Path(private) / "usr/lib" / triplet)
+        assert (Path(env["LD_LIBRARY_PATH"]) / "libapt-pkg.so.6.0").is_file()
+        for package in ("apt", "libapt-pkg6.0t64"):
+            archive = Path(private) / "archives" / f"{package}_2.8.4ubuntu0.1_{architecture}.deb"
+            metadata = subprocess.check_output(
+                ["dpkg-deb", "--show", "--showformat=${Package}\n${Version}\n${Architecture}", str(archive)],
+                text=True,
+                timeout=10,
+            ).strip()
+            assert metadata == f"{package}\n2.8.4ubuntu0.1\n{architecture}"
+        version = subprocess.check_output([str(helper), "--version"], env=env, text=True, timeout=10).strip()
+        assert version == f"apt 2.8.4 ({architecture})"
+    else:
+        for package in ("apt", "libapt-pkg6.0t64"):
+            try:
+                installed = subprocess.run(
+                    ["dpkg-query", "-W", "-f=${Version}", package], capture_output=True, text=True, timeout=10
+                )
+                if installed.returncode != 0 or not installed.stdout.strip():
+                    reject("patched APT and libapt required for native retry test")
+                floor = subprocess.run(
+                    ["dpkg", "--compare-versions", installed.stdout, "ge", "2.8.4ubuntu0.1"], timeout=10
+                )
+            except (OSError, subprocess.SubprocessError):
+                reject("patched APT and libapt required for native retry test")
+            if floor.returncode != 0:
+                reject("patched APT and libapt required for native retry test")
+    return helper, env
+
+
 @pytest.mark.parametrize("failure", ["transient", "permanent", "hash"])
-def test_native_apt_retries_only_transient_downloads(tmp_path, failure):
+def test_native_apt_retries_only_transient_downloads(tmp_path, failure, native_apt):
     import hashlib
     import http.server
     import threading
 
-    helper = Path("/usr/lib/apt/apt-helper")
-    if not helper.is_file():
-        pytest.skip("native APT required")
+    helper, native_env = native_apt
+    method_options = ["-o", f"Dir::Bin::methods={helper.parent / 'methods'}"]
     payload = b"synthetic package bytes"
     requests = []
 
@@ -201,6 +693,7 @@ def test_native_apt_retries_only_transient_downloads(tmp_path, failure):
         result = subprocess.run(
             [
                 str(helper),
+                *method_options,
                 "-o",
                 "Acquire::Retries=1",
                 "download-file",
@@ -208,7 +701,7 @@ def test_native_apt_retries_only_transient_downloads(tmp_path, failure):
                 str(output),
                 f"SHA256:{digest}",
             ],
-            env={"PATH": os.defpath, "HOME": str(tmp_path)},
+            env={"PATH": os.defpath, "HOME": str(tmp_path), **native_env},
             capture_output=True,
             text=True,
             timeout=20,

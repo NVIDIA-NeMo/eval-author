@@ -121,7 +121,7 @@ are the **execution implementation** and the **results-directory interface**.
 
 | Component | Role |
 | --- | --- |
-| Execution implementation | Runs the configured agent-by-task matrix and assembles its outputs. The initial implementation is a simple local Harbor loop, one agent's full benchmark at a time. A future NeMo Helix implementation will orchestrate evaluations at scale. |
+| Execution implementation | Runs the configured agent-by-task matrix and assembles its outputs. The initial implementation is a simple local Harbor loop, one agent's full benchmark at a time. A future [NeMo Helix implementation](helix-architecture.md) will orchestrate evaluations at scale. |
 | Results directory | Carries the task inventory, agent/task identities, statuses, measurements, and native evidence into analysis. Both execution implementations produce the same contract. |
 
 The experiment root contains `execution.json`, mapping each case ID to its
@@ -209,7 +209,7 @@ configuration and coordinates their execution.
 
 | Stage | Python tool / library operation |
 | --- | --- |
-| Execute evals | `run_evals.py` / `metric_benchmark.execution.execute_benchmark`; a future NeMo Helix tool will produce the same results-directory contract |
+| Execute evals | `run_evals.py` / `metric_benchmark.execution.execute_benchmark`; a future [NeMo Helix tool](helix-architecture.md) will produce the same results-directory contract |
 | Compute mutant scores | [`compute_mutant_scores.py`](compute-mutant-scores.md) / `metric_benchmark.scoring.compute_mutant_scores` |
 | Compute coverage | [`compute_coverage.py`](compute-coverage.md) / `metric_benchmark.coverage.invoke_coverage` |
 | Correlation | [`correlate.py`](correlate.md) / `metric_benchmark.correlation.correlate` |

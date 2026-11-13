@@ -97,8 +97,9 @@ Ethos again when the agent, intended behavior, or document has changed.
 Previously selected suites and runs do not need another selection; when those
 inputs are settled, the next review is the proposed audit checks. Measured audits
 require traces. Missing traces pause measurement while preserving earlier work.
-Task review can finish after you accept the findings, with run coverage labeled
-unmeasured. Both approaches save the Audit coverage report.
+Task review finishes once its findings are recorded, with run coverage labeled
+unmeasured. A saved audit without an approach defaults to task review.
+Both approaches save the Audit coverage report.
 If saved selections refer to older work, Eval Author explains their source and
 how they differ from current recorded tasks or runs, then asks which set you
 intend to audit. Missing-path findings identify the particular selection that
@@ -111,7 +112,15 @@ specific recovery step, such as restoring access, restoring a known valid copy,
 or confirming an intentional repository move. After recovery, it reloads saved
 progress and resumes the audit.
 
-For measured audits, if saved trace availability is unresolved or traces are absent, the prerequisite
+For measured audits, Eval Author checks `.eval-author/jobs/` for completed agent
+runs when trace availability is unresolved. It checks run metadata and trace-file
+presence, then offers relevant candidates when you select audit sources.
+It checks known task matches first, then newer jobs, and continues in batches
+when needed. Logs and other trial files do not consume the job search budget.
+It reads trace contents only after you select the source. An empty or incomplete
+lookup leaves availability unresolved rather than proving no traces exist.
+
+If saved trace availability is unresolved or traces are absent, the prerequisite
 response explains the required action and links the audit skill instruction
 that requires the pause. Unknown availability and confirmed absence are shown
 separately; neither is a claim about measured coverage.
@@ -132,7 +141,8 @@ select a suite, and giving a trace location does not confirm the suite list.
 Once the evaluation scope is confirmed, it explains that traces record the
 agent's actual actions during a run, letting the audit check what was exercised
 beyond the test definitions and pass/fail scores. It then asks you to select
-the trace source and location, before searching or reading traces.
+the trace source and location before searching beyond the retained-job metadata
+or reading trace contents.
 This also applies to using traces to identify runtime tool names. A source you
 already explicitly selected is reused. If the location is unknown, it helps you
 choose a bounded place to look before searching.
@@ -140,7 +150,7 @@ choose a bounded place to look before searching.
 At **Define what the evals should cover**, review the proposed checks in the
 [Audit coverage report](results.md#coverage-audits). Approval allows measurement
 of the agreed traces without another readiness question. After measurement,
-review the findings in that same report; there is no intermediate approval pause.
+read the findings in that same report. You don't need to approve them.
 
 **Shared progress** (`.eval-author/.working/journey-state.json`) saves suite and
 trace selections separately, review decisions, measurement status, pending
@@ -152,7 +162,7 @@ within its selected suite or trace location.
 
 Changes to the agent, Ethos, selected scope, specification, cases, verifiers, or
 traces reopen check review and dependent measurement and findings. Changes to
-report content or its supporting evidence also reopen findings review. Saved
+report content or its supporting evidence also make recorded findings stale until they are regenerated. Saved
 progress therefore reflects the current inputs when you resume.
 
 Coverage measurement compares that specification with recorded traces
@@ -186,12 +196,11 @@ before presenting its findings as current.
 The review ends with a concrete offer to help with the next step. For an existing
 suite with supported gaps, Eval Author names the main gaps and offers to propose
 new or improved evaluation tasks, ranked with their expected behavior, verifier,
-and supporting evidence. One question offers corrections, acceptance, or the
-next action, then waits. Acceptance alone ends review without another question.
-Accepting the findings can complete a task review or fully measured
+and supporting evidence. The findings need no approval, so the audit ends without a question.
+Recording them can complete a task review or fully measured
 audit while you leave the next action undecided; it does not start proposal
-work. A deferred or partial measurement remains unfinished after findings review.
-Accepting the findings and that offer moves directly
+work. A deferred or partial measurement remains unfinished after the findings.
+Choosing the offered action moves directly
 into the proposal workflow, reusing the report, specification, selected sources,
 and prior answers.
 

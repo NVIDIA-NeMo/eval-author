@@ -35,12 +35,18 @@ Use the saved [audit approach](../shared-prerequisites.md#choose-the-audit-appro
 For task review, record `data` as `not_required` with the user's approach choice
 as provenance. Do not ask whether traces exist, select them, or check measurement
 dependencies. The renderer keeps its traces row visible as not required.
-The requirements below apply only to measured audits, including legacy resumes.
+The requirements below apply only to measured audits.
 
 Keep this requirement visible in the initial status table and completed report.
 Reuse any supplied availability answer: use **Confirmed by you** when the user says those
 traces exist, **Missing** when they say none exist, and **Unknown** otherwise.
 Evaluation definitions and pass/fail scores alone do not satisfy this prerequisite.
+
+When availability is unresolved, apply the
+[retained-run lookup](../shared-prerequisites.md#locate-retained-evaluation-runs)
+before declaring a blocker or asking whether runs exist. When the lookup
+establishes availability, record `data: verified` with the observed paths and
+metadata as provenance. This verifies availability, not trace validity or coverage.
 
 Unknown or missing trace availability blocks full audit onboarding. Finish the
 other accessible checks, record the actual `data` status and a `data` blocker in

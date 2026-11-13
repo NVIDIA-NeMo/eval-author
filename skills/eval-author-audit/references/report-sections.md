@@ -9,7 +9,7 @@ statements, tables, evidence citations, links, numbering, and definitions are
 computed or come from fixed copy in `scripts/audit_spec/report_layout.py`.
 
 This guide follows the report from top to bottom. Each section lists what the
-renderer writes, which fields you author, and an example. Read it with the
+renderer writes and, where the section has any, the fields you author, with an example. Read it with the
 [worked content example](../examples/report-content.json) and the
 [content schema](../schemas/report_content.schema.json). The
 [report workflow](coverage-report.md) covers validation, rendering, and review.
@@ -82,6 +82,20 @@ the coverage limit each appear twice, and the task name becomes a link.
 > This audit includes 3 advisories, 4 findings, and 4 recommended tasks. 3 of 9 declared capabilities (33%) have at least one mapped task. The audit uncovered evidence of verifier cheating. Three of the four selected verifiers contain a grading path that an agent can satisfy without doing the task.
 >
 > Coverage was not measured for this audit because the audit measurement step was not run. Some tasks also lack runs that could be used to measure results. All findings come from inspecting the verifier code and the task files.
+
+## Evaluation coverage
+
+**The renderer writes:** one table under the `Evaluation coverage` heading, with the
+columns Current audit, Previous audit, and Change and the rows Capabilities,
+Capabilities covered, Coverage ratio, and Coverage basis. A sentence above it names
+the audit it compares with, or says `No comparable previous audit` for a first audit,
+in which case the Previous audit cells read `-` and the Change cells read `Not compared`.
+A changed declared scope or measurement method fills the Change cells with an explanation instead of a difference.
+Every value is computed from the specification, the task mappings, and the saved audit history, so this section has no
+content field to write.
+
+**Avoid:** adding a second coverage table, such as one with only a Current audit column, or restating
+the counts in prose. The report has exactly one Evaluation coverage table.
 
 ## Advisories
 

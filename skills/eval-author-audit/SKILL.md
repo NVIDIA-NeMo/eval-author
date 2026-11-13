@@ -96,8 +96,10 @@ returning-audit handoff above, follow
 [Guided audit milestones](references/guided-audit.md):
 confirm evals and, for measured audits, traces, define intended coverage, measure selected evidence when requested,
 then generate and review `audit-coverage-report.md`. Keep source and content
-reviews explicit. Use bounded agent and eval reads. Do not enumerate or read traces
-until their source and location are selected. An existing accepted source choice
+reviews explicit. Use bounded agent and eval reads. The
+[retained-run lookup](../eval-author/references/shared-prerequisites.md#locate-retained-evaluation-runs)
+is the only exception to source selection for locating candidate runs.
+Do not read trace contents until their source and location are selected. An existing accepted source choice
 needs no repeated confirmation. Render downstream checkpoints through the
 [audit conversation contract](../eval-author/references/conversations/audit.md).
 
@@ -475,11 +477,11 @@ audit; keep their scope. Read-only and `suggest` requests remain read-only.
 
 ## Next Steps
 
-- Before findings review, complete [verifier inspection and evidence reconciliation](references/coverage-report.md#inspect-verifier-behavior-and-retained-controls).
+- Before recording findings, complete [verifier inspection and evidence reconciliation](references/coverage-report.md#inspect-verifier-behavior-and-retained-controls).
   Coverage aggregation alone does not establish verifier screening.
 - For audit-generation inputs and reconciliation modes, return to
   [Step 2: Generate Or Reconcile Audit.md](#step-2-generate-or-reconcile-auditmd).
-- Follow the [combined findings review and handoff](references/guided-audit.md#after-review-offer-the-next-step)
+- Follow the [findings and next-step handoff](references/guided-audit.md#after-review-offer-the-next-step)
   before entering [`eval-author-task-create`](../eval-author-task-create/SKILL.md).
 - The proposal step considers tools, capabilities, and failure cases. Automatic
   task creation still accepts only uncovered tool items with

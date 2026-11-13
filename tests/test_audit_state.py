@@ -36,7 +36,7 @@ def selected(audit):
         "agent": "support",
         "journey": "audit",
         "ethos": {"path": "ETHOS.md", "stage": "complete", "confirmed_digest": audit.fingerprint("intent")},
-        "scopes": {"audit": {"lifecycle": value}},
+        "scopes": {"audit": {"mode": {"kind": "measured", "source": "User chose measured audit"}, "lifecycle": value}},
         "journey_status": {},
     }
     paths = value["suite_files"] + value["trace_files"] + [value["specification"]]
@@ -68,12 +68,8 @@ def measured(audit):
 
 
 def reviewed(audit):
-    state, value, observed = measured(audit)
-    value["findings_review"] = {
-        "digest": audit.derive(state, observed)["findings_digest"],
-        "source": "User accepts findings only",
-    }
-    return state, value, observed
+    """Recorded current findings are reviewed without any user decision."""
+    return measured(audit)
 
 
 @pytest.mark.parametrize("path", ["C:/runs/a.json", "/etc/passwd", ".", "../runs/a.json", "runs/./a.json"])
@@ -110,17 +106,13 @@ def test_selected_files_can_match_exact_file_bounds(audit, key, field):
 
 @pytest.mark.parametrize(
     "stage,partial",
-    [
-        (stage, False)
-        for stage in ("suite_selection", "trace_selection", "checks_review", "findings_review", "next_action")
-    ]
-    + [("findings_review", True), ("next_action", True)],
+    [(stage, False) for stage in ("suite_selection", "trace_selection", "checks_review", "next_action")]
+    + [("next_action", True)],
 )
 def test_restart_resumes_each_saved_decision(audit, monkeypatch, stage, partial):
     state, value, observed = reviewed(audit)
     if partial:
         value["measurement"]["status"] = "partial"
-        value["findings_review"]["digest"] = audit.derive(state, observed)["findings_digest"]
     if stage == "suite_selection":
         value["suites"] = audit.new_record()["suites"]
         value["suite_files"] = []
@@ -129,8 +121,6 @@ def test_restart_resumes_each_saved_decision(audit, monkeypatch, stage, partial)
         value["trace_files"] = []
     elif stage == "checks_review":
         value["checks_approval"] = None
-    elif stage == "findings_review":
-        value["findings_review"] = None
     previous = copy.deepcopy(state)
     value["pending"] = {
         "stage": stage,
@@ -146,47 +136,36 @@ def test_restart_resumes_each_saved_decision(audit, monkeypatch, stage, partial)
     if partial:
         assert not resumed["measurement_complete"] and not resumed["complete"]
         previous = copy.deepcopy(state)
-        if stage == "findings_review":
-            value["findings_review"] = {"digest": resumed["findings_digest"], "source": "User accepts partial findings"}
-        else:
-            value["next_action"] = {
-                "kind": "improve",
-                "findings_digest": resumed["findings_digest"],
-                "source": "User requests improvements",
-            }
+        value["next_action"] = {
+            "kind": "improve",
+            "findings_digest": resumed["findings_digest"],
+            "source": "User requests improvements",
+        }
         audit.transition(Path("/synthetic"), previous, state)
         answered = audit.derive(state, observed)
         assert answered["stage"] == "measurement" and answered["pending_checkpoint"] is None
-        assert answered["findings_reviewed"] and answered["next_action_current"] == (stage == "next_action")
+        assert answered["findings_reviewed"] and answered["next_action_current"]
         assert not answered["measurement_complete"] and not answered["complete"]
 
 
 @pytest.mark.parametrize(
     "stage,change",
     [
-        ("findings_review", "evidence"),
-        ("findings_review", "report"),
         ("next_action", "evidence"),
         ("next_action", "report"),
-        ("next_action", "approval"),
     ],
 )
 def test_partial_checkpoint_requires_current_findings_and_applicable_decision(audit, monkeypatch, stage, change):
     state, value, observed = measured(audit)
     value["measurement"]["status"] = "partial"
     digest = audit.derive(state, observed)["findings_digest"]
-    if stage == "next_action":
-        value["findings_review"] = {"digest": digest, "source": "User accepts partial findings"}
     previous = copy.deepcopy(state)
     value["pending"] = {"stage": stage, "digest": digest, "question": "Continue?", "source": "Presented findings"}
     assert audit.derive(state, observed)["pending_checkpoint"] == value["pending"]
-    if change == "approval":
-        value["findings_review"] = None
-    else:
-        ref = value["findings"]["report"] if change == "report" else value["measurement"]["evidence"][0]
-        observed["files"][ref["path"]] = audit.fingerprint("changed bytes")
-        if change == "evidence":
-            value["pending"]["digest"] = audit.derive(state, observed)["findings_digest"]
+    ref = value["findings"]["report"] if change == "report" else value["measurement"]["evidence"][0]
+    observed["files"][ref["path"]] = audit.fingerprint("changed bytes")
+    if change == "evidence":
+        value["pending"]["digest"] = audit.derive(state, observed)["findings_digest"]
     result = audit.derive(state, observed)
     assert result["stage"] == "measurement" and result["pending_checkpoint"] is None
     assert not result["measurement_complete"] and not result["complete"]
@@ -221,14 +200,48 @@ def test_input_changes_reopen_entire_audit_without_erasing_decisions(audit, chan
         assert value[key] == decisions[key]
 
 
-def test_report_changes_reopen_findings_only(audit):
+def test_recorded_findings_are_reviewed_without_a_user_decision(audit):
+    state, value, observed = measured(audit)
+    assert value["findings_review"] is None
+    result = audit.derive(state, observed)
+    assert result["findings_reviewed"] and result["complete"] and result["stage"] == "next_action"
+    assert result["pending_checkpoint"] is None and not result["next_action_current"]
+
+
+def test_legacy_findings_review_record_is_still_accepted(audit, monkeypatch):
+    previous, _, observed = measured(audit)
+    updated = copy.deepcopy(previous)
+    value = audit.record(updated)
+    value["findings_review"] = {
+        "digest": audit.derive(updated, observed)["findings_digest"],
+        "source": "User accepts findings only",
+    }
+    monkeypatch.setattr(audit, "observe", lambda *_: observed)
+    audit.transition(Path("/synthetic"), previous, updated)
+    assert audit.derive(updated, observed)["findings_reviewed"]
+
+
+def test_report_bytes_that_differ_from_the_recorded_binding_reopen_findings(audit):
     state, value, observed = reviewed(audit)
+    observed["files"][value["findings"]["report"]["path"]] = audit.fingerprint("edited after recording")
+    result = audit.derive(state, observed)
+    assert result["checks_approved"] and result["measurement_complete"]
+    assert not result["findings_reviewed"] and result["findings_digest"] is None
+    assert result["stage"] == "findings_review"
+
+
+def test_rebinding_a_revised_report_keeps_findings_reviewed_but_reopens_the_next_action(audit):
+    state, value, observed = reviewed(audit)
+    value["next_action"] = {
+        "kind": "improve",
+        "findings_digest": audit.derive(state, observed)["findings_digest"],
+        "source": "User requests improvements",
+    }
+    assert audit.derive(state, observed)["next_action_current"]
     report = value["findings"]["report"]
     report["digest"] = observed["files"][report["path"]] = audit.fingerprint("revised findings")
     result = audit.derive(state, observed)
-    assert result["checks_approved"] and result["measurement_complete"]
-    assert not result["findings_reviewed"]
-    assert result["stage"] == "findings_review"
+    assert result["findings_reviewed"] and not result["next_action_current"]
 
 
 def test_missing_evidence_reopens_measurement(audit):
@@ -272,21 +285,14 @@ def test_partial_or_deferred_findings_acceptance_preserves_unfinished_measuremen
     assert value["next_action"] is None and not result["next_action_current"]
 
 
-@pytest.mark.parametrize("change", ["report", "measurement", "changed_evidence", "missing_evidence"])
-def test_partial_findings_acceptance_requires_current_measurement_and_evidence(audit, monkeypatch, change):
+@pytest.mark.parametrize("change", ["report", "changed_evidence", "missing_evidence"])
+def test_partial_findings_require_current_measurement_and_evidence(audit, monkeypatch, change):
     state, value, observed = measured(audit)
     value["measurement"]["status"] = "partial"
-    value["findings_review"] = {
-        "digest": audit.derive(state, observed)["findings_digest"],
-        "source": "User accepts partial findings",
-    }
     assert audit.derive(state, observed)["findings_reviewed"]
     previous = copy.deepcopy(state)
     if change == "report":
-        report = value["findings"]["report"]
-        report["digest"] = observed["files"][report["path"]] = audit.fingerprint("revised findings")
-    elif change == "measurement":
-        value["measurement"]["status"] = "complete"
+        observed["files"][value["findings"]["report"]["path"]] = audit.fingerprint("edited after recording")
     else:
         evidence = value["measurement"]["evidence"][0]
         observed["files"][evidence["path"]] = (
@@ -296,7 +302,7 @@ def test_partial_findings_acceptance_requires_current_measurement_and_evidence(a
     assert result["checks_approved"] and not result["findings_reviewed"] and not result["complete"]
     if change in {"changed_evidence", "missing_evidence"}:
         assert result["findings_digest"] is not None
-        value["findings_review"]["digest"] = result["findings_digest"]
+        value["findings_review"] = {"digest": result["findings_digest"], "source": "Legacy findings acceptance"}
         monkeypatch.setattr(audit, "observe", lambda *_: observed)
         with pytest.raises(ValueError, match="Review current findings"):
             audit.transition(Path("/synthetic"), previous, state)
@@ -321,7 +327,7 @@ def test_improvement_requires_its_own_explicit_current_decision(audit, monkeypat
         audit.validate(value)
 
 
-@pytest.mark.parametrize("change", ["checks_approval", "findings_review", "next_action", "pending"])
+@pytest.mark.parametrize("change", ["checks_approval", "next_action", "pending"])
 def test_stale_decisions_are_rejected(audit, monkeypatch, change):
     previous, _, observed = reviewed(audit)
     updated = copy.deepcopy(previous)
@@ -529,7 +535,7 @@ def task_review(audit):
     return state, value, observed
 
 
-def test_task_review_finishes_without_traces_or_deferred_measurement(audit, monkeypatch):
+def test_task_review_finishes_without_traces_or_deferred_measurement(audit):
     state, value, observed = task_review(audit)
     assert audit.derive(state, observed)["stage"] == "checks_review"
     value["checks_approval"] = {
@@ -539,12 +545,13 @@ def test_task_review_finishes_without_traces_or_deferred_measurement(audit, monk
     report = {"path": ".eval-author/audit-coverage-report.md", "digest": audit.fingerprint("Task findings")}
     value["findings"] = {"report": report, "source": "Presented inspected task findings"}
     observed["files"][report["path"]] = report["digest"]
+    # The preliminary checks report is recorded as findings, so approving the checks cannot finish the audit.
+    preliminary = audit.derive(state, observed)
+    assert preliminary["stage"] == "findings_review" and not preliminary["complete"]
+    assert not preliminary["findings_reviewed"]
+    value["findings_final"] = {"digest": report["digest"], "source": "Finished the task analysis"}
     progress = audit.derive(state, observed)
-    assert progress["stage"] == "findings_review" and not progress["complete"]
-    previous = copy.deepcopy(state)
-    value["findings_review"] = {"digest": progress["findings_digest"], "source": "User accepted findings"}
-    monkeypatch.setattr(audit, "observe", lambda *_: observed)
-    audit.transition(Path("/synthetic"), previous, state)
+    assert progress["stage"] == "next_action" and progress["complete"] and progress["findings_reviewed"]
     resumed = audit.derive(json.loads(json.dumps(state)), observed)
     assert resumed["complete"] and resumed["findings_reviewed"]
     assert not resumed["measurement_complete"] and value["measurement"] is None
@@ -643,9 +650,29 @@ def test_task_review_keeps_controls_bound_under_a_retained_trace_directory(audit
     assert audit.derive(state, observed)["findings_digest"] is None
 
 
-def test_explicit_measured_choice_preserves_legacy_measurement_semantics(audit):
+def test_saved_audit_without_mode_defaults_to_unmeasured_task_review(audit):
     state, _, observed = reviewed(audit)
-    before = audit.derive(state, observed)
-    assert before["mode"] == "measured" and before["complete"]
-    state["scopes"]["audit"]["mode"] = {"kind": "measured", "source": "User chose measured audit"}
-    assert audit.derive(state, observed) == before
+    del state["scopes"]["audit"]["mode"]
+    before = copy.deepcopy(state)
+    observed["files"] = {path: digest for path, digest in observed["files"].items() if not path.startswith("runs/")}
+    progress = audit.derive(state, observed)
+    assert progress["mode"] == "task_review"
+    assert not progress["measurement_complete"] and not progress["checks_approved"]
+    assert not progress["complete"]
+    assert audit.traces_unused(state)
+    assert state == before
+
+
+def test_finalization_is_bound_to_the_current_findings_report(audit):
+    state, value, observed = task_review(audit)
+    value["checks_approval"] = {"digest": audit.derive(state, observed)["checks_digest"], "source": "User approval"}
+    report = {"path": ".eval-author/audit-coverage-report.md", "digest": audit.fingerprint("Checks report")}
+    value["findings"] = {"report": report, "source": "Presented the checks"}
+    observed["files"][report["path"]] = report["digest"]
+    value["findings_final"] = {"digest": report["digest"], "source": "Finished the task analysis"}
+    assert audit.derive(state, observed)["complete"]
+    revised = {"path": report["path"], "digest": audit.fingerprint("Revised report")}
+    value["findings"] = {"report": revised, "source": "Rewrote the report"}
+    observed["files"][revised["path"]] = revised["digest"]
+    progress = audit.derive(state, observed)
+    assert progress["stage"] == "findings_review" and not progress["complete"]

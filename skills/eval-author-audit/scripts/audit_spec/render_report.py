@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.parse import quote, unquote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import history  # noqa: E402
 import report_content as content  # noqa: E402
 import report_layout as layout  # noqa: E402
 
@@ -354,6 +355,83 @@ def capability_ratio(model: content.Content, covered: set[str], measured: set[st
     return layout.COPY[key].format(covered=count, count=total, ratio=ratio)
 
 
+def signed(value: int) -> str:
+    return f"{value:+d}"
+
+
+def relative(value: float | None) -> str:
+    return "" if value is None else f" ({value:+.1%})"
+
+
+def history_lines(model: content.Content, covered: set[str], measured: set[str], inputs: list[dict]) -> list[str]:
+    """Compare capability coverage with the previous reviewed audit of the same agent."""
+    mapped = {row["item"] for row in model.data["task_mappings"] if row["tasks"]}
+    now = history.summarize(model.spec["items"], covered, measured, mapped)["capability"]
+    # Snapshots of this same reviewed content describe this audit, not a baseline.
+    earlier = history.previous(history.load(model.repo), model.spec["agent"], model.digest)
+    if earlier is None:
+        # The one Evaluation coverage table keeps its Current, Previous, and Change columns even for a first audit.
+        count_covered, count, ratio, demonstrated = capability_coverage(model, covered, measured)
+        previous, change = layout.COPY["no_baseline_previous"], layout.COPY["no_baseline_change"]
+        first = [
+            ["Capabilities", str(count)],
+            ["Capabilities covered", str(count_covered)],
+            ["Coverage ratio", ratio],
+            ["Coverage basis", layout.COPY["basis_demonstrated" if demonstrated else "basis_mapped"]],
+        ]
+        return [layout.COPY["no_baseline"], "", *table("history", [[*row, previous, change] for row in first])]
+    then = earlier["kinds"]["capability"]
+    result = history.compare(now, then)
+    status = result["status"]
+    total, was_total = len(now["items"]), len(then["items"])
+    none = layout.COPY["no_items"]
+    now_ratio, was_ratio = history.ratio(now["covered"], total), history.ratio(then["covered"], was_total)
+
+    def percent(value: float | None) -> str:
+        return none if value is None else f"{value:.0%}"
+
+    if status == "method":
+        changes = [layout.COPY["not_comparable_method"]] * 4
+    elif status == "scope":
+        changes = [
+            signed(result["total_change"]) + relative(result["total_relative"]),
+            *[layout.COPY["not_compared_scope"]] * 3,
+        ]
+    else:
+        points = result["points"]
+        changes = [
+            "No change",
+            signed(result["covered_change"]) + relative(result["covered_relative"]),
+            none if points is None else f"{points:+.1f} percentage points",
+            "No change",
+        ]
+    basis = {"demonstrated": "basis_demonstrated", "mapped": "basis_mapped"}
+    rows = [
+        ["Capabilities", str(total), str(was_total), changes[0]],
+        ["Capabilities covered", str(now["covered"]), str(then["covered"]), changes[1]],
+        ["Coverage ratio", percent(now_ratio), percent(was_ratio), changes[2]],
+        ["Coverage basis", layout.COPY[basis[now["basis"]]], layout.COPY[basis[then["basis"]]], changes[3]],
+    ]
+    lines = [
+        layout.COPY["compared_with" if earlier["commit"] else "compared_with_undated_commit"].format(
+            date=earlier["recorded_at"][:10], commit=(earlier["commit"] or "")[:7]
+        ),
+        "",
+        *table("history", rows),
+    ]
+    if status == "scope":
+        names = [
+            f"{label} {', '.join(literal(name) for name in result[key])}."
+            for key, label in (("added", "Added:"), ("removed", "Removed:"))
+            if result[key]
+        ]
+        lines += [layout.COPY["scope_changed"].format(changes=" ".join(names)), ""]
+    runs = sorted({row["subject"]["run_id"] for row in inputs})
+    if status != "method" and earlier["runs"] != runs:
+        lines += [layout.COPY["runs_changed"].format(before=len(earlier["runs"]), after=len(runs)), ""]
+    return lines
+
+
 def verifier_summary(model: content.Content) -> str:
     findings = [row for row in model.data["findings"] if row["category"] in layout.VERIFIER_CATEGORIES]
     if any(row["category"] == "verifier_cheating" and row["status"] == "confirmed" for row in findings):
@@ -534,7 +612,14 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
             f"- **Date:** {identity['date']}",
             "- **Prepared by:** " + md_link("Eval Author", layout.EVAL_AUTHOR_URL),
             f"- **Repository:** {cell(identity['repository'])}",
-            f"- **Audited commit:** {identity['commit']}" + (" (dirty working tree)" if identity["dirty"] else ""),
+            *(
+                [
+                    f"- **Audited commit:** {identity['commit']}"
+                    + (" (dirty working tree)" if identity.get("dirty") else "")
+                ]
+                if "commit" in identity
+                else []
+            ),
             "",
         ],
         "identity",
@@ -558,19 +643,7 @@ def build(model: content.Content) -> tuple[str, dict[int, str]]:
     add([" ".join(filter(None, [counts, ratio, verifier_summary(model), prose(model, found)])), ""], "summary[0]")
     add([coverage_summary(model) + " " + prose(model, limits), ""], "summary[1]")
     section(1, "inputs.measurement")
-    count_covered, count, ratio, demonstrated = capability_coverage(model, covered, measured)
-    add(
-        table(
-            "current",
-            [
-                ["Capabilities", str(count)],
-                ["Capabilities covered", str(count_covered)],
-                ["Coverage ratio", ratio],
-                ["Coverage basis", layout.COPY["basis_demonstrated" if demonstrated else "basis_mapped"]],
-            ],
-        ),
-        "inputs.measurement",
-    )
+    add(history_lines(model, covered, measured, inputs), "inputs.measurement")
     if cheats:
         add(["### " + layout.SUBHEADINGS["advisory"], ""], "findings")
         for row in cheats:

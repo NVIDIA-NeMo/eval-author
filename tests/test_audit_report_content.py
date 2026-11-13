@@ -74,8 +74,9 @@ def test_example_schema_layout_and_authored_values_are_consistent(audit_report):
         ("Functionality", "Intended check and required evidence", "Tasks", "Run evidence"),
     ]:
         assert "| " + " | ".join(header) + " |" in text
-    assert "| Coverage ratio | 100% |" in text
-    assert "| Coverage basis | Mapped tasks (runs not measured) |" in text
+    assert "|  | Current audit | Previous audit | Change |" in text
+    assert "| Coverage ratio | 100% | - | Not compared |" in text
+    assert "| Coverage basis | Mapped tasks (runs not measured) | - | Not compared |" in text
     assert "[verify.py](../report-sources/tasks/source-answer/verify.py)" in text
     assert_markdown_links(text, renderer)
 
@@ -628,7 +629,7 @@ def test_empty_review_and_zero_item_kinds_have_honest_states(audit_report):
         finding["items"] = []
     text = renderer.render(load(audit_report, data))[0].decode()
     assert "Verifier cheat screening has not been assessed because no review is available." in text
-    assert "| Coverage ratio | No items declared |" in text
+    assert "| Coverage ratio | No items declared | - | Not compared |" in text
     assert "The audit declares no items in this category." in text
 
 
@@ -1047,3 +1048,176 @@ def test_the_verifier_link_appears_only_when_the_task_readme_has_a_verifier_sect
     text = renderer.render(load(audit_report))[0].decode()
     line = next(line for line in text.splitlines() if "**Verifier controls:**" in line)
     assert "source-answer/README.md#verifier" in line and "Verifier section" in line
+
+
+def history_module(audit_report):
+    return audit_report[0].load_module("audit_history_under_test", SCRIPTS / "history.py")
+
+
+def render_text(audit_report):
+    _, renderer, _ = audit_report
+    return renderer.render(load(audit_report))[0].decode()
+
+
+def save_snapshot(
+    audit_report, audit_id, *, items=None, covered=1, basis="mapped", at="2026-10-01T00:00:00+00:00", criteria=None
+):
+    history = history_module(audit_report)
+    _, _, root = audit_report
+    model = load(audit_report)
+    names = items if items is not None else [row["name"] for row in model.spec["items"] if row["kind"] == "capability"]
+    rows = [row for row in model.spec["items"] if row["kind"] == "capability"]
+    criteria = history.criteria_fingerprint(rows) if criteria is None else criteria
+    kinds = {name: {"items": [], "covered": 0, "basis": basis, "criteria": criteria} for name in history.KINDS}
+    kinds["capability"] = {"items": names, "covered": covered, "basis": basis, "criteria": criteria}
+    history.save(
+        root,
+        {
+            "version": history.VERSION,
+            "audit_id": audit_id,
+            "agent": model.spec["agent"],
+            "recorded_at": at,
+            "commit": "1234567890",
+            "dirty": False,
+            "content_sha256": audit_id,
+            "report_sha256": "r",
+            "runs": [],
+            "kinds": kinds,
+        },
+    )
+    return names
+
+
+def test_first_audit_reports_no_comparable_previous_audit(audit_report):
+    text = render_text(audit_report)
+    assert "No comparable previous audit" in text
+    assert "|  | Current audit | Previous audit | Change |" in text
+    assert "| Coverage ratio | 100% | - | Not compared |" in text
+
+
+def coverage_tables(text):
+    return [line for line in text.splitlines() if line.startswith("|  | Current audit")]
+
+
+def test_evaluation_coverage_is_one_table_with_or_without_a_previous_audit(audit_report):
+    first = render_text(audit_report)
+    assert len(coverage_tables(first)) == 1 and first.count("| Coverage ratio |") == 1
+    assert "|  | Current audit |\n" not in first
+    save_snapshot(audit_report, "earlier", covered=0)
+    later = render_text(audit_report)
+    assert len(coverage_tables(later)) == 1 and later.count("| Coverage ratio |") == 1
+    assert "|  | Current audit |\n" not in later
+
+
+def test_comparable_previous_audit_shows_percentage_point_and_relative_changes(audit_report):
+    names = save_snapshot(audit_report, "earlier", covered=0)
+    count = len(names)
+    text = render_text(audit_report)
+    assert "Compared with the audit reviewed on 2026-10-01 at commit 1234567." in text
+    assert "| Capabilities | " + f"{count} | {count} | No change |" in text
+    assert f"| Capabilities covered | {count} | 0 | +{count} |" in text
+    assert "| Coverage ratio | 100% | 0% | +100.0 percentage points |" in text
+
+
+def test_scope_change_suppresses_coverage_changes_and_names_items(audit_report):
+    save_snapshot(audit_report, "earlier", items=["retired-capability"], covered=1)
+    names = [row["name"] for row in load(audit_report).spec["items"] if row["kind"] == "capability"]
+    text = render_text(audit_report)
+    assert "Not compared: declared scope changed" in text
+    assert "percentage points" not in text
+    assert "Removed: retired-capability." in text
+    assert "Added: " + ", ".join(audit_report[1].literal(n) for n in names) + "." in text
+    assert "alone is not a change in agent performance" in text
+
+
+def test_measurement_method_change_is_not_comparable(audit_report):
+    save_snapshot(audit_report, "earlier", basis="demonstrated")
+    text = render_text(audit_report)
+    assert "Not comparable: measurement method changed" in text and "percentage points" not in text
+
+
+def test_snapshot_of_the_current_content_is_not_its_own_baseline(audit_report):
+    _, _, root = audit_report
+    save_snapshot(audit_report, load(audit_report).digest)
+    text = render_text(audit_report)
+    assert "No comparable previous audit" in text and "| Coverage ratio | 100% | - | Not compared |" in text
+
+
+def test_record_writes_one_snapshot_and_report_refresh_writes_none(audit_report):
+    _, renderer, root = audit_report
+    renderer.refresh(load(audit_report))
+    history = history_module(audit_report)
+    folder = root / history.HISTORY_DIR
+    assert not folder.exists()
+    for _ in range(2):
+        assert history.main(["--repo", str(root), "--content", "report-content.json"]) == 0
+    saved = history.load(root)
+    assert len(saved) == 1 and saved[0]["audit_id"] == load(audit_report).digest
+    assert saved[0]["kinds"]["capability"]["basis"] == "mapped"
+    renderer.refresh(load(audit_report))
+    assert len(history.load(root)) == 1
+
+
+def test_changed_criteria_with_the_same_names_suppress_the_coverage_change(audit_report):
+    save_snapshot(audit_report, "earlier", covered=0, criteria="an-earlier-expectation")
+    text = render_text(audit_report)
+    assert "Not compared: declared scope changed" in text and "percentage points" not in text
+
+
+def test_a_snapshot_missing_consumed_fields_does_not_stop_the_report(audit_report):
+    history = history_module(audit_report)
+    _, _, root = audit_report
+    save_snapshot(audit_report, "earlier", covered=0)
+    path = history.path_for(root, "earlier")
+    broken = json.loads(path.read_text())
+    del broken["commit"]
+    path.write_text(json.dumps(broken))
+    assert "No comparable previous audit" in render_text(audit_report)
+
+
+def test_recording_accepts_the_documented_relative_repository(audit_report, monkeypatch):
+    _, renderer, root = audit_report
+    renderer.refresh(load(audit_report))
+    monkeypatch.chdir(root)
+    history = history_module(audit_report)
+    assert history.main(["--repo", ".", "--content", "report-content.json"]) == 0
+    assert len(history.load(root)) == 1
+
+
+def test_manifest_task_follows_a_relocated_repository(audit_report):
+    content, _, root = audit_report
+    task = root / "tasks/example"
+    task.mkdir(parents=True)
+    model = load(audit_report)
+    assert content._manifest_task(model, {"task_dir": "/earlier/location/of/repo/tasks/example"}) == task.resolve()
+    assert content._manifest_task(model, {"task_dir": "/earlier/location/of/repo/tasks/absent"}) == Path(
+        "/earlier/location/of/repo/tasks/absent"
+    )
+
+
+def test_a_repository_without_git_history_reports_no_commit(audit_report):
+    _, _, root = audit_report
+    path = root / "report-content.json"
+    value = json.loads(path.read_text())
+    del value["identity"]["commit"], value["identity"]["dirty"]
+    path.write_text(json.dumps(value))
+    text = render_text(audit_report)
+    assert "Audited commit" not in text and "No comparable previous audit" in text
+    audit_report[1].refresh(load(audit_report))
+    history = history_module(audit_report)
+    assert history.main(["--repo", str(root), "--content", "report-content.json"]) == 0
+    saved = history.load(root)
+    assert saved[0]["commit"] is None and saved[0]["dirty"] is False
+    assert "Compared with the audit reviewed on" not in render_text(audit_report)
+
+
+def test_comparison_with_an_audit_that_had_no_commit_omits_the_commit(audit_report):
+    save_snapshot(audit_report, "earlier", covered=0)
+    history = history_module(audit_report)
+    _, _, root = audit_report
+    path = history.path_for(root, "earlier")
+    value = json.loads(path.read_text())
+    value["commit"] = None
+    path.write_text(json.dumps(value))
+    text = render_text(audit_report)
+    assert "Compared with the audit reviewed on 2026-10-01." in text and "at commit" not in text

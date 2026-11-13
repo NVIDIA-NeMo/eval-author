@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-[eval-author-audit-report]: urn:eval-author:audit-report:%7B%22body_sha256%22%3A%20%22c869d2e8f78a83585a7826bc482107ee34373a523cdb9d377a7cf4f6020a9ad5%22%2C%20%22content_sha256%22%3A%20%224ac97454cee3e6dd1a9894962e205422f81e54038319d63826d48b814115181c%22%2C%20%22renderer_version%22%3A%201%2C%20%22sources_sha256%22%3A%20%22c3f754c65550da88c25a6f2457ee1139d23bc0181574efe31c2cdec19c9d535b%22%2C%20%22validator_version%22%3A%201%7D
+[eval-author-audit-report]: urn:eval-author:audit-report:%7B%22body_sha256%22%3A%20%227ceff11ff077faaf151ef74bcecf936a9a9148f0b27126751dc9b608b678410b%22%2C%20%22content_sha256%22%3A%20%224ac97454cee3e6dd1a9894962e205422f81e54038319d63826d48b814115181c%22%2C%20%22renderer_version%22%3A%201%2C%20%22sources_sha256%22%3A%20%22c3f754c65550da88c25a6f2457ee1139d23bc0181574efe31c2cdec19c9d535b%22%2C%20%22validator_version%22%3A%201%7D
 
 # Audit coverage report: research-agent
 
@@ -18,12 +18,14 @@ Coverage was not measured for this audit because the audit measurement step was 
 
 ### Evaluation coverage
 
-|  | Current audit |
-| --- | --- |
-| Capabilities | 1 |
-| Capabilities covered | 1 |
-| Coverage ratio | 100% |
-| Coverage basis | Mapped tasks (runs not measured) |
+No comparable previous audit
+
+|  | Current audit | Previous audit | Change |
+| --- | --- | --- | --- |
+| Capabilities | 1 | - | Not compared |
+| Capabilities covered | 1 | - | Not compared |
+| Coverage ratio | 100% | - | Not compared |
+| Coverage basis | Mapped tasks (runs not measured) | - | Not compared |
 
 ### ADVISORY
 

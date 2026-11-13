@@ -19,6 +19,7 @@
 - Preserve stable IDs, user corrections, agreed scope, and decisions while updating authored input.
 - Keep narrative separate from facts computed from the specification, native measurements, and receipts. Leave missing task-to-run mappings unresolved.
 - Preserve the audit's recorded date and code revision. Render no history or trend claims from refresh time.
+- Read `identity.commit` and `identity.dirty` from git (`git rev-parse HEAD`, and whether `git status --porcelain` is empty). When the repository has no git history, omit both fields without asking the user; the report then has no Audited commit line.
 - Run the validator before rendering. Repair the named input fields when validation fails.
 - After rendering, check that task identifiers parse as Markdown links. If one appears as plain text, correct its authored field to use the task identifier and rerender. The renderer rebuilds the link from the task's canonical path, so this is a repair step, not a reason to block the report.
 
@@ -59,17 +60,22 @@ python <eval-author-skill-dir>/scripts/audit_verifier_evidence.py --repo . \
 ```
 
 - Save its JSON result beneath `.eval-author/.working/audit/` and retain its file evidence in `measurement.evidence`. For task review, which records no measurement, bind the saved result as a `file` entry in `findings.inputs` alongside the renderer's typed `bindings`. Use the renderer's typed `bindings` for findings inputs.
-- Resolve missing explained findings and review grading logic before presenting findings for acceptance. The checker cannot assess the accuracy of the explanation.
+- Resolve missing explained findings and review grading logic before recording findings. The checker cannot assess the accuracy of the explanation.
 - Use `--report <path>` with explicit task and evidence paths only for legacy Markdown reports. That compatibility path retains the old heading-based check.
 
 ## Review and bindings
 
-- Follow [guided decisions](guided-audit.md#4-generate-and-review-coverage-report) for source selection, scope approval, findings review, and the next action.
+- Follow [guided decisions](guided-audit.md#4-generate-and-review-coverage-report) for source selection, scope approval, findings presentation, and the optional next action.
 - Review all declared checks through the generated coverage tables. Use the generated Markdown heading links for scope review, starting at `#capabilities-audited`.
 - Record `findings.report` with the generated Markdown's path and SHA-256, and `findings.content` with the authored JSON's path and SHA-256.
-- Copy the renderer's `bindings` into `findings.inputs`. Retain the existing provenance in `findings.source` and bind findings acceptance to the current derived digest.
-- Revalidate after content, task, receipt, or other bound input changes. Changed content reopens findings review. Changed inspected task or specification inputs retain the existing scope and measurement invalidation rules.
-- Record acceptance in workflow state without rewriting the report merely to mark it accepted.
+- Copy the renderer's `bindings` into `findings.inputs`. Retain the existing provenance in `findings.source` ; the current derived findings digest marks them reviewed.
+- Revalidate after content, task, receipt, or other bound input changes. Changed content makes the recorded findings stale until they are regenerated and recorded again. Changed inspected task or specification inputs retain the existing scope and measurement invalidation rules.
+- Once the findings are recorded and current, save the audit's history snapshot once. Do not run it on report refresh, and rerunning it for the same reviewed content changes nothing. History is kept in `.eval-author/.working/audit-history/`, outside the per-audit folder.
+
+```bash
+python <audit-skill-dir>/scripts/audit_spec/history.py --repo . \
+  --content .eval-author/.working/audit/report-content.json
+```
 
 ## Findings, limitations, and next actions
 

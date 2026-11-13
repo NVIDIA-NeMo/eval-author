@@ -80,7 +80,9 @@ def canonical_blocker(state: dict, blocker: dict) -> dict | None:
 
 def prerequisite_table(journey: str, facts: dict, *, state: dict | None = None, checking: bool = False) -> str:
     selected_mode = (
-        audit_state.mode(state) if state is not None else audit_state.check_kind(facts.get("audit_mode", "measured"))
+        audit_state.mode(state)
+        if state is not None
+        else audit_state.check_kind(facts.get("audit_mode", audit_state.DEFAULT_MODE))
     )
     rows = copy.AUDIT_ROWS if journey == "audit" else copy.AUTHORING_ROWS
     supplied = mapping(facts.get("rows", {}), "rows", {key for key, _ in rows})

@@ -166,6 +166,41 @@ model execution is opt-in outside configured CI workflows; see
 [trace fixture checks](docs/trace-derived-fixtures.md#regression-checks) and
 [skill evaluation CI](docs/skill-evaluation-ci.md).
 
+### Native APT retry controls
+
+The three native APT download controls in `tests/test_live_shard_apt.py` check
+transient HTTP retries, permanent HTTP failure, and hash rejection. An
+unconfigured local host skips them if `apt-helper` is absent or either `apt` or
+`libapt-pkg6.0t64` is missing or below `2.8.4ubuntu0.1` (including Debian 12,
+Ubuntu 22.04, and unpatched Ubuntu 24.04). Skips are not native retry evidence.
+CI (`GITHUB_ACTIONS=true` or `CI=true`) and an explicitly set
+`EVAL_AUTHOR_NATIVE_APT_ROOT` fail closed instead; an empty or broken root never
+falls back to host APT. Both host packages must meet the floor before retries.
+
+To opt in locally, use a compatible Ubuntu 24.04 Linux host (amd64 or arm64)
+with `apt-get`, `dpkg`, `dpkg-deb`, Bash, GNU `timeout`, CA certificates, the Ubuntu
+archive keyring at `/usr/share/keyrings/ubuntu-archive-keyring.gpg`, and network
+access to the signed snapshot. From the checkout root, choose a **new, nonexistent**
+private directory with an existing parent on an executable filesystem:
+
+```bash
+native_apt_root="$HOME/.cache/eval-author-native-apt-$(date +%s)"
+mkdir -p "$HOME/.cache"
+bash tools/bootstrap_native_apt.sh "$native_apt_root" && \
+  EVAL_AUTHOR_NATIVE_APT_ROOT="$native_apt_root" uv run --locked pytest -q \
+    tests/test_live_shard_apt.py -k native_apt_retries_only_transient_downloads
+```
+
+The bootstrap creates that directory, downloads exactly `apt=2.8.4ubuntu0.1`
+and `libapt-pkg6.0t64=2.8.4ubuntu0.1` from the signed
+`20261105T000000Z` noble-security/main snapshot with retries disabled, verifies
+both archives' package/version/architecture, and extracts them unprivileged.
+It does not install packages or change host APT state. The fixture validates the
+private library, archive metadata, and helper version before selecting its
+methods and subprocess-only `LD_LIBRARY_PATH`. Do not set `LD_LIBRARY_PATH`
+globally. Debian 12 and Ubuntu 22.04 can run the default suite with skips; this
+Ubuntu 24.04 bootstrap is not a compatibility installer for older hosts.
+
 ## NeMo Gym compatibility checks
 
 NeMo Gym is an optional, isolated runtime. The baseline is release v0.6.0 at

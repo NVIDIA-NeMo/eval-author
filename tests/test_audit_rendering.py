@@ -71,16 +71,21 @@ def test_task_review_resume_reaches_findings_without_requesting_traces(modules, 
         report_action="created",
     )
     report_links(payload, modules, findings=True)
-    remember_question(payload, modules)
-    payload["stage"] = "audit_resume"
+    # Approved checks with only the preliminary report must not announce completion.
+    assert not progress(payload, modules)["findings_reviewed"] and not progress(payload, modules)["complete"]
+    with pytest.raises(ValueError, match="Record current findings"):
+        modules[2].render(payload)
+    lifecycle["findings_final"] = {
+        "digest": lifecycle["findings"]["report"]["digest"],
+        "source": "Finished the task analysis",
+    }
+    assert progress(payload, modules)["findings_reviewed"]
     output = modules[2].render(payload)
     assert "Review tasks only" in output and "unmeasured" in output
-    assert "Which traces" not in output and "deferred" not in output
-    lifecycle["findings_review"] = {
-        "digest": progress(payload, modules)["findings_digest"],
-        "source": "User accepts findings",
-    }
-    lifecycle["pending"] = None
+    assert "Which traces" not in output and "deferred" not in output and "?" not in output
+    assert ("No evaluation tasks were available" in output) == (not has_tasks)
+    assert "full measured audit" not in output
+    payload["stage"] = "audit_resume"
     payload["facts"] = {"audit_observations": observed, "links": payload["facts"]["links"]}
     payload["facts"]["links"].pop("findings")
     output = modules[2].render(payload)
@@ -103,7 +108,7 @@ def remember_question(payload, modules, question=None):
         flow = importlib.import_module("conversation_flows.audit")
         question = flow.decision_question(payload["stage"], domain(payload, modules), payload["facts"])
     current = progress(payload, modules)
-    stage = "findings_review" if payload["stage"] == "audit_findings" else current["stage"]
+    stage = current["stage"]
     domain(payload, modules)["pending"] = {
         "stage": stage,
         "digest": current["checkpoint_digests"][stage],
@@ -231,7 +236,7 @@ def checkpoint(modules, stage):
             "One selected run has incomplete measurements.",
             "Choose limited findings or supply the missing run evidence.",
         )
-    if stage in {"suites", "traces", "checks", "findings"}:
+    if stage in {"suites", "traces", "checks"}:
         remember_question(payload, modules)
     return payload
 
@@ -311,7 +316,10 @@ def continuation(modules, scenario):
         )
     elif scenario == "returning_findings":
         payload["stage"] = "audit_resume"
-        payload["facts"]["report_action"] = "unchanged"
+        payload["facts"] = {
+            "audit_observations": payload["facts"]["audit_observations"],
+            "links": {"report": payload["facts"]["links"]["report"]},
+        }
         return payload
     elif scenario == "selected_improvement":
         lifecycle["next_action"] = {
@@ -363,6 +371,7 @@ def continuation(modules, scenario):
         )
     if base in {"checks", "findings"}:
         revise_report(payload, modules, scenario)
+    if base == "checks":
         remember_question(payload, modules)
     return payload
 
@@ -390,7 +399,7 @@ def test_reviewed_transcripts_are_exact_and_render_without_side_effects(modules,
         assert payload == original
 
 
-@pytest.mark.parametrize("stage", ["suites", "traces", "checks", "findings"])
+@pytest.mark.parametrize("stage", ["suites", "traces", "checks"])
 def test_resume_replays_the_current_checkpoint(modules, stage):
     payload = checkpoint(modules, stage)
     expected = modules[2].render(payload)
@@ -407,21 +416,21 @@ def test_onboarding_resume_rejects_downstream_audit_checkpoints(modules, stage, 
         modules[2].render({**payload, "stage": "resume", "facts": facts})
 
 
-def test_partial_findings_can_be_reviewed_before_acceptance(modules):
+def test_partial_findings_are_reviewed_without_a_question(modules):
     payload = continuation(modules, "partial_findings")
     original = copy.deepcopy(payload)
     current = progress(payload, modules)
-    assert current["stage"] == "findings_review" and not current["measurement_complete"]
+    assert current["stage"] == "measurement" and not current["measurement_complete"]
     assert "measurement" not in current["checkpoint_digests"]
-    assert not current["findings_reviewed"] and not current["complete"]
+    assert current["findings_reviewed"] and not current["complete"]
+    assert current["pending_checkpoint"] is None
     output = modules[2].render(payload)
     assert "Measurement is partial" in output
-    assert "**Current audit step:** Review findings" in output
-    assert "You’ve accepted the audit findings." not in output
-    assert output.rstrip().endswith(domain(payload, modules)["pending"]["question"])
+    assert "Current audit step" not in output and "Do these findings look right" not in output
+    assert "The limited findings review is complete; the full measured audit remains incomplete." in output
+    assert "You can finish here or choose a recommended next action." in output
+    assert "?" not in output
     assert payload == original
-    payload["stage"] = "audit_resume"
-    assert modules[2].render(payload) == output
 
 
 @pytest.mark.parametrize("stage", ["audit_measurement", "audit_resume"])
@@ -458,20 +467,17 @@ def test_trace_request_does_not_assume_suites_exist(modules):
 def test_deferral_provenance_is_not_rendered_as_a_reason(modules):
     payload = continuation(modules, "limited_findings")
     domain(payload, modules)["measurement"]["source"] = "INTERNAL_PROVENANCE: verbatim saved answer"
-    remember_question(payload, modules)
     output = modules[2].render(payload)
     assert "INTERNAL_PROVENANCE" not in output and "verbatim saved answer" not in output
     assert "Measurement was explicitly deferred for the failed inputs." in output
 
 
 @pytest.mark.parametrize("label,heading", [("grader improvement", "Grader improvement"), ("API grader", "API grader")])
-def test_recommendation_headings_capitalize_without_changing_the_question(modules, label, heading):
+def test_recommendation_headings_capitalize(modules, label, heading):
     payload = continuation(modules, "single_recommendation")
     payload["facts"]["recommendations"][0]["label"] = label
-    remember_question(payload, modules)
     output = modules[2].render(payload)
     assert f"1. **{heading}:**" in output
-    assert f"plan the {label}?" in output
 
 
 def test_empty_findings_are_rejected(modules):
@@ -549,7 +555,7 @@ def test_selection_report_notice_requires_its_bound_report_link(modules):
         modules[2].render(payload)
 
 
-@pytest.mark.parametrize("stage", ["suites", "traces", "checks", "findings"])
+@pytest.mark.parametrize("stage", ["suites", "traces", "checks"])
 @pytest.mark.parametrize("change", ["missing", "stale", "contradictory"])
 def test_decision_requires_the_current_saved_question(modules, stage, change):
     payload = checkpoint(modules, stage)
@@ -663,11 +669,10 @@ def test_accepted_partial_findings_resume_without_a_new_question(modules, change
     payload = checkpoint(modules, "next_action")
     lifecycle = domain(payload, modules)
     lifecycle["measurement"].update(status="partial", source="User accepted limited findings and deferred the rest.")
-    lifecycle["findings_review"]["digest"] = progress(payload, modules)["findings_digest"]
     output = modules[2].render(payload)
     payload["stage"] = "audit_resume"
     assert modules[2].render(payload) == output
-    assert "You’ve accepted the audit findings." in output and "?" not in output
+    assert "The audit findings are recorded." in output and "?" not in output
     assert "Measurement is partial; the successful subset does not complete the agreed scope." in output
     assert "- [ ] **Review evaluation coverage, identify gaps, and recommend improvements**" in output
     evidence = lifecycle["measurement"]["evidence"][0]
@@ -678,7 +683,7 @@ def test_accepted_partial_findings_resume_without_a_new_question(modules, change
     resumed = modules[2].render(payload)
     payload["stage"] = "audit_measurement"
     assert resumed == modules[2].render(payload)
-    assert "You’ve accepted the audit findings." not in resumed
+    assert "The audit findings are recorded." not in resumed
     assert "Saved measurements are missing, changed, or no longer applicable" in resumed
     assert "Measurement is partial" not in resumed
 

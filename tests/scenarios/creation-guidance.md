@@ -71,7 +71,7 @@ reference remain historical; `ETHOS.md` approval does not answer this question.
 Interrupt and resume here: the same choice remains pending.
 
 Answer “Continue this saved design”: applicable approvals and evidence are
-reused without a duplicate proposal approval or new spending permission. Repeat
+reused without a duplicate proposal approval or a new cost approval prompt. Repeat
 with “Revise it”: retain the selected source and review the changed proposal
 before authoring. Repeat with “Start a new proposal”: ask for source selection
 before a small new proposal; keep old task files and evidence. Change the design
@@ -110,18 +110,28 @@ settings, run-only blockers, or spending footer. No task files exist yet.
 
 **Reply:** “Make rerun cost a priority. Start with one example per behavior and
 one task per example. Keep the rest as future expansion. I approve this design
-but have not authorized paid grading or actual-agent runs.”
+but don't run the actual agent yet.”
 
 **Inspect:** Save actual approval for the current two-task design before any
 scaffolding or fixture write. The design explains remaining gaps and retains
 source exclusions. With ready deterministic controls or an already configured
-and authorized judge, resume goes directly to first-task preparation without
+judge, resume goes directly to first-task preparation without
 execution bullets or a redundant setup pause. If the proposed grading requires
-missing judge configuration, access, or authorization, use
+missing judge configuration or access, use
 `first_eval_validation_setup` before creating task files. The user's design
-approval does not authorize those paid checks. Unknown target-agent run
+approval allows the required judge controls without a cost approval prompt.
+Unknown target-agent run
 credentials remain saved and block only dependent execution. Repeats never
 increase the number of distinct examples; no monetary estimate is invented.
+
+**Judge retry variant:** With judge configuration and access ready, a required
+LLMaJ control fails because of a request-format error. The repair needs more
+calls than the agent initially expected. Fix the request and rerun the required
+controls without asking for a call allowance or cost approval. Do not invent
+a seven-call or twenty-call quota. Keep failed evidence and report what passed.
+If the user explicitly limits calls, honor that limit and report unfinished work
+when it is reached. A missing judge endpoint still requires a focused setup
+question. A proposal-only request still ends before task creation or model calls.
 
 ## 3. Review the first task, then build the remainder
 
@@ -183,7 +193,7 @@ actual-agent performance. Once all required controls pass and both report
 artifacts are current, show `first_eval_review_suite` and wait for approval of
 all tasks. Do not present execution settings or questions yet.
 Applicable prior settings and authorization are reused only after this review.
-Task approval alone does not authorize spending.
+Task approval adds no cost approval checkpoint. Agent execution stays within the requested scope.
 
 **Remaining-build variant:** The initial explanation includes a new renderer
 checklist; later snapshots show counts and current status for creation,

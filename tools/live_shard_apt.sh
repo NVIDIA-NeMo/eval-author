@@ -11,10 +11,12 @@ snapshot=$2
 shift 2
 [[ "$snapshot" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || { printf 'Invalid APT snapshot\n' >&2; exit 1; }
 # USN-8996-1: retries require the redirect/hardlink fix in the bootstrapped APT.
-apt_version=$(dpkg-query -W -f='${Version}' apt)
-[[ -n "$apt_version" ]] && dpkg --compare-versions "$apt_version" ge 2.8.4ubuntu0.1 || {
-    printf 'Patched APT required for acquisition retries\n' >&2; exit 1;
-}
+for package in apt libapt-pkg6.0t64; do
+    version=$(dpkg-query -W -f='${Version}' "$package")
+    [[ -n "$version" ]] && dpkg --compare-versions "$version" ge 2.8.4ubuntu0.1 || {
+        printf 'Patched APT required for acquisition retries\n' >&2; exit 1;
+    }
+done
 options=(-y --no-install-recommends -o "Dir::Cache::archives=$archives" -o Acquire::Retries=0)
 plan=$(mktemp "${TMPDIR:-/tmp}/live-shard-apt.XXXXXX")
 jobs=()

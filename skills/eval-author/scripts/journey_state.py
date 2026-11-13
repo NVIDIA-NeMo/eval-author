@@ -928,7 +928,7 @@ def update(repo: Path, patch: dict, *, expected_revision: int | None = None, sta
         if audit_state.mode(previous) != audit_state.mode(state):
             lifecycle = audit_state.record(state)
             if lifecycle is not None:
-                for key in ("checks_approval", "findings_review", "next_action", "pending"):
+                for key in ("checks_approval", "findings_review", "findings_final", "next_action", "pending"):
                     lifecycle[key] = None
             if "audit" in state["journey_status"]:
                 state["journey_status"]["audit"] = "in_progress"

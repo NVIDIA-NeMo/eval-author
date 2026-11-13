@@ -486,6 +486,16 @@ Only creation of required ancestor directories is implicit, never deletion or
 permission changes. Both write attempts and snapshot differences are checked.
 Follow-up snapshots must form an unbroken chain.
 
+These saved-state assertions check workflow correctness. They do not establish
+that an agent repeats the same decisions or produces identical conversations.
+A contract can declare `expected_json`, mapping an artifact path to JSON
+pointers and expected values. Supply the saved UTF-8 text in the turn's
+`artifact_contents` mapping. The checker verifies its hash against the after
+snapshot before checking values. Missing contents make evidence incomplete.
+Wrong values or text that does not match the snapshot fail the check. The
+retained-run cases execute the lookup and save real journey state to test
+availability, batching, and controls without claiming live agent acceptance.
+
 ### Interpreting results
 
 Exit 0 means supplied normalized evidence passes its contract; exit 1 means
@@ -659,6 +669,11 @@ stability nor typed-fact retention establishes task quality.
 four documented assistants (Codex, Claude Code, Cursor, Pi), both checkout and
 copied installations, and macOS/Linux/Windows, with two repetitions. Missing
 cells cannot be removed to improve the denominator.
+Contracts may declare `platforms` when a scenario needs a platform capability.
+The planner includes only those platforms for that scenario. Descriptor-safe
+retained-run cases cover macOS and Linux. Unsupported hosts report unknown
+availability instead of using unsafe file access. Continuation batches in these
+cases stay within one user turn and one planned prompt.
 
 ```bash
 uv run --locked python tools/workflow_matrix.py > /tmp/workflow-matrix.json

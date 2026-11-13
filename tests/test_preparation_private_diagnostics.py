@@ -228,7 +228,7 @@ def test_success_and_default_calls_do_not_create_private_file(runtime, paths, mo
 
 
 @pytest.mark.parametrize("enabled", [False, True])
-def test_cli_forwards_opt_in_and_keeps_default_signature(runtime, paths, monkeypatch, enabled, capsys):
+def test_cli_forwards_opt_in_with_default_workers(runtime, paths, monkeypatch, enabled, capsys):
     source, output, binary, private = paths
     cli = importlib.import_module("prepare_live_images")
     monkeypatch.setattr(os, "environ", {})
@@ -243,7 +243,8 @@ def test_cli_forwards_opt_in_and_keeps_default_signature(runtime, paths, monkeyp
 
     monkeypatch.setattr(cli, "prepare_images", prepare)
     cli.main()
-    assert calls == [(source, output, binary, None, {"private_diagnostics": private} if enabled else {})]
+    expected = {"workers": 2, **({"private_diagnostics": private} if enabled else {})}
+    assert calls == [(source, output, binary, None, expected)]
     assert capsys.readouterr().out == "prepared trial images verified\n"
 
 

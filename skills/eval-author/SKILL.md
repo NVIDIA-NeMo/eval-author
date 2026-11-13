@@ -149,7 +149,8 @@ proposal-only, and audit
 generate/validate/measure/aggregate requests keep their
 scope. Explanation-only requests do not start a workflow. Scoped operations reuse
 applicable shared decisions but do not acquire unrelated onboarding requirements.
-Trace-source selection remains required before searching or reading traces.
+Trace-source selection remains required before searching or reading traces,
+apart from the bounded [retained-run lookup](references/shared-prerequisites.md#locate-retained-evaluation-runs).
 
 Load `eval-author-rubric` only after explicit end-user opt-in to that named
 experimental assessment; never load or run it automatically.
@@ -387,11 +388,11 @@ user, not to you.
   requirements and repository setup instructions; for Harbor, use discovery's
   setup guidance to explain installation and verification. An explicit request to install is
   authorization for that setup; a broad eval request alone is not.
-- **Do not run without approval.** Discovery proves an existing suite can run and
-  hands over the command. Task creation may run NeMo Gym verifier controls or Harbor Oracle locally, then starts
-  real-agent jobs only when the user explicitly asked for or approved that spend.
-  First-eval authoring may run local task sanity checks when task creation is requested;
-  real-agent or paid-judge runs require authorization for that execution and spend.
+- **Run within the requested scope.** Discovery proves an existing suite can run and
+  hands over the command. Task creation and first-eval authoring include required
+  verifier controls, including model judges. Real-agent jobs follow the selected
+  workflow's execution checkpoints. Follow the shared
+  [model-call policy](references/shared-prerequisites.md#model-calls-for-requested-work).
 - **Trusted repositories only.** Validating a config can execute repository code,
   because an agent named by import path gets imported. If the repository is not
   trusted, say so and stop.
