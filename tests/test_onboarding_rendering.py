@@ -92,11 +92,10 @@ def test_new_audit_collects_approach_without_readiness_or_repository_access(onbo
         assert "Welcome" not in output and "- [ ]" not in output
 
 
-def test_task_review_preview_exempts_traces_without_claiming_they_exist(onboarding):
+@pytest.mark.parametrize("facts", [{}, {"audit_mode": "task_review"}])
+def test_task_review_preview_exempts_traces_without_claiming_they_exist(onboarding, facts):
     _, renderer, _, _, _ = onboarding
-    output = renderer.render(
-        {"stage": "prerequisites", "journey": "audit", "ready": True, "facts": {"audit_mode": "task_review"}}
-    )
+    output = renderer.render({"stage": "prerequisites", "journey": "audit", "ready": True, "facts": facts})
     assert "| Traces from completed evaluation runs | Not needed now |" in output
     assert "unmeasured" in output and "Confirmed by you" not in output
 
@@ -404,6 +403,7 @@ def test_audit_welcome_preserves_saved_progress_without_claiming_artifact_confir
     copy = importlib.import_module("conversation_flows.onboarding_templates")
     confirmed_request(onboarding)
     state["journey"] = "audit"
+    state["scopes"]["audit"] = {"mode": {"kind": "measured", "source": "User chose measured audit"}}
     state["journey_status"]["audit"] = "complete"
     state["pending_question"] = "Which completed runs should this audit use?"
     state["next_handoff"] = "eval-author-audit"

@@ -69,23 +69,6 @@ def decision_question(stage: str, lifecycle: dict, facts: dict) -> str:
         return copy.TRACE_QUESTION
     if stage == "checks":
         return copy.CHECKS_QUESTION
-    if stage == "findings":
-        items = recommendations(facts)
-        if not items:
-            return copy.NO_CHANGE_QUESTION
-        if any(item["kind"] != "improve" for item in items):
-            return copy.OTHER_ACTION_QUESTION
-        labels = [
-            copy.IMPROVEMENT_CHOICE.format(label=literal(item["label"], "recommendation label")) for item in items
-        ]
-        choices = (
-            labels[0]
-            if len(labels) == 1
-            else (copy.TWO_IMPROVEMENTS if len(labels) == 2 else copy.MULTIPLE_IMPROVEMENTS).format(
-                choices=", ".join(labels)
-            )
-        )
-        return copy.FINDINGS_QUESTION.format(choices=choices)
     raise ValueError("This audit stage has no canonical decision question")
 
 
@@ -250,6 +233,15 @@ def recommendation_section(facts: dict) -> str | None:
     return copy.RECOMMENDATIONS_HEADING + "\n\n" + "\n".join(lines)
 
 
+def closing_status(lifecycle: dict, audit: dict) -> str:
+    """A task review without tasks is finished for what it can review, not an unfinished measured audit."""
+    if audit["complete"]:
+        return copy.AUDIT_COMPLETE
+    if audit["mode"] == "task_review" and lifecycle["suites"]["status"] != "selected":
+        return copy.TASK_REVIEW_NO_TASKS
+    return copy.AUDIT_LIMITED
+
+
 def render_findings(state: dict, lifecycle: dict, audit: dict, facts: dict) -> list[str]:
     findings = rows(facts.get("findings"), "findings")
     if not findings:
@@ -273,8 +265,9 @@ def render_findings(state: dict, lifecycle: dict, audit: dict, facts: dict) -> l
     parts.extend([scope(state, lifecycle), measurement_status(lifecycle, audit)])
     if limits := bullet_section(copy.LIMITS_HEADING, facts.get("limits"), "evidence limits"):
         parts.append(limits)
+    parts.append(closing_status(lifecycle, audit))
     if recommended := recommendation_section(facts):
-        parts.append(recommended)
+        parts.extend([recommended, copy.NEXT_OFFER])
     return parts
 
 
@@ -327,17 +320,19 @@ def render(payload: dict) -> str:
         raise ValueError("Resolve saved blockers or render audit_blockers before continuing")
     if not all(row["complete"] for row in journey_state.checklist(state)[:2]):
         raise ValueError("Resolve shared prerequisites and confirm ETHOS.md before audit checkpoints")
-    if stage != PHASES[audit["stage"]] and not (stage == "next_action" and audit["findings_reviewed"]):
+    if stage != PHASES[audit["stage"]] and not (stage in {"findings", "next_action"} and audit["findings_reviewed"]):
         raise ValueError("Audit stage differs from the current unresolved milestone; resume current state")
     pending = audit["pending_checkpoint"]
     question = None
-    if stage in {"suites", "traces", "checks", "findings"}:
+    if stage in {"suites", "traces", "checks"}:
         question = decision_question(stage, lifecycle, facts)
         if not pending or pending["question"] != question:
             raise ValueError(
                 "Save the current canonical audit decision question and checkpoint digest before rendering"
             )
-    elif stage == "next_action":
+    elif stage in {"findings", "next_action"}:
+        if not audit["findings_reviewed"]:
+            raise ValueError("Record current findings in the audit report before presenting them")
         if pending:
             question = literal(pending["question"], "pending next action")
         elif state["pending_question"] is not None:
@@ -362,11 +357,7 @@ def render(payload: dict) -> str:
     else:
         parts = [
             copy.REVIEW_ACCEPTED,
-            copy.AUDIT_COMPLETE
-            if audit["complete"]
-            else copy.TASK_REVIEW_NO_TASKS
-            if audit["mode"] == "task_review"
-            else copy.AUDIT_LIMITED,
+            closing_status(lifecycle, audit),
             report_link(state, lifecycle, facts),
         ]
         if not audit["complete"]:

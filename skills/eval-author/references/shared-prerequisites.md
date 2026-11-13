@@ -32,8 +32,8 @@ A proposal-only or review-only request still does not authorize agent execution.
 ## Choose the audit approach
 
 After the metadata-only lookup below, distinguish a resumed audit from a new
-audit that can reuse shared setup or Ethos. An active audit's saved `mode`, or a
-legacy audit lifecycle, means resume its unfinished decision. Shared authoring
+audit that can reuse shared setup or Ethos. An active audit's saved `mode` or
+lifecycle means resume its unfinished decision. Shared authoring
 context alone does not settle the audit approach. An explicit request for a new
 audit starts a new choice even when an earlier audit exists.
 

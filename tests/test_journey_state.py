@@ -372,10 +372,11 @@ def test_downstream_resume_preserves_progress_and_audit_switch_reopens_applicabi
 
 
 def audit_ready(state, repo, *, setup="gym"):
-    setup_ready(state, repo, journey="audit", setup=setup)
+    saved = setup_ready(state, repo, journey="audit", setup=setup)
     return state.update(
         repo,
         {
+            "scopes": {"audit": {"mode": {"kind": "measured", "source": "User chose measured audit"}}},
             "prerequisites": {
                 "python": {
                     "status": "verified",
@@ -389,8 +390,9 @@ def audit_ready(state, repo, *, setup="gym"):
                     key: {"status": "not_required", "source": "Local audit reads definitions and saved evidence"}
                     for key in {"runtime", "environment", "services", *state.DEFERRED}
                 },
-            }
+            },
         },
+        expected_revision=saved["revision"],
     )
 
 
@@ -433,7 +435,7 @@ def test_trace_availability_completes_audit_prerequisites_without_selecting_scop
     state, tmp_path, status
 ):
     audit_ready(state, tmp_path)
-    ethos_ready(state, tmp_path)
+    saved = ethos_ready(state, tmp_path)
     state.update(
         tmp_path,
         {
@@ -442,6 +444,7 @@ def test_trace_availability_completes_audit_prerequisites_without_selecting_scop
             "pending_question": "Are traces from completed evaluation runs available?",
             "scopes": {"audit": {"confirmed": False}},
         },
+        expected_revision=saved["revision"],
     )
     resolved = state.update(
         tmp_path,
@@ -452,7 +455,9 @@ def test_trace_availability_completes_audit_prerequisites_without_selecting_scop
         },
     )
     assert state.checklist(resolved)[0]["complete"]
-    assert resolved["scopes"] == {"audit": {"confirmed": False}}
+    assert resolved["scopes"] == {
+        "audit": {"mode": {"kind": "measured", "source": "User chose measured audit"}, "confirmed": False}
+    }
     assert not resolved["journey_status"]
     assert not state.checklist(resolved)[2]["complete"]
 
@@ -2722,6 +2727,12 @@ def test_state_only_audit_framework_observation_survives_blocked_setup(
     if existing_scope:
         state.update(tmp_path, {"scopes": {"audit": audit_scope}})
     original = state.initialize(tmp_path, journey="audit", state_only=True)
+    original = state.update(
+        tmp_path,
+        {"scopes": {"audit": {"mode": {"kind": "measured", "source": "User chose measured audit"}}}},
+        state_only=True,
+        expected_revision=original["revision"],
+    )
     observation = {"framework": "NeMo Gym", "framework_source": "User framework answer, reply 8"}
     patch = {
         "scopes": {"audit": observation},
@@ -2740,7 +2751,17 @@ def test_state_only_audit_framework_observation_survives_blocked_setup(
         monkeypatch.setattr(
             sys,
             "argv",
-            ["journey_state.py", "--repo", str(tmp_path), "--state-only", "update", "--input", str(payload)],
+            [
+                "journey_state.py",
+                "--repo",
+                str(tmp_path),
+                "--state-only",
+                "update",
+                "--input",
+                str(payload),
+                "--expected-revision",
+                str(original["revision"]),
+            ],
         )
         assert state.main() == 0
         output = json.loads(capsys.readouterr().out)
@@ -2749,7 +2770,7 @@ def test_state_only_audit_framework_observation_survives_blocked_setup(
     else:
         saved = state.update(tmp_path, patch, state_only=True, expected_revision=original["revision"])
     assert saved["revision"] == original["revision"] + 1
-    assert saved["scopes"]["audit"] == {**(audit_scope if existing_scope else {}), **observation}
+    assert saved["scopes"]["audit"] == {**original["scopes"]["audit"], **observation}
     assert saved["scopes"][origin] == original["scopes"][origin]
     assert saved["ethos"] == original["ethos"]
     assert saved["tasks"] == original["tasks"]

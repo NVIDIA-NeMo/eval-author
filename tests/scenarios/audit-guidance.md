@@ -24,15 +24,15 @@ Choose task review and state that no recorded runs exist. Confirm the usual
 prerequisites and Ethos, then select the synthetic account-support tasks below.
 The agent inspects scenarios, fixtures, and verifiers and saves findings with
 run coverage unmeasured. It neither asks for traces nor treats missing runs as
-a blocker. Check approval and findings acceptance remain separate decisions.
-After acceptance, the audit can complete with `measurement: null`.
+a blocker. Only the check approval is a user decision; findings need none.
+Once findings are recorded, the audit can complete with `measurement: null`.
 
 Resume from prerequisites, check review, and findings review in fresh chats.
 The saved approach and pending decision survive without another mode choice.
 Change to measured audit explicitly. Prior task-review approvals reopen and
 selected runs are required before measurement. Change back and verify that old
-approvals do not become current again. Legacy lifecycles without a saved mode
-remain measured and preserve their existing decisions.
+approvals do not become current again. A saved audit without a mode uses task
+review and leaves run coverage unmeasured.
 
 Unless a scenario tests this choice, select the measured approach at entry.
 An explicit request for a measured audit reuses that choice. These acceptance
@@ -47,7 +47,7 @@ coverage counts. Run variants with no usable agent trajectory, an explicit owner
 acceptance override, and a failure followed by a passing control on the same
 revision. The audit must inspect the task's grading entry point and exposed
 inputs and include each unresolved verifier failure in both its chat findings
-and saved Key findings before asking for acceptance.
+and saved Key findings when presenting them.
 
 Exercise all four families: a successful no-op, a submission containing only
 reference-like comments, forged and stale success artifacts or writable runner

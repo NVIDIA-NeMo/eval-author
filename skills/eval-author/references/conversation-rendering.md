@@ -128,7 +128,7 @@ settings, results, and the optional audit handoff. Its stages require reconciled
 saved state and use the `first_eval_` prefix; they have no stateless preview.
 
 [Audit rendering](conversations/audit.md) continues an audit with unresolved
-source selections, proposed-check approval, measurement progress, findings review,
+source selections, proposed-check approval, measurement progress, findings,
 and optional next actions. Its `audit_` stages use reconciled audit state and
 observations, with the Audit coverage report as the single review document.
 
