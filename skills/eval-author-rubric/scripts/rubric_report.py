@@ -483,8 +483,8 @@ def _native(check, measurements, selection):
         },
         summary["selected_receipts"],
         "selected receipt claims",
-        "Unknown and excluded records are not passing opportunities; unselected attempts are outside scope.",
-        "Violations per eligible receipt claim only; no trial-level prevalence or causal attribution.",
+        "Unknown and excluded records do not count as passing opportunities. Unselected attempts are outside scope.",
+        "The rate covers eligible receipt claims only. It does not measure prevalence across trials or establish a cause.",
     )
     for count in native_check["measurements"]:
         if count["name"] == "contradictions":

@@ -217,11 +217,16 @@ An explicit `native` selection also emits `receipt_integrity`, version
 `receipt-integrity-v1`. Read each control's typed `integrity` fields separately:
 record consistency, execution health, declared behavior, status-claim agreement,
 and freshness. The owning receipt validator derives them from the same selected
-receipt, manifest, and native result. No task tree is scanned.
+receipt, manifest, and native result. It does not scan a task tree.
 
-A confirmed contradiction requires a supported closure-control receipt claiming
-`passed`, a digest-bound manifest and same-run result, passing health assertions,
-and failing declared behavior assertions. This is record inconsistency. It does
+A confirmed contradiction requires all of the following:
+
+- A supported closure-control receipt that claims `passed`.
+- A digest-bound manifest and a result from the same run.
+- Health assertions that pass.
+- Declared behavior assertions that fail.
+
+This contradiction shows that the records are inconsistent. It does
 not establish that an agent ignored feedback, that evidence was visible to the
 model, or that context growth caused the result. A correctly recorded failed
 control is consistent evidence. Zero reward, permitted partial credit, valid
@@ -229,21 +234,28 @@ alternatives, and legitimate no-action controls follow their declared checks.
 Agent, diagnostic, and baseline receipts do not supply eligible closure claims.
 
 Report contradictions divided by eligible receipt claims. Keep unknown and
-excluded claims separate. Execution errors and mismatches are additional,
-possibly overlapping diagnostic counts, not extra trials. A zero denominator
-has a null rate. Unselected attempts and controls missing from selected manifests
-are evidence gaps, not observed skipped verification. Retain earlier findings
-when another selected receipt passes; ordering alone does not establish recovery.
+excluded claims separate. Execution errors and mismatches are additional
+diagnostic counts that can overlap. They are not extra trials. A zero denominator
+has a null rate.
+
+Unselected attempts and controls missing from selected manifests are evidence gaps.
+They do not show that verification was skipped. When another selected receipt
+passes, retain earlier findings. Ordering alone does not establish recovery.
 
 `CREATE-07-C01` includes `selected_receipt_status_consistent` as a bounded
 `PASS`, `FAIL`, or `BLOCKED` predicate after source revalidation. Its canonical
 check remains `PARTIAL`, and this evidence alone leaves the criterion score null.
 Native current-task freshness and `context_rot_score` remain unknown/null.
-Use existing selected-dependency freshness separately; do not transfer a historical
-pass to a changed task. General false-closure claims, superseded-value actions,
-retry analysis, request-context visibility, and prevention experiments have no
-qualified adapter here and remain unassessed. Do not prescribe a checkpoint as a
-proven remedy from these measurements.
+Use existing selected-dependency freshness separately. Do not transfer a historical
+pass to a changed task. The following have no qualified adapter here and remain unassessed:
+
+- General false-closure claims.
+- Actions based on superseded values.
+- Retry analysis.
+- Visibility into the request context.
+- Prevention experiments.
+
+Do not prescribe a checkpoint as a proven remedy from these measurements.
 
 ## Selected reconstruction provenance
 

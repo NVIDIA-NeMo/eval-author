@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Receipt consistency is measurable without attributing an agent failure."""
+"""Measure receipt consistency without attributing failure to an agent."""
 
 import json
 
@@ -38,7 +38,7 @@ def test_cli_scores_bound_status_claim_without_context_attribution(panel, claime
     panel.result["verifier_result"]["rewards"]["reward"] = reward
     records = panel.seal()["records"]
     completed = run_rubric_cli(panel, {"artifacts": records, "native": panel.selection})
-    assert completed.returncode == 1  # Native current-task freshness is still unknown.
+    assert completed.returncode == 1  # Native receipts still do not establish current task freshness.
     report = json.loads(completed.stdout)
     native = report["measurements"]["native"]
     integrity = native["controls"][0]["integrity"]
@@ -133,7 +133,7 @@ def test_real_recorder_to_cli_retains_contradiction_and_recovery(panel, monkeypa
         recorded = task_evidence.run(manifest, "reference", name, receipt, result, None, command)
         assert recorded["status"] == ("behavior_failed" if reward == 0 else "passed")
         if name == "first":
-            recorded["status"] = "passed"  # Explicit planted corruption after real recording.
+            recorded["status"] = "passed"  # Plant corruption after the real recorder writes the receipt.
             receipt.write_text(json.dumps(recorded))
         select(receipt, name, "receipt")
         select(result, name + "-result", "result")

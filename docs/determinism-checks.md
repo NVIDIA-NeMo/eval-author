@@ -193,13 +193,14 @@ Keep selections and output private because they can contain local evidence locat
 
 ### Receipt-consistency checks
 
-An existing `native` selection now adds `receipt_integrity` (`receipt-integrity-v1`)
+An existing `native` selection adds `receipt_integrity` (`receipt-integrity-v1`)
 to the measurement output. Each selected control retains typed consistency,
 execution, behavior, and status-claim results. The report counts contradictions
-per eligible receipt claim, with unknowns and exclusions kept separate. This
-measures contradictory records, not context-rot causation or agent prevention.
-It does not change canonical scores, native closure requirements, or Audit outputs.
-Regenerate saved derived reports to include the new fields; retained receipts do
+per eligible receipt claim and keeps unknowns and exclusions separate. These
+counts do not show whether context rot caused a contradiction or whether a checkpoint prevents it.
+The measurement does not change canonical scores, native closure requirements, or Audit outputs.
+
+Regenerate saved derived reports to include the new fields. Retained receipts do
 not change. The report builder revalidates against the selected source bytes.
 
 Run the credential-free integration panel:
@@ -208,12 +209,12 @@ Run the credential-free integration panel:
 uv run --locked pytest tests/test_rubric_receipt_integrity.py -q
 ```
 
-The recorder-to-CLI case exercises the real receipt producer using scripted
+The recorder-to-CLI case exercises the real receipt producer with scripted
 synthetic native results. It plants a false passing status beside a later valid
 receipt and expects one contradiction in two eligible claims. It also checks
-repeatable output and preserves the original receipts. This is not live Harbor
-or model-performance evidence. Current task freshness remains unknown, so the
-rubric CLI still exits 1 even when all supplied status claims agree.
+that output is repeatable and the original receipts stay unchanged. This is not
+evidence from live Harbor runs or of model performance. Current task freshness
+remains unknown, so the rubric CLI still exits 1 even when all supplied status claims agree.
 
 ## Provenance demo
 

@@ -291,8 +291,8 @@ def project_native(
             contract = manifest["contract"]
             _require(contract["provider"] == "harbor")
             result_path = review.path(receipt["result"])
-            # Missing output may still prove an execution error, but another
-            # selected role must never authorize native-result consumption.
+            # Missing output may still prove an execution error. Selecting a
+            # result under another role must never authorize reading it as a native result.
             if result_path in snapshots:
                 _require(result_path in result_paths)
             if result_path in result_paths:
